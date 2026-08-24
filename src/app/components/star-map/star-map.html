@@ -142,17 +142,10 @@
        NAVIGATION
        ===================================================== -->
 
-  <div class="map-navigation" (click)="$event.stopPropagation()">
-    <button class="map-navigation__up" type="button" (click)="moveCamera('up')">▲</button>
-
-    <button class="map-navigation__left" type="button" (click)="moveCamera('left')">◀</button>
-
-    <button class="map-navigation__center" type="button" (click)="cameraX = 0; cameraY = 0">
-      ●
-    </button>
-
-    <button class="map-navigation__right" type="button" (click)="moveCamera('right')">▶</button>
-
-    <button class="map-navigation__down" type="button" (click)="moveCamera('down')">▼</button>
-  </div>
+  <app-star-map-navigation 
+    [cameraX]="cameraX"
+    [cameraY]="cameraY"
+    (cameraMove)="moveCamera($event)"
+    (centerCamera)="cameraX = 0; cameraY = 0">
+  </app-star-map-navigation>
 </div>

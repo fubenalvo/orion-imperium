@@ -6,6 +6,7 @@ import {
 } from '@angular/core';
 
 import { BackgroundStarsComponent } from '../background-stars/background-stars.component';
+import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 
 interface StarSystem {
   id: number;
@@ -41,7 +42,7 @@ interface Ship {
 
 @Component({
   selector: 'app-star-map',
-  imports: [BackgroundStarsComponent],
+  imports: [BackgroundStarsComponent, StarMapNavigationComponent],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })

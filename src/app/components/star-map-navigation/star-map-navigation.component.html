@@ -1,0 +1,13 @@
+<div class="map-navigation" (click)="$event.stopPropagation()">
+  <button class="map-navigation__up" type="button" (click)="cameraMove.emit('up')">▲</button>
+
+  <button class="map-navigation__left" type="button" (click)="cameraMove.emit('left')">◀</button>
+
+  <button class="map-navigation__center" type="button" (click)="centerCamera.emit()">
+    ●
+  </button>
+
+  <button class="map-navigation__right" type="button" (click)="cameraMove.emit('right')">▶</button>
+
+  <button class="map-navigation__down" type="button" (click)="cameraMove.emit('down')">▼</button>
+</div>
