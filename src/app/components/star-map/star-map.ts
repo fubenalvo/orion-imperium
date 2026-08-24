@@ -1,11 +1,10 @@
 import {
-  ChangeDetectorRef,
   Component,
   HostListener,
-  OnDestroy
+  OnDestroy,
+  ChangeDetectorRef
 } from '@angular/core';
 
-import { BackgroundStarsComponent } from '../background-stars/background-stars.component';
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 
 interface PlanetTile {
@@ -52,7 +51,7 @@ interface Ship {
 
 @Component({
   selector: 'app-star-map',
-  imports: [BackgroundStarsComponent, StarMapNavigationComponent],
+  imports: [StarMapNavigationComponent],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
@@ -70,6 +69,22 @@ export class StarMap implements OnDestroy {
 
   readonly mapWidth = 200;
   readonly mapHeight = 120;
+
+  readonly cellSizeVw = 5;
+  readonly cellSizeVh = 5;
+
+  gridColumns = Math.ceil(this.mapWidth / this.cellSizeVw);
+  gridRows = Math.ceil(this.mapHeight / this.cellSizeVh);
+
+  calculateGridCell(x: number, y: number): { col: number; row: number } {
+    const col = Math.floor(x / this.cellSizeVw);
+    const row = Math.floor(y / this.cellSizeVh);
+
+    return {
+      col,
+      row
+    };
+  }
 
 
   /*

@@ -1,40 +1,43 @@
-﻿<div class="star-map">
+<div class="star-map">
   <!-- =====================================================
        MAP VIEWPORT
        ===================================================== -->
 
   <div class="map-viewport" (click)="onMapClick($event)">
     <!-- ===================================================
-         WORLD
+         WORLD GRID
          =================================================== -->
 
-    <div class="map-world" [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vh)'">
+    <div
+      class="map-world"
+      [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
+      [style.gridTemplateColumns]="'repeat(' + gridColumns + ', 5vw)'"
+      [style.gridTemplateRows]="'repeat(' + gridRows + ', 5vw)'"
+    >
       <!-- =================================================
-           BACKGROUND STARS
-           ================================================= -->
-
-      <app-background-stars></app-background-stars>
-
-      <!-- =================================================
-           STAR SYSTEMS
+           GRID CELLS WITH STAR SYSTEMS
            ================================================= -->
 
       @for (system of starSystems; track system.id) {
-        <button
-          class="star-system"
-          [class.selected]="selectedSystem?.id === system.id"
-          [style.left.%]="system.x"
-          [style.top.%]="system.y"
-          [style.--star-color]="system.color"
-          type="button"
-          (click)="selectSystem(system); $event.stopPropagation()"
+        <div
+          class="system-cell"
+          [style.gridColumn]="calculateGridCell(system.x, system.y).col"
+          [style.gridRow]="calculateGridCell(system.x, system.y).row"
         >
-          <span class="star-system__star"> ✦ </span>
+          <button
+            class="star-system"
+            [class.selected]="selectedSystem?.id === system.id"
+            [style.--star-color]="system.color"
+            type="button"
+            (click)="selectSystem(system); $event.stopPropagation()"
+          >
+            <span class="star-system__star">✦</span>
 
-          <span class="star-system__name">
-            {{ system.name }}
-          </span>
-        </button>
+            <span class="star-system__name">
+              {{ system.name }}
+            </span>
+          </button>
+        </div>
       }
 
       <!-- =================================================
@@ -42,24 +45,28 @@
            ================================================= -->
 
       @for (ship of ships; track ship.id) {
-        <button
-          class="ship"
-          [class.selected]="selectedShip?.id === ship.id"
-          [style.left]="ship.x + 'vw'"
-          [style.top]="ship.y + 'vh'"
-          type="button"
-          (click)="selectShip(ship); $event.stopPropagation()"
+        <div
+          class="ship-cell"
+          [style.gridColumn]="calculateGridCell(ship.x, ship.y).col"
+          [style.gridRow]="calculateGridCell(ship.x, ship.y).row"
         >
-          <span class="ship__icon"> ◆ </span>
+          <button
+            class="ship"
+            [class.selected]="selectedShip?.id === ship.id"
+            type="button"
+            (click)="selectShip(ship); $event.stopPropagation()"
+          >
+            <span class="ship__icon">◆</span>
 
-          <span class="ship__name">
-            {{ ship.name }}
-          </span>
-        </button>
+            <span class="ship__name">
+              {{ ship.name }}
+            </span>
+          </button>
+        </div>
       }
 
       <!-- =================================================
-           PLANET TILES (GRID)
+           PLANET TILES
            ================================================= -->
 
       @if (selectedSystem?.planetsTiles) {
@@ -68,8 +75,6 @@
             <button
               class="planet-tile"
               [class.selected]="selectedPlanetTile?.id === tile.id"
-              [style.left.px]="tile.x + 'px'"
-              [style.top.px]="tile.y + 'px'"
               type="button"
               (click)="selectPlanetTile(tile); $event.stopPropagation()"
             >
@@ -88,12 +93,11 @@
       @if (targetX !== null && targetY !== null && selectedShip) {
         <div
           class="ship-target"
-          [style.left.%]="(targetX / mapWidth) * 100"
-          [style.top.%]="(targetY / mapHeight) * 100"
+          [style.gridColumn]="calculateGridCell(targetX, targetY).col"
+          [style.gridRow]="calculateGridCell(targetX, targetY).row"
         >
-          <span class="ship-target__crosshair"> + </span>
-
-          <span class="ship-target__line"> TARGET </span>
+          <span class="ship-target__crosshair">+</span>
+          <span class="ship-target__line">TARGET</span>
         </div>
       }
     </div>
@@ -105,7 +109,6 @@
 
   <div class="top-hud">
     <div class="game-title">STAR EMPIRES</div>
-
     <div class="turn-info">TURN 001</div>
   </div>
 
@@ -139,7 +142,7 @@
   }
 
   <!-- =====================================================
-       SHIP BUTTONS (TOP-LEFT)
+       SHIP BUTTONS
        ===================================================== -->
 
   <div class="ship-buttons panel-style">
@@ -182,10 +185,11 @@
        NAVIGATION
        ===================================================== -->
 
-  <app-star-map-navigation 
+  <app-star-map-navigation
     [cameraX]="cameraX"
     [cameraY]="cameraY"
     (cameraMove)="moveCamera($event)"
-    (centerCamera)="cameraX = 0; cameraY = 0">
+    (centerCamera)="cameraX = 0; cameraY = 0"
+  >
   </app-star-map-navigation>
 </div>
