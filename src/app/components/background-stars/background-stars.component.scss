@@ -1,0 +1,88 @@
+/* =========================================================
+   BACKGROUND STARS
+   ========================================================= */
+
+.background-stars {
+  position: absolute;
+
+  inset: 0;
+
+  pointer-events: none;
+
+  opacity: 0.7;
+}
+
+
+.star {
+  position: absolute;
+
+  color: var(--color-blue);
+
+  font-family: monospace;
+
+  font-size: 1.2rem;
+
+  text-shadow:
+    0 0 4px rgba(53, 134, 229, 0.7);
+}
+
+
+.star-01 {
+  left: 8%;
+  top: 12%;
+}
+
+.star-02 {
+  left: 18%;
+  top: 38%;
+}
+
+.star-03 {
+  left: 27%;
+  top: 17%;
+}
+
+.star-04 {
+  left: 38%;
+  top: 52%;
+}
+
+.star-05 {
+  left: 47%;
+  top: 9%;
+}
+
+.star-06 {
+  left: 58%;
+  top: 31%;
+}
+
+.star-07 {
+  left: 66%;
+  top: 14%;
+}
+
+.star-08 {
+  left: 74%;
+  top: 47%;
+}
+
+.star-09 {
+  left: 83%;
+  top: 27%;
+}
+
+.star-10 {
+  left: 91%;
+  top: 61%;
+}
+
+.star-11 {
+  left: 32%;
+  top: 82%;
+}
+
+.star-12 {
+  left: 67%;
+  top: 88%;
+}

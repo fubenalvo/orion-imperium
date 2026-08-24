@@ -5,6 +5,8 @@ import {
   OnDestroy
 } from '@angular/core';
 
+import { BackgroundStarsComponent } from '../background-stars/background-stars.component';
+
 interface StarSystem {
   id: number;
   name: string;
@@ -39,7 +41,7 @@ interface Ship {
 
 @Component({
   selector: 'app-star-map',
-  imports: [],
+  imports: [BackgroundStarsComponent],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
