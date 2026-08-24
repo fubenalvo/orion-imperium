@@ -8,6 +8,15 @@ import {
 import { BackgroundStarsComponent } from '../background-stars/background-stars.component';
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 
+interface PlanetTile {
+  id: number;
+  index: number;
+  x: number;
+  y: number;
+  xOffset: number;
+  yOffset: number;
+}
+
 interface StarSystem {
   id: number;
   name: string;
@@ -15,6 +24,7 @@ interface StarSystem {
   y: number;
   planets: number;
   color: string;
+  planetsTiles: PlanetTile[];
 }
 
 interface Ship {
@@ -88,7 +98,17 @@ export class StarMap implements OnDestroy {
       x: 35,
       y: 25,
       planets: 8,
-      color: '#f3f3f3'
+      color: '#f3f3f3',
+      planetsTiles: [
+        { id: 1, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 2, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 3, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 4, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 5, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 6, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 7, index: 7, x: 0, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 8, index: 8, x: 20, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -97,7 +117,14 @@ export class StarMap implements OnDestroy {
       x: 78,
       y: 18,
       planets: 5,
-      color: '#5ca8ff'
+      color: '#5ca8ff',
+      planetsTiles: [
+        { id: 9, index: 1, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 10, index: 2, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 11, index: 3, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 12, index: 4, x: -40, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 13, index: 5, x: -20, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -106,7 +133,15 @@ export class StarMap implements OnDestroy {
       x: 125,
       y: 35,
       planets: 6,
-      color: '#f3f3f3'
+      color: '#f3f3f3',
+      planetsTiles: [
+        { id: 14, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 15, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 16, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 17, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 18, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 19, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -115,7 +150,12 @@ export class StarMap implements OnDestroy {
       x: 165,
       y: 22,
       planets: 3,
-      color: '#39b8a8'
+      color: '#39b8a8',
+      planetsTiles: [
+        { id: 20, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 21, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 22, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -124,7 +164,16 @@ export class StarMap implements OnDestroy {
       x: 55,
       y: 65,
       planets: 7,
-      color: '#5ca8ff'
+      color: '#5ca8ff',
+      planetsTiles: [
+        { id: 23, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 24, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 25, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 26, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 27, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 28, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 29, index: 7, x: 0, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -133,7 +182,13 @@ export class StarMap implements OnDestroy {
       x: 105,
       y: 75,
       planets: 4,
-      color: '#f3f3f3'
+      color: '#f3f3f3',
+      planetsTiles: [
+        { id: 30, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 31, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 32, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 33, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -142,7 +197,18 @@ export class StarMap implements OnDestroy {
       x: 155,
       y: 68,
       planets: 9,
-      color: '#d65757'
+      color: '#d65757',
+      planetsTiles: [
+        { id: 34, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 35, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 36, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 37, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 38, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 39, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 40, index: 7, x: 0, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 41, index: 8, x: 20, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 42, index: 9, x: 40, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -151,7 +217,11 @@ export class StarMap implements OnDestroy {
       x: 25,
       y: 95,
       planets: 2,
-      color: '#39b8a8'
+      color: '#39b8a8',
+      planetsTiles: [
+        { id: 43, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 44, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -160,7 +230,14 @@ export class StarMap implements OnDestroy {
       x: 90,
       y: 105,
       planets: 5,
-      color: '#5ca8ff'
+      color: '#5ca8ff',
+      planetsTiles: [
+        { id: 45, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 46, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 47, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 48, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 49, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     },
 
     {
@@ -169,7 +246,15 @@ export class StarMap implements OnDestroy {
       x: 175,
       y: 100,
       planets: 6,
-      color: '#d65757'
+      color: '#d65757',
+      planetsTiles: [
+        { id: 50, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 51, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 52, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 53, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 54, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
+        { id: 55, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
+      ],
     }
 
   ];
@@ -215,6 +300,8 @@ export class StarMap implements OnDestroy {
   selectedSystem: StarSystem | null = null;
 
   selectedShip: Ship | null = null;
+
+  selectedPlanetTile: PlanetTile | null = null;
 
 
   /*
@@ -484,6 +571,21 @@ export class StarMap implements OnDestroy {
 
     this.targetX = x;
     this.targetY = y;
+
+  }
+
+
+  /*
+   * -------------------------------------------------------
+   * SELECT PLANET TILE
+   * -------------------------------------------------------
+   */
+
+  selectPlanetTile(
+    tile: PlanetTile
+  ): void {
+
+    this.selectedPlanetTile = tile;
 
   }
 

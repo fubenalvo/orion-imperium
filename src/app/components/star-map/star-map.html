@@ -59,6 +59,29 @@
       }
 
       <!-- =================================================
+           PLANET TILES (GRID)
+           ================================================= -->
+
+      @if (selectedSystem?.planetsTiles) {
+        <div class="planet-tiles-container">
+          @for (tile of selectedSystem.planetsTiles; track tile.id) {
+            <button
+              class="planet-tile"
+              [class.selected]="selectedPlanetTile?.id === tile.id"
+              [style.left.px]="tile.x + 'px'"
+              [style.top.px]="tile.y + 'px'"
+              type="button"
+              (click)="selectPlanetTile(tile); $event.stopPropagation()"
+            >
+              <span class="planet-tile__inner">
+                {{ tile.index }}
+              </span>
+            </button>
+          }
+        </div>
+      }
+
+      <!-- =================================================
            SHIP DESTINATION
            ================================================= -->
 
