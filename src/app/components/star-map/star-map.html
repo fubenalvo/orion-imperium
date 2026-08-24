@@ -1,4 +1,4 @@
-<div class="star-map">
+﻿<div class="star-map">
   <!-- =====================================================
        MAP VIEWPORT
        ===================================================== -->
@@ -114,6 +114,23 @@
       </div>
     </div>
   }
+
+  <!-- =====================================================
+       SHIP BUTTONS (TOP-LEFT)
+       ===================================================== -->
+
+  <div class="ship-buttons panel-style">
+    @for (ship of ships; track ship.id) {
+      <button
+        class="ship-btn"
+        [class.selected]="selectedShip?.id === ship.id"
+        type="button"
+        (click)="selectShip(ship); $event.stopPropagation()"
+      >
+        {{ ship.name }}
+      </button>
+    }
+  </div>
 
   <!-- =====================================================
        SELECTED SYSTEM INFO

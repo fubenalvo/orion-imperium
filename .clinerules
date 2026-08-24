@@ -1,0 +1,17 @@
+# CRITICAL CLINELULES FOR WINDOWS & LOCAL LLM
+
+## ABSOLUTE TERMINAL RULES (STRICTLY ENFORCED)
+- NEVER use `&&` in terminal commands. It crashes PowerShell 5.1.
+- NEVER run build, test, or server commands (`npm run build`, `ng build`, `ng serve`, `npm start`). The user handles builds manually.
+- NEVER run `cd` combined with other commands. Just execute commands from the current directory.
+- NEVER use Linux commands (`ls`, `rm`, `cat`, `touch`, `grep`, `export`). Use Windows/PowerShell equivalents (`dir`, `Remove-Item`, `Get-Content`, `Select-String`).
+
+## COMMAND SYNTAX RULES
+- Separate sequential commands with `;` instead of `&&`.
+- Always use backslashes `\` for file paths, never forward slashes `/`.
+- Prefer direct file editing (write_to_file) over running terminal commands to view or change code.
+
+## CODE STANDARDS
+- **Angular:** Use Standalone components, Signals, and modern control flow (`@if`, `@for`).
+- **React:** Use Functional Components with Hooks.
+- **Context Protection:** NEVER read or search inside `node_modules`, `dist`, `.git`, or `.angular`.
