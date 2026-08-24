@@ -1,0 +1,774 @@
+/* =========================================================
+   STAR EMPIRES
+   Global Styles
+   Pixel / Retro Sci-Fi UI
+   ========================================================= */
+
+
+/* =========================================================
+   PIXELIFY SANS
+   ========================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap');
+
+
+/* =========================================================
+   COLOR PALETTE
+   ========================================================= */
+
+:root {
+
+  /* -------------------------------------------------------
+     Base
+     ------------------------------------------------------- */
+
+  --color-black: #000000;
+
+  --color-background: #050b10;
+
+  --color-background-dark: #071118;
+
+
+  /* -------------------------------------------------------
+     Main text
+     ------------------------------------------------------- */
+
+  --color-text: #3586e5;
+
+  --color-text-bright: #5ca8ff;
+
+  --color-text-dim: #235a9c;
+
+  --color-text-disabled: #18385f;
+
+
+  /* -------------------------------------------------------
+     Blue
+     ------------------------------------------------------- */
+
+  --color-blue-dark: #12315c;
+
+  --color-blue: #3586e5;
+
+  --color-blue-light: #5ca8ff;
+
+  --color-blue-bright: #8cc4ff;
+
+
+  /* -------------------------------------------------------
+     Turquoise
+     ------------------------------------------------------- */
+
+  --color-turquoise-dark: #0b4940;
+
+  --color-turquoise: #167c70;
+
+  --color-turquoise-light: #39b8a8;
+
+  --color-turquoise-bright: #6de5d3;
+
+
+  /* -------------------------------------------------------
+     Buttons
+     ------------------------------------------------------- */
+
+  --button-light: #f3f3f3;
+
+  --button-dark: #0b4940;
+
+  --button-middle: #508d85;
+
+  --button-border: #000000;
+
+  --button-text: #000000;
+
+  --button-text-hover: #ffffff;
+
+
+  /* -------------------------------------------------------
+     Panels
+     ------------------------------------------------------- */
+
+  --panel-background: #07151d;
+
+  --panel-background-dark: #040b10;
+
+  --panel-background-light: #102a34;
+
+  --panel-border: #3586e5;
+
+  --panel-border-dark: #12315c;
+
+
+  /* -------------------------------------------------------
+     Status
+     ------------------------------------------------------- */
+
+  --color-success: #39c96f;
+
+  --color-warning: #e6d85c;
+
+  --color-danger: #d65757;
+}
+
+
+/* =========================================================
+   GLOBAL RESET
+   ========================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+
+  margin: 0;
+  padding: 0;
+
+  overflow: hidden;
+
+  background: var(--color-black);
+
+  color: var(--color-text);
+
+  font-family: 'Pixelify Sans', sans-serif;
+
+  font-weight: 400;
+
+  image-rendering: pixelated;
+}
+
+
+body {
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
+
+/* =========================================================
+   ANGULAR ROOT
+   ========================================================= */
+
+app-root {
+  display: block;
+
+  width: 100vw;
+  height: 100dvh;
+}
+
+
+/* =========================================================
+   GAME VIEWPORT
+   ========================================================= */
+
+.game-viewport {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  width: min(
+    100vw,
+    calc(100dvh * 16 / 9)
+  );
+
+  height: min(
+    100dvh,
+    calc(100vw * 9 / 16)
+  );
+
+  transform: translate(-50%, -50%);
+
+  aspect-ratio: 16 / 9;
+
+  overflow: hidden;
+
+  background: var(--color-background);
+
+  color: var(--color-text);
+}
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+
+button,
+.button-style {
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  min-height: 3em;
+
+  padding: 0.5em 1.5em;
+
+  border: 2px solid var(--button-border);
+
+  border-radius: 0;
+
+  background: linear-gradient(
+    135deg,
+
+    var(--button-light) 0%,
+    var(--button-light) 2%,
+
+    #b9c9c7 11%,
+
+    var(--button-middle) 65%,
+
+    var(--button-dark) 100%
+  );
+
+  color: var(--button-text);
+
+  font-family: 'Pixelify Sans', sans-serif;
+
+  font-size: 1em;
+
+  font-weight: 600;
+
+  line-height: 1;
+
+  letter-spacing: 0.08em;
+
+  text-transform: uppercase;
+
+  text-decoration: none;
+
+  cursor: pointer;
+
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.45),
+    inset -3px -3px 0 rgba(0, 0, 0, 0.45);
+
+  transition:
+    filter 70ms linear,
+    transform 40ms linear,
+    box-shadow 40ms linear;
+}
+
+
+/* =========================================================
+   BUTTON HOVER
+   ========================================================= */
+
+button:hover,
+.button-style:hover {
+  color: var(--button-text-hover);
+
+  filter: brightness(1.15);
+
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.65),
+    inset -3px -3px 0 rgba(0, 0, 0, 0.5),
+
+    0 0 8px rgba(53, 134, 229, 0.35);
+}
+
+
+/* =========================================================
+   BUTTON ACTIVE / PRESSED
+   ========================================================= */
+
+button:active,
+.button-style:active {
+  transform: translate(1px, 1px);
+
+  filter: brightness(0.9);
+
+  box-shadow:
+    inset 3px 3px 0 rgba(0, 0, 0, 0.4),
+    inset -2px -2px 0 rgba(255, 255, 255, 0.15);
+}
+
+
+/* =========================================================
+   BUTTON FOCUS
+   ========================================================= */
+
+button:focus-visible,
+.button-style:focus-visible {
+  outline: 2px solid var(--color-blue-bright);
+
+  outline-offset: 2px;
+}
+
+
+/* =========================================================
+   BUTTON DISABLED
+   ========================================================= */
+
+button:disabled,
+.button-style:disabled,
+button.disabled,
+.button-style.disabled {
+  color: var(--color-text-disabled);
+
+  background: #182326;
+
+  cursor: not-allowed;
+
+  filter: grayscale(0.8);
+
+  box-shadow:
+    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.5);
+}
+
+
+/* =========================================================
+   TEXT INPUTS
+   ========================================================= */
+
+input[type='text'],
+input[type='number'],
+input[type='password'],
+input[type='email'],
+input[type='search'],
+textarea,
+select {
+  width: 100%;
+
+  min-height: 2.5em;
+
+  padding: 0.4em 0.6em;
+
+  border: 2px solid var(--color-blue);
+
+  border-radius: 0;
+
+  outline: none;
+
+  /*
+   * Inputs are completely black.
+   */
+
+  background: var(--color-black);
+
+  color: var(--color-text);
+
+  font-family: 'Pixelify Sans', sans-serif;
+
+  font-size: 1em;
+
+  box-shadow:
+
+    inset 2px 2px 0 rgba(0, 0, 0, 0.9),
+
+    inset -1px -1px 0 rgba(53, 134, 229, 0.15);
+}
+
+
+/* ---------------------------------------------------------
+   Input focus
+   --------------------------------------------------------- */
+
+input[type='text']:focus,
+input[type='number']:focus,
+input[type='password']:focus,
+input[type='email']:focus,
+input[type='search']:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-blue-bright);
+
+  box-shadow:
+
+    inset 2px 2px 0 rgba(0, 0, 0, 0.9),
+
+    0 0 8px rgba(53, 134, 229, 0.25);
+}
+
+
+/* ---------------------------------------------------------
+   Placeholder
+   --------------------------------------------------------- */
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-dim);
+
+  opacity: 1;
+}
+
+
+/* =========================================================
+   CHECKBOX
+   ========================================================= */
+
+input[type='checkbox'] {
+  appearance: none;
+
+  position: relative;
+
+  width: 1.25em;
+  height: 1.25em;
+
+  margin: 0;
+
+  flex: 0 0 auto;
+
+  border: 2px solid var(--color-blue);
+
+  border-radius: 0;
+
+  background: var(--color-black);
+
+  cursor: pointer;
+}
+
+
+input[type='checkbox']:hover {
+  border-color: var(--color-blue-bright);
+}
+
+
+input[type='checkbox']:checked {
+  border-color: var(--color-blue-bright);
+
+  background: var(--color-black);
+}
+
+
+input[type='checkbox']:checked::after {
+  content: '';
+
+  position: absolute;
+
+  left: 22%;
+  top: 4%;
+
+  width: 38%;
+  height: 68%;
+
+  border-right: 3px solid var(--color-blue-bright);
+
+  border-bottom: 3px solid var(--color-blue-bright);
+
+  transform: rotate(45deg);
+}
+
+
+/* =========================================================
+   RADIO
+   ========================================================= */
+
+input[type='radio'] {
+  appearance: none;
+
+  position: relative;
+
+  width: 1.25em;
+  height: 1.25em;
+
+  margin: 0;
+
+  flex: 0 0 auto;
+
+  border: 2px solid var(--color-blue);
+
+  border-radius: 0;
+
+  background: var(--color-black);
+
+  cursor: pointer;
+}
+
+
+input[type='radio']:hover {
+  border-color: var(--color-blue-bright);
+}
+
+
+input[type='radio']:checked {
+  border-color: var(--color-blue-bright);
+
+  background: var(--color-black);
+}
+
+
+input[type='radio']:checked::after {
+  content: '';
+
+  position: absolute;
+
+  left: 4px;
+  top: 4px;
+  right: 4px;
+  bottom: 4px;
+
+  background: var(--color-blue-bright);
+}
+
+
+/* =========================================================
+   LABELS
+   ========================================================= */
+
+label {
+  color: var(--color-text);
+
+  font-family: 'Pixelify Sans', sans-serif;
+
+  cursor: pointer;
+}
+
+
+.checkbox-style,
+.radio-style {
+  display: inline-flex;
+
+  align-items: center;
+
+  gap: 0.6em;
+
+  color: var(--color-text);
+
+  cursor: pointer;
+}
+
+
+.checkbox-style:hover,
+.radio-style:hover {
+  color: var(--color-text-bright);
+}
+
+
+/* =========================================================
+   SCI-FI PANEL
+   ========================================================= */
+
+.panel-style {
+  position: relative;
+
+  border: 2px solid var(--panel-border);
+
+  border-radius: 0;
+
+  background: var(--panel-background);
+
+  color: var(--color-text);
+
+  box-shadow:
+
+    inset 2px 2px 0 rgba(53, 134, 229, 0.08),
+
+    inset -2px -2px 0 rgba(0, 0, 0, 0.8);
+}
+
+
+/* =========================================================
+   PANEL TITLE
+   ========================================================= */
+
+.panel-style__title {
+  padding: 0.45em 0.8em;
+
+  border-bottom: 2px solid var(--panel-border);
+
+  background: var(--panel-background-dark);
+
+  color: var(--color-blue-light);
+
+  font-size: 1em;
+
+  font-weight: 600;
+
+  letter-spacing: 0.08em;
+
+  text-transform: uppercase;
+}
+
+
+/* =========================================================
+   SCI-FI HEADER
+   ========================================================= */
+
+.scifi-header {
+  display: flex;
+
+  align-items: center;
+
+  min-height: 2.5em;
+
+  padding: 0.4em 0.8em;
+
+  border-top: 2px solid var(--panel-border);
+
+  border-bottom: 2px solid var(--panel-border);
+
+  background: var(--panel-background-dark);
+
+  color: var(--color-blue-light);
+
+  font-size: 1em;
+
+  font-weight: 600;
+
+  letter-spacing: 0.1em;
+
+  text-transform: uppercase;
+}
+
+
+/* =========================================================
+   PIXEL DIVIDER
+   ========================================================= */
+
+.pixel-divider {
+  width: 100%;
+
+  height: 2px;
+
+  margin: 1em 0;
+
+  background: var(--color-blue);
+}
+
+
+/* =========================================================
+   RANGE SLIDER
+   ========================================================= */
+
+input[type='range'] {
+  appearance: none;
+
+  width: 100%;
+
+  height: 1.5em;
+
+  background: transparent;
+
+  cursor: pointer;
+}
+
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+
+  border: 2px solid var(--color-blue);
+
+  background: var(--color-black);
+}
+
+
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+
+  width: 14px;
+  height: 22px;
+
+  margin-top: -9px;
+
+  border: 2px solid var(--color-blue-bright);
+
+  border-radius: 0;
+
+  background: var(--color-turquoise-dark);
+}
+
+
+input[type='range']::-moz-range-track {
+  height: 6px;
+
+  border: 2px solid var(--color-blue);
+
+  background: var(--color-black);
+}
+
+
+input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 22px;
+
+  border: 2px solid var(--color-blue-bright);
+
+  border-radius: 0;
+
+  background: var(--color-turquoise-dark);
+}
+
+
+/* =========================================================
+   CRT SCANLINES
+   ========================================================= */
+
+.crt-overlay {
+  pointer-events: none;
+
+  position: absolute;
+
+  inset: 0;
+
+  z-index: 9999;
+
+  background:
+    repeating-linear-gradient(
+      to bottom,
+
+      rgba(255, 255, 255, 0.02) 0,
+      rgba(255, 255, 255, 0.02) 1px,
+
+      transparent 1px,
+      transparent 4px
+    );
+
+  opacity: 0.25;
+}
+
+
+/* =========================================================
+   TEXT SELECTION
+   ========================================================= */
+
+::selection {
+  background: var(--color-blue);
+
+  color: var(--color-black);
+}
+
+
+/* =========================================================
+   SCROLLBARS
+   ========================================================= */
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+
+  background: var(--color-black);
+}
+
+
+::-webkit-scrollbar-track {
+  background: var(--color-black);
+
+  border-left: 2px solid var(--panel-border-dark);
+}
+
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid var(--color-black);
+
+  background: var(--color-blue-dark);
+}
+
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-blue);
+}

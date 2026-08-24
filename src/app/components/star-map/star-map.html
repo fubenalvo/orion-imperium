@@ -1,0 +1,297 @@
+<div class="star-map">
+
+  <!-- =====================================================
+       MAP VIEWPORT
+       ===================================================== -->
+
+  <div
+    class="map-viewport"
+    (click)="onMapClick($event)"
+  >
+
+    <!-- ===================================================
+         WORLD
+         =================================================== -->
+
+    <div
+      class="map-world"
+      [style.transform]="
+        'translate(' +
+        (-cameraX) +
+        'vw, ' +
+        (-cameraY) +
+        'vh)'
+      "
+    >
+
+      <!-- =================================================
+           BACKGROUND STARS
+           ================================================= -->
+
+      <div class="background-stars">
+
+        <span class="star star-01">·</span>
+        <span class="star star-02">✦</span>
+        <span class="star star-03">·</span>
+        <span class="star star-04">✧</span>
+        <span class="star star-05">·</span>
+        <span class="star star-06">✦</span>
+        <span class="star star-07">·</span>
+        <span class="star star-08">✧</span>
+        <span class="star star-09">·</span>
+        <span class="star star-10">✦</span>
+        <span class="star star-11">·</span>
+        <span class="star star-12">·</span>
+
+      </div>
+
+
+      <!-- =================================================
+           STAR SYSTEMS
+           ================================================= -->
+
+      @for (system of starSystems; track system.id) {
+
+        <button
+          class="star-system"
+          [class.selected]="selectedSystem?.id === system.id"
+          [style.left.%]="system.x"
+          [style.top.%]="system.y"
+          [style.--star-color]="system.color"
+          type="button"
+          (click)="
+            selectSystem(system);
+            $event.stopPropagation()
+          "
+        >
+
+          <span class="star-system__star">
+            ✦
+          </span>
+
+          <span class="star-system__name">
+            {{ system.name }}
+          </span>
+
+        </button>
+
+      }
+
+
+      <!-- =================================================
+           SHIPS
+           ================================================= -->
+
+        @for (ship of ships; track ship.id) {
+
+        <button
+            class="ship"
+            [class.selected]="selectedShip?.id === ship.id"
+            [style.left]="ship.x + 'vw'"
+            [style.top]="ship.y + 'vh'"
+            type="button"
+            (click)="
+            selectShip(ship);
+            $event.stopPropagation()
+            "
+        >
+
+            <span class="ship__icon">
+            ◆
+            </span>
+
+            <span class="ship__name">
+            {{ ship.name }}
+            </span>
+
+        </button>
+
+        }
+
+
+      <!-- =================================================
+           SHIP DESTINATION
+           ================================================= -->
+
+      @if (
+        targetX !== null &&
+        targetY !== null &&
+        selectedShip
+      ) {
+
+        <div
+          class="ship-target"
+          [style.left.%]="
+            targetX / mapWidth * 100
+          "
+          [style.top.%]="
+            targetY / mapHeight * 100
+          "
+        >
+
+          <span class="ship-target__crosshair">
+            +
+          </span>
+
+          <span class="ship-target__line">
+            TARGET
+          </span>
+
+        </div>
+
+      }
+
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       TOP HUD
+       ===================================================== -->
+
+  <div class="top-hud">
+
+    <div class="game-title">
+      STAR EMPIRES
+    </div>
+
+    <div class="turn-info">
+      TURN 001
+    </div>
+
+  </div>
+
+
+  <!-- =====================================================
+       SELECTED SHIP INFO
+       ===================================================== -->
+
+  @if (selectedShip) {
+
+    <div class="ship-info panel-style">
+
+      <div class="panel-style__title">
+        {{ selectedShip.name }}
+      </div>
+
+      <div class="system-info__content">
+
+        <div>
+          STATUS:
+
+          @if (
+            selectedShip.targetX !== null
+          ) {
+            MOVING
+          } @else {
+            IDLE
+          }
+
+        </div>
+
+        <div>
+          SPEED:
+          {{ selectedShip.speed }}
+        </div>
+
+      </div>
+
+    </div>
+
+  }
+
+
+  <!-- =====================================================
+       SELECTED SYSTEM INFO
+       ===================================================== -->
+
+  @if (selectedSystem) {
+
+    <div class="system-info panel-style">
+
+      <div class="panel-style__title">
+        {{ selectedSystem.name }}
+      </div>
+
+      <div class="system-info__content">
+
+        <div>
+          PLANETS:
+          {{ selectedSystem.planets }}
+        </div>
+
+        <div>
+          STATUS:
+          UNEXPLORED
+        </div>
+
+      </div>
+
+      <button
+        type="button"
+        (click)="$event.stopPropagation()"
+      >
+        ENTER SYSTEM
+      </button>
+
+    </div>
+
+  }
+
+
+  <!-- =====================================================
+       NAVIGATION
+       ===================================================== -->
+
+  <div
+    class="map-navigation"
+    (click)="$event.stopPropagation()"
+  >
+
+    <button
+      class="map-navigation__up"
+      type="button"
+      (click)="moveCamera('up')"
+    >
+      ▲
+    </button>
+
+    <button
+      class="map-navigation__left"
+      type="button"
+      (click)="moveCamera('left')"
+    >
+      ◀
+    </button>
+
+    <button
+      class="map-navigation__center"
+      type="button"
+      (click)="
+        cameraX = 0;
+        cameraY = 0
+      "
+    >
+      ●
+    </button>
+
+    <button
+      class="map-navigation__right"
+      type="button"
+      (click)="moveCamera('right')"
+    >
+      ▶
+    </button>
+
+    <button
+      class="map-navigation__down"
+      type="button"
+      (click)="moveCamera('down')"
+    >
+      ▼
+    </button>
+
+  </div>
+
+</div>
