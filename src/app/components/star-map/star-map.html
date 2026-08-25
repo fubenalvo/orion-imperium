@@ -129,6 +129,25 @@
             SPEED:
             {{ selectedFleet.speed }}
           </div>
+
+          <div class="fleet-actions">
+            <button
+              type="button"
+              class="action-btn move-btn"
+              [class.active]="selectedFleetAction === 'move'"
+              (click)="setFleetAction('move'); $event.stopPropagation()"
+            >
+              MOVE
+            </button>
+            <button
+              type="button"
+              class="action-btn attack-btn"
+              [class.active]="selectedFleetAction === 'attack'"
+              (click)="setFleetAction('attack'); $event.stopPropagation()"
+            >
+              ATTACK
+            </button>
+          </div>
         </div>
       </div>
     }

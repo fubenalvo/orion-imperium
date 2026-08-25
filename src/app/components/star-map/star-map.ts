@@ -360,6 +360,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   selectedSystem: StarSystem | null = null;
   selectedFleet: Fleet | null = null;
   selectedPlanetTile: PlanetTile | null = null;
+  selectedFleetAction: 'move' | 'attack' | null = null;
 
   targetX: number | null = null;
   targetY: number | null = null;
@@ -598,8 +599,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   deselectFleet(): void {
     this.selectedFleet = null;
+    this.selectedFleetAction = null;
     this.targetX = null;
     this.targetY = null;
+  }
+
+  setFleetAction(action: 'move' | 'attack'): void {
+    this.selectedFleetAction = action;
   }
 
   deselectSystem(): void {
@@ -731,10 +737,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     /*
-     * No selected fleet = no movement order.
+     * No selected fleet or no selected action = no movement order.
      */
 
-    if (!this.selectedFleet) {
+    if (!this.selectedFleet || !this.selectedFleetAction) {
       return;
     }
 
@@ -773,6 +779,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
      */
 
     this.moveSelectedFleet(targetTile.x, targetTile.y);
+
+    if (this.selectedFleet && this.selectedFleetAction) {
+      this.selectedFleetAction = null;
+    }
   }
 
   onSystemGridClick(event: MouseEvent): void {
@@ -784,7 +794,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (
       !this.selectedFleet ||
       !this.selectedSystem ||
-      this.selectedFleet.systemId !== this.selectedSystem.id
+      this.selectedFleet.systemId !== this.selectedSystem.id ||
+      !this.selectedFleetAction
     ) {
       return;
     }
@@ -813,13 +824,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   selectSystem(system: StarSystem): void {
-    if (this.selectedFleet && this.currentView === 'map') {
+    if (this.selectedFleet && this.currentView === 'map' && this.selectedFleetAction === 'move') {
       const targetTile = this.getTileCenter(system.x, system.y);
       this.moveSelectedFleet(targetTile.x, targetTile.y);
     }
 
     this.selectedSystem = system;
     this.selectedFleet = null;
+    this.selectedFleetAction = null;
     this.selectedPlanetTile = null;
   }
 
