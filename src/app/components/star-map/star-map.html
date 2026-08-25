@@ -88,7 +88,7 @@
        ===================================================== -->
 
     <div class="top-hud">
-      <div class="game-title">STAR EMPIRES</div>
+      <div class="game-title">STAR MAP</div>
       <div class="turn-info">TURN 001</div>
     </div>
 
@@ -176,6 +176,10 @@
     </app-star-map-navigation>
   } @else {
     <div class="system-view">
+      <div class="system-view-hud">
+        <div class="game-title">{{ selectedSystem?.name }}</div>
+      </div>
+
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
 
       <div class="system-grid" (click)="onSystemGridClick($event)">

@@ -103,12 +103,12 @@
 }
 
 .star-system.selected .star-system__star {
-  color: var(--color-blue-bright);
+  //color: var(--color-blue-bright);
 
   text-shadow:
-    0 0 5px var(--color-blue-bright),
     0 0 15px var(--color-blue-bright),
-    0 0 25px var(--color-blue);
+    0 0 25px var(--color-blue-bright),
+    0 0 35px var(--color-blue);
 }
 
 .star-system.selected .star-system__name {
