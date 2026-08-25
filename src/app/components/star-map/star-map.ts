@@ -384,6 +384,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  deselectShip(): void {
+    this.selectedShip = null;
+    this.targetX = null;
+    this.targetY = null;
+  }
+
+  deselectSystem(): void {
+    this.selectedSystem = null;
+  }
+
+  deselectPlanetTile(): void {
+    this.selectedPlanetTile = null;
+  }
+
   /*
    * -------------------------------------------------------
    * GIVE MOVEMENT ORDER

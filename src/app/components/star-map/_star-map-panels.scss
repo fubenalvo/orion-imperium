@@ -62,20 +62,14 @@
 
 .ship-buttons {
   position: absolute;
-
   top: 60px;
-
   left: 10px;
-
   width: 180px;
-
   max-height: calc(100vh - 80px);
-
   overflow-y: auto;
-
   overflow-x: hidden;
-
   z-index: 50;
+  border: 0;
 }
 
 .ship-btn {
