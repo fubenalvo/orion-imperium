@@ -736,11 +736,28 @@
     width: 3vw;
     height: 3vw;
     border-radius: 50%;
-    background: radial-gradient(circle at 100% 50%, var(--planet-color), #111);
+
+    /* 1st layer: surface noise (animated)
+       2nd layer: spherical shading gradient */
+    background-image:
+      url('/planet-surface-noise.png'),
+      radial-gradient(circle at 100% 50%, var(--planet-color), #111);
+
+    background-size:
+      200% 100%,
+      100% 100%;
+    background-blend-mode: overlay, normal;
+    background-position:
+      0% 0%,
+      0% 0%;
+
     box-shadow:
       inset 11px 0 8px rgba(0, 0, 0, 0.5),
       0 0 10px rgba(0, 0, 0, 0.2);
     position: absolute;
+    overflow: hidden;
+
+    animation: rotate-planet-surface 15s linear infinite;
   }
 
   .planet-name {
@@ -758,29 +775,54 @@
   }
 
   &.ice .planet-body {
-    background: radial-gradient(circle at 100% 50%, rgb(187, 218, 218), #111);
+    --planet-color: rgb(187, 218, 218);
   }
   &.venuslike .planet-body {
-    background: radial-gradient(circle at 100% 50%, rgb(161, 103, 27), #111);
-    width: 1.5vw;
-    height: 1.5vw;
+    --planet-color: rgb(161, 103, 27);
   }
   &.desert .planet-body {
-    background: radial-gradient(circle at 100% 50%, rgb(145, 132, 107), #111);
-    width: 1.5vw;
-    height: 1.5vw;
+    --planet-color: rgb(145, 132, 107);
+  }
+  &.earthlike .planet-body {
+    --planet-color: rgb(67, 67, 145);
+  }
+  &.marslike .planet-body {
+    --planet-color: rgb(94, 26, 26);
   }
 
-  &.earthlike .planet-body {
-    background: radial-gradient(circle at 30% 30%, rgb(67, 67, 145), #111);
+  // Size classes
+  &.huge .planet-body {
+    width: 3.1vw;
+    height: 3.1vw;
+  }
+  &.big .planet-body {
+    width: 2.9vw;
+    height: 2.9vw;
+  }
+  &.medium .planet-body {
+    width: 2.5vw;
+    height: 2.5vw;
+  }
+  &.small .planet-body {
     width: 2vw;
     height: 2vw;
   }
-
-  &.marslike .planet-body {
-    background: radial-gradient(circle at 30% 30%, rgb(94, 26, 26), #111);
+  &.tiny .planet-body {
     width: 1.5vw;
     height: 1.5vw;
+  }
+}
+
+@keyframes rotate-planet-surface {
+  0% {
+    background-position:
+      0% 0%,
+      0% 0%;
+  }
+  100% {
+    background-position:
+      200% 0%,
+      0% 0%;
   }
 }
 

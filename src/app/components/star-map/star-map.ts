@@ -7,7 +7,7 @@ import {
   AfterViewInit,
   OnInit,
 } from '@angular/core';
-import { UpperCasePipe } from '@angular/common';
+import { NgClass, UpperCasePipe } from '@angular/common';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 
@@ -17,15 +17,18 @@ interface PlanetBuilding {
 }
 
 type PlanetType = 'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert';
+type PlanetSize = 'huge' | 'big' | 'medium' | 'small' | 'tiny';
 
 interface PlanetTile {
   id: number;
   index: number;
+  name?: string;
   x: number;
   y: number;
   xOffset: number;
   yOffset: number;
   type?: PlanetType;
+  size?: PlanetSize;
   population?: number;
   buildings?: PlanetBuilding[];
 }
@@ -74,7 +77,7 @@ interface Ship {
 
 @Component({
   selector: 'app-star-map',
-  imports: [StarMapNavigationComponent, UpperCasePipe],
+  imports: [StarMapNavigationComponent, NgClass, UpperCasePipe],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
@@ -429,6 +432,64 @@ export class StarMap implements OnInit, AfterViewInit, OnDestroy {
       'ice',
       'desert',
     ];
+    const planetSizes: PlanetSize[] = ['huge', 'big', 'medium', 'small', 'tiny'];
+    const planetNames = [
+      'Asterion',
+      'Veloria',
+      'Nyxara',
+      'Eldros',
+      'Kaelith',
+      'Thalassa',
+      'Vireon',
+      'Orinth',
+      'Caldera',
+      'Zephyria',
+      'Nerevos',
+      'Auralis',
+      'Dravik',
+      'Solmara',
+      'Kyrion',
+      'Ebonreach',
+      'Lunaris',
+      'Voss Prime',
+      'Miralune',
+      'Arkenfall',
+      'Cindral',
+      'Noctyra',
+      'Halcyon',
+      'Brighthold',
+      'Xandros',
+      'Ilyria',
+      'Morvain',
+      'Celestia',
+      'Ravanna',
+      'Eidolon',
+      'Sablemere',
+      'Aetheris',
+      'Korrath',
+      'Ydris',
+      'Veyra',
+      'Oberyn',
+      'Marrowind',
+      'Seraphis',
+      'Duskfall',
+      'Lythos',
+      'Amarion',
+      'Cryos',
+      'Vaelora',
+      'Emberlyn',
+      'Draxos',
+      'Sylvara',
+      'Tenebris',
+      'Aurion',
+      'Mistral',
+      'Obsidia',
+      'Elyndor',
+      'Frosthaven',
+      'Kharon',
+      'Starfall',
+      'Vespera',
+    ];
     const buildingNames = [
       'Bank',
       'Spaceship Factory',
@@ -439,8 +500,11 @@ export class StarMap implements OnInit, AfterViewInit, OnDestroy {
 
     for (const sys of this.starSystems) {
       for (const planet of sys.planetsTiles) {
+        planet.name ??= planetNames[(planet.id - 1) % planetNames.length];
+
         if (!planet.type) {
           planet.type = planetTypes[Math.floor(Math.random() * planetTypes.length)];
+          planet.size = planetSizes[Math.floor(Math.random() * planetSizes.length)];
           planet.population = Math.floor(Math.random() * 10000) + 1000;
           planet.buildings = [
             { name: 'Solar Power Plant', count: Math.floor(Math.random() * 5) + 1 },
@@ -451,6 +515,14 @@ export class StarMap implements OnInit, AfterViewInit, OnDestroy {
         }
       }
     }
+  }
+
+  getPlanetClassNames(planet: PlanetTile): string[] {
+    return [
+      planet.type,
+      planet.size,
+      planet.size ? `planet-size-${planet.size}` : undefined,
+    ].filter((className): className is string => Boolean(className));
   }
 
   getEnergyForPlanet(planet: PlanetTile): number {
