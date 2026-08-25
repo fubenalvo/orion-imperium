@@ -2,6 +2,8 @@
    STAR MAP PANELS
    ========================================================= */
 
+@import 'mixins';
+
 .system-info {
   position: absolute;
 
@@ -44,15 +46,10 @@
 
 .fleet-info {
   position: absolute;
-
   left: 2%;
-
   bottom: 3%;
-
   width: 24%;
-
   min-width: 220px;
-
   z-index: 30;
 }
 
@@ -66,23 +63,14 @@
 
 .action-btn {
   flex: 1;
-
   padding: 0.4em 0.6em;
-
   border: 1px solid var(--color-blue);
-
   background: rgba(0, 0, 0, 0.7);
-
   color: var(--color-text);
-
   font-family: 'Pixelify Sans', sans-serif;
-
   font-size: 0.75rem;
-
   letter-spacing: 0.05em;
-
   cursor: pointer;
-
   transition: all 0.2s ease;
 }
 
@@ -138,36 +126,34 @@
   position: absolute;
   top: 60px;
   left: 10px;
-  width: 180px;
+  width: 120px;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 50;
   border: 0;
+
+  @include mobile-view {
+    width: 90px;
+  }
 }
 
 .fleet-btn {
   width: 100%;
-
   padding: 0.5em 0.8em;
-
   margin-bottom: 0.3em;
-
   border: 1px solid var(--color-blue);
-
   background: rgba(0, 0, 0, 0.7);
-
   color: var(--color-text);
-
   font-family: 'Pixelify Sans', sans-serif;
-
   font-size: 0.75rem;
-
   letter-spacing: 0.05em;
-
   cursor: pointer;
-
   transition: all 0.2s ease;
+
+  @include mobile-view {
+    padding: 0.1em 0.2em;
+  }
 }
 
 .fleet-btn:hover {

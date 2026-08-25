@@ -1,0 +1,10 @@
+/* =========================================================
+   MIXINS
+   Globally available SCSS mixins for all components.
+   ========================================================= */
+
+@mixin mobile-view {
+  @media (max-width: 768px) {
+    @content;
+  }
+}
