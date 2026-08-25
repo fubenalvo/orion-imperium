@@ -566,6 +566,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   selectFleet(fleet: Fleet): void {
     this.selectedFleet = fleet;
+    this.selectedSystem = null;
+    this.selectedPlanetTile = null;
 
     if (this.currentView === 'map') {
       this.cameraX = fleet.x - 50;
@@ -708,6 +710,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   selectPlanetTile(tile: PlanetTile): void {
     this.selectedPlanetTile = tile;
+    this.selectedFleet = null;
+    this.selectedSystem = null;
   }
 
   /*
@@ -805,13 +809,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   selectSystem(system: StarSystem): void {
-    this.selectedSystem = system;
-
-    // Ha van kiválasztott flotta, és a világtérképen vagyunk, menjen oda a flotta
     if (this.selectedFleet && this.currentView === 'map') {
       const targetTile = this.getTileCenter(system.x, system.y);
       this.moveSelectedFleet(targetTile.x, targetTile.y);
     }
+
+    this.selectedSystem = system;
+    this.selectedFleet = null;
+    this.selectedPlanetTile = null;
   }
 
   /*
