@@ -30,7 +30,7 @@
               [class.selected]="selectedSystem?.id === system.id"
               [style.--star-color]="system.color"
               type="button"
-              (click)="selectSystem(system); $event.stopPropagation()"
+              (click)="onSystemClick(system, $event)"
               (contextmenu)="deselectSystem(); $event.preventDefault(); $event.stopPropagation()"
             >
               <span class="star-system__star">✦</span>
@@ -47,14 +47,19 @@
            ================================================= -->
 
         @for (fleet of fleets; track fleet.id) {
-          <div class="ship-cell" [style.left]="fleet.x + 'vw'" [style.top]="fleet.y + 'vw'">
+          <div
+            class="ship-cell"
+            [style.left]="fleet.x + 'vw'"
+            [style.top]="fleet.y + 'vw'"
+            [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
+          >
             <button
               class="ship"
               [class.selected]="selectedFleet?.id === fleet.id"
               [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
               [class.arriced]="fleet.targetX === null || fleet.targetY === null"
               type="button"
-              (click)="selectFleet(fleet); $event.stopPropagation()"
+              (click)="onFleetClick(fleet, $event)"
               (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
             >
               <span class="ship__icon">◆</span>
@@ -202,7 +207,7 @@
               [style.gridColumn]="20 - planet.index * 2"
               [style.gridRow]="6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3)"
               [style.--planet-color]="selectedSystem.color"
-              (click)="selectPlanetTile(planet); $event.stopPropagation()"
+              (click)="onPlanetClick(planet, $event)"
               (contextmenu)="
                 deselectPlanetTile(); $event.preventDefault(); $event.stopPropagation()
               "
@@ -230,7 +235,7 @@
                   [class.moving]="fleet.systemTargetX !== null && fleet.systemTargetY !== null"
                   [class.arriced]="fleet.systemTargetX === null || fleet.systemTargetY === null"
                   type="button"
-                  (click)="selectFleet(fleet); $event.stopPropagation()"
+                  (click)="onFleetClick(fleet, $event)"
                   (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
                 >
                   <span class="ship__icon">◆</span>
@@ -301,8 +306,31 @@
                 <li>{{ b.name }}: {{ b.count }}</li>
               }
             </ul>
-          </div>
-        </div>
+      </div>
+    </div>
+  }
+</div>
+  }
+
+  <!-- =====================================================
+       CONTEXT MENU
+       ===================================================== -->
+
+  @if (contextMenu) {
+    <div
+      class="context-menu"
+      [style.left.px]="contextMenu.x"
+      [style.top.px]="contextMenu.y"
+      (click)="$event.stopPropagation()"
+    >
+      @for (item of contextMenu.items; track item.data.id) {
+        <button
+          class="context-menu-item"
+          type="button"
+          (click)="onContextMenuSelect(item); $event.stopPropagation()"
+        >
+          {{ item.label }}
+        </button>
       }
     </div>
   }

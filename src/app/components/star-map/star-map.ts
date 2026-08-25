@@ -48,6 +48,8 @@ interface StarSystem {
   planets: number;
   color: string;
   planetsTiles: PlanetTile[];
+  gridCol: number;
+  gridRow: number;
 }
 
 interface FleetShip {
@@ -78,6 +80,9 @@ interface Fleet {
   systemTargetX?: number | null;
   systemTargetY?: number | null;
 
+  gridCol: number;
+  gridRow: number;
+
   ships: FleetShip[];
 }
 
@@ -91,6 +96,12 @@ interface StarMapData {
   };
   starSystems: StarSystem[];
   fleets: Fleet[];
+}
+
+interface ContextMenuItem {
+  type: 'fleet' | 'system' | 'planet';
+  label: string;
+  data: Fleet | StarSystem | PlanetTile;
 }
 
 const initialStarMapData = starMapData as StarMapData;
@@ -183,6 +194,155 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return fleetCell.col === sysCell.col && fleetCell.row === sysCell.row;
   }
 
+  private getObjectsAtMapCell(col: number, row: number): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+
+    console.log(`[getObjectsAtMapCell] Searching cell: col=${col}, row=${row}`);
+    console.log(`[getObjectsAtMapCell] Fleets count: ${this.fleets.length}`);
+    console.log(`[getObjectsAtMapCell] Star systems count: ${this.starSystems.length}`);
+
+    // Fleets
+    for (const fleet of this.fleets) {
+      console.log(
+        `[getObjectsAtMapCell] Checking fleet "${fleet.name}": ` +
+          `gridCol=${fleet.gridCol}, gridRow=${fleet.gridRow} ` +
+          `(target: ${col}, ${row})`,
+      );
+
+      if (fleet.gridCol === col && fleet.gridRow === row) {
+        console.log(`[getObjectsAtMapCell] ✓ FLEET MATCH: "${fleet.name}" at ${col}, ${row}`);
+
+        items.push({
+          type: 'fleet',
+          label: `Fleet: ${fleet.name}`,
+          data: fleet,
+        });
+      }
+    }
+
+    // Star systems
+    for (const system of this.starSystems) {
+      console.log(
+        `[getObjectsAtMapCell] Checking system "${system.name}": ` +
+          `gridCol=${system.gridCol}, gridRow=${system.gridRow} ` +
+          `(target: ${col}, ${row})`,
+      );
+
+      if (system.gridCol === col && system.gridRow === row) {
+        console.log(
+          `[getObjectsAtMapCell] ✓ STAR SYSTEM MATCH: "${system.name}" at ${col}, ${row}`,
+        );
+
+        items.push({
+          type: 'system',
+          label: `System: ${system.name}`,
+          data: system,
+        });
+      }
+    }
+
+    console.log(`[getObjectsAtMapCell] Result for ${col}, ${row}:`, items);
+
+    return items;
+  }
+
+  private getPlanetGridPosition(planet: PlanetTile): { col: number; row: number } {
+    return {
+      col: 20 - planet.index * 2,
+      row: 6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3),
+    };
+  }
+
+  private getObjectsAtSystemCell(col: number, row: number, system: StarSystem): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+
+    for (const fleet of this.fleets) {
+      if (fleet.systemId === system.id && fleet.gridCol === col && fleet.gridRow === row) {
+        items.push({ type: 'fleet', label: `Fleet: ${fleet.name}`, data: fleet });
+      }
+    }
+
+    for (const planet of system.planetsTiles) {
+      const planetCell = this.getPlanetGridPosition(planet);
+      if (planetCell.col === col && planetCell.row === row) {
+        items.push({ type: 'planet', label: `Planet: ${planet.name}`, data: planet });
+      }
+    }
+
+    return items;
+  }
+
+  showContextMenu(x: number, y: number, items: ContextMenuItem[]): void {
+    this.contextMenu = { x, y, items };
+    console.log(`showContextMenu ${x} ${y} ${items}`);
+  }
+
+  closeContextMenu(): void {
+    this.contextMenu = null;
+  }
+
+  onContextMenuSelect(item: ContextMenuItem): void {
+    this.closeContextMenu();
+
+    switch (item.type) {
+      case 'fleet':
+        this.selectFleet(item.data as Fleet);
+        break;
+      case 'system':
+        this.selectSystem(item.data as StarSystem);
+        break;
+      case 'planet':
+        this.selectPlanetTile(item.data as PlanetTile);
+        break;
+    }
+  }
+
+  private handleMapObjectClick(col: number, row: number, event: MouseEvent): void {
+    console.log(`[handleMapObjectClick] Clicked map cell: col=${col}, row=${row}`);
+
+    console.log(`[handleMapObjectClick] Mouse position: x=${event.clientX}, y=${event.clientY}`);
+
+    const items = this.getObjectsAtMapCell(col, row);
+
+    console.log(`[handleMapObjectClick] Objects found: ${items.length}`, items);
+
+    if (items.length > 1) {
+      console.log(
+        `[handleMapObjectClick] Multiple objects found (${items.length}) -> showing context menu`,
+      );
+
+      this.showContextMenu(event.clientX, event.clientY, items);
+      return;
+    }
+
+    if (items.length === 1) {
+      console.log(`[handleMapObjectClick] Exactly one object found -> selecting:`, items[0]);
+
+      this.onContextMenuSelect(items[0]);
+      return;
+    }
+
+    console.log(`[handleMapObjectClick] No objects found at cell col=${col}, row=${row}`);
+  }
+
+  private handleSystemObjectClick(
+    col: number,
+    row: number,
+    system: StarSystem,
+    event: MouseEvent,
+  ): void {
+    const items = this.getObjectsAtSystemCell(col, row, system);
+
+    if (items.length > 1) {
+      this.showContextMenu(event.clientX, event.clientY, items);
+      return;
+    }
+
+    if (items.length === 1) {
+      this.onContextMenuSelect(items[0]);
+    }
+  }
+
   private getTileCenter(x: number, y: number): { x: number; y: number } {
     const tileColumn = Math.max(0, Math.min(Math.floor(x / this.cellSizeVw), this.gridColumns - 1));
     const tileRow = Math.max(0, Math.min(Math.floor(y / this.cellSizeVh), this.gridRows - 1));
@@ -204,6 +364,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   targetX: number | null = null;
   targetY: number | null = null;
 
+  contextMenu: { x: number; y: number; items: ContextMenuItem[] } | null = null;
+
   private animationFrameId: number | null = null;
   private lastFrameTime = 0;
 
@@ -213,7 +375,19 @@ export class StarMap implements AfterViewInit, OnDestroy {
   ) {}
 
   // A korábbi random generálás törölve lett, mert minden a JSON-ból töltődik be
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    for (const fleet of this.fleets) {
+      const cell = this.calculateGridCell(fleet.x, fleet.y);
+      fleet.gridCol = cell.col;
+      fleet.gridRow = cell.row;
+    }
+
+    for (const system of this.starSystems) {
+      const cell = this.calculateGridCell(system.x, system.y);
+      system.gridCol = cell.col;
+      system.gridRow = cell.row;
+    }
+  }
 
   getPlanetClassNames(planet: PlanetTile): string[] {
     return [
@@ -332,6 +506,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
           fleet.y += (dy / distance) * movement;
         }
 
+        const mapCell = this.calculateGridCell(fleet.x, fleet.y);
+        fleet.gridCol = mapCell.col;
+        fleet.gridRow = mapCell.row;
+
         // If the fleet moved on the world map, check if it left its current system
         if (fleet.systemId !== undefined) {
           const system = this.starSystems.find((s) => s.id === fleet.systemId);
@@ -367,6 +545,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
         } else {
           fleet.systemX = (fleet.systemX || 0) + (dx / distance) * movement;
           fleet.systemY = (fleet.systemY || 0) + (dy / distance) * movement;
+        }
+
+        if (fleet.systemX != null && fleet.systemY != null) {
+          const sysCell = this.calculateGridCell(fleet.systemX, fleet.systemY);
+          fleet.gridCol = sysCell.col;
+          fleet.gridRow = sysCell.row;
         }
       }
     }
@@ -424,6 +608,74 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /*
    * -------------------------------------------------------
+   * OVERLAP-AWARE CLICK HANDLERS
+   * -------------------------------------------------------
+   */
+
+  onFleetClick(fleet: Fleet, event: MouseEvent): void {
+    event.stopPropagation();
+
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+
+    if (this.currentView === 'map') {
+      this.handleMapObjectClick(fleet.gridCol, fleet.gridRow, event);
+    } else if (this.selectedSystem) {
+      this.handleSystemObjectClick(fleet.gridCol, fleet.gridRow, this.selectedSystem, event);
+    } else {
+      this.selectFleet(fleet);
+    }
+  }
+
+  onSystemClick(system: StarSystem, event: MouseEvent): void {
+    event.stopPropagation();
+
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+
+    if (this.currentView === 'map') {
+      this.handleMapObjectClick(system.gridCol, system.gridRow, event);
+    } else {
+      this.selectSystem(system);
+    }
+  }
+
+  onPlanetClick(planet: PlanetTile, event: MouseEvent): void {
+    event.stopPropagation();
+
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+
+    if (this.currentView === 'system' && this.selectedSystem) {
+      const planetCell = this.getPlanetGridPosition(planet);
+      const items = this.getObjectsAtSystemCell(
+        planetCell.col,
+        planetCell.row,
+        this.selectedSystem,
+      );
+
+      if (items.length > 1) {
+        this.showContextMenu(event.clientX, event.clientY, items);
+        return;
+      }
+
+      if (items.length === 1) {
+        this.onContextMenuSelect(items[0]);
+        return;
+      }
+    }
+
+    this.selectPlanetTile(planet);
+  }
+
+  /*
+   * -------------------------------------------------------
    * GIVE MOVEMENT ORDER
    * -------------------------------------------------------
    */
@@ -465,6 +717,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   onMapClick(event: MouseEvent): void {
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+
     /*
      * No selected fleet = no movement order.
      */
@@ -511,6 +768,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   onSystemGridClick(event: MouseEvent): void {
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+
     if (
       !this.selectedFleet ||
       !this.selectedSystem ||

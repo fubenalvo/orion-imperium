@@ -119,3 +119,45 @@
     inset 0 0 10px rgba(53, 134, 229, 0.2),
     0 0 10px rgba(53, 134, 229, 0.3);
 }
+
+/* =========================================================
+   CONTEXT MENU
+   ========================================================= */
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  background: rgba(0, 0, 0, 0.92);
+  border: 1px solid var(--color-blue);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.6em 1em;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(100, 150, 255, 0.15);
+  color: var(--color-text);
+  font-family: 'Pixelify Sans', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    color: var(--color-blue-bright);
+    background: rgba(53, 134, 229, 0.15);
+  }
+
+  &:active {
+    background: rgba(53, 134, 229, 0.25);
+  }
+}
