@@ -16,6 +16,30 @@
   color: var(--color-text);
 }
 
+.star-map-background {
+  position: absolute;
+
+  top: -50%;
+
+  left: -50%;
+
+  width: 200%;
+
+  height: 200%;
+
+  background-image: url('/stars-background-a.jpg');
+
+  background-size: cover;
+
+  background-position: center;
+
+  pointer-events: none;
+
+  z-index: 0;
+
+  will-change: transform;
+}
+
 /* =========================================================
    MAP VIEWPORT
    ========================================================= */
@@ -27,74 +51,9 @@
 
   overflow: hidden;
 
+  z-index: 1;
+
   background: radial-gradient(circle at 50% 50%, rgba(53, 134, 229, 0.035), transparent 55%);
-}
-
-/* =========================================================
-   STARFIELD BACKGROUND
-   ========================================================= */
-
-.star-map-starfield {
-  position: absolute;
-
-  top: 0;
-
-  left: 0;
-
-  width: 100%;
-
-  height: 100%;
-
-  pointer-events: none;
-
-  z-index: 0;
-
-  overflow: hidden;
-}
-
-.star-map-layer {
-  position: absolute;
-
-  top: 50%;
-
-  left: 50%;
-
-  width: 2px;
-
-  height: 2px;
-
-  border-radius: 50%;
-
-  background: #fff;
-
-  opacity: 0.8;
-
-  box-shadow:
-    -350px -200px #fff,
-    200px -300px #fff,
-    -150px 250px #fff,
-    300px 150px #fff,
-    -400px 100px #fff,
-    100px -150px #fff,
-    -250px -350px #fff,
-    350px -100px #fff,
-    -50px 300px #fff,
-    250px 350px #fff,
-    -200px -100px #fff,
-    150px 200px #fff,
-    -300px 50px #fff,
-    50px -250px #fff,
-    -100px -300px #fff,
-    400px -50px #fff,
-    -50px -150px #fff,
-    180px -80px #fff,
-    -220px 180px #fff,
-    320px 220px #fff,
-    -180px -280px #fff,
-    -450px -120px #fff,
-    120px -400px #fff,
-    -80px 420px #fff,
-    420px 80px #fff;
 }
 
 /* =========================================================

@@ -1,4 +1,9 @@
 <div class="star-map">
+  <div
+    class="star-map-background"
+    [style.transform]="'translate(' + (-cameraX * 0.3) + 'vw, ' + (-cameraY * 0.3) + 'vw)'"
+  ></div>
+
   @if (currentView === 'map') {
     <!-- =====================================================
          MAP VIEWPORT
