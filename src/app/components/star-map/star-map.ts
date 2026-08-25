@@ -566,7 +566,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   selectFleet(fleet: Fleet): void {
     this.selectedFleet = fleet;
-    this.selectedSystem = null;
+    if (this.currentView !== 'system') {
+      this.selectedSystem = null;
+    }
     this.selectedPlanetTile = null;
 
     if (this.currentView === 'map') {
@@ -711,7 +713,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
   selectPlanetTile(tile: PlanetTile): void {
     this.selectedPlanetTile = tile;
     this.selectedFleet = null;
-    this.selectedSystem = null;
+    if (this.currentView !== 'system') {
+      this.selectedSystem = null;
+    }
   }
 
   /*
