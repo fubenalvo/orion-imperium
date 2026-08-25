@@ -13,14 +13,12 @@
   z-index: 1;
   width: 100%;
   height: 100%;
-  padding: 2rem;
   box-sizing: border-box;
-  /* Szférikus torzítás szimulálása transzformációval */
   transform: scale(0.98);
-  filter: blur(0.2px); /* Enyhe analóg homály */
+  filter: blur(0.2px);
 }
 
-/* CRT Overlay réteg (Scanlines + Görbület shadow + Flicker) */
+/* CRT Overlay réteg */
 .crt-overlay {
   position: absolute;
   top: 0;
@@ -28,36 +26,55 @@
   width: 100%;
   height: 100%;
   z-index: 10000;
-  /* Létfontosságú: kiiktatja az interakciót, így átkattinthatsz rajta! */
   pointer-events: none;
+  opacity: 0;
 
-  /* 1. Csíkozás (Scanlines) lineáris gradienssel */
   background:
-    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%),
-    /* 2. RGB alpixelek szimulálása függőlegesen */
+    linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%),
     linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
 
   background-size:
     100% 4px,
     6px 100%;
 
-  /* 3. A képernyő szélének sötétítése és lekerekítés (CRT cső görbület) */
+  background-position:
+    0 0,
+    0 0;
+
   box-shadow:
     inset 0 0 80px rgba(0, 0, 0, 0.8),
     inset 0 0 15px rgba(0, 0, 0, 1);
 
-  /* 4. Finom képernyővibrálás (flicker) animation */
-  animation: crt-flicker 0.15s infinite;
+  animation:
+    crt-scanlines 0.3s linear infinite,
+    crt-flicker 0.15s infinite;
 }
 
-/* Vibrálás animációja */
+/* Nagyon lassan lefelé futó scanline */
+@keyframes crt-scanlines {
+  from {
+    background-position:
+      0 0,
+      0 0;
+  }
+
+  to {
+    background-position:
+      0 4px,
+      0 0;
+  }
+}
+
+/* Vibrálás */
 @keyframes crt-flicker {
   0% {
     opacity: 0.97;
   }
+
   50% {
     opacity: 1;
   }
+
   100% {
     opacity: 0.98;
   }
