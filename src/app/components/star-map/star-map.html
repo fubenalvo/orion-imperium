@@ -47,12 +47,14 @@
       @for (ship of ships; track ship.id) {
         <div
           class="ship-cell"
-          [style.gridColumn]="calculateGridCell(ship.x, ship.y).col"
-          [style.gridRow]="calculateGridCell(ship.x, ship.y).row"
+          [style.left]="ship.x + 'vw'"
+          [style.top]="ship.y + 'vw'"
         >
           <button
             class="ship"
             [class.selected]="selectedShip?.id === ship.id"
+            [class.moving]="ship.targetX !== null && ship.targetY !== null"
+            [class.arriced]="ship.targetX === null || ship.targetY === null"
             type="button"
             (click)="selectShip(ship); $event.stopPropagation()"
           >

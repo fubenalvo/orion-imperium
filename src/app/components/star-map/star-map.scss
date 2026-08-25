@@ -77,15 +77,21 @@
 }
 
 .ship-cell {
-  position: relative;
+  position: absolute;
 
   display: flex;
 
   align-items: center;
   justify-content: center;
 
-  width: 5vw;
-  height: 5vw;
+  width: 70px;
+  height: 50px;
+
+  transform: translate(-50%, -50%);
+
+  will-change: left, top;
+
+  z-index: 15;
 }
 
 /* =========================================================
@@ -300,12 +306,10 @@
    ========================================================= */
 
 .ship {
-  position: absolute;
+  position: relative;
 
-  left: 50%;
-  top: 50%;
-
-  transform: translate(-50%, -50%);
+  left: auto;
+  top: auto;
 
   display: flex;
 
@@ -333,7 +337,7 @@
 
   box-shadow: 0 0 8px rgba(53, 134, 229, 0.5);
 
-  z-index: 15;
+  z-index: 1;
 }
 
 .ship:hover {
@@ -345,7 +349,7 @@
 }
 
 .ship:active {
-  transform: translate(-50%, -50%);
+  transform: translateY(1px);
 }
 
 .ship__icon {
@@ -390,6 +394,22 @@
   animation: ship-selected-pulse 1.2s infinite;
 }
 
+.ship.moving {
+  border-color: var(--color-blue-bright);
+
+  box-shadow:
+    0 0 8px var(--color-blue),
+    0 0 20px rgba(53, 134, 229, 0.45);
+}
+
+.ship.moving .ship__icon {
+  animation: ship-moving-float 0.9s ease-in-out infinite;
+}
+
+.ship.arriced {
+  opacity: 0.9;
+}
+
 /* =========================================================
    SHIP SELECTED ANIMATION
    ========================================================= */
@@ -413,30 +433,43 @@
    ========================================================= */
 
 .ship-target {
-  position: absolute;
+  position: relative;
 
-  left: 50%;
-  top: 50%;
+  display: flex;
 
-  transform: translate(-50%, -50%);
+  align-items: center;
+  justify-content: center;
 
-  width: 35px;
-  height: 35px;
+  width: 5vw;
+  height: 5vw;
 
   pointer-events: none;
 
   z-index: 12;
 }
 
+@keyframes ship-moving-float {
+  0% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
 .ship-target__crosshair {
-  position: absolute;
-
-  inset: 0;
-
   display: flex;
 
   align-items: center;
   justify-content: center;
+
+  width: 35px;
+  height: 35px;
 
   border: 1px solid var(--color-blue);
 
@@ -455,7 +488,7 @@
   position: absolute;
 
   left: 50%;
-  top: 100%;
+  top: calc(50% + 17.5px);
 
   transform: translateX(-50%);
 

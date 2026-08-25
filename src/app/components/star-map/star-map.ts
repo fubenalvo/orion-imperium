@@ -2,7 +2,9 @@ import {
   Component,
   HostListener,
   OnDestroy,
-  ChangeDetectorRef
+  ChangeDetectorRef,
+  NgZone,
+  AfterViewInit
 } from '@angular/core';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
@@ -55,7 +57,7 @@ interface Ship {
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
-export class StarMap implements OnDestroy {
+export class StarMap implements AfterViewInit, OnDestroy {
 
   /*
    * -------------------------------------------------------
@@ -77,12 +79,44 @@ export class StarMap implements OnDestroy {
   gridRows = Math.ceil(this.mapHeight / this.cellSizeVh);
 
   calculateGridCell(x: number, y: number): { col: number; row: number } {
-    const col = Math.floor(x / this.cellSizeVw);
-    const row = Math.floor(y / this.cellSizeVh);
+    const col = Math.floor(x / this.cellSizeVw) + 1;
+    const row = Math.floor(y / this.cellSizeVh) + 1;
 
     return {
       col,
       row
+    };
+  }
+
+  private getTileCenter(
+    x: number,
+    y: number
+  ): { x: number; y: number } {
+    const tileColumn =
+      Math.max(
+        0,
+        Math.min(
+          Math.floor(x / this.cellSizeVw),
+          this.gridColumns - 1
+        )
+      );
+
+    const tileRow =
+      Math.max(
+        0,
+        Math.min(
+          Math.floor(y / this.cellSizeVh),
+          this.gridRows - 1
+        )
+      );
+
+    return {
+      x:
+        tileColumn * this.cellSizeVw +
+        this.cellSizeVw / 2,
+      y:
+        tileRow * this.cellSizeVh +
+        this.cellSizeVh / 2
     };
   }
 
@@ -348,8 +382,20 @@ export class StarMap implements OnDestroy {
    */
 
   constructor(
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private ngZone: NgZone
   ) {
+
+  }
+
+
+  /*
+   * -------------------------------------------------------
+   * VIEW READY
+   * -------------------------------------------------------
+   */
+
+  ngAfterViewInit(): void {
 
     this.startGameLoop();
 
@@ -366,10 +412,14 @@ export class StarMap implements OnDestroy {
 
     this.lastFrameTime = performance.now();
 
-    this.animationFrameId =
-      requestAnimationFrame(
-        (time) => this.update(time)
-      );
+    this.ngZone.runOutsideAngular(
+      () => {
+        this.animationFrameId =
+          requestAnimationFrame(
+            (time) => this.update(time)
+          );
+      }
+    );
 
   }
 
@@ -400,7 +450,8 @@ export class StarMap implements OnDestroy {
      * Update all moving ships.
      */
 
-    this.updateShips(deltaTime);
+    const didMoveShips =
+      this.updateShips(deltaTime);
 
 
     /*
@@ -408,17 +459,27 @@ export class StarMap implements OnDestroy {
      * template have changed.
      */
 
-    this.cdr.detectChanges();
+    if (didMoveShips) {
+
+      this.ngZone.run(
+        () => this.cdr.detectChanges()
+      );
+
+    }
 
 
     /*
      * Schedule next frame.
      */
 
-    this.animationFrameId =
-      requestAnimationFrame(
-        (nextTime) => this.update(nextTime)
-      );
+    this.ngZone.runOutsideAngular(
+      () => {
+        this.animationFrameId =
+          requestAnimationFrame(
+            (nextTime) => this.update(nextTime)
+          );
+      }
+    );
 
   }
 
@@ -429,7 +490,9 @@ export class StarMap implements OnDestroy {
    * -------------------------------------------------------
    */
 
-  private updateShips(deltaTime: number): void {
+  private updateShips(deltaTime: number): boolean {
+
+    let didMoveShips = false;
 
     for (const ship of this.ships) {
 
@@ -445,6 +508,8 @@ export class StarMap implements OnDestroy {
         continue;
 
       }
+
+      didMoveShips = true;
 
 
       /*
@@ -520,6 +585,8 @@ export class StarMap implements OnDestroy {
         movement;
 
     }
+
+    return didMoveShips;
 
   }
 
@@ -643,39 +710,31 @@ export class StarMap implements OnDestroy {
 
 
     /*
-     * Convert viewport coordinates
-     * to world coordinates.
+     * Convert viewport pixels to the same vw-based
+     * world units used by the grid and camera transform.
      */
+
+    const viewportUnitInPixels =
+      window.innerWidth / 100;
 
     const worldX =
       this.cameraX +
-      (screenX / rect.width) * 100;
+      screenX / viewportUnitInPixels;
 
     const worldY =
       this.cameraY +
-      (screenY / rect.height) * 100;
+      screenY / viewportUnitInPixels;
 
 
     /*
-     * Keep target inside the world.
+     * The command belongs to the clicked tile,
+     * so store the destination at that tile's center.
      */
 
-    const clampedX =
-      Math.max(
-        0,
-        Math.min(
-          worldX,
-          this.mapWidth
-        )
-      );
-
-    const clampedY =
-      Math.max(
-        0,
-        Math.min(
-          worldY,
-          this.mapHeight
-        )
+    const targetTile =
+      this.getTileCenter(
+        worldX,
+        worldY
       );
 
 
@@ -684,8 +743,8 @@ export class StarMap implements OnDestroy {
      */
 
     this.moveSelectedShip(
-      clampedX,
-      clampedY
+      targetTile.x,
+      targetTile.y
     );
 
   }
