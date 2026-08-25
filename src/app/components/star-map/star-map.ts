@@ -5,11 +5,11 @@ import {
   ChangeDetectorRef,
   NgZone,
   AfterViewInit,
-  OnInit,
 } from '@angular/core';
 import { NgClass, UpperCasePipe } from '@angular/common';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
+import starMapData from './star-map-data.json';
 
 interface PlanetBuilding {
   name: string;
@@ -22,15 +22,15 @@ type PlanetSize = 'huge' | 'big' | 'medium' | 'small' | 'tiny';
 interface PlanetTile {
   id: number;
   index: number;
-  name?: string;
+  name: string;
   x: number;
   y: number;
   xOffset: number;
   yOffset: number;
-  type?: PlanetType;
-  size?: PlanetSize;
-  population?: number;
-  buildings?: PlanetBuilding[];
+  type: PlanetType;
+  size: PlanetSize;
+  population: number;
+  buildings: PlanetBuilding[];
 }
 
 interface StarSystem {
@@ -75,26 +75,38 @@ interface Ship {
   systemTargetY?: number | null;
 }
 
+interface StarMapData {
+  map: {
+    width: number;
+    height: number;
+    cellSizeVw: number;
+    cellSizeVh: number;
+  };
+  starSystems: StarSystem[];
+  ships: Ship[];
+}
+
+const initialStarMapData = starMapData as StarMapData;
+
 @Component({
   selector: 'app-star-map',
   imports: [StarMapNavigationComponent, NgClass, UpperCasePipe],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
-export class StarMap implements OnInit, AfterViewInit, OnDestroy {
+export class StarMap implements AfterViewInit, OnDestroy {
   currentView: 'map' | 'system' = 'map';
 
   enterSystem(): void {
     if (this.selectedSystem) {
       this.currentView = 'system';
 
-      // Setup ships in this system
       for (const ship of this.ships) {
         if (this.isShipInSystem(ship, this.selectedSystem)) {
           ship.systemId = this.selectedSystem.id;
           if (ship.systemX == null) {
-            ship.systemX = 2.5; // col 1 center
-            ship.systemY = 32.5; // row 7 center
+            ship.systemX = 2.5;
+            ship.systemY = 32.5;
           }
         }
       }
@@ -112,7 +124,6 @@ export class StarMap implements OnInit, AfterViewInit, OnDestroy {
   leaveSystem(): void {
     this.currentView = 'map';
 
-    // Restore target marker for map view
     if (this.selectedShip && this.selectedShip.targetX != null) {
       this.targetX = this.selectedShip.targetX;
       this.targetY = this.selectedShip.targetY;
@@ -124,31 +135,28 @@ export class StarMap implements OnInit, AfterViewInit, OnDestroy {
 
   /*
    * -------------------------------------------------------
-   * MAP
+   * MAP CONFIG & DATA (JSON-ból betöltve)
    * -------------------------------------------------------
-   *
-   * Coordinates are world coordinates.
-   *
-   * The world is deliberately larger than the viewport.
    */
 
-  readonly mapWidth = 200;
-  readonly mapHeight = 120;
+  readonly mapWidth = initialStarMapData.map.width;
+  readonly mapHeight = initialStarMapData.map.height;
 
-  readonly cellSizeVw = 5;
-  readonly cellSizeVh = 5;
+  readonly cellSizeVw = initialStarMapData.map.cellSizeVw;
+  readonly cellSizeVh = initialStarMapData.map.cellSizeVh;
 
   gridColumns = Math.ceil(this.mapWidth / this.cellSizeVw);
   gridRows = Math.ceil(this.mapHeight / this.cellSizeVh);
+
+  // A csillagrendszerek és hajók most már közvetlenül a JSON-ból jönnek
+  starSystems: StarSystem[] = initialStarMapData.starSystems;
+  ships: Ship[] = initialStarMapData.ships;
 
   calculateGridCell(x: number, y: number): { col: number; row: number } {
     const col = Math.floor(x / this.cellSizeVw) + 1;
     const row = Math.floor(y / this.cellSizeVh) + 1;
 
-    return {
-      col,
-      row,
-    };
+    return { col, row };
   }
 
   isShipInSystem(ship: Ship, system: StarSystem): boolean {
@@ -159,7 +167,6 @@ export class StarMap implements OnInit, AfterViewInit, OnDestroy {
 
   private getTileCenter(x: number, y: number): { x: number; y: number } {
     const tileColumn = Math.max(0, Math.min(Math.floor(x / this.cellSizeVw), this.gridColumns - 1));
-
     const tileRow = Math.max(0, Math.min(Math.floor(y / this.cellSizeVh), this.gridRows - 1));
 
     return {
@@ -168,354 +175,27 @@ export class StarMap implements OnInit, AfterViewInit, OnDestroy {
     };
   }
 
-  /*
-   * -------------------------------------------------------
-   * CAMERA
-   * -------------------------------------------------------
-   */
-
   cameraX = 0;
   cameraY = 0;
-
   readonly cameraSpeed = 2;
 
-  /*
-   * -------------------------------------------------------
-   * STAR SYSTEMS
-   * -------------------------------------------------------
-   */
-
-  starSystems: StarSystem[] = [
-    {
-      id: 1,
-      name: 'SOL',
-      x: 35,
-      y: 25,
-      planets: 8,
-      color: '#f3f3f3',
-      planetsTiles: [
-        { id: 1, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 2, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 3, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 4, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 5, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 6, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 7, index: 7, x: 0, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 8, index: 8, x: 20, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 2,
-      name: 'VEGA',
-      x: 78,
-      y: 18,
-      planets: 5,
-      color: '#5ca8ff',
-      planetsTiles: [
-        { id: 9, index: 1, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 10, index: 2, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 11, index: 3, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 12, index: 4, x: -40, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 13, index: 5, x: -20, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 3,
-      name: 'SIRIUS',
-      x: 125,
-      y: 35,
-      planets: 6,
-      color: '#f3f3f3',
-      planetsTiles: [
-        { id: 14, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 15, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 16, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 17, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 18, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 19, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 4,
-      name: 'ARCTURUS',
-      x: 165,
-      y: 22,
-      planets: 3,
-      color: '#39b8a8',
-      planetsTiles: [
-        { id: 20, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 21, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 22, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 5,
-      name: 'RIGEL',
-      x: 55,
-      y: 65,
-      planets: 7,
-      color: '#5ca8ff',
-      planetsTiles: [
-        { id: 23, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 24, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 25, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 26, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 27, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 28, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 29, index: 7, x: 0, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 6,
-      name: 'ALTAIR',
-      x: 105,
-      y: 75,
-      planets: 4,
-      color: '#f3f3f3',
-      planetsTiles: [
-        { id: 30, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 31, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 32, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 33, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 7,
-      name: 'BETELGEUSE',
-      x: 155,
-      y: 68,
-      planets: 9,
-      color: '#d65757',
-      planetsTiles: [
-        { id: 34, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 35, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 36, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 37, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 38, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 39, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 40, index: 7, x: 0, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 41, index: 8, x: 20, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 42, index: 9, x: 40, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 8,
-      name: 'PROCYON',
-      x: 25,
-      y: 95,
-      planets: 2,
-      color: '#39b8a8',
-      planetsTiles: [
-        { id: 43, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 44, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 9,
-      name: 'DENEB',
-      x: 90,
-      y: 105,
-      planets: 5,
-      color: '#5ca8ff',
-      planetsTiles: [
-        { id: 45, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 46, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 47, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 48, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 49, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-
-    {
-      id: 10,
-      name: 'ANTARES',
-      x: 175,
-      y: 100,
-      planets: 6,
-      color: '#d65757',
-      planetsTiles: [
-        { id: 50, index: 1, x: -120, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 51, index: 2, x: -100, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 52, index: 3, x: -80, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 53, index: 4, x: -60, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 54, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
-        { id: 55, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
-      ],
-    },
-  ];
-
-  /*
-   * -------------------------------------------------------
-   * SHIPS
-   * -------------------------------------------------------
-   */
-
-  ships: Ship[] = [
-    {
-      id: 1,
-      name: 'ORION',
-      x: 50,
-      y: 40,
-      targetX: null,
-      targetY: null,
-      speed: 8,
-    },
-
-    {
-      id: 2,
-      name: 'PEGASUS',
-      x: 120,
-      y: 60,
-      targetX: null,
-      targetY: null,
-      speed: 6,
-    },
-  ];
-
-  /*
-   * -------------------------------------------------------
-   * SELECTED OBJECTS
-   * -------------------------------------------------------
-   */
-
   selectedSystem: StarSystem | null = null;
-
   selectedShip: Ship | null = null;
-
   selectedPlanetTile: PlanetTile | null = null;
 
-  /*
-   * -------------------------------------------------------
-   * CURRENT SHIP TARGET
-   * -------------------------------------------------------
-   */
-
   targetX: number | null = null;
-
   targetY: number | null = null;
 
-  /*
-   * -------------------------------------------------------
-   * REALTIME GAME LOOP
-   * -------------------------------------------------------
-   */
-
   private animationFrameId: number | null = null;
-
   private lastFrameTime = 0;
-
-  /*
-   * -------------------------------------------------------
-   * CONSTRUCTOR
-   * -------------------------------------------------------
-   */
 
   constructor(
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
   ) {}
 
-  ngOnInit(): void {
-    const planetTypes: PlanetType[] = [
-      'earthlike',
-      'marslike',
-      'venuslike',
-      'gasgiant',
-      'ice',
-      'desert',
-    ];
-    const planetSizes: PlanetSize[] = ['huge', 'big', 'medium', 'small', 'tiny'];
-    const planetNames = [
-      'Asterion',
-      'Veloria',
-      'Nyxara',
-      'Eldros',
-      'Kaelith',
-      'Thalassa',
-      'Vireon',
-      'Orinth',
-      'Caldera',
-      'Zephyria',
-      'Nerevos',
-      'Auralis',
-      'Dravik',
-      'Solmara',
-      'Kyrion',
-      'Ebonreach',
-      'Lunaris',
-      'Voss Prime',
-      'Miralune',
-      'Arkenfall',
-      'Cindral',
-      'Noctyra',
-      'Halcyon',
-      'Brighthold',
-      'Xandros',
-      'Ilyria',
-      'Morvain',
-      'Celestia',
-      'Ravanna',
-      'Eidolon',
-      'Sablemere',
-      'Aetheris',
-      'Korrath',
-      'Ydris',
-      'Veyra',
-      'Oberyn',
-      'Marrowind',
-      'Seraphis',
-      'Duskfall',
-      'Lythos',
-      'Amarion',
-      'Cryos',
-      'Vaelora',
-      'Emberlyn',
-      'Draxos',
-      'Sylvara',
-      'Tenebris',
-      'Aurion',
-      'Mistral',
-      'Obsidia',
-      'Elyndor',
-      'Frosthaven',
-      'Kharon',
-      'Starfall',
-      'Vespera',
-    ];
-    const buildingNames = [
-      'Bank',
-      'Spaceship Factory',
-      'Solar Power Plant',
-      'Residential Block',
-      'Mining Facility',
-    ];
-
-    for (const sys of this.starSystems) {
-      for (const planet of sys.planetsTiles) {
-        planet.name ??= planetNames[(planet.id - 1) % planetNames.length];
-
-        if (!planet.type) {
-          planet.type = planetTypes[Math.floor(Math.random() * planetTypes.length)];
-          planet.size = planetSizes[Math.floor(Math.random() * planetSizes.length)];
-          planet.population = Math.floor(Math.random() * 10000) + 1000;
-          planet.buildings = [
-            { name: 'Solar Power Plant', count: Math.floor(Math.random() * 5) + 1 },
-            { name: 'Residential Block', count: Math.floor(Math.random() * 10) + 2 },
-            { name: 'Bank', count: Math.floor(Math.random() * 2) },
-            { name: 'Spaceship Factory', count: Math.floor(Math.random() * 2) },
-          ].filter((b) => b.count > 0);
-        }
-      }
-    }
-  }
+  // A korábbi random generálás törölve lett, mert minden a JSON-ból töltődik be
+  ngOnInit(): void {}
 
   getPlanetClassNames(planet: PlanetTile): string[] {
     return [

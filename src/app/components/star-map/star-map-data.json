@@ -1,0 +1,910 @@
+{
+  "map": {
+    "width": 200,
+    "height": 120,
+    "cellSizeVw": 5,
+    "cellSizeVh": 5
+  },
+  "starSystems": [
+    {
+      "id": 1,
+      "name": "SOL",
+      "x": 35,
+      "y": 25,
+      "planets": 8,
+      "color": "#ffcc00",
+      "planetsTiles": [
+        {
+          "id": 1,
+          "index": 1,
+          "name": "Asterion",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "medium",
+          "population": 8420,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 4 },
+            { "name": "Residential Block", "count": 9 },
+            { "name": "Bank", "count": 1 }
+          ]
+        },
+        {
+          "id": 2,
+          "index": 2,
+          "name": "Veloria",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "big",
+          "population": 5320,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 2 },
+            { "name": "Residential Block", "count": 6 }
+          ]
+        },
+        {
+          "id": 3,
+          "index": 3,
+          "name": "Nyxara",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "small",
+          "population": 3180,
+          "buildings": [
+            { "name": "Mining Facility", "count": 3 },
+            { "name": "Residential Block", "count": 4 }
+          ]
+        },
+        {
+          "id": 4,
+          "index": 4,
+          "name": "Eldros",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "gasgiant",
+          "size": "huge",
+          "population": 1460,
+          "buildings": [{ "name": "Solar Power Plant", "count": 5 }]
+        },
+        {
+          "id": 5,
+          "index": 5,
+          "name": "Kaelith",
+          "x": -40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "tiny",
+          "population": 980,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        },
+        {
+          "id": 6,
+          "index": 6,
+          "name": "Thalassa",
+          "x": -20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "big",
+          "population": 9100,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 3 },
+            { "name": "Residential Block", "count": 10 },
+            { "name": "Bank", "count": 1 }
+          ]
+        },
+        {
+          "id": 7,
+          "index": 7,
+          "name": "Vireon",
+          "x": 0,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "medium",
+          "population": 2760,
+          "buildings": [
+            { "name": "Mining Facility", "count": 4 },
+            { "name": "Solar Power Plant", "count": 2 }
+          ]
+        },
+        {
+          "id": 8,
+          "index": 8,
+          "name": "Orinth",
+          "x": 20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "small",
+          "population": 1210,
+          "buildings": [{ "name": "Residential Block", "count": 3 }]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "VEGA",
+      "x": 78,
+      "y": 18,
+      "planets": 5,
+      "color": "#5ca8ff",
+      "planetsTiles": [
+        {
+          "id": 9,
+          "index": 1,
+          "name": "Caldera",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "big",
+          "population": 4770,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 4 },
+            { "name": "Mining Facility", "count": 2 }
+          ]
+        },
+        {
+          "id": 10,
+          "index": 2,
+          "name": "Zephyria",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "medium",
+          "population": 6960,
+          "buildings": [
+            { "name": "Residential Block", "count": 8 },
+            { "name": "Bank", "count": 1 }
+          ]
+        },
+        {
+          "id": 11,
+          "index": 3,
+          "name": "Nerevos",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "small",
+          "population": 1620,
+          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+        },
+        {
+          "id": 12,
+          "index": 4,
+          "name": "Auralis",
+          "x": -40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "huge",
+          "population": 3380,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 3 },
+            { "name": "Spaceship Factory", "count": 1 }
+          ]
+        },
+        {
+          "id": 13,
+          "index": 5,
+          "name": "Dravik",
+          "x": -20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "tiny",
+          "population": 890,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "SIRIUS",
+      "x": 125,
+      "y": 35,
+      "planets": 6,
+      "color": "#f3f3f3",
+      "planetsTiles": [
+        {
+          "id": 14,
+          "index": 1,
+          "name": "Solmara",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "huge",
+          "population": 11240,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 5 },
+            { "name": "Residential Block", "count": 12 },
+            { "name": "Bank", "count": 2 }
+          ]
+        },
+        {
+          "id": 15,
+          "index": 2,
+          "name": "Kyrion",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "medium",
+          "population": 4020,
+          "buildings": [
+            { "name": "Mining Facility", "count": 3 },
+            { "name": "Residential Block", "count": 5 }
+          ]
+        },
+        {
+          "id": 16,
+          "index": 3,
+          "name": "Ebonreach",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "gasgiant",
+          "size": "huge",
+          "population": 2060,
+          "buildings": [{ "name": "Solar Power Plant", "count": 6 }]
+        },
+        {
+          "id": 17,
+          "index": 4,
+          "name": "Lunaris",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "small",
+          "population": 1340,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        },
+        {
+          "id": 18,
+          "index": 5,
+          "name": "Voss Prime",
+          "x": -40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "big",
+          "population": 5210,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 3 },
+            { "name": "Spaceship Factory", "count": 1 }
+          ]
+        },
+        {
+          "id": 19,
+          "index": 6,
+          "name": "Miralune",
+          "x": -20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "medium",
+          "population": 3740,
+          "buildings": [
+            { "name": "Residential Block", "count": 4 },
+            { "name": "Bank", "count": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ARCTURUS",
+      "x": 165,
+      "y": 22,
+      "planets": 3,
+      "color": "#39b8a8",
+      "planetsTiles": [
+        {
+          "id": 20,
+          "index": 1,
+          "name": "Arkenfall",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "small",
+          "population": 1850,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        },
+        {
+          "id": 21,
+          "index": 2,
+          "name": "Cindral",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "medium",
+          "population": 2980,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 2 },
+            { "name": "Residential Block", "count": 4 }
+          ]
+        },
+        {
+          "id": 22,
+          "index": 3,
+          "name": "Noctyra",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "tiny",
+          "population": 720,
+          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "RIGEL",
+      "x": 55,
+      "y": 65,
+      "planets": 7,
+      "color": "#5ca8ff",
+      "planetsTiles": [
+        {
+          "id": 23,
+          "index": 1,
+          "name": "Halcyon",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "big",
+          "population": 8760,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 4 },
+            { "name": "Residential Block", "count": 9 }
+          ]
+        },
+        {
+          "id": 24,
+          "index": 2,
+          "name": "Brighthold",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "medium",
+          "population": 3110,
+          "buildings": [
+            { "name": "Bank", "count": 1 },
+            { "name": "Residential Block", "count": 3 }
+          ]
+        },
+        {
+          "id": 25,
+          "index": 3,
+          "name": "Xandros",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "gasgiant",
+          "size": "huge",
+          "population": 2390,
+          "buildings": [{ "name": "Solar Power Plant", "count": 6 }]
+        },
+        {
+          "id": 26,
+          "index": 4,
+          "name": "Ilyria",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "small",
+          "population": 1440,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        },
+        {
+          "id": 27,
+          "index": 5,
+          "name": "Morvain",
+          "x": -40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "medium",
+          "population": 2670,
+          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+        },
+        {
+          "id": 28,
+          "index": 6,
+          "name": "Celestia",
+          "x": -20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "huge",
+          "population": 12280,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 5 },
+            { "name": "Residential Block", "count": 11 },
+            { "name": "Bank", "count": 2 }
+          ]
+        },
+        {
+          "id": 29,
+          "index": 7,
+          "name": "Ravanna",
+          "x": 0,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "tiny",
+          "population": 930,
+          "buildings": [{ "name": "Solar Power Plant", "count": 1 }]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "ALTAIR",
+      "x": 105,
+      "y": 75,
+      "planets": 4,
+      "color": "#f3f3f3",
+      "planetsTiles": [
+        {
+          "id": 30,
+          "index": 1,
+          "name": "Eidolon",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "medium",
+          "population": 2180,
+          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+        },
+        {
+          "id": 31,
+          "index": 2,
+          "name": "Sablemere",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "small",
+          "population": 4590,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 2 },
+            { "name": "Residential Block", "count": 5 }
+          ]
+        },
+        {
+          "id": 32,
+          "index": 3,
+          "name": "Aetheris",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "big",
+          "population": 3880,
+          "buildings": [
+            { "name": "Bank", "count": 1 },
+            { "name": "Solar Power Plant", "count": 3 }
+          ]
+        },
+        {
+          "id": 33,
+          "index": 4,
+          "name": "Korrath",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "tiny",
+          "population": 1060,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "BETELGEUSE",
+      "x": 155,
+      "y": 68,
+      "planets": 9,
+      "color": "#d65757",
+      "planetsTiles": [
+        {
+          "id": 34,
+          "index": 1,
+          "name": "Ydris",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "medium",
+          "population": 3310,
+          "buildings": [{ "name": "Solar Power Plant", "count": 2 }]
+        },
+        {
+          "id": 35,
+          "index": 2,
+          "name": "Veyra",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "small",
+          "population": 1970,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        },
+        {
+          "id": 36,
+          "index": 3,
+          "name": "Oberyn",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "big",
+          "population": 7680,
+          "buildings": [
+            { "name": "Residential Block", "count": 8 },
+            { "name": "Bank", "count": 1 }
+          ]
+        },
+        {
+          "id": 37,
+          "index": 4,
+          "name": "Marrowind",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "gasgiant",
+          "size": "huge",
+          "population": 2540,
+          "buildings": [{ "name": "Solar Power Plant", "count": 7 }]
+        },
+        {
+          "id": 38,
+          "index": 5,
+          "name": "Seraphis",
+          "x": -40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "medium",
+          "population": 4210,
+          "buildings": [{ "name": "Solar Power Plant", "count": 3 }]
+        },
+        {
+          "id": 39,
+          "index": 6,
+          "name": "Duskfall",
+          "x": -20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "tiny",
+          "population": 640,
+          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+        },
+        {
+          "id": 40,
+          "index": 7,
+          "name": "Lythos",
+          "x": 0,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "small",
+          "population": 1510,
+          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+        },
+        {
+          "id": 41,
+          "index": 8,
+          "name": "Amarion",
+          "x": 20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "huge",
+          "population": 13450,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 5 },
+            { "name": "Residential Block", "count": 13 },
+            { "name": "Spaceship Factory", "count": 1 }
+          ]
+        },
+        {
+          "id": 42,
+          "index": 9,
+          "name": "Cryos",
+          "x": 40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "big",
+          "population": 2880,
+          "buildings": [{ "name": "Mining Facility", "count": 4 }]
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "PROCYON",
+      "x": 25,
+      "y": 95,
+      "planets": 2,
+      "color": "#39b8a8",
+      "planetsTiles": [
+        {
+          "id": 43,
+          "index": 1,
+          "name": "Vaelora",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "medium",
+          "population": 5480,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 3 },
+            { "name": "Residential Block", "count": 6 }
+          ]
+        },
+        {
+          "id": 44,
+          "index": 2,
+          "name": "Emberlyn",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "small",
+          "population": 2420,
+          "buildings": [{ "name": "Solar Power Plant", "count": 2 }]
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "DENEB",
+      "x": 90,
+      "y": 105,
+      "planets": 5,
+      "color": "#5ca8ff",
+      "planetsTiles": [
+        {
+          "id": 45,
+          "index": 1,
+          "name": "Draxos",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "big",
+          "population": 3950,
+          "buildings": [{ "name": "Mining Facility", "count": 4 }]
+        },
+        {
+          "id": 46,
+          "index": 2,
+          "name": "Sylvara",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "small",
+          "population": 4890,
+          "buildings": [
+            { "name": "Residential Block", "count": 5 },
+            { "name": "Bank", "count": 1 }
+          ]
+        },
+        {
+          "id": 47,
+          "index": 3,
+          "name": "Tenebris",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "gasgiant",
+          "size": "huge",
+          "population": 1780,
+          "buildings": [{ "name": "Solar Power Plant", "count": 5 }]
+        },
+        {
+          "id": 48,
+          "index": 4,
+          "name": "Aurion",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "medium",
+          "population": 3020,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 2 },
+            { "name": "Mining Facility", "count": 2 }
+          ]
+        },
+        {
+          "id": 49,
+          "index": 5,
+          "name": "Mistral",
+          "x": -40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "tiny",
+          "population": 810,
+          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "ANTARES",
+      "x": 175,
+      "y": 100,
+      "planets": 6,
+      "color": "#d65757",
+      "planetsTiles": [
+        {
+          "id": 50,
+          "index": 1,
+          "name": "Obsidia",
+          "x": -120,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "marslike",
+          "size": "medium",
+          "population": 2640,
+          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+        },
+        {
+          "id": 51,
+          "index": 2,
+          "name": "Elyndor",
+          "x": -100,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "earthlike",
+          "size": "big",
+          "population": 9170,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 4 },
+            { "name": "Residential Block", "count": 10 },
+            { "name": "Bank", "count": 2 }
+          ]
+        },
+        {
+          "id": 52,
+          "index": 3,
+          "name": "Frosthaven",
+          "x": -80,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "ice",
+          "size": "small",
+          "population": 1360,
+          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+        },
+        {
+          "id": 53,
+          "index": 4,
+          "name": "Kharon",
+          "x": -60,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "gasgiant",
+          "size": "huge",
+          "population": 1990,
+          "buildings": [{ "name": "Solar Power Plant", "count": 6 }]
+        },
+        {
+          "id": 54,
+          "index": 5,
+          "name": "Starfall",
+          "x": -40,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "desert",
+          "size": "tiny",
+          "population": 760,
+          "buildings": [{ "name": "Solar Power Plant", "count": 1 }]
+        },
+        {
+          "id": 55,
+          "index": 6,
+          "name": "Vespera",
+          "x": -20,
+          "y": -50,
+          "xOffset": 0,
+          "yOffset": 0,
+          "type": "venuslike",
+          "size": "medium",
+          "population": 3540,
+          "buildings": [
+            { "name": "Solar Power Plant", "count": 3 },
+            { "name": "Spaceship Factory", "count": 1 }
+          ]
+        }
+      ]
+    }
+  ],
+  "ships": [
+    { "id": 1, "name": "ORION", "x": 50, "y": 40, "targetX": null, "targetY": null, "speed": 8 },
+    { "id": 2, "name": "PEGASUS", "x": 120, "y": 60, "targetX": null, "targetY": null, "speed": 6 }
+  ]
+}
