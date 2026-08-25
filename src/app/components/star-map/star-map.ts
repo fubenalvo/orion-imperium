@@ -4,7 +4,7 @@ import {
   OnDestroy,
   ChangeDetectorRef,
   NgZone,
-  AfterViewInit
+  AfterViewInit,
 } from '@angular/core';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
@@ -58,6 +58,17 @@ interface Ship {
   styleUrl: './star-map.scss',
 })
 export class StarMap implements AfterViewInit, OnDestroy {
+  currentView: 'map' | 'system' = 'map';
+
+  enterSystem(): void {
+    if (this.selectedSystem) {
+      this.currentView = 'system';
+    }
+  }
+
+  leaveSystem(): void {
+    this.currentView = 'map';
+  }
 
   /*
    * -------------------------------------------------------
@@ -84,42 +95,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     return {
       col,
-      row
+      row,
     };
   }
 
-  private getTileCenter(
-    x: number,
-    y: number
-  ): { x: number; y: number } {
-    const tileColumn =
-      Math.max(
-        0,
-        Math.min(
-          Math.floor(x / this.cellSizeVw),
-          this.gridColumns - 1
-        )
-      );
+  private getTileCenter(x: number, y: number): { x: number; y: number } {
+    const tileColumn = Math.max(0, Math.min(Math.floor(x / this.cellSizeVw), this.gridColumns - 1));
 
-    const tileRow =
-      Math.max(
-        0,
-        Math.min(
-          Math.floor(y / this.cellSizeVh),
-          this.gridRows - 1
-        )
-      );
+    const tileRow = Math.max(0, Math.min(Math.floor(y / this.cellSizeVh), this.gridRows - 1));
 
     return {
-      x:
-        tileColumn * this.cellSizeVw +
-        this.cellSizeVw / 2,
-      y:
-        tileRow * this.cellSizeVh +
-        this.cellSizeVh / 2
+      x: tileColumn * this.cellSizeVw + this.cellSizeVw / 2,
+      y: tileRow * this.cellSizeVh + this.cellSizeVh / 2,
     };
   }
-
 
   /*
    * -------------------------------------------------------
@@ -132,7 +121,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   readonly cameraSpeed = 2;
 
-
   /*
    * -------------------------------------------------------
    * STAR SYSTEMS
@@ -140,7 +128,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   starSystems: StarSystem[] = [
-
     {
       id: 1,
       name: 'SOL',
@@ -304,10 +291,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
         { id: 54, index: 5, x: -40, y: -50, xOffset: 0, yOffset: 0 },
         { id: 55, index: 6, x: -20, y: -50, xOffset: 0, yOffset: 0 },
       ],
-    }
-
+    },
   ];
-
 
   /*
    * -------------------------------------------------------
@@ -316,7 +301,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   ships: Ship[] = [
-
     {
       id: 1,
       name: 'ORION',
@@ -324,7 +308,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       y: 40,
       targetX: null,
       targetY: null,
-      speed: 8
+      speed: 8,
     },
 
     {
@@ -334,11 +318,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
       y: 60,
       targetX: null,
       targetY: null,
-      speed: 6
-    }
-
+      speed: 6,
+    },
   ];
-
 
   /*
    * -------------------------------------------------------
@@ -352,7 +334,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   selectedPlanetTile: PlanetTile | null = null;
 
-
   /*
    * -------------------------------------------------------
    * CURRENT SHIP TARGET
@@ -362,7 +343,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
   targetX: number | null = null;
 
   targetY: number | null = null;
-
 
   /*
    * -------------------------------------------------------
@@ -374,7 +354,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   private lastFrameTime = 0;
 
-
   /*
    * -------------------------------------------------------
    * CONSTRUCTOR
@@ -383,11 +362,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   constructor(
     private cdr: ChangeDetectorRef,
-    private ngZone: NgZone
-  ) {
-
-  }
-
+    private ngZone: NgZone,
+  ) {}
 
   /*
    * -------------------------------------------------------
@@ -396,11 +372,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   ngAfterViewInit(): void {
-
     this.startGameLoop();
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -409,20 +382,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   private startGameLoop(): void {
-
     this.lastFrameTime = performance.now();
 
-    this.ngZone.runOutsideAngular(
-      () => {
-        this.animationFrameId =
-          requestAnimationFrame(
-            (time) => this.update(time)
-          );
-      }
-    );
-
+    this.ngZone.runOutsideAngular(() => {
+      this.animationFrameId = requestAnimationFrame((time) => this.update(time));
+    });
   }
-
 
   /*
    * -------------------------------------------------------
@@ -436,23 +401,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   private update(time: number): void {
-
-    const deltaTime =
-      Math.min(
-        (time - this.lastFrameTime) / 1000,
-        0.1
-      );
+    const deltaTime = Math.min((time - this.lastFrameTime) / 1000, 0.1);
 
     this.lastFrameTime = time;
-
 
     /*
      * Update all moving ships.
      */
 
-    const didMoveShips =
-      this.updateShips(deltaTime);
-
+    const didMoveShips = this.updateShips(deltaTime);
 
     /*
      * Tell Angular that values used by the
@@ -460,29 +417,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
      */
 
     if (didMoveShips) {
-
-      this.ngZone.run(
-        () => this.cdr.detectChanges()
-      );
-
+      this.ngZone.run(() => this.cdr.detectChanges());
     }
-
 
     /*
      * Schedule next frame.
      */
 
-    this.ngZone.runOutsideAngular(
-      () => {
-        this.animationFrameId =
-          requestAnimationFrame(
-            (nextTime) => this.update(nextTime)
-          );
-      }
-    );
-
+    this.ngZone.runOutsideAngular(() => {
+      this.animationFrameId = requestAnimationFrame((nextTime) => this.update(nextTime));
+    });
   }
-
 
   /*
    * -------------------------------------------------------
@@ -491,53 +436,36 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   private updateShips(deltaTime: number): boolean {
-
     let didMoveShips = false;
 
     for (const ship of this.ships) {
-
       /*
        * No destination = ship is idle.
        */
 
-      if (
-        ship.targetX === null ||
-        ship.targetY === null
-      ) {
-
+      if (ship.targetX === null || ship.targetY === null) {
         continue;
-
       }
 
       didMoveShips = true;
-
 
       /*
        * Distance from ship to target.
        */
 
-      const dx =
-        ship.targetX - ship.x;
+      const dx = ship.targetX - ship.x;
 
-      const dy =
-        ship.targetY - ship.y;
+      const dy = ship.targetY - ship.y;
 
-      const distance =
-        Math.sqrt(
-          dx * dx +
-          dy * dy
-        );
-
+      const distance = Math.sqrt(dx * dx + dy * dy);
 
       /*
        * Has the ship reached its destination?
        */
 
-      const movement =
-        ship.speed * deltaTime;
+      const movement = ship.speed * deltaTime;
 
       if (distance <= movement) {
-
         ship.x = ship.targetX;
         ship.y = ship.targetY;
 
@@ -550,46 +478,32 @@ export class StarMap implements AfterViewInit, OnDestroy {
          */
 
         if (this.selectedShip?.id === ship.id) {
-
           this.targetX = null;
           this.targetY = null;
-
         }
 
         continue;
-
       }
-
 
       /*
        * Normalize direction.
        */
 
-      const directionX =
-        dx / distance;
+      const directionX = dx / distance;
 
-      const directionY =
-        dy / distance;
-
+      const directionY = dy / distance;
 
       /*
        * Move ship according to elapsed time.
        */
 
-      ship.x +=
-        directionX *
-        movement;
+      ship.x += directionX * movement;
 
-      ship.y +=
-        directionY *
-        movement;
-
+      ship.y += directionY * movement;
     }
 
     return didMoveShips;
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -598,32 +512,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   selectShip(ship: Ship): void {
-
     this.selectedShip = ship;
-
 
     /*
      * If the ship already has a destination,
      * show it.
      */
 
-    if (
-      ship.targetX !== null &&
-      ship.targetY !== null
-    ) {
-
+    if (ship.targetX !== null && ship.targetY !== null) {
       this.targetX = ship.targetX;
       this.targetY = ship.targetY;
-
     } else {
-
       this.targetX = null;
       this.targetY = null;
-
     }
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -631,21 +534,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * -------------------------------------------------------
    */
 
-  moveSelectedShip(
-    x: number,
-    y: number
-  ): void {
-
+  moveSelectedShip(x: number, y: number): void {
     if (!this.selectedShip) {
-
       return;
-
     }
-
 
     this.selectedShip.targetX = x;
     this.selectedShip.targetY = y;
-
 
     /*
      * Show destination marker.
@@ -653,9 +548,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.targetX = x;
     this.targetY = y;
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -663,14 +556,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * -------------------------------------------------------
    */
 
-  selectPlanetTile(
-    tile: PlanetTile
-  ): void {
-
+  selectPlanetTile(tile: PlanetTile): void {
     this.selectedPlanetTile = tile;
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -679,76 +567,50 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   onMapClick(event: MouseEvent): void {
-
     /*
      * No selected ship = no movement order.
      */
 
     if (!this.selectedShip) {
-
       return;
-
     }
 
+    const viewport = event.currentTarget as HTMLElement;
 
-    const viewport =
-      event.currentTarget as HTMLElement;
-
-    const rect =
-      viewport.getBoundingClientRect();
-
+    const rect = viewport.getBoundingClientRect();
 
     /*
      * Mouse position inside viewport.
      */
 
-    const screenX =
-      event.clientX - rect.left;
+    const screenX = event.clientX - rect.left;
 
-    const screenY =
-      event.clientY - rect.top;
-
+    const screenY = event.clientY - rect.top;
 
     /*
      * Convert viewport pixels to the same vw-based
      * world units used by the grid and camera transform.
      */
 
-    const viewportUnitInPixels =
-      window.innerWidth / 100;
+    const viewportUnitInPixels = window.innerWidth / 100;
 
-    const worldX =
-      this.cameraX +
-      screenX / viewportUnitInPixels;
+    const worldX = this.cameraX + screenX / viewportUnitInPixels;
 
-    const worldY =
-      this.cameraY +
-      screenY / viewportUnitInPixels;
-
+    const worldY = this.cameraY + screenY / viewportUnitInPixels;
 
     /*
      * The command belongs to the clicked tile,
      * so store the destination at that tile's center.
      */
 
-    const targetTile =
-      this.getTileCenter(
-        worldX,
-        worldY
-      );
-
+    const targetTile = this.getTileCenter(worldX, worldY);
 
     /*
      * Give movement order.
      */
 
-    this.moveSelectedShip(
-      targetTile.x,
-      targetTile.y
-    );
-
+    this.moveSelectedShip(targetTile.x, targetTile.y);
   }
-
 
   /*
    * -------------------------------------------------------
@@ -756,14 +618,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * -------------------------------------------------------
    */
 
-  selectSystem(
-    system: StarSystem
-  ): void {
-
+  selectSystem(system: StarSystem): void {
     this.selectedSystem = system;
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -771,54 +628,31 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * -------------------------------------------------------
    */
 
-  moveCamera(
-    direction:
-      'up' |
-      'down' |
-      'left' |
-      'right'
-  ): void {
-
+  moveCamera(direction: 'up' | 'down' | 'left' | 'right'): void {
     switch (direction) {
-
       case 'up':
-
-        this.cameraY -=
-          this.cameraSpeed;
+        this.cameraY -= this.cameraSpeed;
 
         break;
-
 
       case 'down':
-
-        this.cameraY +=
-          this.cameraSpeed;
+        this.cameraY += this.cameraSpeed;
 
         break;
-
 
       case 'left':
-
-        this.cameraX -=
-          this.cameraSpeed;
+        this.cameraX -= this.cameraSpeed;
 
         break;
-
 
       case 'right':
-
-        this.cameraX +=
-          this.cameraSpeed;
+        this.cameraX += this.cameraSpeed;
 
         break;
-
     }
 
-
     this.clampCamera();
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -827,28 +661,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   private clampCamera(): void {
+    this.cameraX = Math.max(0, Math.min(this.cameraX, this.mapWidth));
 
-    this.cameraX =
-      Math.max(
-        0,
-        Math.min(
-          this.cameraX,
-          this.mapWidth
-        )
-      );
-
-
-    this.cameraY =
-      Math.max(
-        0,
-        Math.min(
-          this.cameraY,
-          this.mapHeight
-        )
-      );
-
+    this.cameraY = Math.max(0, Math.min(this.cameraY, this.mapHeight));
   }
-
 
   /*
    * -------------------------------------------------------
@@ -856,55 +672,38 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * -------------------------------------------------------
    */
 
-  @HostListener(
-    'window:keydown',
-    ['$event']
-  )
-  handleKeyboard(
-    event: KeyboardEvent
-  ): void {
-
+  @HostListener('window:keydown', ['$event'])
+  handleKeyboard(event: KeyboardEvent): void {
     switch (event.key) {
-
       case 'ArrowUp':
-
         event.preventDefault();
 
         this.moveCamera('up');
 
         break;
 
-
       case 'ArrowDown':
-
         event.preventDefault();
 
         this.moveCamera('down');
 
         break;
 
-
       case 'ArrowLeft':
-
         event.preventDefault();
 
         this.moveCamera('left');
 
         break;
 
-
       case 'ArrowRight':
-
         event.preventDefault();
 
         this.moveCamera('right');
 
         break;
-
     }
-
   }
-
 
   /*
    * -------------------------------------------------------
@@ -913,19 +712,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   ngOnDestroy(): void {
-
-    if (
-      this.animationFrameId !== null
-    ) {
-
-      cancelAnimationFrame(
-        this.animationFrameId
-      );
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
 
       this.animationFrameId = null;
-
     }
-
   }
-
 }

@@ -1,197 +1,224 @@
 <div class="star-map">
-  <!-- =====================================================
-       MAP VIEWPORT
-       ===================================================== -->
+  @if (currentView === 'map') {
+    <!-- =====================================================
+         MAP VIEWPORT
+         ===================================================== -->
 
-  <div class="map-viewport" (click)="onMapClick($event)">
-    <!-- ===================================================
+    <div class="map-viewport" (click)="onMapClick($event)">
+      <!-- ===================================================
          WORLD GRID
          =================================================== -->
 
-    <div
-      class="map-world"
-      [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
-      [style.gridTemplateColumns]="'repeat(' + gridColumns + ', 5vw)'"
-      [style.gridTemplateRows]="'repeat(' + gridRows + ', 5vw)'"
-    >
-      <!-- =================================================
+      <div
+        class="map-world"
+        [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
+        [style.gridTemplateColumns]="'repeat(' + gridColumns + ', 5vw)'"
+        [style.gridTemplateRows]="'repeat(' + gridRows + ', 5vw)'"
+      >
+        <!-- =================================================
            GRID CELLS WITH STAR SYSTEMS
            ================================================= -->
 
-      @for (system of starSystems; track system.id) {
-        <div
-          class="system-cell"
-          [style.gridColumn]="calculateGridCell(system.x, system.y).col"
-          [style.gridRow]="calculateGridCell(system.x, system.y).row"
-        >
-          <button
-            class="star-system"
-            [class.selected]="selectedSystem?.id === system.id"
-            [style.--star-color]="system.color"
-            type="button"
-            (click)="selectSystem(system); $event.stopPropagation()"
+        @for (system of starSystems; track system.id) {
+          <div
+            class="system-cell"
+            [style.gridColumn]="calculateGridCell(system.x, system.y).col"
+            [style.gridRow]="calculateGridCell(system.x, system.y).row"
           >
-            <span class="star-system__star">✦</span>
+            <button
+              class="star-system"
+              [class.selected]="selectedSystem?.id === system.id"
+              [style.--star-color]="system.color"
+              type="button"
+              (click)="selectSystem(system); $event.stopPropagation()"
+            >
+              <span class="star-system__star">✦</span>
 
-            <span class="star-system__name">
-              {{ system.name }}
-            </span>
-          </button>
-        </div>
-      }
+              <span class="star-system__name">
+                {{ system.name }}
+              </span>
+            </button>
+          </div>
+        }
 
-      <!-- =================================================
+        <!-- =================================================
            SHIPS
            ================================================= -->
 
-      @for (ship of ships; track ship.id) {
-        <div
-          class="ship-cell"
-          [style.left]="ship.x + 'vw'"
-          [style.top]="ship.y + 'vw'"
-        >
-          <button
-            class="ship"
-            [class.selected]="selectedShip?.id === ship.id"
-            [class.moving]="ship.targetX !== null && ship.targetY !== null"
-            [class.arriced]="ship.targetX === null || ship.targetY === null"
-            type="button"
-            (click)="selectShip(ship); $event.stopPropagation()"
-          >
-            <span class="ship__icon">◆</span>
+        @for (ship of ships; track ship.id) {
+          <div class="ship-cell" [style.left]="ship.x + 'vw'" [style.top]="ship.y + 'vw'">
+            <button
+              class="ship"
+              [class.selected]="selectedShip?.id === ship.id"
+              [class.moving]="ship.targetX !== null && ship.targetY !== null"
+              [class.arriced]="ship.targetX === null || ship.targetY === null"
+              type="button"
+              (click)="selectShip(ship); $event.stopPropagation()"
+            >
+              <span class="ship__icon">◆</span>
 
-            <span class="ship__name">
-              {{ ship.name }}
-            </span>
-          </button>
-        </div>
-      }
+              <span class="ship__name">
+                {{ ship.name }}
+              </span>
+            </button>
+          </div>
+        }
 
-      <!-- =================================================
+        <!-- =================================================
            PLANET TILES
            ================================================= -->
 
-      @if (selectedSystem?.planetsTiles) {
-        <div class="planet-tiles-container">
-          @for (tile of selectedSystem.planetsTiles; track tile.id) {
-            <button
-              class="planet-tile"
-              [class.selected]="selectedPlanetTile?.id === tile.id"
-              type="button"
-              (click)="selectPlanetTile(tile); $event.stopPropagation()"
-            >
-              <span class="planet-tile__inner">
-                {{ tile.index }}
-              </span>
-            </button>
-          }
-        </div>
-      }
+        @if (selectedSystem?.planetsTiles) {
+          <div class="planet-tiles-container">
+            @for (tile of selectedSystem.planetsTiles; track tile.id) {
+              <button
+                class="planet-tile"
+                [class.selected]="selectedPlanetTile?.id === tile.id"
+                type="button"
+                (click)="selectPlanetTile(tile); $event.stopPropagation()"
+              >
+                <span class="planet-tile__inner">
+                  {{ tile.index }}
+                </span>
+              </button>
+            }
+          </div>
+        }
 
-      <!-- =================================================
+        <!-- =================================================
            SHIP DESTINATION
            ================================================= -->
 
-      @if (targetX !== null && targetY !== null && selectedShip) {
-        <div
-          class="ship-target"
-          [style.gridColumn]="calculateGridCell(targetX, targetY).col"
-          [style.gridRow]="calculateGridCell(targetX, targetY).row"
-        >
-          <span class="ship-target__crosshair">+</span>
-          <span class="ship-target__line">TARGET</span>
-        </div>
-      }
+        @if (targetX !== null && targetY !== null && selectedShip) {
+          <div
+            class="ship-target"
+            [style.gridColumn]="calculateGridCell(targetX, targetY).col"
+            [style.gridRow]="calculateGridCell(targetX, targetY).row"
+          >
+            <span class="ship-target__crosshair">+</span>
+            <span class="ship-target__line">TARGET</span>
+          </div>
+        }
+      </div>
     </div>
-  </div>
 
-  <!-- =====================================================
+    <!-- =====================================================
        TOP HUD
        ===================================================== -->
 
-  <div class="top-hud">
-    <div class="game-title">STAR EMPIRES</div>
-    <div class="turn-info">TURN 001</div>
-  </div>
+    <div class="top-hud">
+      <div class="game-title">STAR EMPIRES</div>
+      <div class="turn-info">TURN 001</div>
+    </div>
 
-  <!-- =====================================================
+    <!-- =====================================================
        SELECTED SHIP INFO
        ===================================================== -->
 
-  @if (selectedShip) {
-    <div class="ship-info panel-style">
-      <div class="panel-style__title">
-        {{ selectedShip.name }}
-      </div>
-
-      <div class="system-info__content">
-        <div>
-          STATUS:
-
-          @if (selectedShip.targetX !== null) {
-            MOVING
-          } @else {
-            IDLE
-          }
+    @if (selectedShip) {
+      <div class="ship-info panel-style">
+        <div class="panel-style__title">
+          {{ selectedShip.name }}
         </div>
 
-        <div>
-          SPEED:
-          {{ selectedShip.speed }}
+        <div class="system-info__content">
+          <div>
+            STATUS:
+
+            @if (selectedShip.targetX !== null) {
+              MOVING
+            } @else {
+              IDLE
+            }
+          </div>
+
+          <div>
+            SPEED:
+            {{ selectedShip.speed }}
+          </div>
         </div>
       </div>
-    </div>
-  }
+    }
 
-  <!-- =====================================================
+    <!-- =====================================================
        SHIP BUTTONS
        ===================================================== -->
 
-  <div class="ship-buttons panel-style">
-    @for (ship of ships; track ship.id) {
-      <button
-        class="ship-btn"
-        [class.selected]="selectedShip?.id === ship.id"
-        type="button"
-        (click)="selectShip(ship); $event.stopPropagation()"
-      >
-        {{ ship.name }}
-      </button>
-    }
-  </div>
+    <div class="ship-buttons panel-style">
+      @for (ship of ships; track ship.id) {
+        <button
+          class="ship-btn"
+          [class.selected]="selectedShip?.id === ship.id"
+          type="button"
+          (click)="selectShip(ship); $event.stopPropagation()"
+        >
+          {{ ship.name }}
+        </button>
+      }
+    </div>
 
-  <!-- =====================================================
+    <!-- =====================================================
        SELECTED SYSTEM INFO
        ===================================================== -->
 
-  @if (selectedSystem) {
-    <div class="system-info panel-style">
-      <div class="panel-style__title">
-        {{ selectedSystem.name }}
-      </div>
-
-      <div class="system-info__content">
-        <div>
-          PLANETS:
-          {{ selectedSystem.planets }}
+    @if (selectedSystem) {
+      <div class="system-info panel-style">
+        <div class="panel-style__title">
+          {{ selectedSystem.name }}
         </div>
 
-        <div>STATUS: UNEXPLORED</div>
+        <div class="system-info__content">
+          <div>
+            PLANETS:
+            {{ selectedSystem.planets }}
+          </div>
+
+          <div>STATUS: UNEXPLORED</div>
+        </div>
+
+        <button type="button" (click)="enterSystem(); $event.stopPropagation()">
+          ENTER SYSTEM
+        </button>
       </div>
+    }
 
-      <button type="button" (click)="$event.stopPropagation()">ENTER SYSTEM</button>
-    </div>
-  }
-
-  <!-- =====================================================
+    <!-- =====================================================
        NAVIGATION
        ===================================================== -->
 
-  <app-star-map-navigation
-    [cameraX]="cameraX"
-    [cameraY]="cameraY"
-    (cameraMove)="moveCamera($event)"
-    (centerCamera)="cameraX = 0; cameraY = 0"
-  >
-  </app-star-map-navigation>
+    <app-star-map-navigation
+      [cameraX]="cameraX"
+      [cameraY]="cameraY"
+      (cameraMove)="moveCamera($event)"
+      (centerCamera)="cameraX = 0; cameraY = 0"
+    >
+    </app-star-map-navigation>
+  } @else {
+    <div class="system-view">
+      <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
+
+      <div class="system-grid">
+        @if (selectedSystem) {
+          <!-- SUN -->
+          <div class="sun" [style.--sun-color]="selectedSystem.color">
+            <div class="sun-glow"></div>
+            <div class="sun-core"></div>
+          </div>
+
+          <!-- PLANETS -->
+          @for (planet of selectedSystem.planetsTiles; track planet.id) {
+            <div
+              class="planet"
+              [style.gridColumn]="20 - planet.index * 2"
+              [style.gridRow]="6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3)"
+              [style.--planet-color]="selectedSystem.color"
+            >
+              <div class="planet-body"></div>
+              <div class="planet-name">Planet {{ planet.index }}</div>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  }
 </div>
