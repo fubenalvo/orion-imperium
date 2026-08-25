@@ -19,10 +19,17 @@ interface PlanetBuilding {
 type PlanetType = 'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert';
 type PlanetSize = 'huge' | 'big' | 'medium' | 'small' | 'tiny';
 
+interface Faction {
+  id: string;
+  name: string;
+  color: string;
+}
+
 interface PlanetTile {
   id: number;
   index: number;
   name: string;
+  factionId: string;
   x: number;
   y: number;
   xOffset: number;
@@ -46,6 +53,7 @@ interface StarSystem {
 interface Ship {
   id: number;
   name: string;
+  factionId: string;
 
   /*
    * Current position in world coordinates.
@@ -76,6 +84,7 @@ interface Ship {
 }
 
 interface StarMapData {
+  factions: Faction[];
   map: {
     width: number;
     height: number;
@@ -151,6 +160,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
   // A csillagrendszerek és hajók most már közvetlenül a JSON-ból jönnek
   starSystems: StarSystem[] = initialStarMapData.starSystems;
   ships: Ship[] = initialStarMapData.ships;
+  factions: Faction[] = initialStarMapData.factions;
+
+  getFactionColor(factionId: string): string {
+    const faction = this.factions.find((f) => f.id === factionId);
+    return faction ? faction.color : '#ffffff';
+  }
+
+  getFactionName(factionId: string): string {
+    const faction = this.factions.find((f) => f.id === factionId);
+    return faction ? faction.name : 'Unknown';
+  }
 
   calculateGridCell(x: number, y: number): { col: number; row: number } {
     const col = Math.floor(x / this.cellSizeVw) + 1;

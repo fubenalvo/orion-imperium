@@ -59,7 +59,7 @@
             >
               <span class="ship__icon">◆</span>
 
-              <span class="ship__name">
+              <span class="ship__name" [style.color]="getFactionColor(ship.factionId)">
                 {{ ship.name }}
               </span>
             </button>
@@ -99,7 +99,9 @@
     @if (selectedShip) {
       <div class="ship-info panel-style">
         <div class="panel-style__title">
-          {{ selectedShip.name }}
+          <span [style.color]="getFactionColor(selectedShip.factionId)">
+            {{ selectedShip.name }}
+          </span>
         </div>
 
         <div class="system-info__content">
@@ -133,7 +135,9 @@
           type="button"
           (click)="selectShip(ship); $event.stopPropagation()"
         >
-          {{ ship.name }}
+          <span [style.color]="getFactionColor(ship.factionId)">
+            {{ ship.name }}
+          </span>
         </button>
       }
     </div>
@@ -204,7 +208,9 @@
               "
             >
               <div class="planet-body"></div>
-              <div class="planet-name">{{ planet.name }}</div>
+              <div class="planet-name" [style.color]="getFactionColor(planet.factionId)">
+                {{ planet.name }}
+              </div>
             </button>
           }
 
@@ -228,7 +234,7 @@
                   (contextmenu)="deselectShip(); $event.preventDefault(); $event.stopPropagation()"
                 >
                   <span class="ship__icon">◆</span>
-                  <span class="ship__name">{{ ship.name }}</span>
+                  <span class="ship__name" [style.color]="getFactionColor(ship.factionId)">{{ ship.name }}</span>
                 </button>
               </div>
             }
@@ -282,6 +288,7 @@
 
           <div class="system-info__content">
             <div>TYPE: {{ selectedPlanetTile.type | uppercase }}</div>
+            <div>FACTION: {{ getFactionName(selectedPlanetTile.factionId) }}</div>
             <div>POPULATION: {{ selectedPlanetTile.population }}</div>
             <div>ENERGY: {{ getEnergyForPlanet(selectedPlanetTile) }}</div>
             <div>DAILY TAX: {{ getTaxForPlanet(selectedPlanetTile) }}</div>

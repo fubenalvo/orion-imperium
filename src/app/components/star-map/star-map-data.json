@@ -1,4 +1,10 @@
 {
+  "factions": [
+    { "id": "player", "name": "Player", "color": "#8cc4ff" },
+    { "id": "enemy1", "name": "Enemy 1", "color": "#d65757" },
+    { "id": "enemy2", "name": "Enemy 2", "color": "#39b8a8" },
+    { "id": "unhabited", "name": "Unhabited", "color": "#666666" }
+  ],
   "map": {
     "width": 200,
     "height": 120,
@@ -17,6 +23,7 @@
         {
           "id": 1,
           "index": 1,
+          "factionId": "player",
           "name": "Asterion",
           "x": -120,
           "y": -50,
@@ -34,6 +41,7 @@
         {
           "id": 2,
           "index": 2,
+          "factionId": "player",
           "name": "Veloria",
           "x": -100,
           "y": -50,
@@ -50,6 +58,7 @@
         {
           "id": 3,
           "index": 3,
+          "factionId": "player",
           "name": "Nyxara",
           "x": -80,
           "y": -50,
@@ -66,6 +75,7 @@
         {
           "id": 4,
           "index": 4,
+          "factionId": "player",
           "name": "Eldros",
           "x": -60,
           "y": -50,
@@ -79,6 +89,7 @@
         {
           "id": 5,
           "index": 5,
+          "factionId": "player",
           "name": "Kaelith",
           "x": -40,
           "y": -50,
@@ -92,6 +103,7 @@
         {
           "id": 6,
           "index": 6,
+          "factionId": "player",
           "name": "Thalassa",
           "x": -20,
           "y": -50,
@@ -109,6 +121,7 @@
         {
           "id": 7,
           "index": 7,
+          "factionId": "player",
           "name": "Vireon",
           "x": 0,
           "y": -50,
@@ -125,6 +138,7 @@
         {
           "id": 8,
           "index": 8,
+          "factionId": "player",
           "name": "Orinth",
           "x": 20,
           "y": -50,
@@ -148,6 +162,7 @@
         {
           "id": 9,
           "index": 1,
+          "factionId": "player",
           "name": "Caldera",
           "x": -100,
           "y": -50,
@@ -164,6 +179,7 @@
         {
           "id": 10,
           "index": 2,
+          "factionId": "player",
           "name": "Zephyria",
           "x": -80,
           "y": -50,
@@ -180,6 +196,7 @@
         {
           "id": 11,
           "index": 3,
+          "factionId": "player",
           "name": "Nerevos",
           "x": -60,
           "y": -50,
@@ -193,6 +210,7 @@
         {
           "id": 12,
           "index": 4,
+          "factionId": "player",
           "name": "Auralis",
           "x": -40,
           "y": -50,
@@ -209,6 +227,7 @@
         {
           "id": 13,
           "index": 5,
+          "factionId": "player",
           "name": "Dravik",
           "x": -20,
           "y": -50,
@@ -232,6 +251,7 @@
         {
           "id": 14,
           "index": 1,
+          "factionId": "player",
           "name": "Solmara",
           "x": -120,
           "y": -50,
@@ -249,6 +269,7 @@
         {
           "id": 15,
           "index": 2,
+          "factionId": "player",
           "name": "Kyrion",
           "x": -100,
           "y": -50,
@@ -265,6 +286,7 @@
         {
           "id": 16,
           "index": 3,
+          "factionId": "player",
           "name": "Ebonreach",
           "x": -80,
           "y": -50,
@@ -278,6 +300,7 @@
         {
           "id": 17,
           "index": 4,
+          "factionId": "player",
           "name": "Lunaris",
           "x": -60,
           "y": -50,
@@ -291,6 +314,7 @@
         {
           "id": 18,
           "index": 5,
+          "factionId": "player",
           "name": "Voss Prime",
           "x": -40,
           "y": -50,
@@ -307,6 +331,7 @@
         {
           "id": 19,
           "index": 6,
+          "factionId": "player",
           "name": "Miralune",
           "x": -20,
           "y": -50,
@@ -333,6 +358,7 @@
         {
           "id": 20,
           "index": 1,
+          "factionId": "player",
           "name": "Arkenfall",
           "x": -120,
           "y": -50,
@@ -346,6 +372,7 @@
         {
           "id": 21,
           "index": 2,
+          "factionId": "player",
           "name": "Cindral",
           "x": -100,
           "y": -50,
@@ -362,6 +389,7 @@
         {
           "id": 22,
           "index": 3,
+          "factionId": "player",
           "name": "Noctyra",
           "x": -80,
           "y": -50,
@@ -385,6 +413,7 @@
         {
           "id": 23,
           "index": 1,
+          "factionId": "player",
           "name": "Halcyon",
           "x": -120,
           "y": -50,
@@ -401,6 +430,7 @@
         {
           "id": 24,
           "index": 2,
+          "factionId": "player",
           "name": "Brighthold",
           "x": -100,
           "y": -50,
@@ -417,6 +447,7 @@
         {
           "id": 25,
           "index": 3,
+          "factionId": "player",
           "name": "Xandros",
           "x": -80,
           "y": -50,
@@ -430,6 +461,7 @@
         {
           "id": 26,
           "index": 4,
+          "factionId": "player",
           "name": "Ilyria",
           "x": -60,
           "y": -50,
@@ -443,6 +475,7 @@
         {
           "id": 27,
           "index": 5,
+          "factionId": "player",
           "name": "Morvain",
           "x": -40,
           "y": -50,
@@ -456,6 +489,7 @@
         {
           "id": 28,
           "index": 6,
+          "factionId": "player",
           "name": "Celestia",
           "x": -20,
           "y": -50,
@@ -473,6 +507,7 @@
         {
           "id": 29,
           "index": 7,
+          "factionId": "player",
           "name": "Ravanna",
           "x": 0,
           "y": -50,
@@ -496,6 +531,7 @@
         {
           "id": 30,
           "index": 1,
+          "factionId": "player",
           "name": "Eidolon",
           "x": -120,
           "y": -50,
@@ -509,6 +545,7 @@
         {
           "id": 31,
           "index": 2,
+          "factionId": "player",
           "name": "Sablemere",
           "x": -100,
           "y": -50,
@@ -525,6 +562,7 @@
         {
           "id": 32,
           "index": 3,
+          "factionId": "player",
           "name": "Aetheris",
           "x": -80,
           "y": -50,
@@ -541,6 +579,7 @@
         {
           "id": 33,
           "index": 4,
+          "factionId": "player",
           "name": "Korrath",
           "x": -60,
           "y": -50,
@@ -564,6 +603,7 @@
         {
           "id": 34,
           "index": 1,
+          "factionId": "player",
           "name": "Ydris",
           "x": -120,
           "y": -50,
@@ -577,6 +617,7 @@
         {
           "id": 35,
           "index": 2,
+          "factionId": "player",
           "name": "Veyra",
           "x": -100,
           "y": -50,
@@ -590,6 +631,7 @@
         {
           "id": 36,
           "index": 3,
+          "factionId": "player",
           "name": "Oberyn",
           "x": -80,
           "y": -50,
@@ -606,6 +648,7 @@
         {
           "id": 37,
           "index": 4,
+          "factionId": "player",
           "name": "Marrowind",
           "x": -60,
           "y": -50,
@@ -619,6 +662,7 @@
         {
           "id": 38,
           "index": 5,
+          "factionId": "player",
           "name": "Seraphis",
           "x": -40,
           "y": -50,
@@ -632,6 +676,7 @@
         {
           "id": 39,
           "index": 6,
+          "factionId": "player",
           "name": "Duskfall",
           "x": -20,
           "y": -50,
@@ -645,6 +690,7 @@
         {
           "id": 40,
           "index": 7,
+          "factionId": "player",
           "name": "Lythos",
           "x": 0,
           "y": -50,
@@ -658,6 +704,7 @@
         {
           "id": 41,
           "index": 8,
+          "factionId": "player",
           "name": "Amarion",
           "x": 20,
           "y": -50,
@@ -675,6 +722,7 @@
         {
           "id": 42,
           "index": 9,
+          "factionId": "player",
           "name": "Cryos",
           "x": 40,
           "y": -50,
@@ -698,6 +746,7 @@
         {
           "id": 43,
           "index": 1,
+          "factionId": "player",
           "name": "Vaelora",
           "x": -120,
           "y": -50,
@@ -714,6 +763,7 @@
         {
           "id": 44,
           "index": 2,
+          "factionId": "player",
           "name": "Emberlyn",
           "x": -100,
           "y": -50,
@@ -737,6 +787,7 @@
         {
           "id": 45,
           "index": 1,
+          "factionId": "player",
           "name": "Draxos",
           "x": -120,
           "y": -50,
@@ -750,6 +801,7 @@
         {
           "id": 46,
           "index": 2,
+          "factionId": "player",
           "name": "Sylvara",
           "x": -100,
           "y": -50,
@@ -766,6 +818,7 @@
         {
           "id": 47,
           "index": 3,
+          "factionId": "player",
           "name": "Tenebris",
           "x": -80,
           "y": -50,
@@ -779,6 +832,7 @@
         {
           "id": 48,
           "index": 4,
+          "factionId": "player",
           "name": "Aurion",
           "x": -60,
           "y": -50,
@@ -795,6 +849,7 @@
         {
           "id": 49,
           "index": 5,
+          "factionId": "player",
           "name": "Mistral",
           "x": -40,
           "y": -50,
@@ -818,6 +873,7 @@
         {
           "id": 50,
           "index": 1,
+          "factionId": "player",
           "name": "Obsidia",
           "x": -120,
           "y": -50,
@@ -831,6 +887,7 @@
         {
           "id": 51,
           "index": 2,
+          "factionId": "player",
           "name": "Elyndor",
           "x": -100,
           "y": -50,
@@ -848,6 +905,7 @@
         {
           "id": 52,
           "index": 3,
+          "factionId": "player",
           "name": "Frosthaven",
           "x": -80,
           "y": -50,
@@ -861,6 +919,7 @@
         {
           "id": 53,
           "index": 4,
+          "factionId": "player",
           "name": "Kharon",
           "x": -60,
           "y": -50,
@@ -874,6 +933,7 @@
         {
           "id": 54,
           "index": 5,
+          "factionId": "player",
           "name": "Starfall",
           "x": -40,
           "y": -50,
@@ -887,6 +947,7 @@
         {
           "id": 55,
           "index": 6,
+          "factionId": "player",
           "name": "Vespera",
           "x": -20,
           "y": -50,
@@ -904,7 +965,10 @@
     }
   ],
   "ships": [
-    { "id": 1, "name": "ORION", "x": 50, "y": 40, "targetX": null, "targetY": null, "speed": 8 },
-    { "id": 2, "name": "PEGASUS", "x": 120, "y": 60, "targetX": null, "targetY": null, "speed": 6 }
+    { "id": 1, "name": "ORION", "x": 50, "y": 40, "targetX": null, "targetY": null, "speed": 8, "factionId": "player" },
+    { "id": 2, "name": "PEGASUS", "x": 120, "y": 60, "targetX": null, "targetY": null, "speed": 6, "factionId": "player" },
+    { "id": 3, "name": "RAIDER", "x": 80, "y": 50, "targetX": null, "targetY": null, "speed": 7, "factionId": "enemy1" },
+    { "id": 4, "name": "HUNTER", "x": 140, "y": 80, "targetX": null, "targetY": null, "speed": 9, "factionId": "enemy1" }
   ]
 }
+
