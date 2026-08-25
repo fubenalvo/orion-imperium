@@ -134,6 +134,7 @@
   border: 0;
 
   @include mobile-view {
+    top: 40px;
     width: 90px;
   }
 }
