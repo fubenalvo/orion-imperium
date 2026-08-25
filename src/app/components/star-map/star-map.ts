@@ -50,37 +50,35 @@ interface StarSystem {
   planetsTiles: PlanetTile[];
 }
 
-interface Ship {
+interface FleetShip {
+  id: number;
+  name: string;
+  type: string;
+  hp: number;
+  damage: number;
+  speed: number;
+}
+
+interface Fleet {
   id: number;
   name: string;
   factionId: string;
 
-  /*
-   * Current position in world coordinates.
-   */
   x: number;
   y: number;
 
-  /*
-   * Destination.
-   * null = ship is idle.
-   */
   targetX: number | null;
   targetY: number | null;
 
-  /*
-   * Movement speed in world units / second.
-   */
   speed: number;
 
-  /*
-   * System-level properties
-   */
   systemId?: number;
   systemX?: number | null;
   systemY?: number | null;
   systemTargetX?: number | null;
   systemTargetY?: number | null;
+
+  ships: FleetShip[];
 }
 
 interface StarMapData {
@@ -92,7 +90,7 @@ interface StarMapData {
     cellSizeVh: number;
   };
   starSystems: StarSystem[];
-  ships: Ship[];
+  fleets: Fleet[];
 }
 
 const initialStarMapData = starMapData as StarMapData;
@@ -110,19 +108,19 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (this.selectedSystem) {
       this.currentView = 'system';
 
-      for (const ship of this.ships) {
-        if (this.isShipInSystem(ship, this.selectedSystem)) {
-          ship.systemId = this.selectedSystem.id;
-          if (ship.systemX == null) {
-            ship.systemX = 2.5;
-            ship.systemY = 32.5;
+      for (const fleet of this.fleets) {
+        if (this.isFleetInSystem(fleet, this.selectedSystem)) {
+          fleet.systemId = this.selectedSystem.id;
+          if (fleet.systemX == null) {
+            fleet.systemX = 2.5;
+            fleet.systemY = 32.5;
           }
         }
       }
 
-      if (this.selectedShip && this.selectedShip.systemTargetX != null) {
-        this.targetX = this.selectedShip.systemTargetX ?? null;
-        this.targetY = this.selectedShip.systemTargetY ?? null;
+      if (this.selectedFleet && this.selectedFleet.systemTargetX != null) {
+        this.targetX = this.selectedFleet.systemTargetX ?? null;
+        this.targetY = this.selectedFleet.systemTargetY ?? null;
       } else {
         this.targetX = null;
         this.targetY = null;
@@ -133,9 +131,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
   leaveSystem(): void {
     this.currentView = 'map';
 
-    if (this.selectedShip && this.selectedShip.targetX != null) {
-      this.targetX = this.selectedShip.targetX;
-      this.targetY = this.selectedShip.targetY;
+    if (this.selectedFleet && this.selectedFleet.targetX != null) {
+      this.targetX = this.selectedFleet.targetX;
+      this.targetY = this.selectedFleet.targetY;
     } else {
       this.targetX = null;
       this.targetY = null;
@@ -157,9 +155,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
   gridColumns = Math.ceil(this.mapWidth / this.cellSizeVw);
   gridRows = Math.ceil(this.mapHeight / this.cellSizeVh);
 
-  // A csillagrendszerek és hajók most már közvetlenül a JSON-ból jönnek
+  // A csillagrendszerek és flották most már közvetlenül a JSON-ból jönnek
   starSystems: StarSystem[] = initialStarMapData.starSystems;
-  ships: Ship[] = initialStarMapData.ships;
+  fleets: Fleet[] = initialStarMapData.fleets;
   factions: Faction[] = initialStarMapData.factions;
 
   getFactionColor(factionId: string): string {
@@ -179,10 +177,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return { col, row };
   }
 
-  isShipInSystem(ship: Ship, system: StarSystem): boolean {
-    const shipCell = this.calculateGridCell(ship.x, ship.y);
+  isFleetInSystem(fleet: Fleet, system: StarSystem): boolean {
+    const fleetCell = this.calculateGridCell(fleet.x, fleet.y);
     const sysCell = this.calculateGridCell(system.x, system.y);
-    return shipCell.col === sysCell.col && shipCell.row === sysCell.row;
+    return fleetCell.col === sysCell.col && fleetCell.row === sysCell.row;
   }
 
   private getTileCenter(x: number, y: number): { x: number; y: number } {
@@ -200,7 +198,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly cameraSpeed = 2;
 
   selectedSystem: StarSystem | null = null;
-  selectedShip: Ship | null = null;
+  selectedFleet: Fleet | null = null;
   selectedPlanetTile: PlanetTile | null = null;
 
   targetX: number | null = null;
@@ -277,17 +275,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.lastFrameTime = time;
 
     /*
-     * Update all moving ships.
+     * Update all moving fleets.
      */
 
-    const didMoveShips = this.updateShips(deltaTime);
+    const didMoveFleets = this.updateFleets(deltaTime);
 
     /*
      * Tell Angular that values used by the
      * template have changed.
      */
 
-    if (didMoveShips) {
+    if (didMoveFleets) {
       this.ngZone.run(() => this.cdr.detectChanges());
     }
 
@@ -302,107 +300,107 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /*
    * -------------------------------------------------------
-   * UPDATE SHIPS
+   * UPDATE FLEETS
    * -------------------------------------------------------
    */
 
-  private updateShips(deltaTime: number): boolean {
-    let didMoveShips = false;
+  private updateFleets(deltaTime: number): boolean {
+    let didMoveFleets = false;
 
-    for (const ship of this.ships) {
+    for (const fleet of this.fleets) {
       // Map movement
-      if (ship.targetX !== null && ship.targetY !== null) {
-        didMoveShips = true;
+      if (fleet.targetX !== null && fleet.targetY !== null) {
+        didMoveFleets = true;
 
-        const dx = ship.targetX - ship.x;
-        const dy = ship.targetY - ship.y;
+        const dx = fleet.targetX - fleet.x;
+        const dy = fleet.targetY - fleet.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const movement = ship.speed * deltaTime;
+        const movement = fleet.speed * deltaTime;
 
         if (distance <= movement) {
-          ship.x = ship.targetX;
-          ship.y = ship.targetY;
-          ship.targetX = null;
-          ship.targetY = null;
+          fleet.x = fleet.targetX;
+          fleet.y = fleet.targetY;
+          fleet.targetX = null;
+          fleet.targetY = null;
 
-          if (this.selectedShip?.id === ship.id && this.currentView === 'map') {
+          if (this.selectedFleet?.id === fleet.id && this.currentView === 'map') {
             this.targetX = null;
             this.targetY = null;
           }
         } else {
-          ship.x += (dx / distance) * movement;
-          ship.y += (dy / distance) * movement;
+          fleet.x += (dx / distance) * movement;
+          fleet.y += (dy / distance) * movement;
         }
 
-        // If the ship moved on the world map, check if it left its current system
-        if (ship.systemId !== undefined) {
-          const system = this.starSystems.find((s) => s.id === ship.systemId);
-          if (system && !this.isShipInSystem(ship, system)) {
-            ship.systemId = undefined;
-            ship.systemX = null;
-            ship.systemY = null;
-            ship.systemTargetX = null;
-            ship.systemTargetY = null;
+        // If the fleet moved on the world map, check if it left its current system
+        if (fleet.systemId !== undefined) {
+          const system = this.starSystems.find((s) => s.id === fleet.systemId);
+          if (system && !this.isFleetInSystem(fleet, system)) {
+            fleet.systemId = undefined;
+            fleet.systemX = null;
+            fleet.systemY = null;
+            fleet.systemTargetX = null;
+            fleet.systemTargetY = null;
           }
         }
       }
 
       // System movement
-      if (ship.systemTargetX != null && ship.systemTargetY != null) {
-        didMoveShips = true;
+      if (fleet.systemTargetX != null && fleet.systemTargetY != null) {
+        didMoveFleets = true;
 
-        const dx = ship.systemTargetX - (ship.systemX || 0);
-        const dy = ship.systemTargetY - (ship.systemY || 0);
+        const dx = fleet.systemTargetX - (fleet.systemX || 0);
+        const dy = fleet.systemTargetY - (fleet.systemY || 0);
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const movement = ship.speed * deltaTime;
+        const movement = fleet.speed * deltaTime;
 
         if (distance <= movement) {
-          ship.systemX = ship.systemTargetX;
-          ship.systemY = ship.systemTargetY;
-          ship.systemTargetX = null;
-          ship.systemTargetY = null;
+          fleet.systemX = fleet.systemTargetX;
+          fleet.systemY = fleet.systemTargetY;
+          fleet.systemTargetX = null;
+          fleet.systemTargetY = null;
 
-          if (this.selectedShip?.id === ship.id && this.currentView === 'system') {
+          if (this.selectedFleet?.id === fleet.id && this.currentView === 'system') {
             this.targetX = null;
             this.targetY = null;
           }
         } else {
-          ship.systemX = (ship.systemX || 0) + (dx / distance) * movement;
-          ship.systemY = (ship.systemY || 0) + (dy / distance) * movement;
+          fleet.systemX = (fleet.systemX || 0) + (dx / distance) * movement;
+          fleet.systemY = (fleet.systemY || 0) + (dy / distance) * movement;
         }
       }
     }
 
-    return didMoveShips;
+    return didMoveFleets;
   }
 
   /*
    * -------------------------------------------------------
-   * SELECT SHIP
+   * SELECT FLEET
    * -------------------------------------------------------
    */
 
-  selectShip(ship: Ship): void {
-    this.selectedShip = ship;
+  selectFleet(fleet: Fleet): void {
+    this.selectedFleet = fleet;
 
     if (this.currentView === 'map') {
-      this.cameraX = ship.x - 50;
-      this.cameraY = ship.y - 50;
+      this.cameraX = fleet.x - 50;
+      this.cameraY = fleet.y - 50;
       this.clampCamera();
     }
 
     if (this.currentView === 'system') {
-      if (ship.systemTargetX != null && ship.systemTargetY != null) {
-        this.targetX = ship.systemTargetX ?? null;
-        this.targetY = ship.systemTargetY ?? null;
+      if (fleet.systemTargetX != null && fleet.systemTargetY != null) {
+        this.targetX = fleet.systemTargetX ?? null;
+        this.targetY = fleet.systemTargetY ?? null;
       } else {
         this.targetX = null;
         this.targetY = null;
       }
     } else {
-      if (ship.targetX !== null && ship.targetY !== null) {
-        this.targetX = ship.targetX;
-        this.targetY = ship.targetY;
+      if (fleet.targetX !== null && fleet.targetY !== null) {
+        this.targetX = fleet.targetX;
+        this.targetY = fleet.targetY;
       } else {
         this.targetX = null;
         this.targetY = null;
@@ -410,8 +408,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  deselectShip(): void {
-    this.selectedShip = null;
+  deselectFleet(): void {
+    this.selectedFleet = null;
     this.targetX = null;
     this.targetY = null;
   }
@@ -430,22 +428,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * -------------------------------------------------------
    */
 
-  moveSelectedShip(x: number, y: number): void {
-    if (!this.selectedShip) {
+  moveSelectedFleet(x: number, y: number): void {
+    if (!this.selectedFleet) {
       return;
     }
 
     if (this.currentView === 'system') {
-      // Only allow movement in system if the ship is actually in this system
-      if (this.selectedSystem && this.selectedShip.systemId === this.selectedSystem.id) {
-        this.selectedShip.systemTargetX = x;
-        this.selectedShip.systemTargetY = y;
+      if (this.selectedSystem && this.selectedFleet.systemId === this.selectedSystem.id) {
+        this.selectedFleet.systemTargetX = x;
+        this.selectedFleet.systemTargetY = y;
         this.targetX = x;
         this.targetY = y;
       }
     } else {
-      this.selectedShip.targetX = x;
-      this.selectedShip.targetY = y;
+      this.selectedFleet.targetX = x;
+      this.selectedFleet.targetY = y;
       this.targetX = x;
       this.targetY = y;
     }
@@ -469,10 +466,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   onMapClick(event: MouseEvent): void {
     /*
-     * No selected ship = no movement order.
+     * No selected fleet = no movement order.
      */
 
-    if (!this.selectedShip) {
+    if (!this.selectedFleet) {
       return;
     }
 
@@ -510,14 +507,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
      * Give movement order.
      */
 
-    this.moveSelectedShip(targetTile.x, targetTile.y);
+    this.moveSelectedFleet(targetTile.x, targetTile.y);
   }
 
   onSystemGridClick(event: MouseEvent): void {
     if (
-      !this.selectedShip ||
+      !this.selectedFleet ||
       !this.selectedSystem ||
-      this.selectedShip.systemId !== this.selectedSystem.id
+      this.selectedFleet.systemId !== this.selectedSystem.id
     ) {
       return;
     }
@@ -536,7 +533,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     // Use getTileCenter to snap to grid cells (system view also uses 5vw grid)
     const targetTile = this.getTileCenter(systemX, systemY);
 
-    this.moveSelectedShip(targetTile.x, targetTile.y);
+    this.moveSelectedFleet(targetTile.x, targetTile.y);
   }
 
   /*
@@ -548,10 +545,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   selectSystem(system: StarSystem): void {
     this.selectedSystem = system;
 
-    // Ha van kiválasztott hajó, és a világtérképen vagyunk, menjen oda a hajó
-    if (this.selectedShip && this.currentView === 'map') {
+    // Ha van kiválasztott flotta, és a világtérképen vagyunk, menjen oda a flotta
+    if (this.selectedFleet && this.currentView === 'map') {
       const targetTile = this.getTileCenter(system.x, system.y);
-      this.moveSelectedShip(targetTile.x, targetTile.y);
+      this.moveSelectedFleet(targetTile.x, targetTile.y);
     }
   }
 

@@ -39,10 +39,10 @@
 }
 
 /* =========================================================
-   SHIP INFO
+   FLEET INFO
    ========================================================= */
 
-.ship-info {
+.fleet-info {
   position: absolute;
 
   left: 2%;
@@ -60,7 +60,7 @@
    SHIP BUTTONS
    ========================================================= */
 
-.ship-buttons {
+.fleet-buttons {
   position: absolute;
   top: 60px;
   left: 10px;
@@ -72,7 +72,7 @@
   border: 0;
 }
 
-.ship-btn {
+.fleet-btn {
   width: 100%;
 
   padding: 0.5em 0.8em;
@@ -96,7 +96,7 @@
   transition: all 0.2s ease;
 }
 
-.ship-btn:hover {
+.fleet-btn:hover {
   color: var(--color-blue-bright);
 
   border-color: var(--color-blue-bright);
@@ -104,11 +104,11 @@
   background: rgba(0, 20, 25, 0.9);
 }
 
-.ship-btn:active {
+.fleet-btn:active {
   transform: translateY(1px);
 }
 
-.ship-btn.selected {
+.fleet-btn.selected {
   border-color: var(--color-blue-bright);
 
   color: var(--color-blue-bright);

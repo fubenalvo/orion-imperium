@@ -43,24 +43,24 @@
         }
 
         <!-- =================================================
-           SHIPS
+           FLEETS
            ================================================= -->
 
-        @for (ship of ships; track ship.id) {
-          <div class="ship-cell" [style.left]="ship.x + 'vw'" [style.top]="ship.y + 'vw'">
+        @for (fleet of fleets; track fleet.id) {
+          <div class="ship-cell" [style.left]="fleet.x + 'vw'" [style.top]="fleet.y + 'vw'">
             <button
               class="ship"
-              [class.selected]="selectedShip?.id === ship.id"
-              [class.moving]="ship.targetX !== null && ship.targetY !== null"
-              [class.arriced]="ship.targetX === null || ship.targetY === null"
+              [class.selected]="selectedFleet?.id === fleet.id"
+              [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
+              [class.arriced]="fleet.targetX === null || fleet.targetY === null"
               type="button"
-              (click)="selectShip(ship); $event.stopPropagation()"
-              (contextmenu)="deselectShip(); $event.preventDefault(); $event.stopPropagation()"
+              (click)="selectFleet(fleet); $event.stopPropagation()"
+              (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
             >
               <span class="ship__icon">◆</span>
 
-              <span class="ship__name" [style.color]="getFactionColor(ship.factionId)">
-                {{ ship.name }}
+              <span class="ship__name" [style.color]="getFactionColor(fleet.factionId)">
+                {{ fleet.name }}
               </span>
             </button>
           </div>
@@ -70,7 +70,7 @@
            SHIP DESTINATION
            ================================================= -->
 
-        @if (targetX !== null && targetY !== null && selectedShip) {
+        @if (targetX !== null && targetY !== null && selectedFleet) {
           <div
             class="ship-target"
             [style.gridColumn]="calculateGridCell(targetX, targetY).col"
@@ -93,14 +93,14 @@
     </div>
 
     <!-- =====================================================
-       SELECTED SHIP INFO
+       SELECTED FLEET INFO
        ===================================================== -->
 
-    @if (selectedShip) {
-      <div class="ship-info panel-style">
+    @if (selectedFleet) {
+      <div class="fleet-info panel-style">
         <div class="panel-style__title">
-          <span [style.color]="getFactionColor(selectedShip.factionId)">
-            {{ selectedShip.name }}
+          <span [style.color]="getFactionColor(selectedFleet.factionId)">
+            {{ selectedFleet.name }} FLEET
           </span>
         </div>
 
@@ -108,7 +108,7 @@
           <div>
             STATUS:
 
-            @if (selectedShip.targetX !== null) {
+            @if (selectedFleet.targetX !== null) {
               MOVING
             } @else {
               IDLE
@@ -117,26 +117,26 @@
 
           <div>
             SPEED:
-            {{ selectedShip.speed }}
+            {{ selectedFleet.speed }}
           </div>
         </div>
       </div>
     }
 
     <!-- =====================================================
-       SHIP BUTTONS
+       FLEET BUTTONS
        ===================================================== -->
 
-    <div class="ship-buttons panel-style">
-      @for (ship of ships; track ship.id) {
+    <div class="fleet-buttons panel-style">
+      @for (fleet of fleets; track fleet.id) {
         <button
-          class="ship-btn"
-          [class.selected]="selectedShip?.id === ship.id"
+          class="fleet-btn"
+          [class.selected]="selectedFleet?.id === fleet.id"
           type="button"
-          (click)="selectShip(ship); $event.stopPropagation()"
+          (click)="selectFleet(fleet); $event.stopPropagation()"
         >
-          <span [style.color]="getFactionColor(ship.factionId)">
-            {{ ship.name }}
+          <span [style.color]="getFactionColor(fleet.factionId)">
+            {{ fleet.name }}
           </span>
         </button>
       }
@@ -214,38 +214,40 @@
             </button>
           }
 
-          <!-- SHIPS IN SYSTEM -->
-          @for (ship of ships; track ship.id) {
+          <!-- FLEETS IN SYSTEM -->
+          @for (fleet of fleets; track fleet.id) {
             @if (
-              ship.systemId === selectedSystem.id && ship.systemX != null && ship.systemY != null
+              fleet.systemId === selectedSystem.id && fleet.systemX != null && fleet.systemY != null
             ) {
               <div
                 class="ship-cell"
-                [style.left]="ship.systemX + 'vw'"
-                [style.top]="ship.systemY + 'vw'"
+                [style.left]="fleet.systemX + 'vw'"
+                [style.top]="fleet.systemY + 'vw'"
               >
                 <button
                   class="ship"
-                  [class.selected]="selectedShip?.id === ship.id"
-                  [class.moving]="ship.systemTargetX !== null && ship.systemTargetY !== null"
-                  [class.arriced]="ship.systemTargetX === null || ship.systemTargetY === null"
+                  [class.selected]="selectedFleet?.id === fleet.id"
+                  [class.moving]="fleet.systemTargetX !== null && fleet.systemTargetY !== null"
+                  [class.arriced]="fleet.systemTargetX === null || fleet.systemTargetY === null"
                   type="button"
-                  (click)="selectShip(ship); $event.stopPropagation()"
-                  (contextmenu)="deselectShip(); $event.preventDefault(); $event.stopPropagation()"
+                  (click)="selectFleet(fleet); $event.stopPropagation()"
+                  (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
                 >
                   <span class="ship__icon">◆</span>
-                  <span class="ship__name" [style.color]="getFactionColor(ship.factionId)">{{ ship.name }}</span>
+                  <span class="ship__name" [style.color]="getFactionColor(fleet.factionId)">{{
+                    fleet.name
+                  }}</span>
                 </button>
               </div>
             }
           }
 
-          <!-- SHIP SYSTEM DESTINATION -->
+          <!-- FLEET SYSTEM DESTINATION -->
           @if (
             targetX !== null &&
             targetY !== null &&
-            selectedShip &&
-            selectedShip.systemId === selectedSystem.id
+            selectedFleet &&
+            selectedFleet.systemId === selectedSystem.id
           ) {
             <div
               class="ship-target system-target"
