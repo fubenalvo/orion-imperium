@@ -1,13 +1,57 @@
 <div class="map-navigation" (click)="$event.stopPropagation()">
-  <button class="map-navigation__up" type="button" (click)="cameraMove.emit('up')">▲</button>
+  <button
+    class="map-navigation__up"
+    type="button"
+    (mousedown)="startMoving('up')"
+    (mouseup)="stopMoving()"
+    (mouseleave)="stopMoving()"
+    (touchstart)="startMoving('up'); $event.preventDefault()"
+    (touchend)="stopMoving()"
+    (touchcancel)="stopMoving()"
+  >
+    ▲
+  </button>
 
-  <button class="map-navigation__left" type="button" (click)="cameraMove.emit('left')">◀</button>
+  <button
+    class="map-navigation__left"
+    type="button"
+    (mousedown)="startMoving('left')"
+    (mouseup)="stopMoving()"
+    (mouseleave)="stopMoving()"
+    (touchstart)="startMoving('left'); $event.preventDefault()"
+    (touchend)="stopMoving()"
+    (touchcancel)="stopMoving()"
+  >
+    ◀
+  </button>
 
   <button class="map-navigation__center" type="button" (click)="centerCamera.emit()">
     ●
   </button>
 
-  <button class="map-navigation__right" type="button" (click)="cameraMove.emit('right')">▶</button>
+  <button
+    class="map-navigation__right"
+    type="button"
+    (mousedown)="startMoving('right')"
+    (mouseup)="stopMoving()"
+    (mouseleave)="stopMoving()"
+    (touchstart)="startMoving('right'); $event.preventDefault()"
+    (touchend)="stopMoving()"
+    (touchcancel)="stopMoving()"
+  >
+    ▶
+  </button>
 
-  <button class="map-navigation__down" type="button" (click)="cameraMove.emit('down')">▼</button>
+  <button
+    class="map-navigation__down"
+    type="button"
+    (mousedown)="startMoving('down')"
+    (mouseup)="stopMoving()"
+    (mouseleave)="stopMoving()"
+    (touchstart)="startMoving('down'); $event.preventDefault()"
+    (touchend)="stopMoving()"
+    (touchcancel)="stopMoving()"
+  >
+    ▼
+  </button>
 </div>
