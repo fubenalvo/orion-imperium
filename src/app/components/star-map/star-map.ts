@@ -5,9 +5,18 @@ import {
   ChangeDetectorRef,
   NgZone,
   AfterViewInit,
+  OnInit,
 } from '@angular/core';
+import { UpperCasePipe } from '@angular/common';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
+
+interface PlanetBuilding {
+  name: string;
+  count: number;
+}
+
+type PlanetType = 'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert';
 
 interface PlanetTile {
   id: number;
@@ -16,6 +25,9 @@ interface PlanetTile {
   y: number;
   xOffset: number;
   yOffset: number;
+  type?: PlanetType;
+  population?: number;
+  buildings?: PlanetBuilding[];
 }
 
 interface StarSystem {
@@ -49,25 +61,62 @@ interface Ship {
    * Movement speed in world units / second.
    */
   speed: number;
+
+  /*
+   * System-level properties
+   */
+  systemId?: number;
+  systemX?: number | null;
+  systemY?: number | null;
+  systemTargetX?: number | null;
+  systemTargetY?: number | null;
 }
 
 @Component({
   selector: 'app-star-map',
-  imports: [StarMapNavigationComponent],
+  imports: [StarMapNavigationComponent, UpperCasePipe],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
-export class StarMap implements AfterViewInit, OnDestroy {
+export class StarMap implements OnInit, AfterViewInit, OnDestroy {
   currentView: 'map' | 'system' = 'map';
 
   enterSystem(): void {
     if (this.selectedSystem) {
       this.currentView = 'system';
+
+      // Setup ships in this system
+      for (const ship of this.ships) {
+        if (this.isShipInSystem(ship, this.selectedSystem)) {
+          ship.systemId = this.selectedSystem.id;
+          if (ship.systemX == null) {
+            ship.systemX = 2.5; // col 1 center
+            ship.systemY = 32.5; // row 7 center
+          }
+        }
+      }
+
+      if (this.selectedShip && this.selectedShip.systemTargetX != null) {
+        this.targetX = this.selectedShip.systemTargetX ?? null;
+        this.targetY = this.selectedShip.systemTargetY ?? null;
+      } else {
+        this.targetX = null;
+        this.targetY = null;
+      }
     }
   }
 
   leaveSystem(): void {
     this.currentView = 'map';
+
+    // Restore target marker for map view
+    if (this.selectedShip && this.selectedShip.targetX != null) {
+      this.targetX = this.selectedShip.targetX;
+      this.targetY = this.selectedShip.targetY;
+    } else {
+      this.targetX = null;
+      this.targetY = null;
+    }
   }
 
   /*
@@ -97,6 +146,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
       col,
       row,
     };
+  }
+
+  isShipInSystem(ship: Ship, system: StarSystem): boolean {
+    const shipCell = this.calculateGridCell(ship.x, ship.y);
+    const sysCell = this.calculateGridCell(system.x, system.y);
+    return shipCell.col === sysCell.col && shipCell.row === sysCell.row;
   }
 
   private getTileCenter(x: number, y: number): { x: number; y: number } {
@@ -365,6 +420,50 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private ngZone: NgZone,
   ) {}
 
+  ngOnInit(): void {
+    const planetTypes: PlanetType[] = [
+      'earthlike',
+      'marslike',
+      'venuslike',
+      'gasgiant',
+      'ice',
+      'desert',
+    ];
+    const buildingNames = [
+      'Bank',
+      'Spaceship Factory',
+      'Solar Power Plant',
+      'Residential Block',
+      'Mining Facility',
+    ];
+
+    for (const sys of this.starSystems) {
+      for (const planet of sys.planetsTiles) {
+        if (!planet.type) {
+          planet.type = planetTypes[Math.floor(Math.random() * planetTypes.length)];
+          planet.population = Math.floor(Math.random() * 10000) + 1000;
+          planet.buildings = [
+            { name: 'Solar Power Plant', count: Math.floor(Math.random() * 5) + 1 },
+            { name: 'Residential Block', count: Math.floor(Math.random() * 10) + 2 },
+            { name: 'Bank', count: Math.floor(Math.random() * 2) },
+            { name: 'Spaceship Factory', count: Math.floor(Math.random() * 2) },
+          ].filter((b) => b.count > 0);
+        }
+      }
+    }
+  }
+
+  getEnergyForPlanet(planet: PlanetTile): number {
+    const powerPlants = planet.buildings?.find((b) => b.name === 'Solar Power Plant')?.count || 0;
+    return powerPlants * 50;
+  }
+
+  getTaxForPlanet(planet: PlanetTile): number {
+    const banks = planet.buildings?.find((b) => b.name === 'Bank')?.count || 0;
+    const pop = planet.population || 0;
+    return Math.floor(pop * 0.1) + banks * 500;
+  }
+
   /*
    * -------------------------------------------------------
    * VIEW READY
@@ -439,67 +538,67 @@ export class StarMap implements AfterViewInit, OnDestroy {
     let didMoveShips = false;
 
     for (const ship of this.ships) {
-      /*
-       * No destination = ship is idle.
-       */
+      // Map movement
+      if (ship.targetX !== null && ship.targetY !== null) {
+        didMoveShips = true;
 
-      if (ship.targetX === null || ship.targetY === null) {
-        continue;
-      }
+        const dx = ship.targetX - ship.x;
+        const dy = ship.targetY - ship.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const movement = ship.speed * deltaTime;
 
-      didMoveShips = true;
+        if (distance <= movement) {
+          ship.x = ship.targetX;
+          ship.y = ship.targetY;
+          ship.targetX = null;
+          ship.targetY = null;
 
-      /*
-       * Distance from ship to target.
-       */
-
-      const dx = ship.targetX - ship.x;
-
-      const dy = ship.targetY - ship.y;
-
-      const distance = Math.sqrt(dx * dx + dy * dy);
-
-      /*
-       * Has the ship reached its destination?
-       */
-
-      const movement = ship.speed * deltaTime;
-
-      if (distance <= movement) {
-        ship.x = ship.targetX;
-        ship.y = ship.targetY;
-
-        ship.targetX = null;
-        ship.targetY = null;
-
-        /*
-         * Clear target marker if this was
-         * the selected ship.
-         */
-
-        if (this.selectedShip?.id === ship.id) {
-          this.targetX = null;
-          this.targetY = null;
+          if (this.selectedShip?.id === ship.id && this.currentView === 'map') {
+            this.targetX = null;
+            this.targetY = null;
+          }
+        } else {
+          ship.x += (dx / distance) * movement;
+          ship.y += (dy / distance) * movement;
         }
 
-        continue;
+        // If the ship moved on the world map, check if it left its current system
+        if (ship.systemId !== undefined) {
+          const system = this.starSystems.find((s) => s.id === ship.systemId);
+          if (system && !this.isShipInSystem(ship, system)) {
+            ship.systemId = undefined;
+            ship.systemX = null;
+            ship.systemY = null;
+            ship.systemTargetX = null;
+            ship.systemTargetY = null;
+          }
+        }
       }
 
-      /*
-       * Normalize direction.
-       */
+      // System movement
+      if (ship.systemTargetX != null && ship.systemTargetY != null) {
+        didMoveShips = true;
 
-      const directionX = dx / distance;
+        const dx = ship.systemTargetX - (ship.systemX || 0);
+        const dy = ship.systemTargetY - (ship.systemY || 0);
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const movement = ship.speed * deltaTime;
 
-      const directionY = dy / distance;
+        if (distance <= movement) {
+          ship.systemX = ship.systemTargetX;
+          ship.systemY = ship.systemTargetY;
+          ship.systemTargetX = null;
+          ship.systemTargetY = null;
 
-      /*
-       * Move ship according to elapsed time.
-       */
-
-      ship.x += directionX * movement;
-
-      ship.y += directionY * movement;
+          if (this.selectedShip?.id === ship.id && this.currentView === 'system') {
+            this.targetX = null;
+            this.targetY = null;
+          }
+        } else {
+          ship.systemX = (ship.systemX || 0) + (dx / distance) * movement;
+          ship.systemY = (ship.systemY || 0) + (dy / distance) * movement;
+        }
+      }
     }
 
     return didMoveShips;
@@ -514,17 +613,22 @@ export class StarMap implements AfterViewInit, OnDestroy {
   selectShip(ship: Ship): void {
     this.selectedShip = ship;
 
-    /*
-     * If the ship already has a destination,
-     * show it.
-     */
-
-    if (ship.targetX !== null && ship.targetY !== null) {
-      this.targetX = ship.targetX;
-      this.targetY = ship.targetY;
+    if (this.currentView === 'system') {
+      if (ship.systemTargetX != null && ship.systemTargetY != null) {
+        this.targetX = ship.systemTargetX ?? null;
+        this.targetY = ship.systemTargetY ?? null;
+      } else {
+        this.targetX = null;
+        this.targetY = null;
+      }
     } else {
-      this.targetX = null;
-      this.targetY = null;
+      if (ship.targetX !== null && ship.targetY !== null) {
+        this.targetX = ship.targetX;
+        this.targetY = ship.targetY;
+      } else {
+        this.targetX = null;
+        this.targetY = null;
+      }
     }
   }
 
@@ -539,15 +643,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
       return;
     }
 
-    this.selectedShip.targetX = x;
-    this.selectedShip.targetY = y;
-
-    /*
-     * Show destination marker.
-     */
-
-    this.targetX = x;
-    this.targetY = y;
+    if (this.currentView === 'system') {
+      // Only allow movement in system if the ship is actually in this system
+      if (this.selectedSystem && this.selectedShip.systemId === this.selectedSystem.id) {
+        this.selectedShip.systemTargetX = x;
+        this.selectedShip.systemTargetY = y;
+        this.targetX = x;
+        this.targetY = y;
+      }
+    } else {
+      this.selectedShip.targetX = x;
+      this.selectedShip.targetY = y;
+      this.targetX = x;
+      this.targetY = y;
+    }
   }
 
   /*
@@ -612,6 +721,32 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.moveSelectedShip(targetTile.x, targetTile.y);
   }
 
+  onSystemGridClick(event: MouseEvent): void {
+    if (
+      !this.selectedShip ||
+      !this.selectedSystem ||
+      this.selectedShip.systemId !== this.selectedSystem.id
+    ) {
+      return;
+    }
+
+    const viewport = event.currentTarget as HTMLElement;
+    const rect = viewport.getBoundingClientRect();
+    const screenX = event.clientX - rect.left;
+    const screenY = event.clientY - rect.top;
+
+    const viewportUnitInPixels = window.innerWidth / 100;
+
+    // System grid doesn't have camera translation
+    const systemX = screenX / viewportUnitInPixels;
+    const systemY = screenY / viewportUnitInPixels;
+
+    // Use getTileCenter to snap to grid cells (system view also uses 5vw grid)
+    const targetTile = this.getTileCenter(systemX, systemY);
+
+    this.moveSelectedShip(targetTile.x, targetTile.y);
+  }
+
   /*
    * -------------------------------------------------------
    * SELECT STAR SYSTEM
@@ -620,6 +755,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   selectSystem(system: StarSystem): void {
     this.selectedSystem = system;
+
+    // Ha van kiválasztott hajó, és a világtérképen vagyunk, menjen oda a hajó
+    if (this.selectedShip && this.currentView === 'map') {
+      const targetTile = this.getTileCenter(system.x, system.y);
+      this.moveSelectedShip(targetTile.x, targetTile.y);
+    }
   }
 
   /*

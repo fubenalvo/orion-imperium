@@ -636,7 +636,8 @@
 .system-view {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 80% 50%, rgba(53, 134, 229, 0.05), transparent 60%), #020609;
+  background:
+    radial-gradient(circle at 80% 50%, rgba(53, 134, 229, 0.05), transparent 60%), #020609;
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -683,14 +684,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-
+  pointer-events: none;
   .sun-core {
-    width: 60%;
-    height: 60%;
+    width: 30vw;
+    height: 30vw;
     border-radius: 50%;
     background: var(--sun-color);
-    box-shadow: 0 0 60px var(--sun-color), inset 0 0 20px rgba(255, 255, 255, 0.7);
+    box-shadow:
+      0 0 60px var(--sun-color),
+      inset 0 0 20px rgba(255, 255, 255, 0.7);
     z-index: 2;
+    position: absolute;
+    top: 0;
+    left: 50%;
   }
 
   .sun-glow {
@@ -707,8 +713,14 @@
 }
 
 @keyframes sun-pulse {
-  0% { transform: scale(0.9); opacity: 0.1; }
-  100% { transform: scale(1.1); opacity: 0.25; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(1.1);
+    opacity: 0.25;
+  }
 }
 
 .planet {
@@ -718,24 +730,82 @@
   justify-content: center;
   gap: 0.5em;
   position: relative;
+  box-shadow: none;
 
   .planet-body {
-    width: 2.8vw;
-    height: 2.8vw;
+    width: 3vw;
+    height: 3vw;
     border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, var(--planet-color), #111);
-    box-shadow: inset -5px -5px 10px rgba(0,0,0,0.7), 0 0 10px rgba(0,0,0,0.5);
-    border: 1px solid rgba(255,255,255,0.1);
+    background: radial-gradient(circle at 100% 50%, var(--planet-color), #111);
+    box-shadow:
+      inset 11px 0 8px rgba(0, 0, 0, 0.5),
+      0 0 10px rgba(0, 0, 0, 0.2);
+    position: absolute;
   }
 
   .planet-name {
+    position: absolute;
     color: var(--color-text);
     font-family: 'Pixelify Sans', sans-serif;
     font-size: 0.75rem;
     letter-spacing: 0.05em;
-    background: rgba(0,0,0,0.7);
     padding: 0.2em 0.5em;
-    border: 1px solid var(--color-blue);
+    top: 100%;
+    width: 200%;
+    left: -50%;
+    text-align: center;
+    display: block;
+  }
+
+  &.ice .planet-body {
+    background: radial-gradient(circle at 100% 50%, rgb(187, 218, 218), #111);
+  }
+  &.venuslike .planet-body {
+    background: radial-gradient(circle at 100% 50%, rgb(161, 103, 27), #111);
+    width: 1.5vw;
+    height: 1.5vw;
+  }
+  &.desert .planet-body {
+    background: radial-gradient(circle at 100% 50%, rgb(145, 132, 107), #111);
+    width: 1.5vw;
+    height: 1.5vw;
+  }
+
+  &.earthlike .planet-body {
+    background: radial-gradient(circle at 30% 30%, rgb(67, 67, 145), #111);
+    width: 2vw;
+    height: 2vw;
+  }
+
+  &.marslike .planet-body {
+    background: radial-gradient(circle at 30% 30%, rgb(94, 26, 26), #111);
+    width: 1.5vw;
+    height: 1.5vw;
   }
 }
 
+.system-target {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 12;
+}
+
+.planet-info {
+  position: absolute;
+  left: 2%;
+  bottom: 3%;
+  width: 24%;
+  min-width: 220px;
+  padding-bottom: 0.8em;
+  z-index: 120;
+}
+
+.planet {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+
+  &:hover .planet-body {
+    transform: scale(1.1);
+  }
+}

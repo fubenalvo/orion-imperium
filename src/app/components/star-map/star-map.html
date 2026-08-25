@@ -197,7 +197,7 @@
     <div class="system-view">
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
 
-      <div class="system-grid">
+      <div class="system-grid" (click)="onSystemGridClick($event)">
         @if (selectedSystem) {
           <!-- SUN -->
           <div class="sun" [style.--sun-color]="selectedSystem.color">
@@ -207,18 +207,104 @@
 
           <!-- PLANETS -->
           @for (planet of selectedSystem.planetsTiles; track planet.id) {
-            <div
-              class="planet"
+            <button
+              class="planet {{ planet.type }}"
               [style.gridColumn]="20 - planet.index * 2"
               [style.gridRow]="6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3)"
               [style.--planet-color]="selectedSystem.color"
+              (click)="selectPlanetTile(planet); $event.stopPropagation()"
             >
               <div class="planet-body"></div>
               <div class="planet-name">Planet {{ planet.index }}</div>
+            </button>
+          }
+
+          <!-- SHIPS IN SYSTEM -->
+          @for (ship of ships; track ship.id) {
+            @if (
+              ship.systemId === selectedSystem.id && ship.systemX != null && ship.systemY != null
+            ) {
+              <div
+                class="ship-cell"
+                [style.left]="ship.systemX + 'vw'"
+                [style.top]="ship.systemY + 'vw'"
+              >
+                <button
+                  class="ship"
+                  [class.selected]="selectedShip?.id === ship.id"
+                  [class.moving]="ship.systemTargetX !== null && ship.systemTargetY !== null"
+                  [class.arriced]="ship.systemTargetX === null || ship.systemTargetY === null"
+                  type="button"
+                  (click)="selectShip(ship); $event.stopPropagation()"
+                >
+                  <span class="ship__icon">◆</span>
+                  <span class="ship__name">{{ ship.name }}</span>
+                </button>
+              </div>
+            }
+          }
+
+          <!-- SHIP SYSTEM DESTINATION -->
+          @if (
+            targetX !== null &&
+            targetY !== null &&
+            selectedShip &&
+            selectedShip.systemId === selectedSystem.id
+          ) {
+            <div
+              class="ship-target system-target"
+              [style.left]="targetX + 'vw'"
+              [style.top]="targetY + 'vw'"
+            >
+              <span class="ship-target__crosshair">+</span>
+              <span class="ship-target__line">TARGET</span>
             </div>
           }
         }
       </div>
+
+      <!-- =====================================================
+           PLANET DETAILS WINDOW
+           ===================================================== -->
+      @if (selectedPlanetTile) {
+        <div class="planet-info panel-style">
+          <div
+            class="panel-style__title"
+            style="display: flex; justify-content: space-between; align-items: center"
+          >
+            <span>Planet {{ selectedPlanetTile.index }} Details</span>
+            <button
+              class="close-btn"
+              type="button"
+              (click)="selectedPlanetTile = null"
+              style="
+                background: none;
+                border: none;
+                color: var(--color-blue-bright);
+                cursor: pointer;
+                font-family: monospace;
+                font-size: 1.2rem;
+              "
+            >
+              X
+            </button>
+          </div>
+
+          <div class="system-info__content">
+            <div>TYPE: {{ selectedPlanetTile.type | uppercase }}</div>
+            <div>POPULATION: {{ selectedPlanetTile.population }}</div>
+            <div>ENERGY: {{ getEnergyForPlanet(selectedPlanetTile) }}</div>
+            <div>DAILY TAX: {{ getTaxForPlanet(selectedPlanetTile) }}</div>
+            <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
+            <div>BUILDINGS:</div>
+            <ul style="margin: 0; padding-left: 1.2em">
+              @for (b of selectedPlanetTile.buildings; track b.name) {
+                <li>{{ b.name }}: {{ b.count }}</li>
+              }
+            </ul>
+          </div>
+        </div>
+      }
     </div>
   }
 </div>
