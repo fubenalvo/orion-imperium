@@ -365,6 +365,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   selectShip(ship: Ship): void {
     this.selectedShip = ship;
 
+    if (this.currentView === 'map') {
+      this.cameraX = ship.x - 50;
+      this.cameraY = ship.y - 50;
+      this.clampCamera();
+    }
+
     if (this.currentView === 'system') {
       if (ship.systemTargetX != null && ship.systemTargetY != null) {
         this.targetX = ship.systemTargetX ?? null;
