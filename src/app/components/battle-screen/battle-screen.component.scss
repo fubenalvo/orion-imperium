@@ -44,6 +44,18 @@
   border-radius: 4px;
   background: rgba(2, 6, 9, 0.8);
   text-align: center;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.fleet-panel.winner {
+  border-color: #4caf50;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+}
+
+.fleet-panel.loser {
+  border-color: #d65757;
+  box-shadow: 0 0 20px rgba(214, 87, 87, 0.3);
+  opacity: 0.6;
 }
 
 .fleet-panel__name {
@@ -58,6 +70,14 @@
   letter-spacing: 0.1em;
   opacity: 0.8;
   margin: 0;
+}
+
+.fleet-panel__stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  opacity: 0.9;
 }
 
 .fleet-panel__ships {
@@ -93,6 +113,47 @@
   opacity: 0.6;
 }
 
+.fleet-panel__score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background: rgba(53, 134, 229, 0.1);
+  border-radius: 2px;
+}
+
+.score-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  opacity: 0.6;
+}
+
+.score-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-blue);
+}
+
+.fleet-panel__result {
+  margin-top: 0.75rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  border-radius: 2px;
+}
+
+.fleet-panel__result.winner {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.fleet-panel__result.loser {
+  background: rgba(214, 87, 87, 0.2);
+  color: #d65757;
+}
+
 .battle-screen__vs {
   display: flex;
   align-items: center;
@@ -101,6 +162,24 @@
   font-weight: 700;
   color: #d65757;
   letter-spacing: 0.2em;
+}
+
+.battle-screen__summary {
+  padding: 1rem 2rem;
+  background: rgba(53, 134, 229, 0.1);
+  border: 1px solid rgba(53, 134, 229, 0.3);
+  border-radius: 4px;
+  text-align: center;
+}
+
+.summary-text {
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+}
+
+.summary-text strong {
+  color: #4caf50;
+  font-size: 1.2rem;
 }
 
 .back-btn {

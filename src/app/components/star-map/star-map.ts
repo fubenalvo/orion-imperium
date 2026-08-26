@@ -9,6 +9,7 @@ import {
 import { NgClass, UpperCasePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { BattleService, Fleet } from '../../services/battle.service';
+import { ShipService } from '../../services/ship.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import starMapData from './star-map-data.json';
@@ -106,6 +107,7 @@ export interface StarMapData {
   selectedFleetAction?: 'move' | 'attack' | null;
   targetX?: number | null;
   targetY?: number | null;
+  destroyedFleetId?: number | null;
 }
 
 interface ContextMenuItem {
@@ -527,6 +529,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private router: Router,
     private battleService: BattleService,
     private saveGameService: SaveGameService,
+    private shipService: ShipService,
   ) {}
 
   private saveGame(): void {
@@ -553,6 +556,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       selectedFleetAction: this.selectedFleetAction,
       targetX: this.targetX,
       targetY: this.targetY,
+      destroyedFleetId: this.battleService.getDestroyedFleetId(),
     };
 
     this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
@@ -571,6 +575,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.factions = data.factions;
     this.starSystems = data.starSystems;
     this.fleets = data.fleets;
+
+    if (data.destroyedFleetId != null) {
+      this.fleets = this.fleets.filter((f) => f.id !== data.destroyedFleetId);
+    }
 
     this.currentView = data.currentView ?? 'map';
     this.cameraX = data.cameraX ?? 0;
@@ -619,15 +627,34 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  // A korábbi random generálás törölve lett, mert minden a JSON-ból töltődik be
+  removeFleet(fleetId: number): void {
+    this.fleets = this.fleets.filter((f) => f.id !== fleetId);
+    if (this.selectedFleet?.id === fleetId) {
+      this.selectedFleet = null;
+      this.selectedFleetAction = null;
+      this.targetX = null;
+      this.targetY = null;
+    }
+  }
+
   ngOnInit(): void {
     if (this.saveGameService.currentSlot !== null) {
       this.loadGame();
+      this.removeDestroyedFleetFromService();
       return;
     }
 
     this.initializeCoordinates();
     this.refreshGridPositions();
+  }
+
+  private removeDestroyedFleetFromService(): void {
+    const destroyedFleetId = this.battleService.getDestroyedFleetId();
+    if (destroyedFleetId != null) {
+      this.battleService.clearBattle();
+      this.removeFleet(destroyedFleetId);
+      this.saveGame();
+    }
   }
 
   getPlanetClassNames(planet: PlanetTile): string[] {
