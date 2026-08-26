@@ -7,6 +7,8 @@ import {
   AfterViewInit,
 } from '@angular/core';
 import { NgClass, UpperCasePipe } from '@angular/common';
+import { Router } from '@angular/router';
+import { BattleService, Fleet } from '../../services/battle.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import starMapData from './star-map-data.json';
@@ -24,6 +26,7 @@ interface Faction {
   id: string;
   name: string;
   color: string;
+  team: number;
 }
 
 interface PlanetTile {
@@ -81,31 +84,6 @@ interface FleetShipTypeSummary {
   count: number;
   attack: number;
   defense: number;
-}
-
-interface Fleet {
-  id: number;
-  name: string;
-  factionId: string;
-
-  x: number;
-  y: number;
-
-  targetX: number | null;
-  targetY: number | null;
-
-  speed: number;
-
-  systemId?: number;
-  systemX?: number | null;
-  systemY?: number | null;
-  systemTargetX?: number | null;
-  systemTargetY?: number | null;
-
-  gridCol: number;
-  gridRow: number;
-
-  ships: FleetShip[];
 }
 
 interface StarMapData {
@@ -261,6 +239,57 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   getFleetTotalDefense(fleet: Fleet): number {
     return fleet.ships.reduce((sum, ship) => sum + (this.getShipType(ship.type)?.defense ?? 0), 0);
+  }
+
+  private checkForBattles(): void {
+    for (let i = 0; i < this.fleets.length; i++) {
+      for (let j = i + 1; j < this.fleets.length; j++) {
+        const fleet1 = this.fleets[i];
+        const fleet2 = this.fleets[j];
+
+        if (fleet1.gridCol !== fleet2.gridCol || fleet1.gridRow !== fleet2.gridRow) {
+          continue;
+        }
+
+        const faction1 = this.factions.find((f) => f.id === fleet1.factionId);
+        const faction2 = this.factions.find((f) => f.id === fleet2.factionId);
+
+        if (!faction1 || !faction2) {
+          continue;
+        }
+
+        if (faction1.team === 0 || faction2.team === 0) {
+          continue;
+        }
+
+        if (faction1.team === faction2.team) {
+          continue;
+        }
+
+        const battleKey = `${Math.min(fleet1.id, fleet2.id)}-${Math.max(fleet1.id, fleet2.id)}`;
+
+        if (this.triggeredBattles.has(battleKey)) {
+          continue;
+        }
+
+        this.triggeredBattles.add(battleKey);
+
+        this.battleService.setBattle({
+          fleet1,
+          fleet2,
+          faction1Name: faction1.name,
+          faction1Color: faction1.color,
+          faction2Name: faction2.name,
+          faction2Color: faction2.color,
+        });
+
+        this.ngZone.run(() => {
+          this.router.navigate(['/battle']);
+        });
+
+        return;
+      }
+    }
   }
 
   calculateGridCell(x: number, y: number): { col: number; row: number } {
@@ -471,6 +500,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private animationFrameId: number | null = null;
   private lastFrameTime = 0;
   isPaused = false;
+  private triggeredBattles = new Set<string>();
 
   private readonly onWindowBlur = (): void => this.pauseGame();
   private readonly onVisibilityChange = (): void => {
@@ -480,6 +510,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   constructor(
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
+    private router: Router,
+    private battleService: BattleService,
   ) {}
 
   // A korábbi random generálás törölve lett, mert minden a JSON-ból töltődik be
@@ -686,6 +718,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
+    this.checkForBattles();
+
     return didMoveFleets;
   }
 
@@ -756,12 +790,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   onFleetClick(fleet: Fleet, event: MouseEvent): void {
-    event.stopPropagation();
-
     if (this.contextMenu) {
       this.closeContextMenu();
+      event.stopPropagation();
       return;
     }
+
+    if (this.selectedFleetAction === 'move') {
+      return;
+    }
+
+    event.stopPropagation();
 
     if (this.currentView === 'map') {
       this.handleMapObjectClick(fleet.gridCol, fleet.gridRow, event);
@@ -774,12 +813,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   onSystemClick(system: StarSystem, event: MouseEvent): void {
-    event.stopPropagation();
-
     if (this.contextMenu) {
       this.closeContextMenu();
+      event.stopPropagation();
       return;
     }
+
+    if (this.selectedFleetAction === 'move') {
+      return;
+    }
+
+    event.stopPropagation();
 
     if (this.currentView === 'map') {
       this.handleMapObjectClick(system.gridCol, system.gridRow, event);
@@ -789,12 +833,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   onPlanetClick(planet: PlanetTile, event: MouseEvent): void {
-    event.stopPropagation();
-
     if (this.contextMenu) {
       this.closeContextMenu();
+      event.stopPropagation();
       return;
     }
+
+    if (this.selectedFleetAction === 'move') {
+      return;
+    }
+
+    event.stopPropagation();
 
     if (this.currentView === 'system' && this.selectedSystem) {
       const planetCell = this.getPlanetGridPosition(planet);

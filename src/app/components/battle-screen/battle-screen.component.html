@@ -1,0 +1,51 @@
+<div class="battle-screen">
+  <div class="battle-screen__header">
+    <h1 class="battle-screen__title">BATTLE</h1>
+  </div>
+
+  <div class="battle-screen__content">
+    <div class="fleet-panel fleet-panel--left">
+      @if (battle) {
+        <h2 class="fleet-panel__name">{{ battle.fleet1.name }}</h2>
+        <p class="fleet-panel__faction" [style.color]="battle.faction1Color">
+          {{ battle.faction1Name }}
+        </p>
+        <div class="fleet-panel__ships">
+          @for (ship of battle.fleet1.ships; track ship.id) {
+            <div class="ship-row">
+              <span class="ship-row__name">{{ ship.name }}</span>
+              <span class="ship-row__type">{{ ship.type }}</span>
+            </div>
+          }
+        </div>
+        <div class="fleet-panel__count">
+          SHIPS: {{ battle.fleet1.ships.length }}
+        </div>
+      }
+    </div>
+
+    <div class="battle-screen__vs">VS</div>
+
+    <div class="fleet-panel fleet-panel--right">
+      @if (battle) {
+        <h2 class="fleet-panel__name">{{ battle.fleet2.name }}</h2>
+        <p class="fleet-panel__faction" [style.color]="battle.faction2Color">
+          {{ battle.faction2Name }}
+        </p>
+        <div class="fleet-panel__ships">
+          @for (ship of battle.fleet2.ships; track ship.id) {
+            <div class="ship-row">
+              <span class="ship-row__name">{{ ship.name }}</span>
+              <span class="ship-row__type">{{ ship.type }}</span>
+            </div>
+          }
+        </div>
+        <div class="fleet-panel__count">
+          SHIPS: {{ battle.fleet2.ships.length }}
+        </div>
+      }
+    </div>
+  </div>
+
+  <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
+</div>

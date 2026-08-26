@@ -3,22 +3,26 @@
     {
       "id": "player",
       "name": "Player",
-      "color": "#8cc4ff"
+      "color": "#8cc4ff",
+      "team": 1
     },
     {
       "id": "enemy1",
       "name": "Enemy 1",
-      "color": "#d65757"
+      "color": "#d65757",
+      "team": 2
     },
     {
       "id": "enemy2",
       "name": "Enemy 2",
-      "color": "#39b8a8"
+      "color": "#39b8a8",
+      "team": 2
     },
     {
       "id": "unhabited",
       "name": "Unhabited",
-      "color": "#666666"
+      "color": "#666666",
+      "team": 0
     }
   ],
   "map": {
@@ -1180,139 +1184,139 @@
       ]
     }
   ],
-   "fleets": [
-     {
-       "id": 1,
-       "name": "ORION",
-       "x": 11,
-       "y": 9,
-       "targetX": null,
-       "targetY": null,
-       "speed": 8,
-       "factionId": "player",
-       "ships": [
-         {
-           "id": 1,
-           "name": "ORION-1",
-           "type": "frigate"
-         },
-         {
-           "id": 2,
-           "name": "ORION-2",
-           "type": "frigate"
-         }
-       ]
-     },
-     {
-       "id": 2,
-       "name": "PEGASUS",
-       "x": 25,
-       "y": 13,
-       "targetX": null,
-       "targetY": null,
-       "speed": 6,
-       "factionId": "player",
-       "ships": [
-         {
-           "id": 3,
-           "name": "PEGASUS-1",
-           "type": "cruiser"
-         },
-         {
-           "id": 4,
-           "name": "PEGASUS-2",
-           "type": "cruiser"
-         },
-         {
-           "id": 5,
-           "name": "PEGASUS-3",
-           "type": "cruiser"
-         }
-       ]
-     },
-     {
-       "id": 3,
-       "name": "RAIDER",
-       "x": 17,
-       "y": 11,
-       "targetX": null,
-       "targetY": null,
-       "speed": 7,
-       "factionId": "enemy1",
-       "ships": [
-         {
-           "id": 6,
-           "name": "RAIDER-1",
-           "type": "destroyer"
-         },
-         {
-           "id": 7,
-           "name": "RAIDER-2",
-           "type": "destroyer"
-         },
-         {
-           "id": 8,
-           "name": "RAIDER-3",
-           "type": "destroyer"
-         },
-         {
-           "id": 9,
-           "name": "RAIDER-4",
-           "type": "destroyer"
-         }
-       ]
-     },
-     {
-       "id": 4,
-       "name": "HUNTER",
-       "x": 29,
-       "y": 17,
-       "targetX": null,
-       "targetY": null,
-       "speed": 9,
-       "factionId": "enemy1",
-       "ships": [
-         {
-           "id": 10,
-           "name": "HUNTER-1",
-           "type": "scout"
-         },
-         {
-           "id": 11,
-           "name": "HUNTER-2",
-           "type": "scout"
-         },
-         {
-           "id": 12,
-           "name": "HUNTER-3",
-           "type": "scout"
-         },
-         {
-           "id": 13,
-           "name": "HUNTER-4",
-           "type": "scout"
-         },
-         {
-           "id": 14,
-           "name": "HUNTER-5",
-           "type": "scout"
-         },
-         {
-           "id": 15,
-           "name": "HUNTER-6",
-           "type": "scout"
-         },
-         {
-           "id": 16,
-           "name": "DESTROYER-2",
-           "type": "destroyer"
-         },
-         {
-           "id": 17,
-           "name": "DESTROYER-3",
-           "type": "destroyer"
-         }
-       ]
-     }
-   ]
+  "fleets": [
+    {
+      "id": 1,
+      "name": "ORION",
+      "x": 11,
+      "y": 9,
+      "targetX": null,
+      "targetY": null,
+      "speed": 8,
+      "factionId": "player",
+      "ships": [
+        {
+          "id": 1,
+          "name": "ORION-1",
+          "type": "frigate"
+        },
+        {
+          "id": 2,
+          "name": "ORION-2",
+          "type": "frigate"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "PEGASUS",
+      "x": 25,
+      "y": 13,
+      "targetX": null,
+      "targetY": null,
+      "speed": 6,
+      "factionId": "player",
+      "ships": [
+        {
+          "id": 3,
+          "name": "PEGASUS-1",
+          "type": "cruiser"
+        },
+        {
+          "id": 4,
+          "name": "PEGASUS-2",
+          "type": "cruiser"
+        },
+        {
+          "id": 5,
+          "name": "PEGASUS-3",
+          "type": "cruiser"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "RAIDER",
+      "x": 17,
+      "y": 11,
+      "targetX": null,
+      "targetY": null,
+      "speed": 7,
+      "factionId": "enemy1",
+      "ships": [
+        {
+          "id": 6,
+          "name": "RAIDER-1",
+          "type": "destroyer"
+        },
+        {
+          "id": 7,
+          "name": "RAIDER-2",
+          "type": "destroyer"
+        },
+        {
+          "id": 8,
+          "name": "RAIDER-3",
+          "type": "destroyer"
+        },
+        {
+          "id": 9,
+          "name": "RAIDER-4",
+          "type": "destroyer"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "HUNTER",
+      "x": 29,
+      "y": 17,
+      "targetX": null,
+      "targetY": null,
+      "speed": 9,
+      "factionId": "enemy1",
+      "ships": [
+        {
+          "id": 10,
+          "name": "HUNTER-1",
+          "type": "scout"
+        },
+        {
+          "id": 11,
+          "name": "HUNTER-2",
+          "type": "scout"
+        },
+        {
+          "id": 12,
+          "name": "HUNTER-3",
+          "type": "scout"
+        },
+        {
+          "id": 13,
+          "name": "HUNTER-4",
+          "type": "scout"
+        },
+        {
+          "id": 14,
+          "name": "HUNTER-5",
+          "type": "scout"
+        },
+        {
+          "id": 15,
+          "name": "HUNTER-6",
+          "type": "scout"
+        },
+        {
+          "id": 16,
+          "name": "DESTROYER-2",
+          "type": "destroyer"
+        },
+        {
+          "id": 17,
+          "name": "DESTROYER-3",
+          "type": "destroyer"
+        }
+      ]
+    }
+  ]
 }
