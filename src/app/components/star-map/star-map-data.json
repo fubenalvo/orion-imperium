@@ -1,9 +1,25 @@
 {
   "factions": [
-    { "id": "player", "name": "Player", "color": "#8cc4ff" },
-    { "id": "enemy1", "name": "Enemy 1", "color": "#d65757" },
-    { "id": "enemy2", "name": "Enemy 2", "color": "#39b8a8" },
-    { "id": "unhabited", "name": "Unhabited", "color": "#666666" }
+    {
+      "id": "player",
+      "name": "Player",
+      "color": "#8cc4ff"
+    },
+    {
+      "id": "enemy1",
+      "name": "Enemy 1",
+      "color": "#d65757"
+    },
+    {
+      "id": "enemy2",
+      "name": "Enemy 2",
+      "color": "#39b8a8"
+    },
+    {
+      "id": "unhabited",
+      "name": "Unhabited",
+      "color": "#666666"
+    }
   ],
   "map": {
     "width": 200,
@@ -31,17 +47,26 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "medium",
-          "population": 8420,
+          "population": 1887,
           "buildings": [
-            { "name": "Solar Power Plant", "count": 4 },
-            { "name": "Residential Block", "count": 9 },
-            { "name": "Bank", "count": 1 }
+            {
+              "name": "Research Laboratory",
+              "count": 1
+            },
+            {
+              "name": "Laser Turret",
+              "count": 1
+            },
+            {
+              "name": "Large Residential Block",
+              "count": 2
+            }
           ]
         },
         {
           "id": 2,
           "index": 2,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Veloria",
           "x": -100,
           "y": -50,
@@ -49,16 +74,13 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "big",
-          "population": 5320,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 2 },
-            { "name": "Residential Block", "count": 6 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 3,
           "index": 3,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Nyxara",
           "x": -80,
           "y": -50,
@@ -66,16 +88,13 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "small",
-          "population": 3180,
-          "buildings": [
-            { "name": "Mining Facility", "count": 3 },
-            { "name": "Residential Block", "count": 4 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 4,
           "index": 4,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Eldros",
           "x": -60,
           "y": -50,
@@ -83,8 +102,8 @@
           "yOffset": 0,
           "type": "gasgiant",
           "size": "huge",
-          "population": 1460,
-          "buildings": [{ "name": "Solar Power Plant", "count": 5 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 5,
@@ -97,13 +116,26 @@
           "yOffset": 0,
           "type": "ice",
           "size": "tiny",
-          "population": 980,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 995,
+          "buildings": [
+            {
+              "name": "Entertainment Center",
+              "count": 3
+            },
+            {
+              "name": "Solar Array",
+              "count": 3
+            },
+            {
+              "name": "Medium Residential Block",
+              "count": 3
+            }
+          ]
         },
         {
           "id": 6,
           "index": 6,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Thalassa",
           "x": -20,
           "y": -50,
@@ -111,12 +143,8 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "big",
-          "population": 9100,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 3 },
-            { "name": "Residential Block", "count": 10 },
-            { "name": "Bank", "count": 1 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 7,
@@ -129,16 +157,22 @@
           "yOffset": 0,
           "type": "desert",
           "size": "medium",
-          "population": 2760,
+          "population": 380,
           "buildings": [
-            { "name": "Mining Facility", "count": 4 },
-            { "name": "Solar Power Plant", "count": 2 }
+            {
+              "name": "Planetary Shield",
+              "count": 1
+            },
+            {
+              "name": "Research Laboratory",
+              "count": 3
+            }
           ]
         },
         {
           "id": 8,
           "index": 8,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Orinth",
           "x": 20,
           "y": -50,
@@ -146,8 +180,8 @@
           "yOffset": 0,
           "type": "ice",
           "size": "small",
-          "population": 1210,
-          "buildings": [{ "name": "Residential Block", "count": 3 }]
+          "population": 0,
+          "buildings": []
         }
       ]
     },
@@ -162,7 +196,7 @@
         {
           "id": 9,
           "index": 1,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Caldera",
           "x": -100,
           "y": -50,
@@ -170,16 +204,13 @@
           "yOffset": 0,
           "type": "desert",
           "size": "big",
-          "population": 4770,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 4 },
-            { "name": "Mining Facility", "count": 2 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 10,
           "index": 2,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Zephyria",
           "x": -80,
           "y": -50,
@@ -187,16 +218,13 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "medium",
-          "population": 6960,
-          "buildings": [
-            { "name": "Residential Block", "count": 8 },
-            { "name": "Bank", "count": 1 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 11,
           "index": 3,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Nerevos",
           "x": -60,
           "y": -50,
@@ -204,8 +232,8 @@
           "yOffset": 0,
           "type": "ice",
           "size": "small",
-          "population": 1620,
-          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 12,
@@ -218,16 +246,26 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "huge",
-          "population": 3380,
+          "population": 849,
           "buildings": [
-            { "name": "Solar Power Plant", "count": 3 },
-            { "name": "Spaceship Factory", "count": 1 }
+            {
+              "name": "Laser Turret",
+              "count": 1
+            },
+            {
+              "name": "Mining Complex",
+              "count": 2
+            },
+            {
+              "name": "Missile Turret",
+              "count": 3
+            }
           ]
         },
         {
           "id": 13,
           "index": 5,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Dravik",
           "x": -20,
           "y": -50,
@@ -235,8 +273,8 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "tiny",
-          "population": 890,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 0,
+          "buildings": []
         }
       ]
     },
@@ -251,7 +289,7 @@
         {
           "id": 14,
           "index": 1,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Solmara",
           "x": -120,
           "y": -50,
@@ -259,12 +297,8 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "huge",
-          "population": 11240,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 5 },
-            { "name": "Residential Block", "count": 12 },
-            { "name": "Bank", "count": 2 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 15,
@@ -277,16 +311,26 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "medium",
-          "population": 4020,
+          "population": 1029,
           "buildings": [
-            { "name": "Mining Facility", "count": 3 },
-            { "name": "Residential Block", "count": 5 }
+            {
+              "name": "Large Residential Block",
+              "count": 1
+            },
+            {
+              "name": "Missile Turret",
+              "count": 3
+            },
+            {
+              "name": "Hospital",
+              "count": 3
+            }
           ]
         },
         {
           "id": 16,
           "index": 3,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Ebonreach",
           "x": -80,
           "y": -50,
@@ -294,8 +338,8 @@
           "yOffset": 0,
           "type": "gasgiant",
           "size": "huge",
-          "population": 2060,
-          "buildings": [{ "name": "Solar Power Plant", "count": 6 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 17,
@@ -308,13 +352,22 @@
           "yOffset": 0,
           "type": "ice",
           "size": "small",
-          "population": 1340,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 229,
+          "buildings": [
+            {
+              "name": "Mining Complex",
+              "count": 2
+            },
+            {
+              "name": "Research Laboratory",
+              "count": 2
+            }
+          ]
         },
         {
           "id": 18,
           "index": 5,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Voss Prime",
           "x": -40,
           "y": -50,
@@ -322,16 +375,13 @@
           "yOffset": 0,
           "type": "desert",
           "size": "big",
-          "population": 5210,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 3 },
-            { "name": "Spaceship Factory", "count": 1 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 19,
           "index": 6,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Miralune",
           "x": -20,
           "y": -50,
@@ -339,11 +389,8 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "medium",
-          "population": 3740,
-          "buildings": [
-            { "name": "Residential Block", "count": 4 },
-            { "name": "Bank", "count": 1 }
-          ]
+          "population": 0,
+          "buildings": []
         }
       ]
     },
@@ -358,7 +405,7 @@
         {
           "id": 20,
           "index": 1,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Arkenfall",
           "x": -120,
           "y": -50,
@@ -366,13 +413,13 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "small",
-          "population": 1850,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 21,
           "index": 2,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Cindral",
           "x": -100,
           "y": -50,
@@ -380,16 +427,13 @@
           "yOffset": 0,
           "type": "desert",
           "size": "medium",
-          "population": 2980,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 2 },
-            { "name": "Residential Block", "count": 4 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 22,
           "index": 3,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Noctyra",
           "x": -80,
           "y": -50,
@@ -397,8 +441,8 @@
           "yOffset": 0,
           "type": "ice",
           "size": "tiny",
-          "population": 720,
-          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+          "population": 0,
+          "buildings": []
         }
       ]
     },
@@ -413,7 +457,7 @@
         {
           "id": 23,
           "index": 1,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Halcyon",
           "x": -120,
           "y": -50,
@@ -421,11 +465,8 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "big",
-          "population": 8760,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 4 },
-            { "name": "Residential Block", "count": 9 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 24,
@@ -438,10 +479,20 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "medium",
-          "population": 3110,
+          "population": 1022,
           "buildings": [
-            { "name": "Bank", "count": 1 },
-            { "name": "Residential Block", "count": 3 }
+            {
+              "name": "Central Park",
+              "count": 3
+            },
+            {
+              "name": "School",
+              "count": 2
+            },
+            {
+              "name": "Medium Residential Block",
+              "count": 3
+            }
           ]
         },
         {
@@ -455,8 +506,21 @@
           "yOffset": 0,
           "type": "gasgiant",
           "size": "huge",
-          "population": 2390,
-          "buildings": [{ "name": "Solar Power Plant", "count": 6 }]
+          "population": 618,
+          "buildings": [
+            {
+              "name": "Laser Turret",
+              "count": 1
+            },
+            {
+              "name": "Solar Array",
+              "count": 3
+            },
+            {
+              "name": "Missile Turret",
+              "count": 3
+            }
+          ]
         },
         {
           "id": 26,
@@ -469,8 +533,17 @@
           "yOffset": 0,
           "type": "ice",
           "size": "small",
-          "population": 1440,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 1083,
+          "buildings": [
+            {
+              "name": "Solar Array",
+              "count": 1
+            },
+            {
+              "name": "Medium Residential Block",
+              "count": 2
+            }
+          ]
         },
         {
           "id": 27,
@@ -483,8 +556,21 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "medium",
-          "population": 2670,
-          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+          "population": 767,
+          "buildings": [
+            {
+              "name": "Hospital",
+              "count": 2
+            },
+            {
+              "name": "Large Residential Block",
+              "count": 1
+            },
+            {
+              "name": "Entertainment Center",
+              "count": 1
+            }
+          ]
         },
         {
           "id": 28,
@@ -497,17 +583,22 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "huge",
-          "population": 12280,
+          "population": 742,
           "buildings": [
-            { "name": "Solar Power Plant", "count": 5 },
-            { "name": "Residential Block", "count": 11 },
-            { "name": "Bank", "count": 2 }
+            {
+              "name": "Large Residential Block",
+              "count": 1
+            },
+            {
+              "name": "Mining Complex",
+              "count": 3
+            }
           ]
         },
         {
           "id": 29,
           "index": 7,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Ravanna",
           "x": 0,
           "y": -50,
@@ -515,8 +606,8 @@
           "yOffset": 0,
           "type": "desert",
           "size": "tiny",
-          "population": 930,
-          "buildings": [{ "name": "Solar Power Plant", "count": 1 }]
+          "population": 0,
+          "buildings": []
         }
       ]
     },
@@ -531,7 +622,7 @@
         {
           "id": 30,
           "index": 1,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Eidolon",
           "x": -120,
           "y": -50,
@@ -539,8 +630,8 @@
           "yOffset": 0,
           "type": "ice",
           "size": "medium",
-          "population": 2180,
-          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 31,
@@ -553,10 +644,20 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "small",
-          "population": 4590,
+          "population": 408,
           "buildings": [
-            { "name": "Solar Power Plant", "count": 2 },
-            { "name": "Residential Block", "count": 5 }
+            {
+              "name": "Small Residential Block",
+              "count": 2
+            },
+            {
+              "name": "Hospital",
+              "count": 2
+            },
+            {
+              "name": "Central Park",
+              "count": 2
+            }
           ]
         },
         {
@@ -570,10 +671,16 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "big",
-          "population": 3880,
+          "population": 1537,
           "buildings": [
-            { "name": "Bank", "count": 1 },
-            { "name": "Solar Power Plant", "count": 3 }
+            {
+              "name": "Planetary Shield",
+              "count": 3
+            },
+            {
+              "name": "Large Residential Block",
+              "count": 2
+            }
           ]
         },
         {
@@ -587,8 +694,17 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "tiny",
-          "population": 1060,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 576,
+          "buildings": [
+            {
+              "name": "Laser Turret",
+              "count": 3
+            },
+            {
+              "name": "Small Residential Block",
+              "count": 3
+            }
+          ]
         }
       ]
     },
@@ -611,13 +727,22 @@
           "yOffset": 0,
           "type": "desert",
           "size": "medium",
-          "population": 3310,
-          "buildings": [{ "name": "Solar Power Plant", "count": 2 }]
+          "population": 507,
+          "buildings": [
+            {
+              "name": "Planetary Shield",
+              "count": 2
+            },
+            {
+              "name": "Fusion Power Plant",
+              "count": 1
+            }
+          ]
         },
         {
           "id": 35,
           "index": 2,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Veyra",
           "x": -100,
           "y": -50,
@@ -625,8 +750,8 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "small",
-          "population": 1970,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 36,
@@ -639,16 +764,26 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "big",
-          "population": 7680,
+          "population": 655,
           "buildings": [
-            { "name": "Residential Block", "count": 8 },
-            { "name": "Bank", "count": 1 }
+            {
+              "name": "Planetary Shield",
+              "count": 3
+            },
+            {
+              "name": "Entertainment Center",
+              "count": 3
+            },
+            {
+              "name": "Small Residential Block",
+              "count": 3
+            }
           ]
         },
         {
           "id": 37,
           "index": 4,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Marrowind",
           "x": -60,
           "y": -50,
@@ -656,13 +791,13 @@
           "yOffset": 0,
           "type": "gasgiant",
           "size": "huge",
-          "population": 2540,
-          "buildings": [{ "name": "Solar Power Plant", "count": 7 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 38,
           "index": 5,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Seraphis",
           "x": -40,
           "y": -50,
@@ -670,8 +805,8 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "medium",
-          "population": 4210,
-          "buildings": [{ "name": "Solar Power Plant", "count": 3 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 39,
@@ -684,13 +819,26 @@
           "yOffset": 0,
           "type": "ice",
           "size": "tiny",
-          "population": 640,
-          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+          "population": 172,
+          "buildings": [
+            {
+              "name": "Mining Complex",
+              "count": 2
+            },
+            {
+              "name": "Entertainment Center",
+              "count": 2
+            },
+            {
+              "name": "Research Laboratory",
+              "count": 1
+            }
+          ]
         },
         {
           "id": 40,
           "index": 7,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Lythos",
           "x": 0,
           "y": -50,
@@ -698,13 +846,13 @@
           "yOffset": 0,
           "type": "desert",
           "size": "small",
-          "population": 1510,
-          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 41,
           "index": 8,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Amarion",
           "x": 20,
           "y": -50,
@@ -712,12 +860,8 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "huge",
-          "population": 13450,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 5 },
-            { "name": "Residential Block", "count": 13 },
-            { "name": "Spaceship Factory", "count": 1 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 42,
@@ -730,8 +874,17 @@
           "yOffset": 0,
           "type": "ice",
           "size": "big",
-          "population": 2880,
-          "buildings": [{ "name": "Mining Facility", "count": 4 }]
+          "population": 1092,
+          "buildings": [
+            {
+              "name": "Hospital",
+              "count": 1
+            },
+            {
+              "name": "Missile Turret",
+              "count": 2
+            }
+          ]
         }
       ]
     },
@@ -754,16 +907,22 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "medium",
-          "population": 5480,
+          "population": 1704,
           "buildings": [
-            { "name": "Solar Power Plant", "count": 3 },
-            { "name": "Residential Block", "count": 6 }
+            {
+              "name": "Small Residential Block",
+              "count": 2
+            },
+            {
+              "name": "Large Residential Block",
+              "count": 2
+            }
           ]
         },
         {
           "id": 44,
           "index": 2,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Emberlyn",
           "x": -100,
           "y": -50,
@@ -771,8 +930,8 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "small",
-          "population": 2420,
-          "buildings": [{ "name": "Solar Power Plant", "count": 2 }]
+          "population": 0,
+          "buildings": []
         }
       ]
     },
@@ -787,7 +946,7 @@
         {
           "id": 45,
           "index": 1,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Draxos",
           "x": -120,
           "y": -50,
@@ -795,8 +954,8 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "big",
-          "population": 3950,
-          "buildings": [{ "name": "Mining Facility", "count": 4 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 46,
@@ -809,10 +968,20 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "small",
-          "population": 4890,
+          "population": 790,
           "buildings": [
-            { "name": "Residential Block", "count": 5 },
-            { "name": "Bank", "count": 1 }
+            {
+              "name": "Planetary Shield",
+              "count": 3
+            },
+            {
+              "name": "Research Laboratory",
+              "count": 3
+            },
+            {
+              "name": "Solar Array",
+              "count": 3
+            }
           ]
         },
         {
@@ -826,13 +995,26 @@
           "yOffset": 0,
           "type": "gasgiant",
           "size": "huge",
-          "population": 1780,
-          "buildings": [{ "name": "Solar Power Plant", "count": 5 }]
+          "population": 440,
+          "buildings": [
+            {
+              "name": "Mining Complex",
+              "count": 1
+            },
+            {
+              "name": "Fusion Power Plant",
+              "count": 3
+            },
+            {
+              "name": "Medium Residential Block",
+              "count": 1
+            }
+          ]
         },
         {
           "id": 48,
           "index": 4,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Aurion",
           "x": -60,
           "y": -50,
@@ -840,11 +1022,8 @@
           "yOffset": 0,
           "type": "desert",
           "size": "medium",
-          "population": 3020,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 2 },
-            { "name": "Mining Facility", "count": 2 }
-          ]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 49,
@@ -857,8 +1036,21 @@
           "yOffset": 0,
           "type": "ice",
           "size": "tiny",
-          "population": 810,
-          "buildings": [{ "name": "Mining Facility", "count": 1 }]
+          "population": 1687,
+          "buildings": [
+            {
+              "name": "Large Residential Block",
+              "count": 2
+            },
+            {
+              "name": "Missile Turret",
+              "count": 1
+            },
+            {
+              "name": "Hospital",
+              "count": 3
+            }
+          ]
         }
       ]
     },
@@ -881,8 +1073,21 @@
           "yOffset": 0,
           "type": "marslike",
           "size": "medium",
-          "population": 2640,
-          "buildings": [{ "name": "Mining Facility", "count": 3 }]
+          "population": 501,
+          "buildings": [
+            {
+              "name": "Small Residential Block",
+              "count": 2
+            },
+            {
+              "name": "Planetary Shield",
+              "count": 1
+            },
+            {
+              "name": "Entertainment Center",
+              "count": 3
+            }
+          ]
         },
         {
           "id": 51,
@@ -895,17 +1100,22 @@
           "yOffset": 0,
           "type": "earthlike",
           "size": "big",
-          "population": 9170,
+          "population": 1079,
           "buildings": [
-            { "name": "Solar Power Plant", "count": 4 },
-            { "name": "Residential Block", "count": 10 },
-            { "name": "Bank", "count": 2 }
+            {
+              "name": "Missile Turret",
+              "count": 3
+            },
+            {
+              "name": "Hospital",
+              "count": 2
+            }
           ]
         },
         {
           "id": 52,
           "index": 3,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Frosthaven",
           "x": -80,
           "y": -50,
@@ -913,8 +1123,8 @@
           "yOffset": 0,
           "type": "ice",
           "size": "small",
-          "population": 1360,
-          "buildings": [{ "name": "Mining Facility", "count": 2 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 53,
@@ -927,13 +1137,22 @@
           "yOffset": 0,
           "type": "gasgiant",
           "size": "huge",
-          "population": 1990,
-          "buildings": [{ "name": "Solar Power Plant", "count": 6 }]
+          "population": 674,
+          "buildings": [
+            {
+              "name": "Laser Turret",
+              "count": 3
+            },
+            {
+              "name": "Missile Turret",
+              "count": 1
+            }
+          ]
         },
         {
           "id": 54,
           "index": 5,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Starfall",
           "x": -40,
           "y": -50,
@@ -941,13 +1160,13 @@
           "yOffset": 0,
           "type": "desert",
           "size": "tiny",
-          "population": 760,
-          "buildings": [{ "name": "Solar Power Plant", "count": 1 }]
+          "population": 0,
+          "buildings": []
         },
         {
           "id": 55,
           "index": 6,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Vespera",
           "x": -20,
           "y": -50,
@@ -955,11 +1174,8 @@
           "yOffset": 0,
           "type": "venuslike",
           "size": "medium",
-          "population": 3540,
-          "buildings": [
-            { "name": "Solar Power Plant", "count": 3 },
-            { "name": "Spaceship Factory", "count": 1 }
-          ]
+          "population": 0,
+          "buildings": []
         }
       ]
     }
@@ -975,8 +1191,16 @@
       "speed": 8,
       "factionId": "player",
       "ships": [
-        { "id": 1, "name": "ORION-1", "type": "frigate" },
-        { "id": 2, "name": "ORION-2", "type": "frigate" }
+        {
+          "id": 1,
+          "name": "ORION-1",
+          "type": "frigate"
+        },
+        {
+          "id": 2,
+          "name": "ORION-2",
+          "type": "frigate"
+        }
       ]
     },
     {
@@ -989,9 +1213,21 @@
       "speed": 6,
       "factionId": "player",
       "ships": [
-        { "id": 3, "name": "PEGASUS-1", "type": "cruiser" },
-        { "id": 4, "name": "PEGASUS-2", "type": "cruiser" },
-        { "id": 5, "name": "PEGASUS-3", "type": "cruiser" }
+        {
+          "id": 3,
+          "name": "PEGASUS-1",
+          "type": "cruiser"
+        },
+        {
+          "id": 4,
+          "name": "PEGASUS-2",
+          "type": "cruiser"
+        },
+        {
+          "id": 5,
+          "name": "PEGASUS-3",
+          "type": "cruiser"
+        }
       ]
     },
     {
@@ -1004,10 +1240,26 @@
       "speed": 7,
       "factionId": "enemy1",
       "ships": [
-        { "id": 6, "name": "RAIDER-1", "type": "destroyer" },
-        { "id": 7, "name": "RAIDER-2", "type": "destroyer" },
-        { "id": 8, "name": "RAIDER-3", "type": "destroyer" },
-        { "id": 9, "name": "RAIDER-4", "type": "destroyer" }
+        {
+          "id": 6,
+          "name": "RAIDER-1",
+          "type": "destroyer"
+        },
+        {
+          "id": 7,
+          "name": "RAIDER-2",
+          "type": "destroyer"
+        },
+        {
+          "id": 8,
+          "name": "RAIDER-3",
+          "type": "destroyer"
+        },
+        {
+          "id": 9,
+          "name": "RAIDER-4",
+          "type": "destroyer"
+        }
       ]
     },
     {
@@ -1020,14 +1272,46 @@
       "speed": 9,
       "factionId": "enemy1",
       "ships": [
-        { "id": 10, "name": "HUNTER-1", "type": "scout" },
-        { "id": 11, "name": "HUNTER-2", "type": "scout" },
-        { "id": 12, "name": "HUNTER-3", "type": "scout" },
-        { "id": 13, "name": "HUNTER-4", "type": "scout" },
-        { "id": 14, "name": "HUNTER-5", "type": "scout" },
-        { "id": 15, "name": "HUNTER-6", "type": "scout" },
-        { "id": 16, "name": "DESTROYER-2", "type": "destroyer" },
-        { "id": 17, "name": "DESTROYER-3", "type": "destroyer" }
+        {
+          "id": 10,
+          "name": "HUNTER-1",
+          "type": "scout"
+        },
+        {
+          "id": 11,
+          "name": "HUNTER-2",
+          "type": "scout"
+        },
+        {
+          "id": 12,
+          "name": "HUNTER-3",
+          "type": "scout"
+        },
+        {
+          "id": 13,
+          "name": "HUNTER-4",
+          "type": "scout"
+        },
+        {
+          "id": 14,
+          "name": "HUNTER-5",
+          "type": "scout"
+        },
+        {
+          "id": 15,
+          "name": "HUNTER-6",
+          "type": "scout"
+        },
+        {
+          "id": 16,
+          "name": "DESTROYER-2",
+          "type": "destroyer"
+        },
+        {
+          "id": 17,
+          "name": "DESTROYER-3",
+          "type": "destroyer"
+        }
       ]
     }
   ]

@@ -351,13 +351,14 @@
             <div>POPULATION: {{ selectedPlanetTile.population }}</div>
             <div>ENERGY: {{ getEnergyForPlanet(selectedPlanetTile) }}</div>
             <div>DAILY TAX: {{ getTaxForPlanet(selectedPlanetTile) }}</div>
-            <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
-            <div>BUILDINGS:</div>
-            <ul style="margin: 0; padding-left: 1.2em">
-              @for (b of selectedPlanetTile.buildings; track b.name) {
-                <li>{{ b.name }}: {{ b.count }}</li>
-              }
-            </ul>
+          <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
+          <div class="planet-buildings__title">BUILDINGS ({{ selectedPlanetTile.buildings.length }})</div>
+          @for (b of selectedPlanetTile.buildings; track b.name) {
+            <div class="planet-buildings__row">
+              <span class="planet-buildings__name">{{ b.name }}</span>
+              <span class="planet-buildings__count">x{{ b.count }}</span>
+            </div>
+          }
           </div>
         </div>
       }

@@ -476,14 +476,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   getEnergyForPlanet(planet: PlanetTile): number {
-    const powerPlants = planet.buildings?.find((b) => b.name === 'Solar Power Plant')?.count || 0;
-    return powerPlants * 50;
+    const solarPlants = planet.buildings?.find((b) => b.name === 'Solar Array')?.count || 0;
+    const fusionPlants = planet.buildings?.find((b) => b.name === 'Fusion Power Plant')?.count || 0;
+    return solarPlants * 40 + fusionPlants * 100;
   }
 
   getTaxForPlanet(planet: PlanetTile): number {
-    const banks = planet.buildings?.find((b) => b.name === 'Bank')?.count || 0;
+    const factories = planet.buildings?.find((b) => b.name === 'Industrial Factory')?.count || 0;
     const pop = planet.population || 0;
-    return Math.floor(pop * 0.1) + banks * 500;
+    return Math.floor(pop * 0.1) + factories * 500;
   }
 
   /*

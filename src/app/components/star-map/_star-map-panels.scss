@@ -162,8 +162,33 @@
 }
 
 /* =========================================================
-   SHIP BUTTONS
-   ========================================================= */
+    PLANET BUILDINGS SUMMARY
+    ========================================================= */
+
+.planet-buildings__title {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-blue-light);
+}
+
+.planet-buildings__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.planet-buildings__name {
+  color: var(--color-text-bright);
+}
+
+.planet-buildings__count {
+  color: var(--color-text-dim);
+}
+
+/* =========================================================
+    SHIP BUTTONS
+    ========================================================= */
 
 .fleet-buttons {
   position: absolute;
