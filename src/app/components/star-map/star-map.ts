@@ -117,7 +117,7 @@ interface ContextMenuItem {
   data: Fleet | StarSystem | PlanetTile;
 }
 
-const initialStarMapData = starMapData as StarMapData;
+const initialStarMapData = structuredClone(starMapData) as StarMapData;
 
 @Component({
   selector: 'app-star-map',
@@ -615,6 +615,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     if (data.destroyedFleetId != null) {
       this.fleets = this.fleets.filter((f) => f.id !== data.destroyedFleetId);
+    }
+
+    for (const fleet of this.fleets) {
+      if (fleet.gridCol == null || fleet.gridRow == null) {
+        const gridX = fleet.x;
+        const gridY = fleet.y;
+        fleet.x = (gridX - 1) * this.cellSizeVw + this.cellSizeVw / 2;
+        fleet.y = (gridY - 1) * this.cellSizeVh + this.cellSizeVh / 2;
+        fleet.gridCol = gridX;
+        fleet.gridRow = gridY;
+      }
     }
 
     this.currentView = data.currentView ?? 'map';
