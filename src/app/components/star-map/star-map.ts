@@ -470,6 +470,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   private animationFrameId: number | null = null;
   private lastFrameTime = 0;
+  isPaused = false;
+
+  private readonly onWindowBlur = (): void => this.pauseGame();
+  private readonly onVisibilityChange = (): void => {
+    if (document.hidden) this.pauseGame();
+  };
 
   constructor(
     private cdr: ChangeDetectorRef,
@@ -519,6 +525,38 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   ngAfterViewInit(): void {
     this.startGameLoop();
+    this.setupFocusHandlers();
+  }
+
+  /*
+   * -------------------------------------------------------
+   * FOCUS / PAUSE HANDLERS
+   * -------------------------------------------------------
+   */
+
+  private setupFocusHandlers(): void {
+    window.addEventListener('blur', this.onWindowBlur);
+    document.addEventListener('visibilitychange', this.onVisibilityChange);
+  }
+
+  pauseGame(): void {
+    if (this.isPaused) return;
+    this.isPaused = true;
+
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+
+  resumeGame(): void {
+    if (!this.isPaused) return;
+    this.isPaused = false;
+    this.lastFrameTime = performance.now();
+
+    this.ngZone.runOutsideAngular(() => {
+      this.animationFrameId = requestAnimationFrame((time) => this.update(time));
+    });
   }
 
   /*
@@ -551,24 +589,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.lastFrameTime = time;
 
-    /*
-     * Update all moving fleets.
-     */
-
     const didMoveFleets = this.updateFleets(deltaTime);
-
-    /*
-     * Tell Angular that values used by the
-     * template have changed.
-     */
 
     if (didMoveFleets) {
       this.ngZone.run(() => this.cdr.detectChanges());
     }
-
-    /*
-     * Schedule next frame.
-     */
 
     this.ngZone.runOutsideAngular(() => {
       this.animationFrameId = requestAnimationFrame((nextTime) => this.update(nextTime));
@@ -980,9 +1005,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   private clampCamera(): void {
-    this.cameraX = Math.max(0, Math.min(this.cameraX, this.mapWidth));
+    const gridWidthVw = this.gridColumns * 5;
+    const gridHeightVw = this.gridRows * 5;
+    const viewportWidthVw = 100;
+    const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
 
-    this.cameraY = Math.max(0, Math.min(this.cameraY, this.mapHeight));
+    const maxCameraX = Math.max(0, gridWidthVw - viewportWidthVw);
+    const maxCameraY = Math.max(0, gridHeightVw - viewportHeightVw);
+
+    this.cameraX = Math.max(0, Math.min(this.cameraX, maxCameraX));
+    this.cameraY = Math.max(0, Math.min(this.cameraY, maxCameraY));
   }
 
   /*
@@ -1031,6 +1063,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   ngOnDestroy(): void {
+    window.removeEventListener('blur', this.onWindowBlur);
+    document.removeEventListener('visibilitychange', this.onVisibilityChange);
+
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
 

@@ -57,6 +57,83 @@
 }
 
 /* =========================================================
+   PAUSE OVERLAY
+   ========================================================= */
+
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(2, 6, 9, 0.85);
+  backdrop-filter: blur(4px);
+}
+
+.pause-overlay__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+
+  padding: 3rem 4rem;
+
+  border: 1px solid var(--color-blue);
+  border-radius: 4px;
+
+  background: rgba(53, 134, 229, 0.08);
+
+  text-align: center;
+}
+
+.pause-overlay__icon {
+  font-size: 3rem;
+  line-height: 1;
+  opacity: 0.9;
+}
+
+.pause-overlay__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--color-text);
+}
+
+.pause-overlay__subtitle {
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: var(--color-blue);
+  opacity: 0.7;
+  margin-bottom: 1rem;
+}
+
+.pause-overlay__btn {
+  padding: 0.75rem 2.5rem;
+
+  border: 1px solid var(--color-blue);
+  border-radius: 2px;
+
+  background: rgba(53, 134, 229, 0.15);
+
+  color: var(--color-text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+
+  cursor: pointer;
+
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    background: rgba(53, 134, 229, 0.3);
+    box-shadow: 0 0 12px rgba(53, 134, 229, 0.4);
+  }
+}
+
+/* =========================================================
    MAP WORLD - GRID
    ========================================================= */
 

@@ -1,4 +1,16 @@
 <div class="star-map">
+  @if (isPaused) {
+    <div class="pause-overlay">
+      <div class="pause-overlay__content">
+        <div class="pause-overlay__icon">⏸</div>
+        <div class="pause-overlay__title">GAME PAUSED</div>
+        <div class="pause-overlay__subtitle">Window lost focus</div>
+        <button class="pause-overlay__btn" type="button" (click)="resumeGame()">
+          CONTINUE
+        </button>
+      </div>
+    </div>
+  }
   <div
     class="star-map-background"
     [style.transform]="'translate(' + -cameraX * 0.3 + 'vw, ' + -cameraY * 0.3 + 'vw)'"
@@ -133,24 +145,26 @@
             {{ selectedFleet.speed }}
           </div>
 
-          <div class="fleet-actions">
-            <button
-              type="button"
-              class="action-btn move-btn"
-              [class.active]="selectedFleetAction === 'move'"
-              (click)="setFleetAction('move'); $event.stopPropagation()"
-            >
-              MOVE
-            </button>
-            <button
-              type="button"
-              class="action-btn attack-btn"
-              [class.active]="selectedFleetAction === 'attack'"
-              (click)="setFleetAction('attack'); $event.stopPropagation()"
-            >
-              ATTACK
-            </button>
-          </div>
+          @if (selectedFleet.factionId === 'player') {
+            <div class="fleet-actions">
+              <button
+                type="button"
+                class="action-btn move-btn"
+                [class.active]="selectedFleetAction === 'move'"
+                (click)="setFleetAction('move'); $event.stopPropagation()"
+              >
+                MOVE
+              </button>
+              <button
+                type="button"
+                class="action-btn attack-btn"
+                [class.active]="selectedFleetAction === 'attack'"
+                (click)="setFleetAction('attack'); $event.stopPropagation()"
+              >
+                ATTACK
+              </button>
+            </div>
+          }
 
           <hr class="fleet-section-divider" />
 
@@ -349,24 +363,26 @@
               {{ selectedFleet.speed }}
             </div>
 
-            <div class="fleet-actions">
-              <button
-                type="button"
-                class="action-btn move-btn"
-                [class.active]="selectedFleetAction === 'move'"
-                (click)="setFleetAction('move'); $event.stopPropagation()"
-              >
-                MOVE
-              </button>
-              <button
-                type="button"
-                class="action-btn attack-btn"
-                [class.active]="selectedFleetAction === 'attack'"
-                (click)="setFleetAction('attack'); $event.stopPropagation()"
-              >
-                ATTACK
-              </button>
-            </div>
+            @if (selectedFleet.factionId === 'player') {
+              <div class="fleet-actions">
+                <button
+                  type="button"
+                  class="action-btn move-btn"
+                  [class.active]="selectedFleetAction === 'move'"
+                  (click)="setFleetAction('move'); $event.stopPropagation()"
+                >
+                  MOVE
+                </button>
+                <button
+                  type="button"
+                  class="action-btn attack-btn"
+                  [class.active]="selectedFleetAction === 'attack'"
+                  (click)="setFleetAction('attack'); $event.stopPropagation()"
+                >
+                  ATTACK
+                </button>
+              </div>
+            }
 
             <hr class="fleet-section-divider" />
 
