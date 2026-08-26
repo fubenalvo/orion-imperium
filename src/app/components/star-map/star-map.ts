@@ -485,9 +485,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   // A korábbi random generálás törölve lett, mert minden a JSON-ból töltődik be
   ngOnInit(): void {
     for (const fleet of this.fleets) {
-      const cell = this.calculateGridCell(fleet.x, fleet.y);
-      fleet.gridCol = cell.col;
-      fleet.gridRow = cell.row;
+      const gridX = fleet.x;
+      const gridY = fleet.y;
+      fleet.x = (gridX - 1) * this.cellSizeVw + this.cellSizeVw / 2;
+      fleet.y = (gridY - 1) * this.cellSizeVh + this.cellSizeVh / 2;
+      fleet.gridCol = gridX;
+      fleet.gridRow = gridY;
     }
 
     for (const system of this.starSystems) {
