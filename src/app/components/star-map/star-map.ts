@@ -10,6 +10,7 @@ import { NgClass, UpperCasePipe } from '@angular/common';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import starMapData from './star-map-data.json';
+import shipData from './ship-data.json';
 
 interface PlanetBuilding {
   name: string;
@@ -56,9 +57,30 @@ interface FleetShip {
   id: number;
   name: string;
   type: string;
-  hp: number;
-  damage: number;
+}
+
+interface ShipType {
+  id: string;
+  name: string;
+  role: string;
+  hitPoints: number;
+  shield: number;
+  shieldRegen: number;
+  attack: number;
+  attackType: string;
+  weakness: string;
+  defense: number;
   speed: number;
+  range: number;
+  cost: number;
+}
+
+interface FleetShipTypeSummary {
+  typeId: string;
+  typeName: string;
+  count: number;
+  attack: number;
+  defense: number;
 }
 
 interface Fleet {
@@ -179,6 +201,61 @@ export class StarMap implements AfterViewInit, OnDestroy {
   getFactionName(factionId: string): string {
     const faction = this.factions.find((f) => f.id === factionId);
     return faction ? faction.name : 'Unknown';
+  }
+
+  /*
+   * -------------------------------------------------------
+   * SHIP TYPES (JSON-ből betöltve)
+   * -------------------------------------------------------
+   */
+
+  readonly shipTypes: ShipType[] = (shipData as { shipTypes: ShipType[] }).shipTypes;
+
+  private readonly shipTypeById: Map<string, ShipType> = new Map(
+    this.shipTypes.map((type) => [type.id, type] as [string, ShipType]),
+  );
+
+  getShipType(typeId: string): ShipType | undefined {
+    return this.shipTypeById.get(typeId);
+  }
+
+  getFleetShipTypeSummary(fleet: Fleet): FleetShipTypeSummary[] {
+    const counts = new Map<string, number>();
+
+    for (const ship of fleet.ships) {
+      counts.set(ship.type, (counts.get(ship.type) || 0) + 1);
+    }
+
+    const summary: FleetShipTypeSummary[] = [];
+
+    for (const [typeId, count] of counts) {
+      const type = this.getShipType(typeId);
+      if (type) {
+        summary.push({
+          typeId,
+          typeName: type.name,
+          count,
+          attack: type.attack,
+          defense: type.defense,
+        });
+      }
+    }
+
+    return summary;
+  }
+
+  getFleetTotalAttack(fleet: Fleet): number {
+    return fleet.ships.reduce(
+      (sum, ship) => sum + (this.getShipType(ship.type)?.attack ?? 0),
+      0,
+    );
+  }
+
+  getFleetTotalDefense(fleet: Fleet): number {
+    return fleet.ships.reduce(
+      (sum, ship) => sum + (this.getShipType(ship.type)?.defense ?? 0),
+      0,
+    );
   }
 
   calculateGridCell(x: number, y: number): { col: number; row: number } {

@@ -145,12 +145,36 @@
               [class.active]="selectedFleetAction === 'attack'"
               (click)="setFleetAction('attack'); $event.stopPropagation()"
             >
-              ATTACK
-            </button>
-          </div>
-        </div>
+          ATTACK
+        </button>
       </div>
-    }
+
+      <hr class="fleet-section-divider" />
+
+      <div class="fleet-ships__title">
+        SHIPS ({{ selectedFleet.ships.length }})
+      </div>
+
+      @for (entry of getFleetShipTypeSummary(selectedFleet); track entry.typeId) {
+        <div class="fleet-ships__row">
+          <span class="fleet-ships__type">{{ entry.typeName }}</span>
+          <span class="fleet-ships__count">x{{ entry.count }}</span>
+          <span class="fleet-ships__stats">ATK {{ entry.attack }} / DEF {{ entry.defense }}</span>
+        </div>
+      }
+
+      <div class="fleet-ships__totals">
+        <span>ATTACK POINTS</span>
+        <span>{{ getFleetTotalAttack(selectedFleet) }}</span>
+      </div>
+
+      <div class="fleet-ships__totals">
+        <span>DEFENSE POINTS</span>
+        <span>{{ getFleetTotalDefense(selectedFleet) }}</span>
+      </div>
+    </div>
+  </div>
+}
 
     <!-- =====================================================
        FLEET BUTTONS

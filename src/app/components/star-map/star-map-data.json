@@ -975,8 +975,8 @@
       "speed": 8,
       "factionId": "player",
       "ships": [
-        { "id": 1, "name": "ORION-1", "type": "frigate", "hp": 100, "damage": 10, "speed": 8 },
-        { "id": 2, "name": "ORION-2", "type": "frigate", "hp": 100, "damage": 10, "speed": 8 }
+        { "id": 1, "name": "ORION-1", "type": "frigate" },
+        { "id": 2, "name": "ORION-2", "type": "frigate" }
       ]
     },
     {
@@ -989,9 +989,9 @@
       "speed": 6,
       "factionId": "player",
       "ships": [
-        { "id": 3, "name": "PEGASUS-1", "type": "cruiser", "hp": 200, "damage": 15, "speed": 6 },
-        { "id": 4, "name": "PEGASUS-2", "type": "cruiser", "hp": 200, "damage": 15, "speed": 6 },
-        { "id": 5, "name": "PEGASUS-3", "type": "cruiser", "hp": 200, "damage": 15, "speed": 6 }
+        { "id": 3, "name": "PEGASUS-1", "type": "cruiser" },
+        { "id": 4, "name": "PEGASUS-2", "type": "cruiser" },
+        { "id": 5, "name": "PEGASUS-3", "type": "cruiser" }
       ]
     },
     {
@@ -1004,10 +1004,10 @@
       "speed": 7,
       "factionId": "enemy1",
       "ships": [
-        { "id": 6, "name": "RAIDER-1", "type": "destroyer", "hp": 300, "damage": 20, "speed": 7 },
-        { "id": 7, "name": "RAIDER-2", "type": "destroyer", "hp": 300, "damage": 20, "speed": 7 },
-        { "id": 8, "name": "RAIDER-3", "type": "destroyer", "hp": 300, "damage": 20, "speed": 7 },
-        { "id": 9, "name": "RAIDER-4", "type": "destroyer", "hp": 300, "damage": 20, "speed": 7 }
+        { "id": 6, "name": "RAIDER-1", "type": "destroyer" },
+        { "id": 7, "name": "RAIDER-2", "type": "destroyer" },
+        { "id": 8, "name": "RAIDER-3", "type": "destroyer" },
+        { "id": 9, "name": "RAIDER-4", "type": "destroyer" }
       ]
     },
     {
@@ -1020,14 +1020,15 @@
       "speed": 9,
       "factionId": "enemy1",
       "ships": [
-        { "id": 10, "name": "HUNTER-1", "type": "scout", "hp": 50, "damage": 5, "speed": 9 },
-        { "id": 11, "name": "HUNTER-2", "type": "scout", "hp": 50, "damage": 5, "speed": 9 },
-        { "id": 12, "name": "HUNTER-3", "type": "scout", "hp": 50, "damage": 5, "speed": 9 },
-        { "id": 13, "name": "HUNTER-4", "type": "scout", "hp": 50, "damage": 5, "speed": 9 },
-        { "id": 14, "name": "HUNTER-5", "type": "scout", "hp": 50, "damage": 5, "speed": 9 },
-        { "id": 15, "name": "HUNTER-6", "type": "scout", "hp": 50, "damage": 5, "speed": 9 }
+        { "id": 10, "name": "HUNTER-1", "type": "scout" },
+        { "id": 11, "name": "HUNTER-2", "type": "scout" },
+        { "id": 12, "name": "HUNTER-3", "type": "scout" },
+        { "id": 13, "name": "HUNTER-4", "type": "scout" },
+        { "id": 14, "name": "HUNTER-5", "type": "scout" },
+        { "id": 15, "name": "HUNTER-6", "type": "scout" },
+        { "id": 16, "name": "DESTROYER-2", "type": "destroyer" },
+        { "id": 17, "name": "DESTROYER-3", "type": "destroyer" }
       ]
     }
   ]
 }
-

@@ -119,6 +119,49 @@
 }
 
 /* =========================================================
+   FLEET SHIPS SUMMARY
+   ========================================================= */
+
+.fleet-section-divider {
+  border: none;
+  border-top: 1px solid var(--color-blue);
+  margin: 0.6em 0;
+  opacity: 0.35;
+}
+
+.fleet-ships__title {
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-blue-light);
+}
+
+.fleet-ships__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+}
+
+.fleet-ships__type {
+  color: var(--color-text-bright);
+}
+
+.fleet-ships__stats {
+  color: var(--color-text-dim);
+}
+
+.fleet-ships__totals {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-blue-bright);
+
+  border-top: 1px solid var(--panel-border-dark);
+}
+
+/* =========================================================
    SHIP BUTTONS
    ========================================================= */
 
