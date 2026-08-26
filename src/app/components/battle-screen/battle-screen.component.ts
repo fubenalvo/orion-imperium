@@ -31,9 +31,10 @@ export class BattleScreenComponent implements OnInit {
 
   backToStarMap(): void {
     this.battleService.clearBattle();
-    const loserId = this.result?.loser.id;
-    if (loserId != null) {
-      this.battleService.setDestroyedFleetId(loserId);
+    const loser = this.result?.loser;
+    if (loser) {
+      loser.destroyed = true;
+      this.battleService.setDestroyedFleetId(loser.id);
     }
     this.router.navigate(['/star-map']);
   }

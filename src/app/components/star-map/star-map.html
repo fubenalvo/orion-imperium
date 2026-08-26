@@ -63,10 +63,10 @@
            FLEETS
            ================================================= -->
 
-        @for (fleet of fleets; track fleet.id) {
-          <div
-            class="fleet-cell"
-            [style.left]="fleet.x + 'vw'"
+        @for (fleet of visibleFleets; track fleet.id) {
+           <div
+             class="fleet-cell"
+             [style.left]="fleet.x + 'vw'"
             [style.top]="fleet.y + 'vw'"
             [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
           >
@@ -197,9 +197,9 @@
        ===================================================== -->
 
     <div class="fleet-buttons panel-style">
-      @for (fleet of fleets; track fleet.id) {
-        <button
-          class="fleet-btn"
+      @for (fleet of visibleFleets; track fleet.id) {
+         <button
+           class="fleet-btn"
           [class.selected]="selectedFleet?.id === fleet.id"
           type="button"
           (click)="selectFleet(fleet); $event.stopPropagation()"
@@ -285,8 +285,8 @@
           }
 
           <!-- FLEETS IN SYSTEM -->
-          @for (fleet of fleets; track fleet.id) {
-            @if (
+          @for (fleet of visibleFleets; track fleet.id) {
+             @if (
               fleet.systemId === selectedSystem.id && fleet.systemX != null && fleet.systemY != null
             ) {
               <div

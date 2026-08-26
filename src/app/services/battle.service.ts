@@ -96,6 +96,7 @@ export interface Fleet {
   gridCol: number;
   gridRow: number;
   ships: FleetShip[];
+  destroyed?: boolean;
 }
 
 export interface FleetShip {

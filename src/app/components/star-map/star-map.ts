@@ -166,6 +166,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.currentView = 'system';
 
       for (const fleet of this.fleets) {
+        if (fleet.destroyed) {
+          continue;
+        }
+
         if (this.isFleetInSystem(fleet, this.selectedSystem)) {
           fleet.systemId = this.selectedSystem.id;
           if (fleet.systemX == null) {
@@ -193,6 +197,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.currentView = 'map';
 
     for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
+      }
+
       if (fleet.systemId !== undefined) {
         const mapCell = this.calculateGridCell(fleet.x, fleet.y);
         fleet.gridCol = mapCell.col;
@@ -237,6 +245,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   getFactionName(factionId: string): string {
     const faction = this.factions.find((f) => f.id === factionId);
     return faction ? faction.name : 'Unknown';
+  }
+
+  get visibleFleets(): Fleet[] {
+    return this.fleets.filter((f) => !f.destroyed);
   }
 
   /*
@@ -289,10 +301,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   private checkForBattles(): void {
-    for (let i = 0; i < this.fleets.length; i++) {
-      for (let j = i + 1; j < this.fleets.length; j++) {
-        const fleet1 = this.fleets[i];
-        const fleet2 = this.fleets[j];
+    const activeFleets = this.fleets.filter((f) => !f.destroyed);
+    for (let i = 0; i < activeFleets.length; i++) {
+      for (let j = i + 1; j < activeFleets.length; j++) {
+        const fleet1 = activeFleets[i];
+        const fleet2 = activeFleets[j];
 
         if (fleet1.gridCol !== fleet2.gridCol || fleet1.gridRow !== fleet2.gridRow) {
           continue;
@@ -363,6 +376,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     // Fleets
     for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
+      }
+
       console.log(
         `[getObjectsAtMapCell] Checking fleet "${fleet.name}": ` +
           `gridCol=${fleet.gridCol}, gridRow=${fleet.gridRow} ` +
@@ -417,6 +434,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const items: ContextMenuItem[] = [];
 
     for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
+      }
+
       if (fleet.systemId === system.id && fleet.systemX != null && fleet.systemY != null) {
         const fleetCell = this.calculateGridCell(fleet.systemX, fleet.systemY);
         if (fleetCell.col === col && fleetCell.row === row) {
@@ -611,10 +632,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.factions = data.factions;
     this.starSystems = data.starSystems;
-    this.fleets = data.fleets;
+    this.fleets = data.fleets ?? [];
 
     if (data.destroyedFleetId != null) {
-      this.fleets = this.fleets.filter((f) => f.id !== data.destroyedFleetId);
+      const fleet = this.fleets.find((f) => f.id === data.destroyedFleetId);
+      if (fleet) {
+        fleet.destroyed = true;
+      }
     }
 
     for (const fleet of this.fleets) {
@@ -644,12 +668,18 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   private initializeCoordinates(): void {
     for (const fleet of this.fleets) {
-      const gridX = fleet.x;
-      const gridY = fleet.y;
-      fleet.x = (gridX - 1) * this.cellSizeVw + this.cellSizeVw / 2;
-      fleet.y = (gridY - 1) * this.cellSizeVh + this.cellSizeVh / 2;
-      fleet.gridCol = gridX;
-      fleet.gridRow = gridY;
+      if (fleet.destroyed) {
+        continue;
+      }
+
+      if (fleet.gridCol == null || fleet.gridRow == null) {
+        const gridX = fleet.x;
+        const gridY = fleet.y;
+        fleet.x = (gridX - 1) * this.cellSizeVw + this.cellSizeVw / 2;
+        fleet.y = (gridY - 1) * this.cellSizeVh + this.cellSizeVh / 2;
+        fleet.gridCol = gridX;
+        fleet.gridRow = gridY;
+      }
     }
 
     for (const system of this.starSystems) {
@@ -661,6 +691,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   private refreshGridPositions(): void {
     for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
+      }
+
       if (fleet.x != null && fleet.y != null) {
         const cell = this.calculateGridCell(fleet.x, fleet.y);
         fleet.gridCol = cell.col;
@@ -700,7 +734,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const destroyedFleetId = this.battleService.getDestroyedFleetId();
     if (destroyedFleetId != null) {
       this.battleService.clearBattle();
-      this.removeFleet(destroyedFleetId);
+      const fleet = this.fleets.find((f) => f.id === destroyedFleetId);
+      if (fleet) {
+        fleet.destroyed = true;
+      }
+      if (this.selectedFleet?.id === destroyedFleetId) {
+        this.selectedFleet = null;
+        this.selectedFleetAction = null;
+        this.targetX = null;
+        this.targetY = null;
+      }
       this.saveGame();
     }
   }
@@ -818,6 +861,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     let didMoveFleets = false;
 
     for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
+      }
+
       // Map movement
       if (fleet.targetX !== null && fleet.targetY !== null) {
         didMoveFleets = true;

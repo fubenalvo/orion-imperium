@@ -1194,6 +1194,7 @@
       "targetY": null,
       "speed": 8,
       "factionId": "player",
+      "destroyed": false,
       "ships": [
         {
           "id": 1,
@@ -1216,6 +1217,7 @@
       "targetY": null,
       "speed": 6,
       "factionId": "player",
+      "destroyed": false,
       "ships": [
         {
           "id": 3,
@@ -1243,6 +1245,7 @@
       "targetY": null,
       "speed": 7,
       "factionId": "enemy1",
+      "destroyed": false,
       "ships": [
         {
           "id": 6,
@@ -1275,6 +1278,7 @@
       "targetY": null,
       "speed": 9,
       "factionId": "enemy1",
+      "destroyed": false,
       "ships": [
         {
           "id": 10,
