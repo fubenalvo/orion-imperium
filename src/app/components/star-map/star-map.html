@@ -114,6 +114,7 @@
           <span [style.color]="getFactionColor(selectedFleet.factionId)">
             {{ selectedFleet.name }} FLEET
           </span>
+          <button class="close-btn" type="button" (click)="deselectFleet()">X</button>
         </div>
 
         <div class="system-info__content">
@@ -205,6 +206,7 @@
       <div class="system-info panel-style">
         <div class="panel-style__title">
           {{ selectedSystem.name }}
+          <button class="close-btn" type="button" (click)="deselectSystem()">X</button>
         </div>
 
         <div class="system-info__content">
@@ -328,6 +330,7 @@
             <span [style.color]="getFactionColor(selectedFleet.factionId)">
               {{ selectedFleet.name }} FLEET
             </span>
+            <button class="close-btn" type="button" (click)="deselectFleet()">X</button>
           </div>
 
           <div class="system-info__content">
