@@ -2,6 +2,25 @@ import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { StarMapData } from '../components/star-map/star-map';
 
+/*
+ * =========================================================
+ * SAVE GAME SERVICE
+ * =========================================================
+ *
+ * Persistence layer using localStorage.
+ * Stores 4 save slots, each containing a full StarMapData snapshot.
+ *
+ * Storage key: 'orion_save_slots'
+ * Format: JSON array of SaveSlot objects
+ *
+ * Auto-save triggers:
+ * - Entering/leaving star systems
+ * - Pausing the game
+ * - Exiting to main menu
+ * - Battle trigger
+ * - Component destroy
+ */
+
 export interface SaveSlot {
   data: StarMapData | null;
   date: string | null;

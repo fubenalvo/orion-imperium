@@ -3,6 +3,22 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { BattleService, Battle, BattleResult, FleetShip } from '../../services/battle.service';
 
+/*
+ * =========================================================
+ * BATTLE SCREEN COMPONENT
+ * =========================================================
+ *
+ * Temporary view for battle resolution.
+ * Reads battle data from BattleService, resolves it immediately,
+ * and displays the result.
+ *
+ * Navigation flow:
+ * 1. StarMap detects collision -> BattleService.setBattle() -> navigate to /battle
+ * 2. BattleScreen resolves battle in ngOnInit()
+ * 3. User clicks "Back to Star Map" -> loser marked destroyed -> navigate back
+ * 4. StarMap processes destroyedFleetId on next init
+ */
+
 @Component({
   selector: 'app-battle-screen',
   standalone: true,
@@ -29,6 +45,11 @@ export class BattleScreenComponent implements OnInit {
     }
   }
 
+  /*
+   * backToStarMap: Transitions back to the star map after battle.
+   * The loser fleet is marked as destroyed and its ID is stored
+   * in BattleService so StarMap can process it on next init.
+   */
   backToStarMap(): void {
     this.battleService.clearBattle();
     const loser = this.result?.loser;
@@ -47,6 +68,12 @@ export class BattleScreenComponent implements OnInit {
     return this.result?.loser.name ?? '';
   }
 
+  /*
+   * getFleetScore: Returns the score for the specified fleet.
+   * NOTE: There is a bug in the template (line 31 of battle-screen.component.html)
+   * where the score display always shows result.fleet1Score regardless of which fleet won.
+   * This method itself is correct.
+   */
   getFleetScore(fleetId: number): number {
     if (!this.result || !this.battle) return 0;
     return this.battle.fleet1.id === fleetId ? this.result.fleet1Score : this.result.fleet2Score;

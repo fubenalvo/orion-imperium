@@ -1,6 +1,21 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { SaveGameService, SaveSlot } from '../../services/save-game.service';
 
+/*
+ * =========================================================
+ * STAR MAP PAUSE COMPONENT
+ * =========================================================
+ *
+ * Renders the pause menu overlay and handles save/load UI.
+ * Communicates with StarMap via event emitters.
+ *
+ * States:
+ * - Normal: shows PAUSE button
+ * - Paused (menu open): shows Continue, Save, Load, Main Menu buttons
+ * - Paused (load slots): shows 4 save slots for loading
+ * - Auto-paused (window blur): shows icon and Continue button only
+ */
+
 @Component({
   selector: 'app-star-map-pause',
   standalone: true,
@@ -42,6 +57,10 @@ export class StarMapPauseComponent {
     return d.toLocaleString();
   }
 
+  /*
+   * onSaveGame: Emits saveGame event and shows "GAME SAVED" toast for 2 seconds.
+   * The actual save is handled by StarMap.
+   */
   onSaveGame(): void {
     this.saveGame.emit();
     this.gameSaved = true;

@@ -1,3 +1,25 @@
+/*
+ * =========================================================
+ * STAR MAP COMPONENT
+ * =========================================================
+ *
+ * Central gameplay component for Orion Imperium.
+ *
+ * Manages:
+ * - Map view and system view switching
+ * - Fleet movement (map-level and system-level)
+ * - Camera panning and clamping
+ * - Grid-based object selection and context menus
+ * - Collision-based battle detection
+ * - Game loop with pause/resume on window blur
+ * - Auto-save on state changes
+ * - Save/load via SaveGameService
+ *
+ * State is owned entirely by this component. Services are used
+ * for persistence (SaveGameService), battle handoff (BattleService),
+ * and ship stat lookup (ShipService).
+ */
+
 import {
   Component,
   HostListener,
@@ -22,6 +44,11 @@ interface PlanetBuilding {
   count: number;
 }
 
+/*
+ * Planet type and size are used for rendering and planet classification.
+ * These values are purely cosmetic in the current implementation;
+ * they do not affect gameplay mechanics.
+ */
 type PlanetType = 'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert';
 type PlanetSize = 'huge' | 'big' | 'medium' | 'small' | 'tiny';
 
@@ -32,6 +59,13 @@ interface Faction {
   team: number;
 }
 
+/*
+ * PlanetTile represents a single planet within a star system.
+ *
+ * NOTE: x, y, xOffset, yOffset are loaded from JSON but are NOT used
+ * for rendering. Planets are positioned using a hardcoded grid formula
+ * in getPlanetGridPosition() and in the template.
+ */
 interface PlanetTile {
   id: number;
   index: number;
@@ -65,6 +99,11 @@ interface FleetShip {
   type: string;
 }
 
+/*
+ * WARNING: ShipType, FleetShip, and FleetShipTypeSummary are duplicated
+ * from battle.service.ts and ship.service.ts. These should be consolidated
+ * into shared interfaces to avoid divergence.
+ */
 interface ShipType {
   id: string;
   name: string;
@@ -111,13 +150,19 @@ export interface StarMapData {
   destroyedFleetId?: number | null;
 }
 
+/*
+ * initialStarMapData is a deep clone of the JSON seed data.
+ * It is used as the default state for new games.
+ * structuredClone is used because the JSON import gives us a fresh copy,
+ * but we want to ensure no reference sharing with the module-level import.
+ */
+const initialStarMapData = structuredClone(starMapData) as StarMapData;
+
 interface ContextMenuItem {
   type: 'fleet' | 'system' | 'planet';
   label: string;
   data: Fleet | StarSystem | PlanetTile;
 }
-
-const initialStarMapData = structuredClone(starMapData) as StarMapData;
 
 @Component({
   selector: 'app-star-map',
@@ -129,6 +174,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
   currentView: 'map' | 'system' = 'map';
 
   pauseMenuOpen = false;
+
+  /*
+   * Pause menu handlers are exposed to the child pause component.
+   * The pause menu itself is rendered by StarMapPauseComponent.
+   */
 
   openPauseMenu(): void {
     this.pauseMenuOpen = true;
@@ -218,9 +268,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /*
-   * -------------------------------------------------------
-   * MAP CONFIG & DATA (JSON-ból betöltve)
-   * -------------------------------------------------------
+   * =========================================================
+   * MAP CONFIG & DATA (loaded from JSON)
+   * =========================================================
+   *
+   * World coordinates work in vw (viewport width) units.
+   * 1 vw = 1% of viewport width.
+   * Grid cell size is 5vw x 5vh.
    */
 
   readonly mapWidth = initialStarMapData.map.width;
@@ -232,7 +286,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   gridColumns = Math.ceil(this.mapWidth / this.cellSizeVw);
   gridRows = Math.ceil(this.mapHeight / this.cellSizeVh);
 
-  // A csillagrendszerek és flották most már közvetlenül a JSON-ból jönnek
+  // Star systems and fleets are loaded directly from JSON
   starSystems: StarSystem[] = initialStarMapData.starSystems;
   fleets: Fleet[] = initialStarMapData.fleets;
   factions: Faction[] = initialStarMapData.factions;
@@ -252,9 +306,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /*
-   * -------------------------------------------------------
-   * SHIP TYPES (JSON-ből betöltve)
-   * -------------------------------------------------------
+   * =========================================================
+   * SHIP TYPES (loaded from JSON)
+   * =========================================================
+   *
+   * ShipType interface is duplicated from ship.service.ts here.
+   * ship.service.getShipTypeMap() returns only attack and shield values,
+   * but StarMap uses the full ShipType here for the fleet info panel.
    */
 
   readonly shipTypes: ShipType[] = (shipData as { shipTypes: ShipType[] }).shipTypes;
@@ -301,6 +359,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   private checkForBattles(): void {
+    /*
+     * Collision-based battle detection: two fleets end up in the same grid cell.
+     * Only hostile factions (different teams) trigger battles.
+     * Neutral factions (team 0) do not participate in battles.
+     * triggeredBattles Set prevents duplicate battle triggers for the same fleet pair.
+     */
     const activeFleets = this.fleets.filter((f) => !f.destroyed);
     for (let i = 0; i < activeFleets.length; i++) {
       for (let j = i + 1; j < activeFleets.length; j++) {
@@ -345,6 +409,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
         this.saveGame();
 
+        /*
+         * NgZone.run() is necessary because the game loop runs outside Angular zone.
+         * router.navigate() only works correctly inside the zone.
+         */
         this.ngZone.run(() => {
           this.router.navigate(['/battle']);
         });
@@ -355,6 +423,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   calculateGridCell(x: number, y: number): { col: number; row: number } {
+    /*
+     * Grid cell calculation: 1-indexed cells.
+     * e.g. x=0 -> col=1, x=5 -> col=2
+     * World coordinates point to the center of the cell.
+     */
     const col = Math.floor(x / this.cellSizeVw) + 1;
     const row = Math.floor(y / this.cellSizeVh) + 1;
 
@@ -370,25 +443,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private getObjectsAtMapCell(col: number, row: number): ContextMenuItem[] {
     const items: ContextMenuItem[] = [];
 
-    console.log(`[getObjectsAtMapCell] Searching cell: col=${col}, row=${row}`);
-    console.log(`[getObjectsAtMapCell] Fleets count: ${this.fleets.length}`);
-    console.log(`[getObjectsAtMapCell] Star systems count: ${this.starSystems.length}`);
-
     // Fleets
     for (const fleet of this.fleets) {
       if (fleet.destroyed) {
         continue;
       }
 
-      console.log(
-        `[getObjectsAtMapCell] Checking fleet "${fleet.name}": ` +
-          `gridCol=${fleet.gridCol}, gridRow=${fleet.gridRow} ` +
-          `(target: ${col}, ${row})`,
-      );
-
       if (fleet.gridCol === col && fleet.gridRow === row) {
-        console.log(`[getObjectsAtMapCell] ✓ FLEET MATCH: "${fleet.name}" at ${col}, ${row}`);
-
         items.push({
           type: 'fleet',
           label: `Fleet: ${fleet.name}`,
@@ -399,17 +460,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     // Star systems
     for (const system of this.starSystems) {
-      console.log(
-        `[getObjectsAtMapCell] Checking system "${system.name}": ` +
-          `gridCol=${system.gridCol}, gridRow=${system.gridRow} ` +
-          `(target: ${col}, ${row})`,
-      );
-
       if (system.gridCol === col && system.gridRow === row) {
-        console.log(
-          `[getObjectsAtMapCell] ✓ STAR SYSTEM MATCH: "${system.name}" at ${col}, ${row}`,
-        );
-
         items.push({
           type: 'system',
           label: `System: ${system.name}`,
@@ -418,12 +469,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
-    console.log(`[getObjectsAtMapCell] Result for ${col}, ${row}:`, items);
-
     return items;
   }
 
   private getPlanetGridPosition(planet: PlanetTile): { col: number; row: number } {
+    /*
+     * Planet positioning uses a hardcoded formula in system view.
+     * The 20 and 6 values represent the system grid offset.
+     * Positions are calculated by index to arrange planets
+     * in a semi-circle around the sun.
+     */
     return {
       col: 20 - planet.index * 2,
       row: 6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3),
@@ -458,7 +513,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   showContextMenu(x: number, y: number, items: ContextMenuItem[]): void {
     this.contextMenu = { x, y, items };
-    console.log(`showContextMenu ${x} ${y} ${items}`);
   }
 
   closeContextMenu(): void {
@@ -467,9 +521,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   onContextMenuSelect(item: ContextMenuItem): void {
     this.closeContextMenu();
-
-    console.log('onContextMenuSelect:');
-    console.log(item);
 
     switch (item.type) {
       case 'fleet':
@@ -485,31 +536,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   private handleMapObjectClick(col: number, row: number, event: MouseEvent): void {
-    console.log(`[handleMapObjectClick] Clicked map cell: col=${col}, row=${row}`);
-
-    console.log(`[handleMapObjectClick] Mouse position: x=${event.clientX}, y=${event.clientY}`);
-
     const items = this.getObjectsAtMapCell(col, row);
 
-    console.log(`[handleMapObjectClick] Objects found: ${items.length}`, items);
-
     if (items.length > 1) {
-      console.log(
-        `[handleMapObjectClick] Multiple objects found (${items.length}) -> showing context menu`,
-      );
-
+      /*
+       * Multiple objects in the same cell -> show context menu.
+       * The user can select which object to interact with.
+       */
       this.showContextMenu(event.clientX, event.clientY, items);
       return;
     }
 
     if (items.length === 1) {
-      console.log(`[handleMapObjectClick] Exactly one object found -> selecting:`, items[0]);
-
       this.onContextMenuSelect(items[0]);
       return;
     }
-
-    console.log(`[handleMapObjectClick] No objects found at cell col=${col}, row=${row}`);
   }
 
   private handleSystemObjectClick(
@@ -518,29 +559,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
     system: StarSystem,
     event: MouseEvent,
   ): void {
-    console.log(`[SystemObjectClick] Clicked cell: col=${col}, row=${row}, system=${system.name}`);
-
     const items = this.getObjectsAtSystemCell(col, row, system);
 
-    console.log(`[SystemObjectClick] Found ${items.length} object(s):`, items);
-
     if (items.length > 1) {
-      console.log(
-        `[SystemObjectClick] Multiple objects found. Showing context menu at x=${event.clientX}, y=${event.clientY}`,
-      );
-
       this.showContextMenu(event.clientX, event.clientY, items);
       return;
     }
 
     if (items.length === 1) {
-      console.log(`[SystemObjectClick] Single object found. Selecting object:`, items[0]);
-
       this.onContextMenuSelect(items[0]);
       return;
     }
-
-    console.log('[SystemObjectClick] No objects found.');
   }
 
   private getTileCenter(x: number, y: number): { x: number; y: number } {
@@ -595,6 +624,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
       return;
     }
 
+    /*
+     * StarMapData full snapshot is saved.
+     * destroyedFleetId is stored separately because the fleet object's
+     * destroyed flag is not sufficient across save/load cycles;
+     * if the fleet is removed from the list, preserving the ID allows
+     * recovery.
+     */
     const data: StarMapData = {
       factions: this.factions,
       map: {
@@ -634,6 +670,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.starSystems = data.starSystems;
     this.fleets = data.fleets ?? [];
 
+    /*
+     * destroyedFleetId handling: the fleet is already in the fleets array,
+     * but the destroyed flag is not set. We set it here.
+     * This ensures the fleet is in the correct state after loading from save.
+     */
     if (data.destroyedFleetId != null) {
       const fleet = this.fleets.find((f) => f.id === data.destroyedFleetId);
       if (fleet) {
@@ -641,6 +682,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
+    /*
+     * Compatibility layer: older saves may lack gridCol/gridRow
+     * but have x/y values. In that case, gridCol/Row are calculated from x/y (1-indexed).
+     */
     for (const fleet of this.fleets) {
       if (fleet.gridCol == null || fleet.gridRow == null) {
         const gridX = fleet.x;
@@ -730,6 +775,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.refreshGridPositions();
   }
 
+  /*
+   * removeDestroyedFleetFromService: Processes the destroyedFleetId
+   * stored in BattleService when StarMap starts.
+   * This ensures the post-battle fleet removal happens correctly
+   * in StarMap state as well.
+   */
   private removeDestroyedFleetFromService(): void {
     const destroyedFleetId = this.battleService.getDestroyedFleetId();
     if (destroyedFleetId != null) {
@@ -769,9 +820,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /*
-   * -------------------------------------------------------
+   * =========================================================
    * VIEW READY
-   * -------------------------------------------------------
+   * =========================================================
    */
 
   ngAfterViewInit(): void {
@@ -780,9 +831,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /*
-   * -------------------------------------------------------
+   * =========================================================
    * FOCUS / PAUSE HANDLERS
-   * -------------------------------------------------------
+   * =========================================================
+   *
+   * The game automatically pauses when the window loses focus
+   * or the tab becomes hidden. This prevents the game from continuing
+   * while the user is not watching.
    */
 
   private setupFocusHandlers(): void {
@@ -811,9 +866,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /*
-   * -------------------------------------------------------
+   * =========================================================
    * START GAME LOOP
-   * -------------------------------------------------------
+   * =========================================================
+   *
+   * The game loop runs outside Angular zone to avoid triggering
+   * unnecessary change detection every frame.
+   * Change detection is only signaled when fleets actually move.
    */
 
   private startGameLoop(): void {
@@ -825,14 +884,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /*
-   * -------------------------------------------------------
+   * =========================================================
    * GAME LOOP
-   * -------------------------------------------------------
+   * =========================================================
    *
-   * This runs continuously.
-   *
-   * deltaTime = elapsed time since previous frame
-   * in seconds.
+   * deltaTime = elapsed time since previous frame in seconds.
+   * DeltaTime is capped at 0.1s to prevent large jumps
+   * after tab switches.
    */
 
   private update(time: number): void {
@@ -852,9 +910,18 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /*
-   * -------------------------------------------------------
+   * =========================================================
    * UPDATE FLEETS
-   * -------------------------------------------------------
+   * =========================================================
+   *
+   * Processes fleet movement every frame.
+   * Two different coordinate systems are used:
+   * - Map movement: targetX/targetY (vw units, world coordinates)
+   * - System movement: systemTargetX/systemTargetY (vw units, system coordinates)
+   *
+   * If a fleet has a map target, does it take priority over system movement?
+   * No: both movements update independently, but in practice
+   * a fleet can only move in one mode at a time.
    */
 
   private updateFleets(deltaTime: number): boolean {

@@ -1,6 +1,24 @@
 import { Injectable } from '@angular/core';
 import { ShipService } from './ship.service';
 
+/*
+ * =========================================================
+ * BATTLE SERVICE
+ * =========================================================
+ *
+ * Temporary state holder for battle resolution between
+ * StarMap and BattleScreen.
+ *
+ * Lifecycle:
+ * 1. StarMap detects collision -> setBattle()
+ * 2. BattleScreen reads battle, resolves it in ngOnInit()
+ * 3. On back navigation, loser is marked destroyed
+ * 4. StarMap processes destroyedFleetId on next init
+ *
+ * The service is providedIn: 'root', so it persists across
+ * route navigations.
+ */
+
 @Injectable({ providedIn: 'root' })
 export class BattleService {
   private currentBattle: Battle | null = null;
@@ -31,6 +49,19 @@ export class BattleService {
     return this.destroyedFleetId;
   }
 
+  /*
+   * =========================================================
+   * RESOLVE BATTLE
+   * =========================================================
+   *
+   * Instantaneous battle resolution using simple formula:
+   *
+   *   fleetScore = max(0, totalAttack - enemyTotalShield)
+   *
+   * No shield regeneration, no armor mitigation, no weapon effectiveness.
+   * The fleet with the higher score wins.
+   * Ties go to fleet1 (the fleet with the lower ID, due to >= comparison).
+   */
   resolveBattle(): BattleResult {
     if (!this.currentBattle) {
       throw new Error('No battle to resolve');
@@ -46,6 +77,10 @@ export class BattleService {
     const fleet1Score = Math.max(0, fleet1Attack - fleet2Shield);
     const fleet2Score = Math.max(0, fleet2Attack - fleet1Shield);
 
+    /*
+     * Tie-breaking: fleet1 wins on equal scores (>= comparison).
+     * This means fleet1 (lower ID) has a slight advantage.
+     */
     const winner = fleet1Score >= fleet2Score ? this.currentBattle.fleet1 : this.currentBattle.fleet2;
     const loser = winner.id === this.currentBattle.fleet1.id ? this.currentBattle.fleet2 : this.currentBattle.fleet1;
 
@@ -78,6 +113,17 @@ export class BattleService {
     this.destroyedFleetId = null;
   }
 }
+
+/*
+ * =========================================================
+ * DATA MODELS
+ * =========================================================
+ *
+ * Fleet: Represents a group of ships moving on the map or inside a star system.
+ * FleetShip: Individual ship entry within a fleet (type reference only).
+ * Battle: Temporary container for two fleets and their faction display info.
+ * BattleResult: Computed outcome of a battle resolution.
+ */
 
 export interface Fleet {
   id: number;
