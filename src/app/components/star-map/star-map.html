@@ -1,7 +1,7 @@
 <div class="star-map">
   <div
     class="star-map-background"
-    [style.transform]="'translate(' + (-cameraX * 0.3) + 'vw, ' + (-cameraY * 0.3) + 'vw)'"
+    [style.transform]="'translate(' + -cameraX * 0.3 + 'vw, ' + -cameraY * 0.3 + 'vw)'"
   ></div>
 
   @if (currentView === 'map') {
@@ -67,7 +67,9 @@
               (click)="onFleetClick(fleet, $event)"
               (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
             >
-              <span class="ship__icon">◆</span>
+              <span class="ship__icon">
+                <img src="/fleet.svg" />
+              </span>
 
               <span class="ship__name" [style.color]="getFactionColor(fleet.factionId)">
                 {{ fleet.name }}
@@ -145,36 +147,36 @@
               [class.active]="selectedFleetAction === 'attack'"
               (click)="setFleetAction('attack'); $event.stopPropagation()"
             >
-          ATTACK
-        </button>
-      </div>
+              ATTACK
+            </button>
+          </div>
 
-      <hr class="fleet-section-divider" />
+          <hr class="fleet-section-divider" />
 
-      <div class="fleet-ships__title">
-        SHIPS ({{ selectedFleet.ships.length }})
-      </div>
+          <div class="fleet-ships__title">SHIPS ({{ selectedFleet.ships.length }})</div>
 
-      @for (entry of getFleetShipTypeSummary(selectedFleet); track entry.typeId) {
-        <div class="fleet-ships__row">
-          <span class="fleet-ships__type">{{ entry.typeName }}</span>
-          <span class="fleet-ships__count">x{{ entry.count }}</span>
-          <span class="fleet-ships__stats">ATK {{ entry.attack }} / DEF {{ entry.defense }}</span>
+          @for (entry of getFleetShipTypeSummary(selectedFleet); track entry.typeId) {
+            <div class="fleet-ships__row">
+              <span class="fleet-ships__type">{{ entry.typeName }}</span>
+              <span class="fleet-ships__count">x{{ entry.count }}</span>
+              <span class="fleet-ships__stats"
+                >ATK {{ entry.attack }} / DEF {{ entry.defense }}</span
+              >
+            </div>
+          }
+
+          <div class="fleet-ships__totals">
+            <span>ATTACK POINTS</span>
+            <span>{{ getFleetTotalAttack(selectedFleet) }}</span>
+          </div>
+
+          <div class="fleet-ships__totals">
+            <span>DEFENSE POINTS</span>
+            <span>{{ getFleetTotalDefense(selectedFleet) }}</span>
+          </div>
         </div>
-      }
-
-      <div class="fleet-ships__totals">
-        <span>ATTACK POINTS</span>
-        <span>{{ getFleetTotalAttack(selectedFleet) }}</span>
       </div>
-
-      <div class="fleet-ships__totals">
-        <span>DEFENSE POINTS</span>
-        <span>{{ getFleetTotalDefense(selectedFleet) }}</span>
-      </div>
-    </div>
-  </div>
-}
+    }
 
     <!-- =====================================================
        FLEET BUTTONS
@@ -286,7 +288,9 @@
                   (click)="onFleetClick(fleet, $event)"
                   (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
                 >
-                  <span class="ship__icon">◆</span>
+                  <span class="ship__icon">
+                    <img src="/fleet.svg" />
+                  </span>
                   <span class="ship__name" [style.color]="getFactionColor(fleet.factionId)">{{
                     fleet.name
                   }}</span>
@@ -354,10 +358,10 @@
                 <li>{{ b.name }}: {{ b.count }}</li>
               }
             </ul>
-      </div>
+          </div>
+        </div>
+      }
     </div>
-  }
-</div>
   }
 
   <!-- =====================================================

@@ -63,9 +63,17 @@
 
   line-height: 1;
 
-  text-shadow:
-    0 0 5px currentColor,
-    0 0 12px currentColor;
+  filter:
+    drop-shadow(0 0 5px currentColor)
+    drop-shadow(0 0 12px currentColor);
+
+  img {
+    width: 32px;
+
+    height: 32px;
+
+    display: block;
+  }
 }
 
 .ship__name {
