@@ -53,13 +53,13 @@
 
         @for (fleet of fleets; track fleet.id) {
           <div
-            class="ship-cell"
+            class="fleet-cell"
             [style.left]="fleet.x + 'vw'"
             [style.top]="fleet.y + 'vw'"
             [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
           >
             <button
-              class="ship"
+              class="fleet"
               [class.selected]="selectedFleet?.id === fleet.id"
               [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
               [class.arriced]="fleet.targetX === null || fleet.targetY === null"
@@ -67,11 +67,11 @@
               (click)="onFleetClick(fleet, $event)"
               (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
             >
-              <span class="ship__icon">
+              <span class="fleet__icon">
                 <img src="/fleet.svg" />
               </span>
 
-              <span class="ship__name" [style.color]="getFactionColor(fleet.factionId)">
+              <span class="fleet__name" [style.color]="getFactionColor(fleet.factionId)">
                 {{ fleet.name }}
               </span>
             </button>
@@ -275,12 +275,12 @@
               fleet.systemId === selectedSystem.id && fleet.systemX != null && fleet.systemY != null
             ) {
               <div
-                class="ship-cell"
+                class="fleet-cell"
                 [style.left]="fleet.systemX + 'vw'"
                 [style.top]="fleet.systemY + 'vw'"
               >
                 <button
-                  class="ship"
+                  class="fleet"
                   [class.selected]="selectedFleet?.id === fleet.id"
                   [class.moving]="fleet.systemTargetX !== null && fleet.systemTargetY !== null"
                   [class.arriced]="fleet.systemTargetX === null || fleet.systemTargetY === null"
@@ -288,10 +288,10 @@
                   (click)="onFleetClick(fleet, $event)"
                   (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
                 >
-                  <span class="ship__icon">
+                  <span class="fleet__icon">
                     <img src="/fleet.svg" />
                   </span>
-                  <span class="ship__name" [style.color]="getFactionColor(fleet.factionId)">{{
+                  <span class="fleet__name" [style.color]="getFactionColor(fleet.factionId)">{{
                     fleet.name
                   }}</span>
                 </button>
@@ -319,8 +319,82 @@
       </div>
 
       <!-- =====================================================
-           PLANET DETAILS WINDOW
-           ===================================================== -->
+            SELECTED FLEET INFO
+            ===================================================== -->
+
+      @if (selectedFleet) {
+        <div class="fleet-info panel-style">
+          <div class="panel-style__title">
+            <span [style.color]="getFactionColor(selectedFleet.factionId)">
+              {{ selectedFleet.name }} FLEET
+            </span>
+          </div>
+
+          <div class="system-info__content">
+            <div>
+              STATUS:
+
+              @if (selectedFleet.targetX !== null) {
+                MOVING
+              } @else {
+                IDLE
+              }
+            </div>
+
+            <div>
+              SPEED:
+              {{ selectedFleet.speed }}
+            </div>
+
+            <div class="fleet-actions">
+              <button
+                type="button"
+                class="action-btn move-btn"
+                [class.active]="selectedFleetAction === 'move'"
+                (click)="setFleetAction('move'); $event.stopPropagation()"
+              >
+                MOVE
+              </button>
+              <button
+                type="button"
+                class="action-btn attack-btn"
+                [class.active]="selectedFleetAction === 'attack'"
+                (click)="setFleetAction('attack'); $event.stopPropagation()"
+              >
+                ATTACK
+              </button>
+            </div>
+
+            <hr class="fleet-section-divider" />
+
+            <div class="fleet-ships__title">SHIPS ({{ selectedFleet.ships.length }})</div>
+
+            @for (entry of getFleetShipTypeSummary(selectedFleet); track entry.typeId) {
+              <div class="fleet-ships__row">
+                <span class="fleet-ships__type">{{ entry.typeName }}</span>
+                <span class="fleet-ships__count">x{{ entry.count }}</span>
+                <span class="fleet-ships__stats"
+                  >ATK {{ entry.attack }} / DEF {{ entry.defense }}</span
+                >
+              </div>
+            }
+
+            <div class="fleet-ships__totals">
+              <span>ATTACK POINTS</span>
+              <span>{{ getFleetTotalAttack(selectedFleet) }}</span>
+            </div>
+
+            <div class="fleet-ships__totals">
+              <span>DEFENSE POINTS</span>
+              <span>{{ getFleetTotalDefense(selectedFleet) }}</span>
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- =====================================================
+            PLANET DETAILS WINDOW
+            ===================================================== -->
       @if (selectedPlanetTile) {
         <div class="planet-info panel-style">
           <div
@@ -328,21 +402,7 @@
             style="display: flex; justify-content: space-between; align-items: center"
           >
             <span>{{ selectedPlanetTile.name }} Details</span>
-            <button
-              class="close-btn"
-              type="button"
-              (click)="selectedPlanetTile = null"
-              style="
-                background: none;
-                border: none;
-                color: var(--color-blue-bright);
-                cursor: pointer;
-                font-family: monospace;
-                font-size: 1.2rem;
-              "
-            >
-              X
-            </button>
+            <button class="close-btn" type="button" (click)="selectedPlanetTile = null">X</button>
           </div>
 
           <div class="system-info__content">
@@ -351,14 +411,16 @@
             <div>POPULATION: {{ selectedPlanetTile.population }}</div>
             <div>ENERGY: {{ getEnergyForPlanet(selectedPlanetTile) }}</div>
             <div>DAILY TAX: {{ getTaxForPlanet(selectedPlanetTile) }}</div>
-          <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
-          <div class="planet-buildings__title">BUILDINGS ({{ selectedPlanetTile.buildings.length }})</div>
-          @for (b of selectedPlanetTile.buildings; track b.name) {
-            <div class="planet-buildings__row">
-              <span class="planet-buildings__name">{{ b.name }}</span>
-              <span class="planet-buildings__count">x{{ b.count }}</span>
+            <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
+            <div class="planet-buildings__title">
+              BUILDINGS ({{ selectedPlanetTile.buildings.length }})
             </div>
-          }
+            @for (b of selectedPlanetTile.buildings; track b.name) {
+              <div class="planet-buildings__row">
+                <span class="planet-buildings__name">{{ b.name }}</span>
+                <span class="planet-buildings__count">x{{ b.count }}</span>
+              </div>
+            }
           </div>
         </div>
       }

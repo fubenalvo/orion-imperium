@@ -1,8 +1,8 @@
 /* =========================================================
-   STAR MAP SHIPS
+   STAR MAP FLEETS
    ========================================================= */
 
-.ship {
+.fleet {
   position: relative;
 
   left: auto;
@@ -40,7 +40,7 @@
   z-index: 1;
 }
 
-.ship:hover {
+.fleet:hover {
   color: var(--color-blue-bright);
 
   border-color: var(--color-blue-bright);
@@ -48,11 +48,11 @@
   background: rgba(0, 20, 25, 0.9);
 }
 
-.ship:active {
+.fleet:active {
   transform: translateY(1px);
 }
 
-.ship__icon {
+.fleet__icon {
   display: block;
 
   color: var(--color-blue-bright);
@@ -63,9 +63,7 @@
 
   line-height: 1;
 
-  filter:
-    drop-shadow(0 0 5px currentColor)
-    drop-shadow(0 0 12px currentColor);
+  filter: drop-shadow(0 0 5px currentColor) drop-shadow(0 0 12px currentColor);
 
   img {
     width: 32px;
@@ -76,7 +74,7 @@
   }
 }
 
-.ship__name {
+.fleet__name {
   display: block;
 
   color: var(--color-text);
@@ -88,7 +86,7 @@
   white-space: nowrap;
 }
 
-.ship.selected {
+.fleet.selected {
   border-color: var(--color-blue-bright);
 
   color: var(--color-blue-bright);
@@ -98,11 +96,11 @@
     0 0 18px rgba(53, 134, 229, 0.5);
 }
 
-.ship.selected .ship__icon {
+.fleet.selected .fleet__icon {
   animation: ship-selected-pulse 1.2s infinite;
 }
 
-.ship.moving {
+.fleet.moving {
   border-color: var(--color-blue-bright);
 
   box-shadow:
@@ -110,11 +108,11 @@
     0 0 20px rgba(53, 134, 229, 0.45);
 }
 
-.ship.moving .ship__icon {
+.fleet.moving .fleet__icon {
   animation: ship-moving-float 0.9s ease-in-out infinite;
 }
 
-.ship.arriced {
+.fleet.arriced {
   opacity: 0.9;
 }
 

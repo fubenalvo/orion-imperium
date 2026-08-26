@@ -6,20 +6,17 @@
 
 @import 'mixins';
 
-
 /* =========================================================
    PIXELIFY SANS
    ========================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap');
 
-
 /* =========================================================
    COLOR PALETTE
    ========================================================= */
 
 :root {
-
   /* -------------------------------------------------------
      Base
      ------------------------------------------------------- */
@@ -29,7 +26,6 @@
   --color-background: #050b10;
 
   --color-background-dark: #071118;
-
 
   /* -------------------------------------------------------
      Main text
@@ -43,7 +39,6 @@
 
   --color-text-disabled: #18385f;
 
-
   /* -------------------------------------------------------
      Blue
      ------------------------------------------------------- */
@@ -56,7 +51,6 @@
 
   --color-blue-bright: #8cc4ff;
 
-
   /* -------------------------------------------------------
      Turquoise
      ------------------------------------------------------- */
@@ -68,7 +62,6 @@
   --color-turquoise-light: #39b8a8;
 
   --color-turquoise-bright: #6de5d3;
-
 
   /* -------------------------------------------------------
      Buttons
@@ -86,7 +79,6 @@
 
   --button-text-hover: #ffffff;
 
-
   /* -------------------------------------------------------
      Panels
      ------------------------------------------------------- */
@@ -101,7 +93,6 @@
 
   --panel-border-dark: #12315c;
 
-
   /* -------------------------------------------------------
      Status
      ------------------------------------------------------- */
@@ -113,7 +104,6 @@
   --color-danger: #d65757;
 }
 
-
 /* =========================================================
    GLOBAL RESET
    ========================================================= */
@@ -123,7 +113,6 @@
 *::after {
   box-sizing: border-box;
 }
-
 
 html,
 body {
@@ -146,12 +135,10 @@ body {
   image-rendering: pixelated;
 }
 
-
 body {
   -webkit-font-smoothing: none;
   -moz-osx-font-smoothing: grayscale;
 }
-
 
 button,
 input,
@@ -159,7 +146,6 @@ textarea,
 select {
   font-family: inherit;
 }
-
 
 /* =========================================================
    ANGULAR ROOT
@@ -172,7 +158,6 @@ app-root {
   height: 100dvh;
 }
 
-
 /* =========================================================
    GAME VIEWPORT
    ========================================================= */
@@ -183,15 +168,9 @@ app-root {
   top: 50%;
   left: 50%;
 
-  width: min(
-    100vw,
-    calc(100dvh * 16 / 9)
-  );
+  width: min(100vw, calc(100dvh * 16 / 9));
 
-  height: min(
-    100dvh,
-    calc(100vw * 9 / 16)
-  );
+  height: min(100dvh, calc(100vw * 9 / 16));
 
   transform: translate(-50%, -50%);
 
@@ -225,7 +204,6 @@ button,
 
   background: linear-gradient(
     135deg,
-
     var(--button-light) 0%,
     var(--button-light) 2%,
 
@@ -264,7 +242,6 @@ button,
     box-shadow 40ms linear;
 }
 
-
 /* =========================================================
    BUTTON HOVER
    ========================================================= */
@@ -278,10 +255,8 @@ button:hover,
   box-shadow:
     inset 2px 2px 0 rgba(255, 255, 255, 0.65),
     inset -3px -3px 0 rgba(0, 0, 0, 0.5),
-
     0 0 8px rgba(53, 134, 229, 0.35);
 }
-
 
 /* =========================================================
    BUTTON ACTIVE / PRESSED
@@ -298,7 +273,6 @@ button:active,
     inset -2px -2px 0 rgba(255, 255, 255, 0.15);
 }
 
-
 /* =========================================================
    BUTTON FOCUS
    ========================================================= */
@@ -309,7 +283,6 @@ button:focus-visible,
 
   outline-offset: 2px;
 }
-
 
 /* =========================================================
    BUTTON DISABLED
@@ -331,7 +304,6 @@ button.disabled,
     inset 2px 2px 0 rgba(255, 255, 255, 0.08),
     inset -2px -2px 0 rgba(0, 0, 0, 0.5);
 }
-
 
 /* =========================================================
    TEXT INPUTS
@@ -369,12 +341,9 @@ select {
   font-size: 1em;
 
   box-shadow:
-
     inset 2px 2px 0 rgba(0, 0, 0, 0.9),
-
     inset -1px -1px 0 rgba(53, 134, 229, 0.15);
 }
-
 
 /* ---------------------------------------------------------
    Input focus
@@ -390,12 +359,9 @@ select:focus {
   border-color: var(--color-blue-bright);
 
   box-shadow:
-
     inset 2px 2px 0 rgba(0, 0, 0, 0.9),
-
     0 0 8px rgba(53, 134, 229, 0.25);
 }
-
 
 /* ---------------------------------------------------------
    Placeholder
@@ -407,7 +373,6 @@ textarea::placeholder {
 
   opacity: 1;
 }
-
 
 /* =========================================================
    CHECKBOX
@@ -434,18 +399,15 @@ input[type='checkbox'] {
   cursor: pointer;
 }
 
-
 input[type='checkbox']:hover {
   border-color: var(--color-blue-bright);
 }
-
 
 input[type='checkbox']:checked {
   border-color: var(--color-blue-bright);
 
   background: var(--color-black);
 }
-
 
 input[type='checkbox']:checked::after {
   content: '';
@@ -464,7 +426,6 @@ input[type='checkbox']:checked::after {
 
   transform: rotate(45deg);
 }
-
 
 /* =========================================================
    RADIO
@@ -491,18 +452,15 @@ input[type='radio'] {
   cursor: pointer;
 }
 
-
 input[type='radio']:hover {
   border-color: var(--color-blue-bright);
 }
-
 
 input[type='radio']:checked {
   border-color: var(--color-blue-bright);
 
   background: var(--color-black);
 }
-
 
 input[type='radio']:checked::after {
   content: '';
@@ -517,7 +475,6 @@ input[type='radio']:checked::after {
   background: var(--color-blue-bright);
 }
 
-
 /* =========================================================
    LABELS
    ========================================================= */
@@ -529,7 +486,6 @@ label {
 
   cursor: pointer;
 }
-
 
 .checkbox-style,
 .radio-style {
@@ -544,12 +500,10 @@ label {
   cursor: pointer;
 }
 
-
 .checkbox-style:hover,
 .radio-style:hover {
   color: var(--color-text-bright);
 }
-
 
 /* =========================================================
    SCI-FI PANEL
@@ -557,22 +511,14 @@ label {
 
 .panel-style {
   position: relative;
-
   border: 2px solid var(--panel-border);
-
   border-radius: 0;
-
-  background: var(--panel-background);
-
+  background: color-mix(in srgb, var(--panel-background) 70%, transparent);
   color: var(--color-text);
-
   box-shadow:
-
     inset 2px 2px 0 rgba(53, 134, 229, 0.08),
-
     inset -2px -2px 0 rgba(0, 0, 0, 0.8);
 }
-
 
 /* =========================================================
    PANEL TITLE
@@ -594,8 +540,23 @@ label {
   letter-spacing: 0.08em;
 
   text-transform: uppercase;
-}
+  position: relative;
 
+  .close-btn {
+    color: var(--color-blue-light);
+    background: transparent;
+    border: none;
+    border-left: 2px solid var(--color-blue-light);
+    box-shadow: none;
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    min-height: 0;
+    padding: 0 0.8rem;
+    margin: 0;
+  }
+}
 
 /* =========================================================
    SCI-FI HEADER
@@ -627,7 +588,6 @@ label {
   text-transform: uppercase;
 }
 
-
 /* =========================================================
    PIXEL DIVIDER
    ========================================================= */
@@ -641,7 +601,6 @@ label {
 
   background: var(--color-blue);
 }
-
 
 /* =========================================================
    RANGE SLIDER
@@ -659,7 +618,6 @@ input[type='range'] {
   cursor: pointer;
 }
 
-
 input[type='range']::-webkit-slider-runnable-track {
   height: 6px;
 
@@ -667,7 +625,6 @@ input[type='range']::-webkit-slider-runnable-track {
 
   background: var(--color-black);
 }
-
 
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
@@ -684,7 +641,6 @@ input[type='range']::-webkit-slider-thumb {
   background: var(--color-turquoise-dark);
 }
 
-
 input[type='range']::-moz-range-track {
   height: 6px;
 
@@ -692,7 +648,6 @@ input[type='range']::-moz-range-track {
 
   background: var(--color-black);
 }
-
 
 input[type='range']::-moz-range-thumb {
   width: 14px;
@@ -704,7 +659,6 @@ input[type='range']::-moz-range-thumb {
 
   background: var(--color-turquoise-dark);
 }
-
 
 /* =========================================================
    CRT SCANLINES
@@ -719,20 +673,18 @@ input[type='range']::-moz-range-thumb {
 
   z-index: 9999;
 
-  background:
-    repeating-linear-gradient(
-      to bottom,
+  background: repeating-linear-gradient(
+    to bottom,
 
-      rgba(255, 255, 255, 0.02) 0,
-      rgba(255, 255, 255, 0.02) 1px,
+    rgba(255, 255, 255, 0.02) 0,
+    rgba(255, 255, 255, 0.02) 1px,
 
-      transparent 1px,
-      transparent 4px
-    );
+    transparent 1px,
+    transparent 4px
+  );
 
   opacity: 0.25;
 }
-
 
 /* =========================================================
    TEXT SELECTION
@@ -743,7 +695,6 @@ input[type='range']::-moz-range-thumb {
 
   color: var(--color-black);
 }
-
 
 /* =========================================================
    SCROLLBARS
@@ -756,20 +707,17 @@ input[type='range']::-moz-range-thumb {
   background: var(--color-black);
 }
 
-
 ::-webkit-scrollbar-track {
   background: var(--color-black);
 
   border-left: 2px solid var(--panel-border-dark);
 }
 
-
 ::-webkit-scrollbar-thumb {
   border: 2px solid var(--color-black);
 
   background: var(--color-blue-dark);
 }
-
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-blue);

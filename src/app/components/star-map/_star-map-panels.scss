@@ -55,9 +55,7 @@
 
 .fleet-actions {
   display: flex;
-
   gap: 0.5em;
-
   margin-top: 0.8em;
 }
 
@@ -76,19 +74,14 @@
 
 .action-btn:hover {
   color: var(--color-blue-bright);
-
   border-color: var(--color-blue-bright);
-
   background: rgba(0, 20, 25, 0.9);
 }
 
 .action-btn.active {
   border-color: var(--color-blue-bright);
-
   color: var(--color-blue-bright);
-
   background: rgba(53, 134, 229, 0.15);
-
   box-shadow:
     inset 0 0 10px rgba(53, 134, 229, 0.2),
     0 0 10px rgba(53, 134, 229, 0.3);

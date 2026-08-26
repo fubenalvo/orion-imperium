@@ -148,6 +148,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
             fleet.systemX = 2.5;
             fleet.systemY = 32.5;
           }
+          const sysCell = this.calculateGridCell(fleet.systemX!, fleet.systemY!);
+          fleet.gridCol = sysCell.col;
+          fleet.gridRow = sysCell.row;
         }
       }
 
@@ -163,6 +166,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   leaveSystem(): void {
     this.currentView = 'map';
+
+    for (const fleet of this.fleets) {
+      if (fleet.systemId !== undefined) {
+        const mapCell = this.calculateGridCell(fleet.x, fleet.y);
+        fleet.gridCol = mapCell.col;
+        fleet.gridRow = mapCell.row;
+      }
+    }
 
     if (this.selectedFleet && this.selectedFleet.targetX != null) {
       this.targetX = this.selectedFleet.targetX;
@@ -245,17 +256,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   getFleetTotalAttack(fleet: Fleet): number {
-    return fleet.ships.reduce(
-      (sum, ship) => sum + (this.getShipType(ship.type)?.attack ?? 0),
-      0,
-    );
+    return fleet.ships.reduce((sum, ship) => sum + (this.getShipType(ship.type)?.attack ?? 0), 0);
   }
 
   getFleetTotalDefense(fleet: Fleet): number {
-    return fleet.ships.reduce(
-      (sum, ship) => sum + (this.getShipType(ship.type)?.defense ?? 0),
-      0,
-    );
+    return fleet.ships.reduce((sum, ship) => sum + (this.getShipType(ship.type)?.defense ?? 0), 0);
   }
 
   calculateGridCell(x: number, y: number): { col: number; row: number } {
@@ -334,8 +339,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const items: ContextMenuItem[] = [];
 
     for (const fleet of this.fleets) {
-      if (fleet.systemId === system.id && fleet.gridCol === col && fleet.gridRow === row) {
-        items.push({ type: 'fleet', label: `Fleet: ${fleet.name}`, data: fleet });
+      if (fleet.systemId === system.id && fleet.systemX != null && fleet.systemY != null) {
+        const fleetCell = this.calculateGridCell(fleet.systemX, fleet.systemY);
+        if (fleetCell.col === col && fleetCell.row === row) {
+          items.push({ type: 'fleet', label: `Fleet: ${fleet.name}`, data: fleet });
+        }
       }
     }
 
@@ -360,6 +368,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   onContextMenuSelect(item: ContextMenuItem): void {
     this.closeContextMenu();
+
+    console.log('onContextMenuSelect:');
+    console.log(item);
 
     switch (item.type) {
       case 'fleet':
@@ -408,16 +419,29 @@ export class StarMap implements AfterViewInit, OnDestroy {
     system: StarSystem,
     event: MouseEvent,
   ): void {
+    console.log(`[SystemObjectClick] Clicked cell: col=${col}, row=${row}, system=${system.name}`);
+
     const items = this.getObjectsAtSystemCell(col, row, system);
 
+    console.log(`[SystemObjectClick] Found ${items.length} object(s):`, items);
+
     if (items.length > 1) {
+      console.log(
+        `[SystemObjectClick] Multiple objects found. Showing context menu at x=${event.clientX}, y=${event.clientY}`,
+      );
+
       this.showContextMenu(event.clientX, event.clientY, items);
       return;
     }
 
     if (items.length === 1) {
+      console.log(`[SystemObjectClick] Single object found. Selecting object:`, items[0]);
+
       this.onContextMenuSelect(items[0]);
+      return;
     }
+
+    console.log('[SystemObjectClick] No objects found.');
   }
 
   private getTileCenter(x: number, y: number): { x: number; y: number } {
@@ -645,6 +669,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   selectFleet(fleet: Fleet): void {
     this.selectedFleet = fleet;
+
+    console.log('this.selectedFleet: ' + this.selectedFleet);
+
     if (this.currentView !== 'system') {
       this.selectedSystem = null;
     }
@@ -711,7 +738,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (this.currentView === 'map') {
       this.handleMapObjectClick(fleet.gridCol, fleet.gridRow, event);
     } else if (this.selectedSystem) {
-      this.handleSystemObjectClick(fleet.gridCol, fleet.gridRow, this.selectedSystem, event);
+      const sysCell = this.calculateGridCell(fleet.systemX ?? 0, fleet.systemY ?? 0);
+      this.handleSystemObjectClick(sysCell.col, sysCell.row, this.selectedSystem, event);
     } else {
       this.selectFleet(fleet);
     }
