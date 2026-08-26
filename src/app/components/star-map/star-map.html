@@ -1,16 +1,16 @@
 <div class="star-map">
-  @if (isPaused) {
-    <div class="pause-overlay">
-      <div class="pause-overlay__content">
-        <div class="pause-overlay__icon">⏸</div>
-        <div class="pause-overlay__title">GAME PAUSED</div>
-        <div class="pause-overlay__subtitle">Window lost focus</div>
-        <button class="pause-overlay__btn" type="button" (click)="resumeGame()">
-          CONTINUE
-        </button>
-      </div>
-    </div>
-  }
+  <app-star-map-pause
+    [isPaused]="isPaused"
+    [pauseMenuOpen]="pauseMenuOpen"
+    [currentSlot]="currentSlot"
+    (openPauseMenu)="openPauseMenu()"
+    (closePauseMenu)="closePauseMenu()"
+    (saveGame)="saveFromMenu()"
+    (loadGame)="loadFromMenu($event)"
+    (resumeGame)="resumeGame()"
+    (exitToMainMenu)="exitToMainMenu()"
+  >
+  </app-star-map-pause>
   <div
     class="star-map-background"
     [style.transform]="'translate(' + -cameraX * 0.3 + 'vw, ' + -cameraY * 0.3 + 'vw)'"
@@ -113,7 +113,6 @@
 
     <div class="top-hud">
       <div class="game-title">STAR MAP</div>
-      <div class="turn-info">TURN 001</div>
     </div>
 
     <!-- =====================================================

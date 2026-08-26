@@ -15,10 +15,10 @@
           <span class="stat">SHIELD: {{ getFleetShield(battle.fleet1.id) }}</span>
         </div>
         <div class="fleet-panel__ships">
-          @for (ship of battle.fleet1.ships; track ship.id) {
+          @for (entry of getShipTypeCounts(battle.fleet1.ships); track entry.type) {
             <div class="ship-row">
-              <span class="ship-row__name">{{ ship.name }}</span>
-              <span class="ship-row__type">{{ ship.type }}</span>
+              <span class="ship-row__type">{{ entry.type }}</span>
+              <span class="ship-row__count">{{ entry.count }}x</span>
             </div>
           }
         </div>
@@ -53,10 +53,10 @@
           <span class="stat">SHIELD: {{ getFleetShield(battle.fleet2.id) }}</span>
         </div>
         <div class="fleet-panel__ships">
-          @for (ship of battle.fleet2.ships; track ship.id) {
+          @for (entry of getShipTypeCounts(battle.fleet2.ships); track entry.type) {
             <div class="ship-row">
-              <span class="ship-row__name">{{ ship.name }}</span>
-              <span class="ship-row__type">{{ ship.type }}</span>
+              <span class="ship-row__type">{{ entry.type }}</span>
+              <span class="ship-row__count">{{ entry.count }}x</span>
             </div>
           }
         </div>

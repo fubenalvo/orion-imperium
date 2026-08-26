@@ -1,0 +1,49 @@
+<div class="star-map-pause">
+  <button class="star-map-pause__btn" type="button" (click)="openPauseMenu.emit()">PAUSE</button>
+</div>
+
+@if (isPaused || pauseMenuOpen) {
+  <div class="pause-overlay">
+    @if (pauseMenuOpen && !showLoadSlots) {
+      <div class="pause-overlay__content">
+        <div class="pause-overlay__title">PAUSED</div>
+        <div class="pause-menu-buttons">
+          <button class="pause-overlay__btn" type="button" (click)="closePauseMenu.emit()">CONTINUE</button>
+          <button class="pause-overlay__btn" type="button" (click)="onSaveGame()">SAVE GAME</button>
+          <button class="pause-overlay__btn" type="button" (click)="onLoadGame()">LOAD GAME</button>
+          <button class="pause-overlay__btn" type="button" (click)="exitToMainMenu.emit()">MAIN MENU</button>
+        </div>
+        @if (gameSaved) {
+          <div class="game-saved-message">GAME SAVED</div>
+        }
+      </div>
+    } @else if (pauseMenuOpen && showLoadSlots) {
+      <div class="pause-overlay__content">
+        <div class="pause-overlay__title">LOAD GAME</div>
+        <div class="save-slots">
+          @for (slot of slots; track $index) {
+            <button
+              type="button"
+              class="save-slot"
+              [class.save-slot--empty]="!slot.data"
+              (click)="onSelectSlot($index)"
+            >
+              <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+              <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+            </button>
+          }
+        </div>
+        <button class="pause-overlay__btn pause-overlay__btn--back" type="button" (click)="onBackToMenu()">BACK</button>
+      </div>
+    } @else {
+      <div class="pause-overlay__content">
+        <div class="pause-overlay__icon">⏸</div>
+        <div class="pause-overlay__title">GAME PAUSED</div>
+        <div class="pause-overlay__subtitle">Window lost focus</div>
+        <button class="pause-overlay__btn" type="button" (click)="resumeGame.emit()">
+          CONTINUE
+        </button>
+      </div>
+    }
+  </div>
+}

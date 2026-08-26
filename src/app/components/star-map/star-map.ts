@@ -12,6 +12,7 @@ import { BattleService, Fleet } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
+import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
 import starMapData from './star-map-data.json';
 import shipData from './ship-data.json';
 import { SaveGameService } from '../../services/save-game.service';
@@ -120,12 +121,44 @@ const initialStarMapData = starMapData as StarMapData;
 
 @Component({
   selector: 'app-star-map',
-  imports: [StarMapNavigationComponent, NgClass, UpperCasePipe],
+  imports: [StarMapPauseComponent, StarMapNavigationComponent, NgClass, UpperCasePipe],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
 export class StarMap implements AfterViewInit, OnDestroy {
   currentView: 'map' | 'system' = 'map';
+
+  pauseMenuOpen = false;
+
+  openPauseMenu(): void {
+    this.pauseMenuOpen = true;
+    this.pauseGame();
+  }
+
+  closePauseMenu(): void {
+    this.pauseMenuOpen = false;
+    this.resumeGame();
+  }
+
+  saveFromMenu(): void {
+    if (this.saveGameService.currentSlot === null) {
+      const slots = this.saveGameService.getSlots();
+      const emptyIndex = slots.findIndex((slot) => !slot.data);
+      this.saveGameService.currentSlot = emptyIndex >= 0 ? emptyIndex : 0;
+    }
+
+    this.saveGame();
+  }
+
+  loadFromMenu(slotIndex: number): void {
+    this.saveGameService.currentSlot = slotIndex;
+    this.loadGame();
+  }
+
+  exitToMainMenu(): void {
+    this.saveGame();
+    this.router.navigate(['']);
+  }
 
   enterSystem(): void {
     this.saveGame();
@@ -532,6 +565,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private shipService: ShipService,
   ) {}
 
+  get currentSlot(): number | null {
+    return this.saveGameService.currentSlot;
+  }
+
   private saveGame(): void {
     if (this.saveGameService.currentSlot === null) {
       return;
@@ -562,7 +599,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
   }
 
-  private loadGame(): void {
+  loadGame(): void {
     if (this.saveGameService.currentSlot === null) {
       return;
     }

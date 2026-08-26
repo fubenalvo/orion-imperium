@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { BattleService, Battle, BattleResult } from '../../services/battle.service';
+import { BattleService, Battle, BattleResult, FleetShip } from '../../services/battle.service';
 
 @Component({
   selector: 'app-battle-screen',
@@ -67,5 +67,13 @@ export class BattleScreenComponent implements OnInit {
 
   isLoser(fleetId: number): boolean {
     return this.result?.loser.id === fleetId;
+  }
+
+  getShipTypeCounts(ships: FleetShip[]): { type: string; count: number }[] {
+    const counts = new Map<string, number>();
+    for (const ship of ships) {
+      counts.set(ship.type, (counts.get(ship.type) ?? 0) + 1);
+    }
+    return Array.from(counts.entries(), ([type, count]) => ({ type, count }));
   }
 }
