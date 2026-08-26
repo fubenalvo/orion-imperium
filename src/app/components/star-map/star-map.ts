@@ -13,6 +13,7 @@ import { BattleService, Fleet } from '../../services/battle.service';
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import starMapData from './star-map-data.json';
 import shipData from './ship-data.json';
+import { SaveGameService } from '../../services/save-game.service';
 
 interface PlanetBuilding {
   name: string;
@@ -86,7 +87,7 @@ interface FleetShipTypeSummary {
   defense: number;
 }
 
-interface StarMapData {
+export interface StarMapData {
   factions: Faction[];
   map: {
     width: number;
@@ -96,6 +97,15 @@ interface StarMapData {
   };
   starSystems: StarSystem[];
   fleets: Fleet[];
+  currentView?: 'map' | 'system';
+  cameraX?: number;
+  cameraY?: number;
+  selectedSystemId?: number | null;
+  selectedFleetId?: number | null;
+  selectedPlanetTileId?: number | null;
+  selectedFleetAction?: 'move' | 'attack' | null;
+  targetX?: number | null;
+  targetY?: number | null;
 }
 
 interface ContextMenuItem {
@@ -116,6 +126,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   currentView: 'map' | 'system' = 'map';
 
   enterSystem(): void {
+    this.saveGame();
     if (this.selectedSystem) {
       this.currentView = 'system';
 
@@ -143,6 +154,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   leaveSystem(): void {
+    this.saveGame();
     this.currentView = 'map';
 
     for (const fleet of this.fleets) {
@@ -282,6 +294,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
           faction2Name: faction2.name,
           faction2Color: faction2.color,
         });
+
+        this.saveGame();
 
         this.ngZone.run(() => {
           this.router.navigate(['/battle']);
@@ -512,10 +526,67 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private ngZone: NgZone,
     private router: Router,
     private battleService: BattleService,
+    private saveGameService: SaveGameService,
   ) {}
 
-  // A korábbi random generálás törölve lett, mert minden a JSON-ból töltődik be
-  ngOnInit(): void {
+  private saveGame(): void {
+    if (this.saveGameService.currentSlot === null) {
+      return;
+    }
+
+    const data: StarMapData = {
+      factions: this.factions,
+      map: {
+        width: this.mapWidth,
+        height: this.mapHeight,
+        cellSizeVw: this.cellSizeVw,
+        cellSizeVh: this.cellSizeVh,
+      },
+      starSystems: this.starSystems,
+      fleets: this.fleets,
+      currentView: this.currentView,
+      cameraX: this.cameraX,
+      cameraY: this.cameraY,
+      selectedSystemId: this.selectedSystem?.id ?? null,
+      selectedFleetId: this.selectedFleet?.id ?? null,
+      selectedPlanetTileId: this.selectedPlanetTile?.id ?? null,
+      selectedFleetAction: this.selectedFleetAction,
+      targetX: this.targetX,
+      targetY: this.targetY,
+    };
+
+    this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
+  }
+
+  private loadGame(): void {
+    if (this.saveGameService.currentSlot === null) {
+      return;
+    }
+
+    const data = this.saveGameService.loadFromSlot(this.saveGameService.currentSlot);
+    if (!data) {
+      return;
+    }
+
+    this.factions = data.factions;
+    this.starSystems = data.starSystems;
+    this.fleets = data.fleets;
+
+    this.currentView = data.currentView ?? 'map';
+    this.cameraX = data.cameraX ?? 0;
+    this.cameraY = data.cameraY ?? 0;
+    this.targetX = data.targetX ?? null;
+    this.targetY = data.targetY ?? null;
+    this.selectedFleetAction = data.selectedFleetAction ?? null;
+
+    this.selectedSystem = this.starSystems.find((s) => s.id === data.selectedSystemId) ?? null;
+    this.selectedFleet = this.fleets.find((f) => f.id === data.selectedFleetId) ?? null;
+    this.selectedPlanetTile = this.selectedSystem?.planetsTiles.find((p) => p.id === data.selectedPlanetTileId) ?? null;
+
+    this.refreshGridPositions();
+  }
+
+  private initializeCoordinates(): void {
     for (const fleet of this.fleets) {
       const gridX = fleet.x;
       const gridY = fleet.y;
@@ -530,6 +601,33 @@ export class StarMap implements AfterViewInit, OnDestroy {
       system.gridCol = cell.col;
       system.gridRow = cell.row;
     }
+  }
+
+  private refreshGridPositions(): void {
+    for (const fleet of this.fleets) {
+      if (fleet.x != null && fleet.y != null) {
+        const cell = this.calculateGridCell(fleet.x, fleet.y);
+        fleet.gridCol = cell.col;
+        fleet.gridRow = cell.row;
+      }
+    }
+
+    for (const system of this.starSystems) {
+      const cell = this.calculateGridCell(system.x, system.y);
+      system.gridCol = cell.col;
+      system.gridRow = cell.row;
+    }
+  }
+
+  // A korábbi random generálás törölve lett, mert minden a JSON-ból töltődik be
+  ngOnInit(): void {
+    if (this.saveGameService.currentSlot !== null) {
+      this.loadGame();
+      return;
+    }
+
+    this.initializeCoordinates();
+    this.refreshGridPositions();
   }
 
   getPlanetClassNames(planet: PlanetTile): string[] {
@@ -1115,6 +1213,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
 
   ngOnDestroy(): void {
+    this.saveGame();
+
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
 

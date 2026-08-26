@@ -7,19 +7,38 @@
       <div class="layer layer-4"></div>
     </div>
     <div class="main-menu__content">
-      <h1 class="game-title">Orion Imperium</h1>
+      @if (!showNewGameSlots && !showLoadGameSlots) {
+        <h1 class="game-title">Orion Imperium</h1>
 
-      <p class="game-subtitle">A GALACTIC STRATEGY GAME</p>
+        <p class="game-subtitle">A GALACTIC STRATEGY GAME</p>
 
-      <nav class="main-menu__buttons">
-        <button routerLink="/star-map" type="button">NEW GAME</button>
+        <nav class="main-menu__buttons">
+          <button type="button" (click)="showNewGameSlots = true">NEW GAME</button>
 
-        <button type="button">LOAD GAME</button>
+          <button type="button" (click)="showLoadGameSlots = true" [disabled]="!hasAnySave">LOAD GAME</button>
 
-        <button type="button">OPTIONS</button>
+          <button type="button">OPTIONS</button>
 
-        <button type="button">CREDITS</button>
-      </nav>
+          <button type="button">CREDITS</button>
+        </nav>
+      }
+
+      @if (showNewGameSlots || showLoadGameSlots) {
+        <div class="save-slots">
+          @for (slot of slots; track $index) {
+            <button
+              type="button"
+              class="save-slot"
+              [class.save-slot--empty]="!slot.data"
+              (click)="showNewGameSlots ? newGame($index) : loadGame($index)"
+            >
+              <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+              <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+            </button>
+          }
+          <button type="button" class="save-slot save-slot--close" (click)="showNewGameSlots = false; showLoadGameSlots = false;">CLOSE</button>
+        </div>
+      }
 
       <span class="game-version"> v0.1 </span>
     </div>
