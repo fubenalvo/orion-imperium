@@ -1,0 +1,14 @@
+<div class="fleet-buttons panel-style">
+  @for (fleet of fleets; track fleet.id) {
+    <button
+      class="fleet-btn"
+      [class.selected]="selectedFleetId === fleet.id"
+      type="button"
+      (click)="selectFleet.emit(fleet); $event.stopPropagation()"
+    >
+      <span [style.color]="getFactionColor(fleet.factionId)">
+        {{ fleet.name }}
+      </span>
+    </button>
+  }
+</div>

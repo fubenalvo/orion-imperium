@@ -11,36 +11,28 @@
     (exitToMainMenu)="exitToMainMenu()"
   >
   </app-star-map-pause>
+
   <div
     class="star-map-background"
     [style.transform]="'translate(' + -cameraX * 0.3 + 'vw, ' + -cameraY * 0.3 + 'vw)'"
   ></div>
 
   @if (currentView === 'map') {
-    <!-- =====================================================
-         MAP VIEWPORT
-         ===================================================== -->
-
+    <!-- MAP VIEWPORT -->
     <div class="map-viewport" (click)="onMapClick($event)">
-      <!-- ===================================================
-         WORLD GRID
-         =================================================== -->
-
+      <!-- WORLD GRID -->
       <div
         class="map-world"
         [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
-        [style.gridTemplateColumns]="'repeat(' + gridColumns + ', 5vw)'"
-        [style.gridTemplateRows]="'repeat(' + gridRows + ', 5vw)'"
+        [style.gridTemplateColumns]="'repeat(' + movementService.gridColumns + ', 5vw)'"
+        [style.gridTemplateRows]="'repeat(' + movementService.gridRows + ', 5vw)'"
       >
-        <!-- =================================================
-           GRID CELLS WITH STAR SYSTEMS
-           ================================================= -->
-
+        <!-- GRID CELLS WITH STAR SYSTEMS -->
         @for (system of starSystems; track system.id) {
           <div
             class="system-cell"
-            [style.gridColumn]="calculateGridCell(system.x, system.y).col"
-            [style.gridRow]="calculateGridCell(system.x, system.y).row"
+            [style.gridColumn]="movementService.calculateGridCell(system.x, system.y).col"
+            [style.gridRow]="movementService.calculateGridCell(system.x, system.y).row"
           >
             <button
               class="star-system"
@@ -50,23 +42,17 @@
               (click)="onSystemClick(system, $event)"
               (contextmenu)="deselectSystem(); $event.preventDefault(); $event.stopPropagation()"
             >
-              <span class="star-system__star">✦</span>
-
-              <span class="star-system__name">
-                {{ system.name }}
-              </span>
+              <span class="star-system__star">&#10022;</span>
+              <span class="star-system__name">{{ system.name }}</span>
             </button>
           </div>
         }
 
-        <!-- =================================================
-           FLEETS
-           ================================================= -->
-
+        <!-- FLEETS -->
         @for (fleet of visibleFleets; track fleet.id) {
-           <div
-             class="fleet-cell"
-             [style.left]="fleet.x + 'vw'"
+          <div
+            class="fleet-cell"
+            [style.left]="fleet.x + 'vw'"
             [style.top]="fleet.y + 'vw'"
             [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
           >
@@ -82,7 +68,6 @@
               <span class="fleet__icon">
                 <img src="/fleet.svg" />
               </span>
-
               <span class="fleet__name" [style.color]="getFactionColor(fleet.factionId)">
                 {{ fleet.name }}
               </span>
@@ -90,15 +75,12 @@
           </div>
         }
 
-        <!-- =================================================
-           SHIP DESTINATION
-           ================================================= -->
-
+        <!-- SHIP DESTINATION -->
         @if (targetX !== null && targetY !== null && selectedFleet) {
           <div
             class="ship-target"
-            [style.gridColumn]="calculateGridCell(targetX, targetY).col"
-            [style.gridRow]="calculateGridCell(targetX, targetY).row"
+            [style.gridColumn]="movementService.calculateGridCell(targetX, targetY).col"
+            [style.gridRow]="movementService.calculateGridCell(targetX, targetY).row"
           >
             <span class="ship-target__crosshair">+</span>
             <span class="ship-target__line">TARGET</span>
@@ -107,140 +89,48 @@
       </div>
     </div>
 
-    <!-- =====================================================
-       TOP HUD
-       ===================================================== -->
-
+    <!-- TOP HUD -->
     <div class="top-hud">
       <div class="game-title">STAR MAP</div>
     </div>
 
-    <!-- =====================================================
-       SELECTED FLEET INFO
-       ===================================================== -->
-
+    <!-- SELECTED FLEET INFO -->
     @if (selectedFleet) {
-      <div class="fleet-info panel-style">
-        <div class="panel-style__title">
-          <span [style.color]="getFactionColor(selectedFleet.factionId)">
-            {{ selectedFleet.name }} FLEET
-          </span>
-          <button class="close-btn" type="button" (click)="deselectFleet()">X</button>
-        </div>
-
-        <div class="system-info__content">
-          <div>
-            STATUS:
-
-            @if (selectedFleet.targetX !== null) {
-              MOVING
-            } @else {
-              IDLE
-            }
-          </div>
-
-          <div>
-            SPEED:
-            {{ selectedFleet.speed }}
-          </div>
-
-          @if (selectedFleet.factionId === 'player') {
-            <div class="fleet-actions">
-              <button
-                type="button"
-                class="action-btn move-btn"
-                [class.active]="selectedFleetAction === 'move'"
-                (click)="setFleetAction('move'); $event.stopPropagation()"
-              >
-                MOVE
-              </button>
-              <button
-                type="button"
-                class="action-btn attack-btn"
-                [class.active]="selectedFleetAction === 'attack'"
-                (click)="setFleetAction('attack'); $event.stopPropagation()"
-              >
-                ATTACK
-              </button>
-            </div>
-          }
-
-          <hr class="fleet-section-divider" />
-
-          <div class="fleet-ships__title">SHIPS ({{ selectedFleet.ships.length }})</div>
-
-          @for (entry of getFleetShipTypeSummary(selectedFleet); track entry.typeId) {
-            <div class="fleet-ships__row">
-              <span class="fleet-ships__type">{{ entry.typeName }}</span>
-              <span class="fleet-ships__count">x{{ entry.count }}</span>
-              <span class="fleet-ships__stats"
-                >ATK {{ entry.attack }} / DEF {{ entry.defense }}</span
-              >
-            </div>
-          }
-
-          <div class="fleet-ships__totals">
-            <span>ATTACK POINTS</span>
-            <span>{{ getFleetTotalAttack(selectedFleet) }}</span>
-          </div>
-
-          <div class="fleet-ships__totals">
-            <span>DEFENSE POINTS</span>
-            <span>{{ getFleetTotalDefense(selectedFleet) }}</span>
-          </div>
-        </div>
-      </div>
+      <app-star-map-fleet-info
+        [fleet]="selectedFleet"
+        [fleetSummary]="getFleetShipTypeSummary(selectedFleet)"
+        [totalAttack]="getFleetTotalAttack(selectedFleet)"
+        [totalDefense]="getFleetTotalDefense(selectedFleet)"
+        [getFactionColor]="boundGetFactionColor"
+        [isPlayerFleet]="selectedFleet.factionId === 'player'"
+        [selectedFleetAction]="selectedFleetAction"
+        (close)="deselectFleet()"
+        (setFleetAction)="setFleetAction($event)"
+      >
+      </app-star-map-fleet-info>
     }
 
-    <!-- =====================================================
-       FLEET BUTTONS
-       ===================================================== -->
+    <!-- FLEET BUTTONS -->
+    <app-star-map-fleet-buttons
+      [fleets]="visibleFleets"
+      [selectedFleetId]="selectedFleet?.id ?? null"
+      [getFactionColor]="getFactionColor"
+      (selectFleet)="selectFleet($event)"
+    >
+    </app-star-map-fleet-buttons>
 
-    <div class="fleet-buttons panel-style">
-      @for (fleet of visibleFleets; track fleet.id) {
-         <button
-           class="fleet-btn"
-          [class.selected]="selectedFleet?.id === fleet.id"
-          type="button"
-          (click)="selectFleet(fleet); $event.stopPropagation()"
-        >
-          <span [style.color]="getFactionColor(fleet.factionId)">
-            {{ fleet.name }}
-          </span>
-        </button>
-      }
-    </div>
-
-    <!-- =====================================================
-       SELECTED SYSTEM INFO
-       ===================================================== -->
-
+    <!-- SELECTED SYSTEM INFO -->
     @if (selectedSystem) {
-      <div class="system-info panel-style">
-        <div class="panel-style__title">
-          {{ selectedSystem.name }}
-          <button class="close-btn" type="button" (click)="deselectSystem()">X</button>
-        </div>
-
-        <div class="system-info__content">
-          <div>
-            PLANETS:
-            {{ selectedSystem.planets }}
-          </div>
-
-          <div>STATUS: UNEXPLORED</div>
-        </div>
-
-        <button type="button" (click)="enterSystem(); $event.stopPropagation()">
-          ENTER SYSTEM
-        </button>
-      </div>
+      <app-star-map-system-info
+        [system]="selectedSystem"
+        [getFactionName]="boundGetFactionName"
+        (enterSystem)="enterSystem()"
+        (close)="deselectSystem()"
+      >
+      </app-star-map-system-info>
     }
 
-    <!-- =====================================================
-       NAVIGATION
-       ===================================================== -->
-
+    <!-- NAVIGATION -->
     <app-star-map-navigation
       [cameraX]="cameraX"
       [cameraY]="cameraY"
@@ -249,6 +139,7 @@
     >
     </app-star-map-navigation>
   } @else {
+    <!-- SYSTEM VIEW -->
     <div class="system-view">
       <div class="system-view-hud">
         <div class="game-title">{{ selectedSystem?.name }}</div>
@@ -269,8 +160,8 @@
             <button
               class="planet"
               [ngClass]="getPlanetClassNames(planet)"
-              [style.gridColumn]="20 - planet.index * 2"
-              [style.gridRow]="6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3)"
+              [style.gridColumn]="movementService.getPlanetGridPosition(planet).col"
+              [style.gridRow]="movementService.getPlanetGridPosition(planet).row"
               [style.--planet-color]="selectedSystem.color"
               (click)="onPlanetClick(planet, $event)"
               (contextmenu)="
@@ -286,7 +177,7 @@
 
           <!-- FLEETS IN SYSTEM -->
           @for (fleet of visibleFleets; track fleet.id) {
-             @if (
+            @if (
               fleet.systemId === selectedSystem.id && fleet.systemX != null && fleet.systemY != null
             ) {
               <div
@@ -333,138 +224,41 @@
         }
       </div>
 
-      <!-- =====================================================
-            SELECTED FLEET INFO
-            ===================================================== -->
-
+      <!-- SELECTED FLEET INFO -->
       @if (selectedFleet) {
-        <div class="fleet-info panel-style">
-          <div class="panel-style__title">
-            <span [style.color]="getFactionColor(selectedFleet.factionId)">
-              {{ selectedFleet.name }} FLEET
-            </span>
-            <button class="close-btn" type="button" (click)="deselectFleet()">X</button>
-          </div>
-
-          <div class="system-info__content">
-            <div>
-              STATUS:
-
-              @if (selectedFleet.targetX !== null) {
-                MOVING
-              } @else {
-                IDLE
-              }
-            </div>
-
-            <div>
-              SPEED:
-              {{ selectedFleet.speed }}
-            </div>
-
-            @if (selectedFleet.factionId === 'player') {
-              <div class="fleet-actions">
-                <button
-                  type="button"
-                  class="action-btn move-btn"
-                  [class.active]="selectedFleetAction === 'move'"
-                  (click)="setFleetAction('move'); $event.stopPropagation()"
-                >
-                  MOVE
-                </button>
-                <button
-                  type="button"
-                  class="action-btn attack-btn"
-                  [class.active]="selectedFleetAction === 'attack'"
-                  (click)="setFleetAction('attack'); $event.stopPropagation()"
-                >
-                  ATTACK
-                </button>
-              </div>
-            }
-
-            <hr class="fleet-section-divider" />
-
-            <div class="fleet-ships__title">SHIPS ({{ selectedFleet.ships.length }})</div>
-
-            @for (entry of getFleetShipTypeSummary(selectedFleet); track entry.typeId) {
-              <div class="fleet-ships__row">
-                <span class="fleet-ships__type">{{ entry.typeName }}</span>
-                <span class="fleet-ships__count">x{{ entry.count }}</span>
-                <span class="fleet-ships__stats"
-                  >ATK {{ entry.attack }} / DEF {{ entry.defense }}</span
-                >
-              </div>
-            }
-
-            <div class="fleet-ships__totals">
-              <span>ATTACK POINTS</span>
-              <span>{{ getFleetTotalAttack(selectedFleet) }}</span>
-            </div>
-
-            <div class="fleet-ships__totals">
-              <span>DEFENSE POINTS</span>
-              <span>{{ getFleetTotalDefense(selectedFleet) }}</span>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- =====================================================
-            PLANET DETAILS WINDOW
-            ===================================================== -->
-      @if (selectedPlanetTile) {
-        <div class="planet-info panel-style">
-          <div
-            class="panel-style__title"
-            style="display: flex; justify-content: space-between; align-items: center"
-          >
-            <span>{{ selectedPlanetTile.name }} Details</span>
-            <button class="close-btn" type="button" (click)="selectedPlanetTile = null">X</button>
-          </div>
-
-          <div class="system-info__content">
-            <div>TYPE: {{ selectedPlanetTile.type | uppercase }}</div>
-            <div>FACTION: {{ getFactionName(selectedPlanetTile.factionId) }}</div>
-            <div>POPULATION: {{ selectedPlanetTile.population }}</div>
-            <div>ENERGY: {{ getEnergyForPlanet(selectedPlanetTile) }}</div>
-            <div>DAILY TAX: {{ getTaxForPlanet(selectedPlanetTile) }}</div>
-            <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
-            <div class="planet-buildings__title">
-              BUILDINGS ({{ selectedPlanetTile.buildings.length }})
-            </div>
-            @for (b of selectedPlanetTile.buildings; track b.name) {
-              <div class="planet-buildings__row">
-                <span class="planet-buildings__name">{{ b.name }}</span>
-                <span class="planet-buildings__count">x{{ b.count }}</span>
-              </div>
-            }
-          </div>
-        </div>
-      }
-    </div>
-  }
-
-  <!-- =====================================================
-       CONTEXT MENU
-       ===================================================== -->
-
-  @if (contextMenu) {
-    <div
-      class="context-menu"
-      [style.left.px]="contextMenu.x"
-      [style.top.px]="contextMenu.y"
-      (click)="$event.stopPropagation()"
-    >
-      @for (item of contextMenu.items; track item.data.id) {
-        <button
-          class="context-menu-item"
-          type="button"
-          (click)="onContextMenuSelect(item); $event.stopPropagation()"
+        <app-star-map-fleet-info
+          [fleet]="selectedFleet"
+          [fleetSummary]="getFleetShipTypeSummary(selectedFleet)"
+          [totalAttack]="getFleetTotalAttack(selectedFleet)"
+          [totalDefense]="getFleetTotalDefense(selectedFleet)"
+          [getFactionColor]="boundGetFactionColor"
+          [isPlayerFleet]="selectedFleet.factionId === 'player'"
+          [selectedFleetAction]="selectedFleetAction"
+          (close)="deselectFleet()"
+          (setFleetAction)="setFleetAction($event)"
         >
-          {{ item.label }}
-        </button>
+        </app-star-map-fleet-info>
+      }
+
+      <!-- PLANET DETAILS WINDOW -->
+      @if (selectedPlanetTile) {
+        <app-star-map-planet-info
+          [planet]="selectedPlanetTile"
+          [getFactionName]="boundGetFactionName"
+          [getEnergyForPlanet]="getEnergyForPlanet"
+          [getTaxForPlanet]="getTaxForPlanet"
+          (close)="selectedPlanetTile = null"
+        >
+        </app-star-map-planet-info>
       }
     </div>
   }
+
+  <!-- CONTEXT MENU -->
+  <app-star-map-context-menu
+    [contextMenu]="contextMenu"
+    (selectItem)="onContextMenuSelect($event)"
+    (close)="closeContextMenu()"
+  >
+  </app-star-map-context-menu>
 </div>

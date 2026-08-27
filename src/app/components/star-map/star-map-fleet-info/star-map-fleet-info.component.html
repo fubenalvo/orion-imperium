@@ -1,0 +1,68 @@
+<div class="fleet-info panel-style">
+  <div class="panel-style__title">
+    <span [style.color]="getFactionColor(fleet!.factionId)">
+      {{ fleet!.name }} FLEET
+    </span>
+    <button class="close-btn" type="button" (click)="close.emit()">X</button>
+  </div>
+
+  <div class="system-info__content">
+    <div>
+      STATUS:
+
+      @if (fleet!.targetX !== null) {
+        MOVING
+      } @else {
+        IDLE
+      }
+    </div>
+
+    <div>
+      SPEED:
+      {{ fleet!.speed }}
+    </div>
+
+    @if (isPlayerFleet) {
+      <div class="fleet-actions">
+        <button
+          type="button"
+          class="action-btn move-btn"
+          [class.active]="selectedFleetAction === 'move'"
+          (click)="setFleetAction.emit('move'); $event.stopPropagation()"
+        >
+          MOVE
+        </button>
+        <button
+          type="button"
+          class="action-btn attack-btn"
+          [class.active]="selectedFleetAction === 'attack'"
+          (click)="setFleetAction.emit('attack'); $event.stopPropagation()"
+        >
+          ATTACK
+        </button>
+      </div>
+    }
+
+    <hr class="fleet-section-divider" />
+
+    <div class="fleet-ships__title">SHIPS ({{ fleet!.ships.length }})</div>
+
+    @for (entry of fleetSummary; track entry.typeId) {
+      <div class="fleet-ships__row">
+        <span class="fleet-ships__type">{{ entry.typeName }}</span>
+        <span class="fleet-ships__count">x{{ entry.count }}</span>
+        <span class="fleet-ships__stats">ATK {{ entry.attack }} / DEF {{ entry.defense }}</span>
+      </div>
+    }
+
+    <div class="fleet-ships__totals">
+      <span>ATTACK POINTS</span>
+      <span>{{ totalAttack }}</span>
+    </div>
+
+    <div class="fleet-ships__totals">
+      <span>DEFENSE POINTS</span>
+      <span>{{ totalDefense }}</span>
+    </div>
+  </div>
+</div>

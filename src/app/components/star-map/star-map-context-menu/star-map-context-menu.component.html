@@ -1,0 +1,18 @@
+@if (contextMenu) {
+  <div
+    class="context-menu"
+    [style.left.px]="contextMenu.x"
+    [style.top.px]="contextMenu.y"
+    (click)="close.emit(); $event.stopPropagation()"
+  >
+    @for (item of contextMenu.items; track item.data.id) {
+      <button
+        class="context-menu-item"
+        type="button"
+        (click)="selectItem.emit(item); $event.stopPropagation()"
+      >
+        {{ item.label }}
+      </button>
+    }
+  </div>
+}

@@ -1,0 +1,27 @@
+<div class="planet-info panel-style">
+  <div
+    class="panel-style__title"
+    style="display: flex; justify-content: space-between; align-items: center"
+  >
+    <span>{{ planet?.name }} Details</span>
+    <button class="close-btn" type="button" (click)="close.emit()">X</button>
+  </div>
+
+  <div class="system-info__content">
+    <div>TYPE: {{ planet?.type | uppercase }}</div>
+    <div>FACTION: {{ getFactionName(planet!.factionId) }}</div>
+    <div>POPULATION: {{ planet?.population }}</div>
+    <div>ENERGY: {{ getEnergyForPlanet(planet!) }}</div>
+    <div>DAILY TAX: {{ getTaxForPlanet(planet!) }}</div>
+    <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
+    <div class="planet-buildings__title">
+      BUILDINGS ({{ planet?.buildings.length }})
+    </div>
+    @for (b of planet?.buildings; track b.name) {
+      <div class="planet-buildings__row">
+        <span class="planet-buildings__name">{{ b.name }}</span>
+        <span class="planet-buildings__count">x{{ b.count }}</span>
+      </div>
+    }
+  </div>
+</div>

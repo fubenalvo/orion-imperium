@@ -1,0 +1,19 @@
+<div class="system-info panel-style">
+  <div class="panel-style__title">
+    {{ system?.name }}
+    <button class="close-btn" type="button" (click)="close.emit()">X</button>
+  </div>
+
+  <div class="system-info__content">
+    <div>
+      PLANETS:
+      {{ system?.planets }}
+    </div>
+
+    <div>STATUS: UNEXPLORED</div>
+  </div>
+
+  <button type="button" (click)="enterSystem.emit(); $event.stopPropagation()">
+    ENTER SYSTEM
+  </button>
+</div>
