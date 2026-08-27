@@ -144,24 +144,30 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   get currentSlot(): number | null {
+    // Current save slot used by SaveGameService.
     return this.saveGameService.currentSlot;
   }
 
   get visibleFleets(): Fleet[] {
+    // Fleets that are not marked as destroyed.
     return this.fleets.filter((f) => !f.destroyed);
   }
 
   // Pause menu handlers
+
+  /** Opens the pause menu and pauses the game loop. */
   openPauseMenu(): void {
     this.pauseMenuOpen = true;
     this.pauseGame();
   }
 
+  /** Closes the pause menu and resumes the game loop. */
   closePauseMenu(): void {
     this.pauseMenuOpen = false;
     this.resumeGame();
   }
 
+  /** Saves the current game state, selecting an empty slot if none is active. */
   saveFromMenu(): void {
     if (this.saveGameService.currentSlot === null) {
       const slots = this.saveGameService.getSlots();
@@ -171,16 +177,19 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.saveGame();
   }
 
+  /** Loads a save game from the specified slot index. */
   loadFromMenu(slotIndex: number): void {
     this.saveGameService.currentSlot = slotIndex;
     this.loadGame();
   }
 
+  /** Saves the game and navigates back to the main menu. */
   exitToMainMenu(): void {
     this.saveGame();
     this.router.navigate(['']);
   }
 
+  /** Transitions from the map view into a star system view, syncing fleet positions. */
   enterSystem(): void {
     this.saveGame();
     if (this.selectedSystem) {
@@ -213,6 +222,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /** Exits the current star system and returns to the galaxy map view. */
   leaveSystem(): void {
     this.saveGame();
     this.currentView = 'map';
@@ -239,6 +249,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Faction helpers
+
+  /** Returns the color associated with a faction ID. */
   getFactionColor(factionId: string): string {
     if (!this.factions) {
       return '#ffffff';
@@ -247,6 +259,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return faction ? faction.color : '#ffffff';
   }
 
+  /** Returns the display name of a faction by its ID. */
   getFactionName(factionId: string): string {
     if (!this.factions) {
       return 'Unknown';
@@ -260,10 +273,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetFactionName = this.getFactionName.bind(this);
 
   // Ship type helpers
+
+  /** Looks up a ship type definition by its ID. */
   getShipType(typeId: string): ShipType | undefined {
     return this.shipTypeById.get(typeId);
   }
 
+  /** Builds a summary of ship types and counts present in a fleet. */
   getFleetShipTypeSummary(fleet: Fleet): FleetShipTypeSummary[] {
     const counts = new Map<string, number>();
     for (const ship of fleet.ships) {
@@ -286,26 +302,31 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return summary;
   }
 
+  /** Calculates the total attack value of all ships in a fleet. */
   getFleetTotalAttack(fleet: Fleet): number {
     return fleet.ships.reduce((sum, ship) => sum + (this.getShipType(ship.type)?.attack ?? 0), 0);
   }
 
+  /** Calculates the total defense value of all ships in a fleet. */
   getFleetTotalDefense(fleet: Fleet): number {
     return fleet.ships.reduce((sum, ship) => sum + (this.getShipType(ship.type)?.defense ?? 0), 0);
   }
 
+  /** Computes energy production for a planet based on its power-producing buildings. */
   getEnergyForPlanet(planet: PlanetTile): number {
     const solarPlants = planet.buildings?.find((b) => b.name === 'Solar Array')?.count || 0;
     const fusionPlants = planet.buildings?.find((b) => b.name === 'Fusion Power Plant')?.count || 0;
     return solarPlants * 40 + fusionPlants * 100;
   }
 
+  /** Computes tax income for a planet based on population and industrial buildings. */
   getTaxForPlanet(planet: PlanetTile): number {
     const factories = planet.buildings?.find((b) => b.name === 'Industrial Factory')?.count || 0;
     const pop = planet.population || 0;
     return Math.floor(pop * 0.1) + factories * 500;
   }
 
+  /** Returns the CSS class names to apply to a planet tile for styling. */
   getPlanetClassNames(planet: PlanetTile): string[] {
     return [
       planet.type,
@@ -315,6 +336,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Selection handlers
+
+  /** Selects a fleet, updates the camera, and tracks its movement target. */
   selectFleet(fleet: Fleet): void {
     this.selectedFleet = fleet;
 
@@ -349,6 +372,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+  /** Clears the current fleet selection and its movement target. */
   deselectFleet(): void {
     this.selectedFleet = null;
     this.selectedFleetAction = null;
@@ -357,21 +381,25 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+  /** Sets the active action mode for the selected fleet ('move' or 'attack'). */
   setFleetAction(action: 'move' | 'attack'): void {
     this.selectedFleetAction = action;
     this.cdr.detectChanges();
   }
 
+  /** Clears the currently selected star system. */
   deselectSystem(): void {
     this.selectedSystem = null;
     this.cdr.detectChanges();
   }
 
+  /** Clears the currently selected planet tile. */
   deselectPlanetTile(): void {
     this.selectedPlanetTile = null;
     this.cdr.detectChanges();
   }
 
+  /** Selects a star system, or moves the selected fleet to it if in move mode. */
   selectSystem(system: StarSystem): void {
     if (this.selectedFleet && this.currentView === 'map' && this.selectedFleetAction === 'move') {
       const targetTile = this.movementService.getTileCenter(system.x, system.y);
@@ -385,6 +413,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+  /** Selects a planet tile and clears any fleet selection. */
   selectPlanetTile(tile: PlanetTile): void {
     this.selectedPlanetTile = tile;
     this.selectedFleet = null;
@@ -403,15 +432,19 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Context menu
+
+  /** Displays a context menu at the given screen coordinates with the provided items. */
   showContextMenu(x: number, y: number, items: ContextMenuItem[]): void {
     this.contextMenu = { x, y, items };
   }
 
+  /** Hides the currently open context menu. */
   closeContextMenu(): void {
     this.contextMenu = null;
     this.cdr.detectChanges();
   }
 
+  /** Handles a context menu item selection, dispatching to the appropriate handler. */
   onContextMenuSelect(item: ContextMenuItem): void {
     this.closeContextMenu();
 
@@ -430,6 +463,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Click handlers
+
+  /** Handles a click on a fleet icon, resolving overlapping objects via context menu if needed. */
   onFleetClick(fleet: Fleet, event: MouseEvent): void {
     if (this.contextMenu) {
       this.closeContextMenu();
@@ -469,6 +504,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /** Handles a click on a star system, showing a context menu if objects overlap. */
   onSystemClick(system: StarSystem, event: MouseEvent): void {
     if (this.contextMenu) {
       this.closeContextMenu();
@@ -496,6 +532,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /** Handles a click on a planet tile, showing a context menu if fleets are present. */
   onPlanetClick(planet: PlanetTile, event: MouseEvent): void {
     if (this.contextMenu) {
       this.closeContextMenu();
@@ -535,6 +572,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.selectPlanetTile(planet);
   }
 
+  /** Resolves a click by showing a context menu or selecting the single hit object. */
   private handleObjectClick(items: ContextMenuItem[], event: MouseEvent): void {
     if (items.length > 1) {
       this.showContextMenu(event.clientX, event.clientY, items);
@@ -547,6 +585,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Movement
+
+  /** Commands the selected fleet to move to the given world coordinates. */
   moveSelectedFleet(x: number, y: number): void {
     if (!this.selectedFleet) {
       return;
@@ -567,6 +607,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /** Handles a click on the galaxy map, moving the selected fleet if an action is active. */
   onMapClick(event: MouseEvent): void {
     if (this.contextMenu) {
       this.closeContextMenu();
@@ -594,6 +635,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /** Handles a click inside a star system grid, moving the selected fleet if an action is active. */
   onSystemGridClick(event: MouseEvent): void {
     if (this.contextMenu) {
       this.closeContextMenu();
@@ -623,6 +665,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Camera
+
+  /** Pans the camera in the specified direction and clamps it within bounds. */
   moveCamera(direction: 'up' | 'down' | 'left' | 'right'): void {
     switch (direction) {
       case 'up':
@@ -641,6 +685,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.clampCamera();
   }
 
+  /** Constrains the camera position so it cannot scroll past the map edges. */
   private clampCamera(): void {
     const gridWidthVw = this.movementService.gridColumns * 5;
     const gridHeightVw = this.movementService.gridRows * 5;
@@ -655,12 +700,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Game loop
+
+  /** Starts the game loop and registers focus-loss pause handlers after the view initializes. */
   ngAfterViewInit(): void {
     console.log('[StarMap] ngAfterViewInit, starting game loop');
     this.startGameLoop();
     this.setupFocusHandlers();
   }
 
+  /** Registers the game loop tick callback with the game loop service. */
   private startGameLoop(): void {
     console.log('[StarMap] startGameLoop called');
     this.gameLoopService.startGameLoop((deltaTime: number) => {
@@ -672,6 +720,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     });
   }
 
+  /** Advances fleet movement and checks for new battles each frame. */
   private updateFleets(deltaTime: number): boolean {
     const didMoveFleets = this.movementService.updateFleets(
       this.fleets,
@@ -716,17 +765,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return didMoveFleets;
   }
 
+  /** Registers window blur and visibility-change listeners to auto-pause the game. */
   private setupFocusHandlers(): void {
     window.addEventListener('blur', this.onWindowBlur);
     document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
+  /** Pauses the game loop if it is not already paused. */
   private pauseGame(): void {
     if (this.isPaused) return;
     this.isPaused = true;
     this.gameLoopService.pauseGame();
   }
 
+  /** Resumes the game loop and reattaches the per-frame update callback. */
   resumeGame(): void {
     if (!this.isPaused) return;
     this.isPaused = false;
@@ -739,6 +791,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Save/Load
+
+  /** Serializes the current game state into the active save slot. */
   private saveGame(): void {
     if (this.saveGameService.currentSlot === null) {
       return;
@@ -769,6 +823,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
   }
 
+  /** Restores game state from the active save slot and refreshes selection and grid data. */
   loadGame(): void {
     if (this.saveGameService.currentSlot === null) {
       return;
@@ -807,6 +862,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
   }
 
+  /** Removes a fleet from the game state and clears it from the selection if needed. */
   removeFleet(fleetId: number): void {
     this.fleets = this.fleets.filter((f) => f.id !== fleetId);
     if (this.selectedFleet?.id === fleetId) {
@@ -817,6 +873,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /** Loads a save on init if a slot is active; otherwise initializes fleet and grid positions. */
   ngOnInit(): void {
     if (this.saveGameService.currentSlot !== null) {
       this.loadGame();
@@ -828,6 +885,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
   }
 
+  /** Applies a previously destroyed fleet from the battle service into the current save. */
   private removeDestroyedFleetFromService(): void {
     const destroyedFleetId = this.battleService.getDestroyedFleetId();
     if (destroyedFleetId != null) {
@@ -847,6 +905,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Keyboard
+
+  /** Listens for arrow keys to pan the camera around the map. */
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
     switch (event.key) {
@@ -870,6 +930,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Cleanup
+
+  /** Saves the game, removes event listeners, and stops the game loop when the component is destroyed. */
   ngOnDestroy(): void {
     this.saveGame();
 
