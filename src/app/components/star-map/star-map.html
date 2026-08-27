@@ -114,7 +114,7 @@
     <app-star-map-fleet-buttons
       [fleets]="visibleFleets"
       [selectedFleetId]="selectedFleet?.id ?? null"
-      [getFactionColor]="getFactionColor"
+      [getFactionColor]="boundGetFactionColor"
       (selectFleet)="selectFleet($event)"
     >
     </app-star-map-fleet-buttons>

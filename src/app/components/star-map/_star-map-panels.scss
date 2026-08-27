@@ -186,7 +186,7 @@
 .fleet-buttons {
   position: absolute;
   top: 60px;
-  left: 10px;
+  left: -2px;
   width: 120px;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
@@ -212,6 +212,7 @@
   letter-spacing: 0.05em;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: none;
 
   @include mobile-view {
     padding: 0.1em 0.2em;

@@ -11,22 +11,15 @@
 
 .star-map-pause__btn {
   color: var(--color-blue-light);
-
   font-size: clamp(0.75rem, 1.3vw, 1rem);
-
   letter-spacing: 0.1em;
-
   background: none;
-
   border: 1px solid var(--color-blue);
-
   padding: 0.4em 0.8em;
-
   cursor: pointer;
-
   text-transform: uppercase;
-
   transition: background 0.2s;
+  box-shadow: none;
 
   &:hover {
     background: rgba(0, 0, 0, 0.5);
@@ -102,7 +95,9 @@
 
   cursor: pointer;
 
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 
   &:hover {
     background: rgba(53, 134, 229, 0.3);
@@ -149,7 +144,9 @@
   font-family: 'Pixelify Sans', sans-serif;
   font-size: 0.9rem;
   cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 
   &:hover:not(.save-slot--empty) {
     background: rgba(53, 134, 229, 0.25);
