@@ -39,6 +39,11 @@ export interface BuildingType {
  *
  * Grid dimension formula: gridSize = planetNumericSize * 2 + 3
  *   size 1 -> 5x5, size 2 -> 7x7, size 3 -> 9x9, size 4 -> 11x11
+ *
+ * Build mode:
+ * - After selecting a building type, the screen enters build mode.
+ * - Clicking a grid cell highlights the potential building footprint.
+ * - A BUILD button appears when the placement is valid.
  */
 
 @Component({
@@ -59,13 +64,21 @@ export class StarMapPlanetScreenComponent {
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() getPlayerCredits: () => number = () => 0;
   @Input() onSelectBuildingType: (buildingId: string) => void = () => {};
+  @Input() onConfirmBuild: (buildingId: string, x: number, y: number) => void = () => {};
 
   @Output() backToStarMap = new EventEmitter<void>();
+  @Output() buildConfirmed = new EventEmitter<{ buildingId: string; x: number; y: number }>();
 
   readonly cellVw = PLANET_SURFACE_CELL_VW;
   readonly buildingTypes: BuildingType[] = (planetData as { buildings: BuildingType[] }).buildings;
 
   showBuildMenu = false;
+  isBuildMode = false;
+  selectedBuildingType: BuildingType | null = null;
+  selectedCell: { row: number; col: number } | null = null;
+  previewCells: Set<string> = new Set();
+  isPreviewValid = false;
+  buildError = '';
 
   /** Returns an array [0, 1, ..., gridSize-1] for rendering grid cells. */
   get gridCells(): number[] {
@@ -85,12 +98,91 @@ export class StarMapPlanetScreenComponent {
     this.showBuildMenu = false;
   }
 
+  exitBuildMode(): void {
+    this.isBuildMode = false;
+    this.selectedBuildingType = null;
+    this.selectedCell = null;
+    this.previewCells = new Set();
+    this.isPreviewValid = false;
+    this.buildError = '';
+  }
+
   selectBuildingType(buildingId: string): void {
-    this.onSelectBuildingType(buildingId);
+    const building = this.buildingTypes.find((b) => b.id === buildingId) ?? null;
+    this.selectedBuildingType = building;
+    this.isBuildMode = true;
+    this.selectedCell = null;
+    this.previewCells = new Set();
+    this.isPreviewValid = false;
+    this.buildError = '';
     this.closeBuildMenu();
+  }
+
+  onCellClick(row: number, col: number): void {
+    if (!this.isBuildMode || !this.selectedBuildingType) {
+      return;
+    }
+
+    this.selectedCell = { row, col };
+    this.updatePreview(row, col);
+  }
+
+  private updatePreview(row: number, col: number): void {
+    if (!this.selectedBuildingType) {
+      return;
+    }
+
+    const size = this.selectedBuildingType.size;
+    this.previewCells = new Set<string>();
+
+    for (let r = row; r < row + size; r++) {
+      for (let c = col; c < col + size; c++) {
+        this.previewCells.add(`${r},${c}`);
+      }
+    }
+
+    const fitsGrid = col + size <= this.gridSize && row + size <= this.gridSize;
+    if (!fitsGrid) {
+      this.isPreviewValid = false;
+      this.buildError = 'This area does not fit the building.';
+      return;
+    }
+
+    const overlaps = (this.planet?.buildings ?? []).some((b) => {
+      const bSize = b.size;
+      return col < b.x + bSize && col + size > b.x && row < b.y + bSize && row + size > b.y;
+    });
+
+    if (overlaps) {
+      this.isPreviewValid = false;
+      this.buildError = 'Area overlaps with existing buildings.';
+      return;
+    }
+
+    this.isPreviewValid = true;
+    this.buildError = '';
+  }
+
+  confirmBuild(): void {
+    if (!this.isPreviewValid || !this.selectedCell || !this.selectedBuildingType) {
+      return;
+    }
+
+    const { col, row } = this.selectedCell;
+    this.buildConfirmed.emit({
+      buildingId: this.selectedBuildingType.id,
+      x: col,
+      y: row,
+    });
+    this.onConfirmBuild(this.selectedBuildingType.id, col, row);
+    this.exitBuildMode();
   }
 
   canAfford(building: BuildingType): boolean {
     return this.getPlayerCredits() >= building.price;
+  }
+
+  isCellInPreview(row: number, col: number): boolean {
+    return this.previewCells.has(`${row},${col}`);
   }
 }

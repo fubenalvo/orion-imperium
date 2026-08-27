@@ -17,6 +17,7 @@ import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navi
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
 import starMapData from './star-map-data.json';
 import shipData from './ship-data.json';
+import planetData from './planet-data.json';
 import { StarMapGameLoopService } from './star-map-game-loop.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
@@ -302,6 +303,34 @@ export class StarMap implements AfterViewInit, OnDestroy {
     console.log('[StarMap] Building type selected:', buildingId);
   }
 
+  /** Handles confirmation of a building placement from the planet screen. */
+  onBuildingConfirmed(event: { buildingId: string; x: number; y: number }): void {
+    const planet = this.selectedPlanetTile;
+    if (!planet) return;
+
+    const player = this.factions.find((f) => f.id === 'player');
+    if (!player?.currencies) return;
+
+    const buildingDef = (planetData as { buildings: { id: string; price: number; size: number; name: string }[] }).buildings.find(
+      (b) => b.id === event.buildingId,
+    );
+    if (!buildingDef) return;
+
+    const credits = player.currencies['credits'] ?? 0;
+    if (credits < buildingDef.price) return;
+
+    player.currencies['credits'] = credits - buildingDef.price;
+
+    planet.buildings.push({
+      name: buildingDef.name,
+      size: buildingDef.size,
+      x: event.x,
+      y: event.y,
+    });
+
+    this.cdr.detectChanges();
+  }
+
   /** Returns the player's economy breakdown for the currency overlay. */
   getPlayerEconomyBreakdown(): EconomyBreakdown {
     if (this.cachedPlayerEconomyBreakdown) {
@@ -327,6 +356,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
   readonly boundGetPlayerCredits = this.getPlayerCredits.bind(this);
   readonly boundOnSelectBuildingType = this.onSelectBuildingType.bind(this);
+  readonly boundOnConfirmBuild = (buildingId: string, x: number, y: number) => this.onBuildingConfirmed({ buildingId, x, y });
 
   // Ship type helpers
 

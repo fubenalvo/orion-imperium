@@ -23,8 +23,12 @@
         @for (col of gridCells; track col) {
           <div
             class="planet-surface__cell"
+            [class.planet-surface__cell--build-valid]="isBuildMode && isCellInPreview(row, col) && isPreviewValid"
+            [class.planet-surface__cell--build-invalid]="isBuildMode && isCellInPreview(row, col) && !isPreviewValid"
+            [class.planet-surface__cell--build-selected]="isBuildMode && selectedCell?.row === row && selectedCell?.col === col"
             [style.grid-column]="col + 1"
             [style.grid-row]="row + 1"
+            (click)="onCellClick(row, col)"
           ></div>
         }
       }
@@ -41,6 +45,28 @@
       }
     </div>
 
+    @if (showBuildMenu) {
+      <div class="build-overlay">
+        <div class="build-overlay__panel">
+          <div class="build-overlay__title">SELECT BUILDING</div>
+          <div class="build-overlay__list">
+            @for (building of buildingTypes; track building.id) {
+              <button
+                class="build-overlay__item"
+                type="button"
+                [disabled]="!canAfford(building)"
+                (click)="selectBuildingType(building.id)"
+              >
+                <span class="build-overlay__name">{{ building.name }}</span>
+                <span class="build-overlay__price">{{ building.price }} CR</span>
+              </button>
+            }
+          </div>
+          <button class="build-overlay__close" type="button" (click)="closeBuildMenu()">CLOSE</button>
+        </div>
+      </div>
+    }
+
     <!-- DETAILS SIDEBAR -->
     <div class="planet-sidebar panel-style">
       <div class="panel-style__title">
@@ -48,77 +74,74 @@
       </div>
 
       <div class="planet-sidebar__buttons">
-        <button class="planet-sidebar__btn" type="button" (click)="openBuildMenu()">BUILD</button>
-        <button class="planet-sideet__btn" type="button">DETAILS</button>
+        @if (!isBuildMode) {
+          <button class="planet-sidebar__btn" type="button" (click)="openBuildMenu()">BUILD</button>
+          <button class="planet-sidebar__btn" type="button">DETAILS</button>
+        } @else {
+          <button class="planet-sidebar__btn" type="button" (click)="exitBuildMode()">CANCEL</button>
+          @if (selectedBuildingType) {
+            <span class="planet-sidebar__build-preview">{{ selectedBuildingType.name }} ({{ selectedBuildingType.size }}x{{ selectedBuildingType.size }})</span>
+          }
+        }
       </div>
 
-      @if (showBuildMenu) {
-        <div class="build-overlay">
-          <div class="build-overlay__panel">
-            <div class="build-overlay__title">SELECT BUILDING</div>
-            <div class="build-overlay__list">
-              @for (building of buildingTypes; track building.id) {
-                <button
-                  class="build-overlay__item"
-                  type="button"
-                  [disabled]="!canAfford(building)"
-                  (click)="selectBuildingType(building.id)"
-                >
-                  <span class="build-overlay__name">{{ building.name }}</span>
-                  <span class="build-overlay__price">{{ building.price }} CR</span>
-                </button>
-              }
-            </div>
-            <button class="build-overlay__close" type="button" (click)="closeBuildMenu()">CLOSE</button>
-          </div>
-        </div>
-      }
-
       <div class="planet-sidebar__content">
-        <div class="planet-sidebar__info-row">
-          <span>TYPE</span>
-          <span>{{ planet?.type | uppercase }}</span>
-        </div>
-
-        <div class="planet-sidebar__info-row">
-          <span>FACTION</span>
-          <span [style.color]="getFactionColor(planet!.factionId)"
-            >{{ getFactionName(planet!.factionId) }}</span
-          >
-        </div>
-
-        <div class="planet-sidebar__currencies">
-          <app-faction-currencies [currencies]="getFactionCurrencies(planet!.factionId)"></app-faction-currencies>
-        </div>
-
-        <hr class="planet-sidebar__divider" />
-
-        <div class="planet-sidebar__info-row">
-          <span>POPULATION</span>
-          <span>{{ planet?.population }}</span>
-        </div>
-
-        <div class="planet-sidebar__info-row">
-          <span>ENERGY</span>
-          <span>{{ getEnergyForPlanet(planet!) }}</span>
-        </div>
-
-        <div class="planet-sidebar__info-row">
-          <span>DAILY TAX</span>
-          <span>{{ getTaxForPlanet(planet!) }}</span>
-        </div>
-
-        <hr class="planet-sidebar__divider" />
-
-        <div class="planet-sidebar__buildings-title">
-          BUILDINGS ({{ planet?.buildings.length }})
-        </div>
-
-        @for (b of planet?.buildings; track $index) {
-          <div class="planet-sidebar__building-row">
-            <span class="planet-sidebar__building-name">{{ b.name }}</span>
-            <span class="planet-sidebar__building-size">{{ b.size }}x{{ b.size }}</span>
+        @if (isBuildMode) {
+          @if (selectedCell) {
+            @if (isPreviewValid) {
+              <button class="planet-sidebar__btn planet-sidebar__btn--build" type="button" (click)="confirmBuild()">BUILD</button>
+            } @else {
+              <div class="planet-sidebar__build-error">{{ buildError }}</div>
+            }
+          } @else {
+            <div class="planet-sidebar__build-hint">Click a cell on the surface to place the building.</div>
+          }
+        } @else {
+          <div class="planet-sidebar__info-row">
+            <span>TYPE</span>
+            <span>{{ planet?.type | uppercase }}</span>
           </div>
+
+          <div class="planet-sidebar__info-row">
+            <span>FACTION</span>
+            <span [style.color]="getFactionColor(planet!.factionId)"
+              >{{ getFactionName(planet!.factionId) }}</span
+            >
+          </div>
+
+          <div class="planet-sidebar__currencies">
+            <app-faction-currencies [currencies]="getFactionCurrencies(planet!.factionId)"></app-faction-currencies>
+          </div>
+
+          <hr class="planet-sidebar__divider" />
+
+          <div class="planet-sidebar__info-row">
+            <span>POPULATION</span>
+            <span>{{ planet?.population }}</span>
+          </div>
+
+          <div class="planet-sidebar__info-row">
+            <span>ENERGY</span>
+            <span>{{ getEnergyForPlanet(planet!) }}</span>
+          </div>
+
+          <div class="planet-sidebar__info-row">
+            <span>DAILY TAX</span>
+            <span>{{ getTaxForPlanet(planet!) }}</span>
+          </div>
+
+          <hr class="planet-sidebar__divider" />
+
+          <div class="planet-sidebar__buildings-title">
+            BUILDINGS ({{ planet?.buildings.length }})
+          </div>
+
+          @for (b of planet?.buildings; track $index) {
+            <div class="planet-sidebar__building-row">
+              <span class="planet-sidebar__building-name">{{ b.name }}</span>
+              <span class="planet-sidebar__building-size">{{ b.size }}x{{ b.size }}</span>
+            </div>
+          }
         }
       </div>
 

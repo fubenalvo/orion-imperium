@@ -277,7 +277,9 @@
             [getTaxForPlanet]="getTaxForPlanet"
             [getPlayerCredits]="boundGetPlayerCredits"
             [onSelectBuildingType]="boundOnSelectBuildingType"
+            [onConfirmBuild]="boundOnConfirmBuild"
             (backToStarMap)="leavePlanetView()"
+            (buildConfirmed)="onBuildingConfirmed($event)"
           >
           </app-star-map-planet-screen>
         }
