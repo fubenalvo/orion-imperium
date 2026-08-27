@@ -76,6 +76,10 @@ export class StarMapBattleDetectionService {
 
         triggeredBattles.add(battleKey);
 
+        const attackerId =
+          fleet1.targetX !== null && fleet1.targetY !== null ? fleet1.id : fleet2.id;
+        const defenderId = attackerId === fleet1.id ? fleet2.id : fleet1.id;
+
         this.battleService.setBattle({
           fleet1,
           fleet2,
@@ -83,6 +87,8 @@ export class StarMapBattleDetectionService {
           faction1Color: faction1.color,
           faction2Name: faction2.name,
           faction2Color: faction2.color,
+          attackerId,
+          defenderId,
         });
 
         saveGame();

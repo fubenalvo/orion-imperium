@@ -51,6 +51,8 @@ export interface FleetShip {
   id: number;
   name: string;
   type: string;
+  currentHp?: number;
+  destroyed?: boolean;
 }
 
 export interface ShipType {

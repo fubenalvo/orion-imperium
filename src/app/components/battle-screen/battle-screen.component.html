@@ -1,35 +1,35 @@
 <div class="battle-screen">
   <div class="battle-screen__header">
     <h1 class="battle-screen__title">BATTLE</h1>
+    <div class="battle-screen__phase">
+      ROUND {{ battleState?.round ?? 1 }} - {{ getCurrentPhase() }}
+    </div>
   </div>
 
   <div class="battle-screen__content">
-    <div class="fleet-panel fleet-panel--left" [class.winner]="battle && isWinner(battle.fleet1.id)" [class.loser]="battle && isLoser(battle.fleet1.id)">
+    <div class="fleet-panel fleet-panel--left" [class.winner]="battleOver && battle && isWinner(battle.fleet1.id)" [class.loser]="battleOver && battle && isLoser(battle.fleet1.id)">
       @if (battle) {
         <h2 class="fleet-panel__name">{{ battle.fleet1.name }}</h2>
         <p class="fleet-panel__faction" [style.color]="battle.faction1Color">
           {{ battle.faction1Name }}
         </p>
-        <div class="fleet-panel__stats">
-          <span class="stat">ATK: {{ getFleetAttack(battle.fleet1.id) }}</span>
-          <span class="stat">SHIELD: {{ getFleetShield(battle.fleet1.id) }}</span>
-        </div>
         <div class="fleet-panel__ships">
-          @for (entry of getShipTypeCounts(battle.fleet1.ships); track entry.type) {
-            <div class="ship-row">
-              <span class="ship-row__type">{{ entry.type }}</span>
-              <span class="ship-row__count">{{ entry.count }}x</span>
+          @for (ship of getFleetShips(battle.fleet1.id); track ship.id) {
+            <div class="ship-row" [class.destroyed]="ship.destroyed">
+              <span class="ship-row__type">{{ ship.name }}</span>
+              <div class="ship-row__hp">
+                  <div class="hp-bar" [style.width.%]="ship.destroyed ? 0 : ((ship.currentHp ?? 0) / getMaxHp(ship.type)) * 100"></div>
+              </div>
+              <span class="ship-row__hp-text">
+                {{ ship.destroyed ? 'DESTROYED' : (ship.currentHp ?? 0) + ' HP' }}
+              </span>
             </div>
           }
         </div>
         <div class="fleet-panel__count">
-          SHIPS: {{ battle.fleet1.ships.length }}
+          SHIPS: {{ getAliveCount(battle.fleet1.ships) }} / {{ battle.fleet1.ships.length }}
         </div>
-        @if (battleResolved && result) {
-          <div class="fleet-panel__score">
-            <span class="score-label">SCORE</span>
-            <span class="score-value">{{ battle.fleet1.id === result.winner.id ? result.fleet1Score : result.fleet1Score }}</span>
-          </div>
+        @if (battleOver) {
           @if (isWinner(battle.fleet1.id)) {
             <div class="fleet-panel__result winner">VICTORY</div>
           }
@@ -42,32 +42,29 @@
 
     <div class="battle-screen__vs">VS</div>
 
-    <div class="fleet-panel fleet-panel--right" [class.winner]="battle && isWinner(battle.fleet2.id)" [class.loser]="battle && isLoser(battle.fleet2.id)">
+    <div class="fleet-panel fleet-panel--right" [class.winner]="battleOver && battle && isWinner(battle.fleet2.id)" [class.loser]="battleOver && battle && isLoser(battle.fleet2.id)">
       @if (battle) {
         <h2 class="fleet-panel__name">{{ battle.fleet2.name }}</h2>
         <p class="fleet-panel__faction" [style.color]="battle.faction2Color">
           {{ battle.faction2Name }}
         </p>
-        <div class="fleet-panel__stats">
-          <span class="stat">ATK: {{ getFleetAttack(battle.fleet2.id) }}</span>
-          <span class="stat">SHIELD: {{ getFleetShield(battle.fleet2.id) }}</span>
-        </div>
         <div class="fleet-panel__ships">
-          @for (entry of getShipTypeCounts(battle.fleet2.ships); track entry.type) {
-            <div class="ship-row">
-              <span class="ship-row__type">{{ entry.type }}</span>
-              <span class="ship-row__count">{{ entry.count }}x</span>
+          @for (ship of getFleetShips(battle.fleet2.id); track ship.id) {
+            <div class="ship-row" [class.destroyed]="ship.destroyed">
+              <span class="ship-row__type">{{ ship.name }}</span>
+              <div class="ship-row__hp">
+                  <div class="hp-bar" [style.width.%]="ship.destroyed ? 0 : ((ship.currentHp ?? 0) / getMaxHp(ship.type)) * 100"></div>
+              </div>
+              <span class="ship-row__hp-text">
+                {{ ship.destroyed ? 'DESTROYED' : (ship.currentHp ?? 0) + ' HP' }}
+              </span>
             </div>
           }
         </div>
         <div class="fleet-panel__count">
-          SHIPS: {{ battle.fleet2.ships.length }}
+          SHIPS: {{ getAliveCount(battle.fleet2.ships) }} / {{ battle.fleet2.ships.length }}
         </div>
-        @if (battleResolved && result) {
-          <div class="fleet-panel__score">
-            <span class="score-label">SCORE</span>
-            <span class="score-value">{{ battle.fleet2.id === result.winner.id ? result.fleet2Score : result.fleet2Score }}</span>
-          </div>
+        @if (battleOver) {
           @if (isWinner(battle.fleet2.id)) {
             <div class="fleet-panel__result winner">VICTORY</div>
           }
@@ -79,15 +76,31 @@
     </div>
   </div>
 
-  @if (battleResolved && result) {
+  <div class="battle-screen__log">
+    <div class="log-header">BATTLE LOG</div>
+    <div class="log-entries">
+      @for (entry of battleLog; track entry.round) {
+        <div class="log-entry">
+          <span class="log-round">R{{ entry.round }}</span>
+          <span class="log-attacker">{{ entry.attackerFleetName }} - {{ entry.attackerShipName }}</span>
+          <span class="log-action">attacks</span>
+          <span class="log-defender">{{ entry.defenderShipName }} ({{ entry.defenderFleetName }})</span>
+          <span class="log-damage">-{{ entry.damage }} HP</span>
+          @if (entry.targetDestroyed) {
+            <span class="log-destroyed">DESTROYED</span>
+          }
+        </div>
+      }
+    </div>
+  </div>
+
+  @if (battleOver) {
     <div class="battle-screen__summary">
       <span class="summary-text">
-        {{ result.winner.name }} WINS WITH
-        <strong>{{ result.winner.id === battle?.fleet1.id ? result.fleet1Score : result.fleet2Score }}</strong>
-        POINTS
+        {{ getWinnerName() }} WINS
       </span>
     </div>
-  }
 
-  <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
+    <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
+  }
 </div>

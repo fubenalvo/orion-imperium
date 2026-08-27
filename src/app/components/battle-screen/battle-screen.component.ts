@@ -1,22 +1,24 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { BattleService, Battle, BattleResult, FleetShip } from '../../services/battle.service';
+import { BattleService, Battle, BattleState, BattleLogEntry, FleetShip } from '../../services/battle.service';
+import { ShipService } from '../../services/ship.service';
 
 /*
  * =========================================================
  * BATTLE SCREEN COMPONENT
  * =========================================================
  *
- * Temporary view for battle resolution.
- * Reads battle data from BattleService, resolves it immediately,
- * and displays the result.
+ * View for turn-based battle simulation.
  *
  * Navigation flow:
  * 1. StarMap detects collision -> BattleService.setBattle() -> navigate to /battle
- * 2. BattleScreen resolves battle in ngOnInit()
- * 3. User clicks "Back to Star Map" -> loser marked destroyed -> navigate back
- * 4. StarMap processes destroyedFleetId on next init
+ * 2. BattleScreen initializes battle in ngOnInit()
+ * 3. A timer calls processStep() every tickRateMs
+ * 4. Each step processes one ship attack and updates the UI
+ * 5. When battle ends, "Back to Star Map" becomes visible
+ * 6. On back navigation, loser fleet is marked destroyed -> navigate back
+ * 7. StarMap processes destroyedFleetId on next init
  */
 
 @Component({
@@ -26,33 +28,74 @@ import { BattleService, Battle, BattleResult, FleetShip } from '../../services/b
   templateUrl: './battle-screen.component.html',
   styleUrl: './battle-screen.component.scss'
 })
-export class BattleScreenComponent implements OnInit {
+export class BattleScreenComponent implements OnInit, OnDestroy {
   battle: Battle | null = null;
-  result: BattleResult | null = null;
-  battleResolved = false;
+  battleState: BattleState | null = null;
+  battleLog: BattleLogEntry[] = [];
+  battleOver = false;
+  private stepTimer: any = null;
 
   constructor(
     private router: Router,
-    private battleService: BattleService
+    private battleService: BattleService,
+    private shipService: ShipService,
+    private cdr: ChangeDetectorRef
   ) {
     this.battle = this.battleService.getBattle();
   }
 
   ngOnInit(): void {
     if (this.battle) {
-      this.result = this.battleService.resolveBattle();
-      this.battleResolved = true;
+      this.battleService.startBattle();
+      this.battle = this.battleService.getBattle();
+      this.battleState = this.battleService.getBattleState();
+      this.battleLog = this.battleService.getBattleLog();
+      this.battleOver = this.battleService.isBattleOver();
+      this.startStepTimer();
     }
   }
 
-  /*
-   * backToStarMap: Transitions back to the star map after battle.
-   * The loser fleet is marked as destroyed and its ID is stored
-   * in BattleService so StarMap can process it on next init.
-   */
+  ngOnDestroy(): void {
+    this.stopStepTimer();
+  }
+
+  private startStepTimer(): void {
+    this.stopStepTimer();
+    const tickRate = this.battleService.getTickRate();
+    this.stepTimer = setInterval(() => {
+      this.tick();
+    }, tickRate);
+  }
+
+  private stopStepTimer(): void {
+    if (this.stepTimer) {
+      clearInterval(this.stepTimer);
+      this.stepTimer = null;
+    }
+  }
+
+  private tick(): void {
+    const processed = this.battleService.processStep();
+    if (processed) {
+      this.battle = this.battleService.getBattle();
+      this.battleLog = [...this.battleService.getBattleLog()];
+      this.battleState = this.battleService.getBattleState();
+    }
+
+    if (this.battleService.isBattleOver()) {
+      this.battleOver = true;
+      this.stopStepTimer();
+      this.battle = this.battleService.getBattle();
+      this.battleState = this.battleService.getBattleState();
+    }
+
+    this.cdr.detectChanges();
+  }
+
   backToStarMap(): void {
+    this.stopStepTimer();
+    const loser = this.battleService.getLoser();
     this.battleService.clearBattle();
-    const loser = this.result?.loser;
     if (loser) {
       loser.destroyed = true;
       this.battleService.setDestroyedFleetId(loser.id);
@@ -61,40 +104,25 @@ export class BattleScreenComponent implements OnInit {
   }
 
   getWinnerName(): string {
-    return this.result?.winner.name ?? '';
+    return this.battleService.getWinner()?.name ?? '';
   }
 
   getLoserName(): string {
-    return this.result?.loser.name ?? '';
-  }
-
-  /*
-   * getFleetScore: Returns the score for the specified fleet.
-   * NOTE: There is a bug in the template (line 31 of battle-screen.component.html)
-   * where the score display always shows result.fleet1Score regardless of which fleet won.
-   * This method itself is correct.
-   */
-  getFleetScore(fleetId: number): number {
-    if (!this.result || !this.battle) return 0;
-    return this.battle.fleet1.id === fleetId ? this.result.fleet1Score : this.result.fleet2Score;
-  }
-
-  getFleetAttack(fleetId: number): number {
-    if (!this.battle || !this.result) return 0;
-    return this.battle.fleet1.id === fleetId ? this.result.fleet1Attack : this.result.fleet2Attack;
-  }
-
-  getFleetShield(fleetId: number): number {
-    if (!this.battle || !this.result) return 0;
-    return this.battle.fleet1.id === fleetId ? this.result.fleet1Shield : this.result.fleet2Shield;
+    return this.battleService.getLoser()?.name ?? '';
   }
 
   isWinner(fleetId: number): boolean {
-    return this.result?.winner.id === fleetId;
+    return this.battleService.getWinner()?.id === fleetId;
   }
 
   isLoser(fleetId: number): boolean {
-    return this.result?.loser.id === fleetId;
+    return this.battleService.getLoser()?.id === fleetId;
+  }
+
+  getFleetShips(fleetId: number): FleetShip[] {
+    if (!this.battle) return [];
+    const fleet = fleetId === this.battle.fleet1.id ? this.battle.fleet1 : this.battle.fleet2;
+    return fleet.ships;
   }
 
   getShipTypeCounts(ships: FleetShip[]): { type: string; count: number }[] {
@@ -103,5 +131,21 @@ export class BattleScreenComponent implements OnInit {
       counts.set(ship.type, (counts.get(ship.type) ?? 0) + 1);
     }
     return Array.from(counts.entries(), ([type, count]) => ({ type, count }));
+  }
+
+  getAliveCount(ships: FleetShip[]): number {
+    return ships.filter((s) => !s.destroyed).length;
+  }
+
+  getCurrentPhase(): string {
+    if (!this.battleState || this.battleOver) return 'BATTLE OVER';
+    if (this.battleState.currentFleetId === this.battleState.attackerId) {
+      return 'ATTACKER TURN';
+    }
+    return 'DEFENDER TURN';
+  }
+
+  getMaxHp(shipTypeId: string): number {
+    return this.shipService.getShipType(shipTypeId)?.hitPoints ?? 1;
   }
 }
