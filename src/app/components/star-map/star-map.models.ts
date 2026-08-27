@@ -57,6 +57,7 @@ export interface PlanetTile {
   size: PlanetSize;
   population: number;
   buildings: PlanetBuilding[];
+  explored: boolean;
 }
 
 export interface StarSystem {

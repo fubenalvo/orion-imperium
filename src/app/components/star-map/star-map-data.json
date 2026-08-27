@@ -97,7 +97,8 @@
               "x": 0,
               "y": 3
             }
-          ]
+          ],
+          "explored": true
         },
         {
           "id": 2,
@@ -111,7 +112,8 @@
           "type": "venuslike",
           "size": "big",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 3,
@@ -125,7 +127,8 @@
           "type": "marslike",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 4,
@@ -139,7 +142,8 @@
           "type": "gasgiant",
           "size": "huge",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": true
         },
         {
           "id": 5,
@@ -178,7 +182,8 @@
               "x": 3,
               "y": 2
             }
-          ]
+          ],
+          "explored": true
         },
         {
           "id": 6,
@@ -192,12 +197,13 @@
           "type": "earthlike",
           "size": "big",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 7,
           "index": 7,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Vireon",
           "x": 0,
           "y": -50,
@@ -205,33 +211,9 @@
           "yOffset": 0,
           "type": "desert",
           "size": "medium",
-          "population": 380,
-          "buildings": [
-            {
-              "name": "Planetary Shield",
-              "size": 2,
-              "x": 0,
-              "y": 0
-            },
-            {
-              "name": "Research Laboratory",
-              "size": 2,
-              "x": 2,
-              "y": 0
-            },
-            {
-              "name": "Research Laboratory",
-              "size": 2,
-              "x": 4,
-              "y": 0
-            },
-            {
-              "name": "Research Laboratory",
-              "size": 2,
-              "x": 6,
-              "y": 0
-            }
-          ]
+          "population": 0,
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 8,
@@ -245,7 +227,8 @@
           "type": "ice",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": true
         }
       ]
     },
@@ -269,7 +252,8 @@
           "type": "desert",
           "size": "big",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 10,
@@ -283,7 +267,8 @@
           "type": "earthlike",
           "size": "medium",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 11,
@@ -297,7 +282,8 @@
           "type": "ice",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 12,
@@ -348,7 +334,8 @@
               "x": 6,
               "y": 1
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 13,
@@ -362,7 +349,8 @@
           "type": "marslike",
           "size": "tiny",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         }
       ]
     },
@@ -386,7 +374,8 @@
           "type": "earthlike",
           "size": "huge",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 15,
@@ -443,7 +432,8 @@
               "x": 7,
               "y": 1
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 16,
@@ -457,7 +447,8 @@
           "type": "gasgiant",
           "size": "huge",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 17,
@@ -496,7 +487,8 @@
               "x": 2,
               "y": 3
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 18,
@@ -510,7 +502,8 @@
           "type": "desert",
           "size": "big",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 19,
@@ -524,7 +517,8 @@
           "type": "venuslike",
           "size": "medium",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         }
       ]
     },
@@ -548,7 +542,8 @@
           "type": "marslike",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 21,
@@ -562,7 +557,8 @@
           "type": "desert",
           "size": "medium",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 22,
@@ -576,7 +572,8 @@
           "type": "ice",
           "size": "tiny",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         }
       ]
     },
@@ -600,7 +597,8 @@
           "type": "earthlike",
           "size": "big",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 24,
@@ -663,7 +661,8 @@
               "x": 6,
               "y": 2
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 25,
@@ -720,7 +719,8 @@
               "x": 6,
               "y": 1
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 26,
@@ -753,7 +753,8 @@
               "x": 4,
               "y": 0
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 27,
@@ -792,7 +793,8 @@
               "x": 6,
               "y": 2
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 28,
@@ -831,7 +833,8 @@
               "x": 0,
               "y": 3
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 29,
@@ -845,7 +848,8 @@
           "type": "desert",
           "size": "tiny",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         }
       ]
     },
@@ -869,7 +873,8 @@
           "type": "ice",
           "size": "medium",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 31,
@@ -920,7 +925,8 @@
               "x": 3,
               "y": 2
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 32,
@@ -965,7 +971,8 @@
               "x": 6,
               "y": 2
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 33,
@@ -1016,7 +1023,8 @@
               "x": 2,
               "y": 1
             }
-          ]
+          ],
+          "explored": false
         }
       ]
     },
@@ -1059,7 +1067,8 @@
               "x": 5,
               "y": 0
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 35,
@@ -1073,7 +1082,8 @@
           "type": "marslike",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 36,
@@ -1142,7 +1152,8 @@
               "x": 2,
               "y": 5
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 37,
@@ -1156,7 +1167,8 @@
           "type": "gasgiant",
           "size": "huge",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 38,
@@ -1170,7 +1182,8 @@
           "type": "venuslike",
           "size": "medium",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 39,
@@ -1197,7 +1210,8 @@
               "x": 0,
               "y": 3
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 40,
@@ -1211,7 +1225,8 @@
           "type": "desert",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 41,
@@ -1225,7 +1240,8 @@
           "type": "earthlike",
           "size": "huge",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 42,
@@ -1258,7 +1274,8 @@
               "x": 3,
               "y": 0
             }
-          ]
+          ],
+          "explored": false
         }
       ]
     },
@@ -1307,7 +1324,8 @@
               "x": 7,
               "y": 0
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 44,
@@ -1321,7 +1339,8 @@
           "type": "venuslike",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         }
       ]
     },
@@ -1345,7 +1364,8 @@
           "type": "marslike",
           "size": "big",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 46,
@@ -1414,7 +1434,8 @@
               "x": 4,
               "y": 4
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 47,
@@ -1459,7 +1480,8 @@
               "x": 3,
               "y": 3
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 48,
@@ -1473,7 +1495,8 @@
           "type": "desert",
           "size": "medium",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 49,
@@ -1512,7 +1535,8 @@
               "x": 3,
               "y": 2
             }
-          ]
+          ],
+          "explored": false
         }
       ]
     },
@@ -1573,7 +1597,8 @@
               "x": 3,
               "y": 3
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 51,
@@ -1618,7 +1643,8 @@
               "x": 6,
               "y": 0
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 52,
@@ -1632,7 +1658,8 @@
           "type": "ice",
           "size": "small",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 53,
@@ -1671,7 +1698,8 @@
               "x": 3,
               "y": 0
             }
-          ]
+          ],
+          "explored": false
         },
         {
           "id": 54,
@@ -1685,7 +1713,8 @@
           "type": "desert",
           "size": "tiny",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         },
         {
           "id": 55,
@@ -1699,7 +1728,8 @@
           "type": "venuslike",
           "size": "medium",
           "population": 0,
-          "buildings": []
+          "buildings": [],
+          "explored": false
         }
       ]
     }

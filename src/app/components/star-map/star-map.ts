@@ -465,7 +465,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Enters the planet surface view, saving game state first. */
   openPlanetView(): void {
-    if (!this.selectedPlanetTile) {
+    if (!this.selectedPlanetTile || !this.selectedPlanetTile.explored) {
       return;
     }
     this.saveGame();
@@ -852,6 +852,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
       console.log('[StarMap] movementService.updateFleets returned true');
     }
 
+    this.updateExploredPlanets();
+
     this.battleDetectionService.checkForBattles(
       this.fleets,
       this.factions,
@@ -864,6 +866,40 @@ export class StarMap implements AfterViewInit, OnDestroy {
     );
 
     return didMoveFleets;
+  }
+
+  /** Marks planets as explored when a player fleet occupies the same grid cell. */
+  private updateExploredPlanets(): void {
+    if (this.currentView !== 'system' || !this.selectedSystem) {
+      return;
+    }
+
+    for (const fleet of this.fleets) {
+      if (fleet.destroyed || fleet.factionId !== 'player') {
+        continue;
+      }
+
+      if (fleet.systemId !== this.selectedSystem.id) {
+        continue;
+      }
+
+      if (fleet.systemX == null || fleet.systemY == null) {
+        continue;
+      }
+
+      const fleetCell = this.movementService.calculateGridCell(fleet.systemX, fleet.systemY);
+
+      for (const planet of this.selectedSystem.planetsTiles) {
+        if (planet.explored) {
+          continue;
+        }
+
+        const planetCell = this.movementService.getPlanetGridPosition(planet);
+        if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
+          planet.explored = true;
+        }
+      }
+    }
   }
 
   /** Registers window blur and visibility-change listeners to auto-pause the game. */
