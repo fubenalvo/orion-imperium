@@ -723,3 +723,13 @@ input[type='range']::-moz-range-thumb {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-blue);
 }
+
+.debugConsoleTemp {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  background: orange;
+  color: white;
+  padding: 10px;
+  z-index: 9999;
+}
