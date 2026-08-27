@@ -92,6 +92,7 @@
     <!-- TOP HUD -->
     <div class="top-hud">
       <div class="game-title">STAR MAP</div>
+      <app-faction-currencies [currencies]="getPlayerCurrencies()"></app-faction-currencies>
     </div>
 
     <!-- SELECTED FLEET INFO -->
@@ -138,11 +139,12 @@
       (centerCamera)="cameraX = 0; cameraY = 0"
     >
     </app-star-map-navigation>
-  } @else {
+    } @else if (currentView === 'system') {
     <!-- SYSTEM VIEW -->
     <div class="system-view">
       <div class="system-view-hud">
         <div class="game-title">{{ selectedSystem?.name }}</div>
+        <app-faction-currencies [currencies]="getPlayerCurrencies()"></app-faction-currencies>
       </div>
 
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
@@ -248,13 +250,36 @@
           [getEnergyForPlanet]="getEnergyForPlanet"
           [getTaxForPlanet]="getTaxForPlanet"
           (close)="selectedPlanetTile = null"
+          (openPlanet)="openPlanetView()"
         >
         </app-star-map-planet-info>
       }
-    </div>
-  }
+     </div>
+   } @else if (currentView === 'planet') {
+     <!-- PLANET VIEW -->
+     <div class="planet-view">
+       <div class="planet-view-hud">
+         <div class="game-title">{{ selectedPlanetTile?.name }}</div>
+       </div>
 
-  <!-- CONTEXT MENU -->
+       <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
+
+       @if (selectedPlanetTile) {
+          <app-star-map-planet-screen
+            [planet]="selectedPlanetTile"
+            [gridSize]="getPlanetGridSize(selectedPlanetTile)"
+            [planetColor]="getPlanetColor(selectedPlanetTile)"
+            [getFactionName]="boundGetFactionName"
+            [getFactionColor]="boundGetFactionColor"
+            [getFactionCurrencies]="boundGetFactionCurrencies"
+            [getEnergyForPlanet]="getEnergyForPlanet"
+            [getTaxForPlanet]="getTaxForPlanet"
+            (backToStarMap)="leavePlanetView()"
+          >
+         </app-star-map-planet-screen>
+       }
+     </div>
+   }
   <app-star-map-context-menu
     [contextMenu]="contextMenu"
     (selectItem)="onContextMenuSelect($event)"

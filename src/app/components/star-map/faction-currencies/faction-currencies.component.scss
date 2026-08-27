@@ -1,0 +1,44 @@
+.faction-currencies {
+  display: flex;
+  align-items: center;
+  margin-right: 4rem;
+  gap: 1.25rem;
+}
+
+.faction-currencies__item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 0.4em;
+
+  color: var(--color-text);
+
+  font-size: clamp(0.75rem, 1.2vw, 0.95rem);
+
+  letter-spacing: 0.08em;
+
+  white-space: nowrap;
+}
+
+.faction-currencies__icon {
+  display: inline-flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  width: 1.1em;
+
+  height: 1.1em;
+
+  color: var(--color-blue-light);
+}
+
+.faction-currencies__value {
+  font-weight: 600;
+
+  min-width: 2.5ch;
+
+  text-align: right;
+}

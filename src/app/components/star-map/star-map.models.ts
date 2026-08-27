@@ -1,16 +1,40 @@
 export interface PlanetBuilding {
   name: string;
-  count: number;
+  size: number;
+  x: number;
+  y: number;
 }
 
 export type PlanetType = 'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert';
 export type PlanetSize = 'huge' | 'big' | 'medium' | 'small' | 'tiny';
+
+export type PlanetSizeNumber = 1 | 2 | 3 | 4;
+
+export const PLANET_SIZE_MAP: Record<PlanetSize, PlanetSizeNumber> = {
+  tiny: 1,
+  small: 2,
+  medium: 3,
+  big: 4,
+  huge: 4,
+};
+
+export const PLANET_TYPE_COLORS: Record<PlanetType, string> = {
+  earthlike: 'rgb(67, 67, 145)',
+  marslike: 'rgb(94, 26, 26)',
+  venuslike: 'rgb(161, 103, 27)',
+  gasgiant: 'rgb(120, 70, 160)',
+  ice: 'rgb(187, 218, 218)',
+  desert: 'rgb(145, 132, 107)',
+};
+
+export const PLANET_SURFACE_CELL_VW = 3;
 
 export interface Faction {
   id: string;
   name: string;
   color: string;
   team: number;
+  currencies: Record<string, number>;
 }
 
 /*
@@ -43,8 +67,8 @@ export interface StarSystem {
   planets: number;
   color: string;
   planetsTiles: PlanetTile[];
-  gridCol: number;
-  gridRow: number;
+  gridCol?: number;
+  gridRow?: number;
 }
 
 export interface FleetShip {
@@ -89,7 +113,7 @@ export interface StarMapData {
   };
   starSystems: StarSystem[];
   fleets: Fleet[];
-  currentView?: 'map' | 'system';
+  currentView?: 'map' | 'system' | 'planet';
   cameraX?: number;
   cameraY?: number;
   selectedSystemId?: number | null;
@@ -121,8 +145,8 @@ export interface Fleet {
   systemY?: number | null;
   systemTargetX?: number | null;
   systemTargetY?: number | null;
-  gridCol: number;
-  gridRow: number;
+  gridCol?: number;
+  gridRow?: number;
   ships: FleetShip[];
   destroyed?: boolean;
 }

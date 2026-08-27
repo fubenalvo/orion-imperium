@@ -306,8 +306,8 @@ export interface Fleet {
   systemY?: number | null;
   systemTargetX?: number | null;
   systemTargetY?: number | null;
-  gridCol: number;
-  gridRow: number;
+  gridCol?: number;
+  gridRow?: number;
   ships: FleetShip[];
   destroyed?: boolean;
 }

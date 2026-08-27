@@ -1,0 +1,34 @@
+<div class="faction-currencies">
+  @for (currency of currencies; track currency.name) {
+    <div class="faction-currencies__item">
+      <span class="faction-currencies__icon">
+        @switch (currency.name) {
+          @case ('credits') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
+              <circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.3"/>
+            </svg>
+          }
+          @case ('rawmaterials') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
+              <line x1="4" y1="10" x2="20" y2="10" stroke="currentColor" stroke-width="2"/>
+              <line x1="10" y1="4" x2="10" y2="20" stroke="currentColor" stroke-width="2"/>
+            </svg>
+          }
+          @case ('research') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 3H15L12 9L15 15H9L12 21L9 15H3L6 9L3 3H9Z" stroke="currentColor" stroke-width="2" fill="none"/>
+            </svg>
+          }
+          @default {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
+            </svg>
+          }
+        }
+      </span>
+      <span class="faction-currencies__value">{{ currency.value }}</span>
+    </div>
+  }
+</div>

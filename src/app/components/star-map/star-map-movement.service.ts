@@ -85,7 +85,7 @@ export class StarMapMovementService {
     fleets: Fleet[],
     starSystems: StarSystem[],
     selectedFleetId: number | null,
-    currentView: 'map' | 'system',
+    currentView: 'map' | 'system' | 'planet',
     deltaTime: number,
     onTargetReached: (fleetId: number) => void,
     onLeaveSystem: (fleetId: number) => void,

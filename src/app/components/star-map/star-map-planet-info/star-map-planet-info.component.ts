@@ -17,4 +17,5 @@ export class StarMapPlanetInfoComponent {
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
 
   @Output() close = new EventEmitter<void>();
+  @Output() openPlanet = new EventEmitter<void>();
 }

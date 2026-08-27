@@ -9,3 +9,25 @@
   padding-bottom: 0.8em;
   z-index: 120;
 }
+
+.planet-info__open-btn {
+  width: calc(100% - 1.6em);
+  margin: 0 0.8em;
+  padding: 0.5em 0.8em;
+  border: 1px solid var(--color-blue);
+  background: rgba(53, 134, 229, 0.15);
+  color: var(--color-text);
+  font-family: 'Pixelify Sans', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-align: center;
+  text-transform: uppercase;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    background: rgba(53, 134, 229, 0.3);
+    box-shadow: 0 0 12px rgba(53, 134, 229, 0.4);
+  }
+}

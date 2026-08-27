@@ -27,13 +27,17 @@ import {
   ShipType,
   FleetShipTypeSummary,
   ContextMenuItem,
+  PLANET_SIZE_MAP,
+  PLANET_TYPE_COLORS,
 } from './star-map.models';
 
 import { StarMapFleetInfoComponent } from './star-map-fleet-info/star-map-fleet-info.component';
 import { StarMapSystemInfoComponent } from './star-map-system-info/star-map-system-info.component';
 import { StarMapPlanetInfoComponent } from './star-map-planet-info/star-map-planet-info.component';
+import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-planet-screen.component';
 import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
+import { FactionCurrenciesComponent } from './faction-currencies/faction-currencies.component';
 
 export type { StarMapData } from './star-map.models';
 
@@ -67,15 +71,17 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapFleetInfoComponent,
     StarMapSystemInfoComponent,
     StarMapPlanetInfoComponent,
+    StarMapPlanetScreenComponent,
     StarMapFleetButtonsComponent,
     StarMapContextMenuComponent,
+    FactionCurrenciesComponent,
     NgClass,
   ],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
 })
 export class StarMap implements AfterViewInit, OnDestroy {
-  currentView: 'map' | 'system' = 'map';
+  currentView: 'map' | 'system' | 'planet' = 'map';
 
   pauseMenuOpen = false;
 
@@ -268,9 +274,29 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return faction ? faction.name : 'Unknown';
   }
 
+  /** Returns the player's currencies as key-value pairs. */
+  getPlayerCurrencies(): { name: string; value: number }[] {
+    const player = this.factions.find((f) => f.id === 'player');
+    if (!player?.currencies) {
+      return [];
+    }
+    return Object.entries(player.currencies).map(([name, value]) => ({ name, value }));
+  }
+
+  /** Returns a faction's currencies as key-value pairs. */
+  getFactionCurrencies(factionId: string): { name: string; value: number }[] {
+    const faction = this.factions.find((f) => f.id === factionId);
+    if (!faction?.currencies) {
+      return [];
+    }
+    return Object.entries(faction.currencies).map(([name, value]) => ({ name, value }));
+  }
+
   // Bound versions for child component inputs to preserve `this` context
   readonly boundGetFactionColor = this.getFactionColor.bind(this);
   readonly boundGetFactionName = this.getFactionName.bind(this);
+  readonly boundGetFactionCurrencies = this.getFactionCurrencies.bind(this);
+  readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
 
   // Ship type helpers
 
@@ -314,14 +340,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Computes energy production for a planet based on its power-producing buildings. */
   getEnergyForPlanet(planet: PlanetTile): number {
-    const solarPlants = planet.buildings?.find((b) => b.name === 'Solar Array')?.count || 0;
-    const fusionPlants = planet.buildings?.find((b) => b.name === 'Fusion Power Plant')?.count || 0;
+    const solarPlants = planet.buildings?.filter((b) => b.name === 'Solar Array').length || 0;
+    const fusionPlants = planet.buildings?.filter((b) => b.name === 'Fusion Power Plant').length || 0;
     return solarPlants * 40 + fusionPlants * 100;
   }
 
   /** Computes tax income for a planet based on population and industrial buildings. */
   getTaxForPlanet(planet: PlanetTile): number {
-    const factories = planet.buildings?.find((b) => b.name === 'Industrial Factory')?.count || 0;
+    const factories = planet.buildings?.filter((b) => b.name === 'Industrial Factory').length || 0;
     const pop = planet.population || 0;
     return Math.floor(pop * 0.1) + factories * 500;
   }
@@ -333,6 +359,25 @@ export class StarMap implements AfterViewInit, OnDestroy {
       planet.size,
       planet.size ? `planet-size-${planet.size}` : undefined,
     ].filter((className): className is string => Boolean(className));
+  }
+
+  /** Maps a planet's string size to a numeric size (1-4) for grid calculations. */
+  getPlanetNumericSize(planet: PlanetTile): number {
+    return PLANET_SIZE_MAP[planet.size] ?? 3;
+  }
+
+  /**
+   * Returns the grid dimension (side length) for a planet's surface grid.
+   * Formula: size * 2 + 3, so size 1 -> 5, size 2 -> 7, size 3 -> 9, size 4 -> 11.
+   */
+  getPlanetGridSize(planet: PlanetTile): number {
+    const numericSize = this.getPlanetNumericSize(planet);
+    return numericSize * 2 + 3;
+  }
+
+  /** Returns the representative color for a planet based on its type. */
+  getPlanetColor(planet: PlanetTile): string {
+    return PLANET_TYPE_COLORS[planet.type] ?? '#ffffff';
   }
 
   // Selection handlers
@@ -397,6 +442,23 @@ export class StarMap implements AfterViewInit, OnDestroy {
   deselectPlanetTile(): void {
     this.selectedPlanetTile = null;
     this.cdr.detectChanges();
+  }
+
+  // Planet view helpers
+
+  /** Enters the planet surface view, saving game state first. */
+  openPlanetView(): void {
+    if (!this.selectedPlanetTile) {
+      return;
+    }
+    this.saveGame();
+    this.currentView = 'planet';
+  }
+
+  /** Exits the planet surface view back to the system view. */
+  leavePlanetView(): void {
+    this.saveGame();
+    this.currentView = 'system';
   }
 
   /** Selects a star system, or moves the selected fleet to it if in move mode. */

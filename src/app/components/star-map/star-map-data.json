@@ -4,25 +4,29 @@
       "id": "player",
       "name": "Player",
       "color": "#8cc4ff",
-      "team": 1
+      "team": 1,
+      "currencies": { "credits": 1000, "rawmaterials": 1000, "research": 1000 }
     },
     {
       "id": "enemy1",
       "name": "Enemy 1",
       "color": "#d65757",
-      "team": 2
+      "team": 2,
+      "currencies": { "credits": 1000, "rawmaterials": 1000, "research": 1000 }
     },
     {
       "id": "enemy2",
       "name": "Enemy 2",
       "color": "#39b8a8",
-      "team": 2
+      "team": 2,
+      "currencies": { "credits": 1000, "rawmaterials": 1000, "research": 1000 }
     },
     {
       "id": "unhabited",
       "name": "Unhabited",
       "color": "#666666",
-      "team": 0
+      "team": 0,
+      "currencies": { "credits": 1, "rawmaterials": 1, "research": 1 }
     }
   ],
   "map": {
@@ -54,16 +58,28 @@
           "population": 1887,
           "buildings": [
             {
-              "name": "Research Laboratory",
-              "count": 1
-            },
-            {
-              "name": "Laser Turret",
-              "count": 1
+              "name": "Large Residential Block",
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Large Residential Block",
-              "count": 2
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Research Laboratory",
+              "size": 2,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Laser Turret",
+              "size": 1,
+              "x": 0,
+              "y": 3
             }
           ]
         },
@@ -124,15 +140,27 @@
           "buildings": [
             {
               "name": "Entertainment Center",
-              "count": 3
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Solar Array",
-              "count": 3
+              "size": 2,
+              "x": 3,
+              "y": 0
             },
             {
               "name": "Medium Residential Block",
-              "count": 3
+              "size": 2,
+              "x": 0,
+              "y": 3
+            },
+            {
+              "name": "Solar Array",
+              "size": 2,
+              "x": 3,
+              "y": 2
             }
           ]
         },
@@ -165,11 +193,27 @@
           "buildings": [
             {
               "name": "Planetary Shield",
-              "count": 1
+              "size": 2,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Research Laboratory",
-              "count": 3
+              "size": 2,
+              "x": 2,
+              "y": 0
+            },
+            {
+              "name": "Research Laboratory",
+              "size": 2,
+              "x": 4,
+              "y": 0
+            },
+            {
+              "name": "Research Laboratory",
+              "size": 2,
+              "x": 6,
+              "y": 0
             }
           ]
         },
@@ -253,16 +297,40 @@
           "population": 849,
           "buildings": [
             {
-              "name": "Laser Turret",
-              "count": 1
+              "name": "Mining Complex",
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Mining Complex",
-              "count": 2
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Laser Turret",
+              "size": 1,
+              "x": 6,
+              "y": 0
             },
             {
               "name": "Missile Turret",
-              "count": 3
+              "size": 1,
+              "x": 7,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 8,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 6,
+              "y": 1
             }
           ]
         },
@@ -319,15 +387,45 @@
           "buildings": [
             {
               "name": "Large Residential Block",
-              "count": 1
-            },
-            {
-              "name": "Missile Turret",
-              "count": 3
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Hospital",
-              "count": 3
+              "size": 2,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Hospital",
+              "size": 2,
+              "x": 5,
+              "y": 0
+            },
+            {
+              "name": "Hospital",
+              "size": 2,
+              "x": 3,
+              "y": 2
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 7,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 8,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 7,
+              "y": 1
             }
           ]
         },
@@ -360,11 +458,27 @@
           "buildings": [
             {
               "name": "Mining Complex",
-              "count": 2
+              "size": 3,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "name": "Mining Complex",
+              "size": 3,
+              "x": 3,
+              "y": 0
             },
             {
               "name": "Research Laboratory",
-              "count": 2
+              "size": 2,
+              "x": 0,
+              "y": 3
+            },
+            {
+              "name": "Research Laboratory",
+              "size": 2,
+              "x": 2,
+              "y": 3
             }
           ]
         },
@@ -487,15 +601,51 @@
           "buildings": [
             {
               "name": "Central Park",
-              "count": 3
+              "size": 2,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "name": "Central Park",
+              "size": 2,
+              "x": 2,
+              "y": 0
+            },
+            {
+              "name": "Central Park",
+              "size": 2,
+              "x": 4,
+              "y": 0
             },
             {
               "name": "School",
-              "count": 2
+              "size": 2,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "School",
+              "size": 2,
+              "x": 0,
+              "y": 2
             },
             {
               "name": "Medium Residential Block",
-              "count": 3
+              "size": 2,
+              "x": 2,
+              "y": 2
+            },
+            {
+              "name": "Medium Residential Block",
+              "size": 2,
+              "x": 4,
+              "y": 2
+            },
+            {
+              "name": "Medium Residential Block",
+              "size": 2,
+              "x": 6,
+              "y": 2
             }
           ]
         },
@@ -513,16 +663,46 @@
           "population": 618,
           "buildings": [
             {
-              "name": "Laser Turret",
-              "count": 1
+              "name": "Solar Array",
+              "size": 2,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Solar Array",
-              "count": 3
+              "size": 2,
+              "x": 2,
+              "y": 0
+            },
+            {
+              "name": "Solar Array",
+              "size": 2,
+              "x": 4,
+              "y": 0
+            },
+            {
+              "name": "Laser Turret",
+              "size": 1,
+              "x": 6,
+              "y": 0
             },
             {
               "name": "Missile Turret",
-              "count": 3
+              "size": 1,
+              "x": 7,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 8,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 6,
+              "y": 1
             }
           ]
         },
@@ -541,11 +721,21 @@
           "buildings": [
             {
               "name": "Solar Array",
-              "count": 1
+              "size": 2,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Medium Residential Block",
-              "count": 2
+              "size": 2,
+              "x": 2,
+              "y": 0
+            },
+            {
+              "name": "Medium Residential Block",
+              "size": 2,
+              "x": 4,
+              "y": 0
             }
           ]
         },
@@ -563,16 +753,28 @@
           "population": 767,
           "buildings": [
             {
-              "name": "Hospital",
-              "count": 2
-            },
-            {
               "name": "Large Residential Block",
-              "count": 1
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Entertainment Center",
-              "count": 1
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Hospital",
+              "size": 2,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Hospital",
+              "size": 2,
+              "x": 6,
+              "y": 2
             }
           ]
         },
@@ -591,11 +793,27 @@
           "buildings": [
             {
               "name": "Large Residential Block",
-              "count": 1
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Mining Complex",
-              "count": 3
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Mining Complex",
+              "size": 3,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Mining Complex",
+              "size": 3,
+              "x": 0,
+              "y": 3
             }
           ]
         },
@@ -651,16 +869,40 @@
           "population": 408,
           "buildings": [
             {
-              "name": "Small Residential Block",
-              "count": 2
+              "name": "Hospital",
+              "size": 2,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Hospital",
-              "count": 2
+              "size": 2,
+              "x": 2,
+              "y": 0
             },
             {
               "name": "Central Park",
-              "count": 2
+              "size": 2,
+              "x": 4,
+              "y": 0
+            },
+            {
+              "name": "Central Park",
+              "size": 2,
+              "x": 0,
+              "y": 2
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 2,
+              "y": 2
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 3,
+              "y": 2
             }
           ]
         },
@@ -678,12 +920,34 @@
           "population": 1537,
           "buildings": [
             {
-              "name": "Planetary Shield",
-              "count": 3
+              "name": "Large Residential Block",
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Large Residential Block",
-              "count": 2
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 8,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 6,
+              "y": 2
             }
           ]
         },
@@ -702,11 +966,39 @@
           "buildings": [
             {
               "name": "Laser Turret",
-              "count": 3
+              "size": 1,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "name": "Laser Turret",
+              "size": 1,
+              "x": 1,
+              "y": 0
+            },
+            {
+              "name": "Laser Turret",
+              "size": 1,
+              "x": 2,
+              "y": 0
             },
             {
               "name": "Small Residential Block",
-              "count": 3
+              "size": 1,
+              "x": 0,
+              "y": 1
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 1,
+              "y": 1
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 2,
+              "y": 1
             }
           ]
         }
@@ -734,12 +1026,22 @@
           "population": 507,
           "buildings": [
             {
-              "name": "Planetary Shield",
-              "count": 2
+              "name": "Fusion Power Plant",
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
-              "name": "Fusion Power Plant",
-              "count": 1
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 5,
+              "y": 0
             }
           ]
         },
@@ -771,16 +1073,58 @@
           "population": 655,
           "buildings": [
             {
-              "name": "Planetary Shield",
-              "count": 3
+              "name": "Entertainment Center",
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Entertainment Center",
-              "count": 3
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Entertainment Center",
+              "size": 3,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 0,
+              "y": 3
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 2,
+              "y": 3
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 4,
+              "y": 3
             },
             {
               "name": "Small Residential Block",
-              "count": 3
+              "size": 1,
+              "x": 0,
+              "y": 5
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 1,
+              "y": 5
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 2,
+              "y": 5
             }
           ]
         },
@@ -827,15 +1171,15 @@
           "buildings": [
             {
               "name": "Mining Complex",
-              "count": 2
-            },
-            {
-              "name": "Entertainment Center",
-              "count": 2
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Research Laboratory",
-              "count": 1
+              "size": 2,
+              "x": 0,
+              "y": 3
             }
           ]
         },
@@ -882,11 +1226,21 @@
           "buildings": [
             {
               "name": "Hospital",
-              "count": 1
+              "size": 2,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Missile Turret",
-              "count": 2
+              "size": 1,
+              "x": 2,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 3,
+              "y": 0
             }
           ]
         }
@@ -914,12 +1268,28 @@
           "population": 1704,
           "buildings": [
             {
-              "name": "Small Residential Block",
-              "count": 2
+              "name": "Large Residential Block",
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Large Residential Block",
-              "count": 2
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 7,
+              "y": 0
             }
           ]
         },
@@ -976,15 +1346,57 @@
           "buildings": [
             {
               "name": "Planetary Shield",
-              "count": 3
+              "size": 2,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 2,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 4,
+              "y": 0
             },
             {
               "name": "Research Laboratory",
-              "count": 3
+              "size": 2,
+              "x": 0,
+              "y": 2
+            },
+            {
+              "name": "Research Laboratory",
+              "size": 2,
+              "x": 2,
+              "y": 2
+            },
+            {
+              "name": "Research Laboratory",
+              "size": 2,
+              "x": 4,
+              "y": 2
             },
             {
               "name": "Solar Array",
-              "count": 3
+              "size": 2,
+              "x": 0,
+              "y": 4
+            },
+            {
+              "name": "Solar Array",
+              "size": 2,
+              "x": 2,
+              "y": 4
+            },
+            {
+              "name": "Solar Array",
+              "size": 2,
+              "x": 4,
+              "y": 4
             }
           ]
         },
@@ -1003,15 +1415,33 @@
           "buildings": [
             {
               "name": "Mining Complex",
-              "count": 1
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Fusion Power Plant",
-              "count": 3
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Fusion Power Plant",
+              "size": 3,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Fusion Power Plant",
+              "size": 3,
+              "x": 0,
+              "y": 3
             },
             {
               "name": "Medium Residential Block",
-              "count": 1
+              "size": 2,
+              "x": 3,
+              "y": 3
             }
           ]
         },
@@ -1044,15 +1474,27 @@
           "buildings": [
             {
               "name": "Large Residential Block",
-              "count": 2
-            },
-            {
-              "name": "Missile Turret",
-              "count": 1
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Hospital",
-              "count": 3
+              "size": 2,
+              "x": 0,
+              "y": 3
+            },
+            {
+              "name": "Hospital",
+              "size": 2,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 3,
+              "y": 2
             }
           ]
         }
@@ -1080,16 +1522,40 @@
           "population": 501,
           "buildings": [
             {
-              "name": "Small Residential Block",
-              "count": 2
-            },
-            {
-              "name": "Planetary Shield",
-              "count": 1
+              "name": "Entertainment Center",
+              "size": 3,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Entertainment Center",
-              "count": 3
+              "size": 3,
+              "x": 3,
+              "y": 0
+            },
+            {
+              "name": "Entertainment Center",
+              "size": 3,
+              "x": 6,
+              "y": 0
+            },
+            {
+              "name": "Planetary Shield",
+              "size": 2,
+              "x": 0,
+              "y": 3
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 2,
+              "y": 3
+            },
+            {
+              "name": "Small Residential Block",
+              "size": 1,
+              "x": 3,
+              "y": 3
             }
           ]
         },
@@ -1107,12 +1573,34 @@
           "population": 1079,
           "buildings": [
             {
-              "name": "Missile Turret",
-              "count": 3
+              "name": "Hospital",
+              "size": 2,
+              "x": 0,
+              "y": 0
             },
             {
               "name": "Hospital",
-              "count": 2
+              "size": 2,
+              "x": 2,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 4,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 5,
+              "y": 0
+            },
+            {
+              "name": "Missile Turret",
+              "size": 1,
+              "x": 6,
+              "y": 0
             }
           ]
         },
@@ -1145,11 +1633,27 @@
           "buildings": [
             {
               "name": "Laser Turret",
-              "count": 3
+              "size": 1,
+              "x": 0,
+              "y": 0
+            },
+            {
+              "name": "Laser Turret",
+              "size": 1,
+              "x": 1,
+              "y": 0
+            },
+            {
+              "name": "Laser Turret",
+              "size": 1,
+              "x": 2,
+              "y": 0
             },
             {
               "name": "Missile Turret",
-              "count": 1
+              "size": 1,
+              "x": 3,
+              "y": 0
             }
           ]
         },

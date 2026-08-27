@@ -52,7 +52,7 @@ export class MainMenu {
    * The starMapData JSON is cast to StarMapData; it contains the initial game state.
    */
   newGame(slotIndex: number): void {
-    const defaultData = starMapData as StarMapData;
+    const defaultData = structuredClone(starMapData) as StarMapData;
     this.saveGameService.saveToSlot(slotIndex, defaultData);
     this.saveGameService.currentSlot = slotIndex;
     this.router.navigate(['/star-map']);

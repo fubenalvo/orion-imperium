@@ -17,11 +17,21 @@
     <div class="planet-buildings__title">
       BUILDINGS ({{ planet?.buildings.length }})
     </div>
-    @for (b of planet?.buildings; track b.name) {
+    @for (b of planet?.buildings; track $index) {
       <div class="planet-buildings__row">
         <span class="planet-buildings__name">{{ b.name }}</span>
-        <span class="planet-buildings__count">x{{ b.count }}</span>
+        <span class="planet-buildings__size">{{ b.size }}x{{ b.size }}</span>
       </div>
     }
+
+    <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
+
+    <button
+      class="planet-info__open-btn"
+      type="button"
+      (click)="openPlanet.emit(); $event.stopPropagation()"
+    >
+      OPEN PLANET
+    </button>
   </div>
 </div>

@@ -1,0 +1,94 @@
+<div class="planet-screen">
+  <!-- PLANET SURFACE GRID -->
+  <div
+    class="planet-surface"
+    [style.--planet-color]="planetColor"
+    [style.grid-template-columns]="gridTemplateColumns"
+    [style.grid-template-rows]="gridTemplateColumns"
+  >
+    @for (row of gridCells; track row) {
+      @for (col of gridCells; track col) {
+        <div
+          class="planet-surface__cell"
+          [style.grid-column]="col + 1"
+          [style.grid-row]="row + 1"
+        ></div>
+      }
+    }
+
+    @for (b of planet?.buildings; track $index) {
+      <div
+        class="planet-surface__building"
+        [style.--building-x]="b.x"
+        [style.--building-y]="b.y"
+        [style.--building-size]="b.size"
+      >
+        {{ b.name }}
+      </div>
+    }
+  </div>
+
+  <!-- DETAILS SIDEBAR -->
+  <div class="planet-sidebar panel-style">
+    <div class="panel-style__title">
+      {{ planet?.name }} SURFACE
+    </div>
+
+    <div class="planet-sidebar__buttons">
+      <button class="planet-sidebar__btn" type="button">BUILD</button>
+      <button class="planet-sidebar__btn" type="button">DETAILS</button>
+    </div>
+
+    <div class="planet-sidebar__content">
+      <div class="planet-sidebar__info-row">
+        <span>TYPE</span>
+        <span>{{ planet?.type | uppercase }}</span>
+      </div>
+
+      <div class="planet-sidebar__info-row">
+        <span>FACTION</span>
+        <span [style.color]="getFactionColor(planet!.factionId)"
+          >{{ getFactionName(planet!.factionId) }}</span
+        >
+      </div>
+
+      <div class="planet-sidebar__currencies">
+        <app-faction-currencies [currencies]="getFactionCurrencies(planet!.factionId)"></app-faction-currencies>
+      </div>
+
+      <hr class="planet-sidebar__divider" />
+
+      <div class="planet-sidebar__info-row">
+        <span>POPULATION</span>
+        <span>{{ planet?.population }}</span>
+      </div>
+
+      <div class="planet-sidebar__info-row">
+        <span>ENERGY</span>
+        <span>{{ getEnergyForPlanet(planet!) }}</span>
+      </div>
+
+      <div class="planet-sidebar__info-row">
+        <span>DAILY TAX</span>
+        <span>{{ getTaxForPlanet(planet!) }}</span>
+      </div>
+
+      <hr class="planet-sidebar__divider" />
+
+      <div class="planet-sidebar__buildings-title">
+        BUILDINGS ({{ planet?.buildings.length }})
+      </div>
+
+      @for (b of planet?.buildings; track $index) {
+        <div class="planet-sidebar__building-row">
+          <span class="planet-sidebar__building-name">{{ b.name }}</span>
+          <span class="planet-sidebar__building-size">{{ b.size }}x{{ b.size }}</span>
+        </div>
+      }
+    </div>
+
+    <button class="planet-sidebar__back-btn" type="button" (click)="backToStarMap.emit()">
+      BACK TO STAR MAP
+    </button>
+  </div>
+</div>
