@@ -13,7 +13,8 @@
       "defense": 2,
       "speed": 5,
       "range": 3,
-      "cost": 50
+      "cost": 50,
+      "maintenanceCost": 2
     },
     {
       "id": "fighter",
@@ -28,7 +29,8 @@
       "defense": 3,
       "speed": 5,
       "range": 2,
-      "cost": 75
+      "cost": 75,
+      "maintenanceCost": 3
     },
     {
       "id": "corvette",
@@ -43,7 +45,8 @@
       "defense": 5,
       "speed": 4,
       "range": 2,
-      "cost": 120
+      "cost": 120,
+      "maintenanceCost": 5
     },
     {
       "id": "frigate",
@@ -58,7 +61,8 @@
       "defense": 8,
       "speed": 4,
       "range": 3,
-      "cost": 180
+      "cost": 180,
+      "maintenanceCost": 8
     },
     {
       "id": "destroyer",
@@ -73,7 +77,8 @@
       "defense": 10,
       "speed": 3,
       "range": 3,
-      "cost": 260
+      "cost": 260,
+      "maintenanceCost": 12
     },
     {
       "id": "cruiser",
@@ -88,7 +93,8 @@
       "defense": 14,
       "speed": 3,
       "range": 3,
-      "cost": 400
+      "cost": 400,
+      "maintenanceCost": 18
     },
     {
       "id": "carrier",
@@ -103,7 +109,8 @@
       "defense": 12,
       "speed": 2,
       "range": 4,
-      "cost": 500
+      "cost": 500,
+      "maintenanceCost": 22
     },
     {
       "id": "battleship",
@@ -118,7 +125,8 @@
       "defense": 20,
       "speed": 2,
       "range": 4,
-      "cost": 700
+      "cost": 700,
+      "maintenanceCost": 32
     },
     {
       "id": "battlecruiser",
@@ -133,7 +141,8 @@
       "defense": 16,
       "speed": 3,
       "range": 5,
-      "cost": 750
+      "cost": 750,
+      "maintenanceCost": 35
     },
     {
       "id": "dreadnought",
@@ -148,7 +157,8 @@
       "defense": 28,
       "speed": 1,
       "range": 5,
-      "cost": 1200
+      "cost": 1200,
+      "maintenanceCost": 55
     }
   ]
 }

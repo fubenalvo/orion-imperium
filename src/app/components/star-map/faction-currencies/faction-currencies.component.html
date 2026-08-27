@@ -1,34 +1,117 @@
 <div class="faction-currencies">
   @for (currency of currencies; track currency.name) {
-    <div class="faction-currencies__item">
-      <span class="faction-currencies__icon">
-        @switch (currency.name) {
-          @case ('credits') {
+    <div class="faction-currencies__item" [class.faction-currencies__item--credits]="currency.name === 'credits'">
+      @switch (currency.name) {
+        @case ('credits') {
+          <span class="faction-currencies__icon faction-currencies__icon--clickable" (click)="toggleBreakdown()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/>
               <circle cx="12" cy="12" r="5" fill="currentColor" opacity="0.3"/>
             </svg>
-          }
-          @case ('rawmaterials') {
+          </span>
+        }
+        @case ('rawmaterials') {
+          <span class="faction-currencies__icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" stroke-width="2" fill="none"/>
               <line x1="4" y1="10" x2="20" y2="10" stroke="currentColor" stroke-width="2"/>
               <line x1="10" y1="4" x2="10" y2="20" stroke="currentColor" stroke-width="2"/>
             </svg>
-          }
-          @case ('research') {
+          </span>
+        }
+        @case ('research') {
+          <span class="faction-currencies__icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M9 3H15L12 9L15 15H9L12 21L9 15H3L6 9L3 3H9Z" stroke="currentColor" stroke-width="2" fill="none"/>
             </svg>
-          }
-          @default {
+          </span>
+        }
+        @default {
+          <span class="faction-currencies__icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="2" fill="none"/>
             </svg>
-          }
+          </span>
         }
-      </span>
-      <span class="faction-currencies__value">{{ currency.value }}</span>
+      }
+      <span class="faction-currencies__value" [class.faction-currencies__value--clickable]="currency.name === 'credits'" (click)="currency.name === 'credits' ? toggleBreakdown() : null">{{ currency.value | number:'1.0-0' }}</span>
+    </div>
+  }
+
+  @if (showBreakdown && economyBreakdown) {
+    <div class="faction-currencies__overlay" (click)="closeBreakdown()">
+      <div class="faction-currencies__overlay-content" (click)="$event.stopPropagation()">
+        <div class="faction-currencies__overlay-title">Economy Breakdown</div>
+        <div class="faction-currencies__overlay-section">
+          <div class="faction-currencies__overlay-row">
+            <span>Total Population:</span>
+            <span>{{ economyBreakdown.totalPopulation | number:'1.0-0' }}</span>
+          </div>
+          <div class="faction-currencies__overlay-row faction-currencies__overlay-row--income">
+            <span>Income:</span>
+            <span>+{{ economyBreakdown.incomePerSecond | number:'1.0-0' }}/sec</span>
+          </div>
+          <div class="faction-currencies__overlay-row faction-currencies__overlay-row--expense">
+            <span>Expenses:</span>
+            <span>-{{ economyBreakdown.expensePerSecond | number:'1.0-0' }}/sec</span>
+          </div>
+          <div class="faction-currencies__overlay-row faction-currencies__overlay-row--net">
+            <span>Net:</span>
+            <span>{{ economyBreakdown.netPerSecond >= 0 ? '+' : '' }}{{ economyBreakdown.netPerSecond | number:'1.0-0' }}/sec</span>
+          </div>
+        </div>
+        @if (economyBreakdown.planets.length > 0) {
+          <div class="faction-currencies__overlay-section">
+            <div class="faction-currencies__overlay-section-title">Planets</div>
+            @for (planet of economyBreakdown.planets; track planet.planetName) {
+              <div class="faction-currencies__planet-block">
+                <div class="faction-currencies__overlay-row faction-currencies__planet-row" (click)="togglePlanet(planet.planetName)">
+                  <span>
+                    {{ planet.planetName }}
+                    <span class="faction-currencies__planet-pop">({{ planet.population | number:'1.0-0' }} pop)</span>
+                  </span>
+                  <span class="faction-currencies__planet-net" [class.faction-currencies__planet-net--positive]="planet.net >= 0" [class.faction-currencies__planet-net--negative]="planet.net < 0">
+                    {{ planet.net >= 0 ? '+' : '' }}{{ planet.net | number:'1.0-0' }}/sec
+                  </span>
+                </div>
+                @if (isPlanetExpanded(planet.planetName)) {
+                  <div class="faction-currencies__planet-details">
+                    <div class="faction-currencies__overlay-row faction-currencies__overlay-row--income">
+                       <span>Income:</span>
+                       <span>+{{ planet.income | number:'1.0-0' }}/sec</span>
+                    </div>
+                    <div class="faction-currencies__overlay-row faction-currencies__overlay-row--expense">
+                       <span>Expenses:</span>
+                       <span>-{{ planet.expense | number:'1.0-0' }}/sec</span>
+                    </div>
+                    @if (planet.buildings.length > 0) {
+                      <div class="faction-currencies__planet-buildings">
+                        @for (building of planet.buildings; track building.buildingName) {
+                          <div class="faction-currencies__overlay-row">
+                            <span>{{ building.buildingName }} ({{ building.count }})</span>
+                             <span>-{{ building.totalCost | number:'1.0-0' }}/sec</span>
+                          </div>
+                        }
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+        @if (economyBreakdown.fleetExpenses.length > 0) {
+          <div class="faction-currencies__overlay-section">
+            <div class="faction-currencies__overlay-section-title">Fleet Maintenance</div>
+            @for (entry of economyBreakdown.fleetExpenses; track entry) {
+              <div class="faction-currencies__overlay-row">
+                <span>{{ entry.fleetName }} - {{ entry.shipType }} x{{ entry.count }}</span>
+                 <span>-{{ entry.totalCost | number:'1.0-0' }}/sec</span>
+              </div>
+            }
+          </div>
+        }
+      </div>
     </div>
   }
 </div>

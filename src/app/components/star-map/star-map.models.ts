@@ -93,6 +93,7 @@ export interface ShipType {
   speed: number;
   range: number;
   cost: number;
+  maintenanceCost: number;
 }
 
 export interface FleetShipTypeSummary {

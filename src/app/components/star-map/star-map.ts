@@ -11,6 +11,7 @@ import { Router } from '@angular/router';
 import { BattleService } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { SaveGameService } from '../../services/save-game.service';
+import { EconomyService } from '../../services/economy.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
@@ -30,6 +31,8 @@ import {
   PLANET_SIZE_MAP,
   PLANET_TYPE_COLORS,
 } from './star-map.models';
+
+import { EconomyBreakdown } from '../../services/economy.service';
 
 import { StarMapFleetInfoComponent } from './star-map-fleet-info/star-map-fleet-info.component';
 import { StarMapSystemInfoComponent } from './star-map-system-info/star-map-system-info.component';
@@ -130,6 +133,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   // Battle tracking
   private triggeredBattles = new Set<string>();
 
+  private economyAccumulator = 0;
+  private readonly economyTickInterval = 1;
+  private cachedPlayerEconomyBreakdown: EconomyBreakdown | null = null;
+
   constructor(
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
@@ -137,6 +144,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private battleService: BattleService,
     private saveGameService: SaveGameService,
     private shipService: ShipService,
+    private economyService: EconomyService,
     private gameLoopService: StarMapGameLoopService,
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
@@ -283,6 +291,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return Object.entries(player.currencies).map(([name, value]) => ({ name, value }));
   }
 
+  /** Returns the player's economy breakdown for the currency overlay. */
+  getPlayerEconomyBreakdown(): EconomyBreakdown {
+    if (this.cachedPlayerEconomyBreakdown) {
+      return this.cachedPlayerEconomyBreakdown;
+    }
+    return this.economyService.calculateEconomy('player', this.factions, this.starSystems, this.fleets);
+  }
+
   /** Returns a faction's currencies as key-value pairs. */
   getFactionCurrencies(factionId: string): { name: string; value: number }[] {
     const faction = this.factions.find((f) => f.id === factionId);
@@ -296,6 +312,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetFactionColor = this.getFactionColor.bind(this);
   readonly boundGetFactionName = this.getFactionName.bind(this);
   readonly boundGetFactionCurrencies = this.getFactionCurrencies.bind(this);
+  readonly boundGetPlayerEconomyBreakdown = this.getPlayerEconomyBreakdown.bind(this);
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
 
   // Ship type helpers
@@ -775,8 +792,30 @@ export class StarMap implements AfterViewInit, OnDestroy {
     console.log('[StarMap] startGameLoop called');
     this.gameLoopService.startGameLoop((deltaTime: number) => {
       const didMoveFleets = this.updateFleets(deltaTime);
-      if (didMoveFleets) {
-        console.log('[StarMap] Fleets moved, triggering change detection');
+
+      this.economyAccumulator += deltaTime;
+      let economyUpdated = false;
+      if (this.economyAccumulator >= this.economyTickInterval) {
+        for (const faction of this.factions) {
+          this.economyService.applyEconomyDelta(
+            faction.id,
+            this.factions,
+            this.starSystems,
+            this.fleets,
+            this.economyAccumulator,
+          );
+        }
+        this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy(
+          'player',
+          this.factions,
+          this.starSystems,
+          this.fleets,
+        );
+        this.economyAccumulator = 0;
+        economyUpdated = true;
+      }
+
+      if (didMoveFleets || economyUpdated) {
         this.ngZone.run(() => this.cdr.detectChanges());
       }
     });
@@ -846,7 +885,30 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.isPaused = false;
     this.gameLoopService.resumeGame((deltaTime: number) => {
       const didMoveFleets = this.updateFleets(deltaTime);
-      if (didMoveFleets) {
+
+      this.economyAccumulator += deltaTime;
+      let economyUpdated = false;
+      if (this.economyAccumulator >= this.economyTickInterval) {
+        for (const faction of this.factions) {
+          this.economyService.applyEconomyDelta(
+            faction.id,
+            this.factions,
+            this.starSystems,
+            this.fleets,
+            this.economyAccumulator,
+          );
+        }
+        this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy(
+          'player',
+          this.factions,
+          this.starSystems,
+          this.fleets,
+        );
+        this.economyAccumulator = 0;
+        economyUpdated = true;
+      }
+
+      if (didMoveFleets || economyUpdated) {
         this.ngZone.run(() => this.cdr.detectChanges());
       }
     });

@@ -92,7 +92,7 @@
     <!-- TOP HUD -->
     <div class="top-hud">
       <div class="game-title">STAR MAP</div>
-      <app-faction-currencies [currencies]="getPlayerCurrencies()"></app-faction-currencies>
+      <app-faction-currencies [currencies]="getPlayerCurrencies()" [economyBreakdown]="boundGetPlayerEconomyBreakdown()"></app-faction-currencies>
     </div>
 
     <!-- SELECTED FLEET INFO -->
@@ -144,7 +144,7 @@
     <div class="system-view">
       <div class="system-view-hud">
         <div class="game-title">{{ selectedSystem?.name }}</div>
-        <app-faction-currencies [currencies]="getPlayerCurrencies()"></app-faction-currencies>
+        <app-faction-currencies [currencies]="getPlayerCurrencies()" [economyBreakdown]="boundGetPlayerEconomyBreakdown()"></app-faction-currencies>
       </div>
 
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
@@ -257,10 +257,11 @@
      </div>
    } @else if (currentView === 'planet') {
      <!-- PLANET VIEW -->
-     <div class="planet-view">
-       <div class="planet-view-hud">
-         <div class="game-title">{{ selectedPlanetTile?.name }}</div>
-       </div>
+      <div class="planet-view">
+        <div class="planet-view-hud">
+          <div class="game-title">{{ selectedPlanetTile?.name }}</div>
+          <app-faction-currencies [currencies]="getPlayerCurrencies()" [economyBreakdown]="boundGetPlayerEconomyBreakdown()"></app-faction-currencies>
+        </div>
 
        <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
 
