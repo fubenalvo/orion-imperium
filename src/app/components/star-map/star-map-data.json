@@ -5,28 +5,44 @@
       "name": "Player",
       "color": "#8cc4ff",
       "team": 1,
-      "currencies": { "credits": 1000, "rawmaterials": 1000, "research": 1000 }
+      "currencies": {
+        "credits": 1000,
+        "rawmaterials": 1000,
+        "research": 1000
+      }
     },
     {
       "id": "enemy1",
       "name": "Enemy 1",
       "color": "#d65757",
       "team": 2,
-      "currencies": { "credits": 1000, "rawmaterials": 1000, "research": 1000 }
+      "currencies": {
+        "credits": 1000,
+        "rawmaterials": 1000,
+        "research": 1000
+      }
     },
     {
       "id": "enemy2",
       "name": "Enemy 2",
       "color": "#39b8a8",
       "team": 2,
-      "currencies": { "credits": 1000, "rawmaterials": 1000, "research": 1000 }
+      "currencies": {
+        "credits": 1000,
+        "rawmaterials": 1000,
+        "research": 1000
+      }
     },
     {
       "id": "unhabited",
       "name": "Unhabited",
       "color": "#666666",
       "team": 0,
-      "currencies": { "credits": 1, "rawmaterials": 1, "research": 1 }
+      "currencies": {
+        "credits": 1,
+        "rawmaterials": 1,
+        "research": 1
+      }
     }
   ],
   "map": {
@@ -286,7 +302,7 @@
         {
           "id": 12,
           "index": 4,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Auralis",
           "x": -40,
           "y": -50,
@@ -375,7 +391,7 @@
         {
           "id": 15,
           "index": 2,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Kyrion",
           "x": -100,
           "y": -50,
@@ -446,7 +462,7 @@
         {
           "id": 17,
           "index": 4,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Lunaris",
           "x": -60,
           "y": -50,
@@ -589,7 +605,7 @@
         {
           "id": 24,
           "index": 2,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Brighthold",
           "x": -100,
           "y": -50,
@@ -652,7 +668,7 @@
         {
           "id": 25,
           "index": 3,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Xandros",
           "x": -80,
           "y": -50,
@@ -709,7 +725,7 @@
         {
           "id": 26,
           "index": 4,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Ilyria",
           "x": -60,
           "y": -50,
@@ -742,7 +758,7 @@
         {
           "id": 27,
           "index": 5,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Morvain",
           "x": -40,
           "y": -50,
@@ -781,7 +797,7 @@
         {
           "id": 28,
           "index": 6,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Celestia",
           "x": -20,
           "y": -50,
@@ -858,7 +874,7 @@
         {
           "id": 31,
           "index": 2,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Sablemere",
           "x": -100,
           "y": -50,
@@ -909,7 +925,7 @@
         {
           "id": 32,
           "index": 3,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Aetheris",
           "x": -80,
           "y": -50,
@@ -954,7 +970,7 @@
         {
           "id": 33,
           "index": 4,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Korrath",
           "x": -60,
           "y": -50,
@@ -1015,7 +1031,7 @@
         {
           "id": 34,
           "index": 1,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Ydris",
           "x": -120,
           "y": -50,
@@ -1062,7 +1078,7 @@
         {
           "id": 36,
           "index": 3,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Oberyn",
           "x": -80,
           "y": -50,
@@ -1159,7 +1175,7 @@
         {
           "id": 39,
           "index": 6,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Duskfall",
           "x": -20,
           "y": -50,
@@ -1214,7 +1230,7 @@
         {
           "id": 42,
           "index": 9,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Cryos",
           "x": 40,
           "y": -50,
@@ -1257,7 +1273,7 @@
         {
           "id": 43,
           "index": 1,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Vaelora",
           "x": -120,
           "y": -50,
@@ -1334,7 +1350,7 @@
         {
           "id": 46,
           "index": 2,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Sylvara",
           "x": -100,
           "y": -50,
@@ -1403,7 +1419,7 @@
         {
           "id": 47,
           "index": 3,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Tenebris",
           "x": -80,
           "y": -50,
@@ -1462,7 +1478,7 @@
         {
           "id": 49,
           "index": 5,
-          "factionId": "player",
+          "factionId": "enemy2",
           "name": "Mistral",
           "x": -40,
           "y": -50,
@@ -1511,7 +1527,7 @@
         {
           "id": 50,
           "index": 1,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Obsidia",
           "x": -120,
           "y": -50,
@@ -1562,7 +1578,7 @@
         {
           "id": 51,
           "index": 2,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Elyndor",
           "x": -100,
           "y": -50,
@@ -1621,7 +1637,7 @@
         {
           "id": 53,
           "index": 4,
-          "factionId": "player",
+          "factionId": "enemy1",
           "name": "Kharon",
           "x": -60,
           "y": -50,
