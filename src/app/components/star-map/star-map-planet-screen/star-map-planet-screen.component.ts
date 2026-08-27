@@ -2,6 +2,30 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PlanetTile, PLANET_SURFACE_CELL_VW } from '../star-map.models';
 import { FactionCurrenciesComponent } from '../faction-currencies/faction-currencies.component';
+import planetData from '../planet-data.json';
+
+export interface BuildingType {
+  id: string;
+  name: string;
+  role: string;
+  price: number;
+  size: number;
+  maintenanceCost: number;
+  population: number;
+  workforce: number;
+  moraleRate: number;
+  energyConsumption: number;
+  energyProduction: number;
+  defense: {
+    type: string;
+    attack?: number;
+    attackType?: string;
+    range?: number;
+    weakness?: string;
+    shield?: number;
+    shieldRegen?: number;
+  } | null;
+}
 
 /*
  * =========================================================
@@ -33,10 +57,15 @@ export class StarMapPlanetScreenComponent {
   @Input() getFactionCurrencies: (factionId: string) => { name: string; value: number }[] = () => [];
   @Input() getEnergyForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
+  @Input() getPlayerCredits: () => number = () => 0;
+  @Input() onSelectBuildingType: (buildingId: string) => void = () => {};
 
   @Output() backToStarMap = new EventEmitter<void>();
 
   readonly cellVw = PLANET_SURFACE_CELL_VW;
+  readonly buildingTypes: BuildingType[] = (planetData as { buildings: BuildingType[] }).buildings;
+
+  showBuildMenu = false;
 
   /** Returns an array [0, 1, ..., gridSize-1] for rendering grid cells. */
   get gridCells(): number[] {
@@ -46,5 +75,22 @@ export class StarMapPlanetScreenComponent {
   /** Returns the CSS grid template string for the planet surface grid. */
   get gridTemplateColumns(): string {
     return `repeat(${this.gridSize}, ${this.cellVw}vw)`;
+  }
+
+  openBuildMenu(): void {
+    this.showBuildMenu = true;
+  }
+
+  closeBuildMenu(): void {
+    this.showBuildMenu = false;
+  }
+
+  selectBuildingType(buildingId: string): void {
+    this.onSelectBuildingType(buildingId);
+    this.closeBuildMenu();
+  }
+
+  canAfford(building: BuildingType): boolean {
+    return this.getPlayerCredits() >= building.price;
   }
 }

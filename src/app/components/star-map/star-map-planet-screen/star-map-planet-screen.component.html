@@ -48,9 +48,31 @@
       </div>
 
       <div class="planet-sidebar__buttons">
-        <button class="planet-sidebar__btn" type="button">BUILD</button>
-        <button class="planet-sidebar__btn" type="button">DETAILS</button>
+        <button class="planet-sidebar__btn" type="button" (click)="openBuildMenu()">BUILD</button>
+        <button class="planet-sideet__btn" type="button">DETAILS</button>
       </div>
+
+      @if (showBuildMenu) {
+        <div class="build-overlay">
+          <div class="build-overlay__panel">
+            <div class="build-overlay__title">SELECT BUILDING</div>
+            <div class="build-overlay__list">
+              @for (building of buildingTypes; track building.id) {
+                <button
+                  class="build-overlay__item"
+                  type="button"
+                  [disabled]="!canAfford(building)"
+                  (click)="selectBuildingType(building.id)"
+                >
+                  <span class="build-overlay__name">{{ building.name }}</span>
+                  <span class="build-overlay__price">{{ building.price }} CR</span>
+                </button>
+              }
+            </div>
+            <button class="build-overlay__close" type="button" (click)="closeBuildMenu()">CLOSE</button>
+          </div>
+        </div>
+      }
 
       <div class="planet-sidebar__content">
         <div class="planet-sidebar__info-row">

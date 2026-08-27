@@ -265,7 +265,7 @@
 
        <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
 
-       @if (selectedPlanetTile) {
+        @if (selectedPlanetTile) {
           <app-star-map-planet-screen
             [planet]="selectedPlanetTile"
             [gridSize]="getPlanetGridSize(selectedPlanetTile)"
@@ -275,10 +275,12 @@
             [getFactionCurrencies]="boundGetFactionCurrencies"
             [getEnergyForPlanet]="getEnergyForPlanet"
             [getTaxForPlanet]="getTaxForPlanet"
+            [getPlayerCredits]="boundGetPlayerCredits"
+            [onSelectBuildingType]="boundOnSelectBuildingType"
             (backToStarMap)="leavePlanetView()"
           >
-         </app-star-map-planet-screen>
-       }
+          </app-star-map-planet-screen>
+        }
      </div>
    }
   <app-star-map-context-menu

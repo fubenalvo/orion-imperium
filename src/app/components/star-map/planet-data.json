@@ -11,6 +11,7 @@
       "population": 0,
       "workforce": 10,
       "moraleRate": 0,
+      "price": 100,
       "defense": {
         "type": "turret",
         "attack": 20,
@@ -30,6 +31,7 @@
       "population": 0,
       "workforce": 8,
       "moraleRate": 0,
+      "price": 100,
       "defense": {
         "type": "turret",
         "attack": 35,
@@ -49,6 +51,7 @@
       "population": 0,
       "workforce": 15,
       "moraleRate": 0,
+      "price": 100,
       "defense": {
         "type": "shield",
         "shield": 300,
@@ -67,7 +70,8 @@
       "population": 100,
       "workforce": 2,
       "moraleRate": 0,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "medium_residential",
@@ -80,7 +84,8 @@
       "population": 300,
       "workforce": 4,
       "moraleRate": 0,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "large_residential",
@@ -93,7 +98,8 @@
       "population": 700,
       "workforce": 8,
       "moraleRate": 0,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "park",
@@ -106,7 +112,8 @@
       "population": 0,
       "workforce": 5,
       "moraleRate": 4,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "hospital",
@@ -119,7 +126,8 @@
       "population": 0,
       "workforce": 40,
       "moraleRate": 3,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "school",
@@ -132,7 +140,8 @@
       "population": 0,
       "workforce": 30,
       "moraleRate": 2,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "entertainment_center",
@@ -145,7 +154,8 @@
       "population": 0,
       "workforce": 60,
       "moraleRate": 6,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "fusion_plant",
@@ -158,7 +168,8 @@
       "population": 0,
       "workforce": 35,
       "moraleRate": -1,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "solar_array",
@@ -171,7 +182,8 @@
       "population": 0,
       "workforce": 5,
       "moraleRate": 0,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "factory",
@@ -184,7 +196,8 @@
       "population": 0,
       "workforce": 100,
       "moraleRate": -2,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "mining_complex",
@@ -197,7 +210,8 @@
       "population": 0,
       "workforce": 80,
       "moraleRate": -1,
-      "defense": null
+      "defense": null,
+      "price": 100
     },
     {
       "id": "research_lab",
@@ -210,7 +224,8 @@
       "population": 0,
       "workforce": 60,
       "moraleRate": 1,
-      "defense": null
+      "defense": null,
+      "price": 100
     }
   ]
 }

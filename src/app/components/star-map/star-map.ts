@@ -291,6 +291,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return Object.entries(player.currencies).map(([name, value]) => ({ name, value }));
   }
 
+  /** Returns the player's current credit balance. */
+  getPlayerCredits(): number {
+    const player = this.factions.find((f) => f.id === 'player');
+    return player?.currencies?.['credits'] ?? 0;
+  }
+
+  /** Handles selection of a building type from the planet build menu. */
+  onSelectBuildingType(buildingId: string): void {
+    console.log('[StarMap] Building type selected:', buildingId);
+  }
+
   /** Returns the player's economy breakdown for the currency overlay. */
   getPlayerEconomyBreakdown(): EconomyBreakdown {
     if (this.cachedPlayerEconomyBreakdown) {
@@ -314,6 +325,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetFactionCurrencies = this.getFactionCurrencies.bind(this);
   readonly boundGetPlayerEconomyBreakdown = this.getPlayerEconomyBreakdown.bind(this);
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
+  readonly boundGetPlayerCredits = this.getPlayerCredits.bind(this);
+  readonly boundOnSelectBuildingType = this.onSelectBuildingType.bind(this);
 
   // Ship type helpers
 
