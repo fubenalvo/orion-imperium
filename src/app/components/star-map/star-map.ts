@@ -135,7 +135,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
   ) {
-    this.movementService.initialize(this.cellSizeVw, this.cellSizeVh, this.mapWidth, this.mapHeight);
+    this.movementService.initialize(
+      this.cellSizeVw,
+      this.cellSizeVh,
+      this.mapWidth,
+      this.mapHeight,
+    );
   }
 
   get currentSlot(): number | null {
@@ -341,6 +346,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         this.targetY = null;
       }
     }
+    this.cdr.detectChanges();
   }
 
   deselectFleet(): void {
@@ -348,18 +354,22 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.selectedFleetAction = null;
     this.targetX = null;
     this.targetY = null;
+    this.cdr.detectChanges();
   }
 
   setFleetAction(action: 'move' | 'attack'): void {
     this.selectedFleetAction = action;
+    this.cdr.detectChanges();
   }
 
   deselectSystem(): void {
     this.selectedSystem = null;
+    this.cdr.detectChanges();
   }
 
   deselectPlanetTile(): void {
     this.selectedPlanetTile = null;
+    this.cdr.detectChanges();
   }
 
   selectSystem(system: StarSystem): void {
@@ -372,13 +382,23 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.selectedFleet = null;
     this.selectedFleetAction = null;
     this.selectedPlanetTile = null;
+    this.cdr.detectChanges();
   }
 
   selectPlanetTile(tile: PlanetTile): void {
     this.selectedPlanetTile = tile;
     this.selectedFleet = null;
+    console.log('[StarMap] selectPlanetTile:', tile.name);
+    console.log('[StarMap] selectedPlanetTile set:', this.selectedPlanetTile);
+
     if (this.currentView !== 'system') {
       this.selectedSystem = null;
+    }
+    try {
+      this.cdr.detectChanges();
+      console.log('[StarMap] detectChanges succeeded');
+    } catch (e) {
+      console.error('[StarMap] detectChanges failed:', e);
     }
   }
 
@@ -389,6 +409,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   closeContextMenu(): void {
     this.contextMenu = null;
+    this.cdr.detectChanges();
   }
 
   onContextMenuSelect(item: ContextMenuItem): void {
@@ -405,6 +426,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         this.selectPlanetTile(item.data as PlanetTile);
         break;
     }
+    this.cdr.detectChanges();
   }
 
   // Click handlers
@@ -423,11 +445,24 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     if (this.currentView === 'map') {
       const cell = this.movementService.calculateGridCell(fleet.x, fleet.y);
-      const items = this.movementService.getObjectsAtMapCell(this.fleets, this.starSystems, cell.col, cell.row);
+      const items = this.movementService.getObjectsAtMapCell(
+        this.fleets,
+        this.starSystems,
+        cell.col,
+        cell.row,
+      );
       this.handleObjectClick(items, event);
     } else if (this.selectedSystem) {
-      const sysCell = this.movementService.calculateGridCell(fleet.systemX ?? 0, fleet.systemY ?? 0);
-      const items = this.movementService.getObjectsAtSystemCell(this.fleets, this.selectedSystem, sysCell.col, sysCell.row);
+      const sysCell = this.movementService.calculateGridCell(
+        fleet.systemX ?? 0,
+        fleet.systemY ?? 0,
+      );
+      const items = this.movementService.getObjectsAtSystemCell(
+        this.fleets,
+        this.selectedSystem,
+        sysCell.col,
+        sysCell.row,
+      );
       this.handleObjectClick(items, event);
     } else {
       this.selectFleet(fleet);
@@ -449,7 +484,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     if (this.currentView === 'map') {
       const cell = this.movementService.calculateGridCell(system.x, system.y);
-      const items = this.movementService.getObjectsAtMapCell(this.fleets, this.starSystems, cell.col, cell.row);
+      const items = this.movementService.getObjectsAtMapCell(
+        this.fleets,
+        this.starSystems,
+        cell.col,
+        cell.row,
+      );
       this.handleObjectClick(items, event);
     } else {
       this.selectSystem(system);
@@ -470,6 +510,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     event.stopPropagation();
 
     if (this.currentView === 'system' && this.selectedSystem) {
+      console.log(planet);
+
       const planetCell = this.movementService.getPlanetGridPosition(planet);
       const items = this.movementService.getObjectsAtSystemCell(
         this.fleets,
@@ -484,6 +526,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
 
       if (items.length === 1) {
+        console.log(items[0]);
         this.onContextMenuSelect(items[0]);
         return;
       }
@@ -758,7 +801,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.selectedSystem = this.starSystems.find((s) => s.id === data.selectedSystemId) ?? null;
     this.selectedFleet = this.fleets.find((f) => f.id === data.selectedFleetId) ?? null;
-    this.selectedPlanetTile = this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null;
+    this.selectedPlanetTile =
+      this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null;
 
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
   }
