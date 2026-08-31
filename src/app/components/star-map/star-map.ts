@@ -121,6 +121,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   contextMenu: { x: number; y: number; items: ContextMenuItem[] } | null = null;
   isPaused = false;
 
+  isLandscape = false;
+
   // Event handlers for focus tracking
   private onWindowBlur = (): void => this.pauseGame();
   private onVisibilityChange = (): void => {
@@ -844,6 +846,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     console.log('[StarMap] ngAfterViewInit, starting game loop');
     this.startGameLoop();
     this.setupFocusHandlers();
+    window.addEventListener('orientationchange', this.onOrientationChange);
+    this.checkOrientation();
   }
 
   /** Registers the game loop tick callback with the game loop service. */
@@ -967,6 +971,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
     document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
+  /** Detects whether the device is currently in landscape orientation. */
+  private checkOrientation(): void {
+    if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.type) {
+      this.isLandscape = screen.orientation.type.includes('landscape');
+    } else {
+      this.isLandscape = window.innerWidth > window.innerHeight;
+    }
+    this.cdr.detectChanges();
+  }
+
+  private onOrientationChange = (): void => {
+    this.checkOrientation();
+  };
+
   @HostListener('window:resize')
   onResize(): void {
     const isWide = window.innerWidth >= this.gridBreakpointPx;
@@ -980,6 +998,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     );
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
     this.clampCamera();
+    this.checkOrientation();
   }
 
   /** Pauses the game loop if it is not already paused. */
@@ -1173,6 +1192,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
+    window.removeEventListener('orientationchange', this.onOrientationChange);
 
     this.gameLoopService.stopGameLoop();
   }
