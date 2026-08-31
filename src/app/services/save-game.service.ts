@@ -90,4 +90,22 @@ export class SaveGameService {
   hasAnySave(): boolean {
     return this.getSlots().some((slot) => slot.data !== null);
   }
+
+  /*
+   * getMostRecentSlotIndex: Returns the index of the save slot with the latest date.
+   * Returns null if no saves exist.
+   */
+  getMostRecentSlotIndex(): number | null {
+    const slots = this.getSlots();
+    let bestIndex: number | null = null;
+    let bestDate: string | null = null;
+    for (let i = 0; i < slots.length; i++) {
+      const date = slots[i].date;
+      if (date && (bestDate === null || date > bestDate)) {
+        bestDate = date;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
 }

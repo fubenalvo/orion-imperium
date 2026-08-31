@@ -1126,18 +1126,29 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  /** Loads a save on init if a slot is active; otherwise initializes fleet and grid positions. */
+  /*
+   * ngOnInit: Initializes the map view and restores game state.
+   *
+   * Direct /star-map navigation bypasses MainMenu, so currentSlot may be null
+   * even when a save exists. In that case, auto-load the most recent save.
+   * If no save exists at all, redirect to the main menu instead of starting
+   * an unsaveable default game.
+   */
   ngOnInit(): void {
     this.onResize();
 
-    if (this.saveGameService.currentSlot !== null) {
-      this.loadGame();
-      this.removeDestroyedFleetFromService();
-      return;
+    if (this.saveGameService.currentSlot === null) {
+      const slotIndex = this.saveGameService.getMostRecentSlotIndex();
+      if (slotIndex !== null) {
+        this.saveGameService.currentSlot = slotIndex;
+      } else {
+        this.router.navigate(['']);
+        return;
+      }
     }
 
-    this.movementService.initializeCoordinates(this.fleets, this.starSystems);
-    this.movementService.refreshGridPositions(this.fleets, this.starSystems);
+    this.loadGame();
+    this.removeDestroyedFleetFromService();
   }
 
   /** Applies a previously destroyed fleet from the battle service into the current save. */

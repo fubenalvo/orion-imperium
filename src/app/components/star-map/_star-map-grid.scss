@@ -18,20 +18,15 @@
 
 .fleet-cell {
   position: absolute;
-
   display: flex;
-
   align-items: center;
-
   justify-content: center;
-
-  width: 70px;
-
-  height: 50px;
-
+  //  width: 70px;
+  //  height: 50px;
   transform: translate(-50%, -50%);
-
   will-change: left, top;
-
   z-index: 15;
+
+  width: 7vw;
+  height: 7vw;
 }
