@@ -8,6 +8,11 @@
   min-width: 220px;
   padding-bottom: 0.8em;
   z-index: 120;
+
+  @include mobile-view {
+    bottom: -2px;
+    left: -2px;
+  }
 }
 
 .planet-info__open-btn {
@@ -24,7 +29,9 @@
   cursor: pointer;
   text-align: center;
   text-transform: uppercase;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 
   &:hover {
     background: rgba(53, 134, 229, 0.3);

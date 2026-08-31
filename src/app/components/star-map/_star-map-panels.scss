@@ -6,32 +6,30 @@
 
 .system-info {
   position: absolute;
-
   left: 2%;
-
   bottom: 3%;
-
   width: 24%;
-
   min-width: 220px;
-
   padding-bottom: 0.8em;
-
   z-index: 30;
+
+  @include mobile-view {
+    bottom: -2px;
+    left: -2px;
+  }
 }
 
 .system-info__content {
   display: flex;
-
   flex-direction: column;
-
   gap: 0.35em;
-
   padding: 0.8em;
-
   font-size: 0.8rem;
-
   line-height: 1.4;
+
+  @include mobile-view {
+    font-size: 0.5em;
+  }
 }
 
 .system-info button {
@@ -51,6 +49,11 @@
   width: 24%;
   min-width: 220px;
   z-index: 30;
+
+  @include mobile-view {
+    bottom: -2px;
+    left: -2px;
+  }
 }
 
 .fleet-actions {
@@ -70,6 +73,11 @@
   letter-spacing: 0.05em;
   cursor: pointer;
   transition: all 0.2s ease;
+
+  @include mobile-view {
+    padding: 0.2em 0.3em;
+    font-size: 1em;
+  }
 }
 
 .action-btn:hover {
@@ -127,12 +135,20 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-blue-light);
+
+  @include mobile-view {
+    font-size: 0.5rem;
+  }
 }
 
 .fleet-ships__row {
   display: flex;
   justify-content: space-between;
   font-size: 0.75rem;
+
+  @include mobile-view {
+    font-size: 0.5rem;
+  }
 }
 
 .fleet-ships__type {
@@ -150,8 +166,11 @@
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--color-blue-bright);
-
   border-top: 1px solid var(--panel-border-dark);
+
+  @include mobile-view {
+    font-size: 0.5rem;
+  }
 }
 
 /* =========================================================
@@ -220,7 +239,8 @@
   box-shadow: none;
 
   @include mobile-view {
-    padding: 0.1em 0.2em;
+    padding: 0.4em 0.1em;
+    min-height: 0;
   }
 }
 
