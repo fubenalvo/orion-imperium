@@ -1,4 +1,4 @@
-<div class="star-map">
+<div class="star-map" [style.--cell-size-vw]="cellSizeVw + 'vw'">
   <app-star-map-pause
     [isPaused]="isPaused"
     [pauseMenuOpen]="pauseMenuOpen"
@@ -24,8 +24,8 @@
       <div
         class="map-world"
         [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
-        [style.gridTemplateColumns]="'repeat(' + movementService.gridColumns + ', 5vw)'"
-        [style.gridTemplateRows]="'repeat(' + movementService.gridRows + ', 5vw)'"
+        [style.gridTemplateColumns]="'repeat(' + movementService.gridColumns + ', ' + cellSizeVw + 'vw)'"
+        [style.gridTemplateRows]="'repeat(' + movementService.gridRows + ', ' + cellSizeVh + 'vw)'"
       >
         <!-- GRID CELLS WITH STAR SYSTEMS -->
         @for (system of starSystems; track system.id) {
@@ -249,6 +249,7 @@
           [getFactionName]="boundGetFactionName"
           [getEnergyForPlanet]="getEnergyForPlanet"
           [getTaxForPlanet]="getTaxForPlanet"
+          [planetEconomy]="getPlanetEconomy(selectedPlanetTile!)"
           (close)="selectedPlanetTile = null"
           (openPlanet)="openPlanetView()"
         >
@@ -265,7 +266,7 @@
 
        <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
 
-        @if (selectedPlanetTile) {
+         @if (selectedPlanetTile) {
           <app-star-map-planet-screen
             [planet]="selectedPlanetTile"
             [gridSize]="getPlanetGridSize(selectedPlanetTile)"
@@ -275,6 +276,7 @@
             [getFactionCurrencies]="boundGetFactionCurrencies"
             [getEnergyForPlanet]="getEnergyForPlanet"
             [getTaxForPlanet]="getTaxForPlanet"
+            [planetEconomy]="getPlanetEconomy(selectedPlanetTile!)"
             [getPlayerCredits]="boundGetPlayerCredits"
             [onSelectBuildingType]="boundOnSelectBuildingType"
             [onConfirmBuild]="boundOnConfirmBuild"

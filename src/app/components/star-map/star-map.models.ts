@@ -127,6 +127,70 @@ export interface StarMapData {
   destroyedFleetId?: number | null;
 }
 
+export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';
+export type ResourceRates = Partial<Record<ResourceType, number>>;
+
+export interface PlanetEconomy {
+  production: ResourceRates;
+  consumption: ResourceRates;
+  net: ResourceRates;
+  energyProduction: number;
+  energyConsumption: number;
+  energyBalance: number;
+  efficiency: number;
+}
+
+export interface EconomyBreakdown {
+  incomePerSecond: number;
+  expensePerSecond: number;
+  netPerSecond: number;
+  totalPopulation: number;
+  planets: PlanetEconomyEntry[];
+  fleetExpenses: FleetExpenseEntry[];
+  production: ResourceRates;
+  consumption: ResourceRates;
+  net: ResourceRates;
+  efficiency: number;
+}
+
+export interface PlanetEconomyEntry {
+  planetName: string;
+  population: number;
+  income: number;
+  expense: number;
+  net: number;
+  production: ResourceRates;
+  consumption: ResourceRates;
+  netRates: ResourceRates;
+  efficiency: number;
+  buildings: BuildingExpenseEntry[];
+}
+
+export interface BuildingExpenseEntry {
+  buildingName: string;
+  count: number;
+  maintenanceCost: number;
+  totalCost: number;
+}
+
+export interface FleetExpenseEntry {
+  fleetName: string;
+  shipType: string;
+  count: number;
+  maintenanceCost: number;
+  totalCost: number;
+}
+
+export interface BuildingStats {
+  id: string;
+  name: string;
+  maintenanceCost: number;
+  production: ResourceRates;
+  consumption: ResourceRates;
+  energyProduction: number;
+  energyConsumption: number;
+}
+
 export interface ContextMenuItem {
   type: 'fleet' | 'system' | 'planet';
   label: string;

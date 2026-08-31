@@ -59,6 +59,27 @@
             <span>Net:</span>
             <span>{{ economyBreakdown.netPerSecond >= 0 ? '+' : '' }}{{ economyBreakdown.netPerSecond | number:'1.0-0' }}/sec</span>
           </div>
+          <div class="faction-currencies__overlay-row">
+            <span>Efficiency:</span>
+            <span>{{ (economyBreakdown.efficiency * 100) | number:'1.0-0' }}%</span>
+          </div>
+        </div>
+        <div class="faction-currencies__overlay-section">
+          <div class="faction-currencies__overlay-section-title">Resources</div>
+          @for (resource of ['credits', 'rawmaterials', 'research']; track resource) {
+            <div class="faction-currencies__overlay-row">
+              <span>{{ resource | uppercase }} Production</span>
+              <span>+{{ $any(economyBreakdown.production)[resource] | number:'1.0-0' }}/s</span>
+            </div>
+            <div class="faction-currencies__overlay-row">
+              <span>{{ resource | uppercase }} Consumption</span>
+              <span>-{{ $any(economyBreakdown.consumption)[resource] | number:'1.0-0' }}/s</span>
+            </div>
+            <div class="faction-currencies__overlay-row faction-currencies__overlay-row--net">
+              <span>{{ resource | uppercase }} Net</span>
+              <span>{{ $any(economyBreakdown.net)[resource] >= 0 ? '+' : '' }}{{ $any(economyBreakdown.net)[resource] | number:'1.0-0' }}/s</span>
+            </div>
+          }
         </div>
         @if (economyBreakdown.planets.length > 0) {
           <div class="faction-currencies__overlay-section">

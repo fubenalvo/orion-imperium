@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PlanetTile, PLANET_SURFACE_CELL_VW } from '../star-map.models';
+import { PlanetTile, PLANET_SURFACE_CELL_VW, PlanetEconomyEntry } from '../star-map.models';
 import { FactionCurrenciesComponent } from '../faction-currencies/faction-currencies.component';
 import planetData from '../planet-data.json';
 
@@ -62,6 +62,7 @@ export class StarMapPlanetScreenComponent {
   @Input() getFactionCurrencies: (factionId: string) => { name: string; value: number }[] = () => [];
   @Input() getEnergyForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
+  @Input() planetEconomy: PlanetEconomyEntry | null = null;
   @Input() getPlayerCredits: () => number = () => 0;
   @Input() onSelectBuildingType: (buildingId: string) => void = () => {};
   @Input() onConfirmBuild: (buildingId: string, x: number, y: number) => void = () => {};

@@ -48,8 +48,8 @@
   "map": {
     "width": 200,
     "height": 120,
-    "cellSizeVw": 5,
-    "cellSizeVh": 5
+    "cellSizeVw": 2,
+    "cellSizeVh": 2
   },
   "starSystems": [
     {

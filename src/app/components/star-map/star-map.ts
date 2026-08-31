@@ -31,6 +31,7 @@ import {
   ContextMenuItem,
   PLANET_SIZE_MAP,
   PLANET_TYPE_COLORS,
+  PlanetEconomyEntry,
 } from './star-map.models';
 
 import { EconomyBreakdown } from '../../services/economy.service';
@@ -92,8 +93,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
   // Map configuration
   readonly mapWidth = initialStarMapData.map.width;
   readonly mapHeight = initialStarMapData.map.height;
-  readonly cellSizeVw = initialStarMapData.map.cellSizeVw;
-  readonly cellSizeVh = initialStarMapData.map.cellSizeVh;
+  cellSizeVw = initialStarMapData.map.cellSizeVw;
+  cellSizeVh = initialStarMapData.map.cellSizeVh;
+  private readonly gridBreakpointPx = 1300;
 
   // Game state
   starSystems: StarSystem[] = initialStarMapData.starSystems;
@@ -311,9 +313,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const player = this.factions.find((f) => f.id === 'player');
     if (!player?.currencies) return;
 
-    const buildingDef = (planetData as { buildings: { id: string; price: number; size: number; name: string }[] }).buildings.find(
-      (b) => b.id === event.buildingId,
-    );
+    const buildingDef = (
+      planetData as { buildings: { id: string; price: number; size: number; name: string }[] }
+    ).buildings.find((b) => b.id === event.buildingId);
     if (!buildingDef) return;
 
     const credits = player.currencies['credits'] ?? 0;
@@ -336,7 +338,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (this.cachedPlayerEconomyBreakdown) {
       return this.cachedPlayerEconomyBreakdown;
     }
-    return this.economyService.calculateEconomy('player', this.factions, this.starSystems, this.fleets);
+    return this.economyService.calculateEconomy(
+      'player',
+      this.factions,
+      this.starSystems,
+      this.fleets,
+    );
   }
 
   /** Returns a faction's currencies as key-value pairs. */
@@ -356,7 +363,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
   readonly boundGetPlayerCredits = this.getPlayerCredits.bind(this);
   readonly boundOnSelectBuildingType = this.onSelectBuildingType.bind(this);
-  readonly boundOnConfirmBuild = (buildingId: string, x: number, y: number) => this.onBuildingConfirmed({ buildingId, x, y });
+  readonly boundOnConfirmBuild = (buildingId: string, x: number, y: number) =>
+    this.onBuildingConfirmed({ buildingId, x, y });
+  readonly boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
 
   // Ship type helpers
 
@@ -400,16 +409,17 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Computes energy production for a planet based on its power-producing buildings. */
   getEnergyForPlanet(planet: PlanetTile): number {
-    const solarPlants = planet.buildings?.filter((b) => b.name === 'Solar Array').length || 0;
-    const fusionPlants = planet.buildings?.filter((b) => b.name === 'Fusion Power Plant').length || 0;
-    return solarPlants * 40 + fusionPlants * 100;
+    return this.economyService.getPlanetEnergy(planet);
   }
 
   /** Computes tax income for a planet based on population and industrial buildings. */
   getTaxForPlanet(planet: PlanetTile): number {
-    const factories = planet.buildings?.filter((b) => b.name === 'Industrial Factory').length || 0;
-    const pop = planet.population || 0;
-    return Math.floor(pop * 0.1) + factories * 500;
+    return this.economyService.getPlanetTax(planet);
+  }
+
+  /** Returns the economy breakdown for a planet. */
+  getPlanetEconomy(planet: PlanetTile): PlanetEconomyEntry {
+    return this.economyService.getPlanetEconomyBreakdown(planet);
   }
 
   /** Returns the CSS class names to apply to a planet tile for styling. */
@@ -807,10 +817,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.clampCamera();
   }
 
-  /** Constrains the camera position so it cannot scroll past the map edges. */
+  /**
+   * Constrains the camera position so it cannot scroll past the map edges.
+   * The actual grid extent depends on the current cell size (which varies
+   * between desktop ~2 vw and mobile ~7 vw), so we compute it dynamically
+   * from gridColumns/gridRows × cellSize rather than using the fixed
+   * mapWidth/mapHeight constants.
+   */
   private clampCamera(): void {
-    const gridWidthVw = this.movementService.gridColumns * 5;
-    const gridHeightVw = this.movementService.gridRows * 5;
+    const gridWidthVw = this.movementService.gridColumns * this.cellSizeVw;
+    const gridHeightVw = this.movementService.gridRows * this.cellSizeVh;
     const viewportWidthVw = 100;
     const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
 
@@ -951,6 +967,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
     document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
+  @HostListener('window:resize')
+  onResize(): void {
+    const isWide = window.innerWidth >= this.gridBreakpointPx;
+    this.cellSizeVw = isWide ? 2 : 7;
+    this.cellSizeVh = isWide ? 2 : 7;
+    this.movementService.initialize(
+      this.cellSizeVw,
+      this.cellSizeVh,
+      this.mapWidth,
+      this.mapHeight,
+    );
+    this.movementService.refreshGridPositions(this.fleets, this.starSystems);
+    this.clampCamera();
+  }
+
   /** Pauses the game loop if it is not already paused. */
   private pauseGame(): void {
     if (this.isPaused) return;
@@ -1078,6 +1109,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Loads a save on init if a slot is active; otherwise initializes fleet and grid positions. */
   ngOnInit(): void {
+    this.onResize();
+
     if (this.saveGameService.currentSlot !== null) {
       this.loadGame();
       this.removeDestroyedFleetFromService();

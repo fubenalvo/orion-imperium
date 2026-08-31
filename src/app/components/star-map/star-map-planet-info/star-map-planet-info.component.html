@@ -27,6 +27,20 @@
       <div>POPULATION: {{ planet?.population }}</div>
       <div>ENERGY: {{ getEnergyForPlanet(planet!) }}</div>
       <div>DAILY TAX: {{ getTaxForPlanet(planet!) }}</div>
+      @if (planetEconomy) {
+        <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
+        <div class="planet-economy__title">ECONOMY</div>
+        @for (resource of ['credits', 'rawmaterials', 'research']; track resource) {
+          <div class="planet-economy__row">
+            <span>{{ resource | uppercase }}</span>
+            <span>{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : '' }}{{ $any(planetEconomy.netRates)[resource] | number:'1.0-0' }}/s</span>
+          </div>
+        }
+        <div class="planet-economy__row">
+          <span>EFFICIENCY</span>
+          <span>{{ (planetEconomy.efficiency * 100) | number:'1.0-0' }}%</span>
+        </div>
+      }
       <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
       <div class="planet-buildings__title">
         BUILDINGS ({{ planet?.buildings.length }})

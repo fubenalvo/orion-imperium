@@ -129,9 +129,9 @@
 
   justify-content: center;
 
-  width: 5vw;
+  width: var(--cell-size-vw, 5vw);
 
-  height: 5vw;
+  height: var(--cell-size-vw, 5vw);
 
   pointer-events: none;
 

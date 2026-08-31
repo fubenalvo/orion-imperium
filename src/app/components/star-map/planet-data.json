@@ -12,6 +12,10 @@
       "workforce": 10,
       "moraleRate": 0,
       "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 5
+      },
       "defense": {
         "type": "turret",
         "attack": 20,
@@ -32,6 +36,10 @@
       "workforce": 8,
       "moraleRate": 0,
       "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 3
+      },
       "defense": {
         "type": "turret",
         "attack": 35,
@@ -52,6 +60,10 @@
       "workforce": 15,
       "moraleRate": 0,
       "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 25
+      },
       "defense": {
         "type": "shield",
         "shield": 300,
@@ -70,8 +82,12 @@
       "population": 100,
       "workforce": 2,
       "moraleRate": 0,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 3
+      },
+      "defense": null
     },
     {
       "id": "medium_residential",
@@ -84,8 +100,12 @@
       "population": 300,
       "workforce": 4,
       "moraleRate": 0,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 6
+      },
+      "defense": null
     },
     {
       "id": "large_residential",
@@ -98,8 +118,12 @@
       "population": 700,
       "workforce": 8,
       "moraleRate": 0,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 12
+      },
+      "defense": null
     },
     {
       "id": "park",
@@ -112,8 +136,12 @@
       "population": 0,
       "workforce": 5,
       "moraleRate": 4,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 2
+      },
+      "defense": null
     },
     {
       "id": "hospital",
@@ -126,8 +154,12 @@
       "population": 0,
       "workforce": 40,
       "moraleRate": 3,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 10
+      },
+      "defense": null
     },
     {
       "id": "school",
@@ -140,8 +172,12 @@
       "population": 0,
       "workforce": 30,
       "moraleRate": 2,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 8
+      },
+      "defense": null
     },
     {
       "id": "entertainment_center",
@@ -154,8 +190,12 @@
       "population": 0,
       "workforce": 60,
       "moraleRate": 6,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {},
+      "consumption": {
+        "energy": 15
+      },
+      "defense": null
     },
     {
       "id": "fusion_plant",
@@ -168,8 +208,12 @@
       "population": 0,
       "workforce": 35,
       "moraleRate": -1,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {
+        "energy": 100
+      },
+      "consumption": {},
+      "defense": null
     },
     {
       "id": "solar_array",
@@ -182,8 +226,12 @@
       "population": 0,
       "workforce": 5,
       "moraleRate": 0,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {
+        "energy": 40
+      },
+      "consumption": {},
+      "defense": null
     },
     {
       "id": "factory",
@@ -196,8 +244,14 @@
       "population": 0,
       "workforce": 100,
       "moraleRate": -2,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {
+        "rawmaterials": 10
+      },
+      "consumption": {
+        "energy": 30
+      },
+      "defense": null
     },
     {
       "id": "mining_complex",
@@ -210,8 +264,14 @@
       "population": 0,
       "workforce": 80,
       "moraleRate": -1,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {
+        "rawmaterials": 5
+      },
+      "consumption": {
+        "energy": 20
+      },
+      "defense": null
     },
     {
       "id": "research_lab",
@@ -224,8 +284,14 @@
       "population": 0,
       "workforce": 60,
       "moraleRate": 1,
-      "defense": null,
-      "price": 100
+      "price": 100,
+      "production": {
+        "research": 5
+      },
+      "consumption": {
+        "energy": 25
+      },
+      "defense": null
     }
   ]
 }
