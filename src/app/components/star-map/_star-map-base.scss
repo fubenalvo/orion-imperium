@@ -50,6 +50,18 @@
   z-index: 1;
 
   background: radial-gradient(circle at 50% 50%, rgba(53, 134, 229, 0.035), transparent 55%);
+
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+
+  &.dragging {
+    cursor: grabbing;
+
+    .map-world {
+      transition: none;
+    }
+  }
 }
 
 /* =========================================================

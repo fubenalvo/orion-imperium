@@ -33,7 +33,7 @@
 
   @if (currentView === 'map') {
     <!-- MAP VIEWPORT -->
-    <div class="map-viewport" (click)="onMapClick($event)">
+    <div #mapViewport class="map-viewport" (click)="onMapClick($event)">
       <!-- WORLD GRID -->
       <div
         class="map-world"
