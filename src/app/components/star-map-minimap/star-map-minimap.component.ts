@@ -108,8 +108,8 @@ export class StarMapMinimapComponent {
     const rect = (e.currentTarget as Element).getBoundingClientRect();
     const pxX = e.clientX - rect.left;
     const pxY = e.clientY - rect.top;
-    const cameraX = (pxX / this.MINIMAP_W) * this.totalMapVw - 50;
-    const cameraY = (pxY / this.MINIMAP_H) * this.totalMapVh - this.viewportHeightVw / 2;
+    const cameraX = (pxX / rect.width) * this.totalMapVw - 50;
+    const cameraY = (pxY / rect.height) * this.totalMapVh - this.viewportHeightVw / 2;
     this.zone.run(() => {
       this.cameraChange.emit({ x: cameraX, y: cameraY });
     });

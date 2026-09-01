@@ -219,7 +219,7 @@
   border: 0;
 
   @include mobile-view {
-    top: 40px;
+    top: calc(8% - 1px);
     width: 90px;
   }
 }
@@ -239,7 +239,7 @@
   box-shadow: none;
 
   @include mobile-view {
-    padding: 0.4em 0.1em;
+    padding: 0.2em 0.2em;
     min-height: 0;
   }
 }

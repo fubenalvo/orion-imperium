@@ -165,16 +165,11 @@ app-root {
 .game-viewport {
   position: absolute;
 
-  top: 50%;
-  left: 50%;
+  top: 0;
+  left: 0;
 
-  width: min(100vw, calc(100dvh * 16 / 9));
-
-  height: min(100dvh, calc(100vw * 9 / 16));
-
-  transform: translate(-50%, -50%);
-
-  aspect-ratio: 16 / 9;
+  width: 100dvw;
+  height: 100dvh;
 
   overflow: hidden;
 
