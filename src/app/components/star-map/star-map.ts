@@ -113,6 +113,31 @@ export class StarMap implements AfterViewInit, OnDestroy {
   cameraY = 0;
   readonly cameraSpeed = 2;
 
+  // Parallax background: the background div must always be 200% of the actual
+  // map grid (not 200% of the viewport) so the parallax shift never causes it to
+  // "run out" when the camera is panned to the map edges.  All values are in vw
+  // to stay consistent with the camera / parallax transform units.
+  /** Background width in vw — 200% of the map grid width. */
+  get bgWidthVw(): number {
+    return this.movementService.gridColumns * this.cellSizeVw * 2;
+  }
+
+  /** Background height in vw — 200% of the map grid height. */
+  get bgHeightVw(): number {
+    return this.movementService.gridRows * this.cellSizeVh * 2;
+  }
+
+  /** Left offset in vw that centers the (2× map) background on the viewport. */
+  get bgLeftVw(): number {
+    return 50 - this.movementService.gridColumns * this.cellSizeVw;
+  }
+
+  /** Top offset in vw that centers the (2× map) background on the viewport. */
+  get bgTopVw(): number {
+    const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
+    return viewportHeightVw / 2 - this.movementService.gridRows * this.cellSizeVh;
+  }
+
   // Movement targets
   targetX: number | null = null;
   targetY: number | null = null;
