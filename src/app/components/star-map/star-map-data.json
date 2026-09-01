@@ -46,8 +46,8 @@
     }
   ],
   "map": {
-    "width": 200,
-    "height": 120,
+    "width": 100,
+    "height": 60,
     "cellSizeVw": 2,
     "cellSizeVh": 2
   },
@@ -55,8 +55,8 @@
     {
       "id": 1,
       "name": "SOL",
-      "x": 35,
-      "y": 25,
+      "x": 18,
+      "y": 13,
       "planets": 8,
       "color": "#ffcc00",
       "planetsTiles": [
@@ -235,8 +235,8 @@
     {
       "id": 2,
       "name": "VEGA",
-      "x": 78,
-      "y": 18,
+      "x": 40,
+      "y": 10,
       "planets": 5,
       "color": "#5ca8ff",
       "planetsTiles": [
@@ -357,8 +357,8 @@
     {
       "id": 3,
       "name": "SIRIUS",
-      "x": 125,
-      "y": 35,
+      "x": 63,
+      "y": 18,
       "planets": 6,
       "color": "#f3f3f3",
       "planetsTiles": [
@@ -525,8 +525,8 @@
     {
       "id": 4,
       "name": "ARCTURUS",
-      "x": 165,
-      "y": 22,
+      "x": 83,
+      "y": 12,
       "planets": 3,
       "color": "#39b8a8",
       "planetsTiles": [
@@ -580,8 +580,8 @@
     {
       "id": 5,
       "name": "RIGEL",
-      "x": 55,
-      "y": 65,
+      "x": 28,
+      "y": 33,
       "planets": 7,
       "color": "#5ca8ff",
       "planetsTiles": [
@@ -856,8 +856,8 @@
     {
       "id": 6,
       "name": "ALTAIR",
-      "x": 105,
-      "y": 75,
+      "x": 53,
+      "y": 38,
       "planets": 4,
       "color": "#f3f3f3",
       "planetsTiles": [
@@ -1031,8 +1031,8 @@
     {
       "id": 7,
       "name": "BETELGEUSE",
-      "x": 155,
-      "y": 68,
+      "x": 78,
+      "y": 35,
       "planets": 9,
       "color": "#d65757",
       "planetsTiles": [
@@ -1282,8 +1282,8 @@
     {
       "id": 8,
       "name": "PROCYON",
-      "x": 25,
-      "y": 95,
+      "x": 13,
+      "y": 48,
       "planets": 2,
       "color": "#39b8a8",
       "planetsTiles": [
@@ -1347,8 +1347,8 @@
     {
       "id": 9,
       "name": "DENEB",
-      "x": 90,
-      "y": 105,
+      "x": 46,
+      "y": 53,
       "planets": 5,
       "color": "#5ca8ff",
       "planetsTiles": [
@@ -1543,8 +1543,8 @@
     {
       "id": 10,
       "name": "ANTARES",
-      "x": 175,
-      "y": 100,
+      "x": 88,
+      "y": 51,
       "planets": 6,
       "color": "#d65757",
       "planetsTiles": [
@@ -1738,8 +1738,8 @@
     {
       "id": 1,
       "name": "ORION",
-      "x": 11,
-      "y": 9,
+      "x": 6,
+      "y": 5,
       "targetX": null,
       "targetY": null,
       "speed": 8,
@@ -1761,8 +1761,8 @@
     {
       "id": 2,
       "name": "PEGASUS",
-      "x": 25,
-      "y": 13,
+      "x": 13,
+      "y": 7,
       "targetX": null,
       "targetY": null,
       "speed": 6,
@@ -1789,8 +1789,8 @@
     {
       "id": 3,
       "name": "RAIDER",
-      "x": 17,
-      "y": 11,
+      "x": 9,
+      "y": 6,
       "targetX": null,
       "targetY": null,
       "speed": 7,
@@ -1822,8 +1822,8 @@
     {
       "id": 4,
       "name": "HUNTER",
-      "x": 29,
-      "y": 17,
+      "x": 15,
+      "y": 8,
       "targetX": null,
       "targetY": null,
       "speed": 9,

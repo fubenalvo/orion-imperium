@@ -9,9 +9,15 @@ import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.model
  * Handles fleet movement, grid cell calculation,
  * coordinate conversion, and position refreshing.
  *
- * World coordinates use vw (viewport width) units.
- * 1 vw = 1% of viewport width.
- * Grid cell size is 5vw x 5vh.
+ * Coordinate system:
+ * - Star systems and fleets use 1-indexed grid cell coordinates
+ *   for x/y (e.g., x=53 means the 53rd column from the left).
+ * - Grid cells are rendered as `cellSizeVw` vw wide and `cellSizeVh` vw tall.
+ * - Fleet positions can be fractional within a cell for smooth movement.
+ * - Fleet speed is in vw/s; converted to cells/s via speed / cellSizeVw.
+ *
+ * The system view (inside star systems) uses a separate fixed 20x12 grid
+ * with 5vw cells. System view positions (systemX/Y) remain in vw units.
  */
 
 @Injectable({ providedIn: 'root' })
@@ -21,31 +27,68 @@ export class StarMapMovementService {
   gridColumns = 0;
   gridRows = 0;
 
+  private static readonly SYSTEM_CELL_SIZE_VW = 5;
+
   constructor() {}
 
   /*
-   * initialize: Set grid dimensions. Called once on component init.
+   * initialize: Set grid dimensions.
+   * gridColumns and gridRows are the actual grid dimensions (in cells),
+   * read directly from map.width/height in the data file.
+   * cellSizeVw/Vh is the vw size per cell (2 desktop, 7 mobile).
    */
   initialize(cellSizeVw: number, cellSizeVh: number, mapWidth: number, mapHeight: number): void {
     this.cellSizeVw = cellSizeVw;
     this.cellSizeVh = cellSizeVh;
-    this.gridColumns = Math.ceil(mapWidth / cellSizeVw);
-    this.gridRows = Math.ceil(mapHeight / cellSizeVh);
+    this.gridColumns = mapWidth;
+    this.gridRows = mapHeight;
   }
 
   /*
-   * calculateGridCell: Converts world coordinates to 1-indexed grid cell.
-   * e.g. x=0 -> col=1, x=5 -> col=2
-   * World coordinates point to the center of the cell.
+   * calculateGridCell: Snaps 1-indexed grid cell coordinates to integer cells.
+   * Accepts fractional grid positions (e.g., 6.5) and returns the containing
+   * integer cell (e.g., 6). Used for collision detection and placement.
    */
   calculateGridCell(x: number, y: number): { col: number; row: number } {
-    const col = Math.floor(x / this.cellSizeVw) + 1;
-    const row = Math.floor(y / this.cellSizeVh) + 1;
-    return { col, row };
+    return {
+      col: Math.floor(x),
+      row: Math.floor(y),
+    };
+  }
+
+  /*
+   * getSystemTileCenter: Snaps system view vw coordinates to the center of the
+   * containing system grid cell. Returns vw coordinates for system view movement.
+   * The system view uses a fixed 20x12 grid with 5vw cells.
+   */
+  getSystemTileCenter(vwX: number, vwY: number): { x: number; y: number } {
+    const col = Math.floor(vwX / StarMapMovementService.SYSTEM_CELL_SIZE_VW);
+    const row = Math.floor(vwY / StarMapMovementService.SYSTEM_CELL_SIZE_VW);
+    return {
+      x:
+        col * StarMapMovementService.SYSTEM_CELL_SIZE_VW +
+        StarMapMovementService.SYSTEM_CELL_SIZE_VW / 2,
+      y:
+        row * StarMapMovementService.SYSTEM_CELL_SIZE_VW +
+        StarMapMovementService.SYSTEM_CELL_SIZE_VW / 2,
+    };
+  }
+
+  /*
+   * calculateSystemGridCell: Converts system view vw coordinates to grid cells.
+   * The system view uses a fixed 20x12 grid with 5vw cells.
+   * Returns 1-indexed grid positions.
+   */
+  calculateSystemGridCell(vwX: number, vwY: number): { col: number; row: number } {
+    return {
+      col: Math.floor(vwX / StarMapMovementService.SYSTEM_CELL_SIZE_VW) + 1,
+      row: Math.floor(vwY / StarMapMovementService.SYSTEM_CELL_SIZE_VW) + 1,
+    };
   }
 
   /*
    * isFleetInSystem: Checks if a fleet is within the grid cell of a star system.
+   * Both fleet.x/y and system.x/y are 1-indexed map grid cell coordinates.
    */
   isFleetInSystem(fleet: Fleet, system: StarSystem): boolean {
     const fleetCell = this.calculateGridCell(fleet.x, fleet.y);
@@ -65,16 +108,16 @@ export class StarMapMovementService {
   }
 
   /*
-   * getTileCenter: Snap world coordinates to the center of the containing grid cell.
+   * getTileCenter: Converts vw world coordinates to the 1-indexed grid cell
+   * that contains them. The returned grid cell IS the center of that cell
+   * in grid cell space (since cell N covers vw range [(N-1)*cellSize, N*cellSize)
+   * and its center is N in 1-indexed space).
+   * Used for map click-to-move targeting.
    */
-  getTileCenter(x: number, y: number): { x: number; y: number } {
-    const tileColumn = Math.max(0, Math.min(Math.floor(x / this.cellSizeVw), this.gridColumns - 1));
-    const tileRow = Math.max(0, Math.min(Math.floor(y / this.cellSizeVh), this.gridRows - 1));
-
-    return {
-      x: tileColumn * this.cellSizeVw + this.cellSizeVw / 2,
-      y: tileRow * this.cellSizeVh + this.cellSizeVh / 2,
-    };
+  getTileCenter(vwX: number, vwY: number): { x: number; y: number } {
+    const col = Math.floor(vwX / this.cellSizeVw) + 1;
+    const row = Math.floor(vwY / this.cellSizeVh) + 1;
+    return { x: col, y: row };
   }
 
   /*
@@ -97,7 +140,7 @@ export class StarMapMovementService {
         continue;
       }
 
-      // Map movement
+      // Map movement (fleet.x/y are 1-indexed grid cell coordinates)
       if (fleet.targetX !== null && fleet.targetY !== null) {
         didMoveFleets = true;
 
@@ -115,12 +158,17 @@ export class StarMapMovementService {
             onTargetReached(fleet.id);
           }
         } else {
-          const movement = fleet.speed * deltaTime;
+          // Fleet speed is in vw/s; convert to grid cells/s
+          const movement = (fleet.speed / this.cellSizeVw) * deltaTime;
           const step = Math.min(movement, distance);
-          console.log(`[Movement] Moving fleet ${fleet.id} from (${fleet.x}, ${fleet.y}) step=${step.toFixed(2)}`);
+          console.log(
+            `[Movement] Moving fleet ${fleet.id} from (${fleet.x}, ${fleet.y}) step=${step.toFixed(2)}`,
+          );
           fleet.x += (dx / distance) * step;
           fleet.y += (dy / distance) * step;
-          console.log(`[Movement] Fleet ${fleet.id} new pos: (${fleet.x.toFixed(2)}, ${fleet.y.toFixed(2)})`);
+          console.log(
+            `[Movement] Fleet ${fleet.id} new pos: (${fleet.x.toFixed(2)}, ${fleet.y.toFixed(2)})`,
+          );
         }
 
         const mapCell = this.calculateGridCell(fleet.x, fleet.y);
@@ -161,7 +209,7 @@ export class StarMapMovementService {
         }
 
         if (fleet.systemX != null && fleet.systemY != null) {
-          const sysCell = this.calculateGridCell(fleet.systemX, fleet.systemY);
+          const sysCell = this.calculateSystemGridCell(fleet.systemX, fleet.systemY);
           fleet.gridCol = sysCell.col;
           fleet.gridRow = sysCell.row;
         }
@@ -172,7 +220,9 @@ export class StarMapMovementService {
   }
 
   /*
-   * refreshGridPositions: Recalculates grid positions for all fleets and systems.
+   * refreshGridPositions: Recalculates integer grid cells for all fleets and systems.
+   * Fleet x/y and system x/y are 1-indexed grid cell coordinates; this snaps them
+   * to integer cells for collision detection.
    */
   refreshGridPositions(fleets: Fleet[], starSystems: StarSystem[]): void {
     for (const fleet of fleets) {
@@ -195,29 +245,44 @@ export class StarMapMovementService {
   }
 
   /*
-   * initializeCoordinates: Converts legacy grid coordinates to vw coordinates.
-   * Used for fleets loaded from older save formats.
+   * initializeCoordinates: Ensures all fleets and systems have grid cell coordinates.
+   * In the new system, x/y are already 1-indexed grid cells. For legacy saves
+   * (map.width === 200, meaning vw dimensions), converts vw positions to grid cells
+   * using the reference cell size of 2vw.
    */
   initializeCoordinates(fleets: Fleet[], starSystems: StarSystem[]): void {
+    const isLegacyVw = this.gridColumns === 0 || this.gridColumns > 150;
+
     for (const fleet of fleets) {
       if (fleet.destroyed) {
         continue;
       }
 
-      if (fleet.gridCol == null || fleet.gridRow == null) {
-        const gridX = fleet.x;
-        const gridY = fleet.y;
-        fleet.x = (gridX - 1) * this.cellSizeVw + this.cellSizeVw / 2;
-        fleet.y = (gridY - 1) * this.cellSizeVh + this.cellSizeVh / 2;
-        fleet.gridCol = gridX;
-        fleet.gridRow = gridY;
+      if (isLegacyVw && (fleet.x > this.gridColumns || fleet.y > this.gridRows)) {
+        // Legacy: x/y are vw coordinates; convert to 1-indexed grid cells
+        const gridX = Math.floor(fleet.x / this.cellSizeVw) + 1;
+        const gridY = Math.floor(fleet.y / this.cellSizeVh) + 1;
+        fleet.x = gridX;
+        fleet.y = gridY;
+        if (fleet.targetX != null) {
+          fleet.targetX = Math.floor(fleet.targetX / this.cellSizeVw) + 1;
+        }
+        if (fleet.targetY != null) {
+          fleet.targetY = Math.floor(fleet.targetY / this.cellSizeVh) + 1;
+        }
       }
+
+      fleet.gridCol = Math.floor(fleet.x);
+      fleet.gridRow = Math.floor(fleet.y);
     }
 
     for (const system of starSystems) {
-      const cell = this.calculateGridCell(system.x, system.y);
-      system.gridCol = cell.col;
-      system.gridRow = cell.row;
+      if (isLegacyVw && (system.x > this.gridColumns || system.y > this.gridRows)) {
+        system.x = Math.floor(system.x / this.cellSizeVw) + 1;
+        system.y = Math.floor(system.y / this.cellSizeVh) + 1;
+      }
+      system.gridCol = Math.floor(system.x);
+      system.gridRow = Math.floor(system.y);
     }
   }
 
@@ -276,7 +341,7 @@ export class StarMapMovementService {
       }
 
       if (fleet.systemId === system.id && fleet.systemX != null && fleet.systemY != null) {
-        const fleetCell = this.calculateGridCell(fleet.systemX, fleet.systemY);
+        const fleetCell = this.calculateSystemGridCell(fleet.systemX, fleet.systemY);
         if (fleetCell.col === col && fleetCell.row === row) {
           items.push({ type: 'fleet', label: `Fleet: ${fleet.name}`, data: fleet });
         }

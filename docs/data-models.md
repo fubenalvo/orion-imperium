@@ -24,11 +24,12 @@ The root save format. Contains all state needed to reconstruct a game session:
 
 ## StarSystem
 
-- `id`, `name`, `x`, `y`: World position.
+- `id`, `name`: Identity.
+- `x`, `y`: 1-indexed grid column/row on the galaxy map (e.g., x=53 means column 53).
 - `planets`: Planet count (informational).
 - `color`: Star color for rendering.
 - `planetsTiles`: Array of PlanetTile objects.
-- `gridCol`, `gridRow`: Derived grid position in map view.
+- `gridCol`, `gridRow`: Derived integer grid cell (floor of x/y).
 
 ## PlanetTile
 
@@ -44,13 +45,13 @@ The root save format. Contains all state needed to reconstruct a game session:
 ## Fleet
 
 - `id`, `name`, `factionId`: Identity and ownership.
-- `x`, `y`: World position in `vw` units.
-- `targetX`, `targetY`: Map movement target (null when idle).
-- `speed`: Movement speed in vw/second.
+- `x`, `y`: 1-indexed grid column/row on the galaxy map (floats for smooth movement).
+- `targetX`, `targetY`: Map movement target in grid cell coordinates (null when idle).
+- `speed`: Movement speed in vw/s (the movement service converts to cells/s via speed / cellSizeVw).
 - `systemId`: Star system the fleet is currently inside (undefined when on map).
-- `systemX`, `systemY`: Position within a system view.
-- `systemTargetX`, `systemTargetY`: System movement target.
-- `gridCol`, `gridRow`: Current grid cell (derived from x/y).
+- `systemX`, `systemY`: Position within a system view in vw units (separate 20x12 grid, 5vw cells).
+- `systemTargetX`, `systemTargetY`: System movement target in vw.
+- `gridCol`, `gridRow`: Current integer grid cell on the map (floor of x/y).
 - `ships`: Array of FleetShip objects.
 - `destroyed`: Flag set after battle loss; fleet is filtered out of active fleets.
 

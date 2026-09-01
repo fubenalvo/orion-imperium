@@ -60,6 +60,10 @@ export interface PlanetTile {
   explored: boolean;
 }
 
+/*
+ * StarSystem position on the galaxy map.
+ * x/y are 1-indexed grid column/row coordinates (e.g., x=53 means column 53).
+ */
 export interface StarSystem {
   id: number;
   name: string;
@@ -107,6 +111,11 @@ export interface FleetShipTypeSummary {
 
 export interface StarMapData {
   factions: Faction[];
+  /*
+   * map: Grid layout configuration.
+   * - width/height: Grid dimensions in cells (columns × rows)
+   * - cellSizeVw/Vh: Rendering cell size in vw units (2 desktop, 7 mobile)
+   */
   map: {
     width: number;
     height: number;
@@ -197,6 +206,12 @@ export interface ContextMenuItem {
   data: Fleet | StarSystem | PlanetTile;
 }
 
+/*
+ * Fleet position on the galaxy map.
+ * x/y and targetX/Y are 1-indexed grid cell coordinates (floats for smooth movement).
+ * Speed is in vw/s; the movement service converts to cells/s using cellSizeVw.
+ * systemX/Y and systemTargetX/Y are system view positions in vw units (separate grid).
+ */
 export interface Fleet {
   id: number;
   name: string;

@@ -225,7 +225,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
             fleet.systemX = 2.5;
             fleet.systemY = 32.5;
           }
-          const sysCell = this.movementService.calculateGridCell(fleet.systemX!, fleet.systemY!);
+          const sysCell = this.movementService.calculateSystemGridCell(
+            fleet.systemX!,
+            fleet.systemY!,
+          );
           fleet.gridCol = sysCell.col;
           fleet.gridRow = sysCell.row;
         }
@@ -464,8 +467,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.selectedPlanetTile = null;
 
     if (this.currentView === 'map') {
-      this.cameraX = fleet.x - 50;
-      this.cameraY = fleet.y - 50;
+      this.cameraX = (fleet.x - 0.5) * this.cellSizeVw - 50;
+      this.cameraY = (fleet.y - 0.5) * this.cellSizeVh - 50;
       this.clampCamera();
     }
 
@@ -536,8 +539,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /** Selects a star system, or moves the selected fleet to it if in move mode. */
   selectSystem(system: StarSystem): void {
     if (this.selectedFleet && this.currentView === 'map' && this.selectedFleetAction === 'move') {
-      const targetTile = this.movementService.getTileCenter(system.x, system.y);
-      this.moveSelectedFleet(targetTile.x, targetTile.y);
+      this.moveSelectedFleet(system.x, system.y);
     }
 
     this.selectedSystem = system;
@@ -622,7 +624,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       );
       this.handleObjectClick(items, event);
     } else if (this.selectedSystem) {
-      const sysCell = this.movementService.calculateGridCell(
+      const sysCell = this.movementService.calculateSystemGridCell(
         fleet.systemX ?? 0,
         fleet.systemY ?? 0,
       );
@@ -794,7 +796,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const systemX = screenX / viewportUnitInPixels;
     const systemY = screenY / viewportUnitInPixels;
 
-    const targetTile = this.movementService.getTileCenter(systemX, systemY);
+    const targetTile = this.movementService.getSystemTileCenter(systemX, systemY);
     this.moveSelectedFleet(targetTile.x, targetTile.y);
   }
 
@@ -950,7 +952,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         continue;
       }
 
-      const fleetCell = this.movementService.calculateGridCell(fleet.systemX, fleet.systemY);
+      const fleetCell = this.movementService.calculateSystemGridCell(fleet.systemX, fleet.systemY);
 
       for (const planet of this.selectedSystem.planetsTiles) {
         if (planet.explored) {
@@ -987,6 +989,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   @HostListener('window:resize')
   onResize(): void {
+    const oldCellSizeVw = this.cellSizeVw;
+    const oldCellSizeVh = this.cellSizeVh;
+
     const isWide = window.innerWidth >= this.gridBreakpointPx;
     this.cellSizeVw = isWide ? 2 : 7;
     this.cellSizeVh = isWide ? 2 : 7;
@@ -997,6 +1002,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.mapHeight,
     );
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
+
+    // Scale camera proportionally so the same grid area stays in view
+    if (oldCellSizeVw > 0) {
+      this.cameraX *= this.cellSizeVw / oldCellSizeVw;
+      this.cameraY *= this.cellSizeVh / oldCellSizeVh;
+    }
+
     this.clampCamera();
     this.checkOrientation();
   }
@@ -1091,6 +1103,27 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.starSystems = data.starSystems;
     this.fleets = data.fleets ?? [];
 
+    // Legacy save migration: old saves stored map dimensions in vw (width=200)
+    // and star system / fleet x/y in vw units. Convert to grid cell coordinates.
+    if (data.map && data.map.width > 150) {
+      const refCellSize = 2;
+      for (const system of this.starSystems) {
+        system.x = Math.min(Math.floor(system.x / refCellSize) + 1, this.mapWidth);
+        system.y = Math.min(Math.floor(system.y / refCellSize) + 1, this.mapHeight);
+      }
+      for (const fleet of this.fleets) {
+        if (fleet.destroyed) continue;
+        fleet.x = Math.min(Math.floor(fleet.x / refCellSize) + 1, this.mapWidth);
+        fleet.y = Math.min(Math.floor(fleet.y / refCellSize) + 1, this.mapHeight);
+        if (fleet.targetX != null) {
+          fleet.targetX = Math.min(Math.floor(fleet.targetX / refCellSize) + 1, this.mapWidth);
+        }
+        if (fleet.targetY != null) {
+          fleet.targetY = Math.min(Math.floor(fleet.targetY / refCellSize) + 1, this.mapHeight);
+        }
+      }
+    }
+
     if (data.destroyedFleetId != null) {
       const fleet = this.fleets.find((f) => f.id === data.destroyedFleetId);
       if (fleet) {
@@ -1113,6 +1146,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null;
 
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
+    this.clampCamera();
   }
 
   /** Removes a fleet from the game state and clears it from the selection if needed. */
