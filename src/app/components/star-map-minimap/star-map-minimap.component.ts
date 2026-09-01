@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Input, Output, EventEmitter, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { StarSystem } from '../star-map/star-map.models';
 import { MinimapFleet } from './star-map-minimap.models';
@@ -28,6 +28,8 @@ export class StarMapMinimapComponent {
 
   private dragging = false;
   private lastEmit = 0;
+
+  constructor(private zone: NgZone) {}
 
   get totalMapVw(): number {
     return this.gridColumns * this.cellSizeVw;
@@ -108,6 +110,8 @@ export class StarMapMinimapComponent {
     const pxY = e.clientY - rect.top;
     const cameraX = (pxX / this.MINIMAP_W) * this.totalMapVw - 50;
     const cameraY = (pxY / this.MINIMAP_H) * this.totalMapVh - this.viewportHeightVw / 2;
-    this.cameraChange.emit({ x: cameraX, y: cameraY });
+    this.zone.run(() => {
+      this.cameraChange.emit({ x: cameraX, y: cameraY });
+    });
   }
 }
