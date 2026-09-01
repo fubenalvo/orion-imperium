@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { BattleService, Battle, BattleState, BattleLogEntry, FleetShip } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
+import { PlanetBattleService } from '../../services/planet-battle.service';
 
 /*
  * =========================================================
@@ -39,6 +40,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     private router: Router,
     private battleService: BattleService,
     private shipService: ShipService,
+    private planetBattleService: PlanetBattleService,
     private cdr: ChangeDetectorRef
   ) {
     this.battle = this.battleService.getBattle();
@@ -94,9 +96,12 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
 
   backToStarMap(): void {
     this.stopStepTimer();
+    const battle = this.battleService.getBattle();
     const loser = this.battleService.getLoser();
     this.battleService.clearBattle();
-    if (loser) {
+
+    if (battle?.type === 'planet') {
+    } else if (loser) {
       loser.destroyed = true;
       this.battleService.setDestroyedFleetId(loser.id);
     }
@@ -146,6 +151,9 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   }
 
   getMaxHp(shipTypeId: string): number {
-    return this.shipService.getShipType(shipTypeId)?.hitPoints ?? 1;
+    const shipType = this.shipService.getShipType(shipTypeId);
+    if (shipType) return shipType.hitPoints;
+    const virtualType = this.planetBattleService.getVirtualShipType(shipTypeId);
+    return virtualType?.hitPoints ?? 1;
   }
 }

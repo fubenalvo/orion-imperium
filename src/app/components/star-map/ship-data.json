@@ -159,6 +159,22 @@
       "range": 5,
       "cost": 1200,
       "maintenanceCost": 55
+    },
+    {
+      "id": "colonizer",
+      "name": "Colonizer",
+      "role": "Colonizer",
+      "hitPoints": 30,
+      "shield": 10,
+      "shieldRegen": 1,
+      "attack": 2,
+      "attackType": "kinetic",
+      "weakness": "energy",
+      "defense": 2,
+      "speed": 3,
+      "range": 1,
+      "cost": 100,
+      "maintenanceCost": 5
     }
   ]
 }

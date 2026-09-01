@@ -14,6 +14,7 @@ import { BattleService } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { SaveGameService } from '../../services/save-game.service';
 import { EconomyService } from '../../services/economy.service';
+import { PlanetBattleService } from '../../services/planet-battle.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
@@ -192,6 +193,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private saveGameService: SaveGameService,
     private shipService: ShipService,
     private economyService: EconomyService,
+    private planetBattleService: PlanetBattleService,
     private gameLoopService: StarMapGameLoopService,
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
@@ -779,9 +781,82 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   // Movement
 
+  /** Validates whether the selected fleet can move to the given system grid coordinates. */
+  private validateFleetMove(targetX: number, targetY: number): 'allowed' | 'blocked-team' | 'blocked-ours' {
+    if (this.currentView !== 'system' || !this.selectedSystem || !this.selectedFleet) {
+      return 'allowed';
+    }
+
+    const targetTile = this.movementService.getSystemTileCenter(targetX, targetY);
+    const targetCell = this.movementService.calculateSystemGridCell(targetTile.x, targetTile.y);
+
+    for (const planet of this.selectedSystem.planetsTiles) {
+      const planetCell = this.movementService.getPlanetGridPosition(planet);
+      if (planetCell.col !== targetCell.col || planetCell.row !== targetCell.row) {
+        continue;
+      }
+
+      const planetFaction = this.factions.find((f) => f.id === planet.factionId);
+      const playerFaction = this.factions.find((f) => f.id === 'player');
+      if (!planetFaction || !playerFaction) {
+        continue;
+      }
+
+      if (planet.factionId === 'unhabited') {
+        return 'allowed';
+      }
+
+      if (planetFaction.team === playerFaction.team && planet.factionId !== 'player') {
+        return 'blocked-team';
+      }
+
+      if (planet.factionId === 'player') {
+        const fleetOnPlanet = this.getFleetOnPlanet(planet);
+        if (fleetOnPlanet) {
+          return 'blocked-ours';
+        }
+        return 'allowed';
+      }
+
+      return 'allowed';
+    }
+
+    return 'allowed';
+  }
+
+  /** Returns the first non-destroyed fleet currently on the given planet. */
+  private getFleetOnPlanet(planet: PlanetTile): Fleet | null {
+    if (!this.selectedSystem) return null;
+
+    for (const fleet of this.fleets) {
+      if (fleet.destroyed || fleet.system?.id !== this.selectedSystem.id) continue;
+      if (fleet.system.targetX != null || fleet.system.targetY != null) continue;
+
+      const fleetCell = this.movementService.calculateSystemGridCell(
+        fleet.system.x,
+        fleet.system.y,
+      );
+      const planetCell = this.movementService.getPlanetGridPosition(planet);
+      if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
+        return fleet;
+      }
+    }
+    return null;
+  }
+
   /** Commands the selected fleet to move to the given world coordinates. */
   moveSelectedFleet(x: number, y: number): void {
     if (!this.selectedFleet) {
+      return;
+    }
+
+    const validation = this.validateFleetMove(x, y);
+    if (validation === 'blocked-team') {
+      console.log('[StarMap] Cannot move fleet to teammate planet');
+      return;
+    }
+    if (validation === 'blocked-ours') {
+      console.log('[StarMap] Cannot move fleet to own planet with existing fleet');
       return;
     }
 
@@ -1122,7 +1197,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
-  /** Checks if any fleet arrived at a planet's grid cell and logs the information. */
+  /** Checks if any fleet arrived at a planet's grid cell and handles the interaction. */
   private checkFleetPlanetArrivals(): void {
     if (this.currentView !== 'system' || !this.selectedSystem) {
       return;
@@ -1132,59 +1207,128 @@ export class StarMap implements AfterViewInit, OnDestroy {
       if (fleet.destroyed || fleet.system?.id !== this.selectedSystem.id) {
         continue;
       }
+      if (fleet.system.targetX != null || fleet.system.targetY != null) {
+        continue;
+      }
 
       const fleetCell = this.movementService.calculateSystemGridCell(
         fleet.system.x,
         fleet.system.y,
       );
 
-      let foundPlanetOnCell = false;
-
       for (const planet of this.selectedSystem.planetsTiles) {
         const planetCell = this.movementService.getPlanetGridPosition(planet);
-
-        if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
-          foundPlanetOnCell = true;
-          const lastPlanetId = this.fleetPlanetMap.get(fleet.id);
-
-          if (lastPlanetId !== planet.id) {
-            // Fleet just stepped on this planet
-            this.fleetPlanetMap.set(fleet.id, planet.id);
-
-            // Find other fleets on this same cell
-            const otherFleetsOnCell = this.fleets.filter(
-              (f) =>
-                !f.destroyed &&
-                f.id !== fleet.id &&
-                f.system?.id === this.selectedSystem!.id &&
-                this.movementService.calculateSystemGridCell(f.system.x, f.system.y).col ===
-                  fleetCell.col &&
-                this.movementService.calculateSystemGridCell(f.system.x, f.system.y).row ===
-                  fleetCell.row,
-            );
-
-            console.log(
-              `[StarMap] Fleet arrived at planet grid cell!`,
-              `\n- Arriving Fleet:`,
-              fleet.name,
-              `(${fleet.factionId})`,
-              `\n- Planet:`,
-              planet.name,
-              `(${planet.type})`,
-              `\n- Other fleets on this cell:`,
-              otherFleetsOnCell.length > 0
-                ? otherFleetsOnCell.map((f) => f.name).join(', ')
-                : 'None',
-            );
-          }
-          break; // Fleet can only be on one planet cell at a time
+        if (fleetCell.col !== planetCell.col || fleetCell.row !== planetCell.row) {
+          continue;
         }
-      }
 
-      if (!foundPlanetOnCell) {
-        this.fleetPlanetMap.delete(fleet.id);
+        const lastPlanetId = this.fleetPlanetMap.get(fleet.id);
+        if (lastPlanetId === planet.id) {
+          break;
+        }
+
+        this.fleetPlanetMap.set(fleet.id, planet.id);
+        this.handleFleetPlanetArrival(fleet, planet);
+        break;
       }
     }
+  }
+
+  /** Handles a fleet arriving at a planet: colonization, orbit, or battle trigger. */
+  private handleFleetPlanetArrival(fleet: Fleet, planet: PlanetTile): void {
+    if (planet.factionId === 'unhabited') {
+      const result = this.planetBattleService.resolveUninhabitedArrival(fleet);
+      if (result.colonized && result.colonizerIndex >= 0) {
+        fleet.ships.splice(result.colonizerIndex, 1);
+        planet.factionId = fleet.factionId;
+        console.log(`[StarMap] Fleet ${fleet.name} colonized ${planet.name}`);
+      } else {
+        console.log(`[StarMap] Fleet ${fleet.name} orbiting uninhabited ${planet.name} (no colonizer)`);
+      }
+      this.saveGame();
+      return;
+    }
+
+    if (planet.factionId === fleet.factionId) {
+      console.log(`[StarMap] Fleet ${fleet.name} arrived at own planet ${planet.name}`);
+      return;
+    }
+
+    const planetFaction = this.factions.find((f) => f.id === planet.factionId);
+    const fleetFaction = this.factions.find((f) => f.id === fleet.factionId);
+    if (!planetFaction || !fleetFaction) {
+      return;
+    }
+
+    if (planetFaction.team === fleetFaction.team) {
+      console.log(`[StarMap] Fleet ${fleet.name} cannot attack teammate planet ${planet.name}`);
+      return;
+    }
+
+    if (!this.planetBattleService.hasPlanetDefenses(planet)) {
+      console.log(`[StarMap] Fleet ${fleet.name} captured undefended planet ${planet.name}`);
+      planet.factionId = fleet.factionId;
+      this.saveGame();
+      return;
+    }
+
+    this.triggerPlanetBattle(fleet, planet);
+  }
+
+  /** Triggers a battle between an attacking fleet and a planet's defenses. */
+  private triggerPlanetBattle(attackerFleet: Fleet, targetPlanet: PlanetTile): void {
+    const garrisonFleet = this.getFleetOnPlanet(targetPlanet);
+    const defenseFleet = this.planetBattleService.createVirtualDefenseFleet(
+      targetPlanet,
+      garrisonFleet,
+    );
+
+    const attackerFaction = this.factions.find((f) => f.id === attackerFleet.factionId);
+    const defenderFaction = this.factions.find((f) => f.id === targetPlanet.factionId);
+    if (!attackerFaction || !defenderFaction) {
+      return;
+    }
+
+    this.battleService.setPlanetBattle({
+      fleet1: attackerFleet,
+      fleet2: defenseFleet,
+      faction1Name: attackerFaction.name,
+      faction1Color: attackerFaction.color,
+      faction2Name: defenderFaction.name,
+      faction2Color: defenderFaction.color,
+      attackerId: attackerFleet.id,
+      defenderId: defenseFleet.id,
+      planetId: targetPlanet.id,
+    });
+
+    this.saveGame();
+    this.ngZone.run(() => this.router.navigate(['/battle']));
+  }
+
+  /** Applies planet ownership change after a planet battle concludes. */
+  private applyPlanetBattleResult(): void {
+    const battle = this.battleService.getBattle();
+    if (!battle || battle.type !== 'planet' || !battle.planetId) {
+      return;
+    }
+
+    const winner = this.battleService.getWinner();
+    if (!winner || winner.id !== battle.attackerId) {
+      return;
+    }
+
+    for (const system of this.starSystems) {
+      const planet = system.planetsTiles.find((p) => p.id === battle.planetId);
+      if (!planet) {
+        continue;
+      }
+
+      planet.factionId = winner.factionId;
+      console.log(`[StarMap] Planet ${planet.name} captured by ${winner.name}`);
+      break;
+    }
+
+    this.saveGame();
   }
 
   /** Registers window blur and visibility-change listeners to auto-pause the game. */
@@ -1403,6 +1547,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.loadGame();
     this.removeDestroyedFleetFromService();
+    this.applyPlanetBattleResult();
   }
 
   /** Applies a previously destroyed fleet from the battle service into the current save. */

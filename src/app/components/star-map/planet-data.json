@@ -4,6 +4,11 @@
       "id": "laser_turret",
       "name": "Laser Turret",
       "role": "defense",
+      "type": "turret",
+      "attack": 20,
+      "attackType": "energy",
+      "range": 3,
+      "weakness": "kinetic",
       "energyConsumption": 5,
       "energyProduction": 0,
       "maintenanceCost": 10,
@@ -15,19 +20,17 @@
       "production": {},
       "consumption": {
         "energy": 5
-      },
-      "defense": {
-        "type": "turret",
-        "attack": 20,
-        "attackType": "energy",
-        "range": 3,
-        "weakness": "kinetic"
       }
     },
     {
       "id": "missile_turret",
       "name": "Missile Turret",
       "role": "defense",
+      "type": "turret",
+      "attack": 35,
+      "attackType": "missile",
+      "range": 5,
+      "weakness": "energy",
       "energyConsumption": 3,
       "energyProduction": 0,
       "maintenanceCost": 15,
@@ -39,19 +42,16 @@
       "production": {},
       "consumption": {
         "energy": 3
-      },
-      "defense": {
-        "type": "turret",
-        "attack": 35,
-        "attackType": "missile",
-        "range": 5,
-        "weakness": "energy"
       }
     },
     {
       "id": "planetary_shield",
       "name": "Planetary Shield",
       "role": "defense",
+      "type": "shield",
+      "shield": 300,
+      "shieldRegen": 15,
+      "weakness": "kinetic",
       "energyConsumption": 25,
       "energyProduction": 0,
       "maintenanceCost": 30,
@@ -63,12 +63,6 @@
       "production": {},
       "consumption": {
         "energy": 25
-      },
-      "defense": {
-        "type": "shield",
-        "shield": 300,
-        "shieldRegen": 15,
-        "weakness": "kinetic"
       }
     },
     {

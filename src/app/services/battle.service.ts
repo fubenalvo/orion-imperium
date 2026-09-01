@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { ShipService } from './ship.service';
+import { PlanetBattleService } from './planet-battle.service';
 
 /*
  * =========================================================
@@ -23,7 +24,10 @@ export class BattleService {
   private destroyedFleetId: number | null = null;
   private tickRateMs = 1000;
 
-  constructor(private shipService: ShipService) {}
+  constructor(
+    private shipService: ShipService,
+    private planetBattleService: PlanetBattleService,
+  ) {}
 
   setTickRate(ms: number): void {
     this.tickRateMs = ms;
@@ -35,6 +39,12 @@ export class BattleService {
 
   setBattle(battle: Battle): void {
     this.currentBattle = battle;
+    this.battleState = null;
+    this.destroyedFleetId = null;
+  }
+
+  setPlanetBattle(battle: Battle): void {
+    this.currentBattle = { ...battle, type: 'planet' };
     this.battleState = null;
     this.destroyedFleetId = null;
   }
@@ -156,8 +166,8 @@ export class BattleService {
     const shipType = this.shipService.getShipType(attackingShip.type);
     const targetType = this.shipService.getShipType(targetShip.type);
 
-    const baseDamage = shipType?.attack ?? 0;
-    const defense = targetType?.defense ?? 0;
+    const baseDamage = shipType?.attack ?? this.planetBattleService.getBuildingAttack(attackingShip.type);
+    const defense = targetType?.defense ?? this.planetBattleService.getBuildingDefense(targetShip.type);
     const damage = Math.max(1, baseDamage - defense);
 
     targetShip.currentHp = (targetShip.currentHp ?? 0) - damage;
@@ -329,6 +339,9 @@ export interface Battle {
   faction2Color: string;
   attackerId: number;
   defenderId: number;
+  type?: 'fleet' | 'planet';
+  planetId?: number;
+  capturedPlanetId?: number;
 }
 
 export interface BattleState {
