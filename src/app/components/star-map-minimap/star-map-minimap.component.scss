@@ -1,0 +1,31 @@
+:host {
+  display: block;
+  width: 240px;
+  height: 144px;
+}
+
+.minimap {
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.minimap__bg {
+  fill: rgba(0, 0, 10, 0.85);
+}
+
+.minimap__system {
+  filter: drop-shadow(0 0 2px currentColor);
+}
+
+.minimap__fleet {
+  pointer-events: none;
+}
+
+.minimap__viewport {
+  fill: rgba(255, 255, 255, 0.1);
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 1.5;
+}

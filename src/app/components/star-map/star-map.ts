@@ -212,6 +212,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return this.fleets.filter((f) => !f.destroyed);
   }
 
+  get minimapFleets(): { id: number; x: number; y: number; color: string }[] {
+    return this.visibleFleets.map((f) => ({
+      id: f.id,
+      x: f.x,
+      y: f.y,
+      color: this.getFactionColor(f.factionId),
+    }));
+  }
+
   // Pause menu handlers
 
   /** Opens the pause menu and pauses the game loop. */
@@ -841,6 +850,18 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   // Camera
+
+  /** Viewport height in vw units, derived from the current window aspect ratio. */
+  get viewportHeightVw(): number {
+    return (window.innerHeight / window.innerWidth) * 100;
+  }
+
+  /** Sets the camera to an absolute position and clamps it within bounds. */
+  setCamera(pos: { x: number; y: number }): void {
+    this.cameraX = pos.x;
+    this.cameraY = pos.y;
+    this.clampCamera();
+  }
 
   /** Pans the camera in the specified direction and clamps it within bounds. */
   moveCamera(direction: 'up' | 'down' | 'left' | 'right'): void {

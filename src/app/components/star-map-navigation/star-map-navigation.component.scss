@@ -8,22 +8,32 @@
   position: fixed;
   right: 2%;
   bottom: 3%;
-  display: grid;
-  grid-template-columns: repeat(3, 3em);
-  grid-template-rows: repeat(3, 3em);
-  gap: 0.3em;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 0.5em;
   z-index: 30;
 
   @include mobile-view {
-    grid-template-columns: repeat(3, 1.3em);
-    grid-template-rows: repeat(3, 1.3em);
-    gap: 1em;
     bottom: 2.5em;
     right: 1.5em;
   }
 }
 
-.map-navigation button {
+.map-navigation__dpad {
+  display: grid;
+  grid-template-columns: repeat(3, 3em);
+  grid-template-rows: repeat(3, 3em);
+  gap: 0.3em;
+
+  @include mobile-view {
+    grid-template-columns: repeat(3, 2rem);
+    grid-template-rows: repeat(3, 2rem);
+    gap: 0.2em;
+  }
+}
+
+.map-navigation__dpad button {
   width: 3em;
   min-height: 3em;
   padding: 0;
@@ -60,4 +70,11 @@
 .map-navigation__down {
   grid-column: 2;
   grid-row: 3;
+}
+
+.map-navigation__minimap {
+  @include mobile-view {
+    width: 120px;
+    height: 72px;
+  }
 }

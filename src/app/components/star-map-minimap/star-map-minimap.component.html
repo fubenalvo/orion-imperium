@@ -1,0 +1,30 @@
+<svg class="minimap" [attr.viewBox]="viewBox"
+     (pointerdown)="onPointerDown($event)"
+     (pointermove)="onPointerMove($event)"
+     (pointerup)="onPointerUp()"
+     (pointerleave)="onPointerUp()">
+
+  <rect class="minimap__bg" [attr.width]="MINIMAP_W" [attr.height]="MINIMAP_H"/>
+
+  @for (s of starSystems; track s.id) {
+    <circle class="minimap__system"
+            [attr.cx]="systemX(s)"
+            [attr.cy]="systemY(s)"
+            r="3"
+            [attr.fill]="s.color"/>
+  }
+
+  @for (f of fleets; track f.id) {
+    <rect class="minimap__fleet"
+          [attr.x]="fleetX(f) - 2"
+          [attr.y]="fleetY(f) - 2"
+          width="4" height="4"
+          [attr.fill]="f.color"/>
+  }
+
+  <rect class="minimap__viewport"
+        [attr.x]="viewportX"
+        [attr.y]="viewportY"
+        [attr.width]="viewportW"
+        [attr.height]="viewportH"/>
+</svg>

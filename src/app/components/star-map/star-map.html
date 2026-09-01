@@ -150,7 +150,15 @@
     <app-star-map-navigation
       [cameraX]="cameraX"
       [cameraY]="cameraY"
+      [starSystems]="starSystems"
+      [fleets]="minimapFleets"
+      [cellSizeVw]="cellSizeVw"
+      [cellSizeVh]="cellSizeVh"
+      [gridColumns]="movementService.gridColumns"
+      [gridRows]="movementService.gridRows"
+      [viewportHeightVw]="viewportHeightVw"
       (cameraMove)="moveCamera($event)"
+      (cameraSet)="setCamera($event)"
       (centerCamera)="cameraX = 0; cameraY = 0"
     >
     </app-star-map-navigation>
