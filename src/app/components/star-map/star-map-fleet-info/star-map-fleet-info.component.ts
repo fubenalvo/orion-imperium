@@ -16,9 +16,9 @@ export class StarMapFleetInfoComponent {
   @Input() totalDefense = 0;
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
   @Input() isPlayerFleet = false;
-  @Input() selectedFleetAction: 'move' | 'attack' | null = null;
+  @Input() selectedFleetAction: 'move' | null = null;
 
   @Output() close = new EventEmitter<void>();
-  @Output() setFleetAction = new EventEmitter<'move' | 'attack'>();
+  @Output() setFleetAction = new EventEmitter<'move'>();
   @Output() selectFleet = new EventEmitter<Fleet>();
 }

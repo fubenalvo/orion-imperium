@@ -110,7 +110,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   selectedSystem: StarSystem | null = null;
   selectedFleet: Fleet | null = null;
   selectedPlanetTile: PlanetTile | null = null;
-  selectedFleetAction: 'move' | 'attack' | null = null;
+  selectedFleetAction: 'move' | null = null;
 
   // Camera state
   cameraX = 0;
@@ -558,8 +558,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  /** Sets the active action mode for the selected fleet ('move' or 'attack'). */
-  setFleetAction(action: 'move' | 'attack'): void {
+  /** Sets the active action mode for the selected fleet ('move'). */
+  setFleetAction(action: 'move'): void {
     this.selectedFleetAction = action;
     this.cdr.detectChanges();
   }

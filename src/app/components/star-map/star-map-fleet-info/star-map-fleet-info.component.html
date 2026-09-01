@@ -32,14 +32,6 @@
         >
           MOVE
         </button>
-        <button
-          type="button"
-          class="action-btn attack-btn"
-          [class.active]="selectedFleetAction === 'attack'"
-          (click)="setFleetAction.emit('attack'); $event.stopPropagation()"
-        >
-          ATTACK
-        </button>
       </div>
     }
 
