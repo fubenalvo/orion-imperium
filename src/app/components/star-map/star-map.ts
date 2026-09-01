@@ -104,6 +104,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   fleets: Fleet[] = initialStarMapData.fleets;
   factions: StarMapData['factions'] = initialStarMapData.factions;
 
+  // Track which fleet is currently on which planet grid cell to log arrivals
+  private fleetPlanetMap = new Map<number, number>();
   // Selection state
   selectedSystem: StarSystem | null = null;
   selectedFleet: Fleet | null = null;
@@ -269,23 +271,29 @@ export class StarMap implements AfterViewInit, OnDestroy {
         }
 
         if (this.movementService.isFleetInSystem(fleet, this.selectedSystem)) {
-          fleet.systemId = this.selectedSystem.id;
-          if (fleet.systemX == null) {
-            fleet.systemX = 2.5;
-            fleet.systemY = 32.5;
+          if (!fleet.system) {
+            fleet.system = {
+              id: this.selectedSystem.id,
+              x: 2.5,
+              y: 32.5,
+              targetX: null,
+              targetY: null,
+            };
+          } else {
+            fleet.system.id = this.selectedSystem.id;
           }
           const sysCell = this.movementService.calculateSystemGridCell(
-            fleet.systemX!,
-            fleet.systemY!,
+            fleet.system.x,
+            fleet.system.y,
           );
           fleet.gridCol = sysCell.col;
           fleet.gridRow = sysCell.row;
         }
       }
 
-      if (this.selectedFleet && this.selectedFleet.systemTargetX != null) {
-        this.targetX = this.selectedFleet.systemTargetX ?? null;
-        this.targetY = this.selectedFleet.systemTargetY ?? null;
+      if (this.selectedFleet && this.selectedFleet.system?.targetX != null) {
+        this.targetX = this.selectedFleet.system.targetX ?? null;
+        this.targetY = this.selectedFleet.system.targetY ?? null;
       } else {
         this.targetX = null;
         this.targetY = null;
@@ -303,7 +311,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         continue;
       }
 
-      if (fleet.systemId !== undefined) {
+      if (fleet.system?.id != null) {
         const mapCell = this.movementService.calculateGridCell(fleet.x, fleet.y);
         fleet.gridCol = mapCell.col;
         fleet.gridRow = mapCell.row;
@@ -522,9 +530,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     if (this.currentView === 'system') {
-      if (fleet.systemTargetX != null && fleet.systemTargetY != null) {
-        this.targetX = fleet.systemTargetX ?? null;
-        this.targetY = fleet.systemTargetY ?? null;
+      if (fleet.system?.targetX != null && fleet.system?.targetY != null) {
+        this.targetX = fleet.system.targetX ?? null;
+        this.targetY = fleet.system.targetY ?? null;
       } else {
         this.targetX = null;
         this.targetY = null;
@@ -674,8 +682,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.handleObjectClick(items, event);
     } else if (this.selectedSystem) {
       const sysCell = this.movementService.calculateSystemGridCell(
-        fleet.systemX ?? 0,
-        fleet.systemY ?? 0,
+        fleet.system?.x ?? 0,
+        fleet.system?.y ?? 0,
       );
       const items = this.movementService.getObjectsAtSystemCell(
         this.fleets,
@@ -778,9 +786,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     if (this.currentView === 'system') {
-      if (this.selectedSystem && this.selectedFleet.systemId === this.selectedSystem.id) {
-        this.selectedFleet.systemTargetX = x;
-        this.selectedFleet.systemTargetY = y;
+      if (this.selectedSystem && this.selectedFleet.system?.id === this.selectedSystem.id) {
+        this.selectedFleet.system.targetX = x;
+        this.selectedFleet.system.targetY = y;
         this.targetX = x;
         this.targetY = y;
       }
@@ -830,7 +838,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (
       !this.selectedFleet ||
       !this.selectedSystem ||
-      this.selectedFleet.systemId !== this.selectedSystem.id ||
+      this.selectedFleet.system?.id !== this.selectedSystem.id ||
       !this.selectedFleetAction
     ) {
       return;
@@ -928,7 +936,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private isInteractiveElement(element: HTMLElement): boolean {
     let el: HTMLElement | null = element;
     while (el && el !== document.body) {
-      if (el.tagName === 'BUTTON' || el.classList.contains('star-system') || el.classList.contains('fleet')) {
+      if (
+        el.tagName === 'BUTTON' ||
+        el.classList.contains('star-system') ||
+        el.classList.contains('fleet')
+      ) {
         return true;
       }
       el = el.parentElement;
@@ -1051,11 +1063,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       (fleetId: number) => {
         const fleet = this.fleets.find((f) => f.id === fleetId);
         if (fleet) {
-          fleet.systemId = undefined;
-          fleet.systemX = null;
-          fleet.systemY = null;
-          fleet.systemTargetX = null;
-          fleet.systemTargetY = null;
+          fleet.system = null;
         }
       },
     );
@@ -1065,6 +1073,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     this.updateExploredPlanets();
+    this.checkFleetPlanetArrivals();
 
     this.battleDetectionService.checkForBattles(
       this.fleets,
@@ -1091,15 +1100,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
         continue;
       }
 
-      if (fleet.systemId !== this.selectedSystem.id) {
+      if (fleet.system?.id !== this.selectedSystem.id) {
         continue;
       }
 
-      if (fleet.systemX == null || fleet.systemY == null) {
-        continue;
-      }
-
-      const fleetCell = this.movementService.calculateSystemGridCell(fleet.systemX, fleet.systemY);
+      const fleetCell = this.movementService.calculateSystemGridCell(
+        fleet.system.x,
+        fleet.system.y,
+      );
 
       for (const planet of this.selectedSystem.planetsTiles) {
         if (planet.explored) {
@@ -1110,6 +1118,71 @@ export class StarMap implements AfterViewInit, OnDestroy {
         if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
           planet.explored = true;
         }
+      }
+    }
+  }
+
+  /** Checks if any fleet arrived at a planet's grid cell and logs the information. */
+  private checkFleetPlanetArrivals(): void {
+    if (this.currentView !== 'system' || !this.selectedSystem) {
+      return;
+    }
+
+    for (const fleet of this.fleets) {
+      if (fleet.destroyed || fleet.system?.id !== this.selectedSystem.id) {
+        continue;
+      }
+
+      const fleetCell = this.movementService.calculateSystemGridCell(
+        fleet.system.x,
+        fleet.system.y,
+      );
+
+      let foundPlanetOnCell = false;
+
+      for (const planet of this.selectedSystem.planetsTiles) {
+        const planetCell = this.movementService.getPlanetGridPosition(planet);
+
+        if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
+          foundPlanetOnCell = true;
+          const lastPlanetId = this.fleetPlanetMap.get(fleet.id);
+
+          if (lastPlanetId !== planet.id) {
+            // Fleet just stepped on this planet
+            this.fleetPlanetMap.set(fleet.id, planet.id);
+
+            // Find other fleets on this same cell
+            const otherFleetsOnCell = this.fleets.filter(
+              (f) =>
+                !f.destroyed &&
+                f.id !== fleet.id &&
+                f.system?.id === this.selectedSystem!.id &&
+                this.movementService.calculateSystemGridCell(f.system.x, f.system.y).col ===
+                  fleetCell.col &&
+                this.movementService.calculateSystemGridCell(f.system.x, f.system.y).row ===
+                  fleetCell.row,
+            );
+
+            console.log(
+              `[StarMap] Fleet arrived at planet grid cell!`,
+              `\n- Arriving Fleet:`,
+              fleet.name,
+              `(${fleet.factionId})`,
+              `\n- Planet:`,
+              planet.name,
+              `(${planet.type})`,
+              `\n- Other fleets on this cell:`,
+              otherFleetsOnCell.length > 0
+                ? otherFleetsOnCell.map((f) => f.name).join(', ')
+                : 'None',
+            );
+          }
+          break; // Fleet can only be on one planet cell at a time
+        }
+      }
+
+      if (!foundPlanetOnCell) {
+        this.fleetPlanetMap.delete(fleet.id);
       }
     }
   }

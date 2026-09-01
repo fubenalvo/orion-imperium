@@ -12,7 +12,7 @@ export interface CurrencyDisplay {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './faction-currencies.component.html',
-  styleUrl: './faction-currencies.component.scss'
+  styleUrl: './faction-currencies.component.scss',
 })
 export class FactionCurrenciesComponent {
   @Input() currencies: CurrencyDisplay[] = [];

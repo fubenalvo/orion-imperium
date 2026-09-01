@@ -65,7 +65,7 @@ export interface PlanetTile {
  * x/y are 1-indexed grid column/row coordinates (e.g., x=53 means column 53).
  */
 export interface StarSystem {
-  id: number;
+  id: string;
   name: string;
   x: number;
   y: number;
@@ -114,7 +114,7 @@ export interface StarMapData {
   /*
    * map: Grid layout configuration.
    * - width/height: Grid dimensions in cells (columns × rows)
-    * - cellSizeVw/Vh: Rendering cell size in vw units (2 desktop, 3.5 mobile)
+   * - cellSizeVw/Vh: Rendering cell size in vw units (2 desktop, 3.5 mobile)
    */
   map: {
     width: number;
@@ -127,7 +127,7 @@ export interface StarMapData {
   currentView?: 'map' | 'system' | 'planet';
   cameraX?: number;
   cameraY?: number;
-  selectedSystemId?: number | null;
+  selectedSystemId?: string | null;
   selectedFleetId?: number | null;
   selectedPlanetTileId?: number | null;
   selectedFleetAction?: 'move' | 'attack' | null;
@@ -206,6 +206,14 @@ export interface ContextMenuItem {
   data: Fleet | StarSystem | PlanetTile;
 }
 
+export interface SystemLocation {
+  id: string | null;
+  x: number;
+  y: number;
+  targetX: number | null;
+  targetY: number | null;
+}
+
 /*
  * Fleet position on the galaxy map.
  * x/y and targetX/Y are 1-indexed grid cell coordinates (floats for smooth movement).
@@ -221,11 +229,7 @@ export interface Fleet {
   targetX: number | null;
   targetY: number | null;
   speed: number;
-  systemId?: number;
-  systemX?: number | null;
-  systemY?: number | null;
-  systemTargetX?: number | null;
-  systemTargetY?: number | null;
+  system: SystemLocation | null;
   gridCol?: number;
   gridRow?: number;
   ships: FleetShip[];

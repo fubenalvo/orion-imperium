@@ -35,7 +35,7 @@ export class StarMapMovementService {
    * initialize: Set grid dimensions.
    * gridColumns and gridRows are the actual grid dimensions (in cells),
    * read directly from map.width/height in the data file.
-    * cellSizeVw/Vh is the vw size per cell (2 desktop, 3.5 mobile).
+   * cellSizeVw/Vh is the vw size per cell (2 desktop, 3.5 mobile).
    */
   initialize(cellSizeVw: number, cellSizeVh: number, mapWidth: number, mapHeight: number): void {
     this.cellSizeVw = cellSizeVw;
@@ -176,8 +176,8 @@ export class StarMapMovementService {
         fleet.gridRow = mapCell.row;
 
         // Check if fleet left its current system
-        if (fleet.systemId !== undefined) {
-          const system = starSystems.find((s) => s.id === fleet.systemId);
+        if (fleet.system?.id != null) {
+          const system = starSystems.find((s) => s.id === fleet.system?.id);
           if (system && !this.isFleetInSystem(fleet, system)) {
             onLeaveSystem(fleet.id);
           }
@@ -185,18 +185,18 @@ export class StarMapMovementService {
       }
 
       // System movement
-      if (fleet.systemTargetX != null && fleet.systemTargetY != null) {
+      if (fleet.system?.targetX != null && fleet.system?.targetY != null) {
         didMoveFleets = true;
 
-        const dx = fleet.systemTargetX - (fleet.systemX || 0);
-        const dy = fleet.systemTargetY - (fleet.systemY || 0);
+        const dx = fleet.system.targetX - fleet.system.x;
+        const dy = fleet.system.targetY - fleet.system.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance <= 0.01) {
-          fleet.systemX = fleet.systemTargetX;
-          fleet.systemY = fleet.systemTargetY;
-          fleet.systemTargetX = null;
-          fleet.systemTargetY = null;
+          fleet.system.x = fleet.system.targetX;
+          fleet.system.y = fleet.system.targetY;
+          fleet.system.targetX = null;
+          fleet.system.targetY = null;
 
           if (selectedFleetId === fleet.id && currentView === 'system') {
             onTargetReached(fleet.id);
@@ -204,15 +204,13 @@ export class StarMapMovementService {
         } else {
           const movement = fleet.speed * deltaTime;
           const step = Math.min(movement, distance);
-          fleet.systemX = (fleet.systemX || 0) + (dx / distance) * step;
-          fleet.systemY = (fleet.systemY || 0) + (dy / distance) * step;
+          fleet.system.x = fleet.system.x + (dx / distance) * step;
+          fleet.system.y = fleet.system.y + (dy / distance) * step;
         }
 
-        if (fleet.systemX != null && fleet.systemY != null) {
-          const sysCell = this.calculateSystemGridCell(fleet.systemX, fleet.systemY);
-          fleet.gridCol = sysCell.col;
-          fleet.gridRow = sysCell.row;
-        }
+        const sysCell = this.calculateSystemGridCell(fleet.system.x, fleet.system.y);
+        fleet.gridCol = sysCell.col;
+        fleet.gridRow = sysCell.row;
       }
     }
 
@@ -340,8 +338,8 @@ export class StarMapMovementService {
         continue;
       }
 
-      if (fleet.systemId === system.id && fleet.systemX != null && fleet.systemY != null) {
-        const fleetCell = this.calculateSystemGridCell(fleet.systemX, fleet.systemY);
+      if (fleet.system?.id === system.id) {
+        const fleetCell = this.calculateSystemGridCell(fleet.system.x, fleet.system.y);
         if (fleetCell.col === col && fleetCell.row === row) {
           items.push({ type: 'fleet', label: `Fleet: ${fleet.name}`, data: fleet });
         }

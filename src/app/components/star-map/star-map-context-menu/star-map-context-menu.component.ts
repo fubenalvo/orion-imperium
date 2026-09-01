@@ -7,7 +7,7 @@ import { ContextMenuItem } from '../star-map.models';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './star-map-context-menu.component.html',
-  styleUrl: './star-map-context-menu.component.scss'
+  styleUrl: './star-map-context-menu.component.scss',
 })
 export class StarMapContextMenuComponent {
   @Input() contextMenu: { x: number; y: number; items: ContextMenuItem[] } | null = null;

@@ -59,7 +59,8 @@ export class StarMapPlanetScreenComponent {
   @Input() planetColor: string = '#ffffff';
   @Input() getFactionName: (factionId: string) => string = () => 'Unknown';
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
-  @Input() getFactionCurrencies: (factionId: string) => { name: string; value: number }[] = () => [];
+  @Input() getFactionCurrencies: (factionId: string) => { name: string; value: number }[] =
+    () => [];
   @Input() getEnergyForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;

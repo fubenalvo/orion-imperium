@@ -53,7 +53,7 @@
   },
   "starSystems": [
     {
-      "id": 1,
+      "id": "sol",
       "name": "SOL",
       "x": 18,
       "y": 13,
@@ -233,7 +233,7 @@
       ]
     },
     {
-      "id": 2,
+      "id": "vega",
       "name": "VEGA",
       "x": 40,
       "y": 10,
@@ -355,7 +355,7 @@
       ]
     },
     {
-      "id": 3,
+      "id": "sirius",
       "name": "SIRIUS",
       "x": 63,
       "y": 18,
@@ -523,7 +523,7 @@
       ]
     },
     {
-      "id": 4,
+      "id": "arcturus",
       "name": "ARCTURUS",
       "x": 83,
       "y": 12,
@@ -578,7 +578,7 @@
       ]
     },
     {
-      "id": 5,
+      "id": "rigel",
       "name": "RIGEL",
       "x": 28,
       "y": 33,
@@ -854,7 +854,7 @@
       ]
     },
     {
-      "id": 6,
+      "id": "altair",
       "name": "ALTAIR",
       "x": 53,
       "y": 38,
@@ -1029,7 +1029,7 @@
       ]
     },
     {
-      "id": 7,
+      "id": "betelgeuse",
       "name": "BETELGEUSE",
       "x": 78,
       "y": 35,
@@ -1280,7 +1280,7 @@
       ]
     },
     {
-      "id": 8,
+      "id": "procyon",
       "name": "PROCYON",
       "x": 13,
       "y": 48,
@@ -1345,7 +1345,7 @@
       ]
     },
     {
-      "id": 9,
+      "id": "deneb",
       "name": "DENEB",
       "x": 46,
       "y": 53,
@@ -1541,7 +1541,7 @@
       ]
     },
     {
-      "id": 10,
+      "id": "antares",
       "name": "ANTARES",
       "x": 88,
       "y": 51,
@@ -1756,7 +1756,8 @@
           "name": "ORION-2",
           "type": "frigate"
         }
-      ]
+      ],
+      "system": null
     },
     {
       "id": 2,
@@ -1784,7 +1785,8 @@
           "name": "PEGASUS-3",
           "type": "cruiser"
         }
-      ]
+      ],
+      "system": null
     },
     {
       "id": 3,
@@ -1817,7 +1819,8 @@
           "name": "RAIDER-4",
           "type": "destroyer"
         }
-      ]
+      ],
+      "system": null
     },
     {
       "id": 4,
@@ -1870,7 +1873,8 @@
           "name": "DESTROYER-3",
           "type": "destroyer"
         }
-      ]
+      ],
+      "system": null
     }
   ]
 }

@@ -7,7 +7,7 @@ import { StarSystem } from '../star-map.models';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './star-map-system-info.component.html',
-  styleUrl: './star-map-system-info.component.scss'
+  styleUrl: './star-map-system-info.component.scss',
 })
 export class StarMapSystemInfoComponent {
   @Input() system: StarSystem | null = null;

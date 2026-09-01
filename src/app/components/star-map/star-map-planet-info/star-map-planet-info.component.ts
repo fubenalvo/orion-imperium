@@ -8,7 +8,7 @@ import { PlanetTile, PlanetEconomyEntry } from '../star-map.models';
   standalone: true,
   imports: [CommonModule, UpperCasePipe],
   templateUrl: './star-map-planet-info.component.html',
-  styleUrl: './star-map-planet-info.component.scss'
+  styleUrl: './star-map-planet-info.component.scss',
 })
 export class StarMapPlanetInfoComponent {
   @Input() planet: PlanetTile | null = null;

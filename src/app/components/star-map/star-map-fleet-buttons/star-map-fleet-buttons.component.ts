@@ -7,7 +7,7 @@ import { Fleet } from '../star-map.models';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './star-map-fleet-buttons.component.html',
-  styleUrl: './star-map-fleet-buttons.component.scss'
+  styleUrl: './star-map-fleet-buttons.component.scss',
 })
 export class StarMapFleetButtonsComponent {
   @Input() fleets: Fleet[] = [];

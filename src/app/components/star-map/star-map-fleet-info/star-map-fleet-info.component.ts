@@ -7,7 +7,7 @@ import { Fleet, FleetShipTypeSummary } from '../star-map.models';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './star-map-fleet-info.component.html',
-  styleUrl: './star-map-fleet-info.component.scss'
+  styleUrl: './star-map-fleet-info.component.scss',
 })
 export class StarMapFleetInfoComponent {
   @Input() fleet: Fleet | null = null;

@@ -44,7 +44,9 @@ export class StarMapGameLoopService {
     updateCallback(deltaTime);
 
     this.ngZone.runOutsideAngular(() => {
-      this.animationFrameId = requestAnimationFrame((nextTime) => this.tick(nextTime, updateCallback));
+      this.animationFrameId = requestAnimationFrame((nextTime) =>
+        this.tick(nextTime, updateCallback),
+      );
     });
   }
 
