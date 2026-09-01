@@ -80,6 +80,10 @@ export class StarMapBattleDetectionService {
           fleet1.targetX !== null && fleet1.targetY !== null ? fleet1.id : fleet2.id;
         const defenderId = attackerId === fleet1.id ? fleet2.id : fleet1.id;
 
+        console.log('[FLEET BATTLE] Fleet1:', JSON.stringify({ id: fleet1.id, name: fleet1.name, factionId: fleet1.factionId, ships: fleet1.ships.length }));
+        console.log('[FLEET BATTLE] Fleet2:', JSON.stringify({ id: fleet2.id, name: fleet2.name, factionId: fleet2.factionId, ships: fleet2.ships.length }));
+        console.log('[FLEET BATTLE] battleKey:', battleKey, 'attackerId:', attackerId, 'defenderId:', defenderId);
+
         this.battleService.setBattle({
           fleet1,
           fleet2,

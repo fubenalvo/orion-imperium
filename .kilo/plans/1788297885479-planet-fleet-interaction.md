@@ -195,8 +195,8 @@ private handleFleetPlanetArrival(fleet: Fleet, planet: PlanetTile): void {
 
 ```ts
 private triggerPlanetBattle(attackerFleet: Fleet, targetPlanet: PlanetTile): void {
-  // Find garrison fleet (player's fleet already on the planet)
-  const garrisonFleet = this.findGarrisonFleet(targetPlanet);
+  // Find garrison fleet - ONLY fleets belonging to the planet's owner faction
+  const garrisonFleet = this.getFleetOnPlanet(targetPlanet);
   
   // Create virtual defense fleet from planet buildings + garrison
   const defenseFleet = this.planetBattleService.createVirtualDefenseFleet(targetPlanet, garrisonFleet);
@@ -204,7 +204,7 @@ private triggerPlanetBattle(attackerFleet: Fleet, targetPlanet: PlanetTile): voi
   const attackerFaction = this.factions.find(f => f.id === attackerFleet.factionId)!;
   const defenderFaction = this.factions.find(f => f.id === targetPlanet.factionId)!;
   
-  this.battleService.setBattle({
+  this.battleService.setPlanetBattle({
     fleet1: attackerFleet,
     fleet2: defenseFleet,
     faction1Name: attackerFaction.name,
@@ -213,23 +213,35 @@ private triggerPlanetBattle(attackerFleet: Fleet, targetPlanet: PlanetTile): voi
     faction2Color: defenderFaction.color,
     attackerId: attackerFleet.id,
     defenderId: defenseFleet.id,
-    type: 'planet',
     planetId: targetPlanet.id,
   });
   
   this.saveGame();
   this.ngZone.run(() => this.router.navigate(['/battle']));
 }
+```
 
-private findGarrisonFleet(planet: PlanetTile): Fleet | null {
-  // Find a non-destroyed fleet on the same planet cell that belongs to the planet owner
+### 6a. Fix `getFleetOnPlanet` — Filter by Faction
+
+**File**: `src/app/components/star-map/star-map.ts`
+
+The `getFleetOnPlanet` function MUST filter by faction to only return fleets belonging to the planet's owner. Without this filter, the attacking fleet itself could be returned as the "garrison", causing it to fight on both sides.
+
+```ts
+/** Returns a garrisoned fleet on the given planet that belongs to the planet's owner faction. */
+private getFleetOnPlanet(planet: PlanetTile): Fleet | null {
+  if (!this.selectedSystem) return null;
+
   for (const fleet of this.fleets) {
-    if (fleet.destroyed || fleet.factionId !== planet.factionId) continue;
-    if (fleet.system?.id !== this.selectedSystem?.id) continue;
-    
-    const fleetCell = this.movementService.calculateSystemGridCell(fleet.system.x, fleet.system.y);
+    if (fleet.destroyed || fleet.system?.id !== this.selectedSystem.id) continue;
+    if (fleet.factionId !== planet.factionId) continue; // <-- CRITICAL: only same-faction fleets
+    if (fleet.system.targetX != null || fleet.system.targetY != null) continue;
+
+    const fleetCell = this.movementService.calculateSystemGridCell(
+      fleet.system.x,
+      fleet.system.y,
+    );
     const planetCell = this.movementService.getPlanetGridPosition(planet);
-    
     if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
       return fleet;
     }
@@ -238,50 +250,47 @@ private findGarrisonFleet(planet: PlanetTile): Fleet | null {
 }
 ```
 
-### 7. Update StarMap Init for Planet Battle Results
+### 7. Update StarMap Init for Post-Battle Processing
 
 **File**: `src/app/components/star-map/star-map.ts`
 
-Modify `removeDestroyedFleetFromService()` or add post-battle planet logic:
+**CRITICAL FIX — Battle Restart Bug**: Angular's default `RouteReuseStrategy` may keep `StarMap` alive when navigating to `/battle` and back. When returning:
+- If `StarMap` is reused: `ngOnInit()` does NOT fire, so `loadGame()` is never called and in-memory state (planet `factionId`, fleet `destroyed`) remains stale
+- If `StarMap` is recreated: `fleetPlanetMap` resets to empty, causing `checkFleetPlanetArrivals` to re-process the arrival with stale in-memory faction data
+
+**Fix**: Subscribe to `Router` navigation events and reload game state when navigating to `/star-map`.
 
 ```ts
-private applyPlanetBattleResult(): void {
-  const battle = this.battleService.getBattle();
-  if (!battle || battle.type !== 'planet' || !battle.planetId) return;
-  
-  const winner = this.battleService.getWinner();
-  if (!winner) return;
-  
-  // Find the planet
-  for (const system of this.starSystems) {
-    const planet = system.planetsTiles.find(p => p.id === battle.planetId);
-    if (!planet) continue;
-    
-    if (winner.id === battle.attackerId) {
-      // Attacker won - capture planet
-      planet.factionId = winner.factionId;
-      
-      // If uninhabited and attacker has colonizer, consume it
-      if (planet.factionId === 'unhabited') {
-        const attackerFleet = this.fleets.find(f => f.id === winner.id);
-        if (attackerFleet) {
-          const colonizerIdx = attackerFleet.ships.findIndex(s => s.type === 'colonizer' && !s.destroyed);
-          if (colonizerIdx >= 0) attackerFleet.ships.splice(colonizerIdx, 1);
-        }
+import { Router, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+
+// In constructor, add Router subscription:
+constructor(...) {
+  this.router.events
+    .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+    .subscribe((event: NavigationEnd) => {
+      if (event.url === '/star-map' || event.urlAfterRedirects === '/star-map') {
+        this.reloadAfterBattle();
       }
-    }
-    break;
-  }
-  
-  this.saveGame();
+    });
+}
+
+private reloadAfterBattle(): void {
+  if (this.saveGameService.currentSlot === null) return;
+  this.loadGame();
+  this.removeDestroyedFleetFromService();
+  this.fleetPlanetMap.clear();
+  this.cdr.detectChanges();
 }
 ```
 
-Call this in `ngOnInit()` after `removeDestroyedFleetFromService()`.
+This ensures that whenever the user returns to the star map (from battle or anywhere else), the game state is reloaded from the save file, which contains the updated planet faction and fleet destroyed flags.
 
-### 8. Update Battle Screen for Planet Context
+### 8. Update Battle Screen — Apply Result Before Navigation
 
 **File**: `src/app/components/battle-screen/battle-screen.component.ts`
+
+**CRITICAL FIX**: The battle result (planet capture or fleet destruction) MUST be applied BEFORE navigating back to the star map. Otherwise, `StarMap.ngOnInit()` loads the old state, the game loop starts, `checkFleetPlanetArrivals()` detects the fleet on the planet with a fresh `fleetPlanetMap`, and immediately re-triggers the battle.
 
 Modify `backToStarMap()`:
 
@@ -290,20 +299,56 @@ backToStarMap(): void {
   this.stopStepTimer();
   const battle = this.battleService.getBattle();
   const loser = this.battleService.getLoser();
-  this.battleService.clearBattle();
-  
-  if (battle?.type === 'planet') {
-    // For planet battles, the loser is the virtual defense fleet (no destroyed flag needed)
-    // The attacker fleet's state (HP losses) persists in the original fleet reference
-    // StarMap.applyPlanetBattleResult() handles ownership transfer
+  const winner = this.battleService.getWinner();
+
+  // Apply planet battle result BEFORE navigating away
+  if (battle?.type === 'planet' && battle.planetId && winner) {
+    this.applyPlanetBattleResult(battle, winner, loser);
   } else if (loser) {
     loser.destroyed = true;
     this.battleService.setDestroyedFleetId(loser.id);
   }
-  
+
+  this.battleService.clearBattle();
   this.router.navigate(['/star-map']);
 }
+
+private applyPlanetBattleResult(battle: Battle, winner: Fleet, loser: Fleet): void {
+  // Load current save data to modify it directly
+  const saveService = this.saveGameService;
+  if (saveService.currentSlot === null) return;
+
+  const data = saveService.loadFromSlot(saveService.currentSlot);
+  if (!data || !data.starSystems) return;
+
+  for (const system of data.starSystems) {
+    const planet = system.planetsTiles?.find(p => p.id === battle.planetId);
+    if (!planet) continue;
+
+    if (winner.id === battle.attackerId) {
+      // Attacker won - capture planet immediately
+      planet.factionId = winner.factionId;
+    } else {
+      // Attacker lost - destroy the attacking fleet in save data
+      const fleet = data.fleets?.find(f => f.id === battle.attackerId);
+      if (fleet) {
+        fleet.destroyed = true;
+      }
+    }
+    break;
+  }
+
+  saveService.saveToSlot(saveService.currentSlot, data);
+}
 ```
+
+This requires injecting `SaveGameService` into `BattleScreenComponent`.
+
+### 8a. Remove `applyPlanetBattleResult` from StarMap
+
+**File**: `src/app/components/star-map/star-map.ts`
+
+Since the result is now applied in the battle screen before navigation, the `applyPlanetBattleResult()` method in `StarMap` and its call in `ngOnInit()` can be removed. The `removeDestroyedFleetFromService()` still handles normal fleet battles.
 
 ### 9. Update Fleet Info UI for Movement Feedback
 

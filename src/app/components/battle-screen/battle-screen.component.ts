@@ -1,9 +1,10 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { BattleService, Battle, BattleState, BattleLogEntry, FleetShip } from '../../services/battle.service';
+import { BattleService, Battle, BattleState, BattleLogEntry, FleetShip, Fleet } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
+import { SaveGameService } from '../../services/save-game.service';
 
 /*
  * =========================================================
@@ -41,6 +42,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     private battleService: BattleService,
     private shipService: ShipService,
     private planetBattleService: PlanetBattleService,
+    private saveGameService: SaveGameService,
     private cdr: ChangeDetectorRef
   ) {
     this.battle = this.battleService.getBattle();
@@ -98,14 +100,42 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     this.stopStepTimer();
     const battle = this.battleService.getBattle();
     const loser = this.battleService.getLoser();
+    const winner = this.battleService.getWinner();
+
     this.battleService.clearBattle();
 
-    if (battle?.type === 'planet') {
+    if (battle?.type === 'planet' && battle.planetId && winner) {
+      this.applyPlanetBattleResult(battle, winner, loser);
     } else if (loser) {
       loser.destroyed = true;
       this.battleService.setDestroyedFleetId(loser.id);
     }
+
     this.router.navigate(['/star-map']);
+  }
+
+  private applyPlanetBattleResult(battle: Battle, winner: Fleet, loser: Fleet | null): void {
+    if (this.saveGameService.currentSlot === null) return;
+
+    const data = this.saveGameService.loadFromSlot(this.saveGameService.currentSlot);
+    if (!data || !data.starSystems) return;
+
+    for (const system of data.starSystems) {
+      const planet = system.planetsTiles?.find((p) => p.id === battle.planetId);
+      if (!planet) continue;
+
+      if (winner.id === battle.attackerId) {
+        planet.factionId = winner.factionId;
+      } else {
+        const fleet = data.fleets?.find((f) => f.id === battle.attackerId);
+        if (fleet) {
+          fleet.destroyed = true;
+        }
+      }
+      break;
+    }
+
+    this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
   }
 
   getWinnerName(): string {

@@ -9,7 +9,9 @@ import {
   ElementRef,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
-import { Router } from '@angular/router';
+import { Router, NavigationEnd } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { BattleService } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { SaveGameService } from '../../services/save-game.service';
@@ -107,6 +109,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   // Track which fleet is currently on which planet grid cell to log arrivals
   private fleetPlanetMap = new Map<number, number>();
+  private routerSubscription = new Subscription();
   // Selection state
   selectedSystem: StarSystem | null = null;
   selectedFleet: Fleet | null = null;
@@ -204,6 +207,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.mapWidth,
       this.mapHeight,
     );
+
+    this.routerSubscription = this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe((event: NavigationEnd) => {
+        if (event.url === '/star-map' || event.urlAfterRedirects === '/star-map') {
+          this.reloadAfterBattle();
+        }
+      });
   }
 
   get currentSlot(): number | null {
@@ -824,12 +835,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return 'allowed';
   }
 
-  /** Returns the first non-destroyed fleet currently on the given planet. */
+  /** Returns a garrisoned fleet on the given planet that belongs to the planet's owner faction. */
   private getFleetOnPlanet(planet: PlanetTile): Fleet | null {
     if (!this.selectedSystem) return null;
 
     for (const fleet of this.fleets) {
       if (fleet.destroyed || fleet.system?.id !== this.selectedSystem.id) continue;
+      if (fleet.factionId !== planet.factionId) continue;
       if (fleet.system.targetX != null || fleet.system.targetY != null) continue;
 
       const fleetCell = this.movementService.calculateSystemGridCell(
@@ -1227,6 +1239,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
           break;
         }
 
+        console.log('[PLANET ARRIVAL] Fleet', fleet.id, fleet.name, 'factionId:', fleet.factionId, 'arrived at planet', planet.id, planet.name, 'factionId:', planet.factionId, 'cell:', fleetCell);
         this.fleetPlanetMap.set(fleet.id, planet.id);
         this.handleFleetPlanetArrival(fleet, planet);
         break;
@@ -1250,15 +1263,18 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     if (planet.factionId === fleet.factionId) {
-      console.log(`[StarMap] Fleet ${fleet.name} arrived at own planet ${planet.name}`);
+      console.log(`[StarMap] Fleet ${fleet.name} arrived at own planet ${planet.name} (factionId: ${planet.factionId})`);
       return;
     }
 
     const planetFaction = this.factions.find((f) => f.id === planet.factionId);
     const fleetFaction = this.factions.find((f) => f.id === fleet.factionId);
     if (!planetFaction || !fleetFaction) {
+      console.log(`[StarMap] Faction not found - planetFaction: ${planetFaction?.id}, fleetFaction: ${fleetFaction?.id}`);
       return;
     }
+
+    console.log(`[StarMap] Fleet ${fleet.name} (${fleetFaction.name}, team ${fleetFaction.team}) vs planet ${planet.name} (${planetFaction.name}, team ${planetFaction.team})`);
 
     if (planetFaction.team === fleetFaction.team) {
       console.log(`[StarMap] Fleet ${fleet.name} cannot attack teammate planet ${planet.name}`);
@@ -1289,6 +1305,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
       return;
     }
 
+    if (garrisonFleet) {
+      const battleKey = `${Math.min(attackerFleet.id, garrisonFleet.id)}-${Math.max(attackerFleet.id, garrisonFleet.id)}`;
+      this.triggeredBattles.add(battleKey);
+    }
+
+    console.log('[PLANET BATTLE] Attacker:', JSON.stringify({ id: attackerFleet.id, name: attackerFleet.name, factionId: attackerFleet.factionId, ships: attackerFleet.ships.map(s => ({ type: s.type, hp: s.currentHp })) }));
+    console.log('[PLANET BATTLE] Planet:', JSON.stringify({ id: targetPlanet.id, name: targetPlanet.name, factionId: targetPlanet.factionId, buildings: targetPlanet.buildings.map(b => b.name) }));
+    console.log('[PLANET BATTLE] Garrison:', garrisonFleet ? JSON.stringify({ id: garrisonFleet.id, name: garrisonFleet.name, factionId: garrisonFleet.factionId }) : 'none');
+    console.log('[PLANET BATTLE] Virtual Defense Fleet ships:', JSON.stringify(defenseFleet.ships.map(s => ({ type: s.type, name: s.name }))));
+
     this.battleService.setPlanetBattle({
       fleet1: attackerFleet,
       fleet2: defenseFleet,
@@ -1303,32 +1329,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.saveGame();
     this.ngZone.run(() => this.router.navigate(['/battle']));
-  }
-
-  /** Applies planet ownership change after a planet battle concludes. */
-  private applyPlanetBattleResult(): void {
-    const battle = this.battleService.getBattle();
-    if (!battle || battle.type !== 'planet' || !battle.planetId) {
-      return;
-    }
-
-    const winner = this.battleService.getWinner();
-    if (!winner || winner.id !== battle.attackerId) {
-      return;
-    }
-
-    for (const system of this.starSystems) {
-      const planet = system.planetsTiles.find((p) => p.id === battle.planetId);
-      if (!planet) {
-        continue;
-      }
-
-      planet.factionId = winner.factionId;
-      console.log(`[StarMap] Planet ${planet.name} captured by ${winner.name}`);
-      break;
-    }
-
-    this.saveGame();
   }
 
   /** Registers window blur and visibility-change listeners to auto-pause the game. */
@@ -1547,7 +1547,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.loadGame();
     this.removeDestroyedFleetFromService();
-    this.applyPlanetBattleResult();
+  }
+
+  private reloadAfterBattle(): void {
+    if (this.saveGameService.currentSlot === null) return;
+    console.log('[RELOAD AFTER BATTLE] Reloading game state from save...');
+    this.loadGame();
+    console.log('[RELOAD AFTER BATTLE] Planets:', this.starSystems.flatMap(s => s.planetsTiles).map(p => ({ id: p.id, name: p.name, factionId: p.factionId })));
+    console.log('[RELOAD AFTER BATTLE] Fleets:', this.fleets.map(f => ({ id: f.id, name: f.name, factionId: f.factionId, destroyed: f.destroyed })));
+    this.removeDestroyedFleetFromService();
+    this.cdr.detectChanges();
   }
 
   /** Applies a previously destroyed fleet from the battle service into the current save. */
@@ -1599,6 +1608,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /** Saves the game, removes event listeners, and stops the game loop when the component is destroyed. */
   ngOnDestroy(): void {
     this.saveGame();
+
+    this.routerSubscription.unsubscribe();
 
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
