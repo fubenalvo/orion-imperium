@@ -1140,8 +1140,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const oldCellSizeVh = this.cellSizeVh;
 
     const isWide = window.innerWidth >= this.gridBreakpointPx;
-    this.cellSizeVw = isWide ? 2 : 7;
-    this.cellSizeVh = isWide ? 2 : 7;
+    this.cellSizeVw = isWide ? 2 : 3.5;
+    this.cellSizeVh = isWide ? 2 : 3.5;
     this.movementService.initialize(
       this.cellSizeVw,
       this.cellSizeVh,

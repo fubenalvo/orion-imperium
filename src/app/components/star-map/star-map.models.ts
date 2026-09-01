@@ -114,7 +114,7 @@ export interface StarMapData {
   /*
    * map: Grid layout configuration.
    * - width/height: Grid dimensions in cells (columns × rows)
-   * - cellSizeVw/Vh: Rendering cell size in vw units (2 desktop, 7 mobile)
+    * - cellSizeVw/Vh: Rendering cell size in vw units (2 desktop, 3.5 mobile)
    */
   map: {
     width: number;

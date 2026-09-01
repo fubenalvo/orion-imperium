@@ -35,7 +35,7 @@ export class StarMapMovementService {
    * initialize: Set grid dimensions.
    * gridColumns and gridRows are the actual grid dimensions (in cells),
    * read directly from map.width/height in the data file.
-   * cellSizeVw/Vh is the vw size per cell (2 desktop, 7 mobile).
+    * cellSizeVw/Vh is the vw size per cell (2 desktop, 3.5 mobile).
    */
   initialize(cellSizeVw: number, cellSizeVh: number, mapWidth: number, mapHeight: number): void {
     this.cellSizeVw = cellSizeVw;
