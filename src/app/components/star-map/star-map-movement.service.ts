@@ -16,7 +16,7 @@ import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.model
  * - Fleet positions can be fractional within a cell for smooth movement.
  * - Fleet speed is in vw/s; converted to cells/s via speed / cellSizeVw.
  *
- * The system view (inside star systems) uses a separate fixed 20x12 grid
+ * The system view (inside star systems) uses a separate fixed 18x10 grid
  * with 5vw cells. System view positions (systemX/Y) remain in vw units.
  */
 
@@ -57,10 +57,10 @@ export class StarMapMovementService {
   }
 
   /*
-   * getSystemTileCenter: Snaps system view vw coordinates to the center of the
-   * containing system grid cell. Returns vw coordinates for system view movement.
-   * The system view uses a fixed 20x12 grid with 5vw cells.
-   */
+    * getSystemTileCenter: Snaps system view vw coordinates to the center of the
+    * containing system grid cell. Returns vw coordinates for system view movement.
+    * The system view uses a fixed 18x10 grid with 5vw cells.
+    */
   getSystemTileCenter(vwX: number, vwY: number): { x: number; y: number } {
     const col = Math.floor(vwX / StarMapMovementService.SYSTEM_CELL_SIZE_VW);
     const row = Math.floor(vwY / StarMapMovementService.SYSTEM_CELL_SIZE_VW);
@@ -75,10 +75,10 @@ export class StarMapMovementService {
   }
 
   /*
-   * calculateSystemGridCell: Converts system view vw coordinates to grid cells.
-   * The system view uses a fixed 20x12 grid with 5vw cells.
-   * Returns 1-indexed grid positions.
-   */
+    * calculateSystemGridCell: Converts system view vw coordinates to grid cells.
+    * The system view uses a fixed 18x10 grid with 5vw cells.
+    * Returns 1-indexed grid positions.
+    */
   calculateSystemGridCell(vwX: number, vwY: number): { col: number; row: number } {
     return {
       col: Math.floor(vwX / StarMapMovementService.SYSTEM_CELL_SIZE_VW) + 1,
@@ -97,12 +97,13 @@ export class StarMapMovementService {
   }
 
   /*
-   * getPlanetGridPosition: Returns grid position for a planet in system view.
-   * Uses hardcoded formula to arrange planets in a semi-circle around the sun.
-   */
+    * getPlanetGridPosition: Returns grid position for a planet in system view.
+    * Planets are arranged in a zigzag arc to the left of the sun.
+    * The sun occupies columns 13-18, rows 2-7; planets span columns 4-12.
+    */
   getPlanetGridPosition(planet: PlanetTile): { col: number; row: number } {
     return {
-      col: 20 - planet.index * 2,
+      col: 13 - planet.index,
       row: 6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3),
     };
   }

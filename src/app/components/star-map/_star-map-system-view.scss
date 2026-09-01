@@ -11,6 +11,7 @@
   z-index: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
 }
 
 .system-view-hud {
@@ -58,11 +59,13 @@
 }
 
 .system-grid {
-  width: 100vw;
-  height: 100vh;
+  position: relative;
+  width: 90vw;
+  height: 50vw;
+  margin: auto;
   display: grid;
-  grid-template-columns: repeat(20, 5vw);
-  grid-template-rows: repeat(12, minmax(5vw, 1fr));
+  grid-template-columns: repeat(18, 5vw);
+  grid-template-rows: repeat(10, 5vw);
   background-image:
     linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
     linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
@@ -70,8 +73,9 @@
 }
 
 .sun {
-  grid-column: 18 / 21;
-  grid-row: 4 / 10;
+  /* 6 cells wide (30vw) on the right side, vertically centered */
+  grid-column: 19 / 19;
+  grid-row: 4 / 8;
   position: relative;
   display: flex;
   align-items: center;
@@ -89,12 +93,16 @@
     inset 0 0 20px rgba(255, 255, 255, 0.7);
   z-index: 2;
   position: absolute;
-  top: 0;
+  top: 50%;
   left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .sun-glow {
   position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   width: 130%;
   height: 130%;
   border-radius: 50%;
@@ -107,11 +115,11 @@
 
 @keyframes sun-pulse {
   0% {
-    transform: scale(0.9);
+    transform: translate(-50%, -50%) scale(0.9);
     opacity: 0.1;
   }
   100% {
-    transform: scale(1.1);
+    transform: translate(-50%, -50%) scale(1.1);
     opacity: 0.25;
   }
 }
