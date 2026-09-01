@@ -932,6 +932,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cameraX = this.dragCameraStartX - deltaX / viewportUnitInPixels;
     this.cameraY = this.dragCameraStartY - deltaY / viewportUnitInPixels;
     this.clampCamera();
+    this.cdr.detectChanges();
   }
 
   /** Pointer up — ends drag, dispatches click if no movement occurred. */
