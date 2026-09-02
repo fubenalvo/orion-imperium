@@ -68,7 +68,7 @@
   border: 1px solid var(--color-blue);
   background: rgba(0, 0, 0, 0.7);
   color: var(--color-text);
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   cursor: pointer;
@@ -221,7 +221,7 @@
   border: 1px solid var(--color-blue);
   background: rgba(0, 0, 0, 0.7);
   color: var(--color-text);
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   cursor: pointer;
@@ -279,7 +279,7 @@
   border: none;
   border-bottom: 1px solid rgba(100, 150, 255, 0.15);
   color: var(--color-text);
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
   font-size: 0.8rem;
   letter-spacing: 0.04em;
   text-align: left;

@@ -1,8 +1,10 @@
 export interface PlanetBuilding {
+  id?: string;
   name: string;
   size: number;
   x: number;
   y: number;
+  type?: string;
 }
 
 export type PlanetType = 'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert';

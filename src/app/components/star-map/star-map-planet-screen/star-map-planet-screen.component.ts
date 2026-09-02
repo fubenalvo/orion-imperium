@@ -1,6 +1,6 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PlanetTile, PLANET_SURFACE_CELL_VW, PlanetEconomyEntry } from '../star-map.models';
+import { PlanetTile, PlanetBuilding, PLANET_SURFACE_CELL_VW, PlanetEconomyEntry } from '../star-map.models';
 import { FactionCurrenciesComponent } from '../faction-currencies/faction-currencies.component';
 import planetData from '../planet-data.json';
 
@@ -186,5 +186,24 @@ export class StarMapPlanetScreenComponent {
 
   isCellInPreview(row: number, col: number): boolean {
     return this.previewCells.has(`${row},${col}`);
+  }
+
+  /**
+   * Returns the BEM modifier class for a placed building based on its id/name,
+   * e.g. `medium_residential` -> `planet-surface__building--medium-residential`.
+   * Looks up the original BuildingType by name (the name is the only field we
+   * have on PlanetBuilding) and falls back to a slugified version of the name.
+   */
+  getBuildingTypeClass(b: PlanetBuilding): string {
+    const def = this.buildingTypes.find((t) => t.name === b.name || t.id === (b as { id?: string }).id);
+    const id = def?.id ?? this.slugify(b.name);
+    return `planet-surface__building--${id.replace(/_/g, '-')}`;
+  }
+
+  private slugify(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '');
   }
 }

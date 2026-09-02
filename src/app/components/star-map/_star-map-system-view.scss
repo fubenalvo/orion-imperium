@@ -45,7 +45,7 @@
   border: 1px solid var(--color-blue);
   background: rgba(0, 0, 0, 0.7);
   color: var(--color-text);
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
   font-size: 1rem;
   letter-spacing: 0.05em;
   cursor: pointer;
@@ -87,7 +87,7 @@
   width: 30vw;
   height: 30vw;
   border-radius: 50%;
-  background: var(--sun-color);
+  background: url('/planet-surface-noise-light.png'), var(--sun-color);
   box-shadow:
     0 0 60px var(--sun-color),
     inset 0 0 20px rgba(255, 255, 255, 0.7);
@@ -96,6 +96,15 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+
+  background-size: 8vw 8vw;
+  background-blend-mode: multiply, normal;
+  background-position:
+    0% 0%,
+    0% 0%;
+  position: absolute;
+  overflow: hidden;
+  animation: rotate-planet-surface 55s linear infinite;
 }
 
 .sun-glow {
@@ -167,7 +176,7 @@
 .planet-name {
   position: absolute;
   color: var(--color-text);
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
   font-size: 0.75rem;
   letter-spacing: 0.05em;
   padding: 0.2em 0.5em;

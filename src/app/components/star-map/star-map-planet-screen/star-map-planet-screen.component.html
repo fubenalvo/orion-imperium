@@ -36,6 +36,7 @@
       @for (b of planet?.buildings; track $index) {
         <div
           class="planet-surface__building"
+          [ngClass]="getBuildingTypeClass(b)"
           [style.--building-x]="b.x"
           [style.--building-y]="b.y"
           [style.--building-size]="b.size"

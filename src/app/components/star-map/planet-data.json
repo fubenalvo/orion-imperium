@@ -268,6 +268,26 @@
       "defense": null
     },
     {
+      "id": "small_research_lab",
+      "name": "Small Research Laboratory",
+      "role": "research",
+      "energyConsumption": 15,
+      "energyProduction": 0,
+      "maintenanceCost": 20,
+      "size": 1,
+      "population": 0,
+      "workforce": 30,
+      "moraleRate": 1,
+      "price": 100,
+      "production": {
+        "research": 2
+      },
+      "consumption": {
+        "energy": 15
+      },
+      "defense": null
+    },
+    {
       "id": "research_lab",
       "name": "Research Laboratory",
       "role": "research",

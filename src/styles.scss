@@ -10,7 +10,7 @@
    PIXELIFY SANS
    ========================================================= */
 
-@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 /* =========================================================
    COLOR PALETTE
@@ -26,6 +26,12 @@
   --color-background: #050b10;
 
   --color-background-dark: #071118;
+
+  /* -------------------------------------------------------
+     Fonts
+     ------------------------------------------------------- */
+
+  --font-primary: 'VT323', monospace;
 
   /* -------------------------------------------------------
      Main text
@@ -128,7 +134,7 @@ body {
 
   color: var(--color-text);
 
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
 
   font-weight: 400;
 
@@ -204,7 +210,7 @@ button,
   );
 
   color: var(--button-text);
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
   font-size: 1em;
   font-weight: 600;
   line-height: 1;
@@ -322,7 +328,7 @@ select {
 
   color: var(--color-text);
 
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
 
   font-size: 1em;
 
@@ -468,7 +474,7 @@ input[type='radio']:checked::after {
 label {
   color: var(--color-text);
 
-  font-family: 'Pixelify Sans', sans-serif;
+  font-family: var(--font-primary);
 
   cursor: pointer;
 }
