@@ -97,14 +97,14 @@ export class StarMapMovementService {
   }
 
   /*
-    * getPlanetGridPosition: Returns grid position for a planet in system view.
-    * Planets are arranged in a zigzag arc to the left of the sun.
-    * The sun occupies columns 13-18, rows 2-7; planets span columns 4-12.
-    */
+   * getPlanetGridPosition: Returns grid position for a planet in system view.
+   * Planets are spread across columns 1-12 with gaps, and distributed
+   * across rows 1-7. The sun occupies columns 13-18, rows 2-5.
+   */
   getPlanetGridPosition(planet: PlanetTile): { col: number; row: number } {
     return {
-      col: 13 - planet.index,
-      row: 6 + (planet.index % 2 === 0 ? 1 : -1) * (planet.index % 3),
+      col: Math.max(1, 14 - planet.index * 2),
+      row: 1 + ((planet.index * 3 + (planet.index % 2)) % 7),
     };
   }
 

@@ -722,3 +722,35 @@ input[type='range']::-moz-range-thumb {
   padding: 10px;
   z-index: 9999;
 }
+
+/* =========================================================
+   HEADER BACK BUTTON MIDDLE
+   ========================================================= */
+
+.back-btn {
+  position: absolute;
+  top: 0%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.5em 1em;
+  border: 2px solid var(--color-blue);
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--color-text);
+  font-family: var(--font-primary);
+  font-size: 1rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  z-index: 110;
+  box-shadow: none;
+  height: 8dvh;
+  min-height: 0;
+  border-top: 0;
+}
+
+.back-btn:hover {
+  transform: translateX(-50%);
+  color: var(--color-blue-bright);
+  border-color: var(--color-blue-bright);
+  background: rgba(0, 20, 25, 0.9);
+  box-shadow: none;
+}

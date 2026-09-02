@@ -37,14 +37,16 @@
   &:after {
     position: absolute;
     pointer-events: none;
-    opacity: 0.2;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
     content: '';
     z-index: 10;
-    background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
+
+    background: var(--planet-color);
+    opacity: 0.4;
+    mix-blend-mode: color;
   }
 
   &::before {

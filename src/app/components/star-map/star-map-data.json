@@ -57,7 +57,7 @@
       "name": "SOL",
       "x": 18,
       "y": 13,
-      "planets": 8,
+      "planets": 4,
       "color": "#ffcc00",
       "planetsTiles": [
         {
@@ -131,23 +131,8 @@
           "explored": false
         },
         {
-          "id": 4,
-          "index": 4,
-          "factionId": "unhabited",
-          "name": "Eldros",
-          "x": -60,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "gasgiant",
-          "size": "huge",
-          "population": 0,
-          "buildings": [],
-          "explored": true
-        },
-        {
           "id": 5,
-          "index": 5,
+          "index": 4,
           "factionId": "player",
           "name": "Kaelith",
           "x": -40,
@@ -184,51 +169,6 @@
             }
           ],
           "explored": true
-        },
-        {
-          "id": 6,
-          "index": 6,
-          "factionId": "unhabited",
-          "name": "Thalassa",
-          "x": -20,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "earthlike",
-          "size": "big",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
-          "id": 7,
-          "index": 7,
-          "factionId": "unhabited",
-          "name": "Vireon",
-          "x": 0,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "desert",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
-          "id": 8,
-          "index": 8,
-          "factionId": "unhabited",
-          "name": "Orinth",
-          "x": 20,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "ice",
-          "size": "small",
-          "population": 0,
-          "buildings": [],
-          "explored": true
         }
       ]
     },
@@ -237,7 +177,7 @@
       "name": "VEGA",
       "x": 40,
       "y": 10,
-      "planets": 5,
+      "planets": 2,
       "color": "#5ca8ff",
       "planetsTiles": [
         {
@@ -256,38 +196,8 @@
           "explored": false
         },
         {
-          "id": 10,
-          "index": 2,
-          "factionId": "unhabited",
-          "name": "Zephyria",
-          "x": -80,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "earthlike",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
-          "id": 11,
-          "index": 3,
-          "factionId": "unhabited",
-          "name": "Nerevos",
-          "x": -60,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "ice",
-          "size": "small",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 12,
-          "index": 4,
+          "index": 2,
           "factionId": "enemy1",
           "name": "Auralis",
           "x": -40,
@@ -336,21 +246,6 @@
             }
           ],
           "explored": false
-        },
-        {
-          "id": 13,
-          "index": 5,
-          "factionId": "unhabited",
-          "name": "Dravik",
-          "x": -20,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "marslike",
-          "size": "tiny",
-          "population": 0,
-          "buildings": [],
-          "explored": false
         }
       ]
     },
@@ -359,7 +254,7 @@
       "name": "SIRIUS",
       "x": 63,
       "y": 18,
-      "planets": 6,
+      "planets": 3,
       "color": "#f3f3f3",
       "planetsTiles": [
         {
@@ -436,23 +331,8 @@
           "explored": false
         },
         {
-          "id": 16,
-          "index": 3,
-          "factionId": "unhabited",
-          "name": "Ebonreach",
-          "x": -80,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "gasgiant",
-          "size": "huge",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 17,
-          "index": 4,
+          "index": 3,
           "factionId": "enemy2",
           "name": "Lunaris",
           "x": -60,
@@ -489,36 +369,6 @@
             }
           ],
           "explored": false
-        },
-        {
-          "id": 18,
-          "index": 5,
-          "factionId": "unhabited",
-          "name": "Voss Prime",
-          "x": -40,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "desert",
-          "size": "big",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
-          "id": 19,
-          "index": 6,
-          "factionId": "unhabited",
-          "name": "Miralune",
-          "x": -20,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "venuslike",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
-          "explored": false
         }
       ]
     },
@@ -527,7 +377,7 @@
       "name": "ARCTURUS",
       "x": 83,
       "y": 12,
-      "planets": 3,
+      "planets": 1,
       "color": "#39b8a8",
       "planetsTiles": [
         {
@@ -544,36 +394,6 @@
           "population": 0,
           "buildings": [],
           "explored": false
-        },
-        {
-          "id": 21,
-          "index": 2,
-          "factionId": "unhabited",
-          "name": "Cindral",
-          "x": -100,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "desert",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
-          "id": 22,
-          "index": 3,
-          "factionId": "unhabited",
-          "name": "Noctyra",
-          "x": -80,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "ice",
-          "size": "tiny",
-          "population": 0,
-          "buildings": [],
-          "explored": false
         }
       ]
     },
@@ -582,27 +402,12 @@
       "name": "RIGEL",
       "x": 28,
       "y": 33,
-      "planets": 7,
+      "planets": 4,
       "color": "#5ca8ff",
       "planetsTiles": [
         {
-          "id": 23,
-          "index": 1,
-          "factionId": "unhabited",
-          "name": "Halcyon",
-          "x": -120,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "earthlike",
-          "size": "big",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 24,
-          "index": 2,
+          "index": 1,
           "factionId": "enemy2",
           "name": "Brighthold",
           "x": -100,
@@ -665,66 +470,8 @@
           "explored": false
         },
         {
-          "id": 25,
-          "index": 3,
-          "factionId": "unhabited",
-          "name": "Xandros",
-          "x": -80,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "gasgiant",
-          "size": "huge",
-          "population": 618,
-          "buildings": [
-            {
-              "name": "Solar Array",
-              "size": 2,
-              "x": 0,
-              "y": 0
-            },
-            {
-              "name": "Solar Array",
-              "size": 2,
-              "x": 2,
-              "y": 0
-            },
-            {
-              "name": "Solar Array",
-              "size": 2,
-              "x": 4,
-              "y": 0
-            },
-            {
-              "name": "Laser Turret",
-              "size": 1,
-              "x": 6,
-              "y": 0
-            },
-            {
-              "name": "Missile Turret",
-              "size": 1,
-              "x": 7,
-              "y": 0
-            },
-            {
-              "name": "Missile Turret",
-              "size": 1,
-              "x": 8,
-              "y": 0
-            },
-            {
-              "name": "Missile Turret",
-              "size": 1,
-              "x": 6,
-              "y": 1
-            }
-          ],
-          "explored": false
-        },
-        {
           "id": 26,
-          "index": 4,
+          "index": 2,
           "factionId": "enemy2",
           "name": "Ilyria",
           "x": -60,
@@ -758,7 +505,7 @@
         },
         {
           "id": 27,
-          "index": 5,
+          "index": 3,
           "factionId": "enemy2",
           "name": "Morvain",
           "x": -40,
@@ -798,7 +545,7 @@
         },
         {
           "id": 28,
-          "index": 6,
+          "index": 4,
           "factionId": "enemy1",
           "name": "Celestia",
           "x": -20,
@@ -835,21 +582,6 @@
             }
           ],
           "explored": false
-        },
-        {
-          "id": 29,
-          "index": 7,
-          "factionId": "unhabited",
-          "name": "Ravanna",
-          "x": 0,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "desert",
-          "size": "tiny",
-          "population": 0,
-          "buildings": [],
-          "explored": false
         }
       ]
     },
@@ -858,27 +590,12 @@
       "name": "ALTAIR",
       "x": 53,
       "y": 38,
-      "planets": 4,
+      "planets": 2,
       "color": "#f3f3f3",
       "planetsTiles": [
         {
-          "id": 30,
-          "index": 1,
-          "factionId": "unhabited",
-          "name": "Eidolon",
-          "x": -120,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "ice",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 31,
-          "index": 2,
+          "index": 1,
           "factionId": "enemy2",
           "name": "Sablemere",
           "x": -100,
@@ -929,54 +646,8 @@
           "explored": false
         },
         {
-          "id": 32,
-          "index": 3,
-          "factionId": "unhabited",
-          "name": "Aetheris",
-          "x": -80,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "venuslike",
-          "size": "big",
-          "population": 1537,
-          "buildings": [
-            {
-              "name": "Large Residential Block",
-              "size": 3,
-              "x": 0,
-              "y": 0
-            },
-            {
-              "name": "Large Residential Block",
-              "size": 3,
-              "x": 3,
-              "y": 0
-            },
-            {
-              "name": "Planetary Shield",
-              "size": 2,
-              "x": 6,
-              "y": 0
-            },
-            {
-              "name": "Planetary Shield",
-              "size": 2,
-              "x": 8,
-              "y": 0
-            },
-            {
-              "name": "Planetary Shield",
-              "size": 2,
-              "x": 6,
-              "y": 2
-            }
-          ],
-          "explored": false
-        },
-        {
           "id": 33,
-          "index": 4,
+          "index": 2,
           "factionId": "enemy1",
           "name": "Korrath",
           "x": -60,
@@ -1033,7 +704,7 @@
       "name": "BETELGEUSE",
       "x": 78,
       "y": 35,
-      "planets": 9,
+      "planets": 6,
       "color": "#d65757",
       "planetsTiles": [
         {
@@ -1171,23 +842,8 @@
           "explored": false
         },
         {
-          "id": 38,
-          "index": 5,
-          "factionId": "unhabited",
-          "name": "Seraphis",
-          "x": -40,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "venuslike",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 39,
-          "index": 6,
+          "index": 5,
           "factionId": "enemy2",
           "name": "Duskfall",
           "x": -20,
@@ -1214,38 +870,8 @@
           "explored": false
         },
         {
-          "id": 40,
-          "index": 7,
-          "factionId": "unhabited",
-          "name": "Lythos",
-          "x": 0,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "desert",
-          "size": "small",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
-          "id": 41,
-          "index": 8,
-          "factionId": "unhabited",
-          "name": "Amarion",
-          "x": 20,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "earthlike",
-          "size": "huge",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 42,
-          "index": 9,
+          "index": 6,
           "factionId": "enemy2",
           "name": "Cryos",
           "x": 40,
@@ -1284,7 +910,7 @@
       "name": "PROCYON",
       "x": 13,
       "y": 48,
-      "planets": 2,
+      "planets": 1,
       "color": "#39b8a8",
       "planetsTiles": [
         {
@@ -1326,21 +952,6 @@
             }
           ],
           "explored": false
-        },
-        {
-          "id": 44,
-          "index": 2,
-          "factionId": "unhabited",
-          "name": "Emberlyn",
-          "x": -100,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "venuslike",
-          "size": "small",
-          "population": 0,
-          "buildings": [],
-          "explored": false
         }
       ]
     },
@@ -1349,27 +960,12 @@
       "name": "DENEB",
       "x": 46,
       "y": 53,
-      "planets": 5,
+      "planets": 3,
       "color": "#5ca8ff",
       "planetsTiles": [
         {
-          "id": 45,
-          "index": 1,
-          "factionId": "unhabited",
-          "name": "Draxos",
-          "x": -120,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "marslike",
-          "size": "big",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 46,
-          "index": 2,
+          "index": 1,
           "factionId": "enemy2",
           "name": "Sylvara",
           "x": -100,
@@ -1439,7 +1035,7 @@
         },
         {
           "id": 47,
-          "index": 3,
+          "index": 2,
           "factionId": "enemy1",
           "name": "Tenebris",
           "x": -80,
@@ -1484,23 +1080,8 @@
           "explored": false
         },
         {
-          "id": 48,
-          "index": 4,
-          "factionId": "unhabited",
-          "name": "Aurion",
-          "x": -60,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "desert",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 49,
-          "index": 5,
+          "index": 3,
           "factionId": "enemy2",
           "name": "Mistral",
           "x": -40,
@@ -1545,7 +1126,7 @@
       "name": "ANTARES",
       "x": 88,
       "y": 51,
-      "planets": 6,
+      "planets": 3,
       "color": "#d65757",
       "planetsTiles": [
         {
@@ -1647,23 +1228,8 @@
           "explored": false
         },
         {
-          "id": 52,
-          "index": 3,
-          "factionId": "unhabited",
-          "name": "Frosthaven",
-          "x": -80,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "ice",
-          "size": "small",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
           "id": 53,
-          "index": 4,
+          "index": 3,
           "factionId": "enemy1",
           "name": "Kharon",
           "x": -60,
@@ -1699,36 +1265,6 @@
               "y": 0
             }
           ],
-          "explored": false
-        },
-        {
-          "id": 54,
-          "index": 5,
-          "factionId": "unhabited",
-          "name": "Starfall",
-          "x": -40,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "desert",
-          "size": "tiny",
-          "population": 0,
-          "buildings": [],
-          "explored": false
-        },
-        {
-          "id": 55,
-          "index": 6,
-          "factionId": "unhabited",
-          "name": "Vespera",
-          "x": -20,
-          "y": -50,
-          "xOffset": 0,
-          "yOffset": 0,
-          "type": "venuslike",
-          "size": "medium",
-          "population": 0,
-          "buildings": [],
           "explored": false
         }
       ]

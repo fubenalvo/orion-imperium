@@ -55,7 +55,9 @@
   border-radius: 4px;
   background: rgba(2, 6, 9, 0.8);
   text-align: center;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
 }
 
 .fleet-panel.winner {
@@ -133,7 +135,9 @@
 .hp-bar {
   height: 100%;
   background: var(--color-blue);
-  transition: width 0.3s ease, background 0.3s ease;
+  transition:
+    width 0.3s ease,
+    background 0.3s ease;
 }
 
 .ship-row.destroyed .hp-bar {
@@ -263,23 +267,3 @@
   color: #4caf50;
   font-size: 1.2rem;
 }
-
-.back-btn {
-  padding: 0.5rem 2rem;
-  border: 1px solid var(--color-blue);
-  border-radius: 2px;
-  background: rgba(53, 134, 229, 0.15);
-  color: var(--color-text);
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.15em;
-  cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
-  text-transform: uppercase;
-}
-
-.back-btn:hover {
-  background: rgba(53, 134, 229, 0.3);
-  box-shadow: 0 0 12px rgba(53, 134, 229, 0.4);
-}
-
