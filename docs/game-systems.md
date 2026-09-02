@@ -12,15 +12,56 @@ The `StarMap` component (`src/app/components/star-map/star-map.ts`) is the centr
 - **`system`** – Inside a star system. Fleets are positioned in vw units on a separate 18×10 grid with 5vw cells (`StarMapMovementService.SYSTEM_CELL_SIZE_VW`). Planets are arranged in a zigzag arc to the left of the sun via `getPlanetGridPosition()`: column = `13 - planet.index`, row = `6 ± (planet.index % 3)` with a sign that alternates by `planet.index % 2`.
 - **`planet`** – Planet surface. A grid of size `numericPlanetSize * 2 + 3` is overlaid on a noise-textured, type-colored background. The player can place new buildings here.
 
+### Fog of War & Sensor Range
+
+Sensor range determines which grid cells a fleet (or player-owned star system) can "see". All sensor ranges are Euclidean circles (`dx² + dy² <= range²`).
+
+**Sources of sensor range (galaxy map, player faction only):**
+
+1. **Player fleets** — each fleet has a `sensorRange` field (default 3 grid cells). The range is centered on the fleet's current integer grid position (`Math.floor(fleet.x)`, `Math.floor(fleet.y)`).
+2. **Player-owned star systems** — any star system containing at least one planet with `factionId === 'player'` provides a fixed 5-grid-radius sensor range, centered on the system's grid cell. This is the "base visibility" — your home territory is always partially detected even without a fleet present.
+
+**Rendering:**
+
+- Grid cells within sensor range are highlighted with a semi-transparent faction-colored overlay (`.sensor-range-cell` with `--sensor-color` CSS variable). Player sensors use the player faction color (`#8cc4ff`).
+- A toggle button in the top HUD (`sensorRangeEnabled`) shows/hides the highlight overlays and fog.
+- Enemy fleet sensor ranges are **never** shown on the galaxy map — only player sensors are visible.
+- A pulsing animation (`sensor-pulse`, 2.5s) highlights active sensor area.
+
+**Exploration tracking:**
+
+- `exploredGridCells` (`Set<string>` of `"col-row"` keys, persisted as `string[]` in saves) tracks every galaxy grid cell the player has ever sensed. Once explored, a cell stays explored.
+- `StarSystem.explored` is set to `true` when the system's grid cell falls within any player sensor range. Only explored systems are rendered and selectable on the galaxy map.
+- `PlanetTile.explored` is set to `true` when the planet's system-view grid cell falls within a player fleet's sensor range in the system view (replacing the previous exact-cell-match logic).
+
+**Fog of war layers (galaxy map):**
+
+- **Black fog** — cells never explored, fully hidden (dark `rgba(0,0,0,0.85)` overlay).
+- **Grey fog** — cells previously explored but currently outside sensor range (`rgba(0,0,0,0.45)`), still visible but dimmed.
+- **Visible** — cells currently in sensor range, shown with faction-colored highlight.
+
+Fog cells are viewport-culled (only cells within the camera's visible area + 1-cell buffer are rendered) for performance on the 100×60 grid.
+
+**Fleet visibility:**
+
+- Player fleets are always visible.
+- Enemy/neutral fleets are **hidden** when their grid cell is not in the player's sensor range. Hidden fleets are still tracked for battle detection (which operates on raw fleet data, not visibility).
+- In system view, all fleets in the current system are visible (the player is physically present).
+
+**Minimap:** Only explored star systems and visible fleets are shown.
+
+**Backward compatibility:** Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` defaults to 3 when absent.
+
 ### Game Loop
 
 `StarMapGameLoopService` owns the `requestAnimationFrame` loop and always runs outside the Angular zone. The component provides an update callback that:
 
 1. Calls `StarMapMovementService.updateFleets()` with `deltaTime` (clamped to 0.1s).
 2. Calls `updateExploredPlanets()` (system view only) and `checkFleetPlanetArrivals()` (system view only).
-3. Calls `StarMapBattleDetectionService.checkForBattles()`.
-4. Every `economyTickInterval` (1s) of accumulated `deltaTime`, runs `EconomyService.applyEconomyDelta()` for every faction and refreshes the cached player economy breakdown.
-5. Triggers `cdr.detectChanges()` only when fleets actually moved or the economy tick fired.
+3. Calls `StarMapSensorService.computeGalaxySensorCells()` to recompute the current sensor range cells, updates `exploredGridCells` (persistent), marks star systems as explored, and updates fog cell rendering.
+4. Calls `StarMapBattleDetectionService.checkForBattles()`.
+5. Every `economyTickInterval` (1s) of accumulated `deltaTime`, runs `EconomyService.applyEconomyDelta()` for every faction and refreshes the cached player economy breakdown.
+6. Triggers `cdr.detectChanges()` only when fleets actually moved, sensor visibility changed, or the economy tick fired.
 
 The loop is paused by `StarMapGameLoopService.pauseGame()` and resumed with `resumeGame()`. `stopGameLoop()` is used on component destroy. `isPaused` is a separate flag tracked by `StarMap` (it does not close the pause-menu overlay).
 

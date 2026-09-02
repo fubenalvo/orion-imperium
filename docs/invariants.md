@@ -96,4 +96,20 @@ Conditions that must remain true across the codebase. When changing any code tha
 - The camera is clamped to the map bounds after every move (`clampCamera`) using the **current** cell size and viewport aspect ratio, not the values present at component init.
 - On viewport resize, the camera is scaled by `newCellSize / oldCellSize` so the same grid area remains under the same viewport point.
 - The background is sized to 200% of the map grid extent and translated at `0.3 * cameraX/Y` for parallax; the getters `bgWidthVw`, `bgHeightVw`, `bgLeftVw`, `bgTopVw` keep it centered on the viewport at all times.
-- Camera speed is `2` vw per arrow-key press or navigation-component event, not time-based.
+  - Camera speed is `2` vw per arrow-key press or navigation-component event, not time-based.
+
+## Sensor Range & Fog-of-War Invariants
+
+- Each fleet has a `sensorRange` field (default 3 if missing from save data). The range is in galaxy grid cells and defines a Euclidean circle of visibility.
+- Sensor ranges are computed around integer grid positions: `Math.floor(fleet.x)` for fleets and `system.gridCol`/`system.gridRow` for star systems.
+- Player-owned star systems (≥1 planet with `factionId === 'player'`) provide a fixed 5-grid sensor radius regardless of fleet presence.
+- Only **player** sensor ranges are highlighted on the galaxy map. Enemy fleet sensor ranges are never shown.
+- `exploredGridCells` (a `Set<string>` of `"col-row"` keys, persisted as `string[]`) is monotonic: once a cell is explored it stays explored forever.
+- `StarSystem.explored` is set to `true` when the system's grid cell enters any player sensor range, and never reset to `false`.
+- `PlanetTile.explored` is set to `true` when the planet's system-view grid cell is within a player fleet's sensor range (Euclidean distance on the 18×10 system grid).
+- Enemy/neutral fleets are hidden on the galaxy map when their grid cell is not in the player's sensor range. They remain tracked for battle detection (which uses raw fleet data, not visibility-filtered).
+- In system view, all fleets in the current system are visible (player is physically present).
+- Fog cells (unexplored viewport cells) are culled to the camera viewport + 1-cell buffer for performance on the 100×60 grid.
+- The minimap renders only explored star systems and visible fleets.
+- Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` defaults to 3.
+- `visibleFleets` filters out both destroyed fleets and fleets hidden by fog-of-war. The fleet-buttons sidebar and minimap use this filtered list.

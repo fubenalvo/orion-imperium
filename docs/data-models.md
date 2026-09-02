@@ -14,8 +14,9 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `cameraX`, `cameraY`: viewport offset in vw
 - `selectedSystemId`, `selectedFleetId`, `selectedPlanetTileId`: persisted selection
 - `selectedFleetAction`: `'move' | null`
-- `targetX`, `targetY`: visible target marker (companion to the selected fleet's actual target)
-- `destroyedFleetId`: id of the fleet destroyed in the last battle, used so destruction survives save/load
+  - `targetX`, `targetY`: visible target marker (companion to the selected fleet's actual target)
+  - `destroyedFleetId`: id of the fleet destroyed in the last battle, used so destruction survives save/load
+  - `exploredGridCells`: `string[]` of `"col-row"` keys representing every galaxy grid cell the player has ever explored; loaded into `Set<string>` at runtime. Absent on old saves → all systems default to explored
 
 ## Faction
 
@@ -33,6 +34,21 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `color`: star color for rendering
 - `planetsTiles`: `PlanetTile[]`
 - `gridCol`, `gridRow`: derived integer cell (`Math.floor(x)`, `Math.floor(y)`); recomputed by `refreshGridPositions`
+- `explored`: `true` once the system has come within any player sensor range on the galaxy map; controls whether the system is rendered and selectable
+
+## Sensor Range
+
+See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
+
+### Fleet.sensorRange
+
+- `sensorRange?: number` — sensor range in galaxy grid cells (default 3). Added to the `Fleet` model. Stored per-fleet in `star-map-data.json` and persisted in save data.
+- Player-owned star systems (those containing ≥1 planet with `factionId === 'player'`) provide a fixed 5-grid sensor radius on the galaxy map, regardless of fleet presence.
+- A Euclidean circle (`dx² + dy² <= range²`) defines the set of cells visible from a given center.
+
+### exploredGridCells
+
+- `exploredGridCells?: string[]` — array of `"col-row"` keys representing every galaxy grid cell the player has ever sensed. Persisted in the `StarMapData` save snapshot. Loaded into a `Set<string>` on the `StarMap` component at runtime. Old saves without this field default to all systems explored (backward compatibility).
 
 ## PlanetTile
 
@@ -43,7 +59,7 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
 - `population`: integer
 - `buildings`: `PlanetBuilding[]`
-- `explored`: `true` once a player fleet has visited the cell
+  - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `fleet.sensorRange`, default 3 grid cells on the 18×10 system grid)
 
 ### PlanetBuilding
 
@@ -63,8 +79,9 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 - `speed`: in vw/s; converted to cells/s via `speed / cellSizeVw` for map movement
 - `system`: `SystemLocation | null` — present while the fleet is inside a star system
 - `gridCol`, `gridRow`: derived integer cell on whichever view the fleet is currently in
-- `ships`: `FleetShip[]`
-- `destroyed`: `true` after a lost battle; the fleet is filtered from `visibleFleets` and excluded from collision, movement, and rendering
+  - `ships`: `FleetShip[]`
+  - `destroyed`: `true` after a lost battle; the fleet is filtered from `visibleFleets` and excluded from collision, movement, and rendering
+  - `sensorRange`: `number` (optional, default 3) — sensor range in galaxy grid cells; a Euclidean circle of this radius around the fleet's position is highlighted and marks cells as explored
 
 ### SystemLocation
 

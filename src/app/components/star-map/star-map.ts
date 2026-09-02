@@ -27,6 +27,12 @@ import { StarMapGameLoopService } from './star-map-game-loop.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import {
+  StarMapSensorService,
+  SensorCellInfo,
+  SYSTEM_GRID_COLUMNS,
+  SYSTEM_GRID_ROWS,
+} from './star-map-sensor.service';
+import {
   StarMapData,
   Fleet,
   StarSystem,
@@ -66,6 +72,7 @@ export type { StarMapData } from './star-map.models';
  * - Camera panning and clamping
  * - Grid-based object selection and context menus
  * - Collision-based battle detection (delegated to StarMapBattleDetectionService)
+ * - Sensor range & fog-of-war computation (delegated to StarMapSensorService)
  * - Game loop with pause/resume (delegated to StarMapGameLoopService)
  * - Auto-save on state changes
  * - Save/load via SaveGameService
@@ -188,6 +195,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private readonly economyTickInterval = 1;
   private cachedPlayerEconomyBreakdown: EconomyBreakdown | null = null;
 
+  // Sensor range & fog-of-war state
+  exploredGridCells = new Set<string>();
+  sensorRangeCells: Map<string, SensorCellInfo> = new Map();
+  sensorRangeEnabled = true;
+  private visibilityDirty = true;
+
   constructor(
     private cdr: ChangeDetectorRef,
     private ngZone: NgZone,
@@ -200,6 +213,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private gameLoopService: StarMapGameLoopService,
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
+    private sensorService: StarMapSensorService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -223,8 +237,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   get visibleFleets(): Fleet[] {
-    // Fleets that are not marked as destroyed.
-    return this.fleets.filter((f) => !f.destroyed);
+    // Fleets that are not destroyed AND visible to the player (fog-of-war).
+    // Player fleets are always visible; enemy fleets must be in sensor range.
+    // In system view, all fleets in the current system are visible.
+    return this.fleets.filter((f) => !f.destroyed && this.isFleetVisible(f));
   }
 
   get minimapFleets(): { id: number; x: number; y: number; color: string }[] {
@@ -234,6 +250,79 @@ export class StarMap implements AfterViewInit, OnDestroy {
       y: f.y,
       color: this.getFactionColor(f.factionId),
     }));
+  }
+
+  /** Star systems that have been explored (visible on the galaxy map). */
+  get exploredStarSystems(): StarSystem[] {
+    return this.starSystems.filter((s) => s.explored !== false);
+  }
+
+  /** Returns true if a fleet is visible to the player under fog-of-war rules. */
+  isFleetVisible(fleet: Fleet): boolean {
+    if (fleet.factionId === 'player') {
+      return true;
+    }
+    if (this.currentView === 'system' && this.selectedSystem && fleet.system?.id === this.selectedSystem.id) {
+      return true;
+    }
+    const col = Math.floor(fleet.x);
+    const row = Math.floor(fleet.y);
+    return this.sensorRangeCells.has(`${col}-${row}`);
+  }
+
+  /** Returns the array of sensor range cell infos for template rendering. */
+  get sensorRangeCellsArray(): SensorCellInfo[] {
+    return Array.from(this.sensorRangeCells.values());
+  }
+
+  /**
+   * Returns fog cells (unexplored cells within the viewport) for template rendering.
+   * Called only when the camera is stationary or the explored set changes.
+   */
+  get fogCells(): { col: number; row: number; explored: boolean }[] {
+    if (!this.sensorRangeEnabled) {
+      return [];
+    }
+
+    const viewportWidthVw = 100;
+    const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
+    const cells = this.sensorService.getViewportCells(
+      this.cameraX,
+      this.cameraY,
+      viewportWidthVw,
+      viewportHeightVw,
+      this.cellSizeVw,
+      this.cellSizeVh,
+      this.mapWidth,
+      this.mapHeight,
+    );
+
+    const fog: { col: number; row: number; explored: boolean }[] = [];
+    for (const cell of cells) {
+      const key = `${cell.col}-${cell.row}`;
+      if (!this.exploredGridCells.has(key)) {
+        fog.push({ col: cell.col, row: cell.row, explored: false });
+      } else if (!this.sensorRangeCells.has(key) && this.sensorRangeEnabled) {
+        fog.push({ col: cell.col, row: cell.row, explored: true });
+      }
+    }
+    return fog;
+  }
+
+  /**
+   * Returns the sensor range cells for the selected fleet in system view.
+   */
+  get systemSensorCells(): { col: number; row: number }[] {
+    if (!this.sensorRangeEnabled || !this.selectedFleet || !this.selectedFleet.system?.id) {
+      return [];
+    }
+    return this.sensorService.computeSystemSensorCells(this.selectedFleet);
+  }
+
+  /** Toggles the visibility of sensor range grid highlights. */
+  toggleSensorRange(): void {
+    this.sensorRangeEnabled = !this.sensorRangeEnabled;
+    this.cdr.detectChanges();
   }
 
   // Pause menu handlers
@@ -1103,6 +1192,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     console.log('[StarMap] startGameLoop called');
     this.gameLoopService.startGameLoop((deltaTime: number) => {
       const didMoveFleets = this.updateFleets(deltaTime);
+      const visibilityChanged = this.updateSensorVisibility();
 
       this.economyAccumulator += deltaTime;
       let economyUpdated = false;
@@ -1126,7 +1216,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         economyUpdated = true;
       }
 
-      if (didMoveFleets || economyUpdated) {
+      if (didMoveFleets || economyUpdated || visibilityChanged) {
         this.ngZone.run(() => this.cdr.detectChanges());
       }
     });
@@ -1173,10 +1263,66 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.triggeredBattles,
     );
 
-    return didMoveFleets;
+     return didMoveFleets;
   }
 
-  /** Marks planets as explored when a player fleet occupies the same grid cell. */
+  /**
+   * Computes the initial explored state after loading a save or starting a new game.
+   * Marks star systems as explored when within sensor range of player fleets
+   * or player-owned systems.
+   */
+  private computeInitialSensorVisibility(): void {
+    // Recompute sensor cells to update exploredGridCells
+    this.updateSensorVisibility(/*force=*/ true);
+  }
+
+  /**
+   * Recomputes the current sensor range cells and updates explored state.
+   * Called every frame from the game loop. Returns true if visibility changed
+   * (so change detection can run).
+   */
+  private updateSensorVisibility(force = false): boolean {
+    if (this.currentView === 'planet') {
+      return false;
+    }
+
+    const oldCellCount = this.sensorRangeCells.size;
+    const oldExploredCount = this.exploredGridCells.size;
+
+    // Recompute current sensor range cells for highlighting
+    this.sensorRangeCells = this.sensorService.computeGalaxySensorCells(
+      this.fleets,
+      this.starSystems,
+      this.factions,
+      this.movementService.gridColumns,
+      this.movementService.gridRows,
+    );
+
+    // Expand explored cells
+    this.sensorService.updateExploredCells(this.exploredGridCells, this.sensorRangeCells);
+
+    // Mark star systems as explored when within sensor range
+    let systemsChanged = false;
+    for (const system of this.starSystems) {
+      if (system.explored) {
+        continue;
+      }
+      if (this.sensorService.isSystemExplored(system, this.sensorRangeCells)) {
+        system.explored = true;
+        systemsChanged = true;
+      }
+    }
+
+    const changed = force ||
+      this.sensorRangeCells.size !== oldCellCount ||
+      this.exploredGridCells.size !== oldExploredCount ||
+      systemsChanged;
+
+    this.visibilityDirty = changed;
+    return changed;
+  }
+
+  /** Updates planet exploration in system view based on fleet sensor range. */
   private updateExploredPlanets(): void {
     if (this.currentView !== 'system' || !this.selectedSystem) {
       return;
@@ -1191,10 +1337,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
         continue;
       }
 
-      const fleetCell = this.movementService.calculateSystemGridCell(
-        fleet.system.x,
-        fleet.system.y,
-      );
+      if (fleet.system?.targetX != null || fleet.system?.targetY != null) {
+        continue;
+      }
+
+      const range = fleet.sensorRange ?? 3;
 
       for (const planet of this.selectedSystem.planetsTiles) {
         if (planet.explored) {
@@ -1202,7 +1349,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
         }
 
         const planetCell = this.movementService.getPlanetGridPosition(planet);
-        if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
+        if (
+          this.sensorService.isPlanetInRange(
+            planetCell.col,
+            planetCell.row,
+            fleet.system.x,
+            fleet.system.y,
+            range,
+          )
+        ) {
           planet.explored = true;
         }
       }
@@ -1390,6 +1545,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.isPaused = false;
     this.gameLoopService.resumeGame((deltaTime: number) => {
       const didMoveFleets = this.updateFleets(deltaTime);
+      const visibilityChanged = this.updateSensorVisibility();
 
       this.economyAccumulator += deltaTime;
       let economyUpdated = false;
@@ -1413,7 +1569,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         economyUpdated = true;
       }
 
-      if (didMoveFleets || economyUpdated) {
+      if (didMoveFleets || economyUpdated || visibilityChanged) {
         this.ngZone.run(() => this.cdr.detectChanges());
       }
     });
@@ -1447,6 +1603,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       targetX: this.targetX,
       targetY: this.targetY,
       destroyedFleetId: this.battleService.getDestroyedFleetId(),
+      exploredGridCells: Array.from(this.exploredGridCells),
     };
 
     this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
@@ -1466,6 +1623,34 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.factions = data.factions;
     this.starSystems = data.starSystems;
     this.fleets = data.fleets ?? [];
+
+    // Backward compatibility: old saves have no exploredGridCells or
+    // StarSystem.explored. Default: all systems explored so old saves
+    // don't regress into a fully-fogged map.
+    const hasSensorData = data.exploredGridCells !== undefined;
+    if (hasSensorData) {
+      this.exploredGridCells = new Set(data.exploredGridCells ?? []);
+    } else {
+      // Mark all systems explored + every cell in viewport as explored
+      this.exploredGridCells = new Set();
+      for (const system of this.starSystems) {
+        system.explored = true;
+      }
+    }
+
+    // Ensure every system has an explored flag (old saves may not have it)
+    if (!hasSensorData) {
+      for (const system of this.starSystems) {
+        system.explored = true;
+      }
+    }
+
+    // Ensure every fleet has a sensorRange (defaults to 3)
+    for (const fleet of this.fleets) {
+      if (!fleet.destroyed && fleet.sensorRange == null) {
+        fleet.sensorRange = 3;
+      }
+    }
 
     // Legacy save migration: old saves stored map dimensions in vw (width=200)
     // and star system / fleet x/y in vw units. Convert to grid cell coordinates.
@@ -1510,6 +1695,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null;
 
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
+
+    // Compute initial sensor visibility after loading
+    this.computeInitialSensorVisibility();
+    this.updateSensorVisibility();
+
     this.clampCamera();
   }
 

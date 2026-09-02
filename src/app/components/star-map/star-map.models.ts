@@ -76,6 +76,7 @@ export interface StarSystem {
   planetsTiles: PlanetTile[];
   gridCol?: number;
   gridRow?: number;
+  explored?: boolean;
 }
 
 export interface FleetShip {
@@ -136,6 +137,7 @@ export interface StarMapData {
   targetX?: number | null;
   targetY?: number | null;
   destroyedFleetId?: number | null;
+  exploredGridCells?: string[];
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';
@@ -236,4 +238,5 @@ export interface Fleet {
   gridRow?: number;
   ships: FleetShip[];
   destroyed?: boolean;
+  sensorRange?: number;
 }

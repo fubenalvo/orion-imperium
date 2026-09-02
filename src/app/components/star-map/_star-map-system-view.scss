@@ -244,3 +244,11 @@
 .planet:hover .planet-body {
   transform: scale(1.1);
 }
+
+.planet--unexplored .planet-body {
+  filter: grayscale(100%) opacity(0.4);
+}
+
+.planet--unexplored .planet-name {
+  opacity: 0.3;
+}

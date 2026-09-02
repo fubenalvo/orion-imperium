@@ -59,6 +59,7 @@
       "y": 13,
       "planets": 4,
       "color": "#ffcc00",
+      "explored": true,
       "planetsTiles": [
         {
           "id": 1,
@@ -179,6 +180,7 @@
       "y": 10,
       "planets": 2,
       "color": "#5ca8ff",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 9,
@@ -256,6 +258,7 @@
       "y": 18,
       "planets": 3,
       "color": "#f3f3f3",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 14,
@@ -379,6 +382,7 @@
       "y": 12,
       "planets": 1,
       "color": "#39b8a8",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 20,
@@ -404,6 +408,7 @@
       "y": 33,
       "planets": 4,
       "color": "#5ca8ff",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 24,
@@ -592,6 +597,7 @@
       "y": 38,
       "planets": 2,
       "color": "#f3f3f3",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 31,
@@ -706,6 +712,7 @@
       "y": 35,
       "planets": 6,
       "color": "#d65757",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 34,
@@ -912,6 +919,7 @@
       "y": 48,
       "planets": 1,
       "color": "#39b8a8",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 43,
@@ -962,6 +970,7 @@
       "y": 53,
       "planets": 3,
       "color": "#5ca8ff",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 46,
@@ -1128,6 +1137,7 @@
       "y": 51,
       "planets": 3,
       "color": "#d65757",
+      "explored": false,
       "planetsTiles": [
         {
           "id": 50,
@@ -1281,6 +1291,7 @@
       "speed": 8,
       "factionId": "player",
       "destroyed": false,
+      "sensorRange": 3,
       "ships": [
         {
           "id": 1,
@@ -1305,6 +1316,7 @@
       "speed": 6,
       "factionId": "player",
       "destroyed": false,
+      "sensorRange": 3,
       "ships": [
         {
           "id": 3,
@@ -1334,6 +1346,7 @@
       "speed": 7,
       "factionId": "enemy1",
       "destroyed": false,
+      "sensorRange": 3,
       "ships": [
         {
           "id": 6,
@@ -1368,6 +1381,7 @@
       "speed": 9,
       "factionId": "enemy1",
       "destroyed": false,
+      "sensorRange": 3,
       "ships": [
         {
           "id": 10,
