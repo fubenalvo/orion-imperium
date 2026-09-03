@@ -1,4 +1,4 @@
-@import 'mixins';
+@use 'mixins' as *;
 
 /* Konténer, ami behatárolja a képernyőt */
 .crt-container {

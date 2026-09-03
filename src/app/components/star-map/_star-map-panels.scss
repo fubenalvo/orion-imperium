@@ -2,7 +2,7 @@
    STAR MAP PANELS
    ========================================================= */
 
-@import 'mixins';
+@use 'mixins' as *;
 
 .system-info {
   position: absolute;

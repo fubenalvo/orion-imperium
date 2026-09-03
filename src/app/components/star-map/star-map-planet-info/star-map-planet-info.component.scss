@@ -1,4 +1,6 @@
-@import '../_star-map-panels';
+@use '../_star-map-panels';
+
+@use 'mixins' as *;
 
 .planet-info {
   position: absolute;
