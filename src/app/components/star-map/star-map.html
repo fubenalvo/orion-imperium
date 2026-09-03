@@ -340,8 +340,8 @@
         <app-star-map-planet-info
           [planet]="selectedPlanetTile"
           [getFactionName]="boundGetFactionName"
-          [getEnergyForPlanet]="getEnergyForPlanet"
-          [getTaxForPlanet]="getTaxForPlanet"
+          [getEnergyForPlanet]="boundGetEnergyForPlanet"
+          [getTaxForPlanet]="boundGetTaxForPlanet"
           [planetEconomy]="getPlanetEconomy(selectedPlanetTile!)"
           (close)="selectedPlanetTile = null"
           (openPlanet)="openPlanetView()"

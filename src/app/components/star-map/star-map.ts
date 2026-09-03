@@ -562,6 +562,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundOnConfirmBuild = (buildingId: string, x: number, y: number) =>
     this.onBuildingConfirmed({ buildingId, x, y });
   readonly boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
+  readonly boundGetEnergyForPlanet = this.getEnergyForPlanet.bind(this);
+  readonly boundGetTaxForPlanet = this.getTaxForPlanet.bind(this);
 
   // Ship type helpers
 
@@ -740,12 +742,25 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  /** Selects a planet tile and clears any fleet selection. */
+  /**
+   * Selects a planet tile, clearing any fleet selection.
+   *
+   * If the planet-info window is already open and the clicked planet differs
+   * (by id), the window is closed first so the component is destroyed and
+   * re-created fresh with the new data rather than just receiving new inputs.
+   */
   selectPlanetTile(tile: PlanetTile): void {
-    this.selectedPlanetTile = tile;
     this.selectedFleet = null;
+
+    if (this.selectedPlanetTile && this.selectedPlanetTile.id !== tile.id) {
+      console.log('[StarMap] selectPlanetTile: closing window from', this.selectedPlanetTile.name, '-> switching to', tile.name);
+      this.selectedPlanetTile = null;
+      this.cdr.detectChanges();
+    }
+
+    this.selectedPlanetTile = tile;
     console.log('[StarMap] selectPlanetTile:', tile.name);
-    console.log('[StarMap] selectedPlanetTile set:', this.selectedPlanetTile);
+    console.log('[StarMap] selectedPlanetTile set:', this.selectedPlanetTile.name);
 
     if (this.currentView !== 'system') {
       this.selectedSystem = null;
