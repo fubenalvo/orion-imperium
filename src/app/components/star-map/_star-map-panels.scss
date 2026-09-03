@@ -107,8 +107,6 @@
     0 0 10px rgba(53, 229, 134, 0.3);
 }
 
-
-
 /* =========================================================
    FLEET SHIPS SUMMARY
    ========================================================= */
@@ -199,7 +197,7 @@
 
 .fleet-buttons {
   position: absolute;
-  top: 60px;
+  top: calc(8dvh - 1px);
   left: -2px;
   width: 120px;
   max-height: calc(100vh - 80px);

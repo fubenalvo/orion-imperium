@@ -375,7 +375,7 @@ export class StarMapSensorService {
    * in the system view. A planet is explored if it's within the fleet's
    * sensor radius on the system grid.
    *
-   * planetCol/planetRow are 1-indexed system grid cells from getPlanetGridPosition().
+    * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
    * fleetSystemX/Y are vw coordinates on the 18×10 system grid.
    */
   isPlanetInRange(
@@ -398,8 +398,8 @@ export class StarMapSensorService {
    * `range + 2` (Euclidean). Used to auto-explore planets at the edge of
    * sensor reach without making the underlying galaxy cell "explored".
    *
-   * planetCol/planetRow are 1-indexed system grid cells from
-   * getPlanetGridPosition(). fleetSystemX/Y are vw coordinates on the 18×10
+    * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
+    * fleetSystemX/Y are vw coordinates on the 18×10
    * system grid.
    */
   isPlanetInPreviewRange(

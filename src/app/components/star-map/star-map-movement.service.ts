@@ -97,15 +97,20 @@ export class StarMapMovementService {
   }
 
   /*
-   * getPlanetGridPosition: Returns grid position for a planet in system view.
-   * Planets are spread across columns 1-12 with gaps, and distributed
-   * across rows 1-7. The sun occupies columns 13-18, rows 2-5.
+   * getPlanetGridPosition: Returns the planet's grid position in system view.
+   * Uses planet.x and planet.y as 1-indexed column/row coordinates.
+   * Falls back to the index-based formula if values are out of bounds.
    */
   getPlanetGridPosition(planet: PlanetTile): { col: number; row: number } {
-    return {
-      col: Math.max(1, 14 - planet.index * 2),
-      row: 1 + ((planet.index * 3 + (planet.index % 2)) % 7),
-    };
+    const col = planet.x;
+    const row = planet.y;
+    if (col < 1 || col > 18 || row < 1 || row > 10) {
+      return {
+        col: Math.max(1, 14 - planet.index * 2),
+        row: 1 + ((planet.index * 3 + (planet.index % 2)) % 7),
+      };
+    }
+    return { col, row };
   }
 
   /*

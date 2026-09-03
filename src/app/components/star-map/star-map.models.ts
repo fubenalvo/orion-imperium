@@ -42,9 +42,8 @@ export interface Faction {
 /*
  * PlanetTile represents a single planet within a star system.
  *
- * NOTE: x, y, xOffset, yOffset are loaded from JSON but are NOT used
- * for rendering. Planets are positioned using a hardcoded grid formula
- * in getPlanetGridPosition() and in the template.
+ * NOTE: x and y are 1-indexed system grid cell coordinates used for
+ * positioning in the system view.
  */
 export interface PlanetTile {
   id: number;
@@ -53,8 +52,6 @@ export interface PlanetTile {
   factionId: string;
   x: number;
   y: number;
-  xOffset: number;
-  yOffset: number;
   type: PlanetType;
   size: PlanetSize;
   population: number;
