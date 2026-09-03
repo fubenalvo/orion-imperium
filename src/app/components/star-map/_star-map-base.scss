@@ -36,9 +36,36 @@
   will-change: transform;
 }
 
+.star-map-foreground {
+  position: absolute;
+
+  /* No inline width/height/left/top bindings — the div covers the full
+     container via inset: 0. Since stars.png repeats, the tile fills
+     the viewport at any background-position, so no 200%-sizing hack
+     is needed (unlike the non-repeating background JPG). */
+
+  inset: 0;
+
+  background-image: url('/stars.png');
+
+  background-repeat: repeat;
+
+  background-size: 100vw;
+
+  background-position: 0 0;
+
+  pointer-events: none;
+
+  z-index: 3;
+
+  will-change: transform;
+  transition: 0.05s linear all;
+  opacity: 0.5;
+}
+
 /* =========================================================
-   MAP VIEWPORT
-   ========================================================= */
+    MAP VIEWPORT
+    ========================================================= */
 
 .map-viewport {
   position: absolute;
