@@ -5,8 +5,6 @@ import {
   ChangeDetectorRef,
   NgZone,
   AfterViewInit,
-  ViewChild,
-  ElementRef,
 } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
@@ -130,7 +128,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly cameraSpeed = 2;
 
   // Drag/pan state
-  @ViewChild('mapViewport') mapViewport!: ElementRef<HTMLDivElement>;
   private isDragging = false;
   private dragStartX = 0;
   private dragStartY = 0;
@@ -138,9 +135,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private dragCameraStartY = 0;
   private dragMoved = false;
   private readonly dragThreshold = 5;
-  private readonly boundOnPointerDown = (e: PointerEvent) => this.onPointerDown(e);
-  private readonly boundOnPointerMove = (e: PointerEvent) => this.onPointerMove(e);
-  private readonly boundOnPointerUp = (e: PointerEvent) => this.onPointerUp(e);
 
   // Parallax background: the background div must always be 200% of the actual
   // map grid (not 200% of the viewport) so the parallax shift never causes it to
@@ -1134,7 +1128,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /** Pointer down on the map viewport — begins drag tracking (empty areas only). */
-  private onPointerDown(event: PointerEvent): void {
+  onPointerDown(event: PointerEvent): void {
     if (this.contextMenu) {
       return;
     }
@@ -1172,7 +1166,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /** Pointer move during drag — updates camera position with clamping. */
-  private onPointerMove(event: PointerEvent): void {
+  onPointerMove(event: PointerEvent): void {
     if (!this.isDragging) {
       return;
     }
@@ -1192,7 +1186,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /** Pointer up — ends drag, dispatches click if no movement occurred. */
-  private onPointerUp(event: PointerEvent): void {
+  onPointerUp(event: PointerEvent): void {
     if (!this.isDragging) {
       return;
     }
@@ -1217,21 +1211,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.setupFocusHandlers();
     window.addEventListener('orientationchange', this.onOrientationChange);
     this.checkOrientation();
-    this.setupDragHandlers();
-  }
-
-  /** Attaches pointer event listeners to the map viewport for drag-to-pan. */
-  private setupDragHandlers(): void {
-    const vp = this.mapViewport?.nativeElement;
-    if (!vp) {
-      console.warn('[StarMap] mapViewport not found, drag handlers not attached');
-      return;
-    }
-    console.log('[StarMap] Attaching drag handlers to mapViewport');
-    vp.addEventListener('pointerdown', this.boundOnPointerDown);
-    vp.addEventListener('pointermove', this.boundOnPointerMove);
-    vp.addEventListener('pointerup', this.boundOnPointerUp);
-    vp.addEventListener('pointercancel', this.boundOnPointerUp);
   }
 
   /** Registers the game loop tick callback with the game loop service. */
@@ -1863,14 +1842,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
     window.removeEventListener('orientationchange', this.onOrientationChange);
-
-    const vp = this.mapViewport?.nativeElement;
-    if (vp) {
-      vp.removeEventListener('pointerdown', this.boundOnPointerDown);
-      vp.removeEventListener('pointermove', this.boundOnPointerMove);
-      vp.removeEventListener('pointerup', this.boundOnPointerUp);
-      vp.removeEventListener('pointercancel', this.boundOnPointerUp);
-    }
 
     this.gameLoopService.stopGameLoop();
   }
