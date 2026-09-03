@@ -10,13 +10,13 @@
   position: relative;
   width: var(--cell-size-vw, 5vw);
   height: var(--cell-size-vw, 5vw);
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.6);
   z-index: 5;
   pointer-events: none;
 }
 
 .fog-cell--explored {
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* =========================================================
@@ -41,15 +41,37 @@
   height: 5vw;
 }
 
+/* =========================================================
+   SENSOR OUTER-RING PREVIEW CELLS (R+1..R+2, not explored)
+   ========================================================= */
+
+.sensor-preview-cell {
+  position: relative;
+  width: var(--cell-size-vw, 5vw);
+  height: var(--cell-size-vw, 5vw);
+  background: color-mix(in srgb, var(--sensor-color, #3586e5) 12%, transparent 88%);
+  //border: 1px dashed color-mix(in srgb, var(--sensor-color, #3586e5) 35%, transparent 65%);
+  border-radius: 2px;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.3;
+}
+
+/* Preview cells in system view use fixed 5vw cells */
+.system-sensor-preview-cell {
+  width: 5vw;
+  height: 5vw;
+}
+
 @keyframes sensor-pulse {
   0% {
-    opacity: 0.4;
+    opacity: 0.1;
   }
   50% {
-    opacity: 0.6;
+    opacity: 0.2;
   }
   100% {
-    opacity: 0.4;
+    opacity: 0.1;
   }
 }
 

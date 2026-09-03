@@ -100,7 +100,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 
 ## Sensor Range & Fog-of-War Invariants
 
-- Each fleet has a `sensorRange` field (default 3 if missing from save data). The range is in galaxy grid cells and defines a Euclidean circle of visibility.
+- Each fleet has a `sensorRange` field (default 3 if missing from save data). This field is a **minimum floor** — the effective range can be higher when individual ships have a greater `ShipType.range`. The range is in galaxy grid cells and defines a Euclidean circle of visibility.
 - Sensor ranges are computed around integer grid positions: `Math.floor(fleet.x)` for fleets and `system.gridCol`/`system.gridRow` for star systems.
 - Player-owned star systems (≥1 planet with `factionId === 'player'`) provide a fixed 5-grid sensor radius regardless of fleet presence.
 - Only **player** sensor ranges are highlighted on the galaxy map. Enemy fleet sensor ranges are never shown.
@@ -111,5 +111,6 @@ Conditions that must remain true across the codebase. When changing any code tha
 - In system view, all fleets in the current system are visible (player is physically present).
 - Fog cells (unexplored viewport cells) are culled to the camera viewport + 1-cell buffer for performance on the 100×60 grid.
 - The minimap renders only explored star systems and visible fleets.
-- Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` defaults to 3.
+- A fleet's effective sensor range is `max(fleet.sensorRange, maxShipRange)` where `maxShipRange` is the highest `ShipType.range` among the fleet's non-destroyed ships (0 if no non-destroyed ships). Computed by `StarMapSensorService.getFleetSensorRange()`.
+- Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` (minimum floor) defaults to 3.
 - `visibleFleets` filters out both destroyed fleets and fleets hidden by fog-of-war. The fleet-buttons sidebar and minimap use this filtered list.

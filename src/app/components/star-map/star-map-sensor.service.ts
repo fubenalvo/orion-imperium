@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Fleet, StarSystem, Faction } from './star-map.models';
+import { ShipService } from '../../services/ship.service';
 
 /*
  * =========================================================
@@ -28,6 +29,25 @@ export interface SensorCellInfo {
   color: string;
 }
 
+/**
+ * Cell in the "preview" outer ring: lies just outside the fully-transparent
+ * sensor radius (Euclidean distance in the open interval (R, R+2]). Rendered
+ * as a faint halo to indicate the fleet is almost in range. Preview cells
+ * are NOT added to the explored set.
+ */
+export interface SensorPreviewCellInfo {
+  col: number;
+  row: number;
+  factionId: string;
+  color: string;
+}
+
+/** Result of computing a sensor layer: the fully-clear cells plus the outer-ring preview cells. */
+export interface SensorLayerResult {
+  cells: Map<string, SensorCellInfo>;
+  preview: Map<string, SensorPreviewCellInfo>;
+}
+
 export const DEFAULT_FLEET_SENSOR_RANGE = 3;
 export const PLAYER_SYSTEM_SENSOR_RANGE = 5;
 
@@ -38,6 +58,29 @@ export const SYSTEM_CELL_SIZE_VW = 5;
 
 @Injectable({ providedIn: 'root' })
 export class StarMapSensorService {
+  constructor(private shipService: ShipService) {}
+
+  /**
+   * Computes the effective sensor range for a fleet.
+   *
+   * `Fleet.sensorRange` is treated as a minimum floor (default 3). If any
+   * non-destroyed ship in the fleet has a `ShipType.range` greater than the
+   * floor, the highest such range becomes the effective range. A fleet with
+   * no ships or all destroyed ships falls back to the floor.
+   */
+  getFleetSensorRange(fleet: Fleet): number {
+    const floor = fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE;
+    let maxShipRange = 0;
+    for (const ship of fleet.ships) {
+      if (ship.destroyed) continue;
+      const type = this.shipService.getShipType(ship.type);
+      if (type && type.range > maxShipRange) {
+        maxShipRange = type.range;
+      }
+    }
+    return Math.max(floor, maxShipRange);
+  }
+
   /** Returns true if a grid cell is within map bounds. */
   isCellInBounds(col: number, row: number, gridColumns: number, gridRows: number): boolean {
     return col >= 1 && col <= gridColumns && row >= 1 && row <= gridRows;
@@ -77,13 +120,67 @@ export class StarMapSensorService {
   }
 
   /**
-   * Computes all cells currently within player sensor range on the galaxy map.
+   * Returns cells in the "outer ring" preview band around (centerX, centerY):
+   * cells whose Euclidean distance from the center is strictly greater than
+   * `radius` and at most `radius + 2`. These two extra layers are rendered as
+   * a faint halo to show that the source's reach is about to extend there.
+   *
+   * The bounding box is enlarged by 2 cells compared to `getCellsInRadius` so
+   * every candidate cell inside the (R, R+2] annulus is tested.
+   */
+  getOuterRingCells(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    gridColumns: number,
+    gridRows: number,
+  ): { col: number; row: number }[] {
+    const cells: { col: number; row: number }[] = [];
+    const intCenterX = Math.floor(centerX);
+    const intCenterY = Math.floor(centerY);
+    // Enlarge the bounding box by 2 to cover the (R, R+2] annulus safely.
+    const r = Math.ceil(radius) + 2;
+    const innerSq = radius * radius;
+    const outerSq = (radius + 2) * (radius + 2);
+
+    for (let col = intCenterX - r; col <= intCenterX + r; col++) {
+      for (let row = intCenterY - r; row <= intCenterY + r; row++) {
+        if (!this.isCellInBounds(col, row, gridColumns, gridRows)) {
+          continue;
+        }
+        const dx = col - centerX;
+        const dy = row - centerY;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > innerSq && distSq <= outerSq) {
+          cells.push({ col, row });
+        }
+      }
+    }
+
+    return cells;
+  }
+
+  /**
+   * Computes all cells currently within player sensor range on the galaxy map,
+   * plus the outer-ring preview cells that lie just beyond the fully-clear
+   * radius.
+   *
    * Sources (player faction only):
    *   1. Player-owned star systems — fixed range 5 (base visibility)
-   *   2. Player fleets — range = fleet.sensorRange (default 3)
+   *   2. Player fleets — range = getFleetSensorRange(fleet): max of the fleet's
+   *      `sensorRange` floor (default 3) and the highest `ShipType.range`
+   *      among the fleet's non-destroyed ships
    *
-   * Returns a Map keyed "col-row" whose values carry the faction color
-   * for rendering. Player-owned systems take priority over fleets.
+   * Returns a `SensorLayerResult` with two maps keyed "col-row":
+   * - `cells` — the fully-clear range, carries the faction color for rendering.
+   * - `preview` — outer-ring cells (strictly beyond `cells` within R+2).
+   *
+   * Player-owned systems take priority: a fleet cell that overlaps a system
+   * cell is owned by the system; a preview cell that overlaps a full cell
+   * is dropped (the full layer wins).
+   *
+   * Preview cells are returned for rendering only. They are never added to
+   * the explored set (see `updateExploredCells`).
    */
   computeGalaxySensorCells(
     fleets: Fleet[],
@@ -91,8 +188,9 @@ export class StarMapSensorService {
     factions: Faction[],
     gridColumns: number,
     gridRows: number,
-  ): Map<string, SensorCellInfo> {
+  ): SensorLayerResult {
     const cells = new Map<string, SensorCellInfo>();
+    const preview = new Map<string, SensorPreviewCellInfo>();
     const playerColor = this.getFactionColor(factions, 'player');
     const playerSystemKeys = new Set<string>();
 
@@ -122,7 +220,7 @@ export class StarMapSensorService {
       if (fleet.destroyed || fleet.factionId !== 'player') {
         continue;
       }
-      const range = fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE;
+      const range = this.getFleetSensorRange(fleet);
       const fleetCells = this.getCellsInRadius(fleet.x, fleet.y, range, gridColumns, gridRows);
       for (const cell of fleetCells) {
         const key = `${cell.col}-${cell.row}`;
@@ -137,31 +235,85 @@ export class StarMapSensorService {
       }
     }
 
-    return cells;
+    // 3. Outer-ring preview cells: skip anything already in the full layer or
+    //    covered by a player-owned system. Sources mirror the full layer so
+    //    every sensor source gets a matching halo.
+    for (const system of ownedSystems) {
+      const col = system.gridCol ?? Math.floor(system.x);
+      const row = system.gridRow ?? Math.floor(system.y);
+      const ringCells = this.getOuterRingCells(col, row, PLAYER_SYSTEM_SENSOR_RANGE, gridColumns, gridRows);
+      for (const cell of ringCells) {
+        const key = `${cell.col}-${cell.row}`;
+        if (playerSystemKeys.has(key) || cells.has(key)) {
+          continue;
+        }
+        preview.set(key, {
+          col: cell.col,
+          row: cell.row,
+          factionId: 'player',
+          color: playerColor,
+        });
+      }
+    }
+
+    for (const fleet of fleets) {
+      if (fleet.destroyed || fleet.factionId !== 'player') {
+        continue;
+      }
+      const range = this.getFleetSensorRange(fleet);
+      const ringCells = this.getOuterRingCells(fleet.x, fleet.y, range, gridColumns, gridRows);
+      for (const cell of ringCells) {
+        const key = `${cell.col}-${cell.row}`;
+        if (playerSystemKeys.has(key) || cells.has(key)) {
+          continue;
+        }
+        preview.set(key, {
+          col: cell.col,
+          row: cell.row,
+          factionId: 'player',
+          color: playerColor,
+        });
+      }
+    }
+
+    return { cells, preview };
   }
 
   /**
-   * Computes sensor range cells for a fleet in the system view.
+   * Computes sensor range cells for a fleet in the system view, plus the
+   * outer-ring preview cells.
+   *
    * The system grid is 18×10 with 5vw cells. The fleet's system.x/y are in vw.
+   * Preview cells are NOT used for fog/exploration.
    */
   computeSystemSensorCells(
     fleet: Fleet,
-  ): { col: number; row: number }[] {
+  ): { cells: { col: number; row: number }[]; preview: { col: number; row: number }[] } {
     if (!fleet.system?.id) {
-      return [];
+      return { cells: [], preview: [] };
     }
 
     const range = fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE;
     const centerCol = Math.floor((fleet.system.x ?? 0) / SYSTEM_CELL_SIZE_VW) + 1;
     const centerRow = Math.floor((fleet.system.y ?? 0) / SYSTEM_CELL_SIZE_VW) + 1;
 
-    return this.getCellsInRadius(
+    const cells = this.getCellsInRadius(
       centerCol,
       centerRow,
       range,
       SYSTEM_GRID_COLUMNS,
       SYSTEM_GRID_ROWS,
     );
+
+    const preview = this.getOuterRingCells(
+      centerCol,
+      centerRow,
+      range,
+      SYSTEM_GRID_COLUMNS,
+      SYSTEM_GRID_ROWS,
+    );
+
+    return { cells, preview };
   }
 
   /**
@@ -238,6 +390,31 @@ export class StarMapSensorService {
     const dx = planetCol - fleetCol;
     const dy = planetRow - fleetRow;
     return dx * dx + dy * dy <= range * range;
+  }
+
+  /**
+   * Returns true if a planet lies in the outer-ring preview annulus of a
+   * fleet in the system view: strictly farther than `range` and at most
+   * `range + 2` (Euclidean). Used to auto-explore planets at the edge of
+   * sensor reach without making the underlying galaxy cell "explored".
+   *
+   * planetCol/planetRow are 1-indexed system grid cells from
+   * getPlanetGridPosition(). fleetSystemX/Y are vw coordinates on the 18×10
+   * system grid.
+   */
+  isPlanetInPreviewRange(
+    planetCol: number,
+    planetRow: number,
+    fleetSystemX: number,
+    fleetSystemY: number,
+    range: number,
+  ): boolean {
+    const fleetCol = Math.floor(fleetSystemX / SYSTEM_CELL_SIZE_VW) + 1;
+    const fleetRow = Math.floor(fleetSystemY / SYSTEM_CELL_SIZE_VW) + 1;
+    const dx = planetCol - fleetCol;
+    const dy = planetRow - fleetRow;
+    const distSq = dx * dx + dy * dy;
+    return distSq > range * range && distSq <= (range + 2) * (range + 2);
   }
 
   /**

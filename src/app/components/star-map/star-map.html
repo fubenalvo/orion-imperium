@@ -65,6 +65,16 @@
                [style.gridRow]="cell.row"
              ></div>
            }
+
+           <!-- SENSOR OUTER-RING PREVIEW CELLS (R+1..R+2, not explored) -->
+           @for (cell of sensorPreviewCellsArray; track cell.col + '-' + cell.row) {
+             <div
+               class="sensor-preview-cell"
+               [style.--sensor-color]="cell.color"
+               [style.gridColumn]="cell.col"
+               [style.gridRow]="cell.row"
+             ></div>
+           }
          }
 
          <!-- GRID CELLS WITH STAR SYSTEMS (explored only) -->
@@ -88,6 +98,7 @@
         @for (fleet of visibleFleets; track fleet.id) {
           <div
             class="fleet-cell"
+            [class.fleet-cell--preview]="isEnemyInPreview(fleet)"
             [style.left]="(fleet.x - 0.5) * cellSizeVw + 'vw'"
             [style.top]="(fleet.y - 0.5) * cellSizeVh + 'vw'"
             [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
@@ -97,6 +108,7 @@
               [class.selected]="selectedFleet?.id === fleet.id"
               [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
               [class.arriced]="fleet.targetX === null || fleet.targetY === null"
+              [class.fleet--preview]="isEnemyInPreview(fleet)"
               type="button"
               (click)="onFleetClick(fleet, $event)"
               (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
@@ -219,9 +231,19 @@
 
            <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
            @if (sensorRangeEnabled) {
-             @for (cell of systemSensorCells; track cell.col + '-' + cell.row) {
+             @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {
                <div
                  class="sensor-range-cell system-sensor-cell"
+                 [style.--sensor-color]="getFactionColor('player')"
+                 [style.gridColumn]="cell.col"
+                 [style.gridRow]="cell.row"
+               ></div>
+             }
+
+             <!-- SYSTEM SENSOR OUTER-RING PREVIEW CELLS -->
+             @for (cell of systemSensorCells.preview; track cell.col + '-' + cell.row) {
+               <div
+                 class="sensor-preview-cell system-sensor-preview-cell"
                  [style.--sensor-color]="getFactionColor('player')"
                  [style.gridColumn]="cell.col"
                  [style.gridRow]="cell.row"

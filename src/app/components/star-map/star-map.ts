@@ -29,6 +29,7 @@ import { StarMapBattleDetectionService } from './star-map-battle-detection.servi
 import {
   StarMapSensorService,
   SensorCellInfo,
+  SensorPreviewCellInfo,
   SYSTEM_GRID_COLUMNS,
   SYSTEM_GRID_ROWS,
 } from './star-map-sensor.service';
@@ -198,6 +199,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   // Sensor range & fog-of-war state
   exploredGridCells = new Set<string>();
   sensorRangeCells: Map<string, SensorCellInfo> = new Map();
+  sensorPreviewCells: Map<string, SensorPreviewCellInfo> = new Map();
   sensorRangeEnabled = true;
   private visibilityDirty = true;
 
@@ -267,12 +269,41 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
     const col = Math.floor(fleet.x);
     const row = Math.floor(fleet.y);
-    return this.sensorRangeCells.has(`${col}-${row}`);
+    const key = `${col}-${row}`;
+    return this.sensorRangeCells.has(key) || this.sensorPreviewCells.has(key);
+  }
+
+  /**
+   * Returns true if a fleet is detected in the outer-ring preview band
+   * (R+1..R+2) but NOT in the fully-clear sensor range. Used to attach the
+   * faded `.fleet--preview` modifier so the player sees that the contact is
+   * low-confidence.
+   *
+   * Player fleets are never faded, even if they happen to land in another
+   * player source's preview band.
+   */
+  isEnemyInPreview(fleet: Fleet): boolean {
+    if (fleet.factionId === 'player') {
+      return false;
+    }
+    const col = Math.floor(fleet.x);
+    const row = Math.floor(fleet.y);
+    const key = `${col}-${row}`;
+    return this.sensorPreviewCells.has(key) && !this.sensorRangeCells.has(key);
   }
 
   /** Returns the array of sensor range cell infos for template rendering. */
   get sensorRangeCellsArray(): SensorCellInfo[] {
     return Array.from(this.sensorRangeCells.values());
+  }
+
+  /**
+   * Returns the array of outer-ring preview cell infos for template rendering.
+   * Preview cells render as a faint dashed halo just outside the fully-clear
+   * sensor radius and are NOT part of the explored set.
+   */
+  get sensorPreviewCellsArray(): SensorPreviewCellInfo[] {
+    return Array.from(this.sensorPreviewCells.values());
   }
 
   /**
@@ -310,11 +341,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Returns the sensor range cells for the selected fleet in system view.
+   * Returns the sensor range cells for the selected fleet in system view,
+   * split into fully-clear cells and outer-ring preview cells.
    */
-  get systemSensorCells(): { col: number; row: number }[] {
+  get systemSensorCells(): { cells: { col: number; row: number }[]; preview: { col: number; row: number }[] } {
     if (!this.sensorRangeEnabled || !this.selectedFleet || !this.selectedFleet.system?.id) {
-      return [];
+      return { cells: [], preview: [] };
     }
     return this.sensorService.computeSystemSensorCells(this.selectedFleet);
   }
@@ -1287,18 +1319,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     const oldCellCount = this.sensorRangeCells.size;
+    const oldPreviewCount = this.sensorPreviewCells.size;
     const oldExploredCount = this.exploredGridCells.size;
 
     // Recompute current sensor range cells for highlighting
-    this.sensorRangeCells = this.sensorService.computeGalaxySensorCells(
+    const layer = this.sensorService.computeGalaxySensorCells(
       this.fleets,
       this.starSystems,
       this.factions,
       this.movementService.gridColumns,
       this.movementService.gridRows,
     );
+    this.sensorRangeCells = layer.cells;
+    this.sensorPreviewCells = layer.preview;
 
-    // Expand explored cells
+    // Expand explored cells (preview layer is never added to explored)
     this.sensorService.updateExploredCells(this.exploredGridCells, this.sensorRangeCells);
 
     // Mark star systems as explored when within sensor range
@@ -1315,6 +1350,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     const changed = force ||
       this.sensorRangeCells.size !== oldCellCount ||
+      this.sensorPreviewCells.size !== oldPreviewCount ||
       this.exploredGridCells.size !== oldExploredCount ||
       systemsChanged;
 
@@ -1341,7 +1377,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         continue;
       }
 
-      const range = fleet.sensorRange ?? 3;
+      const range = this.sensorService.getFleetSensorRange(fleet);
 
       for (const planet of this.selectedSystem.planetsTiles) {
         if (planet.explored) {
@@ -1349,15 +1385,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
         }
 
         const planetCell = this.movementService.getPlanetGridPosition(planet);
-        if (
-          this.sensorService.isPlanetInRange(
-            planetCell.col,
-            planetCell.row,
-            fleet.system.x,
-            fleet.system.y,
-            range,
-          )
-        ) {
+        const inFull = this.sensorService.isPlanetInRange(
+          planetCell.col,
+          planetCell.row,
+          fleet.system.x,
+          fleet.system.y,
+          range,
+        );
+        const inPreview = this.sensorService.isPlanetInPreviewRange(
+          planetCell.col,
+          planetCell.row,
+          fleet.system.x,
+          fleet.system.y,
+          range,
+        );
+        if (inFull || inPreview) {
           planet.explored = true;
         }
       }
@@ -1645,7 +1687,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
-    // Ensure every fleet has a sensorRange (defaults to 3)
+    // Ensure every fleet has a sensorRange floor (defaults to 3).
+    // sensorRange is the minimum floor; the effective range is computed
+    // dynamically from ship types via StarMapSensorService.getFleetSensorRange.
     for (const fleet of this.fleets) {
       if (!fleet.destroyed && fleet.sensorRange == null) {
         fleet.sensorRange = 3;

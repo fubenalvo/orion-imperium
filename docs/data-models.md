@@ -42,7 +42,7 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 
 ### Fleet.sensorRange
 
-- `sensorRange?: number` — sensor range in galaxy grid cells (default 3). Added to the `Fleet` model. Stored per-fleet in `star-map-data.json` and persisted in save data.
+- `sensorRange?: number` — sensor range **minimum floor** in galaxy grid cells (default 3). The effective range is computed as `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)` via `StarMapSensorService.getFleetSensorRange()`. Stored per-fleet in `star-map-data.json` and persisted in save data.
 - Player-owned star systems (those containing ≥1 planet with `factionId === 'player'`) provide a fixed 5-grid sensor radius on the galaxy map, regardless of fleet presence.
 - A Euclidean circle (`dx² + dy² <= range²`) defines the set of cells visible from a given center.
 
@@ -59,7 +59,7 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 - `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
 - `population`: integer
 - `buildings`: `PlanetBuilding[]`
-  - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `fleet.sensorRange`, default 3 grid cells on the 18×10 system grid)
+   - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, on the 18×10 system grid)
 
 ### PlanetBuilding
 
@@ -81,7 +81,7 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 - `gridCol`, `gridRow`: derived integer cell on whichever view the fleet is currently in
   - `ships`: `FleetShip[]`
   - `destroyed`: `true` after a lost battle; the fleet is filtered from `visibleFleets` and excluded from collision, movement, and rendering
-  - `sensorRange`: `number` (optional, default 3) — sensor range in galaxy grid cells; a Euclidean circle of this radius around the fleet's position is highlighted and marks cells as explored
+   - `sensorRange`: `number` (optional, default 3) — minimum floor for sensor range in galaxy grid cells; the effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)`, computed by `StarMapSensorService.getFleetSensorRange()`
 
 ### SystemLocation
 
@@ -104,7 +104,7 @@ Read from `ship-data.json`:
 - `hitPoints`, `shield`, `shieldRegen`: defense stats (only `hitPoints` is used in battle resolution)
 - `attack`, `attackType`, `weakness`: offense stats (only `attack` is used in battle resolution; `weakness` and `attackType` are tracked but not yet applied)
 - `defense`: flat damage reduction per ship
-- `speed`, `range`, `cost`: movement range and economic value (`range`/`cost` are not currently used)
+- `speed`, `range`, `cost`: `range` is used as each ship's sensor contribution (fleets take the max ship range as a floor above `Fleet.sensorRange`); `cost` is not currently used in gameplay logic
 - `maintenanceCost`: per-second credit cost applied by `EconomyService`
 
 ## BuildingType / BuildingStats

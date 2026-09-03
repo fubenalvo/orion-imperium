@@ -18,7 +18,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 
 **Sources of sensor range (galaxy map, player faction only):**
 
-1. **Player fleets** — each fleet has a `sensorRange` field (default 3 grid cells). The range is centered on the fleet's current integer grid position (`Math.floor(fleet.x)`, `Math.floor(fleet.y)`).
+1. **Player fleets** — each fleet has a `sensorRange` field (default 3 grid cells) which serves as a **minimum floor**. The effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)` — if any ship in the fleet has a longer `range`, that ship's range is used instead. The effective range is centered on the fleet's current integer grid position (`Math.floor(fleet.x)`, `Math.floor(fleet.y)`).
 2. **Player-owned star systems** — any star system containing at least one planet with `factionId === 'player'` provides a fixed 5-grid-radius sensor range, centered on the system's grid cell. This is the "base visibility" — your home territory is always partially detected even without a fleet present.
 
 **Rendering:**
@@ -50,7 +50,7 @@ Fog cells are viewport-culled (only cells within the camera's visible area + 1-c
 
 **Minimap:** Only explored star systems and visible fleets are shown.
 
-**Backward compatibility:** Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` defaults to 3 when absent.
+**Backward compatibility:** Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` (minimum floor) defaults to 3 when absent.
 
 ### Game Loop
 
