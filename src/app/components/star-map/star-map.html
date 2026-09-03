@@ -33,57 +33,57 @@
 
   <div
     class="star-map-foreground"
-    [style.backgroundPosition]="(-cameraX * 1.2) + 'vw ' + (-cameraY * 1.2) + 'vw'"
+    [style.backgroundPosition]="-cameraX * 0.1 + 'vw ' + -cameraY * 0.1 + 'vw'"
   ></div>
 
   @if (currentView === 'map') {
     <!-- MAP VIEWPORT -->
     <div #mapViewport class="map-viewport" (click)="onMapClick($event)">
       <!-- WORLD GRID -->
-       <div
-         class="map-world"
-         [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
-         [style.gridTemplateColumns]="
-           'repeat(' + movementService.gridColumns + ', ' + cellSizeVw + 'vw)'
-         "
-         [style.gridTemplateRows]="'repeat(' + movementService.gridRows + ', ' + cellSizeVh + 'vw)'"
-       >
-         <!-- FOG OF WAR CELLS (viewport-culled, unexplored areas) -->
-         @if (sensorRangeEnabled) {
-           @for (cell of fogCells; track cell.col + '-' + cell.row) {
-             <div
-               class="fog-cell"
-               [class.fog-cell--explored]="cell.explored"
-               [style.gridColumn]="cell.col"
-               [style.gridRow]="cell.row"
-             ></div>
-           }
-         }
+      <div
+        class="map-world"
+        [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
+        [style.gridTemplateColumns]="
+          'repeat(' + movementService.gridColumns + ', ' + cellSizeVw + 'vw)'
+        "
+        [style.gridTemplateRows]="'repeat(' + movementService.gridRows + ', ' + cellSizeVh + 'vw)'"
+      >
+        <!-- FOG OF WAR CELLS (viewport-culled, unexplored areas) -->
+        @if (sensorRangeEnabled) {
+          @for (cell of fogCells; track cell.col + '-' + cell.row) {
+            <div
+              class="fog-cell"
+              [class.fog-cell--explored]="cell.explored"
+              [style.gridColumn]="cell.col"
+              [style.gridRow]="cell.row"
+            ></div>
+          }
+        }
 
-         <!-- SENSOR RANGE HIGHLIGHT CELLS -->
-         @if (sensorRangeEnabled) {
-           @for (cell of sensorRangeCellsArray; track cell.col + '-' + cell.row) {
-             <div
-               class="sensor-range-cell"
-               [style.--sensor-color]="cell.color"
-               [style.gridColumn]="cell.col"
-               [style.gridRow]="cell.row"
-             ></div>
-           }
+        <!-- SENSOR RANGE HIGHLIGHT CELLS -->
+        @if (sensorRangeEnabled) {
+          @for (cell of sensorRangeCellsArray; track cell.col + '-' + cell.row) {
+            <div
+              class="sensor-range-cell"
+              [style.--sensor-color]="cell.color"
+              [style.gridColumn]="cell.col"
+              [style.gridRow]="cell.row"
+            ></div>
+          }
 
-           <!-- SENSOR OUTER-RING PREVIEW CELLS (R+1..R+2, not explored) -->
-           @for (cell of sensorPreviewCellsArray; track cell.col + '-' + cell.row) {
-             <div
-               class="sensor-preview-cell"
-               [style.--sensor-color]="cell.color"
-               [style.gridColumn]="cell.col"
-               [style.gridRow]="cell.row"
-             ></div>
-           }
-         }
+          <!-- SENSOR OUTER-RING PREVIEW CELLS (R+1..R+2, not explored) -->
+          @for (cell of sensorPreviewCellsArray; track cell.col + '-' + cell.row) {
+            <div
+              class="sensor-preview-cell"
+              [style.--sensor-color]="cell.color"
+              [style.gridColumn]="cell.col"
+              [style.gridRow]="cell.row"
+            ></div>
+          }
+        }
 
-         <!-- GRID CELLS WITH STAR SYSTEMS (explored only) -->
-         @for (system of exploredStarSystems; track system.id) {
+        <!-- GRID CELLS WITH STAR SYSTEMS (explored only) -->
+        @for (system of exploredStarSystems; track system.id) {
           <div class="system-cell" [style.gridColumn]="system.x" [style.gridRow]="system.y">
             <button
               class="star-system"
@@ -143,23 +143,23 @@
     </div>
 
     <!-- TOP HUD -->
-     <div class="top-hud">
-       <div class="game-title">STAR MAP</div>
-       <button
-         class="sensor-toggle-btn"
-         [class.sensor-toggle-btn--active]="sensorRangeEnabled"
-         type="button"
-         (click)="toggleSensorRange()"
-         title="Toggle sensor range visibility"
-       >
-         <span class="sensor-toggle__icon">&#128241;</span>
-         <span class="sensor-toggle__label">SENSOR</span>
-       </button>
-       <app-faction-currencies
-         [currencies]="getPlayerCurrencies()"
-         [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-       ></app-faction-currencies>
-     </div>
+    <div class="top-hud">
+      <div class="game-title">STAR MAP</div>
+      <button
+        class="sensor-toggle-btn"
+        [class.sensor-toggle-btn--active]="sensorRangeEnabled"
+        type="button"
+        (click)="toggleSensorRange()"
+        title="Toggle sensor range visibility"
+      >
+        <span class="sensor-toggle__icon">&#128241;</span>
+        <span class="sensor-toggle__label">SENSOR</span>
+      </button>
+      <app-faction-currencies
+        [currencies]="getPlayerCurrencies()"
+        [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+      ></app-faction-currencies>
+    </div>
 
     <!-- SELECTED FLEET INFO -->
     @if (selectedFleet) {
@@ -197,12 +197,12 @@
       </app-star-map-system-info>
     }
 
-     <!-- NAVIGATION -->
-     <app-star-map-navigation
-       [cameraX]="cameraX"
-       [cameraY]="cameraY"
-       [starSystems]="exploredStarSystems"
-       [fleets]="minimapFleets"
+    <!-- NAVIGATION -->
+    <app-star-map-navigation
+      [cameraX]="cameraX"
+      [cameraY]="cameraY"
+      [starSystems]="exploredStarSystems"
+      [fleets]="minimapFleets"
       [cellSizeVw]="cellSizeVw"
       [cellSizeVh]="cellSizeVh"
       [gridColumns]="movementService.gridColumns"
@@ -227,55 +227,55 @@
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
 
       <div class="system-grid" (click)="onSystemGridClick($event)">
-         @if (selectedSystem) {
-           <!-- SUN -->
-           <div class="sun" [style.--sun-color]="selectedSystem.color">
-             <div class="sun-glow"></div>
-             <div class="sun-core"></div>
-           </div>
+        @if (selectedSystem) {
+          <!-- SUN -->
+          <div class="sun" [style.--sun-color]="selectedSystem.color">
+            <div class="sun-glow"></div>
+            <div class="sun-core"></div>
+          </div>
 
-           <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
-           @if (sensorRangeEnabled) {
-             @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {
-               <div
-                 class="sensor-range-cell system-sensor-cell"
-                 [style.--sensor-color]="getFactionColor('player')"
-                 [style.gridColumn]="cell.col"
-                 [style.gridRow]="cell.row"
-               ></div>
-             }
+          <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
+          @if (sensorRangeEnabled) {
+            @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {
+              <div
+                class="sensor-range-cell system-sensor-cell"
+                [style.--sensor-color]="getFactionColor('player')"
+                [style.gridColumn]="cell.col"
+                [style.gridRow]="cell.row"
+              ></div>
+            }
 
-             <!-- SYSTEM SENSOR OUTER-RING PREVIEW CELLS -->
-             @for (cell of systemSensorCells.preview; track cell.col + '-' + cell.row) {
-               <div
-                 class="sensor-preview-cell system-sensor-preview-cell"
-                 [style.--sensor-color]="getFactionColor('player')"
-                 [style.gridColumn]="cell.col"
-                 [style.gridRow]="cell.row"
-               ></div>
-             }
-           }
+            <!-- SYSTEM SENSOR OUTER-RING PREVIEW CELLS -->
+            @for (cell of systemSensorCells.preview; track cell.col + '-' + cell.row) {
+              <div
+                class="sensor-preview-cell system-sensor-preview-cell"
+                [style.--sensor-color]="getFactionColor('player')"
+                [style.gridColumn]="cell.col"
+                [style.gridRow]="cell.row"
+              ></div>
+            }
+          }
 
-           <!-- PLANETS -->
-           @for (planet of selectedSystem.planetsTiles; track planet.id) {
-             <button
-               class="planet"
-               [ngClass]="getPlanetClassNames(planet)"
-               [class.planet--unexplored]="!planet.explored"
-               [style.gridColumn]="movementService.getPlanetGridPosition(planet).col"
-               [style.gridRow]="movementService.getPlanetGridPosition(planet).row"
-               [style.--planet-color]="selectedSystem.color"
-               (click)="onPlanetClick(planet, $event)"
-               (contextmenu)="
-                 deselectPlanetTile(); $event.preventDefault(); $event.stopPropagation()
-               "
-             >
-               <div class="planet-body"></div>
-               <div class="planet-name" [style.color]="getFactionColor(planet.factionId)">
-                 {{ planet.name }}
-               </div>
-             </button>
-           }
+          <!-- PLANETS -->
+          @for (planet of selectedSystem.planetsTiles; track planet.id) {
+            <button
+              class="planet"
+              [ngClass]="getPlanetClassNames(planet)"
+              [class.planet--unexplored]="!planet.explored"
+              [style.gridColumn]="movementService.getPlanetGridPosition(planet).col"
+              [style.gridRow]="movementService.getPlanetGridPosition(planet).row"
+              [style.--planet-color]="selectedSystem.color"
+              (click)="onPlanetClick(planet, $event)"
+              (contextmenu)="
+                deselectPlanetTile(); $event.preventDefault(); $event.stopPropagation()
+              "
+            >
+              <div class="planet-body"></div>
+              <div class="planet-name" [style.color]="getFactionColor(planet.factionId)">
+                {{ planet.name }}
+              </div>
+            </button>
+          }
 
           <!-- FLEETS IN SYSTEM -->
           @for (fleet of visibleFleets; track fleet.id) {
