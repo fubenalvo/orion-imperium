@@ -164,8 +164,10 @@ export class StarMapMovementService {
             onTargetReached(fleet.id);
           }
         } else {
-          // Fleet speed is in vw/s; convert to grid cells/s
-          const movement = (fleet.speed / this.cellSizeVw) * deltaTime;
+          // Fleet speed is in vw/s; convert to grid cells/s.
+          // Star map view uses 1/10 of the configured fleet speed so that
+          // long-distance travel across the galaxy takes meaningful time.
+          const movement = (fleet.speed / 10 / this.cellSizeVw) * deltaTime;
           const step = Math.min(movement, distance);
           console.log(
             `[Movement] Moving fleet ${fleet.id} from (${fleet.x}, ${fleet.y}) step=${step.toFixed(2)}`,
