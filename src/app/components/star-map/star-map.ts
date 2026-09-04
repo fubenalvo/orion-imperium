@@ -14,6 +14,7 @@ import { BattleService } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { SaveGameService } from '../../services/save-game.service';
 import { EconomyService } from '../../services/economy.service';
+import { GameTimeService, GameSpeed } from '../../services/game-time.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { ShipStockService } from '../../services/ship-stock.service';
 import { ProductionService } from '../../services/production.service';
@@ -181,7 +182,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   // UI state
   contextMenu: { x: number; y: number; items: ContextMenuItem[] } | null = null;
-  isPaused = false;
+  // Game time state
+  get isPaused(): boolean {
+    return this.gameTimeService.isPaused;
+  }
+
+  get gameSpeed(): GameSpeed {
+    return this.gameTimeService.speed;
+  }
+
+  private timeControlSubscription?: Subscription;
 
   // Production / spaceport panel state
   showProductionPanel = false;
@@ -196,9 +206,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
   isLandscape = false;
 
   // Event handlers for focus tracking
-  private onWindowBlur = (): void => this.pauseGame();
+  private onWindowBlur = (): void => this.gameTimeService.pause();
   private onVisibilityChange = (): void => {
-    if (document.hidden) this.pauseGame();
+    if (document.hidden) this.gameTimeService.pause();
   };
 
   // Ship types
@@ -231,6 +241,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private economyService: EconomyService,
     private planetBattleService: PlanetBattleService,
     private gameLoopService: StarMapGameLoopService,
+    private gameTimeService: GameTimeService,
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
     private sensorService: StarMapSensorService,
@@ -391,13 +402,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /** Opens the pause menu and pauses the game loop. */
   openPauseMenu(): void {
     this.pauseMenuOpen = true;
-    this.pauseGame();
+    this.gameTimeService.pause();
   }
 
   /** Closes the pause menu and resumes the game loop. */
   closePauseMenu(): void {
     this.pauseMenuOpen = false;
-    this.resumeGame();
+    this.gameTimeService.resume();
   }
 
   /** Saves the current game state, selecting an empty slot if none is active. */
@@ -1617,44 +1628,54 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private startGameLoop(): void {
     console.log('[StarMap] startGameLoop called');
     this.gameLoopService.startGameLoop((deltaTime: number) => {
-      const didMoveFleets = this.updateFleets(deltaTime);
-      const visibilityChanged = this.updateSensorVisibility();
+      this.gameLoopCallback(deltaTime);
+    });
+  }
 
-      const productionResult = this.productionService.tick(
-        deltaTime,
-        this,
-        this.starSystems,
-        this.fleets,
-        this.factions,
-      );
-      const productionChanged = productionResult.stateChanged;
+  /**
+   * Single consolidated tick callback received from the game loop service.
+   * Receives the SCALED game delta time (0 when paused, realDelta * speed when running).
+   * All simulation systems use this value directly — none check pause or
+   * multiply speed themselves; that is centralized in GameTimeService.
+   */
+  private gameLoopCallback(gameDeltaTime: number): void {
+    const didMoveFleets = this.updateFleets(gameDeltaTime);
+    const visibilityChanged = this.updateSensorVisibility();
 
-      this.economyAccumulator += deltaTime;
-      let economyUpdated = false;
-      if (this.economyAccumulator >= this.economyTickInterval) {
-        for (const faction of this.factions) {
-          this.economyService.applyEconomyDelta(
-            faction.id,
-            this.factions,
-            this.starSystems,
-            this.fleets,
-            this.economyAccumulator,
-          );
-        }
-        this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy(
-          'player',
+    const productionResult = this.productionService.tick(
+      gameDeltaTime,
+      this,
+      this.starSystems,
+      this.fleets,
+      this.factions,
+    );
+    const productionChanged = productionResult.stateChanged;
+
+    this.economyAccumulator += gameDeltaTime;
+    let economyUpdated = false;
+    if (this.economyAccumulator >= this.economyTickInterval) {
+      for (const faction of this.factions) {
+        this.economyService.applyEconomyDelta(
+          faction.id,
           this.factions,
           this.starSystems,
           this.fleets,
+          this.economyAccumulator,
         );
-        this.economyAccumulator = 0;
-        economyUpdated = true;
       }
+      this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy(
+        'player',
+        this.factions,
+        this.starSystems,
+        this.fleets,
+      );
+      this.economyAccumulator = 0;
+      economyUpdated = true;
+    }
 
-      if (didMoveFleets || economyUpdated || visibilityChanged || productionChanged) {
-        this.ngZone.run(() => this.cdr.detectChanges());
-      }
-    });
+    if (didMoveFleets || economyUpdated || visibilityChanged || productionChanged) {
+      this.ngZone.run(() => this.cdr.detectChanges());
+    }
   }
 
   /** Advances fleet movement and checks for new battles each frame. */
@@ -2027,56 +2048,19 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.checkOrientation();
   }
 
-  /** Pauses the game loop if it is not already paused. */
-  private pauseGame(): void {
-    if (this.isPaused) return;
-    this.isPaused = true;
-    this.gameLoopService.pauseGame();
+  /** Resumes the game loop via GameTimeService. Kept as a thin wrapper for backward compat with StarMapPauseComponent's resumeGame output. */
+  resumeGame(): void {
+    this.gameTimeService.resume();
   }
 
-  /** Resumes the game loop and reattaches the per-frame update callback. */
-  resumeGame(): void {
-    if (!this.isPaused) return;
-    this.isPaused = false;
-    this.gameLoopService.resumeGame((deltaTime: number) => {
-      const didMoveFleets = this.updateFleets(deltaTime);
-      const visibilityChanged = this.updateSensorVisibility();
+  /** Header time control: set simulation speed (1x or 2x) and un-pause. */
+  onSetSpeed(speed: GameSpeed): void {
+    this.gameTimeService.setSpeed(speed);
+  }
 
-      const productionResult = this.productionService.tick(
-        deltaTime,
-        this,
-        this.starSystems,
-        this.fleets,
-        this.factions,
-      );
-      const productionChanged = productionResult.stateChanged;
-
-      this.economyAccumulator += deltaTime;
-      let economyUpdated = false;
-      if (this.economyAccumulator >= this.economyTickInterval) {
-        for (const faction of this.factions) {
-          this.economyService.applyEconomyDelta(
-            faction.id,
-            this.factions,
-            this.starSystems,
-            this.fleets,
-            this.economyAccumulator,
-          );
-        }
-        this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy(
-          'player',
-          this.factions,
-          this.starSystems,
-          this.fleets,
-        );
-        this.economyAccumulator = 0;
-        economyUpdated = true;
-      }
-
-      if (didMoveFleets || economyUpdated || visibilityChanged || productionChanged) {
-        this.ngZone.run(() => this.cdr.detectChanges());
-      }
-    });
+  /** Header time control: toggle pause/resume state. */
+  onTogglePause(): void {
+    this.gameTimeService.togglePause();
   }
 
   // Save/Load
@@ -2210,6 +2194,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.computeInitialSensorVisibility();
     this.updateSensorVisibility();
 
+    // Reset game time state (speed=1, not paused) on every load
+    this.gameTimeService.reset();
+
     this.clampCamera();
   }
 
@@ -2247,6 +2234,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.loadGame();
     this.removeDestroyedFleetFromService();
+
+    // Subscribe to game time state changes (pause/resume/speed)
+    // so the header overlays update reactively on auto-pause (blur/visibility)
+    // and keyboard shortcuts.
+    this.timeControlSubscription = this.gameTimeService.state$.subscribe(() => {
+      this.cdr.detectChanges();
+    });
   }
 
   private reloadAfterBattle(): void {
@@ -2293,9 +2287,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   // Keyboard
 
-  /** Listens for arrow keys to pan the camera around the map. */
+  /** Listens for arrow keys to pan the camera around the map, and time-control shortcuts. */
   @HostListener('window:keydown', ['$event'])
   handleKeyboard(event: KeyboardEvent): void {
+    // Skip when typing in an input/textarea to avoid conflicts
+    const target = event.target as HTMLElement | null;
+    const isInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+    if (isInput) return;
+
     switch (event.key) {
       case 'ArrowUp':
         event.preventDefault();
@@ -2313,6 +2312,22 @@ export class StarMap implements AfterViewInit, OnDestroy {
         event.preventDefault();
         this.moveCamera('right');
         break;
+      case ' ':
+        event.preventDefault();
+        this.gameTimeService.togglePause();
+        break;
+      case '1':
+        event.preventDefault();
+        this.gameTimeService.setSpeed(1);
+        break;
+      case '2':
+        event.preventDefault();
+        this.gameTimeService.setSpeed(2);
+        break;
+      case 'Escape':
+        event.preventDefault();
+        this.openPauseMenu();
+        break;
     }
   }
 
@@ -2323,6 +2338,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.saveGame();
 
     this.routerSubscription.unsubscribe();
+    this.timeControlSubscription?.unsubscribe();
 
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);

@@ -10,14 +10,13 @@
   }
 
   <app-star-map-pause
-    [isPaused]="isPaused"
     [pauseMenuOpen]="pauseMenuOpen"
     [currentSlot]="currentSlot"
     (openPauseMenu)="openPauseMenu()"
     (closePauseMenu)="closePauseMenu()"
     (saveGame)="saveFromMenu()"
     (loadGame)="loadFromMenu($event)"
-    (resumeGame)="resumeGame()"
+    (togglePause)="onTogglePause()"
     (exitToMainMenu)="exitToMainMenu()"
   >
   </app-star-map-pause>
@@ -153,15 +152,19 @@
     </div>
 
     <!-- TOP HUD -->
-    <app-star-map-header
-      title="STAR MAP"
-      [currencies]="getPlayerCurrencies()"
-      [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-      [shipStockEntries]="boundGetPlayerShipStockEntries()"
-      [shipStockTotal]="boundGetPlayerShipStockTotal()"
-    ></app-star-map-header>
+  <app-star-map-header
+    title="STAR MAP"
+    [currencies]="getPlayerCurrencies()"
+    [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+    [shipStockEntries]="boundGetPlayerShipStockEntries()"
+    [shipStockTotal]="boundGetPlayerShipStockTotal()"
+    [gameSpeed]="gameSpeed"
+    [isPaused]="isPaused"
+    (setSpeed)="onSetSpeed($event)"
+    (togglePause)="onTogglePause()"
+  ></app-star-map-header>
 
-    <!-- SELECTED FLEET INFO -->
+  <!-- SELECTED FLEET INFO -->
     @if (selectedFleet) {
       <app-star-map-fleet-info
         [fleet]="selectedFleet"
@@ -226,6 +229,10 @@
         [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
         [shipStockEntries]="boundGetPlayerShipStockEntries()"
         [shipStockTotal]="boundGetPlayerShipStockTotal()"
+        [gameSpeed]="gameSpeed"
+        [isPaused]="isPaused"
+        (setSpeed)="onSetSpeed($event)"
+        (togglePause)="onTogglePause()"
       ></app-star-map-header>
 
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
@@ -371,6 +378,10 @@
         [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
         [shipStockEntries]="boundGetPlayerShipStockEntries()"
         [shipStockTotal]="boundGetPlayerShipStockTotal()"
+        [gameSpeed]="gameSpeed"
+        [isPaused]="isPaused"
+        (setSpeed)="onSetSpeed($event)"
+        (togglePause)="onTogglePause()"
       ></app-star-map-header>
 
       <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>

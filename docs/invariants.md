@@ -51,11 +51,26 @@ Conditions that must remain true across the codebase. When changing any code tha
 
 ## Pause/Resume Guarantees
 
-- `pauseGame()` (private on `StarMap`) is a no-op if `isPaused` is already true. It sets `isPaused = true` and calls `StarMapGameLoopService.pauseGame()`.
-- `resumeGame()` is a no-op if `isPaused` is false. It resets `isPaused` and restarts the game loop with the same tick callback used at startup.
-- The game loop always runs outside the Angular zone; change detection is triggered only when fleets moved or the economy tick fired.
-- Window `blur` and document `visibilitychange` (hidden) call `pauseGame()` but do **not** open the pause-menu overlay.
+- `GameTimeService` is the single source of truth for both pause state and speed.
+  It exposes `speed` (GameSpeed: 1 or 2), `isPaused` (boolean), and
+  `getScaledDeltaTime(realDeltaTime)` which returns 0 when paused or
+  `realDeltaTime * speed` when running.
+- The `requestAnimationFrame` loop always runs (never canceled for pause).
+  When paused, `getScaledDeltaTime` returns 0, so all simulation systems
+  receive a 0 delta and naturally freeze. UI/input remains responsive.
+- `StarMap.isPaused` is a read-only getter delegating to `gameTimeService.isPaused`.
+  `StarMap.resumeGame()` is a thin wrapper calling `gameTimeService.resume()`,
+  preserved for backward compatibility with `StarMapPauseComponent`'s `resumeGame` output.
+- `GameTimeService.setSpeed(n)` both sets the speed and un-pauses.
+  `GameTimeService.pause()` / `resume()` / `togglePause()` preserve the current speed.
+- Window `blur` and document `visibilitychange` (hidden) call `gameTimeService.pause()`
+  but do **not** open the pause-menu overlay.
 - The "rotate your device" overlay is purely visual; it does not pause or resume the loop.
+- Time speed is a runtime/UI preference, not strategic state. It is NOT persisted in
+  saves. `GameTimeService.reset()` (called on game start and after loading) restores
+  speed=1, isPaused=false, gameElapsedTime=0.
+- `ProductionService.tick` early-returns when `deltaTime <= 0` to prevent the
+  frame-based stall timeout (`tickCounter`) from advancing during pause.
 
 ## Battle State Machine
 

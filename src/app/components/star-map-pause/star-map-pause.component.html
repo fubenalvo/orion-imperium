@@ -1,5 +1,5 @@
 <div class="star-map-pause">
-  <button class="star-map-pause__btn" type="button" (click)="openPauseMenu.emit()" aria-label="Pause">
+  <button class="star-map-pause__btn" type="button" (click)="togglePause.emit()" aria-label="Pause">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
       <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
       <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
@@ -7,9 +7,9 @@
   </button>
 </div>
 
-@if (isPaused || pauseMenuOpen) {
+@if (pauseMenuOpen) {
   <div class="pause-overlay">
-    @if (pauseMenuOpen && !showLoadSlots) {
+    @if (!showLoadSlots) {
       <div class="pause-overlay__content">
         <div class="pause-overlay__title">PAUSED</div>
         <div class="pause-menu-buttons">
@@ -22,7 +22,7 @@
           <div class="game-saved-message">GAME SAVED</div>
         }
       </div>
-    } @else if (pauseMenuOpen && showLoadSlots) {
+    } @else {
       <div class="pause-overlay__content">
         <div class="pause-overlay__title">LOAD GAME</div>
         <div class="save-slots">
@@ -39,15 +39,6 @@
           }
         </div>
         <button class="pause-overlay__btn pause-overlay__btn--back" type="button" (click)="onBackToMenu()">BACK</button>
-      </div>
-    } @else {
-      <div class="pause-overlay__content">
-        <div class="pause-overlay__icon">⏸</div>
-        <div class="pause-overlay__title">GAME PAUSED</div>
-        <div class="pause-overlay__subtitle">Window lost focus</div>
-        <button class="pause-overlay__btn" type="button" (click)="resumeGame.emit()">
-          CONTINUE
-        </button>
       </div>
     }
   </div>

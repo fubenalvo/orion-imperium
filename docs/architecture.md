@@ -32,7 +32,8 @@ src/app/
       star-map.ts / .html / .scss / .models.ts
         → Central gameplay component; orchestrates services and child UI components
       star-map-game-loop.service.ts
-        → requestAnimationFrame loop, runs outside Angular zone
+        → requestAnimationFrame loop, runs outside Angular zone; always runs;
+          delegates delta scaling to GameTimeService
       star-map-movement.service.ts
         → Fleet movement, grid cell math, coordinate conversion, planet grid layout
       star-map-battle-detection.service.ts
@@ -57,18 +58,22 @@ src/app/
         → Planet surface view (build-mode grid, building placement)
       faction-currencies/
         → Currency HUD with expandable economy breakdown
+    star-map-header/
+        → Top HUD: title, time controls ([⏸] [1x] [2x]), currencies, ship stock
     star-map-navigation/
-      → Camera pan controls, minimap, viewport position
+        → Camera pan controls, minimap, viewport position
     star-map-pause/
-      → Pause overlay, save slot UI, exit-to-menu
+        → Pause overlay, save slot UI, exit-to-menu
     star-map-minimap/
-      → Standalone minimap widget (consumed by the navigation component)
+        → Standalone minimap widget (consumed by the navigation component)
     battle-screen/
-      → Turn-based battle simulation UI
+        → Turn-based battle simulation UI
     background-stars/
-      → Decorative animated background
+        → Decorative animated background
 
   services/
+    game-time.service.ts
+      → Centralized game time state: speed, pause, scaled delta, elapsed time
     ship.service.ts
       → Read-only lookup of ship type definitions
     battle.service.ts
@@ -77,6 +82,8 @@ src/app/
       → Builds virtual defense fleets from planet buildings, colonizer handling
     economy.service.ts
       → Per-planet and per-faction resource production / consumption / efficiency
+    production.service.ts
+      → Per-planet production queue and per-tick progress
     save-game.service.ts
       → localStorage persistence, 4 save slots, "most recent" lookup
 ```
@@ -106,7 +113,7 @@ The empty legacy directories `src/app/components/ship`, `src/app/components/ship
 
 ## Cross-Cutting Concerns
 
-- The `requestAnimationFrame` loop runs outside the Angular zone. `StarMap` triggers change detection only when fleets actually move or the economy tick fires.
+- The `requestAnimationFrame` loop runs outside the Angular zone and always runs (it is never canceled for pause). `GameTimeService.getScaledDeltaTime()` produces a scaled delta — 0 when paused, `realDeltaTime * speed` when running — which all simulation systems receive. `StarMap` triggers change detection only when fleets moved or the economy tick fired, or when `GameTimeService.state$` emits a discrete state change (pause/resume/speed).
 - Window blur, document visibility hidden, and device-portrait orientation all pause the game automatically.
 - The map viewport is drag-to-pan in addition to keyboard/button navigation; pointer capture is used so the drag continues even when the cursor leaves the viewport.
 - On viewport resize, the cell size switches between desktop (`2vw`) and mobile (`3.5vw`) at a 1300px breakpoint, and the camera is scaled proportionally so the same grid area stays in view.

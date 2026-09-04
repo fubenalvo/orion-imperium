@@ -169,6 +169,10 @@ export class ProductionService {
    * orders, pushes the resulting ships into the faction's stock, and
    * auto-cancels orders that cannot make progress (no eligible factory).
    * Designed to be called once per frame from the star-map game loop.
+   *
+   * When deltaTime is 0 (game paused), returns immediately without
+   * incrementing the tick counter or advancing progress. This prevents
+   * the frame-based stall timeout from firing while the game is paused.
    */
   tick(
     deltaTime: number,
@@ -177,6 +181,9 @@ export class ProductionService {
     fleets: { id: number; ships: { id: number; type: string; name: string; destroyed?: boolean }[] }[],
     factions: Faction[],
   ): ProductionTickResult {
+    if (deltaTime <= 0) {
+      return { completedOrders: [], producedShips: [], refundedOrders: [], stateChanged: false };
+    }
     this.tickCounter++;
     if (!data.production) {
       return { completedOrders: [], producedShips: [], refundedOrders: [], stateChanged: false };

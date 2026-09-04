@@ -54,23 +54,51 @@ Fog cells are viewport-culled (only cells within the camera's visible area + 1-c
 
 ### Game Loop
 
-`StarMapGameLoopService` owns the `requestAnimationFrame` loop and always runs outside the Angular zone. The component provides an update callback that:
+`GameTimeService` (`src/app/services/game-time.service.ts`) is the single owner of
+pause state and speed. It exposes `speed` (1 or 2), `isPaused` (boolean), and
+`getScaledDeltaTime(realDeltaTime)` — the only place in the codebase where the
+speed multiplier is applied.
 
-1. Calls `StarMapMovementService.updateFleets()` with `deltaTime` (clamped to 0.1s).
-2. Calls `updateExploredPlanets()` (system view only) and `checkFleetPlanetArrivals()` (system view only).
-3. Calls `StarMapSensorService.computeGalaxySensorCells()` to recompute the current sensor range cells, updates `exploredGridCells` (persistent), marks star systems as explored, and updates fog cell rendering.
+`StarMapGameLoopService` owns the `requestAnimationFrame` loop and always runs
+outside the Angular zone. It always runs — it is never canceled for pause. Each
+frame:
+
+1. Computes `realDeltaTime = Math.min((time - lastFrameTime) / 1000, 0.1)` (clamped
+   to 0.1 s to prevent spikes when the tab is suspended).
+2. Calls `gameTimeService.onTick(realDeltaTime)` to accumulate `gameElapsedTime`.
+3. Calls `gameTimeService.getScaledDeltaTime(realDeltaTime)` to get the **scaled**
+   game delta: `0` when paused, `realDeltaTime * speed` when running.
+4. Passes the scaled delta to the component's update callback.
+
+The update callback (consolidated into `StarMap.gameLoopCallback`):
+
+1. Calls `StarMapMovementService.updateFleets()` with the scaled `gameDeltaTime`.
+2. Calls `updateExploredPlanets()` (system view only) and `checkFleetPlanetArrivals()`
+   (system view only).
+3. Calls `StarMapSensorService.computeGalaxySensorCells()` to recompute the current
+   sensor range cells, updates `exploredGridCells` (persistent), marks star systems
+   as explored, and updates fog cell rendering.
 4. Calls `StarMapBattleDetectionService.checkForBattles()`.
-5. Every `economyTickInterval` (1s) of accumulated `deltaTime`, runs `EconomyService.applyEconomyDelta()` for every faction and refreshes the cached player economy breakdown.
-6. Triggers `cdr.detectChanges()` only when fleets actually moved, sensor visibility changed, or the economy tick fired.
+5. Every `economyTickInterval` (1 s) of accumulated **game** `deltaTime`, runs
+   `EconomyService.applyEconomyDelta()` for every faction and refreshes the cached
+   player economy breakdown.
+6. Calls `ProductionService.tick()` with the scaled `gameDeltaTime`. When paused
+   (deltaTime = 0), `ProductionService.tick` early-returns to prevent frame-based
+   stall detection from firing.
+7. Triggers `cdr.detectChanges()` only when fleets moved, the economy tick fired,
+   sensor visibility changed, or production state changed.
 
-The loop is paused by `StarMapGameLoopService.pauseGame()` and resumed with `resumeGame()`. `stopGameLoop()` is used on component destroy. `isPaused` is a separate flag tracked by `StarMap` (it does not close the pause-menu overlay).
+The loop is paused by `GameTimeService.pause()` and resumed with `GameTimeService.resume()`.
+When paused, the loop continues to run (producing `gameDelta = 0`) so UI/input stays
+responsive. `stopGameLoop()` is used on component destroy.
 
 ### Pause and Focus
 
-- Window `blur` and document `visibilitychange` (hidden) call `pauseGame()` automatically.
+- Keyboard: `Space` toggles pause/resume, `1` sets 1× speed, `2` sets 2× speed.
+- Window `blur` and document `visibilitychange` (hidden) call `gameTimeService.pause()`.
+- The pause menu overlay (in `StarMapPauseComponent`) shows when `isPaused || pauseMenuOpen`.
 - Portrait orientation shows a "rotate your device" overlay; landscape is required to play.
 - Opening the pause menu pauses the game; closing the menu resumes it.
-- `ngOnDestroy` saves the game, unsubscribes from router events, removes all focus/orientation/drag listeners, and stops the loop.
 
 ### Camera and Drag
 

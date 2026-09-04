@@ -10,10 +10,15 @@ import { SaveGameService, SaveSlot } from '../../services/save-game.service';
  * Communicates with StarMap via event emitters.
  *
  * States:
- * - Normal: shows PAUSE button
+ * - Normal: shows ⏸ button (toggles pause, no overlay)
  * - Paused (menu open): shows Continue, Save, Load, Main Menu buttons
  * - Paused (load slots): shows 4 save slots for loading
- * - Auto-paused (window blur): shows icon and Continue button only
+ *
+ * Notes:
+ * - The simulation freezes when paused (via GameTimeService), but NO overlay
+ *   appears unless ESC is pressed. The UI remains interactive.
+ * - The ⏸ button toggles pause without opening the menu.
+ * - ESC opens the pause menu (pause + overlay).
  */
 
 @Component({
@@ -23,7 +28,6 @@ import { SaveGameService, SaveSlot } from '../../services/save-game.service';
   styleUrl: './star-map-pause.component.scss'
 })
 export class StarMapPauseComponent {
-  @Input() isPaused = false;
   @Input() pauseMenuOpen = false;
   @Input() currentSlot: number | null = null;
 
@@ -31,7 +35,7 @@ export class StarMapPauseComponent {
   @Output() closePauseMenu = new EventEmitter<void>();
   @Output() saveGame = new EventEmitter<void>();
   @Output() loadGame = new EventEmitter<number>();
-  @Output() resumeGame = new EventEmitter<void>();
+  @Output() togglePause = new EventEmitter<void>();
   @Output() exitToMainMenu = new EventEmitter<void>();
 
   showLoadSlots = false;

@@ -117,6 +117,7 @@ The project currently contains the following documentation files:
 - `docs/game-systems.md` — major gameplay systems and their responsibilities
 - `docs/invariants.md` — rules and conditions that must always remain true
 - `docs/ship-production.md` — ship production, global stock, and fleet assembly pipeline
+- `docs/game-time.md` — centralized game time, pause/speed controls, and scaled delta flow
 
 These files are the current documentation sources of truth for their respective topics.
 
