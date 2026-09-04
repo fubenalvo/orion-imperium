@@ -1,0 +1,32 @@
+<div class="ship-stock">
+  <button
+    type="button"
+    class="ship-stock__toggle"
+    (click)="toggleDetails()"
+    [class.ship-stock__toggle--empty]="totalShips === 0"
+    title="Global empire ship stock"
+  >
+    <span class="ship-stock__icon">&#9708;</span>
+    <span class="ship-stock__value">{{ totalShips }}</span>
+    <span class="ship-stock__label">STOCK</span>
+  </button>
+
+  @if (showDetails) {
+    <div class="ship-stock__overlay" (click)="closeDetails($event)">
+      <div class="ship-stock__panel" (click)="$event.stopPropagation()">
+        <div class="ship-stock__title">SHIP STOCK</div>
+
+        @if (entries.length === 0) {
+          <div class="ship-stock__empty">No ships in stock. Build a Spaceship Factory to start production.</div>
+        } @else {
+          @for (entry of entries; track entry.typeId) {
+            <div class="ship-stock__row">
+              <span class="ship-stock__type">{{ entry.typeName }}</span>
+              <span class="ship-stock__count">x{{ entry.count }}</span>
+            </div>
+          }
+        }
+      </div>
+    </div>
+  }
+</div>

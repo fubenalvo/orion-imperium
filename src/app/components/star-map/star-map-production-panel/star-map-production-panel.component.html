@@ -1,0 +1,91 @@
+@if (vm) {
+<div class="production-panel">
+  <div class="production-panel__title">
+    SPACESHIP FACTORY
+    <span class="production-panel__capacity">
+      Capacity: {{ vm.queue.length }}/{{ vm.capacity }} · Power: {{ vm.power }}/s
+    </span>
+  </div>
+
+  <button class="production-panel__add" type="button" (click)="openBuildMenu.emit()">
+    + QUEUE NEW ORDER
+  </button>
+
+  @if (buildError) {
+    <div class="production-panel__error">{{ buildError }}</div>
+  }
+
+  <div class="production-panel__queue">
+    <div class="production-panel__queue-title">QUEUE</div>
+    @if (vm.queue.length === 0) {
+      <div class="production-panel__empty">No active orders.</div>
+    } @else {
+      @for (order of vm.queue; track order.id) {
+        <div class="production-panel__row">
+          <div class="production-panel__row-info">
+            <span class="production-panel__row-type">{{ order.shipTypeId | uppercase }}</span>
+            <span class="production-panel__row-qty">×{{ order.quantity }}</span>
+            <span class="production-panel__row-eta">{{ formatEta(vm.etas[order.id]) }}</span>
+          </div>
+          <div class="production-panel__row-bar">
+            <div class="production-panel__row-bar-fill" [style.width.%]="(order.progress * 100) | number:'1.0-0'"></div>
+          </div>
+          <button class="production-panel__row-cancel" type="button" (click)="cancelOrderClick(order.id)">X</button>
+        </div>
+      }
+    }
+  </div>
+
+  @if (showBuildMenu) {
+    <div class="production-panel__overlay" (click)="closeBuildMenu.emit()">
+      <div class="production-panel__modal" (click)="$event.stopPropagation()">
+        <div class="production-panel__modal-title">NEW PRODUCTION ORDER</div>
+
+        <div class="production-panel__types">
+          @if (selectedTypeId == null) {
+            @for (type of vm.buildable; track type.id) {
+              <button class="production-panel__type" type="button" (click)="pickType(type.id)">
+                <span class="production-panel__type-name">{{ type.name }}</span>
+                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr / unit</span>
+                <span class="production-panel__type-build">{{ vm.shipBuildTimes[type.id] }}s @1 fac</span>
+              </button>
+            }
+          } @else {
+            @for (type of vm.buildable; track type.id) {
+              <button
+                class="production-panel__type"
+                type="button"
+                [class.production-panel__type--selected]="type.id === selectedTypeId"
+                (click)="pickType(type.id)"
+              >
+                <span class="production-panel__type-name">{{ type.name }}</span>
+                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr / unit</span>
+              </button>
+            }
+          }
+        </div>
+
+        @if (selectedTypeId) {
+          <div class="production-panel__quantity">
+            <button type="button" (click)="changeQuantity(-1)">−</button>
+            <span class="production-panel__quantity-value">{{ selectedQuantity }}</span>
+            <button type="button" (click)="changeQuantity(1)">+</button>
+          </div>
+          <div class="production-panel__total">Total: {{ totalCost() }} cr</div>
+          @if (!canQueue()) {
+            <div class="production-panel__error">Not enough credits.</div>
+          }
+          <div class="production-panel__modal-actions">
+            <button type="button" (click)="closeBuildMenu.emit()">CANCEL</button>
+            <button
+              type="button"
+              [disabled]="!canQueue()"
+              (click)="confirmQueue()"
+            >QUEUE</button>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>
+}

@@ -89,6 +89,40 @@ export interface FleetShip {
   destroyed?: boolean;
 }
 
+/*
+ * Ship stock and production data structures.
+ *
+ * Stock ships are per-instance records (same shape as FleetShip) so the
+ * existing battle / sensor / movement code can read them without changes.
+ * The stock is faction-scoped (empire), never planet-scoped, mirroring
+ * the IG1 design where factories feed a global reserve.
+ */
+export interface ShipStockEntry {
+  id: number;
+  type: string;
+  name: string;
+  producedAtTick?: number;
+  originPlanetId?: number | null;
+}
+
+export interface FactionShipStock {
+  factionId: string;
+  ships: ShipStockEntry[];
+}
+
+export interface ProductionOrder {
+  id: number;
+  shipTypeId: string;
+  quantity: number;
+  progress: number;
+  startedAtTick: number;
+}
+
+export interface FactionProduction {
+  factionId: string;
+  ordersByPlanet: Record<number, ProductionOrder[]>;
+}
+
 export interface ShipType {
   id: string;
   name: string;
@@ -140,6 +174,8 @@ export interface StarMapData {
   targetY?: number | null;
   destroyedFleetId?: number | null;
   exploredGridCells?: string[];
+  shipStock?: FactionShipStock[];
+  production?: FactionProduction[];
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';

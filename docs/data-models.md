@@ -26,6 +26,23 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `team`: `0` neutral, `1` player, `2+` enemies. Same-team factions never fight; team 0 is never attacked and never attacks
 - `currencies`: `Record<string, number>` containing at least `credits`, `rawmaterials`, `research`
 
+## Ship Stock & Production
+
+See `docs/ship-production.md` for the full pipeline. The relevant data shapes are:
+
+- `ShipStockEntry`: per-instance ship record held in the global stock. Same shape as `FleetShip` minus `currentHp` / `destroyed` so the existing battle / sensor / movement code can consume it without changes when it is pushed into a fleet.
+- `FactionShipStock`: `{ factionId, ships: ShipStockEntry[] }` — empire-scoped reserve, never planet-scoped.
+- `ProductionOrder`: `{ id, shipTypeId, quantity, progress, startedAtTick }` — one in-flight order per planet; resource cost is deducted up-front at queue time.
+- `FactionProduction`: `{ factionId, ordersByPlanet: Record<planetId, ProductionOrder[]> }`.
+- `StarMapData.shipStock` and `StarMapData.production` are optional fields; `SaveGameService.migrateSave` backfills them as `[]` for older saves.
+
+## ShipType extensions
+
+Every ship type now also carries:
+
+- `buildTime?: number` — seconds at one factory (`productionPower = 1`). Defaults to `cost / 10`.
+- `productionBuilding?: 'spaceship_factory' | 'orbital_factory'` — discriminator used by `ProductionService` to filter which buildings can produce this ship. Defaults to `'spaceship_factory'`.
+
 ## StarSystem
 
 - `id`, `name`: identity

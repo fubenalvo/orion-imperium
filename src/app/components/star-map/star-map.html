@@ -169,6 +169,10 @@
         [currencies]="getPlayerCurrencies()"
         [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
       ></app-faction-currencies>
+      <app-star-map-ship-stock
+        [entries]="boundGetPlayerShipStockEntries()"
+        [totalShips]="boundGetPlayerShipStockTotal()"
+      ></app-star-map-ship-stock>
     </div>
 
     <!-- SELECTED FLEET INFO -->
@@ -181,8 +185,12 @@
         [getFactionColor]="boundGetFactionColor"
         [isPlayerFleet]="selectedFleet.factionId === 'player'"
         [selectedFleetAction]="selectedFleetAction"
+        [canReinforce]="selectedFleet.factionId === 'player' && hasSpaceport()"
+        [canDisband]="selectedFleet.factionId === 'player' && hasSpaceport()"
         (close)="deselectFleet()"
         (setFleetAction)="setFleetAction($event)"
+        (reinforce)="onReinforceSelected()"
+        (disband)="onDisbandSelected()"
       >
       </app-star-map-fleet-info>
     }
@@ -228,11 +236,15 @@
     <div class="system-view">
       <div class="system-view-hud">
         <div class="game-title">{{ selectedSystem?.name }}</div>
-        <app-faction-currencies
-          [currencies]="getPlayerCurrencies()"
-          [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-        ></app-faction-currencies>
-      </div>
+          <app-faction-currencies
+            [currencies]="getPlayerCurrencies()"
+            [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+          ></app-faction-currencies>
+          <app-star-map-ship-stock
+            [entries]="boundGetPlayerShipStockEntries()"
+            [totalShips]="boundGetPlayerShipStockTotal()"
+          ></app-star-map-ship-stock>
+        </div>
 
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
 
@@ -344,8 +356,12 @@
           [getFactionColor]="boundGetFactionColor"
           [isPlayerFleet]="selectedFleet.factionId === 'player'"
           [selectedFleetAction]="selectedFleetAction"
+          [canReinforce]="selectedFleet.factionId === 'player' && hasSpaceport()"
+          [canDisband]="selectedFleet.factionId === 'player' && hasSpaceport()"
           (close)="deselectFleet()"
           (setFleetAction)="setFleetAction($event)"
+          (reinforce)="onReinforceSelected()"
+          (disband)="onDisbandSelected()"
         >
         </app-star-map-fleet-info>
       }
@@ -369,11 +385,15 @@
     <div class="planet-view">
       <div class="planet-view-hud">
         <div class="game-title">{{ selectedPlanetTile?.name }}</div>
-        <app-faction-currencies
-          [currencies]="getPlayerCurrencies()"
-          [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-        ></app-faction-currencies>
-      </div>
+          <app-faction-currencies
+            [currencies]="getPlayerCurrencies()"
+            [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+          ></app-faction-currencies>
+          <app-star-map-ship-stock
+            [entries]="boundGetPlayerShipStockEntries()"
+            [totalShips]="boundGetPlayerShipStockTotal()"
+          ></app-star-map-ship-stock>
+        </div>
 
       <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
 
@@ -395,6 +415,41 @@
           (buildConfirmed)="onBuildingConfirmed($event)"
         >
         </app-star-map-planet-screen>
+      }
+
+      <div class="planet-view__panels">
+        <button class="planet-view__panel-toggle" type="button" (click)="openProductionPanel()">
+          PRODUCTION
+        </button>
+        @if (spaceportService.isSpaceportPlanet(selectedPlanetTile!)) {
+          <button class="planet-view__panel-toggle" type="button" (click)="openSpaceportPanel('create', null)">
+            ASSEMBLE FLEET
+          </button>
+        }
+      </div>
+
+      @if (showProductionPanel && boundGetProductionPanelVm()) {
+        <app-star-map-production-panel
+          [vm]="boundGetProductionPanelVm()"
+          [showBuildMenu]="showBuildMenu"
+          [buildError]="productionBuildError"
+          (openBuildMenu)="onOpenBuildMenu()"
+          (closeBuildMenu)="onCloseBuildMenu()"
+          (queueOrder)="onQueueOrder($event)"
+          (cancelOrder)="onCancelOrder($event)"
+        ></app-star-map-production-panel>
+      }
+
+      @if (showSpaceportPanel && boundGetSpaceportPanelVm()) {
+        <app-star-map-spaceport-panel
+          [vm]="boundGetSpaceportPanelVm()"
+          [fleetName]="spaceportFleetName"
+          [mode]="spaceportMode"
+          [targetFleetId]="spaceportTargetFleetId"
+          (close)="closeSpaceportPanel()"
+          (fleetNameChange)="spaceportFleetName = $event"
+          (confirm)="onSpaceportConfirm($event)"
+        ></app-star-map-spaceport-panel>
       }
     </div>
   }

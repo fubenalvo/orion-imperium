@@ -1,0 +1,100 @@
+@if (vm) {
+<div class="spaceport-panel">
+  <div class="spaceport-panel__title">
+    @if (mode === 'create') {
+      MILITARY SPACEPORT — CREATE FLEET
+    } @else {
+      MILITARY SPACEPORT — REINFORCE FLEET
+    }
+    <button class="spaceport-panel__close" type="button" (click)="close.emit()">X</button>
+  </div>
+
+  <div class="spaceport-panel__section">
+    <div class="spaceport-panel__section-title">ASSEMBLY POINT</div>
+    @if (vm.assemblySystems.length === 0) {
+      <div class="spaceport-panel__empty">No other spaceport planets available.</div>
+    } @else {
+      <div class="spaceport-panel__systems">
+        @for (system of vm.assemblySystems; track system.systemId) {
+          <button
+            class="spaceport-panel__system"
+            type="button"
+            [class.spaceport-panel__system--selected]="vm.selectedSystemId === system.systemId"
+            (click)="selectedSystem(system.systemId)"
+          >
+            {{ system.systemName }}
+          </button>
+        }
+      </div>
+      @if (vm.selectedSystemId) {
+        <div class="spaceport-panel__planets">
+          @for (system of vm.assemblySystems; track system.systemId) {
+            @if (system.systemId === vm.selectedSystemId) {
+              @for (planet of system.planets; track planet.id) {
+                <button
+                  class="spaceport-panel__planet"
+                  type="button"
+                  [class.spaceport-panel__planet--selected]="vm.selectedPlanetId === planet.id"
+                  (click)="selectedPlanet(planet.id)"
+                >
+                  {{ planet.name }}
+                </button>
+              }
+            }
+          }
+        </div>
+      }
+    }
+  </div>
+
+  <div class="spaceport-panel__section">
+    <div class="spaceport-panel__section-title">AVAILABLE SHIPS</div>
+    @if (vm.available.length === 0) {
+      <div class="spaceport-panel__empty">No ships in stock. Queue production in a Spaceship Factory first.</div>
+    } @else {
+      @for (entry of vm.available; track entry.typeId) {
+        <div class="spaceport-panel__row">
+          <span class="spaceport-panel__row-name">{{ entry.typeName }}</span>
+          <span class="spaceport-panel__row-available">avail: {{ entry.available }}</span>
+          <div class="spaceport-panel__row-controls">
+            <button type="button" (click)="dec(entry.typeId)">−</button>
+            <span class="spaceport-panel__row-count">{{ count(entry.typeId) }}</span>
+            <button type="button" (click)="inc(entry.typeId, entry.available)">+</button>
+          </div>
+        </div>
+      }
+    }
+  </div>
+
+  @if (mode === 'create') {
+    <div class="spaceport-panel__section">
+      <div class="spaceport-panel__section-title">FLEET NAME</div>
+      <input
+        class="spaceport-panel__input"
+        type="text"
+        [value]="fleetName"
+        (input)="setFleetName($any($event.target).value)"
+      />
+    </div>
+  }
+
+  @if (vm.errorMessage) {
+    <div class="spaceport-panel__error">{{ vm.errorMessage }}</div>
+  }
+
+  <div class="spaceport-panel__actions">
+    <button type="button" (click)="close.emit()">CANCEL</button>
+    <button
+      type="button"
+      [disabled]="!canConfirm()"
+      (click)="confirmClick()"
+    >
+      @if (mode === 'create') {
+        CREATE FLEET ({{ totalSelected() }})
+      } @else {
+        REINFORCE ({{ totalSelected() }})
+      }
+    </button>
+  </div>
+</div>
+}

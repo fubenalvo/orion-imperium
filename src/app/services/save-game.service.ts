@@ -47,7 +47,7 @@ export class SaveGameService {
         const slot = parsed[i];
         if (slot && slot.data) {
           slots.push({
-            data: slot.data as StarMapData,
+            data: this.migrateSave(slot.data as StarMapData),
             date: slot.date ?? null,
           });
         } else {
@@ -78,7 +78,26 @@ export class SaveGameService {
 
   loadFromSlot(slotIndex: number): StarMapData | null {
     const slot = this.getSlot(slotIndex);
-    return slot.data;
+    if (!slot.data) {
+      return null;
+    }
+    return this.migrateSave(slot.data);
+  }
+
+  /*
+   * migrateSave: Backfills optional fields that were introduced after the
+   * original save format so older saves keep loading. Currently:
+   * - shipStock: per-faction global ship reserve
+   * - production: per-faction production queue
+   */
+  migrateSave(data: StarMapData): StarMapData {
+    if (!data.shipStock) {
+      data.shipStock = [];
+    }
+    if (!data.production) {
+      data.production = [];
+    }
+    return data;
   }
 
   clearSlot(slotIndex: number): void {

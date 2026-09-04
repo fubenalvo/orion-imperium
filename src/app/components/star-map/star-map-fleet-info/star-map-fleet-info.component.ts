@@ -17,8 +17,12 @@ export class StarMapFleetInfoComponent {
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
   @Input() isPlayerFleet = false;
   @Input() selectedFleetAction: 'move' | null = null;
+  @Input() canReinforce = false;
+  @Input() canDisband = false;
 
   @Output() close = new EventEmitter<void>();
   @Output() setFleetAction = new EventEmitter<'move'>();
   @Output() selectFleet = new EventEmitter<Fleet>();
+  @Output() reinforce = new EventEmitter<void>();
+  @Output() disband = new EventEmitter<void>();
 }

@@ -1,0 +1,87 @@
+# Ship Production & Fleet Assembly
+
+> Imperium Galactica 1 inspired pipeline. Factories produce ships, ships enter a
+> global per-empire stock, military spaceports enable fleet assembly. The
+> existing `Fleet` system is reused end-to-end — no parallel fleet manager is
+> introduced.
+
+## High-level flow
+
+```
+Spaceship Factory ──▶ Production Order ──▶ Production tick ──▶ Global Ship Stock
+                                                                     │
+                                                                     ▼
+                                          Military Spaceport ──▶ Fleet Assembly
+                                                                     │
+                                                                     ▼
+                                                            Existing Fleet system
+```
+
+The factory never touches a fleet. The fleet never touches the factory. They
+meet only at the stock, mediated by services.
+
+## Owner
+
+- `ShipStockService` — pure helpers over `StarMapData.shipStock`.
+- `ProductionService` — per-planet production queue and per-tick progress.
+- `MilitarySpaceportService` — presence checks for the `Military Spaceport`
+  building.
+- `FleetAssemblyService` — pops stock entries and pushes them into a
+  `Fleet.ships` array. **No new fleet type, no new movement, no new combat
+  path.**
+
+## Per-instance vs per-type
+
+`Fleet.ships` already stores per-instance `FleetShip` records (with `currentHp`
+and `destroyed`) because battle and sensor code iterate over individual ships.
+The stock therefore also stores per-instance `ShipStockEntry` records. Stock
+count = number of `ShipStockEntry` records for a faction (optionally filtered
+by `typeId`).
+
+## Capacity model
+
+- A `Spaceship Factory` building contributes `productionSlots: 1` and
+  `productionPower: 0.5` progress/s.
+- A planet's `productionCapacity` = sum of slots of every `Spaceship Factory`
+  on the planet (and, in the future, every `Orbital Factory` for the right
+  ship types).
+- A planet's `productionPower` = sum of `productionPower` over the same set.
+
+## Ship build time
+
+Each `ShipType` carries a `buildTime` (seconds at one factory, `productionPower
+= 1`). The default is `cost / 10` (so a Corvette costing 120 takes 12 s). Each
+ship type also carries a `productionBuilding` discriminator
+(`'spaceship_factory' | 'orbital_factory'`) so the same production service
+works for both factory classes without code changes.
+
+## Resource handling
+
+Resource costs are deducted from `faction.currencies` **at queue time** (one
+transaction per `queueOrder` call). Production tick does not re-deduct. This
+keeps accounting simple and avoids partial deductions if production is
+cancelled.
+
+## Save / load
+
+`StarMapData.shipStock` and `StarMapData.production` are optional fields.
+`SaveGameService.migrateSave` backfills `[]` for both on load so older saves
+keep working. Production progress and per-fleet composition persist via the
+existing root-state persistence.
+
+## Edge case handling
+
+See `docs/invariants.md` for the production-specific invariants. Notable
+behaviours:
+
+- **Factory destroyed mid-build**: the order's `progress` simply stops
+  advancing. An order that has not progressed in over `STALLED_ORDER_TIMEOUT`
+  seconds is auto-cancelled and the un-built portion's resource cost is
+  refunded.
+- **Disbanded fleet**: surviving `FleetShip` records are returned to the
+  faction's stock; the fleet is marked `destroyed` so existing movement /
+  sensor / economy code excludes it.
+- **Faction removed**: orphaned stock is dropped (no UI presents it). A
+  future "captured stock" mechanic can hook `ShipStockService.onFactionRemoved`.
+- **Orbital Factory**: the `productionBuilding` discriminator on `ShipType`
+  keeps the service class-agnostic.

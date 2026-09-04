@@ -32,6 +32,24 @@
         >
           MOVE
         </button>
+        @if (canReinforce) {
+          <button
+            type="button"
+            class="action-btn reinforce-btn"
+            (click)="reinforce.emit(); $event.stopPropagation()"
+          >
+            REINFORCE
+          </button>
+        }
+        @if (canDisband) {
+          <button
+            type="button"
+            class="action-btn disband-btn"
+            (click)="disband.emit(); $event.stopPropagation()"
+          >
+            DISBAND
+          </button>
+        }
       </div>
     }
 

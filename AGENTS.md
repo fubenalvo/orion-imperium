@@ -116,6 +116,7 @@ The project currently contains the following documentation files:
 - `docs/data-models.md` — important data structures and domain models
 - `docs/game-systems.md` — major gameplay systems and their responsibilities
 - `docs/invariants.md` — rules and conditions that must always remain true
+- `docs/ship-production.md` — ship production, global stock, and fleet assembly pipeline
 
 These files are the current documentation sources of truth for their respective topics.
 

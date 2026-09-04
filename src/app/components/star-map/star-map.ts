@@ -15,6 +15,10 @@ import { ShipService } from '../../services/ship.service';
 import { SaveGameService } from '../../services/save-game.service';
 import { EconomyService } from '../../services/economy.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
+import { ShipStockService } from '../../services/ship-stock.service';
+import { ProductionService } from '../../services/production.service';
+import { MilitarySpaceportService } from '../../services/military-spaceport.service';
+import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
@@ -53,6 +57,9 @@ import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-
 import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
 import { FactionCurrenciesComponent } from './faction-currencies/faction-currencies.component';
+import { StarMapShipStockComponent, ShipStockEntryDisplay } from './star-map-ship-stock/star-map-ship-stock.component';
+import { StarMapProductionPanelComponent, ProductionPanelViewModel, QueueOrderRequest } from './star-map-production-panel/star-map-production-panel.component';
+import { StarMapSpaceportPanelComponent, SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
 
 export type { StarMapData } from './star-map.models';
 
@@ -91,6 +98,9 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapFleetButtonsComponent,
     StarMapContextMenuComponent,
     FactionCurrenciesComponent,
+    StarMapShipStockComponent,
+    StarMapProductionPanelComponent,
+    StarMapSpaceportPanelComponent,
     NgClass,
   ],
   templateUrl: './star-map.html',
@@ -112,6 +122,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   starSystems: StarSystem[] = initialStarMapData.starSystems;
   fleets: Fleet[] = initialStarMapData.fleets;
   factions: StarMapData['factions'] = initialStarMapData.factions;
+  shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
+  production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
 
   // Track which fleet is currently on which planet grid cell to log arrivals
   private fleetPlanetMap = new Map<number, number>();
@@ -169,6 +181,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
   contextMenu: { x: number; y: number; items: ContextMenuItem[] } | null = null;
   isPaused = false;
 
+  // Production / spaceport panel state
+  showProductionPanel = false;
+  showBuildMenu = false;
+  productionBuildError: string | null = null;
+  showSpaceportPanel = false;
+  spaceportError: string | null = null;
+  spaceportFleetName = 'New Fleet';
+  spaceportMode: 'create' | 'reinforce' = 'create';
+  spaceportTargetFleetId: number | null = null;
+
   isLandscape = false;
 
   // Event handlers for focus tracking
@@ -210,6 +232,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
     private sensorService: StarMapSensorService,
+    private shipStockService: ShipStockService,
+    private productionService: ProductionService,
+    public spaceportService: MilitarySpaceportService,
+    private fleetAssemblyService: FleetAssemblyService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -536,6 +562,262 @@ export class StarMap implements AfterViewInit, OnDestroy {
     );
   }
 
+  getPlayerShipStockEntries(): ShipStockEntryDisplay[] {
+    const summary = this.shipStockService.getSummary(this, 'player');
+    return summary
+      .map((entry) => {
+        const type = this.shipService.getShipType(entry.typeId);
+        return { typeId: entry.typeId, typeName: type?.name ?? entry.typeId, count: entry.count };
+      })
+      .sort((a, b) => a.typeName.localeCompare(b.typeName));
+  }
+
+  getPlayerShipStockTotal(): number {
+    return this.shipStockService.getCount(this, 'player');
+  }
+
+  getProductionPanelVm(): ProductionPanelViewModel | null {
+    if (!this.selectedPlanetTile || !this.selectedSystem) {
+      return null;
+    }
+    const buildable = this.productionService.listBuildableShipTypes(this.selectedPlanetTile);
+    const queue = this.productionService.getQueue(this, 'player', this.selectedPlanetTile.id);
+    const etas: Record<number, number | null> = {};
+    for (const order of queue) {
+      etas[order.id] = this.productionService.getOrderEta(order, this.selectedPlanetTile);
+    }
+    const shipCosts: Record<string, number> = {};
+    const shipBuildTimes: Record<string, number> = {};
+    for (const t of buildable) {
+      shipCosts[t.id] = t.cost;
+      shipBuildTimes[t.id] = t.buildTime ?? Math.max(1, t.cost * 0.1);
+    }
+    return {
+      planet: this.selectedPlanetTile,
+      system: this.selectedSystem,
+      factionId: 'player',
+      buildable,
+      capacity: this.productionService.getPlanetCapacity(this.selectedPlanetTile),
+      power: this.productionService.getPlanetPower(this.selectedPlanetTile),
+      queue,
+      shipCosts,
+      shipBuildTimes,
+      etas,
+      factionCredits: this.getPlayerCredits(),
+    };
+  }
+
+  getSpaceportPanelVm(): SpaceportPanelViewModel | null {
+    if (!this.selectedPlanetTile || !this.selectedSystem) {
+      return null;
+    }
+    if (!this.spaceportService.isSpaceportPlanet(this.selectedPlanetTile)) {
+      return null;
+    }
+    const assemblySystems = this.spaceportService
+      .listSpaceports('player', this.starSystems)
+      .map((loc) => ({
+        systemId: loc.system.id,
+        systemName: loc.system.name,
+        planets: loc.system.planetsTiles
+          .filter((p) => p.factionId === 'player' && this.spaceportService.isSpaceportPlanet(p))
+          .map((p) => ({ id: p.id, name: p.name })),
+      }));
+    const summary = this.shipStockService.getSummary(this, 'player');
+    const available = summary
+      .map((entry) => {
+        const type = this.shipService.getShipType(entry.typeId);
+        return { typeId: entry.typeId, typeName: type?.name ?? entry.typeId, available: entry.count };
+      })
+      .sort((a, b) => a.typeName.localeCompare(b.typeName));
+    return {
+      system: this.selectedSystem,
+      planet: this.selectedPlanetTile,
+      factionId: 'player',
+      available,
+      selectedSystemId: this.selectedSystem.id,
+      selectedPlanetId: this.selectedPlanetTile.id,
+      assemblySystems,
+      errorMessage: this.spaceportError,
+    };
+  }
+
+  openProductionPanel(): void {
+    this.showProductionPanel = true;
+    this.showBuildMenu = false;
+    this.productionBuildError = null;
+  }
+
+  closeProductionPanel(): void {
+    this.showProductionPanel = false;
+    this.showBuildMenu = false;
+  }
+
+  onOpenBuildMenu(): void {
+    this.showBuildMenu = true;
+    this.productionBuildError = null;
+  }
+
+  onCloseBuildMenu(): void {
+    this.showBuildMenu = false;
+  }
+
+  onQueueOrder(req: QueueOrderRequest): void {
+    if (!this.selectedPlanetTile) {
+      return;
+    }
+    const result = this.productionService.queueOrder(
+      this,
+      'player',
+      this.selectedPlanetTile.id,
+      req.shipTypeId,
+      req.quantity,
+      this.starSystems,
+      this.factions,
+    );
+    if (!result.ok) {
+      this.productionBuildError = this.describeProductionError(result.reason);
+      return;
+    }
+    this.productionBuildError = null;
+    this.saveGame();
+  }
+
+  onCancelOrder(orderId: number): void {
+    if (!this.selectedPlanetTile) {
+      return;
+    }
+    this.productionService.cancelOrder(this, 'player', this.selectedPlanetTile.id, orderId, this.factions);
+    this.saveGame();
+  }
+
+  private describeProductionError(reason: string | undefined): string {
+    switch (reason) {
+      case 'no_factory': return 'No factory on this planet.';
+      case 'insufficient_resources': return 'Not enough credits.';
+      case 'invalid_type': return 'Invalid ship type.';
+      case 'invalid_quantity': return 'Invalid quantity.';
+      default: return 'Could not queue order.';
+    }
+  }
+
+  openSpaceportPanel(mode: 'create' | 'reinforce' = 'create', fleetId: number | null = null): void {
+    if (!this.spaceportService.hasSpaceport('player', this.starSystems)) {
+      this.spaceportError = 'You need a Military Spaceport to assemble fleets.';
+      return;
+    }
+    this.spaceportMode = mode;
+    this.spaceportTargetFleetId = fleetId;
+    this.spaceportFleetName = mode === 'create' ? this.suggestFleetName() : (this.fleets.find((f) => f.id === fleetId)?.name ?? 'New Fleet');
+    this.spaceportError = null;
+    this.showSpaceportPanel = true;
+  }
+
+  closeSpaceportPanel(): void {
+    this.showSpaceportPanel = false;
+    this.spaceportError = null;
+  }
+
+  onSpaceportConfirm(event: { fleetName: string; composition: { typeId: string; count: number }[]; systemId: string; planetId: number; fleetId: number | null }): void {
+    if (event.fleetId != null) {
+      const result = this.fleetAssemblyService.reinforceFleet(
+        this,
+        this.starSystems,
+        {
+          factionId: 'player',
+          fleetId: event.fleetId,
+          composition: event.composition,
+        },
+      );
+      if (!result.ok) {
+        this.spaceportError = this.describeAssemblyError(result.reason);
+        return;
+      }
+    } else {
+      const result = this.fleetAssemblyService.createFleet(
+        this,
+        this.starSystems,
+        {
+          factionId: 'player',
+          fleetName: event.fleetName,
+          systemId: event.systemId,
+          planetId: event.planetId,
+          composition: event.composition,
+        },
+      );
+      if (!result.ok) {
+        this.spaceportError = this.describeAssemblyError(result.reason);
+        return;
+      }
+      if (result.fleet) {
+        this.selectFleet(result.fleet);
+      }
+    }
+    this.spaceportError = null;
+    this.showSpaceportPanel = false;
+    this.saveGame();
+  }
+
+  disbandSelectedFleet(): void {
+    if (!this.selectedFleet) {
+      return;
+    }
+    this.fleetAssemblyService.disbandFleet(this, 'player', this.selectedFleet.id);
+    this.deselectFleet();
+    this.saveGame();
+  }
+
+  onReinforceSelected(): void {
+    if (!this.selectedFleet) {
+      return;
+    }
+    this.openSpaceportPanel('reinforce', this.selectedFleet.id);
+  }
+
+  onDisbandSelected(): void {
+    if (!this.selectedFleet) {
+      return;
+    }
+    const ok = window.confirm(`Disband ${this.selectedFleet.name}? Surviving ships return to the global stock.`);
+    if (!ok) {
+      return;
+    }
+    this.disbandSelectedFleet();
+  }
+
+  hasSpaceport(): boolean {
+    return this.spaceportService.hasSpaceport('player', this.starSystems);
+  }
+
+  private describeAssemblyError(reason: string | undefined): string {
+    switch (reason) {
+      case 'no_spaceport': return 'No Military Spaceport available.';
+      case 'insufficient_stock': return 'Not enough ships in stock.';
+      case 'invalid_composition': return 'Select at least one ship.';
+      case 'invalid_target': return 'Invalid assembly point.';
+      case 'fleet_not_found': return 'Fleet not found.';
+      case 'enemy_fleet': return 'Cannot modify an enemy fleet.';
+      default: return 'Assembly failed.';
+    }
+  }
+
+  private suggestFleetName(): string {
+    const used = new Set(this.fleets.filter((f) => f.factionId === 'player').map((f) => f.name));
+    for (let i = 1; i < 1000; i++) {
+      const name = `${i}${this.ordinalSuffix(i)} Fleet`;
+      if (!used.has(name)) {
+        return name;
+      }
+    }
+    return 'New Fleet';
+  }
+
+  private ordinalSuffix(n: number): string {
+    const s = ['th', 'st', 'nd', 'rd'];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
+  }
+
   /** Returns a faction's currencies as key-value pairs. */
   getFactionCurrencies(factionId: string): { name: string; value: number }[] {
     const faction = this.factions.find((f) => f.id === factionId);
@@ -558,6 +840,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
   readonly boundGetEnergyForPlanet = this.getEnergyForPlanet.bind(this);
   readonly boundGetTaxForPlanet = this.getTaxForPlanet.bind(this);
+  readonly boundGetPlayerShipStockEntries = this.getPlayerShipStockEntries.bind(this);
+  readonly boundGetPlayerShipStockTotal = this.getPlayerShipStockTotal.bind(this);
+  readonly boundGetProductionPanelVm = this.getProductionPanelVm.bind(this);
+  readonly boundGetSpaceportPanelVm = this.getSpaceportPanelVm.bind(this);
 
   // Ship type helpers
 
@@ -1220,6 +1506,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
       const didMoveFleets = this.updateFleets(deltaTime);
       const visibilityChanged = this.updateSensorVisibility();
 
+      const productionResult = this.productionService.tick(
+        deltaTime,
+        this,
+        this.starSystems,
+        this.fleets,
+        this.factions,
+      );
+      const productionChanged = productionResult.stateChanged;
+
       this.economyAccumulator += deltaTime;
       let economyUpdated = false;
       if (this.economyAccumulator >= this.economyTickInterval) {
@@ -1242,7 +1537,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         economyUpdated = true;
       }
 
-      if (didMoveFleets || economyUpdated || visibilityChanged) {
+      if (didMoveFleets || economyUpdated || visibilityChanged || productionChanged) {
         this.ngZone.run(() => this.cdr.detectChanges());
       }
     });
@@ -1583,6 +1878,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
       const didMoveFleets = this.updateFleets(deltaTime);
       const visibilityChanged = this.updateSensorVisibility();
 
+      const productionResult = this.productionService.tick(
+        deltaTime,
+        this,
+        this.starSystems,
+        this.fleets,
+        this.factions,
+      );
+      const productionChanged = productionResult.stateChanged;
+
       this.economyAccumulator += deltaTime;
       let economyUpdated = false;
       if (this.economyAccumulator >= this.economyTickInterval) {
@@ -1605,7 +1909,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
         economyUpdated = true;
       }
 
-      if (didMoveFleets || economyUpdated || visibilityChanged) {
+      if (didMoveFleets || economyUpdated || visibilityChanged || productionChanged) {
         this.ngZone.run(() => this.cdr.detectChanges());
       }
     });
@@ -1640,6 +1944,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
       targetY: this.targetY,
       destroyedFleetId: this.battleService.getDestroyedFleetId(),
       exploredGridCells: Array.from(this.exploredGridCells),
+      shipStock: this.shipStock,
+      production: this.production,
     };
 
     this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
@@ -1659,6 +1965,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.factions = data.factions;
     this.starSystems = data.starSystems;
     this.fleets = data.fleets ?? [];
+    this.shipStock = data.shipStock ?? [];
+    this.production = data.production ?? [];
 
     // Backward compatibility: old saves have no exploredGridCells or
     // StarSystem.explored. Default: all systems explored so old saves

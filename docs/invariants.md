@@ -117,3 +117,18 @@ Conditions that must remain true across the codebase. When changing any code tha
 - A fleet's effective sensor range is `max(fleet.sensorRange, maxShipRange)` where `maxShipRange` is the highest `ShipType.range` among the fleet's non-destroyed ships (0 if no non-destroyed ships). Computed by `StarMapSensorService.getFleetSensorRange()`.
 - Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` (minimum floor) defaults to 3.
 - `visibleFleets` filters out both destroyed fleets and fleets hidden by fog-of-war. The fleet-buttons sidebar and minimap use this filtered list.
+
+## Ship Production & Fleet Assembly Invariants
+
+- `StarMapData.shipStock` and `StarMapData.production` are empire-scoped (per faction), never planet-scoped. Adding ships to a faction's stock, removing from it, or queueing a production order never mutates another faction's data.
+- A `ShipStockEntry` has the same `{id, type, name}` shape as a `FleetShip` so `FleetAssemblyService` can push a stock entry into `fleet.ships` and existing battle / sensor / movement code reads it without changes.
+- Stock ship ids share the same id space as `FleetShip.id` and are unique per save (`ShipStockService.nextShipId` walks every fleet and every stock entry to allocate).
+- A `Military Spaceport` building is a permission flag, not a storage depot. The faction must have ≥1 such building on an owned planet to call `FleetAssemblyService.createFleet` or `reinforceFleet`. New fleets are placed at the host `StarSystem.x/y`; they may immediately be ordered to move.
+- Resource cost for a `ProductionOrder` is deducted from `faction.currencies['credits']` at queue time, not per-tick. `cancelOrder` and auto-cancel on factory loss refund the **un-built** portion only.
+- Per-planet production capacity = `count(Spaceship Factory on planet)`. Per-planet production power = same count × `0.5` progress/s. A `ShipType` whose `productionBuilding` is `orbital_factory` is rejected by `ProductionService.queueOrder` on planets lacking an Orbital Factory.
+- `ProductionService.tick` is called every frame from the `StarMap` game loop alongside `updateFleets` and the 1s `applyEconomyDelta`. The service is data-driven: it reads `planet.buildings` each tick so destroying a factory mid-build takes effect on the next tick (the order is then auto-cancelled after a stall timeout of 30s with a proportional refund).
+- `FleetAssemblyService.createFleet` allocates a new `Fleet.id` strictly greater than every existing fleet id (in fleets and stock). The new fleet is appended to `data.fleets`; existing movement / combat / economy code observes it without any further wiring.
+- `FleetAssemblyService.disbandFleet` returns surviving `FleetShip`s to the stock and marks the fleet `destroyed = true`. Destroyed ships in the fleet are lost (matches IG1). After disband the fleet is filtered out of `visibleFleets`, `updateFleets`, the battle detection pass, and `EconomyService.calculateEconomy` exactly like a battle-loss.
+- Reinforcement uses the same `stock -> fleet` path as creation; no fleet state outside `fleet.ships` is touched.
+- `SaveGameService.migrateSave` backfills `shipStock: []` and `production: []` so older saves load unchanged. Production `progress` and per-fleet composition both persist via the existing `StarMapData` root snapshot.
+

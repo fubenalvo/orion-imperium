@@ -1,0 +1,166 @@
+.spaceport-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  background: rgba(140, 196, 255, 0.05);
+  border: 1px solid var(--color-border, rgba(255, 255, 255, 0.15));
+  border-radius: 4px;
+  color: var(--color-text, #fff);
+  font-size: 0.85rem;
+  min-width: 320px;
+  max-width: 100%;
+}
+
+.spaceport-panel__title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-blue-light, #8cc4ff);
+}
+
+.spaceport-panel__close {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--color-text, #fff);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0.15rem 0.5rem;
+}
+
+.spaceport-panel__section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim, #888);
+  margin-bottom: 0.35rem;
+}
+
+.spaceport-panel__empty {
+  font-style: italic;
+  color: var(--color-text-dim, #888);
+}
+
+.spaceport-panel__systems,
+.spaceport-panel__planets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.spaceport-panel__system,
+.spaceport-panel__planet {
+  padding: 0.3rem 0.7rem;
+  background: rgba(140, 196, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--color-text, #fff);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.spaceport-panel__system:hover,
+.spaceport-panel__planet:hover {
+  background: rgba(140, 196, 255, 0.16);
+}
+
+.spaceport-panel__system--selected,
+.spaceport-panel__planet--selected {
+  border-color: var(--color-blue-light, #8cc4ff);
+  background: rgba(140, 196, 255, 0.2);
+  color: var(--color-blue-light, #8cc4ff);
+}
+
+.spaceport-panel__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  padding: 0.25rem 0;
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.spaceport-panel__row-name {
+  font-weight: 600;
+}
+
+.spaceport-panel__row-available {
+  color: var(--color-text-dim, #888);
+  font-size: 0.8rem;
+}
+
+.spaceport-panel__row-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.spaceport-panel__row-controls button {
+  width: 26px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--color-text, #fff);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.spaceport-panel__row-count {
+  min-width: 2ch;
+  text-align: center;
+  font-weight: 700;
+  color: var(--color-blue-light, #8cc4ff);
+}
+
+.spaceport-panel__input {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--color-text, #fff);
+  border-radius: 3px;
+  font-family: inherit;
+}
+
+.spaceport-panel__error {
+  color: #f44336;
+  font-size: 0.8rem;
+}
+
+.spaceport-panel__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.spaceport-panel__actions button {
+  padding: 0.4rem 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--color-text, #fff);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.spaceport-panel__actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.spaceport-panel__actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.spaceport-panel__actions button:last-child:not(:disabled) {
+  border-color: var(--color-blue-light, #8cc4ff);
+  color: var(--color-blue-light, #8cc4ff);
+}

@@ -297,3 +297,65 @@
     background: rgba(53, 134, 229, 0.25);
   }
 }
+
+/* =========================================================
+   PRODUCTION / MILITARY SPACEPORT PANELS (planet view)
+   ========================================================= */
+
+.planet-view__panels {
+  position: absolute;
+  right: 1.5%;
+  top: 4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: 50;
+}
+
+.planet-view__panel-toggle {
+  padding: 0.4rem 0.9rem;
+  background: rgba(140, 196, 255, 0.1);
+  border: 1px solid var(--color-blue-light);
+  color: var(--color-blue-light);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--font-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.planet-view__panel-toggle:hover {
+  background: rgba(140, 196, 255, 0.2);
+}
+
+/* Production panel mounts in the bottom-right of the planet view */
+app-star-map-production-panel,
+app-star-map-spaceport-panel {
+  position: absolute;
+  right: 1.5%;
+  bottom: 6rem;
+  width: min(420px, 50vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  z-index: 60;
+}
+
+.fleet-actions .action-btn.disband-btn {
+  border-color: #d65757;
+  color: #d65757;
+}
+
+.fleet-actions .action-btn.disband-btn:hover {
+  background: rgba(214, 87, 87, 0.15);
+}
+
+.fleet-actions .action-btn.reinforce-btn {
+  border-color: var(--color-blue-light);
+  color: var(--color-blue-light);
+}
+
+.fleet-actions .action-btn.reinforce-btn:hover {
+  background: rgba(140, 196, 255, 0.15);
+}
