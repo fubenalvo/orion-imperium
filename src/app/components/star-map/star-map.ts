@@ -418,40 +418,59 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.saveGame();
     if (this.selectedSystem) {
       this.currentView = 'system';
+      this.initFleetsInSystem(this.selectedSystem);
+      this.syncTargetFromSelectedFleet();
+    }
+  }
 
-      for (const fleet of this.fleets) {
-        if (fleet.destroyed) {
-          continue;
-        }
-
-        if (this.movementService.isFleetInSystem(fleet, this.selectedSystem)) {
-          if (!fleet.system) {
-            fleet.system = {
-              id: this.selectedSystem.id,
-              x: 2.5,
-              y: 32.5,
-              targetX: null,
-              targetY: null,
-            };
-          } else {
-            fleet.system.id = this.selectedSystem.id;
-          }
-          const sysCell = this.movementService.calculateSystemGridCell(
-            fleet.system.x,
-            fleet.system.y,
-          );
-          fleet.gridCol = sysCell.col;
-          fleet.gridRow = sysCell.row;
-        }
+  /*
+   * initFleetsInSystem: For every active fleet whose galaxy cell matches
+   * `system`, ensure `fleet.system` is set and re-derive `gridCol` /
+   * `gridRow` from `fleet.system.{x,y}`. This is what makes the system
+   * view actually render fleets after a save/restore round-trip and
+   * after `createFleet` spawns a new fleet on a planet cell.
+   */
+  private initFleetsInSystem(system: StarSystem): void {
+    for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
       }
 
-      if (this.selectedFleet && this.selectedFleet.system?.targetX != null) {
-        this.targetX = this.selectedFleet.system.targetX ?? null;
-        this.targetY = this.selectedFleet.system.targetY ?? null;
-      } else {
-        this.targetX = null;
-        this.targetY = null;
+      if (this.movementService.isFleetInSystem(fleet, system)) {
+        if (!fleet.system) {
+          fleet.system = {
+            id: system.id,
+            x: 2.5,
+            y: 32.5,
+            targetX: null,
+            targetY: null,
+          };
+        } else {
+          fleet.system.id = system.id;
+        }
+        const sysCell = this.movementService.calculateSystemGridCell(
+          fleet.system.x,
+          fleet.system.y,
+        );
+        fleet.gridCol = sysCell.col;
+        fleet.gridRow = sysCell.row;
       }
+    }
+  }
+
+  /*
+   * syncTargetFromSelectedFleet: Copy the selected fleet's movement
+   * target to the visible target marker, depending on the current view.
+   * Centralised so both `enterSystem` and the create-success path can
+   * use it.
+   */
+  private syncTargetFromSelectedFleet(): void {
+    if (this.selectedFleet && this.selectedFleet.system?.targetX != null) {
+      this.targetX = this.selectedFleet.system.targetX ?? null;
+      this.targetY = this.selectedFleet.system.targetY ?? null;
+    } else {
+      this.targetX = null;
+      this.targetY = null;
     }
   }
 
@@ -751,18 +770,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
       if (result.fleet) {
         // Place the new fleet on its host planet's system cell and
-        // transition into the system view via `enterSystem()` so the
-        // fleet-init loop runs. The loop normalises every active
-        // fleet's `gridCol` / `gridRow` from `fleet.system.{x,y}` —
-        // skipping it is what was leaving the sun, planets, and
-        // fleets invisible until the player manually re-entered the
-        // system.
+        // transition into the system view. The view flip MUST happen
+        // before `selectFleet` because `selectFleet` clears
+        // `selectedSystem` whenever it is called from a non-system
+        // view (`star-map.ts:971-973`). If the order is wrong,
+        // `selectedSystem` is nulled and the system-view template
+        // renders as a blank grid.
         const hostSystem = this.starSystems.find((s) => s.id === event.systemId);
         if (hostSystem) {
           this.selectSystem(hostSystem);
         }
+        this.currentView = 'system';
+        if (hostSystem) {
+          this.initFleetsInSystem(hostSystem);
+        }
         this.selectFleet(result.fleet);
-        this.enterSystem();
       }
     }
     this.spaceportError = null;

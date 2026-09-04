@@ -63,12 +63,16 @@ is written to `gridCol` / `gridRow` so battle detection, sensor range,
 and the `@if (selectedSystem)` system view template see the fleet
 immediately on frame 1.
 
-`StarMap.onSpaceportConfirm` calls `enterSystem()` on create success.
-`enterSystem` not only sets `currentView = 'system'` but also runs the
-fleet-init loop that re-derives every active fleet's `gridCol` /
-`gridRow` from `fleet.system.{x,y}`. Skipping that loop is what left
-the sun, planets, and fleets invisible until the player manually
-re-entered the system.
+`StarMap.onSpaceportConfirm` flips `currentView` to `'system'` and
+runs `initFleetsInSystem` (the loop that re-derives every active
+fleet's `gridCol` / `gridRow` from `fleet.system.{x,y}`) **before**
+calling `selectFleet`. The ordering matters: `selectFleet` clears
+`selectedSystem` whenever it runs from a non-system view, so calling
+it first would leave the system-view template's
+`@if (selectedSystem)` guard false and the grid would render blank.
+With the correct ordering the system view renders the sun, planets,
+and all fleets (including the freshly created one on the host
+planet's cell) immediately.
 
 ## Production completion → Global Ship Stock
 

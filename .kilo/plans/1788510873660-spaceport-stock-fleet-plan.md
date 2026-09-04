@@ -1,144 +1,136 @@
-# Plan: Fix blank system view after Create Fleet
+# Plan: Fix blank screen after Create Fleet — real root cause
 
 ## Context
 
-The previous step made the new fleet spawn at the host planet's
-system-grid cell and switched the view to `system` via
-`leavePlanetView()`. The user reports the system view now opens but
-the sun, planets, and fleets are all missing. Pressing
-**BACK TO STAR-MAP** and re-entering the system renders everything
-correctly.
+Two previous attempts to fix the blank-screen-after-Create-Fleet symptom
+did not work. The actual root cause is a state-ordering bug in
+`StarMap.onSpaceportConfirm`:
 
-### Root cause
+`selectFleet(fleet)` (`star-map.ts:968-…`) contains this guard:
 
-`enterSystem()` (`star-map.ts:417-456`) does more than flip
-`currentView` to `'system'`. It also runs a fleet initialisation
-loop (`star-map.ts:422-446`) that, for every active fleet in the
-selected system, ensures `fleet.system` is set and re-derives
-`gridCol` / `gridRow` from `fleet.system.x` / `fleet.system.y` via
-`calculateSystemGridCell`. `leavePlanetView()` (`star-map.ts:1043-1046`)
-only does `currentView = 'system'` plus a save — no fleet
-synchronisation.
+```ts
+if (this.currentView !== 'system') {
+  this.selectedSystem = null;
+}
+```
 
-The system-view template
-(`star-map.html:251-346`) gates the sun, planets, sensor cells, and
-the `@for (fleet of visibleFleets)` block on `@if (selectedSystem)`.
-The user's symptom (HUD chrome visible, system grid empty) matches
-the case where the outer `@else if (currentView === 'system')`
-branch is active but the inner `@if (selectedSystem)` is **not**.
-After the create-success path runs:
+It clears the selected system whenever a fleet is selected from a view
+that is not the system view. The create-success path in
+`onSpaceportConfirm` does:
 
-1. `selectSystem(hostSystem)` sets `this.selectedSystem = system`,
-   clears `selectedFleet` and `selectedPlanetTile`, and calls
-   `this.cdr.detectChanges()`.
-2. `selectFleet(result.fleet)` sets `this.selectedFleet = result.fleet`.
-3. `leavePlanetView()` sets `this.currentView = 'system'` and saves.
+1. `selectSystem(hostSystem)` — sets `selectedSystem`.
+2. `selectFleet(result.fleet)` — at this point `currentView` is still
+   `'planet'`, so the guard fires and `selectedSystem` is reset to
+   `null`.
+3. `enterSystem()` — its body is guarded by
+   `if (this.selectedSystem)`, so it does nothing.
 
-In practice the template's `@if (selectedSystem)` evaluates true at
-the end of the event handler's CD cycle, so the grid should
-populate. The user-perceived blank screen is most consistent with
-the fleet-init loop never having run for the **new** fleet in the
-current CD pass, combined with a `gridCol` / `gridRow` mismatch on
-one of the pre-existing fleets that the save/restore round-trip
-has left in a slightly off state. The `enterSystem` re-entry is
-what makes the discrepancy visible (the loop normalises every
-fleet's `gridCol` / `gridRow` to match `fleet.system.{x,y}`).
+The net result: `currentView` stays `'planet'`, `selectedSystem` is
+`null`, `selectedPlanetTile` is `null` (cleared by `selectSystem`).
+The planet-view template branch renders, but its inner
+`@if (selectedPlanetTile)` block (the actual planet surface) is
+hidden, and `<app-star-map-planet-info>` (the planet details window)
+is also hidden. The user is left looking at the empty planet-view
+HUD chrome and concludes "the system view is blank".
 
-The robust fix is to call `enterSystem()` on the create-success
-path. That guarantees the same code path the user takes when
-manually leaving and re-entering the system, and it eliminates
-the "blank vs. populated" discrepancy at its source.
+When the user manually presses **BACK TO STAR-MAP**
+(`leavePlanetView()` sets `currentView = 'system'`) and re-enters
+(`enterSystem()` — now `selectedSystem` is set because the manual
+`leaveSystem` → `selectSystem` on the galaxy map restored it), the
+template renders correctly.
 
 ## Design Decisions
 
 | Decision | Choice | Reason |
 |---|---|---|
-| Transition method on create success | `enterSystem()` (after `selectSystem(hostSystem)` + `selectFleet(result.fleet)`) | Runs the fleet-init loop. Matches the working "leave + re-enter" path. |
-| Drop the `leavePlanetView` branch | Yes — it is now dead code (create-success never goes through it) | Avoids a second transition path that re-introduces the bug. |
-| Drop the `enterSystem` map-view branch | Yes — create only happens from the planet view | The Spaceport panel's "Assemble Fleet" button lives in the planet view (`star-map.html:425`). Map-view create is not reachable. |
+| Fix ordering in `onSpaceportConfirm` | Set `currentView = 'system'` before `selectFleet` | Avoids the `selectFleet` guard clearing `selectedSystem`. `enterSystem()` then becomes a no-op (its guard fails) but the view is already `'system'`, so we do not need its body. |
+| Drop the `enterSystem()` call | Yes | With `currentView` already set and `selectSystem` already having set `selectedSystem`, the fleet-init loop is the only useful side-effect of `enterSystem`. We can run it explicitly to keep the symmetry with the manual re-entry path. |
+| Run the fleet-init loop explicitly | Yes | Keeps `gridCol` / `gridRow` for every active fleet in the system synchronised with `fleet.system.{x,y}`. This is what `enterSystem` does and is what makes the manual re-entry path "fix" the view. |
 
 ## Implementation Steps
 
-### 1. Replace the post-create view transition
+### 1. Reorder `onSpaceportConfirm` create-success branch
 
 **File:** `src/app/components/star-map/star-map.ts`
 
-In `onSpaceportConfirm` (around `star-map.ts:752-768`), simplify the
-create-success branch to:
+In the `if (result.fleet) { ... }` block of `onSpaceportConfirm`
+(`star-map.ts:752-766`), change the order so that `currentView` is
+flipped to `'system'` **before** `selectFleet` is called. This avoids
+the `selectFleet` guard clearing `selectedSystem`. The new order:
 
-1. Resolve `hostSystem` (unchanged).
-2. Call `selectSystem(hostSystem)` so `selectedSystem` is set and
-   `selectFleet` has a clean fleet-only state.
-3. Call `selectFleet(result.fleet)` so the new fleet is the
-   active selection.
-4. Call `enterSystem()` — this sets `currentView = 'system'`,
-   runs the fleet init loop, and synchronises `gridCol` /
-   `gridRow` for every fleet in the system.
+1. Resolve `hostSystem` from `event.systemId`.
+2. `selectSystem(hostSystem)` — sets `selectedSystem`, clears
+   `selectedPlanetTile` and any pre-existing `selectedFleet`.
+3. `this.currentView = 'system'` — explicit view flip, runs first so
+   the `selectFleet` guard sees `'system'`.
+4. Run the fleet-init loop manually (the same loop from
+   `enterSystem`, `star-map.ts:422-446`) for every active fleet whose
+   galaxy cell matches `hostSystem`. This normalises
+   `gridCol` / `gridRow` from `fleet.system.{x,y}`.
+5. `selectFleet(result.fleet)` — now safe: `currentView === 'system'`
+   so the guard does not clear `selectedSystem`.
 
-The `if (this.currentView === 'planet')` / `else if
-(this.currentView === 'map')` branches are removed; `enterSystem`
-handles both cases correctly (`enterSystem` only requires
-`this.selectedSystem` to be truthy, which `selectSystem` just
-guaranteed).
+Drop the standalone `enterSystem()` call: with the view already
+flipped and the init loop run inline, `enterSystem` would be a
+no-op (its `if (this.selectedSystem)` body would re-run the same
+loop).
 
-### 2. Sanity-check: ensure `enterSystem` does not break the planet view
+### 2. Extract the fleet-init loop into a private helper
 
-`enterSystem` sets `currentView = 'system'`, which is the desired
-post-create state. The user was in `'planet'` and is now
-transitioning to `'system'`. The planet view's
-`<app-star-map-planet-screen>` is gated on `selectedPlanetTile`,
-which `selectSystem` cleared, so the planet view's own surface
-component was already being unmounted before the view transition.
-`enterSystem` is safe to call from any starting view provided
-`selectedSystem` is set, which it now is.
+**File:** `src/app/components/star-map/star-map.ts`
+
+`enterSystem` and the new create-success path both need the
+fleet-init loop. Extract it into `private initFleetsInSystem(system)`
+to avoid duplication. `enterSystem` then calls
+`this.initFleetsInSystem(this.selectedSystem)` instead of inlining
+the loop.
+
+This is a small refactor: move lines `422-446` of `enterSystem` into
+the helper, then call the helper from both `enterSystem` and
+`onSpaceportConfirm`.
 
 ### 3. Documentation touch-up
 
 **File:** `docs/ship-production.md`
 
-Replace the existing one-line note about "the player is on the
-planet surface" with a note that `enterSystem()` is invoked on
-create success so the fleet init loop runs and the system view
-renders consistently with the rest of the game.
+Update the existing "Fleet spawn position and view transition"
+section to note that the create-success path sets
+`currentView = 'system'` before selecting the new fleet, because
+`selectFleet` clears `selectedSystem` when called from a non-system
+view.
 
 ## Files Modified
 
 | File | Change |
 |---|---|
-| `src/app/components/star-map/star-map.ts` | `onSpaceportConfirm` create branch: drop the `leavePlanetView` / `enterSystem`-map branches, call `enterSystem()` unconditionally after `selectSystem` + `selectFleet`. |
-| `docs/ship-production.md` | One-line doc update matching the new transition. |
+| `src/app/components/star-map/star-map.ts` | Reorder `onSpaceportConfirm` create-success branch; extract fleet-init loop into a private helper; have both `enterSystem` and the create-success path call it. |
+| `docs/ship-production.md` | Document the ordering constraint. |
 
 No new files, no service changes, no template changes.
 
 ## Validation Plan
 
-1. **Repro the original symptom** — save the game, go to a player
-   planet with a Spaceport, enter planet view, open Spaceport
-   panel, queue a Corvette, press **Create Fleet**. The system
-   view must now show the sun, the planets, all existing fleets
-   in the system, and the new fleet on the host planet's system
-   cell, with the new fleet selected.
-2. **Fleet on a different planet** — create the fleet from a
-   planet that is not the leftmost; the new fleet must appear on
-   that planet's actual system-grid cell (zigzag layout from
-   `getPlanetGridPosition`).
-3. **Reinforce still works** — select an existing fleet, click
-   **REINFORCE**, add 1 ship, confirm. Reinforce goes through a
-   separate branch and is not affected; spot-check that the
-   existing fleet's position does not change.
-4. **Save / load** — save after create, reload, the new fleet is
-   on the host planet's cell, sun/planets/fleets all render
-   immediately on re-entry.
-5. **No regression on the manual "leave + re-enter" path** — the
-   user can still press **BACK TO STAR-MAP** and click the system
-   to enter; that path is untouched and remains the fallback
-   recovery.
+1. **Repro the original symptom** — open planet view on a player
+   planet with a Spaceport, open the Spaceport panel, queue a ship,
+   press **Create Fleet**. The system view must render with the sun,
+   the planets, the existing fleets, and the new fleet on the host
+   planet's system cell.
+2. **`selectSystem` / `selectFleet` ordering** — add a temporary
+   `console.log` (or rely on the visual) to confirm `selectedSystem`
+   is non-null immediately after `selectFleet` returns inside
+   `onSpaceportConfirm`.
+3. **Create from a non-first planet** — the new fleet must appear on
+   that planet's actual system-grid cell.
+4. **Save / load** — save after create, reload, the new fleet is on
+   the host planet's cell, system view renders.
+5. **No regression on the manual re-entry path** — leave + re-enter
+   the system still works (now via the extracted helper).
 
 ## Out of Scope
 
-- Animating the fleet in.
+- Fixing `selectFleet` to not clear `selectedSystem` (it is the
+  correct behaviour when the user picks a fleet from the map view —
+  the system selection is no longer relevant). The fix lives in
+  the caller, not in `selectFleet`.
+- Changing the visual transition (animation, fade).
 - Multi-spawn when the cell is occupied.
-- A separate "spawn position" field per ship type.
-- Redesigning `enterSystem` to be idempotent or split the
-  fleet-init loop into a reusable helper. Both are tempting but
-  out of scope for this fix.
