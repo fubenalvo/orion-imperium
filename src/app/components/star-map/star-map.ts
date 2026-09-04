@@ -57,9 +57,15 @@ import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-
 import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
 import { FactionCurrenciesComponent } from './faction-currencies/faction-currencies.component';
-import { StarMapShipStockComponent, ShipStockEntryDisplay } from './star-map-ship-stock/star-map-ship-stock.component';
-import { StarMapProductionPanelComponent, ProductionPanelViewModel, QueueOrderRequest } from './star-map-production-panel/star-map-production-panel.component';
-import { StarMapSpaceportPanelComponent, SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
+import {
+  StarMapShipStockComponent,
+  ShipStockEntryDisplay,
+} from './star-map-ship-stock/star-map-ship-stock.component';
+import {
+  ProductionPanelViewModel,
+  QueueOrderRequest,
+} from './star-map-production-panel/star-map-production-panel.component';
+import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
 
 export type { StarMapData } from './star-map.models';
 
@@ -99,8 +105,6 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapContextMenuComponent,
     FactionCurrenciesComponent,
     StarMapShipStockComponent,
-    StarMapProductionPanelComponent,
-    StarMapSpaceportPanelComponent,
     NgClass,
   ],
   templateUrl: './star-map.html',
@@ -284,7 +288,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (fleet.factionId === 'player') {
       return true;
     }
-    if (this.currentView === 'system' && this.selectedSystem && fleet.system?.id === this.selectedSystem.id) {
+    if (
+      this.currentView === 'system' &&
+      this.selectedSystem &&
+      fleet.system?.id === this.selectedSystem.id
+    ) {
       return true;
     }
     const col = Math.floor(fleet.x);
@@ -364,7 +372,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * Returns the sensor range cells for the selected fleet in system view,
    * split into fully-clear cells and outer-ring preview cells.
    */
-  get systemSensorCells(): { cells: { col: number; row: number }[]; preview: { col: number; row: number }[] } {
+  get systemSensorCells(): {
+    cells: { col: number; row: number }[];
+    preview: { col: number; row: number }[];
+  } {
     if (!this.sensorRangeEnabled || !this.selectedFleet || !this.selectedFleet.system?.id) {
       return { cells: [], preview: [] };
     }
@@ -646,7 +657,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const available = summary
       .map((entry) => {
         const type = this.shipService.getShipType(entry.typeId);
-        return { typeId: entry.typeId, typeName: type?.name ?? entry.typeId, available: entry.count };
+        return {
+          typeId: entry.typeId,
+          typeName: type?.name ?? entry.typeId,
+          available: entry.count,
+        };
       })
       .sort((a, b) => a.typeName.localeCompare(b.typeName));
     return {
@@ -706,17 +721,28 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (!this.selectedPlanetTile) {
       return;
     }
-    this.productionService.cancelOrder(this, 'player', this.selectedPlanetTile.id, orderId, this.factions);
+    this.productionService.cancelOrder(
+      this,
+      'player',
+      this.selectedPlanetTile.id,
+      orderId,
+      this.factions,
+    );
     this.saveGame();
   }
 
   private describeProductionError(reason: string | undefined): string {
     switch (reason) {
-      case 'no_factory': return 'No factory on this planet.';
-      case 'insufficient_resources': return 'Not enough credits.';
-      case 'invalid_type': return 'Invalid ship type.';
-      case 'invalid_quantity': return 'Invalid quantity.';
-      default: return 'Could not queue order.';
+      case 'no_factory':
+        return 'No factory on this planet.';
+      case 'insufficient_resources':
+        return 'Not enough credits.';
+      case 'invalid_type':
+        return 'Invalid ship type.';
+      case 'invalid_quantity':
+        return 'Invalid quantity.';
+      default:
+        return 'Could not queue order.';
     }
   }
 
@@ -727,7 +753,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
     this.spaceportMode = mode;
     this.spaceportTargetFleetId = fleetId;
-    this.spaceportFleetName = mode === 'create' ? this.suggestFleetName() : (this.fleets.find((f) => f.id === fleetId)?.name ?? 'New Fleet');
+    this.spaceportFleetName =
+      mode === 'create'
+        ? this.suggestFleetName()
+        : (this.fleets.find((f) => f.id === fleetId)?.name ?? 'New Fleet');
     this.spaceportError = null;
     this.showSpaceportPanel = true;
   }
@@ -737,33 +766,31 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.spaceportError = null;
   }
 
-  onSpaceportConfirm(event: { fleetName: string; composition: { typeId: string; count: number }[]; systemId: string; planetId: number; fleetId: number | null }): void {
+  onSpaceportConfirm(event: {
+    fleetName: string;
+    composition: { typeId: string; count: number }[];
+    systemId: string;
+    planetId: number;
+    fleetId: number | null;
+  }): void {
     if (event.fleetId != null) {
-      const result = this.fleetAssemblyService.reinforceFleet(
-        this,
-        this.starSystems,
-        {
-          factionId: 'player',
-          fleetId: event.fleetId,
-          composition: event.composition,
-        },
-      );
+      const result = this.fleetAssemblyService.reinforceFleet(this, this.starSystems, {
+        factionId: 'player',
+        fleetId: event.fleetId,
+        composition: event.composition,
+      });
       if (!result.ok) {
         this.spaceportError = this.describeAssemblyError(result.reason);
         return;
       }
     } else {
-      const result = this.fleetAssemblyService.createFleet(
-        this,
-        this.starSystems,
-        {
-          factionId: 'player',
-          fleetName: event.fleetName,
-          systemId: event.systemId,
-          planetId: event.planetId,
-          composition: event.composition,
-        },
-      );
+      const result = this.fleetAssemblyService.createFleet(this, this.starSystems, {
+        factionId: 'player',
+        fleetName: event.fleetName,
+        systemId: event.systemId,
+        planetId: event.planetId,
+        composition: event.composition,
+      });
       if (!result.ok) {
         this.spaceportError = this.describeAssemblyError(result.reason);
         return;
@@ -834,7 +861,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (!this.selectedFleet) {
       return;
     }
-    const ok = window.confirm(`Disband ${this.selectedFleet.name}? Surviving ships return to the global stock.`);
+    const ok = window.confirm(
+      `Disband ${this.selectedFleet.name}? Surviving ships return to the global stock.`,
+    );
     if (!ok) {
       return;
     }
@@ -845,15 +874,36 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return this.spaceportService.hasSpaceport('player', this.starSystems);
   }
 
+  hasFactoryOnSelectedPlanet(): boolean {
+    if (!this.selectedPlanetTile) {
+      return false;
+    }
+    return this.productionService.getPlanetCapacity(this.selectedPlanetTile) > 0;
+  }
+
+  hasSpaceportOnSelectedPlanet(): boolean {
+    if (!this.selectedPlanetTile) {
+      return false;
+    }
+    return this.spaceportService.isSpaceportPlanet(this.selectedPlanetTile);
+  }
+
   private describeAssemblyError(reason: string | undefined): string {
     switch (reason) {
-      case 'no_spaceport': return 'No Spaceport available.';
-      case 'insufficient_stock': return 'Not enough ships in stock.';
-      case 'invalid_composition': return 'Select at least one ship.';
-      case 'invalid_target': return 'Invalid assembly point.';
-      case 'fleet_not_found': return 'Fleet not found.';
-      case 'enemy_fleet': return 'Cannot modify an enemy fleet.';
-      default: return 'Assembly failed.';
+      case 'no_spaceport':
+        return 'No Spaceport available.';
+      case 'insufficient_stock':
+        return 'Not enough ships in stock.';
+      case 'invalid_composition':
+        return 'Select at least one ship.';
+      case 'invalid_target':
+        return 'Invalid assembly point.';
+      case 'fleet_not_found':
+        return 'Fleet not found.';
+      case 'enemy_fleet':
+        return 'Cannot modify an enemy fleet.';
+      default:
+        return 'Assembly failed.';
     }
   }
 
@@ -900,6 +950,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetPlayerShipStockTotal = this.getPlayerShipStockTotal.bind(this);
   readonly boundGetProductionPanelVm = this.getProductionPanelVm.bind(this);
   readonly boundGetSpaceportPanelVm = this.getSpaceportPanelVm.bind(this);
+  readonly boundHasFactory = this.hasFactoryOnSelectedPlanet.bind(this);
+  readonly boundHasSpaceportOnSelectedPlanet = this.hasSpaceportOnSelectedPlanet.bind(this);
 
   // Ship type helpers
 
@@ -1089,7 +1141,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.selectedFleet = null;
 
     if (this.selectedPlanetTile && this.selectedPlanetTile.id !== tile.id) {
-      console.log('[StarMap] selectPlanetTile: closing window from', this.selectedPlanetTile.name, '-> switching to', tile.name);
+      console.log(
+        '[StarMap] selectPlanetTile: closing window from',
+        this.selectedPlanetTile.name,
+        '-> switching to',
+        tile.name,
+      );
       this.selectedPlanetTile = null;
       this.cdr.detectChanges();
     }
@@ -1265,7 +1322,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   // Movement
 
   /** Validates whether the selected fleet can move to the given system grid coordinates. */
-  private validateFleetMove(targetX: number, targetY: number): 'allowed' | 'blocked-team' | 'blocked-ours' {
+  private validateFleetMove(
+    targetX: number,
+    targetY: number,
+  ): 'allowed' | 'blocked-team' | 'blocked-ours' {
     if (this.currentView !== 'system' || !this.selectedSystem || !this.selectedFleet) {
       return 'allowed';
     }
@@ -1640,7 +1700,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.triggeredBattles,
     );
 
-     return didMoveFleets;
+    return didMoveFleets;
   }
 
   /**
@@ -1693,7 +1753,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
-    const changed = force ||
+    const changed =
+      force ||
       this.sensorRangeCells.size !== oldCellCount ||
       this.sensorPreviewCells.size !== oldPreviewCount ||
       this.exploredGridCells.size !== oldExploredCount ||
@@ -1781,7 +1842,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
           break;
         }
 
-        console.log('[PLANET ARRIVAL] Fleet', fleet.id, fleet.name, 'factionId:', fleet.factionId, 'arrived at planet', planet.id, planet.name, 'factionId:', planet.factionId, 'cell:', fleetCell);
+        console.log(
+          '[PLANET ARRIVAL] Fleet',
+          fleet.id,
+          fleet.name,
+          'factionId:',
+          fleet.factionId,
+          'arrived at planet',
+          planet.id,
+          planet.name,
+          'factionId:',
+          planet.factionId,
+          'cell:',
+          fleetCell,
+        );
         this.fleetPlanetMap.set(fleet.id, planet.id);
         this.handleFleetPlanetArrival(fleet, planet);
         break;
@@ -1798,25 +1872,33 @@ export class StarMap implements AfterViewInit, OnDestroy {
         planet.factionId = fleet.factionId;
         console.log(`[StarMap] Fleet ${fleet.name} colonized ${planet.name}`);
       } else {
-        console.log(`[StarMap] Fleet ${fleet.name} orbiting uninhabited ${planet.name} (no colonizer)`);
+        console.log(
+          `[StarMap] Fleet ${fleet.name} orbiting uninhabited ${planet.name} (no colonizer)`,
+        );
       }
       this.saveGame();
       return;
     }
 
     if (planet.factionId === fleet.factionId) {
-      console.log(`[StarMap] Fleet ${fleet.name} arrived at own planet ${planet.name} (factionId: ${planet.factionId})`);
+      console.log(
+        `[StarMap] Fleet ${fleet.name} arrived at own planet ${planet.name} (factionId: ${planet.factionId})`,
+      );
       return;
     }
 
     const planetFaction = this.factions.find((f) => f.id === planet.factionId);
     const fleetFaction = this.factions.find((f) => f.id === fleet.factionId);
     if (!planetFaction || !fleetFaction) {
-      console.log(`[StarMap] Faction not found - planetFaction: ${planetFaction?.id}, fleetFaction: ${fleetFaction?.id}`);
+      console.log(
+        `[StarMap] Faction not found - planetFaction: ${planetFaction?.id}, fleetFaction: ${fleetFaction?.id}`,
+      );
       return;
     }
 
-    console.log(`[StarMap] Fleet ${fleet.name} (${fleetFaction.name}, team ${fleetFaction.team}) vs planet ${planet.name} (${planetFaction.name}, team ${planetFaction.team})`);
+    console.log(
+      `[StarMap] Fleet ${fleet.name} (${fleetFaction.name}, team ${fleetFaction.team}) vs planet ${planet.name} (${planetFaction.name}, team ${planetFaction.team})`,
+    );
 
     if (planetFaction.team === fleetFaction.team) {
       console.log(`[StarMap] Fleet ${fleet.name} cannot attack teammate planet ${planet.name}`);
@@ -1852,10 +1934,38 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.triggeredBattles.add(battleKey);
     }
 
-    console.log('[PLANET BATTLE] Attacker:', JSON.stringify({ id: attackerFleet.id, name: attackerFleet.name, factionId: attackerFleet.factionId, ships: attackerFleet.ships.map(s => ({ type: s.type, hp: s.currentHp })) }));
-    console.log('[PLANET BATTLE] Planet:', JSON.stringify({ id: targetPlanet.id, name: targetPlanet.name, factionId: targetPlanet.factionId, buildings: targetPlanet.buildings.map(b => b.name) }));
-    console.log('[PLANET BATTLE] Garrison:', garrisonFleet ? JSON.stringify({ id: garrisonFleet.id, name: garrisonFleet.name, factionId: garrisonFleet.factionId }) : 'none');
-    console.log('[PLANET BATTLE] Virtual Defense Fleet ships:', JSON.stringify(defenseFleet.ships.map(s => ({ type: s.type, name: s.name }))));
+    console.log(
+      '[PLANET BATTLE] Attacker:',
+      JSON.stringify({
+        id: attackerFleet.id,
+        name: attackerFleet.name,
+        factionId: attackerFleet.factionId,
+        ships: attackerFleet.ships.map((s) => ({ type: s.type, hp: s.currentHp })),
+      }),
+    );
+    console.log(
+      '[PLANET BATTLE] Planet:',
+      JSON.stringify({
+        id: targetPlanet.id,
+        name: targetPlanet.name,
+        factionId: targetPlanet.factionId,
+        buildings: targetPlanet.buildings.map((b) => b.name),
+      }),
+    );
+    console.log(
+      '[PLANET BATTLE] Garrison:',
+      garrisonFleet
+        ? JSON.stringify({
+            id: garrisonFleet.id,
+            name: garrisonFleet.name,
+            factionId: garrisonFleet.factionId,
+          })
+        : 'none',
+    );
+    console.log(
+      '[PLANET BATTLE] Virtual Defense Fleet ships:',
+      JSON.stringify(defenseFleet.ships.map((s) => ({ type: s.type, name: s.name }))),
+    );
 
     this.battleService.setPlanetBattle({
       fleet1: attackerFleet,
@@ -2145,8 +2255,21 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (this.saveGameService.currentSlot === null) return;
     console.log('[RELOAD AFTER BATTLE] Reloading game state from save...');
     this.loadGame();
-    console.log('[RELOAD AFTER BATTLE] Planets:', this.starSystems.flatMap(s => s.planetsTiles).map(p => ({ id: p.id, name: p.name, factionId: p.factionId })));
-    console.log('[RELOAD AFTER BATTLE] Fleets:', this.fleets.map(f => ({ id: f.id, name: f.name, factionId: f.factionId, destroyed: f.destroyed })));
+    console.log(
+      '[RELOAD AFTER BATTLE] Planets:',
+      this.starSystems
+        .flatMap((s) => s.planetsTiles)
+        .map((p) => ({ id: p.id, name: p.name, factionId: p.factionId })),
+    );
+    console.log(
+      '[RELOAD AFTER BATTLE] Fleets:',
+      this.fleets.map((f) => ({
+        id: f.id,
+        name: f.name,
+        factionId: f.factionId,
+        destroyed: f.destroyed,
+      })),
+    );
     this.removeDestroyedFleetFromService();
     this.cdr.detectChanges();
   }

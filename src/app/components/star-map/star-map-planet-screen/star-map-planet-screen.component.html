@@ -52,164 +52,214 @@
       }
     </div>
 
-    @if (showBuildMenu) {
-      <div class="build-overlay">
-        <div class="build-overlay__panel">
-          <div class="build-overlay__title">SELECT BUILDING</div>
-          <div class="build-overlay__list">
-            @for (building of buildingTypes; track building.id) {
-              <button
-                class="build-overlay__item"
-                type="button"
-                [disabled]="!canAfford(building)"
-                (click)="selectBuildingType(building.id)"
-              >
-                <span class="build-overlay__name">{{ building.name }}</span>
-                <span class="build-overlay__price">{{ building.price }} CR</span>
-              </button>
-            }
-          </div>
-          <button class="build-overlay__close" type="button" (click)="closeBuildMenu()">
-            CLOSE
-          </button>
-        </div>
-      </div>
-    }
-
-    <!-- DETAILS SIDEBAR -->
+    <!-- DETAILS / BUILD / ASSEMBLY / PRODUCTION SIDEBAR -->
     <div class="planet-sidebar panel-style">
       <div class="panel-style__title">{{ planet?.name }} SURFACE</div>
 
-      <div class="planet-sidebar__buttons">
-        @if (!isBuildMode) {
-          <button class="planet-sidebar__btn" type="button" (click)="openBuildMenu()">BUILD</button>
-          <button class="planet-sidebar__btn" type="button">DETAILS</button>
-        } @else {
-          <button class="planet-sidebar__btn" type="button" (click)="exitBuildMode()">
-            CANCEL
+      <div class="planet-sidebar__tabs">
+        @for (tab of availableTabs; track tab) {
+          <button
+            class="planet-sidebar__tab"
+            [class.planet-sidebar__tab--active]="activeTab === tab"
+            type="button"
+            (click)="setTab(tab)"
+          >
+            @switch (tab) {
+              @case ('build') {
+                BUILD
+              }
+              @case ('assembly') {
+                ASSEMBLY
+              }
+              @case ('production') {
+                PRODUCTION
+              }
+              @default {
+                DETAILS
+              }
+            }
           </button>
-          @if (selectedBuildingType) {
-            <span class="planet-sidebar__build-preview"
-              >{{ selectedBuildingType.name }} ({{ selectedBuildingType.size }}x{{
-                selectedBuildingType.size
-              }})</span
-            >
-          }
         }
       </div>
 
       <div class="planet-sidebar__content">
-        @if (isBuildMode) {
-          @if (selectedCell) {
-            @if (isPreviewValid) {
-              <button
-                class="planet-sidebar__btn planet-sidebar__btn--build"
-                type="button"
-                (click)="confirmBuild()"
-              >
-                BUILD
-              </button>
-            } @else {
-              <div class="planet-sidebar__build-error">{{ buildError }}</div>
-            }
-          } @else {
-            <div class="planet-sidebar__build-hint">
-              Click a cell on the surface to place the building.
-            </div>
-          }
-        } @else {
-          <div class="planet-sidebar__info-row">
-            <span>TYPE</span>
-            <span>{{ planet?.type | uppercase }}</span>
-          </div>
-
-          <div class="planet-sidebar__info-row">
-            <span>FACTION</span>
-            <span [style.color]="getFactionColor(planet!.factionId)">{{
-              getFactionName(planet!.factionId)
-            }}</span>
-          </div>
-
-          <div class="planet-sidebar__currencies">
-            <app-faction-currencies
-              [currencies]="getFactionCurrencies(planet!.factionId)"
-            ></app-faction-currencies>
-          </div>
-
-          <hr class="planet-sidebar__divider" />
-
-          <div class="planet-sidebar__info-row">
-            <span>POPULATION</span>
-            <span>{{ planet?.population }}</span>
-          </div>
-
-          @if (planetEconomy) {
-            <div class="planet-sidebar__info-row">
-              <span>ENERGY</span>
-              <span
-                >{{ planetEconomy.energyProduction | number: '1.0-0' }} /
-                {{ planetEconomy.energyConsumption | number: '1.0-0' }}</span
-              >
-            </div>
-
-            <div
-              class="planet-sidebar__info-row"
-              [class.planet-sidebar__info-row--danger]="planetEconomy.energyBalance < 0"
-            >
-              <span>ENERGY BAL</span>
-              <span>{{ planetEconomy.energyBalance | number: '1.0-0' }}</span>
-            </div>
-
-            <div class="planet-sidebar__info-row">
-              <span>INCOME</span>
-              <span
-                >{{
-                  (planetEconomy.netRates['credits'] ?? 0) * (planetEconomy.incomeMultiplier ?? 1)
-                    | number: '1.0-0'
-                }}/s</span
-              >
-            </div>
-
-            <div
-              class="planet-sidebar__info-row"
-              [class.planet-sidebar__info-row--warn]="
-                planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0
-              "
-              [class.planet-sidebar__info-row--danger]="planetEconomy.satisfaction <= 0"
-            >
-              <span>SATISFACTION</span>
-              <span>{{ planetEconomy.satisfaction | number: '1.0-0' }}%</span>
-            </div>
-
-            <div class="planet-economy">
-              <div class="planet-economy__title">ECONOMY</div>
-              @for (resource of ['rawmaterials', 'research']; track resource) {
-                <div class="planet-sidebar__info-row">
-                  <span>{{ resource | uppercase }}</span>
-                  <span
-                    >{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : ''
-                    }}{{ $any(planetEconomy.netRates)[resource] | number: '1.0-0' }}/s</span
+        @switch (activeTab) {
+          @case ('build') {
+            @if (!isBuildMode) {
+              <div class="planet-sidebar__build-list">
+                @for (building of buildingTypes; track building.id) {
+                  <button
+                    class="planet-sidebar__build-item"
+                    type="button"
+                    [disabled]="!canAfford(building)"
+                    (click)="selectBuildingType(building.id)"
                   >
+                    <span class="planet-sidebar__build-name">{{ building.name }}</span>
+                    <span class="planet-sidebar__build-price">{{ building.price }} CR</span>
+                  </button>
+                }
+              </div>
+            } @else {
+              <div class="planet-sidebar__build-active">
+                <div class="planet-sidebar__build-preview">
+                  {{ selectedBuildingType?.name }}
+                  ({{ selectedBuildingType?.size }}x{{ selectedBuildingType?.size }})
+                </div>
+                @if (selectedCell) {
+                  @if (isPreviewValid) {
+                    <button
+                      class="planet-sidebar__btn planet-sidebar__btn--build"
+                      type="button"
+                      (click)="confirmBuild()"
+                    >
+                      BUILD
+                    </button>
+                  } @else {
+                    <div class="planet-sidebar__build-error">{{ buildError }}</div>
+                  }
+                } @else {
+                  <div class="planet-sidebar__build-hint">
+                    Click a cell on the surface to place the building.
+                  </div>
+                }
+                <button class="planet-sidebar__btn" type="button" (click)="exitBuildMode()">
+                  CANCEL
+                </button>
+              </div>
+            }
+          }
+
+          @case ('production') {
+            <div class="planet-sidebar__panel-host">
+              @if (getProductionPanelVm()) {
+                <app-star-map-production-panel
+                  [vm]="getProductionPanelVm()"
+                  [showBuildMenu]="false"
+                  [buildError]="productionBuildError"
+                  (queueOrder)="queueOrder.emit($event)"
+                  (cancelOrder)="cancelOrder.emit($event)"
+                ></app-star-map-production-panel>
+              } @else {
+                <div class="planet-sidebar__build-hint">
+                  No production available on this planet.
                 </div>
               }
-              <div class="planet-sidebar__info-row">
-                <span>EFFICIENCY</span>
-                <span>{{ planetEconomy.efficiency * 100 | number: '1.0-0' }}%</span>
-              </div>
             </div>
           }
 
-          <hr class="planet-sidebar__divider" />
-
-          <div class="planet-sidebar__buildings-title">
-            BUILDINGS ({{ planet?.buildings.length }})
-          </div>
-
-          @for (b of planet?.buildings; track $index) {
-            <div class="planet-sidebar__building-row">
-              <span class="planet-sidebar__building-name">{{ b.name }}</span>
-              <span class="planet-sidebar__building-size">{{ b.size }}x{{ b.size }}</span>
+          @case ('assembly') {
+            <div class="planet-sidebar__panel-host">
+              @if (getSpaceportPanelVm()) {
+                <app-star-map-spaceport-panel
+                  [vm]="getSpaceportPanelVm()"
+                  [fleetName]="spaceportFleetName"
+                  [mode]="spaceportMode"
+                  [targetFleetId]="spaceportTargetFleetId"
+                  (close)="setTab('details')"
+                  (fleetNameChange)="spaceportFleetNameChange.emit($event)"
+                  (confirm)="spaceportConfirm.emit($event)"
+                  (disband)="spaceportDisband.emit()"
+                ></app-star-map-spaceport-panel>
+              } @else {
+                <div class="planet-sidebar__build-hint">No spaceport available.</div>
+              }
             </div>
+          }
+
+          @default {
+            <div class="planet-sidebar__info-row">
+              <span>TYPE</span>
+              <span>{{ planet?.type | uppercase }}</span>
+            </div>
+
+            <div class="planet-sidebar__info-row">
+              <span>FACTION</span>
+              <span [style.color]="getFactionColor(planet!.factionId)">{{
+                getFactionName(planet!.factionId)
+              }}</span>
+            </div>
+
+            <div class="planet-sidebar__currencies">
+              <app-faction-currencies
+                [currencies]="getFactionCurrencies(planet!.factionId)"
+              ></app-faction-currencies>
+            </div>
+
+            <hr class="planet-sidebar__divider" />
+
+            <div class="planet-sidebar__info-row">
+              <span>POPULATION</span>
+              <span>{{ planet?.population }}</span>
+            </div>
+
+            @if (planetEconomy) {
+              <div class="planet-sidebar__info-row">
+                <span>ENERGY</span>
+                <span
+                  >{{ planetEconomy.energyProduction | number: '1.0-0' }} /
+                  {{ planetEconomy.energyConsumption | number: '1.0-0' }}</span
+                >
+              </div>
+
+              <div
+                class="planet-sidebar__info-row"
+                [class.planet-sidebar__info-row--danger]="planetEconomy.energyBalance < 0"
+              >
+                <span>ENERGY BAL</span>
+                <span>{{ planetEconomy.energyBalance | number: '1.0-0' }}</span>
+              </div>
+
+              <div class="planet-sidebar__info-row">
+                <span>INCOME</span>
+                <span
+                  >{{
+                    (planetEconomy.netRates['credits'] ?? 0) * (planetEconomy.incomeMultiplier ?? 1)
+                      | number: '1.0-0'
+                  }}/s</span
+                >
+              </div>
+
+              <div
+                class="planet-sidebar__info-row"
+                [class.planet-sidebar__info-row--warn]="
+                  planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0
+                "
+                [class.planet-sidebar__info-row--danger]="planetEconomy.satisfaction <= 0"
+              >
+                <span>SATISFACTION</span>
+                <span>{{ planetEconomy.satisfaction | number: '1.0-0' }}%</span>
+              </div>
+
+              <div class="planet-economy">
+                <div class="planet-economy__title">ECONOMY</div>
+                @for (resource of ['rawmaterials', 'research']; track resource) {
+                  <div class="planet-sidebar__info-row">
+                    <span>{{ resource | uppercase }}</span>
+                    <span
+                      >{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : ''
+                      }}{{ $any(planetEconomy.netRates)[resource] | number: '1.0-0' }}/s</span
+                    >
+                  </div>
+                }
+                <div class="planet-sidebar__info-row">
+                  <span>EFFICIENCY</span>
+                  <span>{{ planetEconomy.efficiency * 100 | number: '1.0-0' }}%</span>
+                </div>
+              </div>
+            }
+
+            <hr class="planet-sidebar__divider" />
+
+            <div class="planet-sidebar__buildings-title">
+              BUILDINGS ({{ planet?.buildings.length }})
+            </div>
+
+            @for (b of planet?.buildings; track $index) {
+              <div class="planet-sidebar__building-row">
+                <span class="planet-sidebar__building-name">{{ b.name }}</span>
+                <span class="planet-sidebar__building-size">{{ b.size }}x{{ b.size }}</span>
+              </div>
+            }
           }
         }
       </div>

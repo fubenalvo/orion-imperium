@@ -1,7 +1,21 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PlanetTile, PlanetBuilding, PLANET_SURFACE_CELL_VW, PlanetEconomyEntry } from '../star-map.models';
+import {
+  PlanetTile,
+  PlanetBuilding,
+  PLANET_SURFACE_CELL_VW,
+  PlanetEconomyEntry,
+} from '../star-map.models';
 import { FactionCurrenciesComponent } from '../faction-currencies/faction-currencies.component';
+import {
+  StarMapProductionPanelComponent,
+  ProductionPanelViewModel,
+  QueueOrderRequest,
+} from '../star-map-production-panel/star-map-production-panel.component';
+import {
+  StarMapSpaceportPanelComponent,
+  SpaceportPanelViewModel,
+} from '../star-map-spaceport-panel/star-map-spaceport-panel.component';
 import planetData from '../planet-data.json';
 
 export interface BuildingType {
@@ -27,6 +41,8 @@ export interface BuildingType {
   } | null;
 }
 
+export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production';
+
 /*
  * =========================================================
  * PLANET SCREEN COMPONENT
@@ -34,22 +50,38 @@ export interface BuildingType {
  *
  * Renders the planet surface view: a grid (similar to the star map
  * grid but sized per planet) over a planet-type-colored background
- * with a noise texture.  The sidebar shows planet details and
- * action buttons (Build, Details, Back to Star Map).
+ * with a noise texture.  The sidebar exposes a tab strip with
+ * DETAILS, BUILD, ASSEMBLY, and PRODUCTION tabs — selecting a tab
+ * replaces the sidebar's content area.  No floating overlays are
+ * mounted outside the sidebar; the BUILD building-type list, the
+ * production panel, and the spaceport panel are all rendered
+ * inside the same `.planet-sidebar` element.
+ *
+ * Tab visibility:
+ *   - DETAILS:    always
+ *   - BUILD:      only when the player owns the planet
+ *   - PRODUCTION: only when the planet has a Spaceship Factory
+ *   - ASSEMBLY:   only when the planet has a Spaceport
  *
  * Grid dimension formula: gridSize = planetNumericSize * 2 + 3
  *   size 1 -> 5x5, size 2 -> 7x7, size 3 -> 9x9, size 4 -> 11x11
  *
  * Build mode:
- * - After selecting a building type, the screen enters build mode.
- * - Clicking a grid cell highlights the potential building footprint.
- * - A BUILD button appears when the placement is valid.
+ * - After selecting a building type (from the BUILD tab list), the
+ *   screen enters build mode. Clicking a grid cell highlights the
+ *   potential building footprint. A BUILD button appears when the
+ *   placement is valid.
  */
 
 @Component({
   selector: 'app-star-map-planet-screen',
   standalone: true,
-  imports: [CommonModule, FactionCurrenciesComponent],
+  imports: [
+    CommonModule,
+    FactionCurrenciesComponent,
+    StarMapProductionPanelComponent,
+    StarMapSpaceportPanelComponent,
+  ],
   templateUrl: './star-map-planet-screen.component.html',
   styleUrl: './star-map-planet-screen.component.scss',
 })
@@ -67,14 +99,36 @@ export class StarMapPlanetScreenComponent {
   @Input() getPlayerCredits: () => number = () => 0;
   @Input() onSelectBuildingType: (buildingId: string) => void = () => {};
   @Input() onConfirmBuild: (buildingId: string, x: number, y: number) => void = () => {};
+  @Input() hasFactory: () => boolean = () => false;
+  @Input() hasSpaceport: () => boolean = () => false;
+  @Input() getProductionPanelVm: () => ProductionPanelViewModel | null = () => null;
+  @Input() getSpaceportPanelVm: () => SpaceportPanelViewModel | null = () => null;
+  @Input() spaceportFleetName = 'New Fleet';
+  @Input() spaceportMode: 'create' | 'reinforce' = 'create';
+  @Input() spaceportTargetFleetId: number | null = null;
+  @Input() productionBuildError: string | null = null;
+  @Input() spaceportError: string | null = null;
 
   @Output() backToStarMap = new EventEmitter<void>();
   @Output() buildConfirmed = new EventEmitter<{ buildingId: string; x: number; y: number }>();
+  @Output() queueOrder = new EventEmitter<QueueOrderRequest>();
+  @Output() cancelOrder = new EventEmitter<number>();
+  @Output() spaceportConfirm = new EventEmitter<{
+    fleetName: string;
+    composition: { typeId: string; count: number }[];
+    systemId: string;
+    planetId: number;
+    fleetId: number | null;
+  }>();
+  @Output() spaceportDisband = new EventEmitter<void>();
+  @Output() spaceportFleetNameChange = new EventEmitter<string>();
+  @Output() openProductionTab = new EventEmitter<void>();
+  @Output() openSpaceportTab = new EventEmitter<void>();
 
   readonly cellVw = PLANET_SURFACE_CELL_VW;
   readonly buildingTypes: BuildingType[] = (planetData as { buildings: BuildingType[] }).buildings;
 
-  showBuildMenu = false;
+  activeTab: PlanetSidebarTab = 'details';
   isBuildMode = false;
   selectedBuildingType: BuildingType | null = null;
   selectedCell: { row: number; col: number } | null = null;
@@ -92,12 +146,49 @@ export class StarMapPlanetScreenComponent {
     return `repeat(${this.gridSize}, ${this.cellVw}vw)`;
   }
 
-  openBuildMenu(): void {
-    this.showBuildMenu = true;
+  /**
+   * Tabs available for the current planet, in display order. Visibility is
+   * driven by ownership and the buildings the planet actually has.
+   */
+  get availableTabs(): PlanetSidebarTab[] {
+    const tabs: PlanetSidebarTab[] = ['details'];
+    if (this.planet?.factionId === 'player') {
+      tabs.push('build');
+    }
+    if (this.hasFactory()) {
+      tabs.push('production');
+    }
+    if (this.hasSpaceport()) {
+      tabs.push('assembly');
+    }
+    return tabs;
   }
 
-  closeBuildMenu(): void {
-    this.showBuildMenu = false;
+  /** True when the active tab is still available — guards stale state. */
+  get activeTabAvailable(): boolean {
+    return this.availableTabs.includes(this.activeTab);
+  }
+
+  setTab(tab: PlanetSidebarTab): void {
+    this.activeTab = tab;
+    if (tab === 'build') {
+      // Entering BUILD tab does NOT auto-select a building; the user
+      // must pick one from the list.
+      this.isBuildMode = false;
+      this.selectedBuildingType = null;
+      this.selectedCell = null;
+      this.previewCells = new Set();
+      this.isPreviewValid = false;
+      this.buildError = '';
+    } else {
+      this.exitBuildMode();
+    }
+    if (tab === 'production') {
+      this.openProductionTab.emit();
+    }
+    if (tab === 'assembly') {
+      this.openSpaceportTab.emit();
+    }
   }
 
   exitBuildMode(): void {
@@ -117,7 +208,6 @@ export class StarMapPlanetScreenComponent {
     this.previewCells = new Set();
     this.isPreviewValid = false;
     this.buildError = '';
-    this.closeBuildMenu();
   }
 
   onCellClick(row: number, col: number): void {
@@ -195,7 +285,9 @@ export class StarMapPlanetScreenComponent {
    * have on PlanetBuilding) and falls back to a slugified version of the name.
    */
   getBuildingTypeClass(b: PlanetBuilding): string {
-    const def = this.buildingTypes.find((t) => t.name === b.name || t.id === (b as { id?: string }).id);
+    const def = this.buildingTypes.find(
+      (t) => t.name === b.name || t.id === (b as { id?: string }).id,
+    );
     const id = def?.id ?? this.slugify(b.name);
     return `planet-surface__building--${id.replace(/_/g, '-')}`;
   }

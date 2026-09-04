@@ -139,6 +139,7 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 - Selecting a building type enters build mode; clicking a cell highlights the building's footprint and reveals a BUILD button if placement is valid.
 - Confirming a build deducts the building's `price` from the player's credits and appends a new `PlanetBuilding` (with the chosen `x`/`y`) to `planet.buildings`.
 - The same component is reused across the system view (when a planet is selected) and the planet view.
+- The sidebar exposes a tab strip with DETAILS, BUILD, PRODUCTION, and ASSEMBLY. Tab visibility is data-driven: BUILD is shown only for player-owned planets, PRODUCTION only when the planet has a Spaceship Factory, and ASSEMBLY only when the planet has a Spaceport. Selecting a tab replaces the sidebar's content area; no floating overlays are mounted outside the sidebar (the production and spaceport panels are re-used inline).
 
 ## Save System
 

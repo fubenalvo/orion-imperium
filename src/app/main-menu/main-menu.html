@@ -8,14 +8,16 @@
     </div>
     <div class="main-menu__content">
       @if (!showNewGameSlots && !showLoadGameSlots) {
-        <h1 class="game-title">Orion Imperium</h1>
+        <img src="logo.png" title="Orion Imperium" alt="Orion Imperium Logo" class="game-logo" />
 
         <p class="game-subtitle">A GALACTIC STRATEGY GAME</p>
 
         <nav class="main-menu__buttons">
           <button type="button" (click)="showNewGameSlots = true">NEW GAME</button>
 
-          <button type="button" (click)="showLoadGameSlots = true" [disabled]="!hasAnySave">LOAD GAME</button>
+          <button type="button" (click)="showLoadGameSlots = true" [disabled]="!hasAnySave">
+            LOAD GAME
+          </button>
 
           <button type="button">OPTIONS</button>
 
@@ -36,7 +38,13 @@
               <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
             </button>
           }
-          <button type="button" class="save-slot save-slot--close" (click)="showNewGameSlots = false; showLoadGameSlots = false;">CLOSE</button>
+          <button
+            type="button"
+            class="save-slot save-slot--close"
+            (click)="showNewGameSlots = false; showLoadGameSlots = false"
+          >
+            CLOSE
+          </button>
         </div>
       }
 
