@@ -10,6 +10,10 @@ describe('EnemyAiService', () => {
     service = TestBed.inject(EnemyAiService);
   });
 
+  afterEach(() => {
+    service.reset();
+  });
+
   const createFleet = (overrides: Partial<Fleet> = {}): Fleet => ({
     id: 1,
     name: 'FLEET',
@@ -20,7 +24,7 @@ describe('EnemyAiService', () => {
     targetY: null,
     speed: 5,
     system: null,
-    ships: [],
+    ships: [{ id: 1, name: 'Ship', type: 'frigate', currentHp: 10, destroyed: false }],
     destroyed: false,
     ...overrides,
   });
@@ -39,8 +43,8 @@ describe('EnemyAiService', () => {
 
   it('should return false when deltaTime is 0 (paused)', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0 }),
-      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 2 }),
     ];
 
     const result = service.tick(0, fleets, factions);
@@ -51,8 +55,8 @@ describe('EnemyAiService', () => {
 
   it('should return false when deltaTime is negative', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0 }),
-      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 2 }),
     ];
 
     const result = service.tick(-1, fleets, factions);
@@ -61,9 +65,9 @@ describe('EnemyAiService', () => {
 
   it('should select nearest player fleet', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0 }),
-      createFleet({ factionId: 'player', name: 'NEAR', x: 1, y: 1 }),
-      createFleet({ factionId: 'player', name: 'FAR', x: 10, y: 10 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'NEAR', x: 1, y: 1, id: 2 }),
+      createFleet({ factionId: 'player', name: 'FAR', x: 10, y: 10, id: 3 }),
     ];
 
     const result = service.tick(1, fleets, factions);
@@ -72,29 +76,102 @@ describe('EnemyAiService', () => {
     expect(fleets[0].targetY).toBeCloseTo(1, 5);
   });
 
-  it('should keep existing target when fleet already has one', () => {
+  it('should keep valid target across ticks', () => {
     const fleets = [
-      createFleet({
-        factionId: 'enemy1',
-        name: 'RAIDER',
-        x: 0,
-        y: 0,
-        targetX: 3,
-        targetY: 3,
-      }),
-      createFleet({ factionId: 'player', name: 'ORION', x: 1, y: 1 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 3, y: 3, id: 2 }),
     ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(3, 5);
+    expect(fleets[0].targetY).toBeCloseTo(3, 5);
 
     const result = service.tick(1, fleets, factions);
     expect(result).toBe(false);
-    expect(fleets[0].targetX).toBe(3);
-    expect(fleets[0].targetY).toBe(3);
+    expect(fleets[0].targetX).toBeCloseTo(3, 5);
+    expect(fleets[0].targetY).toBeCloseTo(3, 5);
+  });
+
+  it('should keep valid target even when another player fleet becomes closer', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10 }),
+      createFleet({ factionId: 'player', name: 'PEGASUS', x: 1, y: 1, id: 11 }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(1, 5);
+    expect(fleets[0].targetY).toBeCloseTo(1, 5);
+
+    fleets[2].x = 0;
+    fleets[2].y = 0;
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(false);
+    expect(fleets[0].targetX).toBeCloseTo(0, 5);
+    expect(fleets[0].targetY).toBeCloseTo(0, 5);
+  });
+
+  it('should retarget when the current target is destroyed', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 1, y: 1, id: 10 }),
+      createFleet({ factionId: 'player', name: 'PEGASUS', x: 10, y: 10, id: 11 }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(1, 5);
+    expect(fleets[0].targetY).toBeCloseTo(1, 5);
+
+    fleets[1].destroyed = true;
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(true);
+    expect(fleets[0].targetX).toBeCloseTo(10, 5);
+    expect(fleets[0].targetY).toBeCloseTo(10, 5);
+  });
+
+  it('should retarget when the current target has no ships', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 1, y: 1, id: 10 }),
+      createFleet({ factionId: 'player', name: 'PEGASUS', x: 10, y: 10, id: 11 }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(1, 5);
+    expect(fleets[0].targetY).toBeCloseTo(1, 5);
+
+    fleets[1].ships = [];
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(true);
+    expect(fleets[0].targetX).toBeCloseTo(10, 5);
+    expect(fleets[0].targetY).toBeCloseTo(10, 5);
+  });
+
+  it('should clear target when all player fleets are destroyed', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10 }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(5, 5);
+    expect(fleets[0].targetY).toBeCloseTo(5, 5);
+
+    fleets[1].destroyed = true;
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(false);
+    expect(fleets[0].targetX).toBeNull();
+    expect(fleets[0].targetY).toBeNull();
   });
 
   it('should ignore destroyed enemy fleets', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, destroyed: true }),
-      createFleet({ factionId: 'player', name: 'ORION', x: 1, y: 1 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, destroyed: true, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 1, y: 1, id: 2 }),
     ];
 
     const result = service.tick(1, fleets, factions);
@@ -105,7 +182,7 @@ describe('EnemyAiService', () => {
 
   it('should do nothing when there are no player fleets', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
     ];
 
     const result = service.tick(1, fleets, factions);
@@ -116,8 +193,8 @@ describe('EnemyAiService', () => {
 
   it('should not target another enemy fleet', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0 }),
-      createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 1, y: 1 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 1, y: 1, id: 2 }),
     ];
 
     const result = service.tick(1, fleets, factions);
@@ -126,26 +203,34 @@ describe('EnemyAiService', () => {
     expect(fleets[0].targetY).toBeNull();
   });
 
-  it('should allow multiple enemy fleets to independently select targets', () => {
+  it('should allow multiple enemy fleets to independently select and maintain targets', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0 }),
-      createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 0, y: 0 }),
-      createFleet({ factionId: 'player', name: 'NEAR', x: 1, y: 1 }),
-      createFleet({ factionId: 'player', name: 'FAR', x: 10, y: 10 }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 0, y: 0, id: 2 }),
+      createFleet({ factionId: 'player', name: 'NEAR', x: 1, y: 1, id: 10 }),
+      createFleet({ factionId: 'player', name: 'FAR', x: 10, y: 10, id: 11 }),
     ];
 
-    const result = service.tick(1, fleets, factions);
-    expect(result).toBe(true);
+    service.tick(1, fleets, factions);
     expect(fleets[0].targetX).toBeCloseTo(1, 5);
     expect(fleets[0].targetY).toBeCloseTo(1, 5);
     expect(fleets[1].targetX).toBeCloseTo(1, 5);
     expect(fleets[1].targetY).toBeCloseTo(1, 5);
+
+    fleets[2].destroyed = true;
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(true);
+    expect(fleets[0].targetX).toBeCloseTo(10, 5);
+    expect(fleets[0].targetY).toBeCloseTo(10, 5);
+    expect(fleets[1].targetX).toBeCloseTo(10, 5);
+    expect(fleets[1].targetY).toBeCloseTo(10, 5);
   });
 
   it('should not modify player fleets', () => {
     const fleets = [
-      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0 }),
-      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, targetX: null, targetY: null }),
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, targetX: null, targetY: null, id: 2 }),
     ];
 
     service.tick(1, fleets, factions);
@@ -155,11 +240,30 @@ describe('EnemyAiService', () => {
 
   it('should not modify independent or unhabited fleets', () => {
     const fleets = [
-      createFleet({ factionId: 'independent', name: 'INDEP', x: 0, y: 0 }),
-      createFleet({ factionId: 'unhabited', name: 'UNHAB', x: 0, y: 0 }),
+      createFleet({ factionId: 'independent', name: 'INDEP', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'unhabited', name: 'UNHAB', x: 0, y: 0, id: 2 }),
     ];
 
     const result = service.tick(1, fleets, factions);
     expect(result).toBe(false);
+  });
+
+  it('should follow a moving valid target', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10 }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(5, 5);
+    expect(fleets[0].targetY).toBeCloseTo(5, 5);
+
+    fleets[1].x = 8;
+    fleets[1].y = 8;
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(false);
+    expect(fleets[0].targetX).toBeCloseTo(8, 5);
+    expect(fleets[0].targetY).toBeCloseTo(8, 5);
   });
 });

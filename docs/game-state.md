@@ -45,7 +45,7 @@
 | 33 | Diplomacy | ❌ |
 | 34 | Research tree | ❌ |
 | 35 | Ship design | ❌ |
-| 36 | AI opponents | ❌ |
+| 36 | AI opponents | ⚠️ V2 (target validation + retargeting) |
 | 37 | Missions | ❌ |
 | 38 | Multiplayer | ❌ |
 | 39 | Audio | ❌ |
@@ -128,11 +128,31 @@ src/app/
 
 ### 4.6 Battle
 - Fleet vs Fleet: same cell, different teams, not already triggered
+  - Triggered by `StarMapBattleDetectionService.checkForBattles()` every frame from `StarMap.gameLoopCallback`
+  - Uses `StarMapMovementService.calculateGridCell(x, y)` to convert fleet positions to grid cells for collision detection
+  - When two hostile fleets occupy the same grid cell and neither is destroyed, a battle is initiated
+  - Once triggered, the battle ID is stored in `triggeredBattles` Set to prevent duplicate triggers
+  - After battle resolution, fleets may be marked as destroyed via `destroyedFleetId` tracking
 - Planet vs Fleet: arrival at defended enemy planet
+  - Triggered by `StarMap.checkFleetPlanetArrivals()` when a fleet reaches a planet tile
+  - If the planet has a defense fleet (from buildings), a virtual defense fleet is assembled
+  - Colonizer fleets can colonize uncolonized or captured planets
 - Virtual defense fleet from buildings
+  - `PlanetBattleService` generates defense fleets based on defensive buildings (Laser Turret, Missile Turret, Planetary Shield)
+  - These virtual fleets participate in battle like normal fleets but do not persist after battle
 - Turn-based: attacker → defender, weakest HP target
-- Damage = max(1, attack - defense)
-- No weapon effectiveness, no crit/evasion
+  - `BattleService` manages turn order and battle state
+  - Each turn, the active side selects the weakest HP target from the opposing side
+  - Damage formula: `max(1, attack - defense)`
+  - No weapon effectiveness, no crit/evasion/randomness
+- Battle state persistence
+  - Active battles are tracked in `BattleService`
+  - `destroyedFleetId` is remembered across navigation to handle fleet cleanup after returning from battle screen
+  - Winner survivor roster does not persist back to the star map; only fleet destruction is tracked
+- Fleet state after battle
+  - Surviving fleets return to their pre-battle positions or remain at the battle location
+  - Destroyed fleets have `destroyed = true` and are filtered from movement, collision, and rendering
+  - The AI detects destroyed targets via `EnemyAiService` and retargets accordingly
 
 ### 4.7 Economy
 - Stock: credits (floored), rawmaterials, research
@@ -159,6 +179,36 @@ src/app/
 - 4 slots, localStorage key `orion_save_slots`
 - Full StarMapData snapshot
 - Migration: shipStock/production backfill, vw→grid, destroyedFleetId
+
+### 4.11 Enemy Fleet AI (V2)
+- `EnemyAiService` runs every frame inside the existing `StarMap.gameLoopCallback`
+- Uses the same scaled `gameDeltaTime` as other systems (pause-safe, 1x/2x-aware)
+- Only enemy factions (`enemy1`, `enemy2`) are controlled; player, independent, and unhabited fleets are never modified
+- Runtime state tracks `enemyFleetId → targetPlayerFleetId` in a `Map<number, number>`
+  - This is purely in-memory state; no persistent properties are added to the `Fleet` model
+  - The map is cleared via `reset()` for test isolation
+- Target selection algorithm:
+  1. Filter fleets to enemy factions and skip destroyed ones
+  2. For each enemy fleet without a valid target, find all valid player fleets (not destroyed, has ships)
+  3. Calculate Euclidean distance: `sqrt((enemy.x - player.x)^2 + (enemy.y - player.y)^2)`
+  4. Select the player fleet with the smallest distance
+  5. Set `enemy.targetX = player.x`, `enemy.targetY = player.y`
+  6. Store the mapping in `currentTargets`
+- Target validity rules:
+  - A target is **valid** if the player fleet exists, `destroyed === false`, and `ships.length > 0`
+  - A target becomes **invalid** if the player fleet is destroyed, has no ships, or no longer exists in the fleet array
+  - The AI does NOT switch targets just because another player fleet becomes closer; it commits to the current target until invalidity
+- Retargeting behavior:
+  - When a target becomes invalid, the AI clears the old mapping and immediately selects the nearest remaining player fleet
+  - If no valid player fleets remain, the enemy fleet's target is cleared (`targetX = null`, `targetY = null`)
+  - Logging: `[Enemy AI] <name> -> <target>` on new assignment, `[Enemy AI] <name> retargeted -> <target>` on retargeting
+- Integration with existing systems:
+  - **Movement**: The AI only sets `targetX/targetY`; the existing `StarMapMovementService` handles actual fleet movement each frame
+  - **Battle**: The AI does not trigger battles. When an enemy fleet reaches a player fleet in the same cell, the existing `StarMapBattleDetectionService` detects the collision and initiates battle via `BattleService`
+  - **Pause**: When `gameDeltaTime <= 0` (paused), the AI returns `false` immediately and makes no progress
+  - **Speed**: At 1x and 2x, the AI runs at the same rate as other simulation systems
+- Test coverage:
+  - 16 Vitest tests covering: target selection, target validation, retargeting on destroy, retargeting on no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
 
 ---
 
@@ -264,14 +314,15 @@ src/app/
 - Population/workforce/morale fields unused
 - No re-conquest for independent planets
 - Debug console.log statements present
+- Enemy AI V2 tracks targets by fleet ID and validates them; no combat trigger, fleet strength evaluation, pathfinding, strategic goals, or personality
 
 ---
 
 ## 9. Tesztek
 
 - Vitest 4.0.8 + jsdom
-- Existing: app.spec.ts, main-menu.spec.ts, star-map.spec.ts, game-time.service.spec.ts, star-map-sensor.service.spec.ts
-- Coverage limited to game loop and sensor service
+- Existing: app.spec.ts, main-menu.spec.ts, star-map.spec.ts, game-time.service.spec.ts, star-map-sensor.service.spec.ts, enemy-ai.service.spec.ts
+- Coverage: enemy AI target selection, target validation, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
 
 ---
 
@@ -282,6 +333,8 @@ A játék jelenlegi állapota:
 - Gazdasági és gyártási rendszer teljesen működik
 - Fleet assembly és ship stock működik
 - Save/load és fog-of-war működik
-- Hiányzik: AI, diplomacia, research tree, hang, multiplayer
+- Enemy AI V2: ellenséges flották automatikusan célpontot választanak, követik a játékos flottákat, és retargetelnek ha a cél megsemmisül
+- Harcrendszer autonóm: az AI nem indítja a csatákat, a `StarMapBattleDetectionService` detektálja az ütközéseket és a `BattleService` kezeli a csatát
+- Hiányzik: stratégiai AI, diplomacia, research tree, hang, multiplayer
 
-Ez a dokumentum a játék teljes jelenlegi állapotát írja le feature-felel és készültségi fokok szerint. A kódhoz nem nyúltam, csak ezt a dokumentációs fájlt hoztam létre.
+Ez a dokumentum a játék teljes jelenlegi állapotát írja le feature-felel és készültségi fokok szerint.
