@@ -29,6 +29,10 @@ export class StarMapMovementService {
 
   private static readonly SYSTEM_CELL_SIZE_VW = 5;
 
+  static get systemCellSizeVw(): number {
+    return StarMapMovementService.SYSTEM_CELL_SIZE_VW;
+  }
+
   constructor() {}
 
   /*

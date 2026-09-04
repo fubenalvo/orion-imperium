@@ -9,6 +9,7 @@ import {
 import { ShipService, ShipType } from './ship.service';
 import { ShipStockService } from './ship-stock.service';
 import { SpaceportService } from './spaceport.service';
+import { StarMapMovementService } from '../components/star-map/star-map-movement.service';
 
 export type AssemblyFailure =
   | 'no_spaceport'
@@ -51,6 +52,7 @@ export class FleetAssemblyService {
     private shipService: ShipService,
     private shipStockService: ShipStockService,
     private spaceportService: SpaceportService,
+    private movementService: StarMapMovementService,
   ) {}
 
   createFleet(
@@ -94,6 +96,15 @@ export class FleetAssemblyService {
       }
     }
 
+    // Place the new fleet on the host planet's system-grid cell so the
+    // player sees it next to the Spaceport they just used. Without this
+    // the fleet spawns at a hard-coded default and is invisible until
+    // the player re-enters the system view.
+    const planetCell = this.movementService.getPlanetGridPosition(planet);
+    const systemCellSize = StarMapMovementService.systemCellSizeVw;
+    const systemVwX = (planetCell.col - 0.5) * systemCellSize;
+    const systemVwY = (planetCell.row - 0.5) * systemCellSize;
+
     const fleet: Fleet = {
       id: this.nextFleetId(data.fleets),
       name: request.fleetName.trim() || `${request.factionId} Fleet`,
@@ -105,13 +116,13 @@ export class FleetAssemblyService {
       speed: DEFAULT_FLEET_SPEED,
       system: {
         id: system.id,
-        x: 2.5,
-        y: 32.5,
+        x: systemVwX,
+        y: systemVwY,
         targetX: null,
         targetY: null,
       },
-      gridCol: Math.floor(system.x),
-      gridRow: Math.floor(system.y),
+      gridCol: planetCell.col,
+      gridRow: planetCell.row,
       ships: fleetShips,
       destroyed: false,
       sensorRange: DEFAULT_FLEET_SENSOR_RANGE,
@@ -156,6 +167,16 @@ export class FleetAssemblyService {
         fleet.ships.push(this.stockEntryToFleetShip(entry));
       }
     }
+
+    // Defensive: keep fleet.system.{x,y} in sync with gridCol/gridRow so
+    // a reinforce never leaves the fleet rendering off-cell after a
+    // load/restore cycle.
+    if (fleet.system && fleet.gridCol != null && fleet.gridRow != null) {
+      const cellSize = StarMapMovementService.systemCellSizeVw;
+      fleet.system.x = (fleet.gridCol - 0.5) * cellSize;
+      fleet.system.y = (fleet.gridRow - 0.5) * cellSize;
+    }
+
     return { ok: true, fleet };
   }
 

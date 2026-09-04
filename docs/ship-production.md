@@ -54,6 +54,22 @@ ship type also carries a `productionBuilding` discriminator
 (`'spaceship_factory' | 'orbital_factory'`) so the same production service
 works for both factory classes without code changes.
 
+## Fleet spawn position and view transition
+
+`FleetAssemblyService.createFleet` places the new fleet on the host
+planet's system-grid cell by converting `getPlanetGridPosition(planet)`
+to vw coordinates (`(col - 0.5) * SYSTEM_CELL_SIZE_VW`). The same cell
+is written to `gridCol` / `gridRow` so battle detection, sensor range,
+and the `@if (selectedSystem)` system view template see the fleet
+immediately on frame 1.
+
+`StarMap.onSpaceportConfirm` calls `enterSystem()` on create success.
+`enterSystem` not only sets `currentView = 'system'` but also runs the
+fleet-init loop that re-derives every active fleet's `gridCol` /
+`gridRow` from `fleet.system.{x,y}`. Skipping that loop is what left
+the sun, planets, and fleets invisible until the player manually
+re-entered the system.
+
 ## Production completion → Global Ship Stock
 
 When `ProductionService.tick` advances an order past `progress >= 1` it

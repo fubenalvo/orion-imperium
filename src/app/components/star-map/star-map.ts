@@ -750,7 +750,19 @@ export class StarMap implements AfterViewInit, OnDestroy {
         return;
       }
       if (result.fleet) {
+        // Place the new fleet on its host planet's system cell and
+        // transition into the system view via `enterSystem()` so the
+        // fleet-init loop runs. The loop normalises every active
+        // fleet's `gridCol` / `gridRow` from `fleet.system.{x,y}` —
+        // skipping it is what was leaving the sun, planets, and
+        // fleets invisible until the player manually re-entered the
+        // system.
+        const hostSystem = this.starSystems.find((s) => s.id === event.systemId);
+        if (hostSystem) {
+          this.selectSystem(hostSystem);
+        }
         this.selectFleet(result.fleet);
+        this.enterSystem();
       }
     }
     this.spaceportError = null;
