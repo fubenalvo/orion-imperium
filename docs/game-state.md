@@ -39,7 +39,9 @@
 | 27 | Planet colonization | ✅ |
 | 28 | Planet capture | ✅ |
 | 29 | Satisfaction / rebellion | ✅ |
-| 30 | CRT style / parallax | ✅ |
+| 30 | Planet habitability & morale drift | ✅ |
+| 31 | Workforce & building efficiency | ✅ |
+| 32 | CRT style / parallax | ✅ |
 | 31 | Responsive layout | ✅ |
 | 32 | Options / Credits | ❌ stub |
 | 33 | Diplomacy | ❌ |
@@ -157,9 +159,14 @@ src/app/
 ### 4.7 Economy
 - Stock: credits (floored), rawmaterials, research
 - Flow: energy (efficiency only)
-- Efficiency = 1.0 if energy ok, else production/consumption
-- Satisfaction 0-100, drift ±1/s
-- 0 satisfaction → rebellion → independent faction
+- Energy efficiency = 1.0 if energy ok, else production/consumption
+- Workforce: `availableWorkforce` = Σ `providesWorkforce` (housing/residential buildings); `requiredWorkforce` = Σ `workforce` (requirement) over all buildings; `workforceEfficiency = min(1, available/required)` (1 when there are no consumers). Scales building `production` rates only — consumption and the `pop * 0.1` credit contribution are intentionally unscaled.
+- Satisfaction 0–100, drift per economy tick = `(energyDirection ±1 + moraleDrift) × deltaTime`
+  - `energyDirection`: -1 if energy production < consumption, else +1 (±1/s).
+  - `moraleDrift = PLANET_TYPE_HABITABILITY[planet.type] + Σ building.moraleRate` (satisfaction points per second of game time). Base per planet type: `earthlike 0`, `gasgiant 0`, `marslike -0.03`, `venuslike -0.05`, `desert -0.05`, `ice -0.08`. Social/entertainment buildings (Park +0.03, Entertainment Center +0.08, …) offset harsh worlds; heavy industry contributes a small negative (-0.01–-0.02).
+  - The existing energy-based ±1/s drift is preserved; the habitability/morale drift is additive on top of it.
+  - Clamped to [0, 100]. 0 → rebellion → independent faction.
+- Pause / 2× speed: inherited from `GameTimeService.getScaledDeltaTime` — the 1-second economy accumulator is fed the scaled delta, so morale is frozen while paused and runs 2× as fast at speed 2x (no per-system pause/speed checks).
 
 ### 4.8 Production
 - One order per planet
@@ -243,6 +250,8 @@ src/app/
 - id, index, name, factionId
 - type, size, population
 - buildings[], explored, satisfaction
+- satisfaction drift (per tick): `(energyDirection ±1 + moraleDrift) × deltaTime`, where `moraleDrift = PLANET_TYPE_HABITABILITY[type] + Σ building.moraleRate`
+- workforce (derived from buildings, not persisted): available / required + efficiency
 
 ### Fleet
 - id, name, factionId, x/y
@@ -255,7 +264,7 @@ src/app/
 
 ### BuildingType (15 types)
 - Defense: Laser Turret, Missile Turret, Planetary Shield
-- Housing: Small/Medium/Large Residential
+- Housing: Small/Medium/Large Residential (provide workforce: 20/50/100, requirement 0)
 - Industry: Small/Medium/Large Factory
 - Energy: Solar Panel, Fusion Power Plant
 - Research: Small/Large Research Lab
@@ -323,7 +332,7 @@ src/app/
 - No crit/evasion/randomness
 - Weakest-HP targeting only
 - Winner survivor roster doesn't persist
-- Population/workforce/morale fields unused
+- Population simplified: no citizen entities; workforce is derived from residential `providesWorkforce`, morale drift is type + building based (no full population simulation)
 - No re-conquest for independent planets
 - Debug console.log statements present
 - Enemy AI V3 tracks targets by fleet ID and validates them; strength-based selection prefers weak/comparable targets, distance breaks ties; no combat trigger, fleet strength evaluation beyond simple sum, pathfinding, strategic goals, retreat, or personality
@@ -334,7 +343,8 @@ src/app/
 
 - Vitest 4.0.8 + jsdom
 - Existing: app.spec.ts, main-menu.spec.ts, star-map.spec.ts, game-time.service.spec.ts, star-map-sensor.service.spec.ts, enemy-ai.service.spec.ts
-- Coverage: enemy AI strength-based target selection, category priority (weak/comparable/strong), distance tie-breaking, target validation, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
+- New: economy.service.spec.ts — habitability drift (earthlike 0, desert/ice negative, entertainment offsets), workforce/efficiency (1.0 when sufficient, 0.5 at half, production halved under shortage), pause freezes morale (deltaTime 0), 2× speed linearity
+- Coverage: enemy AI strength-based target selection, category priority (weak/comparable/strong), distance tie-breaking, target validation, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets, plus the habitability/workforce cases above
 
 ---
 
@@ -342,7 +352,7 @@ src/app/
 
 A játék jelenlegi állapota:
 - Core gameplay loop működik (map → system → planet → battle)
-- Gazdasági és gyártási rendszer teljesen működik
+- Gazdasági és gyártási rendszer teljesen működik; a bolygó-termelés a workforce efficiency (lakosság által biztosított vs. épület igény) szorzójával skálázódik; a nehezen lakható bolygók negatív morale driftet generálnak, amit Park és Entertainment Center ellensúlyoz
 - Fleet assembly és ship stock működik
 - Save/load és fog-of-war működik
 - Enemy AI V3: ellenséges flották erősségi szempontból választanak célpontot (weak > comparable > strong), távolság csökkenti a kötést ugyanazon kategórián belül
