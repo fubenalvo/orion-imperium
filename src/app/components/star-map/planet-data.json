@@ -251,8 +251,8 @@
       "productionPower": 0.5
     },
     {
-      "id": "military_spaceport",
-      "name": "Military Spaceport",
+      "id": "spaceport",
+      "name": "Spaceport",
       "role": "military",
       "energyConsumption": 20,
       "energyProduction": 0,

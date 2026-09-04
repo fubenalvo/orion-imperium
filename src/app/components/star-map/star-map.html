@@ -421,7 +421,7 @@
         <button class="planet-view__panel-toggle" type="button" (click)="openProductionPanel()">
           PRODUCTION
         </button>
-        @if (spaceportService.isSpaceportPlanet(selectedPlanetTile!)) {
+        @if (spaceportService.isSpaceportPlanet(selectedPlanetTile)) {
           <button class="planet-view__panel-toggle" type="button" (click)="openSpaceportPanel('create', null)">
             ASSEMBLE FLEET
           </button>
@@ -449,6 +449,7 @@
           (close)="closeSpaceportPanel()"
           (fleetNameChange)="spaceportFleetName = $event"
           (confirm)="onSpaceportConfirm($event)"
+          (disband)="onSpaceportDisband()"
         ></app-star-map-spaceport-panel>
       }
     </div>

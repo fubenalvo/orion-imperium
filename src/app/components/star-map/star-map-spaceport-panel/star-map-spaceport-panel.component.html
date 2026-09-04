@@ -2,9 +2,9 @@
 <div class="spaceport-panel">
   <div class="spaceport-panel__title">
     @if (mode === 'create') {
-      MILITARY SPACEPORT — CREATE FLEET
+      SPACEPORT — CREATE FLEET
     } @else {
-      MILITARY SPACEPORT — REINFORCE FLEET
+      SPACEPORT — REINFORCE FLEET
     }
     <button class="spaceport-panel__close" type="button" (click)="close.emit()">X</button>
   </div>
@@ -84,6 +84,9 @@
 
   <div class="spaceport-panel__actions">
     <button type="button" (click)="close.emit()">CANCEL</button>
+    @if (mode === 'reinforce' && targetFleetId != null) {
+      <button type="button" (click)="disband.emit()">DISBAND FLEET</button>
+    }
     <button
       type="button"
       [disabled]="!canConfirm()"

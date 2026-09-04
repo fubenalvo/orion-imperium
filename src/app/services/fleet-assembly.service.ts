@@ -8,7 +8,7 @@ import {
 } from '../components/star-map/star-map.models';
 import { ShipService, ShipType } from './ship.service';
 import { ShipStockService } from './ship-stock.service';
-import { MilitarySpaceportService } from './military-spaceport.service';
+import { SpaceportService } from './spaceport.service';
 
 export type AssemblyFailure =
   | 'no_spaceport'
@@ -50,7 +50,7 @@ export class FleetAssemblyService {
   constructor(
     private shipService: ShipService,
     private shipStockService: ShipStockService,
-    private spaceportService: MilitarySpaceportService,
+    private spaceportService: SpaceportService,
   ) {}
 
   createFleet(

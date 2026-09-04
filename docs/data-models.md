@@ -28,13 +28,14 @@ The root save format. Contains everything needed to reconstruct a game session:
 
 ## Ship Stock & Production
 
-See `docs/ship-production.md` for the full pipeline. The relevant data shapes are:
+See [Ship Production](./ship-production.md) for the full pipeline. The relevant data shapes are:
 
-- `ShipStockEntry`: per-instance ship record held in the global stock. Same shape as `FleetShip` minus `currentHp` / `destroyed` so the existing battle / sensor / movement code can consume it without changes when it is pushed into a fleet.
+- `ShipStockEntry`: per-instance ship record held in the global stock. Same shape as `FleetShip` minus `currentHp` / `destroyed` so the existing battle / sensor / movement code can consume it when it is pushed into a fleet.
 - `FactionShipStock`: `{ factionId, ships: ShipStockEntry[] }` — empire-scoped reserve, never planet-scoped.
 - `ProductionOrder`: `{ id, shipTypeId, quantity, progress, startedAtTick }` — one in-flight order per planet; resource cost is deducted up-front at queue time.
 - `FactionProduction`: `{ factionId, ordersByPlanet: Record<planetId, ProductionOrder[]> }`.
 - `StarMapData.shipStock` and `StarMapData.production` are optional fields; `SaveGameService.migrateSave` backfills them as `[]` for older saves.
+- The `Spaceport` building is a permission flag for fleet assembly. The faction must own a planet with a `Spaceport` to call `FleetAssemblyService.createFleet` or `reinforceFleet`; the building does not store ships.
 
 ## ShipType extensions
 

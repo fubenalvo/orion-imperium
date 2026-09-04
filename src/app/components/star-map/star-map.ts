@@ -17,7 +17,7 @@ import { EconomyService } from '../../services/economy.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { ShipStockService } from '../../services/ship-stock.service';
 import { ProductionService } from '../../services/production.service';
-import { MilitarySpaceportService } from '../../services/military-spaceport.service';
+import { SpaceportService } from '../../services/spaceport.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
@@ -234,7 +234,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private sensorService: StarMapSensorService,
     private shipStockService: ShipStockService,
     private productionService: ProductionService,
-    public spaceportService: MilitarySpaceportService,
+    public spaceportService: SpaceportService,
     private fleetAssemblyService: FleetAssemblyService,
   ) {
     this.movementService.initialize(
@@ -703,7 +703,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   openSpaceportPanel(mode: 'create' | 'reinforce' = 'create', fleetId: number | null = null): void {
     if (!this.spaceportService.hasSpaceport('player', this.starSystems)) {
-      this.spaceportError = 'You need a Military Spaceport to assemble fleets.';
+      this.spaceportError = 'You need a Spaceport to assemble fleets.';
       return;
     }
     this.spaceportMode = mode;
@@ -758,6 +758,28 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.saveGame();
   }
 
+  onSpaceportDisband(): void {
+    const fleetId = this.spaceportTargetFleetId;
+    if (fleetId == null) {
+      return;
+    }
+    const fleet = this.fleets.find((f) => f.id === fleetId);
+    if (!fleet) {
+      return;
+    }
+    const ok = window.confirm(`Disband ${fleet.name}? Surviving ships return to the global stock.`);
+    if (!ok) {
+      return;
+    }
+    this.fleetAssemblyService.disbandFleet(this, 'player', fleetId);
+    if (this.selectedFleet?.id === fleetId) {
+      this.deselectFleet();
+    }
+    this.spaceportError = null;
+    this.showSpaceportPanel = false;
+    this.saveGame();
+  }
+
   disbandSelectedFleet(): void {
     if (!this.selectedFleet) {
       return;
@@ -791,7 +813,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   private describeAssemblyError(reason: string | undefined): string {
     switch (reason) {
-      case 'no_spaceport': return 'No Military Spaceport available.';
+      case 'no_spaceport': return 'No Spaceport available.';
       case 'insufficient_stock': return 'Not enough ships in stock.';
       case 'invalid_composition': return 'Select at least one ship.';
       case 'invalid_target': return 'Invalid assembly point.';

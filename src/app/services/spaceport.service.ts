@@ -7,16 +7,16 @@ export interface SpaceportLocation {
 }
 
 /*
- * MilitarySpaceportService
- * ------------------------
- * The `Military Spaceport` building is a permission flag, not a storage
- * depot. This service answers "does the faction have at least one
- * Military Spaceport?" and "which planets act as assembly points?".
- * Ships are not stored here; they live in the global stock.
+ * SpaceportService
+ * ----------------
+ * The `Spaceport` building is a permission flag, not a storage depot. This
+ * service answers "does the faction have at least one Spaceport?" and
+ * "which planets act as assembly points?". Ships are not stored here; they
+ * live in the global stock.
  */
 @Injectable({ providedIn: 'root' })
-export class MilitarySpaceportService {
-  private static readonly SPACEPORT_NAME = 'Military Spaceport';
+export class SpaceportService {
+  private static readonly SPACEPORT_NAME = 'Spaceport';
 
   hasSpaceport(factionId: string, starSystems: StarSystem[]): boolean {
     return this.listSpaceports(factionId, starSystems).length > 0;
@@ -37,7 +37,10 @@ export class MilitarySpaceportService {
     return out;
   }
 
-  isSpaceportPlanet(planet: PlanetTile): boolean {
-    return (planet.buildings ?? []).some((b) => b.name === MilitarySpaceportService.SPACEPORT_NAME);
+  isSpaceportPlanet(planet: PlanetTile | null | undefined): boolean {
+    if (!planet) {
+      return false;
+    }
+    return (planet.buildings ?? []).some((b) => b.name === SpaceportService.SPACEPORT_NAME);
   }
 }

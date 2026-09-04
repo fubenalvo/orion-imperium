@@ -1,7 +1,7 @@
 # Ship Production & Fleet Assembly
 
 > Imperium Galactica 1 inspired pipeline. Factories produce ships, ships enter a
-> global per-empire stock, military spaceports enable fleet assembly. The
+> global per-empire stock, spaceports enable fleet assembly. The
 > existing `Fleet` system is reused end-to-end — no parallel fleet manager is
 > introduced.
 
@@ -11,7 +11,7 @@
 Spaceship Factory ──▶ Production Order ──▶ Production tick ──▶ Global Ship Stock
                                                                      │
                                                                      ▼
-                                          Military Spaceport ──▶ Fleet Assembly
+                                           Spaceport ──▶ Fleet Assembly
                                                                      │
                                                                      ▼
                                                             Existing Fleet system
@@ -24,8 +24,7 @@ meet only at the stock, mediated by services.
 
 - `ShipStockService` — pure helpers over `StarMapData.shipStock`.
 - `ProductionService` — per-planet production queue and per-tick progress.
-- `MilitarySpaceportService` — presence checks for the `Military Spaceport`
-  building.
+- `SpaceportService` — presence checks for the `Spaceport` building.
 - `FleetAssemblyService` — pops stock entries and pushes them into a
   `Fleet.ships` array. **No new fleet type, no new movement, no new combat
   path.**
@@ -54,6 +53,19 @@ Each `ShipType` carries a `buildTime` (seconds at one factory, `productionPower
 ship type also carries a `productionBuilding` discriminator
 (`'spaceship_factory' | 'orbital_factory'`) so the same production service
 works for both factory classes without code changes.
+
+## Production completion → Global Ship Stock
+
+When `ProductionService.tick` advances an order past `progress >= 1` it
+mints one `ShipStockEntry` per produced unit (see
+`production.service.ts:230-244`) and pushes them into the producing
+faction's stock via `ShipStockService.addToStock`. The factory never
+touches a fleet and the fleet never touches the factory. Entries are
+captured with `producedAtTick` and `originPlanetId` for debug, but those
+fields are not consulted by any current gameplay logic.
+
+`SaveGameService.migrateSave` backfills `shipStock: []` and
+`production: []` for older saves so the round-trip survives reload.
 
 ## Resource handling
 

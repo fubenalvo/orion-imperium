@@ -40,6 +40,7 @@ export class StarMapSpaceportPanelComponent {
   @Output() close = new EventEmitter<void>();
   @Output() openBuildMenu = new EventEmitter<void>();
   @Output() confirm = new EventEmitter<{ fleetName: string; composition: { typeId: string; count: number }[]; systemId: string; planetId: number; fleetId: number | null }>();
+  @Output() disband = new EventEmitter<void>();
   @Output() fleetNameChange = new EventEmitter<string>();
 
   selected: { [typeId: string]: number } = {};
