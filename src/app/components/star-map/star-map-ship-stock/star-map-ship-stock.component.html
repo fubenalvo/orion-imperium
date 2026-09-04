@@ -12,15 +12,15 @@
   </button>
 
   @if (showDetails) {
-    <div class="ship-stock__overlay" (click)="closeDetails($event)">
-      <div class="ship-stock__panel" (click)="$event.stopPropagation()">
-        <div class="ship-stock__title"><img src="/icon-spaceship.png" alt="" width="16" height="16" class="info-icon" /> SHIP STOCK</div>
+    <div class="hud-overlay" (click)="closeDetails($event)">
+      <div class="hud-overlay__panel" (click)="$event.stopPropagation()">
+        <div class="hud-overlay__title"><img src="/icon-spaceship.png" alt="" width="16" height="16" class="info-icon" /> Global Empire Ship Stock</div>
 
         @if (entries.length === 0) {
           <div class="ship-stock__empty">No ships in stock. Build a Spaceship Factory to start production.</div>
         } @else {
           @for (entry of entries; track entry.typeId) {
-            <div class="ship-stock__row">
+            <div class="hud-overlay__row">
               <span class="ship-stock__type">{{ entry.typeName }}</span>
               <span class="ship-stock__count">x{{ entry.count }}</span>
             </div>

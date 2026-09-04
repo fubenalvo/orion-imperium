@@ -33,36 +33,36 @@
   }
 
   @if (showBreakdown && economyBreakdown && selectedCurrency) {
-    <div class="faction-currencies__overlay" (click)="closeBreakdown()">
-      <div class="faction-currencies__overlay-content" (click)="$event.stopPropagation()">
-        <div class="faction-currencies__overlay-title">{{ getSelectedCurrencyLabel() }} Breakdown</div>
+    <div class="hud-overlay" (click)="closeBreakdown()">
+      <div class="hud-overlay__panel" (click)="$event.stopPropagation()">
+        <div class="hud-overlay__title">{{ getSelectedCurrencyLabel() }} Breakdown</div>
 
-        <div class="faction-currencies__overlay-section">
-          <div class="faction-currencies__overlay-row faction-currencies__overlay-row--income">
+        <div class="hud-overlay__section">
+          <div class="hud-overlay__row hud-overlay__row--income">
             <span>Production:</span>
             <span>+{{ getProductionForCurrency() | number:'1.0-0' }}/sec</span>
           </div>
-          <div class="faction-currencies__overlay-row faction-currencies__overlay-row--expense">
+          <div class="hud-overlay__row hud-overlay__row--expense">
             <span>Consumption:</span>
             <span>-{{ getConsumptionForCurrency() | number:'1.0-0' }}/sec</span>
           </div>
-          <div class="faction-currencies__overlay-row faction-currencies__overlay-row--net">
+          <div class="hud-overlay__row hud-overlay__row--net">
             <span>Net:</span>
             <span>{{ getNetForCurrency() >= 0 ? '+' : '' }}{{ getNetForCurrency() | number:'1.0-0' }}/sec</span>
           </div>
-          <div class="faction-currencies__overlay-row">
+          <div class="hud-overlay__row">
             <span>Efficiency:</span>
             <span>{{ (economyBreakdown.efficiency * 100) | number:'1.0-0' }}%</span>
           </div>
         </div>
 
         @if (economyBreakdown.planets.length > 0) {
-          <div class="faction-currencies__overlay-section">
-            <div class="faction-currencies__overlay-section-title">Planets</div>
+          <div class="hud-overlay__section">
+            <div class="hud-overlay__section-title">Planets</div>
             @for (planet of economyBreakdown.planets; track planet.planetName) {
               @if (hasPlanetActivity(planet)) {
                 <div class="faction-currencies__planet-block">
-                  <div class="faction-currencies__overlay-row faction-currencies__planet-row" (click)="togglePlanet(planet.planetName)">
+                  <div class="hud-overlay__row faction-currencies__planet-row" (click)="togglePlanet(planet.planetName)">
                     <span>
                       {{ planet.planetName }}
                       <span class="faction-currencies__planet-pop">({{ planet.population | number:'1.0-0' }} pop)</span>
@@ -73,11 +73,11 @@
                   </div>
                   @if (isPlanetExpanded(planet.planetName)) {
                     <div class="faction-currencies__planet-details">
-                      <div class="faction-currencies__overlay-row faction-currencies__overlay-row--income">
+                      <div class="hud-overlay__row hud-overlay__row--income">
                         <span>Production:</span>
                         <span>+{{ getPlanetProduction(planet) | number:'1.0-0' }}/sec</span>
                       </div>
-                      <div class="faction-currencies__overlay-row faction-currencies__overlay-row--expense">
+                      <div class="hud-overlay__row hud-overlay__row--expense">
                         <span>Consumption:</span>
                         <span>-{{ getPlanetConsumption(planet) | number:'1.0-0' }}/sec</span>
                       </div>
@@ -91,10 +91,10 @@
 
         @if (selectedCurrency === 'credits') {
           @if (economyBreakdown.fleetExpenses.length > 0) {
-            <div class="faction-currencies__overlay-section">
-              <div class="faction-currencies__overlay-section-title">Fleet Maintenance</div>
+            <div class="hud-overlay__section">
+              <div class="hud-overlay__section-title">Fleet Maintenance</div>
               @for (entry of economyBreakdown.fleetExpenses; track entry) {
-                <div class="faction-currencies__overlay-row">
+                <div class="hud-overlay__row">
                   <span>{{ entry.fleetName }} - {{ entry.shipType }} x{{ entry.count }}</span>
                   <span>-{{ entry.totalCost | number:'1.0-0' }}/sec</span>
                 </div>

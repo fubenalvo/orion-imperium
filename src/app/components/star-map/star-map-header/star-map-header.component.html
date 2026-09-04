@@ -1,0 +1,15 @@
+<div class="hud">
+  <div class="hud__title">{{ title }}</div>
+
+  <div class="hud__right">
+    <app-faction-currencies
+      [currencies]="currencies"
+      [economyBreakdown]="economyBreakdown"
+    ></app-faction-currencies>
+
+    <app-star-map-ship-stock
+      [entries]="shipStockEntries"
+      [totalShips]="shipStockTotal"
+    ></app-star-map-ship-stock>
+  </div>
+</div>

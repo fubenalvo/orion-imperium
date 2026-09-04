@@ -1,39 +1,30 @@
-/* =========================================================
-   STAR MAP HUD
-   ========================================================= */
-
-.top-hud {
+.hud {
   position: absolute;
-
   top: 0;
-
   left: 0;
-
   right: 0;
-
-  display: flex;
-
-  align-items: center;
-
-  justify-content: space-between;
-
   height: 8%;
-
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0 2%;
-
   border-bottom: 2px solid var(--color-blue);
-
   background: rgba(0, 0, 0, 0.82);
-
   z-index: 20;
 }
 
-.game-title {
+.hud__title {
   color: var(--color-blue-light);
-
+  font-family: var(--font-primary);
   font-size: clamp(1rem, 2vw, 1.6rem);
-
-  font-weight: 600;
-
+  font-weight: 700;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-shadow: 0 0 8px rgba(53, 134, 229, 0.4);
+}
+
+.hud__right {
+  display: flex;
+  align-items: center;
+  gap: 1em;
 }

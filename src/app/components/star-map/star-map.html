@@ -153,18 +153,13 @@
     </div>
 
     <!-- TOP HUD -->
-    <div class="top-hud">
-      <div class="game-title">STAR MAP</div>
-
-      <app-faction-currencies
-        [currencies]="getPlayerCurrencies()"
-        [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-      ></app-faction-currencies>
-      <app-star-map-ship-stock
-        [entries]="boundGetPlayerShipStockEntries()"
-        [totalShips]="boundGetPlayerShipStockTotal()"
-      ></app-star-map-ship-stock>
-    </div>
+    <app-star-map-header
+      title="STAR MAP"
+      [currencies]="getPlayerCurrencies()"
+      [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+      [shipStockEntries]="boundGetPlayerShipStockEntries()"
+      [shipStockTotal]="boundGetPlayerShipStockTotal()"
+    ></app-star-map-header>
 
     <!-- SELECTED FLEET INFO -->
     @if (selectedFleet) {
@@ -225,17 +220,13 @@
   } @else if (currentView === 'system') {
     <!-- SYSTEM VIEW -->
     <div class="system-view">
-      <div class="system-view-hud">
-        <div class="game-title">{{ selectedSystem?.name }}</div>
-        <app-faction-currencies
-          [currencies]="getPlayerCurrencies()"
-          [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-        ></app-faction-currencies>
-        <app-star-map-ship-stock
-          [entries]="boundGetPlayerShipStockEntries()"
-          [totalShips]="boundGetPlayerShipStockTotal()"
-        ></app-star-map-ship-stock>
-      </div>
+      <app-star-map-header
+        [title]="selectedSystem?.name ?? ''"
+        [currencies]="getPlayerCurrencies()"
+        [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+        [shipStockEntries]="boundGetPlayerShipStockEntries()"
+        [shipStockTotal]="boundGetPlayerShipStockTotal()"
+      ></app-star-map-header>
 
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
 
@@ -374,19 +365,13 @@
   } @else if (currentView === 'planet') {
     <!-- PLANET VIEW -->
     <div class="planet-view">
-      <div class="planet-view-hud">
-        <div class="game-title">{{ selectedPlanetTile?.name }}</div>
-        <div class="planet-view-hud__right">
-          <app-faction-currencies
-            [currencies]="getPlayerCurrencies()"
-            [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-          ></app-faction-currencies>
-          <app-star-map-ship-stock
-            [entries]="boundGetPlayerShipStockEntries()"
-            [totalShips]="boundGetPlayerShipStockTotal()"
-          ></app-star-map-ship-stock>
-        </div>
-      </div>
+      <app-star-map-header
+        [title]="selectedPlanetTile?.name ?? ''"
+        [currencies]="getPlayerCurrencies()"
+        [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+        [shipStockEntries]="boundGetPlayerShipStockEntries()"
+        [shipStockTotal]="boundGetPlayerShipStockTotal()"
+      ></app-star-map-header>
 
       <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
 

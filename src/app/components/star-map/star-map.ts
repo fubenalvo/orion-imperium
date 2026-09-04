@@ -56,9 +56,8 @@ import { StarMapPlanetInfoComponent } from './star-map-planet-info/star-map-plan
 import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-planet-screen.component';
 import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
-import { FactionCurrenciesComponent } from './faction-currencies/faction-currencies.component';
+import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
 import {
-  StarMapShipStockComponent,
   ShipStockEntryDisplay,
 } from './star-map-ship-stock/star-map-ship-stock.component';
 import {
@@ -103,8 +102,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapPlanetScreenComponent,
     StarMapFleetButtonsComponent,
     StarMapContextMenuComponent,
-    FactionCurrenciesComponent,
-    StarMapShipStockComponent,
+    StarMapHeaderComponent,
     NgClass,
   ],
   templateUrl: './star-map.html',
