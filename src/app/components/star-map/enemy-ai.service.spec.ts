@@ -63,7 +63,7 @@ describe('EnemyAiService', () => {
     expect(result).toBe(false);
   });
 
-  it('should select nearest player fleet', () => {
+  it('should select nearest player fleet when all targets have equal strength', () => {
     const fleets = [
       createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
       createFleet({ factionId: 'player', name: 'NEAR', x: 1, y: 1, id: 2 }),
@@ -265,5 +265,78 @@ describe('EnemyAiService', () => {
     expect(result).toBe(false);
     expect(fleets[0].targetX).toBeCloseTo(8, 5);
     expect(fleets[0].targetY).toBeCloseTo(8, 5);
+  });
+
+  it('should prefer weak target over closer strong target', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'D', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10, ships: [{ id: 1, name: 'F', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'PEGASUS', x: 1, y: 1, id: 11, ships: [{ id: 1, name: 'C', type: 'cruiser', currentHp: 10, destroyed: false }] }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(5, 5);
+    expect(fleets[0].targetY).toBeCloseTo(5, 5);
+  });
+
+  it('should select comparable target by distance', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'D', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10, ships: [{ id: 1, name: 'D', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'PEGASUS', x: 1, y: 1, id: 11, ships: [{ id: 1, name: 'D', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(1, 5);
+    expect(fleets[0].targetY).toBeCloseTo(1, 5);
+  });
+
+  it('should select strong target when no weak or comparable targets exist', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'S', type: 'scout', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10, ships: [{ id: 1, name: 'B', type: 'battleship', currentHp: 10, destroyed: false }] }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(5, 5);
+    expect(fleets[0].targetY).toBeCloseTo(5, 5);
+  });
+
+  it('should not retarget when another fleet becomes weaker but current target is still valid', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'D', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10, ships: [{ id: 1, name: 'F', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'PEGASUS', x: 1, y: 1, id: 11, ships: [{ id: 1, name: 'C', type: 'cruiser', currentHp: 10, destroyed: false }] }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(5, 5);
+    expect(fleets[0].targetY).toBeCloseTo(5, 5);
+
+    fleets[2].ships = [{ id: 1, name: 'S', type: 'scout', currentHp: 10, destroyed: false }];
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(false);
+    expect(fleets[0].targetX).toBeCloseTo(5, 5);
+    expect(fleets[0].targetY).toBeCloseTo(5, 5);
+  });
+
+  it('should retarget to weak target when current strong target is destroyed', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'D', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 10, ships: [{ id: 1, name: 'B', type: 'battleship', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'PEGASUS', x: 1, y: 1, id: 11, ships: [{ id: 1, name: 'S', type: 'scout', currentHp: 10, destroyed: false }] }),
+    ];
+
+    service.tick(1, fleets, factions);
+    expect(fleets[0].targetX).toBeCloseTo(1, 5);
+    expect(fleets[0].targetY).toBeCloseTo(1, 5);
+
+    fleets[2].destroyed = true;
+
+    const result = service.tick(1, fleets, factions);
+    expect(result).toBe(true);
+    expect(fleets[0].targetX).toBeCloseTo(5, 5);
+    expect(fleets[0].targetY).toBeCloseTo(5, 5);
   });
 });

@@ -45,7 +45,7 @@
 | 33 | Diplomacy | ❌ |
 | 34 | Research tree | ❌ |
 | 35 | Ship design | ❌ |
-| 36 | AI opponents | ⚠️ V2 (target validation + retargeting) |
+| 36 | AI opponents | ⚠️ V3 (strength-based target selection) |
 | 37 | Missions | ❌ |
 | 38 | Multiplayer | ❌ |
 | 39 | Audio | ❌ |
@@ -180,35 +180,47 @@ src/app/
 - Full StarMapData snapshot
 - Migration: shipStock/production backfill, vw→grid, destroyedFleetId
 
-### 4.11 Enemy Fleet AI (V2)
+### 4.11 Enemy Fleet AI (V3)
 - `EnemyAiService` runs every frame inside the existing `StarMap.gameLoopCallback`
 - Uses the same scaled `gameDeltaTime` as other systems (pause-safe, 1x/2x-aware)
 - Only enemy factions (`enemy1`, `enemy2`) are controlled; player, independent, and unhabited fleets are never modified
 - Runtime state tracks `enemyFleetId → targetPlayerFleetId` in a `Map<number, number>`
   - This is purely in-memory state; no persistent properties are added to the `Fleet` model
   - The map is cleared via `reset()` for test isolation
+- Fleet strength calculation:
+  - `shipStrength = attack + defense + hitPoints / 10 + shield / 10`
+  - `fleetStrength = sum(shipStrength for all ships in fleet)`
+  - Uses existing `ShipService.getShipType(typeId)` to resolve ship stats from `ship-data.json`
+  - No duplicate ship-stat definitions; reuses the existing `ShipType` interface
+- Strength categories (based on `ratio = playerFleetStrength / enemyStrength`):
+  - `weak`: ratio <= 0.75
+  - `comparable`: 0.75 < ratio <= 1.5
+  - `strong`: ratio > 1.5
 - Target selection algorithm:
   1. Filter fleets to enemy factions and skip destroyed ones
   2. For each enemy fleet without a valid target, find all valid player fleets (not destroyed, has ships)
-  3. Calculate Euclidean distance: `sqrt((enemy.x - player.x)^2 + (enemy.y - player.y)^2)`
-  4. Select the player fleet with the smallest distance
-  5. Set `enemy.targetX = player.x`, `enemy.targetY = player.y`
-  6. Store the mapping in `currentTargets`
+  3. Calculate `enemyStrength` and `playerFleetStrength` for each candidate
+  4. Calculate `ratio = playerFleetStrength / enemyStrength` (if `enemyStrength === 0`, all candidates are treated as `comparable`)
+  5. Categorize each candidate as weak / comparable / strong
+  6. Sort candidates by: category priority (weak > comparable > strong), then Euclidean distance
+  7. Select the first (best) candidate
+  8. Set `enemy.targetX = player.x`, `enemy.targetY = player.y`
+  9. Store the mapping in `currentTargets`
 - Target validity rules:
   - A target is **valid** if the player fleet exists, `destroyed === false`, and `ships.length > 0`
   - A target becomes **invalid** if the player fleet is destroyed, has no ships, or no longer exists in the fleet array
-  - The AI does NOT switch targets just because another player fleet becomes closer; it commits to the current target until invalidity
+  - The AI does NOT switch targets just because another player fleet becomes closer or weaker; it commits to the current target until invalidity
 - Retargeting behavior:
-  - When a target becomes invalid, the AI clears the old mapping and immediately selects the nearest remaining player fleet
+  - When a target becomes invalid, the AI clears the old mapping and immediately selects the nearest remaining player fleet using the new strength + distance algorithm
   - If no valid player fleets remain, the enemy fleet's target is cleared (`targetX = null`, `targetY = null`)
-  - Logging: `[Enemy AI] <name> -> <target>` on new assignment, `[Enemy AI] <name> retargeted -> <target>` on retargeting
+  - Logging: `[Enemy AI] <name> -> <target> (<category> target, ratio=<value>)` on new assignment or retargeting
 - Integration with existing systems:
   - **Movement**: The AI only sets `targetX/targetY`; the existing `StarMapMovementService` handles actual fleet movement each frame
   - **Battle**: The AI does not trigger battles. When an enemy fleet reaches a player fleet in the same cell, the existing `StarMapBattleDetectionService` detects the collision and initiates battle via `BattleService`
   - **Pause**: When `gameDeltaTime <= 0` (paused), the AI returns `false` immediately and makes no progress
   - **Speed**: At 1x and 2x, the AI runs at the same rate as other simulation systems
 - Test coverage:
-  - 16 Vitest tests covering: target selection, target validation, retargeting on destroy, retargeting on no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
+  - 21 Vitest tests covering: target selection by strength priority, distance tie-breaking within categories, strong-target fallback, target commitment, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
 
 ---
 
@@ -314,7 +326,7 @@ src/app/
 - Population/workforce/morale fields unused
 - No re-conquest for independent planets
 - Debug console.log statements present
-- Enemy AI V2 tracks targets by fleet ID and validates them; no combat trigger, fleet strength evaluation, pathfinding, strategic goals, or personality
+- Enemy AI V3 tracks targets by fleet ID and validates them; strength-based selection prefers weak/comparable targets, distance breaks ties; no combat trigger, fleet strength evaluation beyond simple sum, pathfinding, strategic goals, retreat, or personality
 
 ---
 
@@ -322,7 +334,7 @@ src/app/
 
 - Vitest 4.0.8 + jsdom
 - Existing: app.spec.ts, main-menu.spec.ts, star-map.spec.ts, game-time.service.spec.ts, star-map-sensor.service.spec.ts, enemy-ai.service.spec.ts
-- Coverage: enemy AI target selection, target validation, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
+- Coverage: enemy AI strength-based target selection, category priority (weak/comparable/strong), distance tie-breaking, target validation, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
 
 ---
 
@@ -333,7 +345,7 @@ A játék jelenlegi állapota:
 - Gazdasági és gyártási rendszer teljesen működik
 - Fleet assembly és ship stock működik
 - Save/load és fog-of-war működik
-- Enemy AI V2: ellenséges flották automatikusan célpontot választanak, követik a játékos flottákat, és retargetelnek ha a cél megsemmisül
+- Enemy AI V3: ellenséges flották erősségi szempontból választanak célpontot (weak > comparable > strong), távolság csökkenti a kötést ugyanazon kategórián belül
 - Harcrendszer autonóm: az AI nem indítja a csatákat, a `StarMapBattleDetectionService` detektálja az ütközéseket és a `BattleService` kezeli a csatát
 - Hiányzik: stratégiai AI, diplomacia, research tree, hang, multiplayer
 
