@@ -29,6 +29,7 @@ import planetData from './planet-data.json';
 import { StarMapGameLoopService } from './star-map-game-loop.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
+import { EnemyAiService } from './enemy-ai.service';
 import {
   StarMapSensorService,
   SensorCellInfo,
@@ -244,6 +245,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private gameTimeService: GameTimeService,
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
+    private enemyAiService: EnemyAiService,
     private sensorService: StarMapSensorService,
     private shipStockService: ShipStockService,
     private productionService: ProductionService,
@@ -1640,6 +1642,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
   private gameLoopCallback(gameDeltaTime: number): void {
     const didMoveFleets = this.updateFleets(gameDeltaTime);
+    const aiChanged = this.enemyAiService.tick(gameDeltaTime, this.fleets, this.factions);
     const visibilityChanged = this.updateSensorVisibility();
 
     const productionResult = this.productionService.tick(
@@ -1673,7 +1676,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       economyUpdated = true;
     }
 
-    if (didMoveFleets || economyUpdated || visibilityChanged || productionChanged) {
+    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
     }
   }
