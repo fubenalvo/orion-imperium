@@ -134,8 +134,10 @@
               @if (getProductionPanelVm()) {
                 <app-star-map-production-panel
                   [vm]="getProductionPanelVm()"
-                  [showBuildMenu]="false"
+                  [showBuildMenu]="showProductionBuildMenu"
                   [buildError]="productionBuildError"
+                  (openBuildMenu)="openProductionBuildMenu()"
+                  (closeBuildMenu)="closeProductionBuildMenu()"
                   (queueOrder)="queueOrder.emit($event)"
                   (cancelOrder)="cancelOrder.emit($event)"
                 ></app-star-map-production-panel>

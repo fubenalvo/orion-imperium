@@ -135,6 +135,7 @@ export class StarMapPlanetScreenComponent {
   previewCells: Set<string> = new Set();
   isPreviewValid = false;
   buildError = '';
+  showProductionBuildMenu = false;
 
   /** Returns an array [0, 1, ..., gridSize-1] for rendering grid cells. */
   get gridCells(): number[] {
@@ -171,9 +172,8 @@ export class StarMapPlanetScreenComponent {
 
   setTab(tab: PlanetSidebarTab): void {
     this.activeTab = tab;
+    this.showProductionBuildMenu = false;
     if (tab === 'build') {
-      // Entering BUILD tab does NOT auto-select a building; the user
-      // must pick one from the list.
       this.isBuildMode = false;
       this.selectedBuildingType = null;
       this.selectedCell = null;
@@ -189,6 +189,14 @@ export class StarMapPlanetScreenComponent {
     if (tab === 'assembly') {
       this.openSpaceportTab.emit();
     }
+  }
+
+  openProductionBuildMenu(): void {
+    this.showProductionBuildMenu = true;
+  }
+
+  closeProductionBuildMenu(): void {
+    this.showProductionBuildMenu = false;
   }
 
   exitBuildMode(): void {

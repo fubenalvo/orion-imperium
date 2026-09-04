@@ -19,4 +19,16 @@ export class StarMapPlanetInfoComponent {
 
   @Output() close = new EventEmitter<void>();
   @Output() openPlanet = new EventEmitter<void>();
+
+  get groupedBuildings(): Array<{ name: string; count: number }> {
+    if (!this.planet?.buildings) {
+      return [];
+    }
+    const map = new Map<string, number>();
+    for (const b of this.planet.buildings) {
+      const key = b.id ?? b.name;
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return Array.from(map, ([name, count]) => ({ name, count }));
+  }
 }

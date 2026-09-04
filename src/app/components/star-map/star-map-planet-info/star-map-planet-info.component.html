@@ -43,12 +43,12 @@
       }
       <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
       <div class="planet-buildings__title">
-        BUILDINGS ({{ planet?.buildings.length }})
+        BUILDINGS ({{ groupedBuildings.length }})
       </div>
-      @for (b of planet?.buildings; track $index) {
+      @for (group of groupedBuildings; track group.name) {
         <div class="planet-buildings__row">
-          <span class="planet-buildings__name">{{ b.name }}</span>
-          <span class="planet-buildings__size">{{ b.size }}x{{ b.size }}</span>
+          <span class="planet-buildings__name">{{ group.name }}</span>
+          <span class="planet-buildings__size">x{{ group.count }}</span>
         </div>
       }
 
