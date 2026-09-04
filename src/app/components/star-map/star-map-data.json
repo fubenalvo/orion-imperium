@@ -98,8 +98,8 @@
             {
               "name": "Research Laboratory",
               "size": 2,
-              "x": 6,
-              "y": 0
+              "x": 0,
+              "y": 6
             },
             {
               "name": "Laser Turret",

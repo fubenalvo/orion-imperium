@@ -23,6 +23,7 @@
         @for (col of gridCells; track col) {
           <div
             class="planet-surface__cell"
+            [class.planet-surface__cell--resource]="isResourceTile(row, col)"
             [class.planet-surface__cell--build-valid]="
               isBuildMode && isCellInPreview(row, col) && isPreviewValid
             "

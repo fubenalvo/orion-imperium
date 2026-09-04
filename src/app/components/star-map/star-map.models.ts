@@ -57,11 +57,8 @@ export interface PlanetTile {
   population: number;
   buildings: PlanetBuilding[];
   explored: boolean;
-  // Population satisfaction in [0, 100]. Defaults to 100 when undefined
-  // (backward compatible with older saves). At 0 the planet rebels and
-  // becomes the `independent` faction; once flipped, it stays locked
-  // at 0 until re-conquered.
   satisfaction?: number;
+  resourceTiles?: ResourceDeposit[];
 }
 
 /*
@@ -180,6 +177,14 @@ export interface StarMapData {
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';
 export type ResourceRates = Partial<Record<ResourceType, number>>;
+
+export type ResourceDepositType = 'rawmaterial';
+
+export interface ResourceDeposit {
+  type: ResourceDepositType;
+  x: number;
+  y: number;
+}
 
 export interface PlanetEconomy {
   production: ResourceRates;

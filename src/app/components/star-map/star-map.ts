@@ -48,7 +48,13 @@ import {
   PLANET_SIZE_MAP,
   PLANET_TYPE_COLORS,
   PlanetEconomyEntry,
+  ResourceDeposit,
 } from './star-map.models';
+import {
+  createMulberry32,
+  generateResourceTilesForPlanet as generateResourceTilesUtil,
+  selectPlanetsForResources as selectPlanetsUtil,
+} from './star-map-resources.util';
 
 import { EconomyBreakdown } from '../../services/economy.service';
 
@@ -1045,6 +1051,31 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /** Returns the representative color for a planet based on its type. */
   getPlanetColor(planet: PlanetTile): string {
     return PLANET_TYPE_COLORS[planet.type] ?? '#ffffff';
+  }
+
+  // Resource deposit generation helpers
+
+  private generateResourceTilesForPlanet(planet: PlanetTile): ResourceDeposit[] {
+    return generateResourceTilesUtil(planet, (p: PlanetTile) => this.getPlanetGridSize(p));
+  }
+
+  private selectPlanetsForResources(planets: PlanetTile[]): Set<number> {
+    return selectPlanetsUtil(planets);
+  }
+
+  /** Ensures every planet has a deterministic resourceTiles array. */
+  ensureResourceTiles(): void {
+    const allPlanets = this.starSystems.flatMap((s) => s.planetsTiles);
+    const selectedIds = this.selectPlanetsForResources(allPlanets);
+    for (const planet of allPlanets) {
+      if (selectedIds.has(planet.id)) {
+        if (!planet.resourceTiles || planet.resourceTiles.length === 0) {
+          planet.resourceTiles = this.generateResourceTilesForPlanet(planet);
+        }
+      } else {
+        planet.resourceTiles = [];
+      }
+    }
   }
 
   // Selection handlers
@@ -2196,6 +2227,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     // Compute initial sensor visibility after loading
     this.computeInitialSensorVisibility();
     this.updateSensorVisibility();
+
+    // Ensure every planet has deterministic resource deposit tiles
+    this.ensureResourceTiles();
 
     // Reset game time state (speed=1, not paused) on every load
     this.gameTimeService.reset();

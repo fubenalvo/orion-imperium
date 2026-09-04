@@ -432,6 +432,11 @@
   }
 }
 
+.planet-surface__cell--resource {
+  background: rgba(139, 69, 19, 0.35);
+  border: 1px solid rgba(205, 133, 63, 0.6);
+}
+
 .planet-surface__cell--build-valid {
   background: rgba(53, 229, 134, 0.35);
   border: 1px solid rgba(53, 229, 134, 0.7);

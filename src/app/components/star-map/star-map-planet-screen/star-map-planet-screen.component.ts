@@ -5,6 +5,8 @@ import {
   PlanetBuilding,
   PLANET_SURFACE_CELL_VW,
   PlanetEconomyEntry,
+  ResourceDeposit,
+  ResourceRates,
 } from '../star-map.models';
 import { FactionCurrenciesComponent } from '../faction-currencies/faction-currencies.component';
 import {
@@ -30,6 +32,8 @@ export interface BuildingType {
   moraleRate: number;
   energyConsumption: number;
   energyProduction: number;
+  production?: ResourceRates;
+  consumption?: ResourceRates;
   defense: {
     type: string;
     attack?: number;
@@ -259,8 +263,69 @@ export class StarMapPlanetScreenComponent {
       return;
     }
 
+    const resourceTiles = this.planet?.resourceTiles ?? [];
+    const producesRawMaterials = (this.selectedBuildingType.production?.rawmaterials ?? 0) > 0;
+
+    if (producesRawMaterials) {
+      const touchesResource = this.touchesResourceTile(row, col, size, resourceTiles);
+      if (!touchesResource) {
+        this.isPreviewValid = false;
+        this.buildError = 'Mining Complex must be placed near a raw material deposit.';
+        return;
+      }
+    } else {
+      const overlapsResource = this.overlapsResourceTile(row, col, size, resourceTiles);
+      if (overlapsResource) {
+        this.isPreviewValid = false;
+        this.buildError = 'Cannot build directly on a resource deposit.';
+        return;
+      }
+    }
+
     this.isPreviewValid = true;
     this.buildError = '';
+  }
+
+  private touchesResourceTile(
+    row: number,
+    col: number,
+    size: number,
+    resourceTiles: ResourceDeposit[],
+  ): boolean {
+    for (let r = row; r < row + size; r++) {
+      for (let c = col; c < col + size; c++) {
+        for (const rt of resourceTiles) {
+          if (Math.abs(r - rt.y) <= 1 && Math.abs(c - rt.x) <= 1) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  private overlapsResourceTile(
+    row: number,
+    col: number,
+    size: number,
+    resourceTiles: ResourceDeposit[],
+  ): boolean {
+    for (let r = row; r < row + size; r++) {
+      for (let c = col; c < col + size; c++) {
+        for (const rt of resourceTiles) {
+          if (r === rt.y && c === rt.x) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  isResourceTile(row: number, col: number): boolean {
+    return (this.planet?.resourceTiles ?? []).some(
+      (rt) => rt.x === col && rt.y === row,
+    );
   }
 
   confirmBuild(): void {

@@ -89,6 +89,7 @@ export class SaveGameService {
    * original save format so older saves keep loading. Currently:
    * - shipStock: per-faction global ship reserve
    * - production: per-faction production queue
+   * - resourceTiles: per-planet resource deposit positions
    */
   migrateSave(data: StarMapData): StarMapData {
     if (!data.shipStock) {
@@ -96,6 +97,13 @@ export class SaveGameService {
     }
     if (!data.production) {
       data.production = [];
+    }
+    for (const system of data.starSystems ?? []) {
+      for (const planet of system.planetsTiles ?? []) {
+        if (!planet.resourceTiles) {
+          planet.resourceTiles = [];
+        }
+      }
     }
     return data;
   }
