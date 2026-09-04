@@ -23,9 +23,15 @@
         @for (col of gridCells; track col) {
           <div
             class="planet-surface__cell"
-            [class.planet-surface__cell--build-valid]="isBuildMode && isCellInPreview(row, col) && isPreviewValid"
-            [class.planet-surface__cell--build-invalid]="isBuildMode && isCellInPreview(row, col) && !isPreviewValid"
-            [class.planet-surface__cell--build-selected]="isBuildMode && selectedCell?.row === row && selectedCell?.col === col"
+            [class.planet-surface__cell--build-valid]="
+              isBuildMode && isCellInPreview(row, col) && isPreviewValid
+            "
+            [class.planet-surface__cell--build-invalid]="
+              isBuildMode && isCellInPreview(row, col) && !isPreviewValid
+            "
+            [class.planet-surface__cell--build-selected]="
+              isBuildMode && selectedCell?.row === row && selectedCell?.col === col
+            "
             [style.grid-column]="col + 1"
             [style.grid-row]="row + 1"
             (click)="onCellClick(row, col)"
@@ -41,7 +47,7 @@
           [style.--building-y]="b.y"
           [style.--building-size]="b.size"
         >
-          {{ b.name }}
+          <div class="planet-surface__building-name">{{ b.name }}</div>
         </div>
       }
     </div>
@@ -63,25 +69,31 @@
               </button>
             }
           </div>
-          <button class="build-overlay__close" type="button" (click)="closeBuildMenu()">CLOSE</button>
+          <button class="build-overlay__close" type="button" (click)="closeBuildMenu()">
+            CLOSE
+          </button>
         </div>
       </div>
     }
 
     <!-- DETAILS SIDEBAR -->
     <div class="planet-sidebar panel-style">
-      <div class="panel-style__title">
-        {{ planet?.name }} SURFACE
-      </div>
+      <div class="panel-style__title">{{ planet?.name }} SURFACE</div>
 
       <div class="planet-sidebar__buttons">
         @if (!isBuildMode) {
           <button class="planet-sidebar__btn" type="button" (click)="openBuildMenu()">BUILD</button>
           <button class="planet-sidebar__btn" type="button">DETAILS</button>
         } @else {
-          <button class="planet-sidebar__btn" type="button" (click)="exitBuildMode()">CANCEL</button>
+          <button class="planet-sidebar__btn" type="button" (click)="exitBuildMode()">
+            CANCEL
+          </button>
           @if (selectedBuildingType) {
-            <span class="planet-sidebar__build-preview">{{ selectedBuildingType.name }} ({{ selectedBuildingType.size }}x{{ selectedBuildingType.size }})</span>
+            <span class="planet-sidebar__build-preview"
+              >{{ selectedBuildingType.name }} ({{ selectedBuildingType.size }}x{{
+                selectedBuildingType.size
+              }})</span
+            >
           }
         }
       </div>
@@ -90,12 +102,20 @@
         @if (isBuildMode) {
           @if (selectedCell) {
             @if (isPreviewValid) {
-              <button class="planet-sidebar__btn planet-sidebar__btn--build" type="button" (click)="confirmBuild()">BUILD</button>
+              <button
+                class="planet-sidebar__btn planet-sidebar__btn--build"
+                type="button"
+                (click)="confirmBuild()"
+              >
+                BUILD
+              </button>
             } @else {
               <div class="planet-sidebar__build-error">{{ buildError }}</div>
             }
           } @else {
-            <div class="planet-sidebar__build-hint">Click a cell on the surface to place the building.</div>
+            <div class="planet-sidebar__build-hint">
+              Click a cell on the surface to place the building.
+            </div>
           }
         } @else {
           <div class="planet-sidebar__info-row">
@@ -105,13 +125,15 @@
 
           <div class="planet-sidebar__info-row">
             <span>FACTION</span>
-            <span [style.color]="getFactionColor(planet!.factionId)"
-              >{{ getFactionName(planet!.factionId) }}</span
-            >
+            <span [style.color]="getFactionColor(planet!.factionId)">{{
+              getFactionName(planet!.factionId)
+            }}</span>
           </div>
 
           <div class="planet-sidebar__currencies">
-            <app-faction-currencies [currencies]="getFactionCurrencies(planet!.factionId)"></app-faction-currencies>
+            <app-faction-currencies
+              [currencies]="getFactionCurrencies(planet!.factionId)"
+            ></app-faction-currencies>
           </div>
 
           <hr class="planet-sidebar__divider" />
@@ -121,28 +143,58 @@
             <span>{{ planet?.population }}</span>
           </div>
 
-          <div class="planet-sidebar__info-row">
-            <span>ENERGY</span>
-            <span>{{ getEnergyForPlanet(planet!) }}</span>
-          </div>
-
-          <div class="planet-sidebar__info-row">
-            <span>DAILY TAX</span>
-            <span>{{ getTaxForPlanet(planet!) }}</span>
-          </div>
-
           @if (planetEconomy) {
+            <div class="planet-sidebar__info-row">
+              <span>ENERGY</span>
+              <span
+                >{{ planetEconomy.energyProduction | number: '1.0-0' }} /
+                {{ planetEconomy.energyConsumption | number: '1.0-0' }}</span
+              >
+            </div>
+
+            <div
+              class="planet-sidebar__info-row"
+              [class.planet-sidebar__info-row--danger]="planetEconomy.energyBalance < 0"
+            >
+              <span>ENERGY BAL</span>
+              <span>{{ planetEconomy.energyBalance | number: '1.0-0' }}</span>
+            </div>
+
+            <div class="planet-sidebar__info-row">
+              <span>INCOME</span>
+              <span
+                >{{
+                  (planetEconomy.netRates['credits'] ?? 0) * (planetEconomy.incomeMultiplier ?? 1)
+                    | number: '1.0-0'
+                }}/s</span
+              >
+            </div>
+
+            <div
+              class="planet-sidebar__info-row"
+              [class.planet-sidebar__info-row--warn]="
+                planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0
+              "
+              [class.planet-sidebar__info-row--danger]="planetEconomy.satisfaction <= 0"
+            >
+              <span>SATISFACTION</span>
+              <span>{{ planetEconomy.satisfaction | number: '1.0-0' }}%</span>
+            </div>
+
             <div class="planet-economy">
               <div class="planet-economy__title">ECONOMY</div>
-              @for (resource of ['credits', 'rawmaterials', 'research']; track resource) {
+              @for (resource of ['rawmaterials', 'research']; track resource) {
                 <div class="planet-sidebar__info-row">
                   <span>{{ resource | uppercase }}</span>
-                  <span>{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : '' }}{{ $any(planetEconomy.netRates)[resource] | number:'1.0-0' }}/s</span>
+                  <span
+                    >{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : ''
+                    }}{{ $any(planetEconomy.netRates)[resource] | number: '1.0-0' }}/s</span
+                  >
                 </div>
               }
               <div class="planet-sidebar__info-row">
                 <span>EFFICIENCY</span>
-                <span>{{ (planetEconomy.efficiency * 100) | number:'1.0-0' }}%</span>
+                <span>{{ planetEconomy.efficiency * 100 | number: '1.0-0' }}%</span>
               </div>
             </div>
           }

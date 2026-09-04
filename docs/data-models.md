@@ -59,7 +59,8 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 - `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
 - `population`: integer
 - `buildings`: `PlanetBuilding[]`
-   - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, on the 18×10 system grid)
+- `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, on the 18×10 system grid)
+- `satisfaction?`: number in `[0, 100]`, defaulting to `100` when undefined (backward-compatible with older saves). Represents population satisfaction; drifts at ±1 per second based on whether the planet's energy production covers its consumption. When it reaches `0` the planet's `factionId` is set to `'independent'` (rebellion). Once flipped, satisfaction stays at `0` until the planet is re-conquered (currently out of scope). See `docs/invariants.md` for the rules that depend on this field.
 
 ### PlanetBuilding
 
@@ -150,9 +151,9 @@ Owned by `BattleService` while a battle is in progress. Lives between `StarMap` 
 
 - `ResourceType`: `'credits' | 'rawmaterials' | 'research' | 'energy'`
 - `ResourceRates`: `Partial<Record<ResourceType, number>>`
-- `PlanetEconomy`: `{ production, consumption, net, energyProduction, energyConsumption, energyBalance, efficiency }`
+- `PlanetEconomy`: `{ production, consumption, net, energyProduction, energyConsumption, energyBalance, efficiency, satisfaction, incomeMultiplier }`. `satisfaction` is the current value (0..100) and `incomeMultiplier = satisfaction / 100` is the factor applied to credit production from this planet.
 - `EconomyBreakdown`: aggregated per-faction `{ incomePerSecond, expensePerSecond, netPerSecond, totalPopulation, planets, fleetExpenses, production, consumption, net, efficiency }`
-- `PlanetEconomyEntry`: per-planet view inside an `EconomyBreakdown`
+- `PlanetEconomyEntry`: per-planet view inside an `EconomyBreakdown`; also carries `satisfaction` and `incomeMultiplier` for UI rendering.
 - `BuildingExpenseEntry`: per-building maintenance breakdown
 - `FleetExpenseEntry`: per-fleet/per-ship-type maintenance breakdown
 - `BuildingStats`: see above (re-exported alongside the economy types)

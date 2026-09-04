@@ -200,6 +200,24 @@
   }
 }
 
+.planet-surface__building-name {
+  position: absolute;
+  bottom: 0.3vw;
+  left: 0;
+  right: 0;
+  font-size: 0.6rem;
+  z-index: 3;
+  text-shadow:
+    -1px -1px 0 rgba(0, 0, 0, 0.8),
+    0 -1px 0 rgba(0, 0, 0, 0.8),
+    1px -1px 0 rgba(0, 0, 0, 0.8),
+    -1px 0 0 rgba(0, 0, 0, 0.8),
+    1px 0 0 rgba(0, 0, 0, 0.8),
+    -1px 1px 0 rgba(0, 0, 0, 0.8),
+    0 1px 0 rgba(0, 0, 0, 0.8),
+    1px 1px 0 rgba(0, 0, 0, 0.8);
+}
+
 .planet-sidebar {
   position: relative;
   flex: 0 0 26%;
@@ -256,6 +274,20 @@
 
   span:last-child {
     color: var(--color-text-bright);
+  }
+}
+
+.planet-sidebar__info-row--danger {
+  span:first-child,
+  span:last-child {
+    color: #ff5252;
+  }
+}
+
+.planet-sidebar__info-row--warn {
+  span:first-child,
+  span:last-child {
+    color: #ffb74d;
   }
 }
 

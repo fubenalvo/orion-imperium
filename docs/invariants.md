@@ -87,9 +87,12 @@ Conditions that must remain true across the codebase. When changing any code tha
 - Stock resources (`credits`, `rawmaterials`, `research`) are accumulated in `faction.currencies`. `credits` is floored on every application; `rawmaterials` and `research` are stored as floats.
 - Energy is a flow resource. `faction.currencies.energy` is **not** updated; the value is computed and used only to compute `efficiency`.
 - Efficiency is `1.0` when production ≥ consumption; otherwise `production / max(consumption, 1)`. It is averaged across owned planets for the faction-level breakdown.
-- The effective per-planet rate applied is `netRate * efficiency` for every stock resource.
-- Population contributes `pop * 0.1` credits/s as production (not consumption).
+- The effective per-planet rate applied to a stock resource is `netRate * efficiency`. Credits are additionally scaled by `satisfaction / 100`; raw materials and research are not. Maintenance is not scaled by satisfaction.
+- Population contributes `pop * 0.1` credits/s as production (not consumption). That production inherits the satisfaction multiplier because it contributes to credits.
 - Building stats are loaded once from `planet-data.json` and indexed by both `id` and `name`; adding a new building requires a JSON change only.
+- `PlanetTile.satisfaction` is in `[0, 100]`. When undefined (older saves) it is treated as `100`. It drifts at ±1 per second: down when `energyProduction < energyConsumption`, up otherwise.
+- When `satisfaction` reaches `0` and `factionId !== 'independent'`, the planet's `factionId` is set to `'independent'` (rebellion). This happens **before** the credits tick for the same frame, so a planet that flips contributes `0` credits on the tick it flips. Once `independent`, `satisfaction` stays at `0` and the planet no longer contributes to any faction's owned-planet economy.
+- Energy balance ≥ 0 means the planet is considered powered; `>= 0` (not `> 0`) is the recovery threshold so a perfectly balanced grid counts as healthy.
 
 ## Camera Invariants
 

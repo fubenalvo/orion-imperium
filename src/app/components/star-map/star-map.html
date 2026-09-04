@@ -31,10 +31,12 @@
     [style.transform]="'translate(' + -cameraX * 0.3 + 'vw, ' + -cameraY * 0.3 + 'vw)'"
   ></div>
 
-  <div
-    class="star-map-foreground"
-    [style.backgroundPosition]="-cameraX * 0.1 + 'vw ' + -cameraY * 0.1 + 'vw'"
-  ></div>
+  @if (currentView === 'map') {
+    <div
+      class="star-map-foreground"
+      [style.backgroundPosition]="-cameraX * 0.1 + 'vw ' + -cameraY * 0.1 + 'vw'"
+    ></div>
+  }
 
   @if (currentView === 'map') {
     <!-- MAP VIEWPORT -->

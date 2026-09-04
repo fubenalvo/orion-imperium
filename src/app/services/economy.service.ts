@@ -56,7 +56,9 @@ export class EconomyService {
 
   /*
    * calculatePlanetEconomy: Pure calculation of a single planet's economy.
-   * Does not mutate the planet.
+   * Does not mutate the planet. Reads the current satisfaction value from
+   * the planet (defaulting to 100) and exposes the income multiplier that
+   * should be applied to credits production.
    */
   calculatePlanetEconomy(planet: PlanetTile): PlanetEconomy {
     const production: ResourceRates = {};
@@ -95,6 +97,13 @@ export class EconomyService {
     const energyBalance = energyProduction - energyConsumption;
     const efficiency = energyProduction >= energyConsumption ? 1.0 : energyProduction / Math.max(energyConsumption, 1);
 
+    // Satisfaction is clamped to [0, 100]; an independent planet always reads
+    // as 0% so the multiplier is consistent even though the planet no longer
+    // contributes to its previous owner's income.
+    const rawSatisfaction = planet.factionId === 'independent' ? 0 : (planet.satisfaction ?? 100);
+    const satisfaction = Math.max(0, Math.min(100, rawSatisfaction));
+    const incomeMultiplier = satisfaction / 100;
+
     return {
       production,
       consumption,
@@ -103,6 +112,8 @@ export class EconomyService {
       energyConsumption,
       energyBalance,
       efficiency,
+      satisfaction,
+      incomeMultiplier,
     };
   }
 
@@ -159,8 +170,13 @@ export class EconomyService {
         production: economy.production,
         consumption: economy.consumption,
         netRates: economy.net,
+        energyProduction: economy.energyProduction,
+        energyConsumption: economy.energyConsumption,
+        energyBalance: economy.energyBalance,
         efficiency: economy.efficiency,
         buildings,
+        satisfaction: economy.satisfaction,
+        incomeMultiplier: economy.incomeMultiplier,
       });
     }
 
@@ -208,6 +224,16 @@ export class EconomyService {
    * applyEconomyDelta: Applies resource changes over deltaTime.
    * Only stock resources (credits, rawmaterials, research) are mutated.
    * Energy is a flow resource and is NOT accumulated.
+   *
+   * Side effects on each owned planet:
+   * - Satisfaction is updated based on energy balance (±1 per second).
+   *   When the planet is energy-short, satisfaction drops; otherwise it
+   *   recovers (symmetric rate, clamped to [0, 100]).
+   * - When satisfaction reaches 0, the planet's factionId is set to
+   *   'independent'. This rebellion happens BEFORE the income tick so
+   *   the flipping planet does not generate credits on the same tick.
+   * - Credits are scaled by `satisfaction / 100`. Raw materials and
+   *   research are not affected.
    */
   applyEconomyDelta(
     factionId: string,
@@ -221,9 +247,38 @@ export class EconomyService {
     if (!faction) return breakdown;
 
     for (const planetEntry of breakdown.planets) {
+      const planet = this.findPlanetByName(planetEntry.planetName, starSystems);
+      if (!planet) continue;
+
+      // 1) Drift satisfaction based on this tick's energy balance.
+      //    Independent planets stay locked at 0 (they are no longer in
+      //    `breakdown.planets` because they are not owned by factionId,
+      //    so the guard is mostly defensive).
+      if (planet.factionId !== 'independent') {
+        const energyShort = planetEntry.efficiency < 1.0;
+        const direction = energyShort ? -1 : 1;
+        const current = planet.satisfaction ?? 100;
+        const next = Math.max(0, Math.min(100, current + direction * deltaTime));
+        planet.satisfaction = next;
+
+        // 2) Rebellion check: 0% satisfaction -> independent faction.
+        //    The multiplier for this tick must be 0 so we do not pay out
+        //    credits for the same tick the planet flips. We use the new
+        //    satisfaction value here, not the one captured in the
+        //    breakdown entry, so the flip is honored immediately.
+        if (planet.satisfaction <= 0 && planet.factionId !== 'independent') {
+          planet.factionId = 'independent';
+        }
+      }
+
+      // 3) Apply resource deltas. Credits are scaled by the current
+      //    satisfaction multiplier (read straight from the planet after
+      //    any updates above). Raw materials and research are not scaled.
+      const effectiveMultiplier = (planet.satisfaction ?? 0) / 100;
       for (const resource of STOCK_RESOURCES) {
         const netRate = planetEntry.netRates[resource] ?? 0;
-        const effectiveRate = netRate * planetEntry.efficiency;
+        const multiplier = resource === 'credits' ? effectiveMultiplier : 1;
+        const effectiveRate = netRate * planetEntry.efficiency * multiplier;
         const current = faction.currencies[resource] ?? 0;
         const newValue = current + effectiveRate * deltaTime;
         faction.currencies[resource] = resource === 'credits' ? Math.floor(newValue) : newValue;
@@ -231,6 +286,15 @@ export class EconomyService {
     }
 
     return breakdown;
+  }
+
+  private findPlanetByName(planetName: string, starSystems: StarSystem[]): PlanetTile | null {
+    for (const system of starSystems) {
+      for (const planet of system.planetsTiles ?? []) {
+        if (planet.name === planetName) return planet;
+      }
+    }
+    return null;
   }
 
   /*
@@ -268,8 +332,13 @@ export class EconomyService {
       production: economy.production,
       consumption: economy.consumption,
       netRates: economy.net,
+      energyProduction: economy.energyProduction,
+      energyConsumption: economy.energyConsumption,
+      energyBalance: economy.energyBalance,
       efficiency: economy.efficiency,
       buildings,
+      satisfaction: economy.satisfaction,
+      incomeMultiplier: economy.incomeMultiplier,
     };
   }
 

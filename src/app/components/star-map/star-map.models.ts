@@ -57,6 +57,11 @@ export interface PlanetTile {
   population: number;
   buildings: PlanetBuilding[];
   explored: boolean;
+  // Population satisfaction in [0, 100]. Defaults to 100 when undefined
+  // (backward compatible with older saves). At 0 the planet rebels and
+  // becomes the `independent` faction; once flipped, it stays locked
+  // at 0 until re-conquered.
+  satisfaction?: number;
 }
 
 /*
@@ -148,6 +153,8 @@ export interface PlanetEconomy {
   energyConsumption: number;
   energyBalance: number;
   efficiency: number;
+  satisfaction: number;
+  incomeMultiplier: number;
 }
 
 export interface EconomyBreakdown {
@@ -172,8 +179,13 @@ export interface PlanetEconomyEntry {
   production: ResourceRates;
   consumption: ResourceRates;
   netRates: ResourceRates;
+  energyProduction: number;
+  energyConsumption: number;
+  energyBalance: number;
   efficiency: number;
   buildings: BuildingExpenseEntry[];
+  satisfaction: number;
+  incomeMultiplier: number;
 }
 
 export interface BuildingExpenseEntry {

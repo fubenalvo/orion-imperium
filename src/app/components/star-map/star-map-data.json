@@ -34,6 +34,17 @@
       }
     },
     {
+      "id": "independent",
+      "name": "Independent",
+      "color": "#ffcc00",
+      "team": 0,
+      "currencies": {
+        "credits": 1,
+        "rawmaterials": 1,
+        "research": 1
+      }
+    },
+    {
       "id": "unhabited",
       "name": "Unhabited",
       "color": "#666666",
