@@ -73,18 +73,19 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 - `id`, `index`, `name`: identity
 - `factionId`: owning faction (use `'unhabited'` for uncolonized worlds)
 - `x`, `y`, `xOffset`, `yOffset`: loaded from JSON for backwards compatibility but **not used** for rendering. The system view uses `getPlanetGridPosition()` instead.
-- `type`: `'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert'`
-- `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
-- `population`: integer
-- `buildings`: `PlanetBuilding[]`
-- `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, on the 18×10 system grid)
-- `satisfaction?`: number in `[0, 100]`, defaulting to `100` when undefined (backward-compatible with older saves). Represents population satisfaction; drifts at ±1 per second based on whether the planet's energy production covers its consumption. When it reaches `0` the planet's `factionId` is set to `'independent'` (rebellion). Once flipped, satisfaction stays at `0` until the planet is re-conquered (currently out of scope). See `docs/invariants.md` for the rules that depend on this field.
+ - `type`: `'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert'`. Also determines the planet's base morale/satisfaction drift per second via `PLANET_TYPE_HABITABILITY` (`star-map.models.ts`): `earthlike 0`, `marslike -0.03`, `venuslike -0.05`, `gasgiant 0`, `ice -0.08`, `desert -0.05`.
+ - `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
+ - `population`: integer
+ - `buildings`: `PlanetBuilding[]`
+ - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, on the 18×10 system grid)
+ - `satisfaction?`: number in `[0, 100]`, defaulting to `100` when undefined (backward-compatible with older saves). Represents population satisfaction; drifts each economy tick by `(energyDirection ±1 + moraleDrift) × deltaTime` where `moraleDrift = PLANET_TYPE_HABITABILITY[type] + Σ building.moraleRate`, scaled by game time (pauses when paused, 2× at speed 2). When it reaches `0` the planet's `factionId` is set to `'independent'` (rebellion). Once flipped, satisfaction stays at `0` until the planet is re-conquered (currently out of scope). See `docs/invariants.md` for the rules that depend on this field.
 
 ### PlanetBuilding
 
-- `name`: looked up in `planet-data.json` (case-sensitive)
-- `size`: footprint in grid cells (matches `BuildingType.size`)
-- `x`, `y`: top-left cell on the planet's surface grid
+ - `name`: looked up in `planet-data.json` (case-sensitive)
+ - `size`: footprint in grid cells (matches `BuildingType.size`)
+ - `x`, `y`: top-left cell on the planet's surface grid
+ - The full building definition (production, consumption, energy, workforce requirement, `providesWorkforce` for housing, `moraleRate`, etc.) is resolved by name from `planet-data.json` via `EconomyService.buildingStatsByName` at calculation time, so it is never serialized into a save.
 
 ### PlanetSizeNumber
 
@@ -137,7 +138,7 @@ Read from `planet-data.json`:
 - `maintenanceCost`: per-second credit cost
 - `production`, `consumption`: `ResourceRates` – resources produced or consumed per second
 - `energyProduction`, `energyConsumption`: per-second energy flow
-- `population`, `workforce`, `moraleRate`: optional demographic fields (not yet applied)
+- `population`, `workforce`, `providesWorkforce`, `moraleRate`: optional demographic / morale fields. `workforce` is the workforce *required* by the building per second of operation; `providesWorkforce` (housing-role buildings only) is the workforce *provided* by the building; `moraleRate` is the building's per-second contribution to the planet's morale/satisfaction drift (social/entertainment buildings are positive, heavy industry mildly negative). All three are now consumed by `EconomyService`.
 - `defense`: optional `{ type, attack, attackType, range, weakness, shield, shieldRegen }` block for defense buildings
 
 ## Battle
@@ -169,9 +170,9 @@ Owned by `BattleService` while a battle is in progress. Lives between `StarMap` 
 
 - `ResourceType`: `'credits' | 'rawmaterials' | 'research' | 'energy'`
 - `ResourceRates`: `Partial<Record<ResourceType, number>>`
-- `PlanetEconomy`: `{ production, consumption, net, energyProduction, energyConsumption, energyBalance, efficiency, satisfaction, incomeMultiplier }`. `satisfaction` is the current value (0..100) and `incomeMultiplier = satisfaction / 100` is the factor applied to credit production from this planet.
+- `PlanetEconomy`: `{ production, consumption, net, energyProduction, energyConsumption, energyBalance, efficiency, satisfaction, incomeMultiplier, workforceAvailable, workforceRequired, workforceEfficiency, habitabilityDrift, buildingMoraleBonus }`. `satisfaction` is the current value (0..100) and `incomeMultiplier = satisfaction / 100` is the factor applied to credit production from this planet. `workforceEfficiency` (0..1) is the fraction of required workforce that is available and scales building production; `habitabilityDrift` is the planet-type base morale drift and `buildingMoraleBonus` is the aggregate building morale contribution.
 - `EconomyBreakdown`: aggregated per-faction `{ incomePerSecond, expensePerSecond, netPerSecond, totalPopulation, planets, fleetExpenses, production, consumption, net, efficiency }`
-- `PlanetEconomyEntry`: per-planet view inside an `EconomyBreakdown`; also carries `satisfaction` and `incomeMultiplier` for UI rendering.
+- `PlanetEconomyEntry`: per-planet view inside an `EconomyBreakdown`; also carries `satisfaction`, `incomeMultiplier`, and the workforce/morale fields (`workforceAvailable`, `workforceRequired`, `workforceEfficiency`, `habitabilityDrift`, `buildingMoraleBonus`) for UI rendering.
 - `BuildingExpenseEntry`: per-building maintenance breakdown
 - `FleetExpenseEntry`: per-fleet/per-ship-type maintenance breakdown
 - `BuildingStats`: see above (re-exported alongside the economy types)

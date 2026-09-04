@@ -74,7 +74,8 @@
       "maintenanceCost": 3,
       "size": 1,
       "population": 100,
-      "workforce": 2,
+      "workforce": 0,
+      "providesWorkforce": 20,
       "moraleRate": 0,
       "price": 100,
       "production": {},
@@ -92,7 +93,8 @@
       "maintenanceCost": 6,
       "size": 2,
       "population": 300,
-      "workforce": 4,
+      "workforce": 0,
+      "providesWorkforce": 50,
       "moraleRate": 0,
       "price": 100,
       "production": {},
@@ -110,7 +112,8 @@
       "maintenanceCost": 12,
       "size": 3,
       "population": 700,
-      "workforce": 8,
+      "workforce": 0,
+      "providesWorkforce": 100,
       "moraleRate": 0,
       "price": 100,
       "production": {},
@@ -121,7 +124,7 @@
     },
     {
       "id": "park",
-      "name": "Central Park",
+       "name": "Central Park",
       "role": "social",
       "energyConsumption": 2,
       "energyProduction": 0,
@@ -129,7 +132,7 @@
       "size": 2,
       "population": 0,
       "workforce": 5,
-      "moraleRate": 4,
+      "moraleRate": 0.03,
       "price": 100,
       "production": {},
       "consumption": {
@@ -147,7 +150,7 @@
       "size": 2,
       "population": 0,
       "workforce": 40,
-      "moraleRate": 3,
+      "moraleRate": 0.02,
       "price": 100,
       "production": {},
       "consumption": {
@@ -165,7 +168,7 @@
       "size": 2,
       "population": 0,
       "workforce": 30,
-      "moraleRate": 2,
+      "moraleRate": 0.01,
       "price": 100,
       "production": {},
       "consumption": {
@@ -183,7 +186,7 @@
       "size": 3,
       "population": 0,
       "workforce": 60,
-      "moraleRate": 6,
+      "moraleRate": 0.08,
       "price": 100,
       "production": {},
       "consumption": {
@@ -201,7 +204,7 @@
       "size": 3,
       "population": 0,
       "workforce": 35,
-      "moraleRate": -1,
+      "moraleRate": -0.01,
       "price": 100,
       "production": {
         "energy": 100
@@ -237,7 +240,7 @@
       "size": 3,
       "population": 0,
       "workforce": 100,
-      "moraleRate": -2,
+      "moraleRate": -0.02,
       "price": 100,
       "production": {
         "rawmaterials": 10
@@ -278,7 +281,7 @@
       "size": 3,
       "population": 0,
       "workforce": 80,
-      "moraleRate": -1,
+      "moraleRate": -0.01,
       "price": 100,
       "production": {
         "rawmaterials": 5

@@ -16,6 +16,7 @@ import {
   BuildingExpenseEntry,
   FleetExpenseEntry,
   BuildingStats,
+  PLANET_TYPE_HABITABILITY,
 } from '../components/star-map/star-map.models';
 
 /*
@@ -66,12 +67,21 @@ export class EconomyService {
     let energyProduction = 0;
     let energyConsumption = 0;
 
+    // Workforce + morale are pre-computed so building production can be scaled
+    // by workforce efficiency during accumulation. Consumption and population
+    // income are intentionally left unscaled.
+    const { available, required, moraleBonus } = this.computeWorkforce(planet);
+    const workforceEfficiency =
+      required > 0 ? Math.min(1, Math.max(0, available / required)) : 1;
+    const habitabilityDrift = PLANET_TYPE_HABITABILITY[planet.type] ?? 0;
+
     for (const building of planet.buildings ?? []) {
       const stats = this.buildingStatsByName.get(building.name);
       if (!stats) continue;
 
       for (const [resource, amount] of Object.entries(stats.production ?? {})) {
-        production[resource as ResourceType] = (production[resource as ResourceType] ?? 0) + amount;
+        production[resource as ResourceType] =
+          (production[resource as ResourceType] ?? 0) + amount * workforceEfficiency;
       }
 
       for (const [resource, amount] of Object.entries(stats.consumption ?? {})) {
@@ -114,7 +124,69 @@ export class EconomyService {
       efficiency,
       satisfaction,
       incomeMultiplier,
+      workforceAvailable: available,
+      workforceRequired: required,
+      workforceEfficiency,
+      habitabilityDrift,
+      buildingMoraleBonus: moraleBonus,
     };
+  }
+
+  /*
+   * computeWorkforce: Sums the workforce provided by residential (housing)
+   * buildings and the workforce required by every building on the planet,
+   * plus the aggregate building morale bonus. Residential buildings are pure
+   * providers (their `workforce` requirement is 0); all other buildings
+   * consume workforce. Returns raw totals so callers (economy calc, UI,
+   * morale drift) can reuse a single pass instead of re-scanning buildings.
+   */
+  private computeWorkforce(planet: PlanetTile): {
+    available: number;
+    required: number;
+    moraleBonus: number;
+  } {
+    let available = 0;
+    let required = 0;
+    let moraleBonus = 0;
+    for (const building of planet.buildings ?? []) {
+      const stats = this.buildingStatsByName.get(building.name);
+      if (!stats) continue;
+      required += stats.workforce ?? 0;
+      if (stats.role === 'housing') {
+        available += stats.providesWorkforce ?? 0;
+      }
+      moraleBonus += stats.moraleRate ?? 0;
+    }
+    return { available, required, moraleBonus };
+  }
+
+  /*
+   * getWorkforce: Public accessor for a planet's workforce totals and the
+   * workforce-driven efficiency (0..1). Exposed for the UI and for unit
+   * tests that only care about the workforce/efficiency slice.
+   */
+  getWorkforce(planet: PlanetTile): {
+    available: number;
+    required: number;
+    efficiency: number;
+  } {
+    const { available, required } = this.computeWorkforce(planet);
+    const efficiency = required > 0 ? Math.min(1, Math.max(0, available / required)) : 1;
+    return { available, required, efficiency };
+  }
+
+  /*
+   * getMoraleDriftPerSecond: The non-energy portion of the satisfaction
+   * drift, in satisfaction points per second (game time). Equals the planet
+   * type's habitability base plus the aggregate morale bonus of every
+   * building on the planet. Entertainment/social buildings offset harsh
+   * habitability; industrial buildings contribute a small negative pressure.
+   * This value is multiplied by the game-time `deltaTime` when applied, so
+   * it pauses when the game is paused and runs 2× as fast at speed 2x.
+   */
+  getMoraleDriftPerSecond(planet: PlanetTile): number {
+    const { moraleBonus } = this.computeWorkforce(planet);
+    return (PLANET_TYPE_HABITABILITY[planet.type] ?? 0) + moraleBonus;
   }
 
   /*
@@ -177,6 +249,11 @@ export class EconomyService {
         buildings,
         satisfaction: economy.satisfaction,
         incomeMultiplier: economy.incomeMultiplier,
+        workforceAvailable: economy.workforceAvailable,
+        workforceRequired: economy.workforceRequired,
+        workforceEfficiency: economy.workforceEfficiency,
+        habitabilityDrift: economy.habitabilityDrift,
+        buildingMoraleBonus: economy.buildingMoraleBonus,
       });
     }
 
@@ -226,14 +303,19 @@ export class EconomyService {
    * Energy is a flow resource and is NOT accumulated.
    *
    * Side effects on each owned planet:
-   * - Satisfaction is updated based on energy balance (±1 per second).
-   *   When the planet is energy-short, satisfaction drops; otherwise it
-   *   recovers (symmetric rate, clamped to [0, 100]).
+   * - Satisfaction is updated based on energy balance (±1 per second) PLUS the
+   *   planet's habitability drift (planet type) and building morale bonuses
+   *   (social/entertainment buildings offset harsh worlds; industrial
+   *   buildings add a small negative pressure). When energy-short the ±1
+   *   portion is -1, otherwise +1. The morale portion is `getMoraleDriftPerSecond`
+   *   × deltaTime, so it pauses with the game and runs 2x at speed 2x. All
+   *   clamped to [0, 100].
    * - When satisfaction reaches 0, the planet's factionId is set to
    *   'independent'. This rebellion happens BEFORE the income tick so
    *   the flipping planet does not generate credits on the same tick.
    * - Credits are scaled by `satisfaction / 100`. Raw materials and
-   *   research are not affected.
+   *   research are not affected. Building production is additionally scaled
+   *   by the planet's workforce efficiency (see calculatePlanetEconomy).
    */
   applyEconomyDelta(
     factionId: string,
@@ -250,16 +332,20 @@ export class EconomyService {
       const planet = this.findPlanetByName(planetEntry.planetName, starSystems);
       if (!planet) continue;
 
-      // 1) Drift satisfaction based on this tick's energy balance.
-      //    Independent planets stay locked at 0 (they are no longer in
-      //    `breakdown.planets` because they are not owned by factionId,
-      //    so the guard is mostly defensive).
-      if (planet.factionId !== 'independent') {
-        const energyShort = planetEntry.efficiency < 1.0;
-        const direction = energyShort ? -1 : 1;
-        const current = planet.satisfaction ?? 100;
-        const next = Math.max(0, Math.min(100, current + direction * deltaTime));
-        planet.satisfaction = next;
+       // 1) Drift satisfaction based on this tick's energy balance.
+       //    Independent planets stay locked at 0 (they are no longer in
+       //    `breakdown.planets` because they are not owned by factionId,
+       //    so the guard is mostly defensive).
+       if (planet.factionId !== 'independent') {
+         const energyShort = planetEntry.efficiency < 1.0;
+         const energyDirection = energyShort ? -1 : 1;
+         // Habitability + building morale bonuses are additive to the energy
+         // drift. They are scaled by `deltaTime` here, so they pause with the
+         // game (deltaTime 0) and run 2x as fast at speed 2x (see GameTimeService).
+         const moraleDrift = this.getMoraleDriftPerSecond(planet);
+         const current = planet.satisfaction ?? 100;
+         const next = Math.max(0, Math.min(100, current + (energyDirection + moraleDrift) * deltaTime));
+         planet.satisfaction = next;
 
         // 2) Rebellion check: 0% satisfaction -> independent faction.
         //    The multiplier for this tick must be 0 so we do not pay out
@@ -339,6 +425,11 @@ export class EconomyService {
       buildings,
       satisfaction: economy.satisfaction,
       incomeMultiplier: economy.incomeMultiplier,
+      workforceAvailable: economy.workforceAvailable,
+      workforceRequired: economy.workforceRequired,
+      workforceEfficiency: economy.workforceEfficiency,
+      habitabilityDrift: economy.habitabilityDrift,
+      buildingMoraleBonus: economy.buildingMoraleBonus,
     };
   }
 

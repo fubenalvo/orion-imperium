@@ -29,6 +29,24 @@ export const PLANET_TYPE_COLORS: Record<PlanetType, string> = {
   desert: 'rgb(145, 132, 107)',
 };
 
+/*
+ * Per-second satisfaction drift imposed by a planet's type when it is owned
+ * and populated. Habitable worlds (earthlike, gasgiant) impose no penalty;
+ * harsher worlds drain satisfaction and must be offset with social
+ * infrastructure. This is a *base* drift — building moraleRate bonuses are
+ * added on top in EconomyService.applyEconomyDelta.
+ *
+ * Units: satisfaction points per second (game time).
+ */
+export const PLANET_TYPE_HABITABILITY: Record<PlanetType, number> = {
+  earthlike: 0,
+  marslike: -0.03,
+  venuslike: -0.05,
+  gasgiant: 0,
+  ice: -0.08,
+  desert: -0.05,
+};
+
 export const PLANET_SURFACE_CELL_VW = 3;
 
 export interface Faction {
@@ -196,6 +214,11 @@ export interface PlanetEconomy {
   efficiency: number;
   satisfaction: number;
   incomeMultiplier: number;
+  workforceAvailable: number;
+  workforceRequired: number;
+  workforceEfficiency: number;
+  habitabilityDrift: number;
+  buildingMoraleBonus: number;
 }
 
 export interface EconomyBreakdown {
@@ -227,6 +250,11 @@ export interface PlanetEconomyEntry {
   buildings: BuildingExpenseEntry[];
   satisfaction: number;
   incomeMultiplier: number;
+  workforceAvailable: number;
+  workforceRequired: number;
+  workforceEfficiency: number;
+  habitabilityDrift: number;
+  buildingMoraleBonus: number;
 }
 
 export interface BuildingExpenseEntry {
@@ -247,11 +275,25 @@ export interface FleetExpenseEntry {
 export interface BuildingStats {
   id: string;
   name: string;
+  role?: string;
   maintenanceCost: number;
   production: ResourceRates;
   consumption: ResourceRates;
   energyProduction: number;
   energyConsumption: number;
+  population?: number;
+  workforce?: number;
+  providesWorkforce?: number;
+  moraleRate?: number;
+  defense?: {
+    type: string;
+    attack?: number;
+    attackType?: string;
+    range?: number;
+    weakness?: string;
+    shield?: number;
+    shieldRegen?: number;
+  } | null;
 }
 
 export interface ContextMenuItem {

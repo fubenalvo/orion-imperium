@@ -207,6 +207,25 @@
             @if (planetEconomy) {
               <div class="planet-sidebar__info-row">
                 <span
+                  ><img src="/icon-popuilation.png" alt="" width="14" height="14" class="info-icon" />
+                  WORKFORCE</span
+                >
+                <span>{{ planetEconomy.workforceAvailable }} / {{ planetEconomy.workforceRequired }}</span>
+              </div>
+
+              <div
+                class="planet-sidebar__info-row"
+                [class.planet-sidebar__info-row--warn]="planetEconomy.workforceEfficiency < 0.75"
+                [class.planet-sidebar__info-row--danger]="planetEconomy.workforceEfficiency < 0.5"
+              >
+                <span
+                  ><img src="/icon-efficiency.png" alt="" width="14" height="14" class="info-icon" />
+                  WORKFORCE EFF</span
+                >
+                <span>{{ planetEconomy.workforceEfficiency * 100 | number: '1.0-0' }}%</span>
+              </div>
+              <div class="planet-sidebar__info-row">
+                <span
                   ><img src="/icon-energy.png" alt="" width="14" height="14" class="info-icon" />
                   ENERGY</span
                 >
@@ -242,9 +261,7 @@
 
               <div
                 class="planet-sidebar__info-row"
-                [class.planet-sidebar__info-row--warn]="
-                  planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0
-                "
+                [class.planet-sidebar__info-row--warn]="planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0"
                 [class.planet-sidebar__info-row--danger]="planetEconomy.satisfaction <= 0"
               >
                 <span
@@ -260,6 +277,20 @@
 
                 <span>{{ planetEconomy.satisfaction | number: '1.0-0' }}%</span>
               </div>
+
+              @if (planetEconomy.habitabilityDrift !== 0) {
+                <div class="planet-sidebar__info-row">
+                  <span>HABITABILITY</span>
+                  <span>{{ planetEconomy.habitabilityDrift | number: '1.2-2' }}</span>
+                </div>
+              }
+
+              @if (planetEconomy.buildingMoraleBonus !== 0) {
+                <div class="planet-sidebar__info-row">
+                  <span>ENTERTAINMENT</span>
+                  <span>{{ planetEconomy.buildingMoraleBonus >= 0 ? '+' : '' }}{{ planetEconomy.buildingMoraleBonus | number: '1.2-2' }}</span>
+                </div>
+              }
 
               <div class="planet-economy">
                 <div class="planet-economy__title">ECONOMY</div>

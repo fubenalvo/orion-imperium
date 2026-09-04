@@ -40,6 +40,26 @@
           <span><img src="/icon-efficiency.png" alt="" width="14" height="14" class="info-icon" /> EFFICIENCY</span>
           <span>{{ (planetEconomy.efficiency * 100) | number:'1.0-0' }}%</span>
         </div>
+        <div class="planet-economy__row">
+          <span><img src="/icon-popuilation.png" alt="" width="14" height="14" class="info-icon" /> WORKFORCE</span>
+          <span>{{ planetEconomy.workforceAvailable }} / {{ planetEconomy.workforceRequired }}</span>
+        </div>
+        <div class="planet-economy__row">
+          <span><img src="/icon-efficiency.png" alt="" width="14" height="14" class="info-icon" /> WORKFORCE EFF</span>
+          <span>{{ (planetEconomy.workforceEfficiency * 100) | number:'1.0-0' }}%</span>
+        </div>
+        @if (planetEconomy.habitabilityDrift !== 0) {
+          <div class="planet-economy__row">
+            <span>HABITABILITY</span>
+            <span>{{ planetEconomy.habitabilityDrift | number:'1.2-2' }}</span>
+          </div>
+        }
+        @if (planetEconomy.buildingMoraleBonus !== 0) {
+          <div class="planet-economy__row">
+            <span>ENTERTAINMENT</span>
+            <span>{{ planetEconomy.buildingMoraleBonus >= 0 ? '+' : '' }}{{ planetEconomy.buildingMoraleBonus | number:'1.2-2' }}</span>
+          </div>
+        }
       }
       <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
       <div class="planet-buildings__title">

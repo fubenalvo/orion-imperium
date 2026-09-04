@@ -102,12 +102,23 @@ Conditions that must remain true across the codebase. When changing any code tha
 - Stock resources (`credits`, `rawmaterials`, `research`) are accumulated in `faction.currencies`. `credits` is floored on every application; `rawmaterials` and `research` are stored as floats.
 - Energy is a flow resource. `faction.currencies.energy` is **not** updated; the value is computed and used only to compute `efficiency`.
 - Efficiency is `1.0` when production ≥ consumption; otherwise `production / max(consumption, 1)`. It is averaged across owned planets for the faction-level breakdown.
-- The effective per-planet rate applied to a stock resource is `netRate * efficiency`. Credits are additionally scaled by `satisfaction / 100`; raw materials and research are not. Maintenance is not scaled by satisfaction.
-- Population contributes `pop * 0.1` credits/s as production (not consumption). That production inherits the satisfaction multiplier because it contributes to credits.
+- The effective per-planet rate applied to a stock resource is `netRate × efficiency × satisfactionMultiplier`. Where applicable, building `production` rates are first scaled by the planet's `workforceEfficiency` (see Workforce, below) inside `EconomyService.calculatePlanetEconomy`; consumption and the `pop * 0.1` credit contribution are **not** workforce-scaled. Credits are additionally scaled by `satisfaction / 100`; raw materials and research are not. Maintenance is not scaled by satisfaction.
+- Population contributes `pop * 0.1` credits/s as production (not consumption). That production inherits the satisfaction multiplier because it contributes to credits. It is NOT scaled by workforce efficiency (planet-level income, not a building).
 - Building stats are loaded once from `planet-data.json` and indexed by both `id` and `name`; adding a new building requires a JSON change only.
-- `PlanetTile.satisfaction` is in `[0, 100]`. When undefined (older saves) it is treated as `100`. It drifts at ±1 per second: down when `energyProduction < energyConsumption`, up otherwise.
+- `PlanetTile.satisfaction` is in `[0, 100]`. When undefined (older saves) it is treated as `100`. It drifts each economy tick by `(energyDirection ±1 + moraleDrift) × deltaTime`, clamped to `[0, 100]`, where:
+  - `energyDirection` is `-1` when energy production < consumption, else `+1`.
+  - `moraleDrift = PLANET_TYPE_HABITABILITY[planet.type] + Σ building.moraleRate` (habitability base per planet type, plus the per-building `moraleRate`; social/entertainment buildings are positive, heavy industry mildly negative). `moraleRate`/`habitabilityDrift` units are satisfaction points per second of game time.
+  - This whole delta is multiplied by `deltaTime` (the game-time accumulator passed from `StarMap`), so morale is frozen while paused and runs 2× at speed 2x — no per-system pause/speed checks are needed.
 - When `satisfaction` reaches `0` and `factionId !== 'independent'`, the planet's `factionId` is set to `'independent'` (rebellion). This happens **before** the credits tick for the same frame, so a planet that flips contributes `0` credits on the tick it flips. Once `independent`, `satisfaction` stays at `0` and the planet no longer contributes to any faction's owned-planet economy.
 - Energy balance ≥ 0 means the planet is considered powered; `>= 0` (not `> 0`) is the recovery threshold so a perfectly balanced grid counts as healthy.
+
+## Workforce Invariants
+
+- `availableWorkforce` = Σ `providesWorkforce` over residential (`role === 'housing'`) buildings on the planet. `requiredWorkforce` = Σ `workforce` (requirement) over **all** buildings. Both are recomputed from `planet-data.json` each economy calculation — they are never persisted in a save.
+- `workforceEfficiency = requiredWorkforce > 0 ? min(1, max(0, available / required)) : 1` (floor 0). When there are no workforce consumers, efficiency is 1 (no stall).
+- Building `production` rates are scaled by `workforceEfficiency` in `EconomyService.calculatePlanetEconomy`; this is the single place production is reduced by a workforce shortfall. `production.service.ts` (ship build queues) is **not** affected — workforce efficiency only gates resource extraction/processing output, not ship manufacturing progress.
+- Workforce has no save/load impact: `providesWorkforce` is a static data field in `planet-data.json` looked up by building name, and `PlanetBuilding` only stores `name`/`size`/`x`/`y`. Old saves load unchanged.
+- Workforce does **not** gate morale drift or satisfaction directly; it only scales production. A planet can be fully satisfied yet unproductive if understaffed.
 
 ## Camera Invariants
 
