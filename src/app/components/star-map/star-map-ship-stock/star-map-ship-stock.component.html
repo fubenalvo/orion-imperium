@@ -6,7 +6,7 @@
     [class.ship-stock__toggle--empty]="totalShips === 0"
     title="Global empire ship stock"
   >
-    <span class="ship-stock__icon">&#9708;</span>
+    <span class="ship-stock__icon"><img src="/icon-spaceship.png" alt="" width="16" height="16" /></span>
     <span class="ship-stock__value">{{ totalShips }}</span>
     <span class="ship-stock__label">STOCK</span>
   </button>
@@ -14,7 +14,7 @@
   @if (showDetails) {
     <div class="ship-stock__overlay" (click)="closeDetails($event)">
       <div class="ship-stock__panel" (click)="$event.stopPropagation()">
-        <div class="ship-stock__title">SHIP STOCK</div>
+        <div class="ship-stock__title"><img src="/icon-spaceship.png" alt="" width="16" height="16" class="info-icon" /> SHIP STOCK</div>
 
         @if (entries.length === 0) {
           <div class="ship-stock__empty">No ships in stock. Build a Spaceship Factory to start production.</div>

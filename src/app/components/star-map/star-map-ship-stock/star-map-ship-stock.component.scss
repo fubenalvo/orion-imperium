@@ -34,6 +34,21 @@
   line-height: 1;
 }
 
+.ship-stock__icon img {
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  image-rendering: pixelated;
+}
+
+.info-icon {
+  width: 14px;
+  height: 14px;
+  vertical-align: -3px;
+  margin-right: 4px;
+  image-rendering: pixelated;
+}
+
 .ship-stock__value {
   font-weight: 700;
   min-width: 2ch;

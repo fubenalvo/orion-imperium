@@ -22,28 +22,28 @@
     </div>
 
     <div class="system-info__content">
-      <div>TYPE: {{ planet?.type | uppercase }}</div>
-      <div>FACTION: {{ getFactionName(planet!.factionId) }}</div>
-      <div>POPULATION: {{ planet?.population }}</div>
-      <div>ENERGY: {{ getEnergyForPlanet(planet!) }}</div>
-      <div>DAILY TAX: {{ getTaxForPlanet(planet!) }}</div>
+      <div><img src="/icon-faction.png" alt="" width="16" height="16" class="info-icon" /> TYPE: {{ planet?.type | uppercase }}</div>
+      <div><img src="/icon-faction.png" alt="" width="16" height="16" class="info-icon" /> FACTION: {{ getFactionName(planet!.factionId) }}</div>
+      <div><img src="/icon-popuilation.png" alt="" width="16" height="16" class="info-icon" /> POPULATION: {{ planet?.population }}</div>
+      <div><img src="/icon-energy.png" alt="" width="16" height="16" class="info-icon" /> ENERGY: {{ getEnergyForPlanet(planet!) }}</div>
+      <div><img src="/icon-taxes.png" alt="" width="16" height="16" class="info-icon" /> DAILY TAX: {{ getTaxForPlanet(planet!) }}</div>
       @if (planetEconomy) {
         <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
         <div class="planet-economy__title">ECONOMY</div>
         @for (resource of ['credits', 'rawmaterials', 'research']; track resource) {
           <div class="planet-economy__row">
-            <span>{{ resource | uppercase }}</span>
+            <span><img src="/icon-{{ resource === 'credits' ? 'credits' : resource === 'rawmaterials' ? 'rawmaterial' : 'research' }}.png" alt="" width="14" height="14" class="info-icon" /> {{ resource | uppercase }}</span>
             <span>{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : '' }}{{ $any(planetEconomy.netRates)[resource] | number:'1.0-0' }}/s</span>
           </div>
         }
         <div class="planet-economy__row">
-          <span>EFFICIENCY</span>
+          <span><img src="/icon-efficiency.png" alt="" width="14" height="14" class="info-icon" /> EFFICIENCY</span>
           <span>{{ (planetEconomy.efficiency * 100) | number:'1.0-0' }}%</span>
         </div>
       }
       <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
       <div class="planet-buildings__title">
-        BUILDINGS ({{ groupedBuildings.length }})
+        <img src="/icon-build.png" alt="" width="16" height="16" class="info-icon" /> BUILDINGS ({{ groupedBuildings.length }})
       </div>
       @for (group of groupedBuildings; track group.name) {
         <div class="planet-buildings__row">

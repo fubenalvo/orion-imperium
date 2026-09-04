@@ -8,7 +8,7 @@
   border-radius: 4px;
   color: var(--color-text, #fff);
   font-size: 0.85rem;
-  min-width: 320px;
+  //min-width: 320px;
   max-width: 100%;
 }
 
@@ -163,4 +163,12 @@
 .spaceport-panel__actions button:last-child:not(:disabled) {
   border-color: var(--color-blue-light, #8cc4ff);
   color: var(--color-blue-light, #8cc4ff);
+}
+
+.info-icon {
+  width: 14px;
+  height: 14px;
+  vertical-align: -3px;
+  margin-right: 4px;
+  image-rendering: pixelated;
 }

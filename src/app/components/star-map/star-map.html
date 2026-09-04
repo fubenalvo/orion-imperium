@@ -376,14 +376,16 @@
     <div class="planet-view">
       <div class="planet-view-hud">
         <div class="game-title">{{ selectedPlanetTile?.name }}</div>
-        <app-faction-currencies
-          [currencies]="getPlayerCurrencies()"
-          [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
-        ></app-faction-currencies>
-        <app-star-map-ship-stock
-          [entries]="boundGetPlayerShipStockEntries()"
-          [totalShips]="boundGetPlayerShipStockTotal()"
-        ></app-star-map-ship-stock>
+        <div class="planet-view-hud__right">
+          <app-faction-currencies
+            [currencies]="getPlayerCurrencies()"
+            [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
+          ></app-faction-currencies>
+          <app-star-map-ship-stock
+            [entries]="boundGetPlayerShipStockEntries()"
+            [totalShips]="boundGetPlayerShipStockTotal()"
+          ></app-star-map-ship-stock>
+        </div>
       </div>
 
       <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>

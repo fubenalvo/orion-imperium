@@ -35,6 +35,12 @@
   color: var(--color-blue-light);
 }
 
+.faction-currencies__icon img {
+  width: 1em;
+  height: 1em;
+  image-rendering: pixelated;
+}
+
 .faction-currencies__value {
   font-weight: 600;
 
