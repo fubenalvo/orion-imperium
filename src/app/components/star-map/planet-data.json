@@ -228,8 +228,8 @@
       "defense": null
     },
     {
-      "id": "factory",
-      "name": "Industrial Factory",
+      "id": "spaceship_factory",
+      "name": "Spaceship Factory",
       "role": "industry",
       "energyConsumption": 30,
       "energyProduction": 0,

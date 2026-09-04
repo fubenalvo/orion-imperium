@@ -310,7 +310,7 @@ export class EconomyService {
    */
   getPlanetTax(planet: PlanetTile): number {
     const pop = planet.population || 0;
-    const factories = (planet.buildings ?? []).filter((b) => b.name === 'Industrial Factory').length;
+    const factories = (planet.buildings ?? []).filter((b) => b.name === 'Spaceship Factory').length;
     return Math.floor(pop * 0.1) + factories * 500;
   }
 
