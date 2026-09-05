@@ -63,8 +63,8 @@
     }
   ],
   "map": {
-    "width": 100,
-    "height": 60,
+    "width": 300,
+    "height": 180,
     "cellSizeVw": 2,
     "cellSizeVh": 2
   },
@@ -72,8 +72,8 @@
     {
       "id": "sol",
       "name": "SOL",
-      "x": 18,
-      "y": 13,
+      "x": 30,
+      "y": 25,
       "planets": 4,
       "color": "#ffcc00",
       "explored": true,
@@ -82,7 +82,7 @@
           "id": 1,
           "index": 1,
           "factionId": "player",
-          "name": "Asterion",
+          "name": "Earth",
           "x": 12,
           "y": 3,
           "type": "earthlike",
@@ -114,7 +114,8 @@
               "y": 3
             }
           ],
-          "explored": true
+          "explored": true,
+          "color": "#4caf50"
         },
         {
           "id": 2,
@@ -145,48 +146,23 @@
         {
           "id": 5,
           "index": 4,
-          "factionId": "player",
+          "factionId": "unhabited",
           "name": "Kaelith",
           "x": 6,
           "y": 2,
           "type": "ice",
           "size": "tiny",
-          "population": 995,
-          "buildings": [
-            {
-              "name": "Entertainment Center",
-              "size": 3,
-              "x": 0,
-              "y": 0
-            },
-            {
-              "name": "Solar Array",
-              "size": 2,
-              "x": 3,
-              "y": 0
-            },
-            {
-              "name": "Medium Residential Block",
-              "size": 2,
-              "x": 0,
-              "y": 3
-            },
-            {
-              "name": "Solar Array",
-              "size": 2,
-              "x": 3,
-              "y": 2
-            }
-          ],
-          "explored": true
+          "population": 0,
+          "buildings": [],
+          "explored": false
         }
       ]
     },
     {
       "id": "vega",
       "name": "VEGA",
-      "x": 40,
-      "y": 10,
+      "x": 150,
+      "y": 25,
       "planets": 2,
       "color": "#5ca8ff",
       "explored": false,
@@ -259,8 +235,8 @@
     {
       "id": "sirius",
       "name": "SIRIUS",
-      "x": 63,
-      "y": 18,
+      "x": 215,
+      "y": 45,
       "planets": 3,
       "color": "#f3f3f3",
       "explored": false,
@@ -377,8 +353,8 @@
     {
       "id": "arcturus",
       "name": "ARCTURUS",
-      "x": 83,
-      "y": 12,
+      "x": 270,
+      "y": 35,
       "planets": 1,
       "color": "#39b8a8",
       "explored": false,
@@ -401,8 +377,8 @@
     {
       "id": "rigel",
       "name": "RIGEL",
-      "x": 28,
-      "y": 33,
+      "x": 75,
+      "y": 85,
       "planets": 4,
       "color": "#5ca8ff",
       "explored": false,
@@ -582,8 +558,8 @@
     {
       "id": "altair",
       "name": "ALTAIR",
-      "x": 53,
-      "y": 38,
+      "x": 150,
+      "y": 100,
       "planets": 2,
       "color": "#f3f3f3",
       "explored": false,
@@ -693,8 +669,8 @@
     {
       "id": "betelgeuse",
       "name": "BETELGEUSE",
-      "x": 78,
-      "y": 35,
+      "x": 225,
+      "y": 105,
       "planets": 6,
       "color": "#d65757",
       "explored": false,
@@ -888,8 +864,8 @@
     {
       "id": "procyon",
       "name": "PROCYON",
-      "x": 13,
-      "y": 48,
+      "x": 45,
+      "y": 145,
       "planets": 1,
       "color": "#39b8a8",
       "explored": false,
@@ -937,8 +913,8 @@
     {
       "id": "deneb",
       "name": "DENEB",
-      "x": 46,
-      "y": 53,
+      "x": 140,
+      "y": 150,
       "planets": 3,
       "color": "#5ca8ff",
       "explored": false,
@@ -1098,8 +1074,8 @@
     {
       "id": "antares",
       "name": "ANTARES",
-      "x": 88,
-      "y": 51,
+      "x": 270,
+      "y": 155,
       "planets": 3,
       "color": "#d65757",
       "explored": false,
@@ -1237,6 +1213,128 @@
           "explored": false
         }
       ]
+    },
+    {
+      "id": "lyra",
+      "name": "LYRA",
+      "x": 90,
+      "y": 25,
+      "planets": 1,
+      "color": "#888888",
+      "explored": false,
+      "planetsTiles": [
+        {
+          "id": 54,
+          "index": 1,
+          "factionId": "unhabited",
+          "name": "Elaris",
+          "x": 12,
+          "y": 3,
+          "type": "desert",
+          "size": "small",
+          "population": 0,
+          "buildings": [],
+          "explored": false
+        }
+      ]
+    },
+    {
+      "id": "taurus",
+      "name": "TAURUS",
+      "x": 45,
+      "y": 75,
+      "planets": 2,
+      "color": "#888888",
+      "explored": false,
+      "planetsTiles": [
+        {
+          "id": 55,
+          "index": 1,
+          "factionId": "unhabited",
+          "name": "Vandor",
+          "x": 12,
+          "y": 3,
+          "type": "marslike",
+          "size": "tiny",
+          "population": 0,
+          "buildings": [],
+          "explored": false
+        },
+        {
+          "id": 56,
+          "index": 2,
+          "factionId": "unhabited",
+          "name": "Ophira",
+          "x": 10,
+          "y": 5,
+          "type": "ice",
+          "size": "small",
+          "population": 0,
+          "buildings": [],
+          "explored": false
+        }
+      ]
+    },
+    {
+      "id": "draco",
+      "name": "DRACO",
+      "x": 255,
+      "y": 85,
+      "planets": 1,
+      "color": "#888888",
+      "explored": false,
+      "planetsTiles": [
+        {
+          "id": 57,
+          "index": 1,
+          "factionId": "unhabited",
+          "name": "Kestrel",
+          "x": 12,
+          "y": 3,
+          "type": "gasgiant",
+          "size": "medium",
+          "population": 0,
+          "buildings": [],
+          "explored": false
+        }
+      ]
+    },
+    {
+      "id": "cygnus",
+      "name": "CYGNUS",
+      "x": 205,
+      "y": 145,
+      "planets": 2,
+      "color": "#888888",
+      "explored": false,
+      "planetsTiles": [
+        {
+          "id": 58,
+          "index": 1,
+          "factionId": "unhabited",
+          "name": "Virelia",
+          "x": 12,
+          "y": 3,
+          "type": "earthlike",
+          "size": "small",
+          "population": 0,
+          "buildings": [],
+          "explored": false
+        },
+        {
+          "id": 59,
+          "index": 2,
+          "factionId": "unhabited",
+          "name": "Nox",
+          "x": 10,
+          "y": 5,
+          "type": "desert",
+          "size": "tiny",
+          "population": 0,
+          "buildings": [],
+          "explored": false
+        }
+      ]
     }
   ],
   "fleets": [
@@ -1298,8 +1396,8 @@
     {
       "id": 3,
       "name": "RAIDER",
-      "x": 9,
-      "y": 6,
+      "x": 266,
+      "y": 151,
       "targetX": null,
       "targetY": null,
       "speed": 7,
@@ -1333,12 +1431,12 @@
     {
       "id": 4,
       "name": "HUNTER",
-      "x": 15,
-      "y": 8,
+      "x": 146,
+      "y": 29,
       "targetX": null,
       "targetY": null,
       "speed": 9,
-      "factionId": "enemy1",
+      "factionId": "enemy2",
       "destroyed": false,
       "sensorRange": 3,
       "ships": [
@@ -1363,23 +1461,8 @@
           "type": "scout"
         },
         {
-          "id": 14,
-          "name": "HUNTER-5",
-          "type": "scout"
-        },
-        {
-          "id": 15,
-          "name": "HUNTER-6",
-          "type": "scout"
-        },
-        {
           "id": 16,
           "name": "DESTROYER-2",
-          "type": "destroyer"
-        },
-        {
-          "id": 17,
-          "name": "DESTROYER-3",
           "type": "destroyer"
         }
       ],
