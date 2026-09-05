@@ -297,6 +297,10 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+
+  &--locked {
+    opacity: 0.2;
+  }
 }
 
 .planet-sidebar__build-lock {

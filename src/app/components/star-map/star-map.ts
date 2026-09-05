@@ -814,11 +814,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return this.factions.find((f) => f.id === 'player');
   }
 
-  isBuildingUnlocked(buildingId: string): boolean {
+  isBuildingUnlocked = (buildingId: string): boolean => {
     const player = this.getPlayerFaction();
     if (!player) return false;
     return this.researchService.isBuildingUnlocked(player, buildingId);
-  }
+  };
 
   onSpaceportConfirm(event: {
     fleetName: string;

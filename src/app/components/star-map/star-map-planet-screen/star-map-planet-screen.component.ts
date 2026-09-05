@@ -131,7 +131,19 @@ export class StarMapPlanetScreenComponent {
   @Output() openSpaceportTab = new EventEmitter<void>();
 
   readonly cellVw = PLANET_SURFACE_CELL_VW;
-  readonly buildingTypes: BuildingType[] = (planetData as { buildings: BuildingType[] }).buildings;
+  private readonly _buildingTypes: BuildingType[] = (planetData as { buildings: BuildingType[] }).buildings;
+
+  get buildingTypes(): BuildingType[] {
+    return this._buildingTypes;
+  }
+
+  getBuildingName(building: BuildingType): string {
+    return building.name;
+  }
+
+  getBuildingPrice(building: BuildingType): number {
+    return building.price;
+  }
 
   activeTab: PlanetSidebarTab = 'details';
   isBuildMode = false;

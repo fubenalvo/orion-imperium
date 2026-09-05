@@ -91,12 +91,13 @@
                 @for (building of buildingTypes; track building.id) {
                   <button
                     class="planet-sidebar__build-item"
+                    [class.planet-sidebar__build-item--locked]="!isBuildingUnlocked(building.id)"
                     type="button"
                     [disabled]="!canAfford(building) || !isBuildingUnlocked(building.id)"
                     (click)="selectBuildingType(building.id)"
                   >
-                    <span class="planet-sidebar__build-name">{{ building.name }}</span>
-                    <span class="planet-sidebar__build-price">{{ building.price }} CR</span>
+                    <span class="planet-sidebar__build-name">{{ getBuildingName(building) || 'N/A' }}</span>
+                    <span class="planet-sidebar__build-price">{{ getBuildingPrice(building) ?? 0 }} CR</span>
                     @if (!isBuildingUnlocked(building.id)) {
                       <span class="planet-sidebar__build-lock">🔒</span>
                     }

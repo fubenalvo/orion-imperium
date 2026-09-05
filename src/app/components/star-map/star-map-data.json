@@ -9,7 +9,13 @@
         "credits": 1000,
         "rawmaterials": 1000,
         "research": 1000
-      }
+      },
+      "researchedTechnologies": [
+        "basic_engineering",
+        "basic_science",
+        "basic_industry",
+        "basic_power"
+      ]
     },
     {
       "id": "enemy1",
