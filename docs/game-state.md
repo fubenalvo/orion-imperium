@@ -234,6 +234,22 @@ src/app/
 - Test coverage:
   - 21 Vitest tests covering: target selection by strength priority, distance tie-breaking within categories, strong-target fallback, target commitment, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
 
+### 4.12 Enemy Strategy Layer (V4.1)
+
+- `EnemyStrategyService` runs above `EnemyAiService` V3 and determines the current high-level strategic intention for each enemy faction.
+- Strategy type: `'expand' | 'attack' | 'defend' | 'develop'`.
+- Evaluation timing: every 2 seconds of game time using an internal accumulator, so it respects pause state and game speed.
+- Decision rules (in priority order):
+  1. **DEFEND**: any enemy-owned star system has a player fleet within 5 galaxy cells.
+  2. **ATTACK**: any enemy fleet has a player fleet within 15 galaxy cells and the enemy fleet strength is at least 1.2× the player fleet strength.
+  3. **EXPAND**: any enemy fleet is within 20 galaxy cells of an unhabited planet.
+  4. **DEVELOP**: fallback when no other condition is met.
+- Fleet strength formula matches V3: `sum(attack + defense + hitPoints/10 + shield/10)` per ship, resolved via `ShipService.getShipType()`.
+- The layer does not execute strategy yet; it only stores and logs the current intention.
+- Integration: `StarMap.gameLoopCallback` calls `EnemyStrategyService.tick()` each frame; change detection runs only when the strategy actually changes.
+- Reset: strategy state is cleared on game load / new game via `EnemyStrategyService.reset()`.
+- Test coverage: 14 Vitest tests covering defend/attack/expand/develop selection, priority ordering, determinism, no state mutation, independent multi-faction behavior, accumulator timing, and reset behavior.
+
 ---
 
 ## 5. Data Models

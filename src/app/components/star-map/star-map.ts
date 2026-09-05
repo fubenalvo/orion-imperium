@@ -31,6 +31,7 @@ import { StarMapGameLoopService } from './star-map-game-loop.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import { EnemyAiService } from './enemy-ai.service';
+import { EnemyStrategyService } from './enemy-strategy.service';
 import {
   StarMapSensorService,
   SensorCellInfo,
@@ -258,6 +259,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
     private enemyAiService: EnemyAiService,
+    private enemyStrategyService: EnemyStrategyService,
     private sensorService: StarMapSensorService,
     private shipStockService: ShipStockService,
     private productionService: ProductionService,
@@ -1711,6 +1713,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private gameLoopCallback(gameDeltaTime: number): void {
     const didMoveFleets = this.updateFleets(gameDeltaTime);
     const aiChanged = this.enemyAiService.tick(gameDeltaTime, this.fleets, this.factions);
+    const strategyChanged = this.enemyStrategyService.tick(
+      gameDeltaTime,
+      this.fleets,
+      this.factions,
+      this.starSystems,
+    );
     const visibilityChanged = this.updateSensorVisibility();
 
     const productionResult = this.productionService.tick(
@@ -1744,7 +1752,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       economyUpdated = true;
     }
 
-    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged) {
+    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || strategyChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
     }
   }
@@ -2270,6 +2278,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     // Reset game time state (speed=1, not paused) on every load
     this.gameTimeService.reset();
+
+    this.enemyAiService.reset();
+    this.enemyStrategyService.reset();
 
     this.clampCamera();
   }

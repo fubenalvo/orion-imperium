@@ -207,6 +207,8 @@ export interface StarMapData {
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';
 export type ResourceRates = Partial<Record<ResourceType, number>>;
 
+export type AiStrategy = 'expand' | 'attack' | 'defend' | 'develop';
+
 export type ResourceDepositType = 'rawmaterial';
 
 export interface ResourceDeposit {
