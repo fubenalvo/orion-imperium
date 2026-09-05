@@ -20,6 +20,7 @@ import { ShipStockService } from '../../services/ship-stock.service';
 import { ProductionService } from '../../services/production.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
+import { ResearchService } from '../../services/research.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
@@ -49,6 +50,7 @@ import {
   PLANET_TYPE_COLORS,
   PlanetEconomyEntry,
   ResourceDeposit,
+  Faction,
 } from './star-map.models';
 import {
   createMulberry32,
@@ -73,6 +75,7 @@ import {
   QueueOrderRequest,
 } from './star-map-production-panel/star-map-production-panel.component';
 import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
+import { StarMapResearchTreeComponent } from './star-map-research-tree/star-map-research-tree.component';
 
 export type { StarMapData } from './star-map.models';
 
@@ -111,6 +114,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapFleetButtonsComponent,
     StarMapContextMenuComponent,
     StarMapHeaderComponent,
+    StarMapResearchTreeComponent,
     NgClass,
   ],
   templateUrl: './star-map.html',
@@ -210,6 +214,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   spaceportMode: 'create' | 'reinforce' = 'create';
   spaceportTargetFleetId: number | null = null;
 
+  showResearchTree = false;
+
   isLandscape = false;
 
   // Event handlers for focus tracking
@@ -257,6 +263,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private productionService: ProductionService,
     public spaceportService: SpaceportService,
     private fleetAssemblyService: FleetAssemblyService,
+    private researchService: ResearchService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -576,6 +583,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const player = this.factions.find((f) => f.id === 'player');
     if (!player?.currencies) return;
 
+    if (!this.researchService.isBuildingUnlocked(player, event.buildingId)) {
+      return;
+    }
+
     const buildingDef = (
       planetData as { buildings: { id: string; price: number; size: number; name: string }[] }
     ).buildings.find((b) => b.id === event.buildingId);
@@ -627,7 +638,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (!this.selectedPlanetTile || !this.selectedSystem) {
       return null;
     }
-    const buildable = this.productionService.listBuildableShipTypes(this.selectedPlanetTile);
+    const buildable = this.productionService
+      .listBuildableShipTypes(this.selectedPlanetTile)
+      .filter((t) => this.researchService.isShipUnlocked(this.getPlayerFaction()!, t.id));
     const queue = this.productionService.getQueue(this, 'player', this.selectedPlanetTile.id);
     const etas: Record<number, number | null> = {};
     for (const order of queue) {
@@ -680,6 +693,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
           available: entry.count,
         };
       })
+      .filter((entry) => this.researchService.isShipUnlocked(this.getPlayerFaction()!, entry.typeId))
       .sort((a, b) => a.typeName.localeCompare(b.typeName));
     return {
       system: this.selectedSystem,
@@ -781,6 +795,29 @@ export class StarMap implements AfterViewInit, OnDestroy {
   closeSpaceportPanel(): void {
     this.showSpaceportPanel = false;
     this.spaceportError = null;
+  }
+
+  openResearchTree(): void {
+    this.showResearchTree = true;
+  }
+
+  closeResearchTree(): void {
+    this.showResearchTree = false;
+  }
+
+  onTechnologyResearched(): void {
+    this.cdr.detectChanges();
+    this.saveGame();
+  }
+
+  getPlayerFaction(): Faction | undefined {
+    return this.factions.find((f) => f.id === 'player');
+  }
+
+  isBuildingUnlocked(buildingId: string): boolean {
+    const player = this.getPlayerFaction();
+    if (!player) return false;
+    return this.researchService.isBuildingUnlocked(player, buildingId);
   }
 
   onSpaceportConfirm(event: {

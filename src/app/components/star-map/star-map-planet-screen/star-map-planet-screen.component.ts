@@ -112,6 +112,7 @@ export class StarMapPlanetScreenComponent {
   @Input() spaceportTargetFleetId: number | null = null;
   @Input() productionBuildError: string | null = null;
   @Input() spaceportError: string | null = null;
+  @Input() isBuildingUnlocked: (buildingId: string) => boolean = () => false;
 
   @Output() backToStarMap = new EventEmitter<void>();
   @Output() buildConfirmed = new EventEmitter<{ buildingId: string; x: number; y: number }>();

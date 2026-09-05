@@ -105,6 +105,16 @@ export class SaveGameService {
         }
       }
     }
+    for (const faction of data.factions ?? []) {
+      if (!faction.researchedTechnologies) {
+        faction.researchedTechnologies = [
+          'basic_engineering',
+          'basic_science',
+          'basic_industry',
+          'basic_power',
+        ];
+      }
+    }
     return data;
   }
 

@@ -162,6 +162,7 @@
     [isPaused]="isPaused"
     (setSpeed)="onSetSpeed($event)"
     (togglePause)="onTogglePause()"
+    (openResearchTree)="openResearchTree()"
   ></app-star-map-header>
 
   <!-- SELECTED FLEET INFO -->
@@ -409,6 +410,7 @@
           [spaceportTargetFleetId]="spaceportTargetFleetId"
           [productionBuildError]="productionBuildError"
           [spaceportError]="spaceportError"
+          [isBuildingUnlocked]="isBuildingUnlocked"
           (backToStarMap)="leavePlanetView()"
           (buildConfirmed)="onBuildingConfirmed($event)"
           (queueOrder)="onQueueOrder($event)"
@@ -429,4 +431,12 @@
     (close)="closeContextMenu()"
   >
   </app-star-map-context-menu>
+
+  @if (showResearchTree) {
+    <app-star-map-research-tree
+      [faction]="getPlayerFaction()!"
+      (close)="closeResearchTree()"
+      (researched)="onTechnologyResearched()"
+    ></app-star-map-research-tree>
+  }
 </div>

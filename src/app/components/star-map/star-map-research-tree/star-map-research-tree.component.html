@@ -1,0 +1,51 @@
+<div class="research-tree-overlay" (click)="onClose()">
+  <div class="research-tree-panel panel-style" (click)="$event.stopPropagation()">
+    <div class="panel-style__title">RESEARCH TREE</div>
+
+    <div class="research-tree__header">
+      <div class="research-tree__points">
+        <img src="/icon-research.png" alt="" width="18" height="18" />
+        <span>Research Points: {{ getResearchPoints() | number:'1.0-0' }}</span>
+      </div>
+      <button class="research-tree__close-btn" type="button" (click)="onClose()">CLOSE</button>
+    </div>
+
+    <div class="research-tree__grid">
+      @for (tech of getAllTechnologies(); track tech.id) {
+        <div class="research-tree__card" [class.research-tree__card--researched]="getStatus(tech.id) === 'researched'" [class.research-tree__card--available]="getStatus(tech.id) === 'available'" [class.research-tree__card--locked]="getStatus(tech.id) === 'locked'">
+          <div class="research-tree__card-header">
+            <span class="research-tree__card-name">{{ tech.name }}</span>
+            <span class="research-tree__card-cost">{{ tech.researchCost }} RP</span>
+          </div>
+          <div class="research-tree__card-desc">{{ tech.description }}</div>
+
+          @if (tech.prerequisites.length > 0) {
+            <div class="research-tree__card-prereqs">
+              <span class="research-tree__card-prereqs-label">Requires:</span>
+              @for (name of getPrerequisiteNames(tech); track name) {
+                <span class="research-tree__card-prereq">{{ name }}</span>
+              }
+            </div>
+          }
+
+          <div class="research-tree__card-footer">
+            <span class="research-tree__status-badge research-tree__status-badge--{{ getStatus(tech.id) }}">
+              {{ getStatusLabel(getStatus(tech.id)) }}
+            </span>
+
+            @if (getStatus(tech.id) === 'available') {
+              <button
+                class="research-tree__btn"
+                type="button"
+                [disabled]="!canResearch(tech.id)"
+                (click)="onResearch(tech.id)"
+              >
+                RESEARCH
+              </button>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+</div>

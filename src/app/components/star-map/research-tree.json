@@ -1,0 +1,139 @@
+{
+  "technologies": [
+    {
+      "id": "basic_engineering",
+      "name": "Basic Engineering",
+      "description": "Fundamentals of spacecraft construction and repair.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": ["scout", "fighter", "colonizer"],
+      "unlocksBuildings": ["spaceship_factory", "spaceport", "laser_turret", "missile_turret"]
+    },
+    {
+      "id": "basic_science",
+      "name": "Basic Science",
+      "description": "Establish research infrastructure to advance knowledge.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": [],
+      "unlocksBuildings": ["small_research_lab"]
+    },
+    {
+      "id": "basic_industry",
+      "name": "Basic Industry",
+      "description": "Rudimentary production and mining capabilities.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": [],
+      "unlocksBuildings": ["small_residential", "mining_complex"]
+    },
+    {
+      "id": "basic_power",
+      "name": "Basic Power",
+      "description": "Solar energy collection and distribution.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": [],
+      "unlocksBuildings": ["solar_array"]
+    },
+    {
+      "id": "advanced_engineering",
+      "name": "Advanced Engineering",
+      "description": "Improved hull design, shielding, and construction methods.",
+      "researchCost": 150,
+      "prerequisites": ["basic_engineering"],
+      "unlocksShips": ["corvette", "frigate"],
+      "unlocksBuildings": ["medium_residential"]
+    },
+    {
+      "id": "military_engineering",
+      "name": "Military Engineering",
+      "description": "Defensive structures and military infrastructure.",
+      "researchCost": 200,
+      "prerequisites": ["basic_engineering"],
+      "unlocksShips": ["destroyer"],
+      "unlocksBuildings": ["planetary_shield", "hospital", "school"]
+    },
+    {
+      "id": "industrial_engineering",
+      "name": "Industrial Engineering",
+      "description": "Optimized production chains and workforce management.",
+      "researchCost": 150,
+      "prerequisites": ["basic_industry"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["large_residential", "park"]
+    },
+    {
+      "id": "fusion_power",
+      "name": "Fusion Power",
+      "description": "Harnessing fusion energy for large-scale consumption.",
+      "researchCost": 200,
+      "prerequisites": ["basic_power"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["fusion_plant"]
+    },
+    {
+      "id": "advanced_research",
+      "name": "Advanced Research",
+      "description": "High-capacity research facilities for cutting-edge science.",
+      "researchCost": 200,
+      "prerequisites": ["basic_science"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["research_lab"]
+    },
+    {
+      "id": "orbital_engineering",
+      "name": "Orbital Engineering",
+      "description": "Large-scale orbital construction and docking facilities.",
+      "researchCost": 300,
+      "prerequisites": ["advanced_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "advanced_industry",
+      "name": "Advanced Industry",
+      "description": "Fully automated factories and logistics networks.",
+      "researchCost": 300,
+      "prerequisites": ["industrial_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["entertainment_center"]
+    },
+    {
+      "id": "advanced_power_systems",
+      "name": "Advanced Power Systems",
+      "description": "Next-generation energy management and distribution.",
+      "researchCost": 300,
+      "prerequisites": ["fusion_power"],
+      "unlocksShips": [],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "applied_science",
+      "name": "Applied Science",
+      "description": "Converting theoretical research into practical technologies.",
+      "researchCost": 300,
+      "prerequisites": ["advanced_research"],
+      "unlocksShips": [],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "advanced_shipyards",
+      "name": "Advanced Shipyards",
+      "description": "Constructing capital-class warships and carriers.",
+      "researchCost": 400,
+      "prerequisites": ["orbital_engineering"],
+      "unlocksShips": ["cruiser", "carrier"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "advanced_weapons",
+      "name": "Advanced Weapons",
+      "description": "Heavy armament systems and dreadnought construction.",
+      "researchCost": 400,
+      "prerequisites": ["military_engineering"],
+      "unlocksShips": ["battleship", "battlecruiser", "dreadnought"],
+      "unlocksBuildings": []
+    }
+  ]
+}

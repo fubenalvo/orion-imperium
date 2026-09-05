@@ -50,4 +50,5 @@ export class StarMapHeaderComponent {
 
   @Output() setSpeed = new EventEmitter<GameSpeed>();
   @Output() togglePause = new EventEmitter<void>();
+  @Output() openResearchTree = new EventEmitter<void>();
 }

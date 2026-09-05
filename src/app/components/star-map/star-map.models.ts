@@ -49,12 +49,23 @@ export const PLANET_TYPE_HABITABILITY: Record<PlanetType, number> = {
 
 export const PLANET_SURFACE_CELL_VW = 3;
 
+export interface Technology {
+  id: string;
+  name: string;
+  description: string;
+  researchCost: number;
+  prerequisites: string[];
+  unlocksShips: string[];
+  unlocksBuildings: string[];
+}
+
 export interface Faction {
   id: string;
   name: string;
   color: string;
   team: number;
   currencies: Record<string, number>;
+  researchedTechnologies?: string[];
 }
 
 /*

@@ -1,0 +1,231 @@
+.research-tree-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2vw;
+}
+
+.research-tree-panel {
+  width: 100%;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 2vw;
+}
+
+.research-tree__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2vw;
+  padding-bottom: 1vw;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.research-tree__points {
+  display: flex;
+  align-items: center;
+  gap: 0.5vw;
+  font-size: 1.2vw;
+  color: #fff;
+}
+
+.research-tree__close-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  padding: 0.4vw 1vw;
+  cursor: pointer;
+  font-size: 0.9vw;
+  text-transform: uppercase;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.research-tree__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5vw;
+}
+
+.research-tree__card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  padding: 1.2vw;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6vw;
+  transition: border-color 0.2s, background 0.2s;
+
+  &--researched {
+    border-color: rgba(80, 200, 120, 0.4);
+    background: rgba(80, 200, 120, 0.08);
+  }
+
+  &--available {
+    border-color: rgba(140, 196, 255, 0.5);
+    background: rgba(140, 196, 255, 0.08);
+  }
+
+  &--locked {
+    opacity: 0.6;
+  }
+}
+
+.research-tree__card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1vw;
+}
+
+.research-tree__card-name {
+  font-size: 1.1vw;
+  font-weight: 700;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.research-tree__card-cost {
+  font-size: 0.9vw;
+  color: #aaa;
+}
+
+.research-tree__card-desc {
+  font-size: 0.85vw;
+  color: #ccc;
+  line-height: 1.4;
+}
+
+.research-tree__card-prereqs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4vw;
+  font-size: 0.8vw;
+  color: #888;
+}
+
+.research-tree__card-prereqs-label {
+  color: #666;
+}
+
+.research-tree__card-prereq {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.2vw 0.5vw;
+  border-radius: 2px;
+  color: #bbb;
+}
+
+.research-tree__card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 0.6vw;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.research-tree__status-badge {
+  font-size: 0.75vw;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.3vw 0.6vw;
+  border-radius: 2px;
+
+  &--researched {
+    background: rgba(80, 200, 120, 0.2);
+    color: #50c878;
+  }
+
+  &--available {
+    background: rgba(140, 196, 255, 0.2);
+    color: #8cc4ff;
+  }
+
+  &--locked {
+    background: rgba(255, 255, 255, 0.08);
+    color: #777;
+  }
+}
+
+.research-tree__btn {
+  background: rgba(140, 196, 255, 0.15);
+  border: 1px solid rgba(140, 196, 255, 0.4);
+  color: #8cc4ff;
+  padding: 0.4vw 1vw;
+  font-size: 0.85vw;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.2s;
+
+  &:hover:not(:disabled) {
+    background: rgba(140, 196, 255, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+@media (max-width: 768px) {
+  .research-tree-overlay {
+    padding: 4vw;
+    align-items: flex-start;
+    overflow-y: auto;
+  }
+
+  .research-tree-panel {
+    max-width: 100%;
+    max-height: none;
+    padding: 4vw;
+  }
+
+  .research-tree__points {
+    font-size: 4vw;
+  }
+
+  .research-tree__grid {
+    grid-template-columns: 1fr;
+    gap: 4vw;
+  }
+
+  .research-tree__card-name {
+    font-size: 4vw;
+  }
+
+  .research-tree__card-cost {
+    font-size: 3.5vw;
+  }
+
+  .research-tree__card-desc {
+    font-size: 3.2vw;
+  }
+
+  .research-tree__card-prereqs {
+    font-size: 3vw;
+  }
+
+  .research-tree__status-badge {
+    font-size: 3vw;
+  }
+
+  .research-tree__btn {
+    font-size: 3.2vw;
+    padding: 2vw 4vw;
+  }
+
+  .research-tree__close-btn {
+    font-size: 3.5vw;
+    padding: 2vw 4vw;
+  }
+}

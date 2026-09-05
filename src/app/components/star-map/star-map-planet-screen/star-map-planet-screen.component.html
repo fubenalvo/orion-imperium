@@ -92,11 +92,14 @@
                   <button
                     class="planet-sidebar__build-item"
                     type="button"
-                    [disabled]="!canAfford(building)"
+                    [disabled]="!canAfford(building) || !isBuildingUnlocked(building.id)"
                     (click)="selectBuildingType(building.id)"
                   >
                     <span class="planet-sidebar__build-name">{{ building.name }}</span>
                     <span class="planet-sidebar__build-price">{{ building.price }} CR</span>
+                    @if (!isBuildingUnlocked(building.id)) {
+                      <span class="planet-sidebar__build-lock">🔒</span>
+                    }
                   </button>
                 }
               </div>

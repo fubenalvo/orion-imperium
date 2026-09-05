@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EconomyBreakdown, ResourceType } from '../../../services/economy.service';
 
@@ -18,12 +18,14 @@ export class FactionCurrenciesComponent {
   @Input() currencies: CurrencyDisplay[] = [];
   @Input() economyBreakdown: EconomyBreakdown | null = null;
 
+  @Output() openResearchTree = new EventEmitter<void>();
+
   showBreakdown = false;
   selectedCurrency: ResourceType | null = null;
   expandedPlanet: string | null = null;
 
   toggleBreakdown(currencyName: string): void {
-    const validCurrencies: ResourceType[] = ['credits', 'rawmaterials', 'research'];
+    const validCurrencies: ResourceType[] = ['credits', 'rawmaterials'];
     if (!validCurrencies.includes(currencyName as ResourceType)) return;
 
     if (this.showBreakdown && this.selectedCurrency === currencyName) {
