@@ -32,6 +32,8 @@ import { StarMapMovementService } from './star-map-movement.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import { EnemyAiService } from './enemy-ai.service';
 import { EnemyStrategyService } from './enemy-strategy.service';
+import { EnemyGoalService } from './enemy-goal.service';
+import { EnemyCapabilityService } from './enemy-capability.service';
 import {
   StarMapSensorService,
   SensorCellInfo,
@@ -52,6 +54,7 @@ import {
   PlanetEconomyEntry,
   ResourceDeposit,
   Faction,
+  StrategicGoal,
 } from './star-map.models';
 import {
   createMulberry32,
@@ -238,6 +241,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private readonly economyTickInterval = 1;
   private cachedPlayerEconomyBreakdown: EconomyBreakdown | null = null;
 
+  private readonly enemyFactionIds = new Set(['enemy1', 'enemy2']);
+
   // Sensor range & fog-of-war state
   exploredGridCells = new Set<string>();
   sensorRangeCells: Map<string, SensorCellInfo> = new Map();
@@ -260,6 +265,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private battleDetectionService: StarMapBattleDetectionService,
     private enemyAiService: EnemyAiService,
     private enemyStrategyService: EnemyStrategyService,
+    private enemyGoalService: EnemyGoalService,
+    private enemyCapabilityService: EnemyCapabilityService,
     private sensorService: StarMapSensorService,
     private shipStockService: ShipStockService,
     private productionService: ProductionService,
@@ -1719,6 +1726,40 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.factions,
       this.starSystems,
     );
+
+    let goalChanged = false;
+    for (const factionId of this.enemyFactionIds) {
+      const strategy = this.enemyStrategyService.getStrategy(factionId);
+      if (strategy === undefined) {
+        continue;
+      }
+      const factionGoalChanged = this.enemyGoalService.tick(
+        gameDeltaTime,
+        strategy,
+        factionId,
+        this.fleets,
+        this.factions,
+        this.starSystems,
+      );
+      if (factionGoalChanged) {
+        goalChanged = true;
+      }
+    }
+
+    for (const factionId of this.enemyFactionIds) {
+      const goal = this.enemyGoalService.getGoal(factionId);
+      this.enemyCapabilityService.tick(
+        gameDeltaTime,
+        goal,
+        factionId,
+        this.fleets,
+        this.factions,
+        this.starSystems,
+        this.shipStock,
+        this.production,
+      );
+    }
+
     const visibilityChanged = this.updateSensorVisibility();
 
     const productionResult = this.productionService.tick(
@@ -1752,7 +1793,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       economyUpdated = true;
     }
 
-    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || strategyChanged) {
+    if (didMoveFleets || aiChanged || goalChanged || economyUpdated || visibilityChanged || productionChanged || strategyChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
     }
   }
@@ -2281,6 +2322,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.enemyAiService.reset();
     this.enemyStrategyService.reset();
+    this.enemyGoalService.reset();
+    this.enemyCapabilityService.reset();
 
     this.clampCamera();
   }

@@ -209,6 +209,32 @@ export type ResourceRates = Partial<Record<ResourceType, number>>;
 
 export type AiStrategy = 'expand' | 'attack' | 'defend' | 'develop';
 
+export type GoalType = 'colonize' | 'attack' | 'defend' | 'develop';
+
+export interface ColonizeGoal {
+  type: 'colonize';
+  targetPlanetId: number;
+  targetSystemId: string;
+}
+
+export interface AttackGoal {
+  type: 'attack';
+  targetFleetId: number;
+}
+
+export interface DefendGoal {
+  type: 'defend';
+  targetPlanetId: number;
+  targetSystemId: string;
+  threateningFleetId?: number;
+}
+
+export interface DevelopGoal {
+  type: 'develop';
+}
+
+export type StrategicGoal = ColonizeGoal | AttackGoal | DefendGoal | DevelopGoal;
+
 export type ResourceDepositType = 'rawmaterial';
 
 export interface ResourceDeposit {
@@ -344,4 +370,38 @@ export interface Fleet {
   ships: FleetShip[];
   destroyed?: boolean;
   sensorRange?: number;
+}
+
+export interface CapabilityRequirement {
+  type: string;
+  satisfied: boolean;
+  reason: string;
+}
+
+export interface CapabilityResult {
+  canExecute: boolean;
+  goalType: GoalType;
+  factionId: string;
+  requirements: CapabilityRequirement[];
+}
+
+export type ActionType =
+  | 'none'
+  | 'produce_colonizer'
+  | 'assemble_fleet'
+  | 'move_to_target'
+  | 'colonize'
+  | 'attack'
+  | 'defend'
+  | 'develop';
+
+export interface ActionResult {
+  type: ActionType;
+  factionId: string;
+  goalType: GoalType;
+  goal: StrategicGoal | undefined;
+  targetId?: number;
+  targetSystemId?: string;
+  targetPlanetId?: number;
+  reason: string;
 }

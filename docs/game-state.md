@@ -250,6 +250,64 @@ src/app/
 - Reset: strategy state is cleared on game load / new game via `EnemyStrategyService.reset()`.
 - Test coverage: 14 Vitest tests covering defend/attack/expand/develop selection, priority ordering, determinism, no state mutation, independent multi-faction behavior, accumulator timing, and reset behavior.
 
+### 4.13 Enemy Goal Layer (V4.2)
+
+- `EnemyGoalService` runs below `EnemyStrategyService` (V4.1) and above `EnemyAiService` V3.
+- Given a faction's current strategy, selects a concrete strategic goal with a specific target.
+- Goal types: `colonize` | `attack` | `defend` | `develop`.
+- Evaluation timing: every 2 seconds of game time using an internal accumulator, matching the V4.1 cadence.
+- Goal commitment:
+  - A goal is kept while it remains valid and the strategy does not change.
+  - A goal is replaced when it becomes invalid or when the strategy changes.
+- Goal selection rules (by strategy):
+  - **EXPAND → COLONIZE**: scores all unhabited planets by proximity to enemy territory and habitability/size weight. Skips planets already targeted by another enemy faction. Deterministic tie-breaking by score, distance, planet id, system id.
+  - **ATTACK → ATTACK**: selects the player fleet with the most favorable strength ratio (weak > comparable > strong), then closest distance, then lowest fleet id. Uses the same fleet strength formula as V3.
+  - **DEFEND → DEFEND**: selects the enemy-owned planet closest to any player fleet (within threat distance). Includes the threatening fleet id in the goal.
+  - **DEVELOP → DEVELOP**: produces a `develop` goal with no target.
+- Validity predicates:
+  - `colonize`: target planet still exists and is still unhabited.
+  - `attack`: target fleet still exists, is not destroyed, has ships, and is still a player fleet.
+  - `defend`: target planet/system still exists, planet is still owned by the faction, and a player fleet is still within threat distance.
+  - `develop`: always valid.
+- Cross-faction deduplication: colonize goals check if another enemy faction already targets the same planet and skip it.
+- The layer does NOT execute goals. It only stores and logs the current goal.
+- Integration: `StarMap.gameLoopCallback` calls `EnemyGoalService.tick()` for each enemy faction each frame; change detection runs when any faction's goal changes.
+- Reset: goal state is cleared on game load / new game via `EnemyGoalService.reset()`.
+- Test coverage: tests covering all four goal types, goal commitment, invalidation, strategy change replacement, multi-faction independence, determinism, no state mutation, accumulator timing, and reset behavior.
+
+### 4.14 Enemy Capability Layer (V4.3)
+
+- `EnemyCapabilityService` runs below `EnemyGoalService` V4.2 and above the future `EnemyActionService`.
+- Given a faction's current goal, evaluates whether the faction currently has the capabilities required to pursue that goal.
+- Result type: `CapabilityResult` with `canExecute: boolean`, `goalType`, `factionId`, and `requirements: CapabilityRequirement[]`.
+- Each `CapabilityRequirement` has `type`, `satisfied`, and `reason` so the future Action layer can identify what is missing and how to obtain it.
+- The layer does NOT execute actions. It only inspects the current game state and reports what is available and what is missing.
+- Evaluation timing: every 2 seconds of game time using an internal accumulator, matching the V4.1/V4.2 cadence.
+- Capability checks by goal type:
+  - **COLONIZE**:
+    - `colonizer_technology`: faction has `basic_engineering` researched.
+    - `colonizer_unlocked`: `colonizer` ship type is unlocked via research.
+    - `colonizer_available`: at least one colonizer exists in the faction's ship stock or in a non-destroyed enemy fleet.
+    - `usable_fleet`: at least one non-destroyed enemy fleet with ships exists.
+    - `target_valid`: goal target system/planet still exists and planet is still `unhabited`.
+  - **ATTACK**:
+    - `available_fleet`: at least one non-destroyed enemy fleet with ships exists.
+    - `target_valid`: goal target fleet still exists, is not destroyed, has ships, and is still a player fleet.
+    - `fleet_can_engage`: at least one enemy fleet has positive fleet strength (`attack + defense + hitPoints/10 + shield/10`).
+  - **DEFEND**:
+    - `available_fleet`: at least one non-destroyed enemy fleet with ships exists.
+    - `target_valid`: goal target system/planet still exists and planet is still owned by the faction.
+    - `threat_present`: at least one player fleet is within `THREAT_DISTANCE` (5 cells) of the target system.
+  - **DEVELOP**:
+    - `always_executable`: always satisfied (no special capability required).
+- The layer does NOT duplicate V4.2 goal validity predicates; it only adds capability-specific checks.
+- The layer does NOT duplicate V4.1 strategy selection or V3 fleet movement/battle logic.
+- Fleet strength formula matches V3: `sum(attack + defense + hitPoints/10 + shield/10)` per ship, resolved via `ShipService.getShipType()`.
+- No persistent AI state stores capability flags; all checks are derived from the live game snapshot.
+- Integration: `StarMap.gameLoopCallback` calls `EnemyCapabilityService.tick()` for each enemy faction each frame; results are stored per faction and can be queried via `getCapability(factionId)`.
+- Reset: capability state is cleared on game load / new game via `EnemyCapabilityService.reset()`.
+- Test coverage: 16 Vitest tests covering colonization prerequisites, attack/defend fleet and target checks, develop executability, determinism, no state mutation, multi-faction independence, accumulator timing, reset behavior, and edge cases (undefined goal, missing researchedTechnologies, destroyed-ship fleets).
+
 ---
 
 ## 5. Data Models
