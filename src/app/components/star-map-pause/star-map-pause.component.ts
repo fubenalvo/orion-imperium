@@ -1,25 +1,25 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { SaveGameService, SaveSlot } from '../../services/save-game.service';
 
-/*
- * =========================================================
- * STAR MAP PAUSE COMPONENT
- * =========================================================
- *
- * Renders the pause menu overlay and handles save/load UI.
- * Communicates with StarMap via event emitters.
- *
- * States:
- * - Normal: shows ⏸ button (toggles pause, no overlay)
- * - Paused (menu open): shows Continue, Save, Load, Main Menu buttons
- * - Paused (load slots): shows 4 save slots for loading
- *
- * Notes:
- * - The simulation freezes when paused (via GameTimeService), but NO overlay
- *   appears unless ESC is pressed. The UI remains interactive.
- * - The ⏸ button toggles pause without opening the menu.
- * - ESC opens the pause menu (pause + overlay).
- */
+ /*
+  * =========================================================
+  * STAR MAP PAUSE COMPONENT
+  * =========================================================
+  *
+  * Renders the pause menu overlay and handles save/load UI.
+  * Communicates with StarMap via event emitters.
+  *
+  * States:
+  * - Normal: shows ☰ hamburger button (opens pause menu)
+  * - Paused (menu open): shows Continue, Save, Load, Main Menu buttons
+  * - Paused (load slots): shows 4 save slots for loading
+  *
+  * Notes:
+  * - The simulation freezes when paused (via GameTimeService), and the
+  *   overlay appears when the hamburger button is clicked or ESC is pressed.
+  * - The ☰ button opens the pause menu (pause + overlay).
+  * - ESC opens the pause menu (pause + overlay).
+  */
 
 @Component({
   selector: 'app-star-map-pause',

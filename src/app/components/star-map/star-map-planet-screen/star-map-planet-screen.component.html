@@ -96,10 +96,15 @@
                     [disabled]="!canAfford(building) || !isBuildingUnlocked(building.id)"
                     (click)="selectBuildingType(building.id)"
                   >
-                    <span class="planet-sidebar__build-name">{{ getBuildingName(building) || 'N/A' }}</span>
-                    <span class="planet-sidebar__build-price">{{ getBuildingPrice(building) ?? 0 }} CR</span>
+                    <span class="planet-sidebar__build-name">{{
+                      getBuildingName(building) || 'N/A'
+                    }}</span>
                     @if (!isBuildingUnlocked(building.id)) {
                       <span class="planet-sidebar__build-lock">🔒</span>
+                    } @else {
+                      <span class="planet-sidebar__build-price"
+                        >{{ getBuildingPrice(building) ?? 0 }} CR</span
+                      >
                     }
                   </button>
                 }
@@ -205,16 +210,25 @@
                 ><img src="/icon-popuilation.png" alt="" width="14" height="14" class="info-icon" />
                 POPULATION</span
               >
-              <span>{{ planet?.population | number:'1.0-0' }}</span>
+              <span>{{ planet?.population | number: '1.0-0' }}</span>
             </div>
 
             @if (planetEconomy) {
               <div class="planet-sidebar__info-row">
                 <span
-                  ><img src="/icon-popuilation.png" alt="" width="14" height="14" class="info-icon" />
+                  ><img
+                    src="/icon-popuilation.png"
+                    alt=""
+                    width="14"
+                    height="14"
+                    class="info-icon"
+                  />
                   WORKFORCE</span
                 >
-                <span>{{ planetEconomy.workforceAvailable }} / {{ planetEconomy.workforceRequired }}</span>
+                <span
+                  >{{ planetEconomy.workforceAvailable }} /
+                  {{ planetEconomy.workforceRequired }}</span
+                >
               </div>
 
               <div
@@ -223,7 +237,13 @@
                 [class.planet-sidebar__info-row--danger]="planetEconomy.workforceEfficiency < 0.5"
               >
                 <span
-                  ><img src="/icon-efficiency.png" alt="" width="14" height="14" class="info-icon" />
+                  ><img
+                    src="/icon-efficiency.png"
+                    alt=""
+                    width="14"
+                    height="14"
+                    class="info-icon"
+                  />
                   WORKFORCE EFF</span
                 >
                 <span>{{ planetEconomy.workforceEfficiency * 100 | number: '1.0-0' }}%</span>
@@ -265,7 +285,9 @@
 
               <div
                 class="planet-sidebar__info-row"
-                [class.planet-sidebar__info-row--warn]="planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0"
+                [class.planet-sidebar__info-row--warn]="
+                  planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0
+                "
                 [class.planet-sidebar__info-row--danger]="planetEconomy.satisfaction <= 0"
               >
                 <span
@@ -292,7 +314,10 @@
               @if (planetEconomy.buildingMoraleBonus !== 0) {
                 <div class="planet-sidebar__info-row">
                   <span>ENTERTAINMENT</span>
-                  <span>{{ planetEconomy.buildingMoraleBonus >= 0 ? '+' : '' }}{{ planetEconomy.buildingMoraleBonus | number: '1.2-2' }}</span>
+                  <span
+                    >{{ planetEconomy.buildingMoraleBonus >= 0 ? '+' : ''
+                    }}{{ planetEconomy.buildingMoraleBonus | number: '1.2-2' }}</span
+                  >
                 </div>
               }
 

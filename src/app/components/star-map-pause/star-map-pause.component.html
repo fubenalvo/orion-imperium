@@ -1,9 +1,10 @@
 <div class="star-map-pause">
-  <button class="star-map-pause__btn" type="button" (click)="togglePause.emit()" aria-label="Pause">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="6" y="4" width="4" height="16" fill="currentColor"/>
-      <rect x="14" y="4" width="4" height="16" fill="currentColor"/>
-    </svg>
+  <button class="star-map-pause__btn" type="button" (click)="openPauseMenu.emit()" aria-label="Open pause menu">
+    <span class="hamburger-icon">
+      <span></span>
+      <span></span>
+      <span></span>
+    </span>
   </button>
 </div>
 
