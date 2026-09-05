@@ -21,7 +21,7 @@ export const PLANET_SIZE_MAP: Record<PlanetSize, PlanetSizeNumber> = {
 };
 
 export const PLANET_TYPE_COLORS: Record<PlanetType, string> = {
-  earthlike: 'rgb(67, 67, 145)',
+  earthlike: 'rgb(12, 173, 60)',
   marslike: 'rgb(94, 26, 26)',
   venuslike: 'rgb(161, 103, 27)',
   gasgiant: 'rgb(120, 70, 160)',
