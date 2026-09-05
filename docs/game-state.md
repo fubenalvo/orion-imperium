@@ -1,7 +1,7 @@
 # Orion Imperium — Játékállapot, Feature lista és Készültségi fok
 
 > **Verzió:** 0.1  
-> **Utoljára frissítve:** 2026-09-04  
+> **Utoljára frissítve:** 2026-09-05  
 > **Scope:** Angular 22 standalone, kliens-oldali, localStorage persistence.
 
 ---
@@ -52,6 +52,7 @@
 | 38 | Multiplayer | ❌ |
 | 39 | Audio | ❌ |
 | 40 | Save metadata UI | ⚠️ partial |
+| 41 | Planet population growth | ✅ |
 
 ---
 
@@ -166,7 +167,11 @@ src/app/
   - `moraleDrift = PLANET_TYPE_HABITABILITY[planet.type] + Σ building.moraleRate` (satisfaction points per second of game time). Base per planet type: `earthlike 0`, `gasgiant 0`, `marslike -0.03`, `venuslike -0.05`, `desert -0.05`, `ice -0.08`. Social/entertainment buildings (Park +0.03, Entertainment Center +0.08, …) offset harsh worlds; heavy industry contributes a small negative (-0.01–-0.02).
   - The existing energy-based ±1/s drift is preserved; the habitability/morale drift is additive on top of it.
   - Clamped to [0, 100]. 0 → rebellion → independent faction.
-- Pause / 2× speed: inherited from `GameTimeService.getScaledDeltaTime` — the 1-second economy accumulator is fed the scaled delta, so morale is frozen while paused and runs 2× as fast at speed 2x (no per-system pause/speed checks).
+- Population growth: applied each economy tick from the **same 1s accumulator** that drives morale, so it pauses when paused and runs 2× at speed 2x (`star-map.ts` feeds the scaled delta into `applyEconomyDelta`).
+  - Per-tick growth = `0.005/s × (satisfaction/100, clamped 0..1) × max(0, 1 + PLANET_TYPE_HABITABILITY[type]) × (capacity − population) × deltaTime`.
+  - `capacity` = Σ `population` of residential/housing buildings (Small 100 / Medium 300 / Large 700, from `planet-data.json`). Growth is a float and **clamped to capacity**; a planet at capacity grows by 0.
+  - Independent planets (satisfaction locked at 0) never grow; the `pop * 0.1` credit contribution uses the grown population on the next tick.
+  - Pause / 2× speed: inherited from `GameTimeService.getScaledDeltaTime` — the 1-second economy accumulator is fed the scaled delta, so morale is frozen while paused and runs 2× as fast at speed 2x (no per-system pause/speed checks).
 
 ### 4.8 Production
 - One order per planet
@@ -247,11 +252,12 @@ src/app/
 - planetsTiles, explored, gridCol/Row
 
 ### PlanetTile
-- id, index, name, factionId
-- type, size, population
-- buildings[], explored, satisfaction
-- satisfaction drift (per tick): `(energyDirection ±1 + moraleDrift) × deltaTime`, where `moraleDrift = PLANET_TYPE_HABITABILITY[type] + Σ building.moraleRate`
-- workforce (derived from buildings, not persisted): available / required + efficiency
+ - id, index, name, factionId
+ - type, size, population (float; grown each economy tick, clamped to residential capacity)
+ - buildings[], explored, satisfaction
+ - satisfaction drift (per tick): `(energyDirection ±1 + moraleDrift) × deltaTime`, where `moraleDrift = PLANET_TYPE_HABITABILITY[type] + Σ building.moraleRate`
+ - population growth (per tick): `0.005 × (satisfaction/100) × (1 + PLANET_TYPE_HABITABILITY[type]) × (capacity − population) × deltaTime`, clamped to capacity; independent planets do not grow
+ - workforce (derived from buildings, not persisted): available / required + efficiency
 
 ### Fleet
 - id, name, factionId, x/y
@@ -332,7 +338,7 @@ src/app/
 - No crit/evasion/randomness
 - Weakest-HP targeting only
 - Winner survivor roster doesn't persist
-- Population simplified: no citizen entities; workforce is derived from residential `providesWorkforce`, morale drift is type + building based (no full population simulation)
+  - Population is a single integer/float counter per planet (no citizen entities): workforce is derived from residential `providesWorkforce`, morale drift is type + building based, and natural population growth now grows it over time toward the residential `population` capacity. No migration, hospitals, food, or citizen simulation.
 - No re-conquest for independent planets
 - Debug console.log statements present
 - Enemy AI V3 tracks targets by fleet ID and validates them; strength-based selection prefers weak/comparable targets, distance breaks ties; no combat trigger, fleet strength evaluation beyond simple sum, pathfinding, strategic goals, retreat, or personality
@@ -343,7 +349,7 @@ src/app/
 
 - Vitest 4.0.8 + jsdom
 - Existing: app.spec.ts, main-menu.spec.ts, star-map.spec.ts, game-time.service.spec.ts, star-map-sensor.service.spec.ts, enemy-ai.service.spec.ts
-- New: economy.service.spec.ts — habitability drift (earthlike 0, desert/ice negative, entertainment offsets), workforce/efficiency (1.0 when sufficient, 0.5 at half, production halved under shortage), pause freezes morale (deltaTime 0), 2× speed linearity
+  - New: economy.service.spec.ts — habitability drift (earthlike 0, desert/ice negative, entertainment offsets), workforce/efficiency (1.0 when sufficient, 0.5 at half, production halved under shortage), pause freezes morale (deltaTime 0), 2× speed linearity, plus population growth: capacity from residential `population` (100/300/700), growth formula `0.005 × satisfaction × (1+habitability) × remaining × deltaTime`, clamp to capacity, independent planets yield 0 growth, and live mutation + pause/2× behaviour through `applyEconomyDelta`
 - Coverage: enemy AI strength-based target selection, category priority (weak/comparable/strong), distance tie-breaking, target validation, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets, plus the habitability/workforce cases above
 
 ---

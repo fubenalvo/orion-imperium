@@ -120,6 +120,15 @@ Conditions that must remain true across the codebase. When changing any code tha
 - Workforce has no save/load impact: `providesWorkforce` is a static data field in `planet-data.json` looked up by building name, and `PlanetBuilding` only stores `name`/`size`/`x`/`y`. Old saves load unchanged.
 - Workforce does **not** gate morale drift or satisfaction directly; it only scales production. A planet can be fully satisfied yet unproductive if understaffed.
 
+## Population Growth Invariants
+
+- Population grows continuously via `EconomyService.applyEconomyDelta`, driven by the **same 1s game-time accumulator** (`StarMap.economyAccumulator`) that drives satisfaction drift. The per-tick growth is `POPULATION_GROWTH_BASE_RATE (0.005/s) × satisfactionMultiplier × habitabilityMultiplier × capacityRemaining × deltaTime`, so it is **frozen while paused** (`deltaTime === 0`) and runs **2× at speed 2x** — no independent timers or per-planet update loops, mirroring morale drift.
+- `capacityRemaining = max(0, populationCapacity - population)`. `populationCapacity` is the sum of the `population` field of all residential (`role === 'housing'`) buildings on the planet (Small 100 / Medium 300 / Large 700 from `planet-data.json`). Growth is applied as a float and **clamped to capacity**, so a planet at capacity grows by 0.
+- `satisfactionMultiplier = clamp(satisfaction / 100, 0, 1)`. Independent planets have `satisfaction` locked at `0`, so they never grow.
+- `habitabilityMultiplier = max(0, 1 + PLANET_TYPE_HABITABILITY[planet.type])` — note `PLANET_TYPE_HABITABILITY` is a **satisfaction drift** value, not a 0..1 score: the multiplier is `1 + drift` (`earthlike`/`gasgiant` = 1.0; `desert`/`venuslike` = 0.95; `marslike` = 0.97; `ice` = 0.92). This multiplier is independent of the morale-drift path that *also* uses habitability for satisfaction.
+- Growth is written as a float to `planet.population` and is never floored (unlike `credits`); UI rounds for display only via the `number:'1.0-0'` pipe in `star-map-planet-info` and `star-map-planet-screen`.
+- `PlanetTile.population` is optional in saves (older saves are treated as `0`); growth writes back a concrete number regardless.
+
 ## Camera Invariants
 
 - The camera is clamped to the map bounds after every move (`clampCamera`) using the **current** cell size and viewport aspect ratio, not the values present at component init.

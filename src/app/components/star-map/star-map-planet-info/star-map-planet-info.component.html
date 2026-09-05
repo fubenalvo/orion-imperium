@@ -24,7 +24,7 @@
     <div class="system-info__content">
       <div><img src="/icon-faction.png" alt="" width="16" height="16" class="info-icon" /> TYPE: {{ planet?.type | uppercase }}</div>
       <div><img src="/icon-faction.png" alt="" width="16" height="16" class="info-icon" /> FACTION: {{ getFactionName(planet!.factionId) }}</div>
-      <div><img src="/icon-popuilation.png" alt="" width="16" height="16" class="info-icon" /> POPULATION: {{ planet?.population }}</div>
+      <div><img src="/icon-popuilation.png" alt="" width="16" height="16" class="info-icon" /> POPULATION: {{ planet?.population | number:'1.0-0' }}</div>
       <div><img src="/icon-energy.png" alt="" width="16" height="16" class="info-icon" /> ENERGY: {{ getEnergyForPlanet(planet!) }}</div>
       <div><img src="/icon-taxes.png" alt="" width="16" height="16" class="info-icon" /> DAILY TAX: {{ getTaxForPlanet(planet!) }}</div>
       @if (planetEconomy) {

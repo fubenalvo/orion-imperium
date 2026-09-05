@@ -47,6 +47,10 @@ export class EconomyService {
   private readonly buildingStats: Map<string, BuildingStats> = new Map();
   private readonly buildingStatsByName: Map<string, BuildingStats> = new Map();
 
+  // Fraction of the remaining capacity a planet adds to its population per
+  // second at full satisfaction and best habitability. Tunable balance knob.
+  private readonly POPULATION_GROWTH_BASE_RATE = 0.005;
+
   constructor(private shipService: ShipService) {
     const buildings = (planetData as { buildings: BuildingStats[] }).buildings;
     for (const building of buildings) {
@@ -187,6 +191,46 @@ export class EconomyService {
   getMoraleDriftPerSecond(planet: PlanetTile): number {
     const { moraleBonus } = this.computeWorkforce(planet);
     return (PLANET_TYPE_HABITABILITY[planet.type] ?? 0) + moraleBonus;
+  }
+
+calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
+    let capacity = this.getPopulationCapacity(planet);
+    let pop = planet.population;
+    if (pop === undefined) {
+      pop = 0;
+    }
+    const remaining = Math.max(0, capacity - pop);
+    let satisfaction = 100;
+    if (planet.satisfaction !== undefined) {
+      satisfaction = planet.satisfaction;
+    }
+    if (planet.factionId === 'independent') {
+      satisfaction = 0;
+    }
+    const satMod = Math.max(0, Math.min(1, satisfaction / 100));
+    let hab = 0;
+    const looked = PLANET_TYPE_HABITABILITY[planet.type];
+    if (looked !== undefined) {
+      hab = looked;
+    }
+    const habMod = Math.max(0, 1 + hab);
+    return this.POPULATION_GROWTH_BASE_RATE * satMod * habMod * remaining * deltaTime;
+  }
+
+  /*
+   * getPopulationCapacity: planet population ceiling from residential
+   * buildings' population field (100/300/700). Reuses existing data.
+   */
+  getPopulationCapacity(planet: PlanetTile): number {
+    let capacity = 0;
+    for (const building of planet.buildings ?? []) {
+      const stats = this.buildingStatsByName.get(building.name);
+      if (!stats) continue;
+      if (stats.role === 'housing') {
+        capacity += stats.population ?? 0;
+      }
+    }
+    return capacity;
   }
 
   /*
@@ -369,6 +413,22 @@ export class EconomyService {
         const newValue = current + effectiveRate * deltaTime;
         faction.currencies[resource] = resource === 'credits' ? Math.floor(newValue) : newValue;
       }
+
+      // 4) Population growth: natural increase driven by current
+      //    satisfaction and habitability. Scales with `deltaTime`, so it
+      //    pauses with the game and runs 2x at speed 2x. Independent
+      //    planets already yield 0 growth (satisfaction locked at 0).
+      let currentPop = planet.population;
+      if (currentPop === undefined) {
+        currentPop = 0;
+      }
+      const growth = this.calculatePopulationGrowth(planet, deltaTime);
+      const capacity = this.getPopulationCapacity(planet);
+      let nextPop = currentPop + growth;
+      if (nextPop > capacity) {
+        nextPop = capacity;
+      }
+      planet.population = nextPop;
     }
 
     return breakdown;

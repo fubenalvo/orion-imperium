@@ -301,4 +301,103 @@ describe('EconomyService — habitability & workforce', () => {
       expect(e.workforceEfficiency).toBe(1);
     });
   });
+
+  describe('10. population growth', () => {
+    const makeFaction = (): Faction => ({
+      id: 'player',
+      name: 'Player',
+      color: '#fff',
+      team: 1,
+      currencies: { credits: 0, rawmaterials: 0, research: 0 },
+    });
+
+    const wrap = (planet: PlanetTile, factionId = 'player'): { factions: Faction[]; systems: StarSystem[]; fleets: Fleet[] } => {
+      const system: StarSystem = {
+        id: 'sys1',
+        name: 'System 1',
+        x: 0,
+        y: 0,
+        planets: 1,
+        color: '#fff',
+        planetsTiles: [planet],
+      };
+      const faction: Faction = { ...makeFaction(), id: factionId };
+      return { factions: [faction], systems: [system], fleets: [] };
+    };
+
+    it('no residential => capacity 0 => zero growth', () => {
+      const planet = makePlanet(1, 'earthlike', [], { satisfaction: 100, population: 0 });
+      expect(economy.getPopulationCapacity(planet)).toBe(0);
+      expect(economy.calculatePopulationGrowth(planet, 1)).toBe(0);
+    });
+
+    it('earthlike, 1 Small Residential (cap 100), pop 0, sat 100, delta 1 -> 0.5', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Small Residential Block')], { satisfaction: 100, population: 0 });
+      expect(economy.getPopulationCapacity(planet)).toBe(100);
+      // 0.005 * satMod(1) * habMod(1) * remaining(100) * delta(1) = 0.5
+      expect(economy.calculatePopulationGrowth(planet, 1)).toBeCloseTo(0.5, 5);
+    });
+
+    it('growth scales linearly with remaining capacity', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Small Residential Block')], { satisfaction: 100, population: 50 });
+      // 0.005 * 1 * 1 * (100-50) * 1 = 0.25
+      expect(economy.calculatePopulationGrowth(planet, 1)).toBeCloseTo(0.25, 5);
+    });
+
+    it('at capacity => zero growth', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Small Residential Block')], { satisfaction: 100, population: 100 });
+      expect(economy.calculatePopulationGrowth(planet, 1)).toBe(0);
+    });
+
+    it('desert habitability (hab -0.05) reduces growth to 95% of earthlike', () => {
+      const earth = makePlanet(1, 'earthlike', [b('Small Residential Block')], { satisfaction: 100, population: 0 });
+      const des = makePlanet(2, 'desert', [b('Small Residential Block')], { satisfaction: 100, population: 0 });
+      const earthGrowth = economy.calculatePopulationGrowth(earth, 1);
+      expect(economy.calculatePopulationGrowth(des, 1)).toBeCloseTo(0.95 * earthGrowth, 5);
+    });
+
+    it('50% satisfaction halves growth', () => {
+      const full = makePlanet(1, 'earthlike', [b('Small Residential Block')], { satisfaction: 100, population: 0 });
+      const half = makePlanet(2, 'earthlike', [b('Small Residential Block')], { satisfaction: 50, population: 0 });
+      expect(economy.calculatePopulationGrowth(half, 1)).toBeCloseTo(0.5 * economy.calculatePopulationGrowth(full, 1), 5);
+    });
+
+    it('growth is linear in deltaTime (paused tick = 0)', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Small Residential Block')], { satisfaction: 100, population: 0 });
+      expect(economy.calculatePopulationGrowth(planet, 0)).toBe(0);
+      expect(economy.calculatePopulationGrowth(planet, 2)).toBeCloseTo(2 * economy.calculatePopulationGrowth(planet, 1), 5);
+    });
+
+    it('independent planets produce zero growth via applyEconomyDelta', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Small Residential Block')], {
+        factionId: 'independent',
+        satisfaction: 100,
+        population: 10,
+      });
+      const { factions, systems, fleets } = wrap(planet, 'independent');
+      economy.applyEconomyDelta('independent', factions, systems, fleets, 1);
+      expect(planet.population).toBe(10);
+    });
+
+    // Solar Array (40 energy) balances Small Residential (3 energy) so
+    // energyDirection stays +1 and satisfaction holds at 100, isolating
+    // population growth from the morale/satisfaction dynamics.
+    it('applyEconomyDelta mutates planet.population; paused tick does nothing', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Solar Array'), b('Small Residential Block')], { satisfaction: 100, population: 0 });
+      const { factions, systems, fleets } = wrap(planet);
+      economy.applyEconomyDelta('player', factions, systems, fleets, 0);
+      expect(planet.population).toBe(0);
+      economy.applyEconomyDelta('player', factions, systems, fleets, 1);
+      // 0.005 * satMod(1) * habMod(1) * remaining(100) * delta(1) = 0.5
+      expect(planet.population).toBeCloseTo(0.5, 5);
+    });
+
+    it('population cannot exceed capacity after a large tick', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Solar Array'), b('Small Residential Block')], { satisfaction: 100, population: 99.8 });
+      const { factions, systems, fleets } = wrap(planet);
+      economy.applyEconomyDelta('player', factions, systems, fleets, 1000);
+      // growth = 0.005 * 1 * 1 * (100-99.8) * 1000 = 1.0; nextPop 100.8 clamped to 100
+      expect(planet.population).toBe(100);
+    });
+  });
 });
