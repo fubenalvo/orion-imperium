@@ -5,6 +5,7 @@ import { Faction, StarSystem, ActionResult, ColonizeGoal, FactionProduction, Fac
 import { ProductionService } from '../../services/production.service';
 import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
+import { StarMapMovementService } from './star-map-movement.service';
 
 describe('EnemyActionExecutor', () => {
   let service: EnemyActionExecutor;
@@ -30,6 +31,12 @@ describe('EnemyActionExecutor', () => {
         { provide: ProductionService, useValue: productionService },
         { provide: ShipService, useValue: shipService },
         { provide: ResearchService, useValue: researchService },
+        {
+          provide: StarMapMovementService,
+          useValue: {
+            getPlanetGridPosition: vi.fn(() => ({ col: 2, row: 2 })),
+          },
+        },
       ],
     });
 
@@ -389,6 +396,250 @@ describe('EnemyActionExecutor', () => {
         systems,
         factions,
       );
+    });
+  });
+
+  describe('assemble_fleet execution', () => {
+    const makeAssembleAction = (overrides: Partial<ActionResult> = {}): ActionResult => ({
+      type: 'assemble_fleet',
+      factionId: 'enemy1',
+      goalType: 'colonize',
+      goal: { type: 'colonize', targetPlanetId: 1, targetSystemId: 'sys1' } as ColonizeGoal,
+      reason: 'Colonizer in stock but no fleet has it',
+      ...overrides,
+    });
+
+    const createEnemyFleet = (overrides: Partial<Fleet> = {}): Fleet => ({
+      id: 3,
+      name: 'RAIDER',
+      factionId: 'enemy1',
+      x: 30,
+      y: 30,
+      targetX: null,
+      targetY: null,
+      speed: 5,
+      system: null,
+      gridCol: 1,
+      gridRow: 1,
+      ships: [{ id: 10, name: 'Destroyer', type: 'destroyer', currentHp: 20, destroyed: false }],
+      destroyed: false,
+      sensorRange: 3,
+      ...overrides,
+    });
+
+    const makeStock = (factionId: string, ids: number[]): FactionShipStock[] => [
+      { factionId, ships: ids.map((id) => ({ id, type: 'colonizer', name: 'Colonizer' })) },
+    ];
+
+    const spaceportSystems = (): StarSystem[] => [
+      createSystem({
+        id: 'sys1',
+        planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] })],
+      }),
+    ];
+
+    it('should move one colonizer from stock into the existing faction fleet', () => {
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(true);
+      expect(shipStock[0].ships).toHaveLength(0);
+      expect(fleets).toHaveLength(1);
+      expect(fleets[0].ships).toHaveLength(2);
+      expect(fleets[0].ships.some((s) => s.type === 'colonizer' && s.id === 101 && !s.destroyed)).toBe(true);
+    });
+
+    it('should keep the reinforced fleet identity and position unchanged', () => {
+      const fleets: Fleet[] = [createEnemyFleet({ id: 3, name: 'RAIDER', x: 12, y: 34, gridCol: 5, gridRow: 6 })];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+      const fleetBefore = { id: fleets[0].id, name: fleets[0].name, x: fleets[0].x, y: fleets[0].y, system: fleets[0].system };
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(true);
+      expect(fleets).toHaveLength(1);
+      expect(fleets[0].id).toBe(fleetBefore.id);
+      expect(fleets[0].name).toBe(fleetBefore.name);
+      expect(fleets[0].x).toBe(fleetBefore.x);
+      expect(fleets[0].y).toBe(fleetBefore.y);
+      expect(fleets[0].system).toEqual(fleetBefore.system);
+      expect(fleets[0].ships.some((s) => s.type === 'colonizer')).toBe(true);
+    });
+
+    it('should log execution success exactly once', () => {
+      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(logSpy).toHaveBeenCalledWith('[Enemy AI] enemy1 executed assemble_fleet: reinforced fleet RAIDER with 1 colonizer');
+      logSpy.mockRestore();
+    });
+
+    it('should not execute when the faction stock has no colonizer', () => {
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', []);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(0);
+      expect(fleets[0].ships).toHaveLength(1);
+    });
+
+    it('should not mutate state when the faction owns no Spaceport', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [] })],
+        }),
+      ];
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, systems, emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships).toHaveLength(1);
+    });
+
+    it('should not assemble ships from another faction stock', () => {
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy2', [101]);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships).toHaveLength(1);
+    });
+
+    it('should not modify player stock or player fleets', () => {
+      const fleets: Fleet[] = [createEnemyFleet({ factionId: 'player', id: 1, name: 'ORION' })];
+      const shipStock: FactionShipStock[] = makeStock('player', [101]);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships).toHaveLength(1);
+    });
+
+    it('should not execute assemble_fleet for the player faction', () => {
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(2, makeAssembleAction({ factionId: 'player' }), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships).toHaveLength(1);
+    });
+
+    it('should not assemble the same colonizer twice across repeated frames', () => {
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101, 102]);
+      const action = makeAssembleAction();
+
+      const first = service.tick(2, action, baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+      const second = service.tick(2, action, baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(first).toBe(true);
+      expect(second).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships.filter((s) => s.type === 'colonizer')).toHaveLength(1);
+    });
+
+    it('should not assemble when a faction fleet already carries a colonizer', () => {
+      const fleets: Fleet[] = [
+        createEnemyFleet({
+          ships: [
+            { id: 10, name: 'Destroyer', type: 'destroyer', currentHp: 20, destroyed: false },
+            { id: 200, name: 'Colonizer', type: 'colonizer', currentHp: 30, destroyed: false },
+          ],
+        }),
+      ];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships.filter((s) => s.type === 'colonizer')).toHaveLength(1);
+    });
+
+    it('should skip destroyed and unusable fleets when picking the target fleet', () => {
+      const fleets: Fleet[] = [
+        createEnemyFleet({ id: 2, name: 'GHOST', destroyed: true }),
+        createEnemyFleet({ id: 5, name: 'HUSK', ships: [{ id: 20, name: 'Scout', type: 'scout', destroyed: true }] }),
+        createEnemyFleet({ id: 7, name: 'GUARD' }),
+      ];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(true);
+      expect(shipStock[0].ships).toHaveLength(0);
+      expect(fleets.find((f) => f.id === 7)?.ships.some((s) => s.type === 'colonizer')).toBe(true);
+      expect(fleets.find((f) => f.id === 2)?.ships.some((s) => s.type === 'colonizer')).toBe(false);
+      expect(fleets.find((f) => f.id === 5)?.ships.some((s) => s.type === 'colonizer')).toBe(false);
+    });
+
+    it('should create a new faction fleet at the deterministic spaceport when no usable fleet exists', () => {
+      const systems = spaceportSystems();
+      const fleets: Fleet[] = [];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(2, makeAssembleAction(), baseFactions, systems, emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(true);
+      expect(shipStock[0].ships).toHaveLength(0);
+      expect(fleets).toHaveLength(1);
+      const fleet = fleets[0];
+      expect(fleet.factionId).toBe('enemy1');
+      expect(fleet.name).toBe('enemy1 Fleet');
+      expect(fleet.ships).toHaveLength(1);
+      expect(fleet.ships[0].type).toBe('colonizer');
+      expect(fleet.ships[0].id).toBe(101);
+      expect(fleet.x).toBe(systems[0].x);
+      expect(fleet.y).toBe(systems[0].y);
+      expect(fleet.system?.id).toBe('sys1');
+      expect(fleet.gridCol).toBe(2);
+      expect(fleet.gridRow).toBe(2);
+    });
+
+    it('should not execute assemble_fleet while paused', () => {
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(0, makeAssembleAction(), baseFactions, spaceportSystems(), emptyProduction, shipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships).toHaveLength(1);
+    });
+
+    it('should not execute action types other than produce_colonizer and assemble_fleet', () => {
+      const fleets: Fleet[] = [createEnemyFleet()];
+      const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
+
+      const result = service.tick(
+        2,
+        makeAssembleAction({ type: 'move_to_target', targetId: 3 }),
+        baseFactions,
+        spaceportSystems(),
+        emptyProduction,
+        shipStock,
+        fleets,
+      );
+
+      expect(result).toBe(false);
+      expect(shipStock[0].ships).toHaveLength(1);
+      expect(fleets[0].ships).toHaveLength(1);
     });
   });
 });

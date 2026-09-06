@@ -243,5 +243,48 @@ describe('StarMap', () => {
       expect(component.production[0].ordersByPlanet[1]).toBeDefined();
       expect(component.production[0].ordersByPlanet[1][0].shipTypeId).toBe('colonizer');
     });
+
+    it('should execute assemble_fleet through the full AI pipeline', () => {
+      component.factions = component.factions.map((f) => {
+        if (f.id === 'enemy1') {
+          return { ...f, currencies: { credits: 1000 }, researchedTechnologies: ['basic_engineering'] };
+        }
+        return f;
+      });
+
+      component.starSystems = component.starSystems.map((s) => {
+        if (s.id === 'sol') {
+          return {
+            ...s,
+            planetsTiles: s.planetsTiles.map((p) => {
+              if (p.id === 1) {
+                return { ...p, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] };
+              }
+              return p;
+            }),
+          };
+        }
+        return s;
+      });
+
+      component.shipStock = [
+        { factionId: 'enemy1', ships: [{ id: 5001, type: 'colonizer', name: 'Colonizer' }] },
+      ];
+
+      component['gameLoopCallback'](2);
+
+      expect(actionService.getAction('enemy1')?.type).toBe('assemble_fleet');
+
+      const raider = component.fleets.find((f: any) => f.id === 3);
+      expect(raider).toBeDefined();
+      expect(raider!.factionId).toBe('enemy1');
+      expect(raider!.ships.some((s: any) => s.type === 'colonizer' && s.id === 5001)).toBe(true);
+
+      const enemyStock = component.shipStock.find((s) => s.factionId === 'enemy1');
+      expect(enemyStock?.ships.filter((s: any) => s.type === 'colonizer') ?? []).toHaveLength(0);
+
+      component['gameLoopCallback'](2);
+      expect(component.fleets.find((f: any) => f.id === 3)!.ships.filter((s: any) => s.type === 'colonizer')).toHaveLength(1);
+    });
   });
 });
