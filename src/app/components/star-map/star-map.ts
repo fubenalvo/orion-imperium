@@ -34,6 +34,7 @@ import { EnemyAiService } from './enemy-ai.service';
 import { EnemyStrategyService } from './enemy-strategy.service';
 import { EnemyGoalService } from './enemy-goal.service';
 import { EnemyCapabilityService } from './enemy-capability.service';
+import { EnemyActionService } from './enemy-action.service';
 import {
   StarMapSensorService,
   SensorCellInfo,
@@ -267,6 +268,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private enemyStrategyService: EnemyStrategyService,
     private enemyGoalService: EnemyGoalService,
     private enemyCapabilityService: EnemyCapabilityService,
+    private enemyActionService: EnemyActionService,
     private sensorService: StarMapSensorService,
     private shipStockService: ShipStockService,
     private productionService: ProductionService,
@@ -1848,6 +1850,28 @@ export class StarMap implements AfterViewInit, OnDestroy {
       );
     }
 
+    let actionChanged = false;
+    for (const factionId of this.enemyFactionIds) {
+      const goal = this.enemyGoalService.getGoal(factionId);
+      const capability = this.enemyCapabilityService.getCapability(factionId);
+      const factionActionChanged = this.enemyActionService.tick(
+        gameDeltaTime,
+        goal,
+        capability,
+        factionId,
+        this.fleets,
+        this.factions,
+        this.starSystems,
+        this.shipStock,
+        this.production,
+      );
+      if (factionActionChanged) {
+        const action = this.enemyActionService.getAction(factionId);
+        console.log(`[Enemy AI] ${factionId} action: ${action?.type ?? 'none'}`);
+        actionChanged = true;
+      }
+    }
+
     const visibilityChanged = this.updateSensorVisibility();
 
     const productionResult = this.productionService.tick(
@@ -1881,7 +1905,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       economyUpdated = true;
     }
 
-    if (didMoveFleets || aiChanged || goalChanged || economyUpdated || visibilityChanged || productionChanged || strategyChanged) {
+    if (didMoveFleets || aiChanged || goalChanged || actionChanged || economyUpdated || visibilityChanged || productionChanged || strategyChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
     }
   }
@@ -2426,6 +2450,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.enemyStrategyService.reset();
     this.enemyGoalService.reset();
     this.enemyCapabilityService.reset();
+    this.enemyActionService.reset();
 
     this.clampCamera();
   }
