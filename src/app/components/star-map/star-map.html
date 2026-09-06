@@ -234,6 +234,7 @@
         [isPaused]="isPaused"
         (setSpeed)="onSetSpeed($event)"
         (togglePause)="onTogglePause()"
+        (openResearchTree)="openResearchTree()"
       ></app-star-map-header>
 
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
@@ -383,6 +384,7 @@
         [isPaused]="isPaused"
         (setSpeed)="onSetSpeed($event)"
         (togglePause)="onTogglePause()"
+        (openResearchTree)="openResearchTree()"
       ></app-star-map-header>
 
       <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
