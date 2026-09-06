@@ -2268,7 +2268,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     // Legacy save migration: old saves stored map dimensions in vw (width=200)
     // and star system / fleet x/y in vw units. Convert to grid cell coordinates.
-    if (data.map && data.map.width > 150) {
+    if (data.map && data.map.width === 200) {
       const refCellSize = 2;
       for (const system of this.starSystems) {
         system.x = Math.min(Math.floor(system.x / refCellSize) + 1, this.mapWidth);
@@ -2373,6 +2373,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   private reloadAfterBattle(): void {
     if (this.saveGameService.currentSlot === null) return;
+    this.currentView = 'map';
     console.log('[RELOAD AFTER BATTLE] Reloading game state from save...');
     this.loadGame();
     console.log(

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Fleet, StarSystem, Faction } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
+import { ResearchService } from '../../services/research.service';
 
 /*
  * =========================================================
@@ -58,7 +59,10 @@ export const SYSTEM_CELL_SIZE_VW = 5;
 
 @Injectable({ providedIn: 'root' })
 export class StarMapSensorService {
-  constructor(private shipService: ShipService) {}
+  constructor(
+    private shipService: ShipService,
+    private researchService: ResearchService,
+  ) {}
 
   /**
    * Computes the effective sensor range for a fleet.
@@ -68,7 +72,7 @@ export class StarMapSensorService {
    * floor, the highest such range becomes the effective range. A fleet with
    * no ships or all destroyed ships falls back to the floor.
    */
-  getFleetSensorRange(fleet: Fleet): number {
+  getFleetSensorRange(fleet: Fleet, faction?: Faction): number {
     const floor = fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE;
     let maxShipRange = 0;
     for (const ship of fleet.ships) {
@@ -78,7 +82,11 @@ export class StarMapSensorService {
         maxShipRange = type.range;
       }
     }
-    return Math.max(floor, maxShipRange);
+    const base = Math.max(floor, maxShipRange);
+    if (faction) {
+      return base + this.researchService.getSensorRangeBonus(faction);
+    }
+    return base;
   }
 
   /** Returns true if a grid cell is within map bounds. */
@@ -192,9 +200,13 @@ export class StarMapSensorService {
     const cells = new Map<string, SensorCellInfo>();
     const preview = new Map<string, SensorPreviewCellInfo>();
     const playerColor = this.getFactionColor(factions, 'player');
+    const playerFaction = factions.find((f) => f.id === 'player');
     const playerSystemKeys = new Set<string>();
+    const systemSensorRange =
+      PLAYER_SYSTEM_SENSOR_RANGE +
+      (playerFaction ? this.researchService.getSensorRangeBonus(playerFaction) : 0);
 
-    // 1. Player-owned systems provide 5-grid base sensor radius
+    // 1. Player-owned systems provide base sensor radius
     const ownedSystems = starSystems.filter((s) =>
       s.planetsTiles.some((p) => p.factionId === 'player'),
     );
@@ -202,7 +214,7 @@ export class StarMapSensorService {
     for (const system of ownedSystems) {
       const col = system.gridCol ?? Math.floor(system.x);
       const row = system.gridRow ?? Math.floor(system.y);
-      const sensorCells = this.getCellsInRadius(col, row, PLAYER_SYSTEM_SENSOR_RANGE, gridColumns, gridRows);
+      const sensorCells = this.getCellsInRadius(col, row, systemSensorRange, gridColumns, gridRows);
       for (const cell of sensorCells) {
         const key = `${cell.col}-${cell.row}`;
         playerSystemKeys.add(key);
@@ -220,7 +232,7 @@ export class StarMapSensorService {
       if (fleet.destroyed || fleet.factionId !== 'player') {
         continue;
       }
-      const range = this.getFleetSensorRange(fleet);
+      const range = this.getFleetSensorRange(fleet, playerFaction);
       const fleetCells = this.getCellsInRadius(fleet.x, fleet.y, range, gridColumns, gridRows);
       for (const cell of fleetCells) {
         const key = `${cell.col}-${cell.row}`;
@@ -241,7 +253,7 @@ export class StarMapSensorService {
     for (const system of ownedSystems) {
       const col = system.gridCol ?? Math.floor(system.x);
       const row = system.gridRow ?? Math.floor(system.y);
-      const ringCells = this.getOuterRingCells(col, row, PLAYER_SYSTEM_SENSOR_RANGE, gridColumns, gridRows);
+      const ringCells = this.getOuterRingCells(col, row, systemSensorRange, gridColumns, gridRows);
       for (const cell of ringCells) {
         const key = `${cell.col}-${cell.row}`;
         if (playerSystemKeys.has(key) || cells.has(key)) {
@@ -260,7 +272,7 @@ export class StarMapSensorService {
       if (fleet.destroyed || fleet.factionId !== 'player') {
         continue;
       }
-      const range = this.getFleetSensorRange(fleet);
+      const range = this.getFleetSensorRange(fleet, playerFaction);
       const ringCells = this.getOuterRingCells(fleet.x, fleet.y, range, gridColumns, gridRows);
       for (const cell of ringCells) {
         const key = `${cell.col}-${cell.row}`;
@@ -286,9 +298,10 @@ export class StarMapSensorService {
    * The system grid is 18×10 with 5vw cells. The fleet's system.x/y are in vw.
    * Preview cells are NOT used for fog/exploration.
    */
-  computeSystemSensorCells(
-    fleet: Fleet,
-  ): { cells: { col: number; row: number }[]; preview: { col: number; row: number }[] } {
+  computeSystemSensorCells(fleet: Fleet): {
+    cells: { col: number; row: number }[];
+    preview: { col: number; row: number }[];
+  } {
     if (!fleet.system?.id) {
       return { cells: [], preview: [] };
     }
@@ -375,7 +388,7 @@ export class StarMapSensorService {
    * in the system view. A planet is explored if it's within the fleet's
    * sensor radius on the system grid.
    *
-    * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
+   * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
    * fleetSystemX/Y are vw coordinates on the 18×10 system grid.
    */
   isPlanetInRange(
@@ -398,8 +411,8 @@ export class StarMapSensorService {
    * `range + 2` (Euclidean). Used to auto-explore planets at the edge of
    * sensor reach without making the underlying galaxy cell "explored".
    *
-    * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
-    * fleetSystemX/Y are vw coordinates on the 18×10
+   * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
+   * fleetSystemX/Y are vw coordinates on the 18×10
    * system grid.
    */
   isPlanetInPreviewRange(
@@ -432,15 +445,9 @@ export class StarMapSensorService {
     gridRows: number,
   ): { col: number; row: number }[] {
     const startCol = Math.max(1, Math.floor(cameraX / cellSizeVw) - 1);
-    const endCol = Math.min(
-      gridColumns,
-      Math.floor((cameraX + viewportWidthVw) / cellSizeVw) + 2,
-    );
+    const endCol = Math.min(gridColumns, Math.floor((cameraX + viewportWidthVw) / cellSizeVw) + 2);
     const startRow = Math.max(1, Math.floor(cameraY / cellSizeVh) - 1);
-    const endRow = Math.min(
-      gridRows,
-      Math.floor((cameraY + viewportHeightVw) / cellSizeVh) + 2,
-    );
+    const endRow = Math.min(gridRows, Math.floor((cameraY + viewportHeightVw) / cellSizeVh) + 2);
 
     const cells: { col: number; row: number }[] = [];
     for (let col = startCol; col <= endCol; col++) {

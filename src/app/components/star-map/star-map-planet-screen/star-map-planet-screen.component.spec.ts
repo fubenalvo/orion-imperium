@@ -38,6 +38,24 @@ describe('StarMapPlanetScreenComponent', () => {
       production: { rawmaterials: 5 },
       consumption: { energy: 20 },
       defense: null,
+      requiresOreProximity: true,
+    },
+    {
+      id: 'spaceship_factory',
+      name: 'Spaceship Factory',
+      role: 'industry',
+      price: 100,
+      size: 3,
+      maintenanceCost: 30,
+      population: 0,
+      workforce: 100,
+      moraleRate: -0.02,
+      energyConsumption: 30,
+      energyProduction: 0,
+      production: { rawmaterials: 10 },
+      consumption: { energy: 30 },
+      defense: null,
+      requiresOreProximity: false,
     },
     {
       id: 'small_residential',
@@ -66,7 +84,7 @@ describe('StarMapPlanetScreenComponent', () => {
     component = fixture.componentInstance;
     component.planet = mockPlanet;
     component.gridSize = 9;
-    (component as any).buildingTypes = buildingTypes;
+    (component as any)._buildingTypes = buildingTypes;
     fixture.detectChanges();
   });
 
@@ -97,6 +115,22 @@ describe('StarMapPlanetScreenComponent', () => {
       component.onCellClick(5, 5);
       expect(component.isPreviewValid).toBe(false);
       expect(component.buildError).toContain('near a raw material deposit');
+    });
+  });
+
+  describe('updatePreview - Factory placement', () => {
+    it('should be valid when Factory footprint is away from resource tiles', () => {
+      component.selectBuildingType('spaceship_factory');
+      component.onCellClick(5, 5);
+      expect(component.isPreviewValid).toBe(true);
+      expect(component.buildError).toBe('');
+    });
+
+    it('should be invalid when Factory footprint overlaps a resource tile', () => {
+      component.selectBuildingType('spaceship_factory');
+      component.onCellClick(1, 2);
+      expect(component.isPreviewValid).toBe(false);
+      expect(component.buildError).toContain('Cannot build directly on a resource deposit');
     });
   });
 

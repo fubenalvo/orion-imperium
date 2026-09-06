@@ -57,6 +57,7 @@ export interface Technology {
   prerequisites: string[];
   unlocksShips: string[];
   unlocksBuildings: string[];
+  bonuses?: { type: 'sensorRange'; value: number }[];
 }
 
 export interface Faction {

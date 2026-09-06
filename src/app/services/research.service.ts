@@ -103,6 +103,21 @@ export class ResearchService {
     return 'available';
   }
 
+  getSensorRangeBonus(faction: Faction): number {
+    const researched = faction.researchedTechnologies ?? [];
+    let bonus = 0;
+    for (const tech of this.technologies) {
+      if (!researched.includes(tech.id)) continue;
+      const bonuses = tech.bonuses ?? [];
+      for (const b of bonuses) {
+        if (b.type === 'sensorRange') {
+          bonus += b.value;
+        }
+      }
+    }
+    return bonus;
+  }
+
   /*
    * canResearch: Returns true if the technology is not yet researched,
    * all prerequisites are researched, and the faction has enough research

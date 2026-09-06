@@ -134,6 +134,36 @@
       "prerequisites": ["military_engineering"],
       "unlocksShips": ["battleship", "battlecruiser", "dreadnought"],
       "unlocksBuildings": []
+    },
+    {
+      "id": "basic_radar",
+      "name": "Basic Radar Enhancement",
+      "description": "Improved sensor arrays extending fleet and system detection range by 1 grid cell.",
+      "researchCost": 100,
+      "prerequisites": ["basic_science"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "sensorRange", "value": 1 }]
+    },
+    {
+      "id": "advanced_radar",
+      "name": "Advanced Sensor Arrays",
+      "description": "Further extended detection range for fleets and star systems by 1 grid cell.",
+      "researchCost": 250,
+      "prerequisites": ["basic_radar"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "sensorRange", "value": 1 }]
+    },
+    {
+      "id": "long_range_radar",
+      "name": "Long-Range Scanning",
+      "description": "Maximum sensor range achieved through deep-space scanning technology.",
+      "researchCost": 500,
+      "prerequisites": ["advanced_radar"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "sensorRange", "value": 1 }]
     }
   ]
 }

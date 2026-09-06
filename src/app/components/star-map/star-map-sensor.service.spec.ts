@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { StarMapSensorService, DEFAULT_FLEET_SENSOR_RANGE } from './star-map-sensor.service';
-import { Fleet } from './star-map.models';
+import { Fleet, Faction } from './star-map.models';
 
 describe('StarMapSensorService', () => {
   let service: StarMapSensorService;
@@ -165,6 +165,75 @@ describe('StarMapSensorService', () => {
       };
       // dreadnought (destroyed, skipped), frigate range = 3 → max(3, 3) = 3
       expect(service.getFleetSensorRange(fleet)).toBe(3);
+    });
+  });
+
+  describe('getFleetSensorRange with faction bonus', () => {
+    it('should return base range when faction is undefined', () => {
+      const fleet: Fleet = {
+        id: 1,
+        name: 'Test',
+        factionId: 'player',
+        x: 1,
+        y: 1,
+        targetX: null,
+        targetY: null,
+        speed: 5,
+        system: null,
+        ships: [{ id: 1, name: 'A', type: 'scout' }],
+        sensorRange: 3,
+      };
+      expect(service.getFleetSensorRange(fleet, undefined)).toBe(3);
+    });
+
+    it('should add sensorRange bonus from researched techs', () => {
+      const faction: Faction = {
+        id: 'player',
+        name: 'Player',
+        color: '#8cc4ff',
+        team: 1,
+        currencies: { credits: 0, rawmaterials: 0, research: 0 },
+        researchedTechnologies: ['basic_radar'],
+      };
+      const fleet: Fleet = {
+        id: 1,
+        name: 'Test',
+        factionId: 'player',
+        x: 1,
+        y: 1,
+        targetX: null,
+        targetY: null,
+        speed: 5,
+        system: null,
+        ships: [{ id: 1, name: 'A', type: 'scout' }],
+        sensorRange: 3,
+      };
+      expect(service.getFleetSensorRange(fleet, faction)).toBe(4);
+    });
+
+    it('should stack multiple sensorRange bonuses', () => {
+      const faction: Faction = {
+        id: 'player',
+        name: 'Player',
+        color: '#8cc4ff',
+        team: 1,
+        currencies: { credits: 0, rawmaterials: 0, research: 0 },
+        researchedTechnologies: ['basic_radar', 'advanced_radar', 'long_range_radar'],
+      };
+      const fleet: Fleet = {
+        id: 1,
+        name: 'Test',
+        factionId: 'player',
+        x: 1,
+        y: 1,
+        targetX: null,
+        targetY: null,
+        speed: 5,
+        system: null,
+        ships: [{ id: 1, name: 'A', type: 'scout' }],
+        sensorRange: 3,
+      };
+      expect(service.getFleetSensorRange(fleet, faction)).toBe(6);
     });
   });
 });

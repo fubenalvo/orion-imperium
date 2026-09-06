@@ -28,7 +28,7 @@
           </span>
         }
       }
-      <span class="faction-currencies__value faction-currencies__value--clickable" (click)="toggleBreakdown(currency.name)">{{ currency.value | number:'1.0-0' }}</span>
+      <span class="faction-currencies__value faction-currencies__value--clickable" (click)="onCurrencyValueClick(currency.name)">{{ currency.value | number:'1.0-0' }}</span>
     </div>
   }
 

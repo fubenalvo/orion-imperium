@@ -165,4 +165,31 @@ describe('ResearchService', () => {
       expect(service.isBuildingUnlocked(player, 'spaceship_factory')).toBe(false);
     });
   });
+
+  describe('getSensorRangeBonus', () => {
+    it('returns 0 when no bonus techs are researched', () => {
+      player.researchedTechnologies = [];
+      expect(service.getSensorRangeBonus(player)).toBe(0);
+    });
+
+    it('returns the correct bonus for a single researched radar tech', () => {
+      player.researchedTechnologies = ['basic_radar'];
+      expect(service.getSensorRangeBonus(player)).toBe(1);
+    });
+
+    it('returns the sum of all researched sensorRange bonuses', () => {
+      player.researchedTechnologies = ['basic_radar', 'advanced_radar', 'long_range_radar'];
+      expect(service.getSensorRangeBonus(player)).toBe(3);
+    });
+
+    it('ignores techs without sensorRange bonuses', () => {
+      player.researchedTechnologies = ['basic_engineering'];
+      expect(service.getSensorRangeBonus(player)).toBe(0);
+    });
+
+    it('returns 0 when researchedTechnologies is undefined', () => {
+      player.researchedTechnologies = undefined;
+      expect(service.getSensorRangeBonus(player)).toBe(0);
+    });
+  });
 });

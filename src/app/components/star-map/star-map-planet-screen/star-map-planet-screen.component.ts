@@ -43,6 +43,7 @@ export interface BuildingType {
     shield?: number;
     shieldRegen?: number;
   } | null;
+  requiresOreProximity?: boolean;
 }
 
 export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production';
@@ -277,9 +278,9 @@ export class StarMapPlanetScreenComponent {
     }
 
     const resourceTiles = this.planet?.resourceTiles ?? [];
-    const producesRawMaterials = (this.selectedBuildingType.production?.rawmaterials ?? 0) > 0;
+    const requiresOreProximity = this.selectedBuildingType.requiresOreProximity === true;
 
-    if (producesRawMaterials) {
+    if (requiresOreProximity) {
       const touchesResource = this.touchesResourceTile(row, col, size, resourceTiles);
       if (!touchesResource) {
         this.isPreviewValid = false;

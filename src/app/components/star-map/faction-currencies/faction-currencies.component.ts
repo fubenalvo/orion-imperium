@@ -38,6 +38,14 @@ export class FactionCurrenciesComponent {
     this.expandedPlanet = null;
   }
 
+  onCurrencyValueClick(currencyName: string): void {
+    if (currencyName === 'research') {
+      this.openResearchTree.emit();
+    } else {
+      this.toggleBreakdown(currencyName);
+    }
+  }
+
   closeBreakdown(): void {
     this.showBreakdown = false;
     this.selectedCurrency = null;
