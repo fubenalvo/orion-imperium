@@ -49,7 +49,7 @@
 | 37 | Options / Credits | ❌ stub |
 | 38 | Diplomacy | ❌ |
 | 39 | Ship design | ❌ |
-| 40 | AI opponents | ✅ V5 pipeline (strategy → goal → capability → action; action evaluated in game loop, execution not yet implemented) |
+| 40 | AI opponents | ✅ V5.1 pipeline (strategy → goal → capability → action → execution; execute produce_colonizer only) |
 | 41 | Missions | ❌ |
 | 42 | Multiplayer | ❌ |
 | 43 | Audio | ❌ |
@@ -92,6 +92,7 @@ src/app/
       enemy-goal.service.ts               # V4.2: concrete strategic goals
       enemy-capability.service.ts         # V4.3: capability assessment
       enemy-action.service.ts             # V5: next action evaluation (integrated into the game loop)
+      enemy-action-executor.service.ts    # V5.1: action execution (produce_colonizer only)
       star-map.models.ts                  # All interfaces/types
       star-map.ts                         # Central orchestrator
       star-map.html                       # Main template

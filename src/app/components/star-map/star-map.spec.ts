@@ -48,6 +48,7 @@ describe('StarMap', () => {
     let goalService: EnemyGoalService;
     let capabilityService: EnemyCapabilityService;
     let aiService: EnemyAiService;
+    let productionService: ProductionService;
     let logSpy: ReturnType<typeof vi.spyOn>;
 
     beforeEach(() => {
@@ -67,7 +68,7 @@ describe('StarMap', () => {
       // partial-delta calls so the game state stays stable.
       vi.spyOn(aiService, 'tick').mockReturnValue(false);
       // Prevent production and economy from mutating the game state between ticks.
-      const productionService = TestBed.inject(ProductionService);
+      productionService = TestBed.inject(ProductionService);
       vi.spyOn(productionService, 'tick').mockReturnValue({
         completedOrders: [], producedShips: [], refundedOrders: [], stateChanged: false,
       });
@@ -200,6 +201,47 @@ describe('StarMap', () => {
 
       component['gameLoopCallback'](2);
       expect(logCalls.length).toBe(2);
+    });
+
+    it('should execute produce_colonizer through the full AI pipeline', () => {
+      component.factions = component.factions.map((f) => {
+        if (f.id === 'enemy1') {
+          return { ...f, currencies: { credits: 1000 }, researchedTechnologies: ['basic_engineering'] };
+        }
+        return f;
+      });
+
+      component.starSystems = component.starSystems.map((s) => {
+        if (s.id === 'sol') {
+          return {
+            ...s,
+            planetsTiles: s.planetsTiles.map((p) => {
+              if (p.id === 1) {
+                return { ...p, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] };
+              }
+              return p;
+            }),
+          };
+        }
+        return s;
+      });
+
+      const queueOrderSpy = vi.spyOn(productionService, 'queueOrder');
+
+      component['gameLoopCallback'](2);
+
+      expect(queueOrderSpy).toHaveBeenCalledWith(
+        { production: component.production },
+        'enemy1',
+        1,
+        'colonizer',
+        1,
+        component.starSystems,
+        component.factions,
+      );
+      expect(component.production.length).toBeGreaterThan(0);
+      expect(component.production[0].ordersByPlanet[1]).toBeDefined();
+      expect(component.production[0].ordersByPlanet[1][0].shipTypeId).toBe('colonizer');
     });
   });
 });
