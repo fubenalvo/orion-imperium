@@ -1,5 +1,5 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { SaveGameService, SaveSlot } from '../../services/save-game.service';
+import { SaveGameService, SaveSlot, SaveSlotId } from '../../services/save-game.service';
 
  /*
   * =========================================================
@@ -33,12 +33,15 @@ export class StarMapPauseComponent {
 
   @Output() openPauseMenu = new EventEmitter<void>();
   @Output() closePauseMenu = new EventEmitter<void>();
-  @Output() saveGame = new EventEmitter<void>();
+  @Output() saveGame = new EventEmitter<number>();
   @Output() loadGame = new EventEmitter<number>();
   @Output() togglePause = new EventEmitter<void>();
   @Output() exitToMainMenu = new EventEmitter<void>();
 
+  SaveSlotId = SaveSlotId;
+
   showLoadSlots = false;
+  showSaveSlots = false;
   gameSaved = false;
   private savedMessageTimeout: number | null = null;
 
@@ -62,11 +65,16 @@ export class StarMapPauseComponent {
   }
 
   /*
-   * onSaveGame: Emits saveGame event and shows "GAME SAVED" toast for 2 seconds.
-   * The actual save is handled by StarMap.
+   * onSaveGame: Opens manual save slot selection instead of saving immediately.
+   * The actual save is handled by StarMap after the player selects a slot.
    */
   onSaveGame(): void {
-    this.saveGame.emit();
+    this.showSaveSlots = true;
+  }
+
+  onSaveSlotSelected(slotIndex: number): void {
+    this.saveGame.emit(slotIndex);
+    this.showSaveSlots = false;
     this.gameSaved = true;
 
     if (this.savedMessageTimeout) {
@@ -84,6 +92,7 @@ export class StarMapPauseComponent {
 
   onBackToMenu(): void {
     this.showLoadSlots = false;
+    this.showSaveSlots = false;
   }
 
   onSelectSlot(slotIndex: number): void {

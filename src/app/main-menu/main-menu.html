@@ -25,23 +25,52 @@
         </nav>
       }
 
-      @if (showNewGameSlots || showLoadGameSlots) {
+      @if (showNewGameSlots) {
+        <div class="save-slots">
+          @for (slot of slots; track $index) {
+            @if ($index >= 1) {
+              <button
+                type="button"
+                class="save-slot"
+                [class.save-slot--empty]="!slot.data"
+                (click)="newGame($index)"
+              >
+                <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+              </button>
+            }
+          }
+          <button
+            type="button"
+            class="save-slot save-slot--close"
+            (click)="showNewGameSlots = false"
+          >
+            CLOSE
+          </button>
+        </div>
+      }
+
+      @if (showLoadGameSlots) {
         <div class="save-slots">
           @for (slot of slots; track $index) {
             <button
               type="button"
               class="save-slot"
               [class.save-slot--empty]="!slot.data"
-              (click)="showNewGameSlots ? newGame($index) : loadGame($index)"
+              (click)="loadGame($index)"
             >
-              <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+              @if ($index === 0) {
+                <span class="save-slot__index">Autosave</span>
+              } @else {
+                <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+              }
               <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
             </button>
           }
           <button
             type="button"
             class="save-slot save-slot--close"
-            (click)="showNewGameSlots = false; showLoadGameSlots = false"
+            (click)="showLoadGameSlots = false"
           >
             CLOSE
           </button>

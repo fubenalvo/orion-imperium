@@ -8,7 +8,11 @@ import { StarMapData } from '../components/star-map/star-map';
  * =========================================================
  *
  * Persistence layer using localStorage.
- * Stores 4 save slots, each containing a full StarMapData snapshot.
+ * Stores 5 save slots (1 autosave + 4 manual), each containing
+ * a full StarMapData snapshot.
+ *
+ * Slot 0 = Autosave (system-only)
+ * Slots 1-4 = Manual saves (user-initiated)
  *
  * Storage key: 'orion_save_slots'
  * Format: JSON array of SaveSlot objects
@@ -26,10 +30,22 @@ export interface SaveSlot {
   date: string | null;
 }
 
+export const SaveSlotId = {
+  AUTOSAVE: 0,
+  MANUAL_1: 1,
+  MANUAL_2: 2,
+  MANUAL_3: 3,
+  MANUAL_4: 4,
+} as const;
+
+export const MANUAL_SLOT_START = SaveSlotId.MANUAL_1;
+export const MANUAL_SLOT_COUNT = 4;
+export const TOTAL_SLOT_COUNT = MANUAL_SLOT_COUNT + 1;
+
 @Injectable({ providedIn: 'root' })
 export class SaveGameService {
   private readonly storageKey = 'orion_save_slots';
-  private readonly slotCount = 4;
+  private readonly slotCount = TOTAL_SLOT_COUNT;
 
   currentSlot: number | null = null;
 

@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { BattleService, Battle, BattleState, BattleLogEntry, FleetShip, Fleet } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
-import { SaveGameService } from '../../services/save-game.service';
+import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 
 /*
  * =========================================================
@@ -115,9 +115,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   }
 
   private applyPlanetBattleResult(battle: Battle, winner: Fleet, loser: Fleet | null): void {
-    if (this.saveGameService.currentSlot === null) return;
-
-    const data = this.saveGameService.loadFromSlot(this.saveGameService.currentSlot);
+    const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
     if (!data || !data.starSystems) return;
 
     for (const system of data.starSystems) {
@@ -135,7 +133,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
       break;
     }
 
-    this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
+    this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
 
   getWinnerName(): string {

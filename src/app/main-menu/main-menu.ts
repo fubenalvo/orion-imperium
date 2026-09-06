@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
-import { SaveGameService, SaveSlot } from '../services/save-game.service';
+import { SaveGameService, SaveSlot, SaveSlotId, MANUAL_SLOT_START } from '../services/save-game.service';
 import { StarMapData } from '../components/star-map/star-map';
 import starMapData from '../components/star-map/star-map-data.json';
 
@@ -52,6 +52,10 @@ export class MainMenu {
    * The starMapData JSON is cast to StarMapData; it contains the initial game state.
    */
   newGame(slotIndex: number): void {
+    if (slotIndex < MANUAL_SLOT_START) {
+      return;
+    }
+
     const defaultData = structuredClone(starMapData) as StarMapData;
     this.saveGameService.saveToSlot(slotIndex, defaultData);
     this.saveGameService.currentSlot = slotIndex;

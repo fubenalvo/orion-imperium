@@ -12,7 +12,7 @@ import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { BattleService } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
-import { SaveGameService } from '../../services/save-game.service';
+import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
@@ -435,14 +435,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.gameTimeService.resume();
   }
 
-  /** Saves the current game state, selecting an empty slot if none is active. */
-  saveFromMenu(): void {
-    if (this.saveGameService.currentSlot === null) {
-      const slots = this.saveGameService.getSlots();
-      const emptyIndex = slots.findIndex((slot) => !slot.data);
-      this.saveGameService.currentSlot = emptyIndex >= 0 ? emptyIndex : 0;
-    }
-    this.saveGame();
+  /** Saves the current game state to the chosen manual slot. */
+  saveFromMenu(slotIndex: number): void {
+    const data = this.serializeGameState();
+    this.saveGameService.saveToSlot(slotIndex, data);
   }
 
   /** Loads a save game from the specified slot index. */
@@ -2277,13 +2273,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   // Save/Load
 
-  /** Serializes the current game state into the active save slot. */
-  private saveGame(): void {
-    if (this.saveGameService.currentSlot === null) {
-      return;
-    }
-
-    const data: StarMapData = {
+  /** Builds the current StarMapData snapshot without writing to any slot. */
+  private serializeGameState(): StarMapData {
+    return {
       factions: this.factions,
       map: {
         width: this.mapWidth,
@@ -2307,8 +2299,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
       shipStock: this.shipStock,
       production: this.production,
     };
+  }
 
-    this.saveGameService.saveToSlot(this.saveGameService.currentSlot, data);
+  /** Serializes the current game state into the autosave slot. */
+  private saveGame(): void {
+    const data = this.serializeGameState();
+    this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
 
   /** Restores game state from the active save slot and refreshes selection and grid data. */

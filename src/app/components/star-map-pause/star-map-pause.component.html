@@ -10,7 +10,7 @@
 
 @if (pauseMenuOpen) {
   <div class="pause-overlay">
-    @if (!showLoadSlots) {
+    @if (!showSaveSlots && !showLoadSlots) {
       <div class="pause-overlay__content">
         <div class="pause-overlay__title">PAUSED</div>
         <div class="pause-menu-buttons">
@@ -23,6 +23,26 @@
           <div class="game-saved-message">GAME SAVED</div>
         }
       </div>
+    } @else if (showSaveSlots) {
+      <div class="pause-overlay__content">
+        <div class="pause-overlay__title">SAVE GAME</div>
+        <div class="save-slots">
+          @for (slot of slots; track $index) {
+            @if ($index >= 1) {
+              <button
+                type="button"
+                class="save-slot"
+                [class.save-slot--empty]="!slot.data"
+                (click)="onSaveSlotSelected($index)"
+              >
+                <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+              </button>
+            }
+          }
+        </div>
+        <button class="pause-overlay__btn pause-overlay__btn--back" type="button" (click)="onBackToMenu()">BACK</button>
+      </div>
     } @else {
       <div class="pause-overlay__content">
         <div class="pause-overlay__title">LOAD GAME</div>
@@ -34,7 +54,11 @@
               [class.save-slot--empty]="!slot.data"
               (click)="onSelectSlot($index)"
             >
-              <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+              @if ($index === SaveSlotId.AUTOSAVE) {
+                <span class="save-slot__index">Autosave</span>
+              } @else {
+                <span class="save-slot__index">Slot {{ $index + 1 }}</span>
+              }
               <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
             </button>
           }
