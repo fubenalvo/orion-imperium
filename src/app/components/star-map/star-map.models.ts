@@ -203,6 +203,13 @@ export interface StarMapData {
   exploredGridCells?: string[];
   shipStock?: FactionShipStock[];
   production?: FactionProduction[];
+  defaultView?: {
+    type: 'map' | 'system' | 'planet';
+    systemId?: string;
+    planetId?: number;
+    cameraX?: number;
+    cameraY?: number;
+  };
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';

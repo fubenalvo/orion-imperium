@@ -518,6 +518,98 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
   }
 
+  /*
+   * applyDefaultView: Sets the initial view from the star-map-data.json
+   * defaultView config. Used only when starting a new game with no saved
+   * runtime view state. Falls back to 'map' if the referenced system or
+   * planet does not exist.
+   */
+  private applyDefaultView(defaultView: StarMapData['defaultView']): void {
+    if (!defaultView) {
+      this.currentView = 'map';
+      this.selectedSystem = null;
+      this.selectedPlanetTile = null;
+      this.cameraX = 0;
+      this.cameraY = 0;
+      this.targetX = null;
+      this.targetY = null;
+      this.selectedFleetAction = null;
+      return;
+    }
+
+    switch (defaultView.type) {
+      case 'map':
+        this.currentView = 'map';
+        this.cameraX = defaultView.cameraX ?? 0;
+        this.cameraY = defaultView.cameraY ?? 0;
+        this.selectedSystem = null;
+        this.selectedPlanetTile = null;
+        this.targetX = null;
+        this.targetY = null;
+        this.selectedFleetAction = null;
+        break;
+
+      case 'system': {
+        const system = this.starSystems.find((s) => s.id === defaultView.systemId);
+        if (!system) {
+          this.currentView = 'map';
+          this.selectedSystem = null;
+          this.selectedPlanetTile = null;
+          this.cameraX = 0;
+          this.cameraY = 0;
+          this.targetX = null;
+          this.targetY = null;
+          this.selectedFleetAction = null;
+          break;
+        }
+        this.currentView = 'system';
+        this.selectedSystem = system;
+        this.selectedPlanetTile = null;
+        this.targetX = null;
+        this.targetY = null;
+        this.selectedFleetAction = null;
+        this.initFleetsInSystem(system);
+        this.syncTargetFromSelectedFleet();
+        break;
+      }
+
+      case 'planet': {
+        const system = this.starSystems.find((s) => s.id === defaultView.systemId);
+        const planet = system?.planetsTiles?.find((p) => p.id === defaultView.planetId);
+        if (!system || !planet) {
+          this.currentView = 'map';
+          this.selectedSystem = null;
+          this.selectedPlanetTile = null;
+          this.cameraX = 0;
+          this.cameraY = 0;
+          this.targetX = null;
+          this.targetY = null;
+          this.selectedFleetAction = null;
+          break;
+        }
+        this.currentView = 'planet';
+        this.selectedSystem = system;
+        this.selectedPlanetTile = planet;
+        this.targetX = null;
+        this.targetY = null;
+        this.selectedFleetAction = null;
+        this.initFleetsInSystem(system);
+        this.syncTargetFromSelectedFleet();
+        break;
+      }
+
+      default:
+        this.currentView = 'map';
+        this.selectedSystem = null;
+        this.selectedPlanetTile = null;
+        this.cameraX = 0;
+        this.cameraY = 0;
+        this.targetX = null;
+        this.targetY = null;
+        this.selectedFleetAction = null;
+    }
+  }
+
   /** Exits the current star system and returns to the galaxy map view. */
   leaveSystem(): void {
     this.saveGame();
@@ -2296,17 +2388,31 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.movementService.initializeCoordinates(this.fleets, this.starSystems);
 
-    this.currentView = data.currentView ?? 'map';
-    this.cameraX = data.cameraX ?? 0;
-    this.cameraY = data.cameraY ?? 0;
-    this.targetX = data.targetX ?? null;
-    this.targetY = data.targetY ?? null;
-    this.selectedFleetAction = data.selectedFleetAction ?? null;
+    // View state: saved runtime state takes precedence over defaultView config.
+    // defaultView is only applied when there is no saved view state (i.e., new game).
+    if (data.currentView) {
+      this.currentView = data.currentView;
+      this.cameraX = data.cameraX ?? 0;
+      this.cameraY = data.cameraY ?? 0;
+      this.targetX = data.targetX ?? null;
+      this.targetY = data.targetY ?? null;
+      this.selectedFleetAction = data.selectedFleetAction ?? null;
+    } else if (data.defaultView) {
+      this.applyDefaultView(data.defaultView);
+    } else {
+      this.currentView = 'map';
+      this.cameraX = 0;
+      this.cameraY = 0;
+      this.targetX = null;
+      this.targetY = null;
+      this.selectedFleetAction = null;
+    }
 
-    this.selectedSystem = this.starSystems.find((s) => s.id === data.selectedSystemId) ?? null;
+    // Selection state: saved IDs take precedence; fall back to whatever applyDefaultView set.
+    this.selectedSystem = this.starSystems.find((s) => s.id === data.selectedSystemId) ?? this.selectedSystem;
     this.selectedFleet = this.fleets.find((f) => f.id === data.selectedFleetId) ?? null;
     this.selectedPlanetTile =
-      this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null;
+      this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? this.selectedPlanetTile;
 
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
 

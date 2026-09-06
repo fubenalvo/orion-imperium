@@ -1,4 +1,9 @@
 ﻿{
+  "defaultView": {
+    "type": "planet",
+    "systemId": "sol",
+    "planetId": 1
+  },
   "factions": [
     {
       "id": "player",
