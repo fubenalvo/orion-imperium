@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { SaveGameService, SaveSlot, SaveSlotId, MANUAL_SLOT_START } from '../services/save-game.service';
-import { StarMapData } from '../components/star-map/star-map';
+import { StarMapData } from '../components/star-map/star-map.models';
 import starMapData from '../components/star-map/star-map-data.json';
 
 /*

@@ -12,16 +12,6 @@ export class EnemyAiService {
     this.currentTargets.clear();
   }
 
-  private calculateFleetStrength(fleet: Fleet): number {
-    return fleet.ships.reduce((sum, ship) => {
-      const shipType = this.shipService.getShipType(ship.type);
-      if (!shipType) {
-        return sum;
-      }
-      return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
-    }, 0);
-  }
-
   private getStrengthCategory(ratio: number): 'weak' | 'comparable' | 'strong' {
     if (ratio <= 0.75) {
       return 'weak';
@@ -104,12 +94,12 @@ export class EnemyAiService {
           continue;
         }
 
-        const enemyStrength = this.calculateFleetStrength(fleet);
-        const candidates = playerFleets.map((playerFleet) => {
-          const dx = fleet.x - playerFleet.x;
-          const dy = fleet.y - playerFleet.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-          const playerStrength = this.calculateFleetStrength(playerFleet);
+          const enemyStrength = this.shipService.calculateFleetStrength(fleet.ships);
+          const candidates = playerFleets.map((playerFleet) => {
+            const dx = fleet.x - playerFleet.x;
+            const dy = fleet.y - playerFleet.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const playerStrength = this.shipService.calculateFleetStrength(playerFleet.ships);
           const ratio = enemyStrength > 0 ? playerStrength / enemyStrength : 1;
           const category = this.getStrengthCategory(ratio);
           return { fleet: playerFleet, distance, category, ratio };

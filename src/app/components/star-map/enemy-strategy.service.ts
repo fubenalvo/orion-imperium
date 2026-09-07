@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Fleet, Faction, StarSystem, AiStrategy, getAiFactionIds } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
+import { getEnemyFleets, getPlayerFleets, getEnemyPlanets, getUnhabitedPlanets } from './ai-queries';
 
 /*
  * =========================================================
@@ -85,10 +86,10 @@ export class EnemyStrategyService {
     factions: Faction[],
     starSystems: StarSystem[],
   ): AiStrategy {
-    const enemyPlanets = this.getEnemyPlanets(factionId, starSystems);
-    const enemyFleets = this.getEnemyFleets(factionId, fleets);
-    const playerFleets = this.getPlayerFleets(fleets, factions);
-    const unhabitedPlanets = this.getUnhabitedPlanets(starSystems);
+    const enemyPlanets = getEnemyPlanets(factionId, starSystems);
+    const enemyFleets = getEnemyFleets(factionId, fleets);
+    const playerFleets = getPlayerFleets(fleets, factions);
+    const unhabitedPlanets = getUnhabitedPlanets(starSystems);
 
     if (this.isThreatened(enemyPlanets, playerFleets)) {
       return 'defend';
@@ -103,45 +104,6 @@ export class EnemyStrategyService {
     }
 
     return 'develop';
-  }
-
-  private getEnemyPlanets(factionId: string, starSystems: StarSystem[]): StarSystem[] {
-    return starSystems.filter((system) =>
-      system.planetsTiles.some((planet) => planet.factionId === factionId),
-    );
-  }
-
-  private getEnemyFleets(factionId: string, fleets: Fleet[]): Fleet[] {
-    return fleets.filter(
-      (fleet) => fleet.factionId === factionId && !fleet.destroyed && fleet.ships.length > 0,
-    );
-  }
-
-  private getPlayerFleets(fleets: Fleet[], factions: Faction[]): Fleet[] {
-    const playerFactionIds = new Set(
-      factions
-        .filter((faction) => faction.team === 1)
-        .map((faction) => faction.id),
-    );
-
-    return fleets.filter(
-      (fleet) =>
-        playerFactionIds.has(fleet.factionId) && !fleet.destroyed && fleet.ships.length > 0,
-    );
-  }
-
-  private getUnhabitedPlanets(starSystems: StarSystem[]): { system: StarSystem; planet: StarSystem['planetsTiles'][0] }[] {
-    const result: { system: StarSystem; planet: StarSystem['planetsTiles'][0] }[] = [];
-
-    for (const system of starSystems) {
-      for (const planet of system.planetsTiles) {
-        if (planet.factionId === 'unhabited') {
-          result.push({ system, planet });
-        }
-      }
-    }
-
-    return result;
   }
 
   private isThreatened(
@@ -165,7 +127,7 @@ export class EnemyStrategyService {
 
   private hasFavorableEngagement(enemyFleets: Fleet[], playerFleets: Fleet[]): boolean {
     for (const enemyFleet of enemyFleets) {
-      const enemyStrength = this.calculateFleetStrength(enemyFleet);
+      const enemyStrength = this.shipService.calculateFleetStrength(enemyFleet.ships);
 
       for (const playerFleet of playerFleets) {
         const dx = enemyFleet.x - playerFleet.x;
@@ -176,7 +138,7 @@ export class EnemyStrategyService {
           continue;
         }
 
-        const playerStrength = this.calculateFleetStrength(playerFleet);
+        const playerStrength = this.shipService.calculateFleetStrength(playerFleet.ships);
         if (enemyStrength >= playerStrength * this.STRENGTH_ADVANTAGE) {
           return true;
         }
@@ -203,15 +165,5 @@ export class EnemyStrategyService {
     }
 
     return false;
-  }
-
-  private calculateFleetStrength(fleet: Fleet): number {
-    return fleet.ships.reduce((sum, ship) => {
-      const shipType = this.shipService.getShipType(ship.type);
-      if (!shipType) {
-        return sum;
-      }
-      return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
-    }, 0);
   }
 }

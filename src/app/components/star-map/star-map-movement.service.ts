@@ -173,14 +173,8 @@ export class StarMapMovementService {
           // long-distance travel across the galaxy takes meaningful time.
           const movement = (fleet.speed / 10 / this.cellSizeVw) * deltaTime;
           const step = Math.min(movement, distance);
-          console.log(
-            `[Movement] Moving fleet ${fleet.id} from (${fleet.x}, ${fleet.y}) step=${step.toFixed(2)}`,
-          );
           fleet.x += (dx / distance) * step;
           fleet.y += (dy / distance) * step;
-          console.log(
-            `[Movement] Fleet ${fleet.id} new pos: (${fleet.x.toFixed(2)}, ${fleet.y.toFixed(2)})`,
-          );
         }
 
         const mapCell = this.calculateGridCell(fleet.x, fleet.y);

@@ -14,6 +14,7 @@ import {
 import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { ShipStockService } from '../../services/ship-stock.service';
+import { isPlayerFleet } from './ai-queries';
 
 /*
  * =========================================================
@@ -227,7 +228,7 @@ export class EnemyCapabilityService {
       reason: targetValid ? 'satisfied' : 'target_destroyed',
     });
 
-    const hasCombatCapability = hasFleet && enemyFleets.some((fleet) => this.calculateFleetStrength(fleet) > 0);
+    const hasCombatCapability = hasFleet && enemyFleets.some((fleet) => this.shipService.calculateFleetStrength(fleet.ships) > 0);
     requirements.push({
       type: 'fleet_can_engage',
       satisfied: hasCombatCapability,
@@ -271,7 +272,7 @@ export class EnemyCapabilityService {
     });
 
     const playerFleets = fleets.filter(
-      (fleet) => playerFactionIds(fleet, factions) && !fleet.destroyed && fleet.ships.some((ship) => !ship.destroyed),
+      (fleet) => isPlayerFleet(fleet, factions) && !fleet.destroyed && fleet.ships.some((ship) => !ship.destroyed),
     );
     const threatPresent = targetValid && playerFleets.some((fleet) => {
       const dx = fleet.x - system!.x;
@@ -306,23 +307,5 @@ export class EnemyCapabilityService {
       ],
     };
   }
-
-  private calculateFleetStrength(fleet: Fleet): number {
-    return fleet.ships.reduce((sum, ship) => {
-      const shipType = this.shipService.getShipType(ship.type);
-      if (!shipType) {
-        return sum;
-      }
-      return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
-    }, 0);
-  }
 }
 
-function playerFactionIds(fleet: Fleet, factions: Faction[]): boolean {
-  const playerFactionIds = new Set(
-    factions
-      .filter((faction) => faction.team === 1)
-      .map((faction) => faction.id),
-  );
-  return playerFactionIds.has(fleet.factionId);
-}

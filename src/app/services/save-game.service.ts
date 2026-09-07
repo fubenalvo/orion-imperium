@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-import { StarMapData } from '../components/star-map/star-map';
+import { StarMapData } from '../components/star-map/star-map.models';
 
 /*
  * =========================================================

@@ -56,6 +56,21 @@ export class ShipService {
   }
 
   /*
+   * calculateFleetStrength: Returns the aggregate combat strength of a fleet
+   * using the formula attack + defense + hitPoints/10 + shield/10 per ship.
+   * Extracted from duplicated private methods in four AI services.
+   */
+  calculateFleetStrength(ships: { type: string }[]): number {
+    return ships.reduce((sum, ship) => {
+      const shipType = this.getShipType(ship.type);
+      if (!shipType) {
+        return sum;
+      }
+      return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
+    }, 0);
+  }
+
+  /*
    * normalizeShipType: Fills in production defaults for ship types
    * that did not declare them. `buildTime` defaults to `cost / 10`
    * seconds-at-1-factory so the existing `cost` field remains the

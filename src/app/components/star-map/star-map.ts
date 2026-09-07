@@ -84,8 +84,6 @@ import {
 import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
 import { StarMapResearchTreeComponent } from './star-map-research-tree/star-map-research-tree.component';
 
-export type { StarMapData } from './star-map.models';
-
 /*
  * =========================================================
  * STAR MAP COMPONENT
@@ -679,11 +677,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
     return player?.currencies?.['credits'] ?? 0;
   }
 
-  /** Handles selection of a building type from the planet build menu. */
-  onSelectBuildingType(buildingId: string): void {
-    console.log('[StarMap] Building type selected:', buildingId);
-  }
-
   /** Handles confirmation of a building placement from the planet screen. */
   onBuildingConfirmed(event: { buildingId: string; x: number; y: number }): void {
     const planet = this.selectedPlanetTile;
@@ -1103,7 +1096,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetPlayerEconomyBreakdown = this.getPlayerEconomyBreakdown.bind(this);
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
   readonly boundGetPlayerCredits = this.getPlayerCredits.bind(this);
-  readonly boundOnSelectBuildingType = this.onSelectBuildingType.bind(this);
   readonly boundOnConfirmBuild = (buildingId: string, x: number, y: number) =>
     this.onBuildingConfirmed({ buildingId, x, y });
   readonly boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
@@ -1340,18 +1332,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     this.selectedPlanetTile = tile;
-    console.log('[StarMap] selectPlanetTile:', tile.name);
-    console.log('[StarMap] selectedPlanetTile set:', this.selectedPlanetTile.name);
 
     if (this.currentView !== 'system') {
       this.selectedSystem = null;
     }
-    try {
-      this.cdr.detectChanges();
-      console.log('[StarMap] detectChanges succeeded');
-    } catch (e) {
-      console.error('[StarMap] detectChanges failed:', e);
-    }
+    this.cdr.detectChanges();
   }
 
   // Context menu

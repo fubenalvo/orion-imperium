@@ -11,6 +11,7 @@ import {
   DevelopGoal,
 } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
+import { getEnemyFleets, getPlayerFleets, getEnemyPlanets, getUnhabitedPlanets } from './ai-queries';
 
 /*
  * =========================================================
@@ -135,9 +136,9 @@ export class EnemyGoalService {
     fleets: Fleet[],
     starSystems: StarSystem[],
   ): ColonizeGoal | undefined {
-    const enemyPlanets = this.getEnemyPlanets(factionId, starSystems);
-    const enemyFleets = this.getEnemyFleets(factionId, fleets);
-    const candidates = this.getUnhabitedPlanets(starSystems);
+    const enemyPlanets = getEnemyPlanets(factionId, starSystems);
+    const enemyFleets = getEnemyFleets(factionId, fleets);
+    const candidates = getUnhabitedPlanets(starSystems);
 
     if (enemyFleets.length === 0 || candidates.length === 0) {
       return undefined;
@@ -197,20 +198,20 @@ export class EnemyGoalService {
     fleets: Fleet[],
     factions: Faction[],
   ): AttackGoal | undefined {
-    const enemyFleets = this.getEnemyFleets(factionId, fleets);
-    const playerFleets = this.getPlayerFleets(fleets, factions);
+    const enemyFleets = getEnemyFleets(factionId, fleets);
+    const playerFleets = getPlayerFleets(fleets, factions);
 
     if (enemyFleets.length === 0 || playerFleets.length === 0) {
       return undefined;
     }
 
     const maxEnemyStrength = Math.max(
-      ...enemyFleets.map((fleet) => this.calculateFleetStrength(fleet)),
+      ...enemyFleets.map((fleet) => this.shipService.calculateFleetStrength(fleet.ships)),
       0,
     );
 
     const scored = playerFleets.map((playerFleet) => {
-      const playerStrength = this.calculateFleetStrength(playerFleet);
+      const playerStrength = this.shipService.calculateFleetStrength(playerFleet.ships);
       const ratio = maxEnemyStrength > 0 ? playerStrength / maxEnemyStrength : 1;
       const category = this.getStrengthCategory(ratio);
 
@@ -255,8 +256,8 @@ export class EnemyGoalService {
     factions: Faction[],
     starSystems: StarSystem[],
   ): DefendGoal | undefined {
-    const enemyPlanets = this.getEnemyPlanets(factionId, starSystems);
-    const playerFleets = this.getPlayerFleets(fleets, factions);
+    const enemyPlanets = getEnemyPlanets(factionId, starSystems);
+    const playerFleets = getPlayerFleets(fleets, factions);
 
     if (enemyPlanets.length === 0 || playerFleets.length === 0) {
       return undefined;
@@ -363,7 +364,7 @@ export class EnemyGoalService {
     if (!planet || planet.factionId !== factionId) {
       return false;
     }
-    const playerFleets = this.getPlayerFleets(fleets, factions);
+    const playerFleets = getPlayerFleets(fleets, factions);
     return playerFleets.some(
       (fleet) => {
         const dx = fleet.x - system.x;
@@ -475,54 +476,5 @@ export class EnemyGoalService {
 
   private getGoalType(goal: StrategicGoal): string {
     return goal.type;
-  }
-
-  private getEnemyFleets(factionId: string, fleets: Fleet[]): Fleet[] {
-    return fleets.filter(
-      (fleet) => fleet.factionId === factionId && !fleet.destroyed && fleet.ships.length > 0,
-    );
-  }
-
-  private getPlayerFleets(fleets: Fleet[], factions: Faction[]): Fleet[] {
-    const playerFactionIds = new Set(
-      factions
-        .filter((faction) => faction.team === 1)
-        .map((faction) => faction.id),
-    );
-
-    return fleets.filter(
-      (fleet) =>
-        playerFactionIds.has(fleet.factionId) && !fleet.destroyed && fleet.ships.length > 0,
-    );
-  }
-
-  private getEnemyPlanets(factionId: string, starSystems: StarSystem[]): StarSystem[] {
-    return starSystems.filter((system) =>
-      system.planetsTiles.some((planet) => planet.factionId === factionId),
-    );
-  }
-
-  private getUnhabitedPlanets(starSystems: StarSystem[]): { system: StarSystem; planet: StarSystem['planetsTiles'][0] }[] {
-    const result: { system: StarSystem; planet: StarSystem['planetsTiles'][0] }[] = [];
-
-    for (const system of starSystems) {
-      for (const planet of system.planetsTiles) {
-        if (planet.factionId === 'unhabited') {
-          result.push({ system, planet });
-        }
-      }
-    }
-
-    return result;
-  }
-
-  private calculateFleetStrength(fleet: Fleet): number {
-    return fleet.ships.reduce((sum, ship) => {
-      const shipType = this.shipService.getShipType(ship.type);
-      if (!shipType) {
-        return sum;
-      }
-      return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
-    }, 0);
   }
 }

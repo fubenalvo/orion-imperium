@@ -21,7 +21,7 @@ import { MinimapFleet } from '../star-map-minimap/star-map-minimap.models';
   standalone: true,
   imports: [CommonModule, StarMapMinimapComponent],
   templateUrl: './star-map-navigation.component.html',
-  styleUrls: ['./star-map-navigation.component.scss']
+  styleUrl: './star-map-navigation.component.scss'
 })
 export class StarMapNavigationComponent implements OnDestroy {
   @Input() cameraX = 0;

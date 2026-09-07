@@ -8,7 +8,7 @@ import { MinimapFleet } from './star-map-minimap.models';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './star-map-minimap.component.html',
-  styleUrls: ['./star-map-minimap.component.scss']
+  styleUrl: './star-map-minimap.component.scss'
 })
 export class StarMapMinimapComponent {
   @Input() starSystems: StarSystem[] = [];

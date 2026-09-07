@@ -102,7 +102,7 @@ export class StarMapPlanetScreenComponent {
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
   @Input() getPlayerCredits: () => number = () => 0;
-  @Input() onSelectBuildingType: (buildingId: string) => void = () => {};
+
   @Input() onConfirmBuild: (buildingId: string, x: number, y: number) => void = () => {};
   @Input() hasFactory: () => boolean = () => false;
   @Input() hasSpaceport: () => boolean = () => false;
