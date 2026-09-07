@@ -1,7 +1,7 @@
 # Orion Imperium — Játékállapot, Feature lista és Készültségi fok
 
-> **Verzió:** 0.3
-> **Utoljára frissítve:** 2026-09-06
+> **Verzió:** 0.4
+> **Utoljára frissítve:** 2026-09-07
 > **Scope:** Angular 22 standalone, kliens-oldali, localStorage persistence.
 
 ---
@@ -49,7 +49,7 @@
 | 37 | Options / Credits | ❌ stub |
 | 38 | Diplomacy | ❌ |
 | 39 | Ship design | ❌ |
-| 40 | AI opponents | ✅ V5.2 pipeline (strategy → goal → capability → action → execution; execute produce_colonizer + assemble_fleet) |
+| 40 | AI opponents | ✅ Full V5 pipeline (strategy → goal → capability → action → executor; execute colonize + attack + defend + develop + produce_colonizer + assemble_fleet + move_to_target) |
 | 41 | Missions | ❌ |
 | 42 | Multiplayer | ❌ |
 | 43 | Audio | ❌ |
@@ -197,6 +197,8 @@ src/app/
   - Active battles are tracked in `BattleService`
   - `destroyedFleetId` is remembered across navigation to handle fleet cleanup after returning from battle screen
   - Winner survivor roster does not persist back to the star map; only fleet destruction is tracked
+  - `BattleScreenComponent` pauses `GameTimeService` on init and resumes on destroy/back-to-map, so the galaxy simulation (movement, AI, economy, production) does not run while the player is fighting
+  - `backToStarMap()` persists the loser fleet's destroyed flag to the AUTOSAVE slot before navigating, preventing post-battle state resets
 - Fleet state after battle
   - Surviving fleets return to their pre-battle positions or remain at the battle location
   - Destroyed fleets have `destroyed = true` and are filtered from movement, collision, and rendering
@@ -410,21 +412,26 @@ src/app/
 - Reset: action state is cleared on game load / new game via `EnemyActionService.reset()`, called alongside the V3/V4.1/V4.2/V4.3 resets in `StarMap.loadGame()`.
 - Test coverage: 23 Vitest tests covering all action types, preparation vs execution paths, determinism, no state mutation, independent multi-faction behavior, accumulator timing, reset behavior, and edge cases.
 
-### 4.18 Enemy Action Execution Layer (V5.1 → V5.2)
+### 4.18 Enemy Action Execution Layer (V5.1 → V5.2 → V5.3 → V5.4)
 
 - `EnemyActionExecutor` runs below `EnemyActionService` and is the only AI layer that mutates game state for actions.
 - Responsibility split:
   - `EnemyActionService` = decision / planning (inspection only, no mutation).
   - `EnemyActionExecutor` = state mutation / execution, always through existing game service APIs.
-- Currently executable actions:
+- Executable actions:
   - `produce_colonizer` (V5.1): queues one colonizer order via `ProductionService.queueOrder` at the faction's deterministic first factory planet.
   - `assemble_fleet` (V5.2): moves one colonizer from the faction ship stock into a fleet via `FleetAssemblyService`. Prefers reinforcing the faction's deterministic lowest-id usable fleet (`reinforceFleet`); when no usable fleet exists, creates a new fleet at the faction's deterministic first owned Spaceport planet (`createFleet`).
-- Not yet executable (still generated but ignored by the executor): `move_to_target`, `colonize`, `attack`, `defend`, `develop`, `none`.
-- Duplicate-execution protection is stateless: every frame the executor re-checks the game-state fact its mutation establishes (a pending colonizer order; a fleet already carrying a colonizer). It keeps no mutable executor state, so `reset()` stays a no-op.
-  - The executor only acts for AI factions (`f.ai === true`), never for player / independent factions, and only mutates the acting faction's stock and fleets. Failed assembly (e.g., no Spaceport, no stock) leaves the state unchanged.
-- Execution logging follows the existing convention and fires only on actual execution, e.g. `[Enemy AI] enemy1 executed assemble_fleet: reinforced fleet RAIDER with 1 colonizer`.
+  - `move_to_target` (V5.3): sets `fleet.targetX/targetY` to start map movement toward the goal target. Supports colonize (system position + planet still unhabited), attack (target fleet position + still alive), and defend (threatened system position) goals. Stateless guards prevent duplicate restarts.
+  - `colonize` (V5.4): verifies the target planet still exists and is `unhabited`, finds an AI fleet with a living colonizer at the planet's grid cell, removes the colonizer from the fleet, and sets `planet.factionId`. Reuses `PlanetBattleService.resolveUninhabitedArrival` for colonizer detection.
+  - `attack` (V5.4): validates that an AI fleet and the target player fleet occupy the same galaxy grid cell and are both alive. Does NOT trigger battle; `StarMapBattleDetectionService` handles collision-based battle start automatically.
+  - `defend` (V5.4): validates that an AI fleet is positioned at the threatened star system's grid cell. Movement to the system is already handled by the `move_to_target` action; this method only confirms the fleet has arrived.
+  - `develop` (V5.4): selects the first owned planet with a free building slot, chooses a building based on economy priority (energy → workforce → raw materials → research fallback), verifies research unlock and credits, finds a valid placement, and places the building. Uses the same overlap/grid bounds logic as the planet screen component.
+- Not executable: `none`.
+- Duplicate-execution protection is stateless: every frame the executor re-checks the game-state fact its mutation establishes. It keeps no mutable executor state, so `reset()` stays a no-op.
+  - The executor only acts for AI factions (`f.ai === true`, dynamically derived from the `factions` array), never for player / independent factions, and only mutates the acting faction's stock and fleets.
+- Execution logging follows the existing convention and fires only on actual execution.
 - Integration: `StarMap.gameLoopCallback` calls `EnemyActionExecutor.tick()` every frame after the action layer, once per enemy faction, with the faction's current `ActionResult`. The executor is not called on reset (`reset()` is a no-op).
-- Test coverage: 32 Vitest tests covering produce_colonizer execution and assemble_fleet execution (reinforcement, new-fleet fallback, duplicate/stale-action guards, wrong-faction and player safety, failed-assembly no-mutation, pause safety, logging).
+- Test coverage: 76 Vitest tests covering produce_colonizer execution, assemble_fleet execution, move_to_target execution, colonize execution, attack execution, defend execution, develop execution (power/housing/industry/research building selection, research lock, credit shortage, placement validation, duplicate prevention), and all guard conditions.
 
 ---
 
@@ -590,13 +597,15 @@ src/app/
 - No re-conquest for independent planets
 - Debug console.log statements present
 - Enemy AI V3 tracks targets by fleet ID and validates them; strength-based selection prefers weak/comparable targets, distance breaks ties
-- Strategic AI layers V4.1 (strategy), V4.2 (goal), V4.3 (capability), and V5 (action) only evaluate and log intentions; the V5.1/V5.2 `EnemyActionExecutor` executes `produce_colonizer` and `assemble_fleet`
-- Enemy Action Layer V5 is fully implemented, tested, and integrated into the game loop; V5.1 executes `produce_colonizer` and V5.2 executes `assemble_fleet`, while `move_to_target` / `colonize` / `attack` / `defend` / `develop` are evaluated but not yet executed
+- Strategic AI layers V4.1 (strategy), V4.2 (goal), V4.3 (capability), and V5 (action) only evaluate and log intentions; the V5.1/V5.2/V5.3/V5.4 `EnemyActionExecutor` executes `produce_colonizer`, `assemble_fleet`, `move_to_target`, `colonize`, `attack`, `defend`, and `develop`
+- Enemy Action Execution Layer V5.4 now executes `colonize`, `attack`, `defend`, and `develop` actions. `colonize` reuses `PlanetBattleService.resolveUninhabitedArrival` for colonizer detection. `attack` validates same-cell engagement without triggering battles (battle detection remains automatic). `defend` validates fleet arrival at the threatened system. `develop` performs minimal deterministic building placement based on economy needs (energy → workforce → raw materials → research fallback).
 - No enemy fleet production or reinforcement from conquered planets
 - Only one Spaceship Factory building type exists (no Small/Medium/Large Factory tiers)
 - `orbital_factory` is defined as a `ProductionBuildingKind` type but no building produces it and no ship requires it
 - School moraleRate is 1.0 in planet-data.json, which is much higher than other social buildings and may be overpowered
 - Research Laboratory moraleRate is 1.0 in planet-data.json
+- Develop action building selection is first-match in `planet-data.json` order; no strategic scoring for building placement
+- Develop action does not consider multi-planet economy optimization
 
 ---
 
@@ -616,11 +625,11 @@ src/app/
   - `enemy-goal.service.spec.ts` — 27 tests (all four goal types, goal commitment, invalidation, strategy change replacement, multi-faction independence, determinism, no state mutation, accumulator timing, reset)
   - `enemy-capability.service.spec.ts` — 25 tests (colonization prerequisites, attack/defend fleet and target checks, develop executability, determinism, no state mutation, multi-faction independence, accumulator timing, reset, edge cases)
   - `enemy-action.service.spec.ts` — 23 tests (all action types, preparation vs execution paths, determinism, no state mutation, independent multi-faction behavior, accumulator timing, reset, edge cases)
-  - `enemy-action-executor.service.spec.ts` — 32 tests (produce_colonizer execution: planet selection, guard rails, duplicate-order protection, logging; assemble_fleet execution: stock→fleet reinforcement, colonizer assembly, new-fleet fallback, duplicate/stale-action guards, wrong-faction and player safety, no-Spaceport/no-stock no-mutation, pause safety, logging)
+  - `enemy-action-executor.service.spec.ts` — 76 tests (produce_colonizer execution: planet selection, guard rails, duplicate-order protection, logging; assemble_fleet execution: stock→fleet reinforcement, colonizer assembly, new-fleet fallback, duplicate/stale-action guards, wrong-faction and player safety, no-Spaceport/no-stock no-mutation, pause safety, logging; move_to_target execution: colonize/attack/defend goals, invalid target guards, duplicate-movement guards, player safety; colonize execution: successful colonization, invalid planet, already colonized, no colonizer, no fleet at position, duplicate guard, planetBattleService guard; attack execution: valid attack, invalid target, destroyed target, no living ships, no attacker at cell, player safety, player faction guard; defend execution: valid defend, already at position, invalid system, no fleet at system, destroyed fleet, no living ships, player safety, player faction guard; develop execution: energy shortage → power building, workforce shortage → housing, raw material need → industry, research fallback, research lock, no credits, no valid placement, invalid planet, player faction guard)
   - `research.service.spec.ts` — 28 tests (getAllTechnologies/getTechnology, starting techs, getStatus, canResearch, researchTechnology, isShipUnlocked, isBuildingUnlocked, getSensorRangeBonus)
-  - `save-game.service.spec.ts` — 3 tests
+  - `save-game.service.spec.ts` — 5 tests (ai flag migration, researchedTechnologies migration, slot persistence)
   - `star-map-planet-screen.component.spec.ts` — 11 tests (resource tile detection, mine placement validation)
-- Total: ~289 tests
+- Total: ~335 tests (334 passing, 1 pre-existing unrelated failure in app.spec.ts)
 
 ---
 
@@ -635,9 +644,9 @@ A játék jelenlegi állapota:
 - Resource deposits: ~20% of planets have deterministic resource tiles, Mining Complex adjacency required
 - Sensor system: preview rings, research-based range bonuses, system/fleet range computation
 - Enemy AI V3: ellenséges flották erősségi szempontból választanak célpontot (weak > comparable > strong), távolság csökkenti a kötést ugyanazon kategórián belül
-- Harcrendszer autonóm: az AI nem indítja a csatákat, a `StarMapBattleDetectionService` detektálja az ütközéseket és a `BattleService` kezeli a csatát
-- Stratégiai AI rétegzett rendszere: Strategy (V4.1) → Goal (V4.2) → Capability (V4.3) → Action (V5, implementálva és integrálva a game loop-ba; az action értékelése minden faction-re lekérdezhető, a V5.1/V5.2 `EnemyActionExecutor` pedig a `produce_colonizer` és `assemble_fleet` actionöket hajtja végre a meglévő service-eken keresztül)
-- Hiányzik: a fennmaradó action típusok végrehajtása (`move_to_target`, `colonize`, `attack`, `defend`, `develop`), diplomacia, ship design, hang, multiplayer
+- Harcrendszer autonóm: az AI nem indítja a csatákat, a `StarMapBattleDetectionService` detektálja az ütközéseket és a `BattleService` kezeli a csatát; a csataidő alatt a `GameTimeService` szünetelteti a galaxis-szimulációt
+- Stratégiai AI rétegzett rendszere: Strategy (V4.1) → Goal (V4.2) → Capability (V4.3) → Action (V5, implementálva és integrálva a game loop-ba; az action értékelése minden faction-re lekérdezhető, a V5.1/V5.2/V5.3/V5.4 `EnemyActionExecutor` pedig a `colonize`, `attack`, `defend`, `develop`, `produce_colonizer`, `assemble_fleet` és `move_to_target` actionöket hajtja végre a meglévő service-eken keresztül)
+- Hiányzik: diplomacia, ship design, hang, multiplayer
 - Ismert korlátok: no shield pool in battle, no weapon effectiveness, no crit/evasion, only one factory type, School/Research Lab moraleRate 1.0 potentially overpowered
 
 Ez a dokumentum a játék teljes jelenlegi állapotát írja le feature-felel és készültségi fokok szerint.

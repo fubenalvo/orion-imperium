@@ -10,6 +10,7 @@ import {
   ColonizeGoal,
   AttackGoal,
   DefendGoal,
+  PLANET_SIZE_MAP,
 } from './star-map.models';
 import { ProductionService } from '../../services/production.service';
 import { ShipService } from '../../services/ship.service';
@@ -17,6 +18,10 @@ import { ResearchService } from '../../services/research.service';
 import { ShipStockService } from '../../services/ship-stock.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { SpaceportService } from '../../services/spaceport.service';
+import { PlanetBattleService } from '../../services/planet-battle.service';
+import { EconomyService } from '../../services/economy.service';
+import { StarMapMovementService } from './star-map-movement.service';
+import planetData from '../../components/star-map/planet-data.json';
 
 /*
  * =========================================================
@@ -58,6 +63,8 @@ export class EnemyActionExecutor {
     private readonly shipStockService: ShipStockService,
     private readonly fleetAssemblyService: FleetAssemblyService,
     private readonly spaceportService: SpaceportService,
+    private readonly planetBattleService: PlanetBattleService,
+    private readonly economyService: EconomyService,
   ) {}
 
   reset(): void {
@@ -97,6 +104,14 @@ export class EnemyActionExecutor {
         return this.executeAssembleFleet(action, starSystems, shipStock, fleets);
       case 'move_to_target':
         return this.executeMoveToTarget(action, fleets, starSystems);
+      case 'colonize':
+        return this.executeColonize(action, factions, starSystems, fleets);
+      case 'attack':
+        return this.executeAttack(action, fleets);
+      case 'defend':
+        return this.executeDefend(action, starSystems, fleets);
+      case 'develop':
+        return this.executeDevelop(action, factions, starSystems);
       default:
         return false;
     }
@@ -306,6 +321,340 @@ export class EnemyActionExecutor {
     console.log(
       `[Enemy AI] ${action.factionId} fleet ${fleet.name} moving to (${destX}, ${destY})`,
     );
+    return true;
+  }
+
+  /*
+   * executeColonize: Colonizes an unhabited planet using a colonizer
+   * from an AI fleet that is at the planet's grid position. Reuses
+   * PlanetBattleService.resolveUninhabitedArrival to detect the
+   * colonizer and remove it from the fleet.
+   *
+   * Guards (checked every frame) prevent duplicate or invalid
+   * colonization:
+   *   - target planet still exists and is unhabited
+   *   - an AI fleet with a living colonizer is at the planet cell
+   */
+  private executeColonize(
+    action: ActionResult,
+    factions: Faction[],
+    starSystems: StarSystem[],
+    fleets: Fleet[],
+  ): boolean {
+    const system = starSystems.find((s) => s.id === action.targetSystemId);
+    const planet = system?.planetsTiles.find((p) => p.id === action.targetPlanetId);
+    if (!system || !planet || planet.factionId !== 'unhabited') {
+      return false;
+    }
+
+    const fleet = fleets.find(
+      (f) =>
+        f.factionId === action.factionId &&
+        !f.destroyed &&
+        f.ships.some((s) => !s.destroyed) &&
+        Math.floor(f.x) === Math.floor(system.x) &&
+        Math.floor(f.y) === Math.floor(system.y),
+    );
+
+    if (!fleet) {
+      return false;
+    }
+
+    const result = this.planetBattleService.resolveUninhabitedArrival(fleet);
+    if (!result.colonized || result.colonizerIndex < 0) {
+      return false;
+    }
+
+    fleet.ships.splice(result.colonizerIndex, 1);
+    planet.factionId = action.factionId;
+
+    console.log(`[Enemy AI] ${action.factionId} executed colonize: ${fleet.name} colonized ${planet.name}`);
+    return true;
+  }
+
+  /*
+   * executeAttack: Validates that an AI fleet and the target player
+   * fleet occupy the same galaxy grid cell and are both alive. Does
+   * NOT trigger battle; StarMapBattleDetectionService handles
+   * collision-based battle start automatically.
+   *
+   * Guards prevent invalid or duplicate execution:
+   *   - target fleet exists, not destroyed, has living ships
+   *   - an AI fleet exists at the same grid cell, not destroyed, has living ships
+   */
+  private executeAttack(action: ActionResult, fleets: Fleet[]): boolean {
+    const targetFleet = fleets.find((f) => f.id === action.targetId);
+    if (!targetFleet || targetFleet.destroyed || targetFleet.factionId === action.factionId) {
+      return false;
+    }
+
+    const targetHasShips = targetFleet.ships.some((s) => !s.destroyed);
+    if (!targetHasShips) {
+      return false;
+    }
+
+    const targetCol = Math.floor(targetFleet.x);
+    const targetRow = Math.floor(targetFleet.y);
+    const attackerFleet = fleets.find(
+      (f) =>
+        f.factionId === action.factionId &&
+        !f.destroyed &&
+        f.ships.some((s) => !s.destroyed) &&
+        Math.floor(f.x) === targetCol &&
+        Math.floor(f.y) === targetRow,
+    );
+
+    if (!attackerFleet) {
+      return false;
+    }
+
+    console.log(
+      `[Enemy AI] ${action.factionId} executed attack: ${attackerFleet.name} engaging ${targetFleet.name}`,
+    );
+    return true;
+  }
+
+  /*
+   * executeDefend: Validates that an AI fleet is positioned at the
+   * threatened star system's grid cell. Movement to the system is
+   * already handled by the move_to_target action; this method only
+   * confirms the fleet has arrived.
+   *
+   * Guards prevent invalid execution:
+   *   - target system exists
+   *   - an AI fleet exists at the system's grid cell, not destroyed, has living ships
+   */
+  private executeDefend(action: ActionResult, starSystems: StarSystem[], fleets: Fleet[]): boolean {
+    const system = starSystems.find((s) => s.id === action.targetSystemId);
+    if (!system) {
+      return false;
+    }
+
+    const fleet = fleets.find(
+      (f) =>
+        f.factionId === action.factionId &&
+        !f.destroyed &&
+        f.ships.some((s) => !s.destroyed) &&
+        Math.floor(f.x) === Math.floor(system.x) &&
+        Math.floor(f.y) === Math.floor(system.y),
+    );
+
+    if (!fleet) {
+      return false;
+    }
+
+    console.log(
+      `[Enemy AI] ${action.factionId} executed defend: ${fleet.name} defending ${system.name}`,
+    );
+    return true;
+  }
+
+  /*
+   * executeDevelop: Minimal deterministic building construction for
+   * AI factions. Selects the first owned planet with a free building
+   * slot, chooses a building based on economy priority, verifies
+   * research unlock and credits, finds a valid placement, and places
+   * the building.
+   *
+   * Building selection priority:
+   *   1. Energy shortage -> Fusion Power Plant / Solar Array
+   *   2. Workforce shortage -> residential block
+   *   3. Raw material production needed -> Spaceship Factory / Mining Complex
+   *   4. Fallback -> Research Laboratory
+   *
+   * Placement reuses the overlap/grid bounds logic from the planet
+   * screen component. No new placement system is introduced.
+   */
+  private executeDevelop(action: ActionResult, factions: Faction[], starSystems: StarSystem[]): boolean {
+    const faction = factions.find((f) => f.id === action.factionId);
+    if (!faction) {
+      return false;
+    }
+
+    const planet = this.selectDevelopPlanet(action.factionId, starSystems);
+    if (!planet) {
+      return false;
+    }
+
+    const buildingId = this.selectDevelopBuilding(faction, planet);
+    if (!buildingId) {
+      return false;
+    }
+
+    const buildingDef = (planetData as any).buildings.find((b: any) => b.id === buildingId);
+    if (!buildingDef) {
+      return false;
+    }
+
+    if (!this.researchService.isBuildingUnlocked(faction, buildingId)) {
+      return false;
+    }
+
+    const credits = faction.currencies['credits'] ?? 0;
+    if (credits < buildingDef.price) {
+      return false;
+    }
+
+    const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
+    const placement = this.findValidPlacement(planet, buildingDef.size, buildingId, gridSize);
+    if (!placement) {
+      return false;
+    }
+
+    faction.currencies['credits'] = credits - buildingDef.price;
+    planet.buildings.push({
+      name: buildingDef.name,
+      size: buildingDef.size,
+      x: placement.x,
+      y: placement.y,
+    });
+
+    console.log(
+      `[Enemy AI] ${action.factionId} executed develop: built ${buildingDef.name} on ${planet.name}`,
+    );
+    return true;
+  }
+
+  /*
+   * selectDevelopPlanet: Returns the first owned planet (ascending
+   * system id, then planet id) that has at least one free building
+   * slot. Deterministic tie-breaking.
+   */
+  private selectDevelopPlanet(factionId: string, starSystems: StarSystem[]): PlanetTile | undefined {
+    const sortedSystems = [...starSystems].sort((a, b) => a.id.localeCompare(b.id));
+    for (const system of sortedSystems) {
+      const sortedPlanets = [...(system.planetsTiles ?? [])].sort((a, b) => a.id - b.id);
+      for (const planet of sortedPlanets) {
+        if (planet.factionId !== factionId) {
+          continue;
+        }
+        if (this.hasFreeBuildingSlot(planet)) {
+          return planet;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  /*
+   * hasFreeBuildingSlot: Returns true when the planet has enough
+   * free grid cells to accommodate at least one 1x1 building.
+   * Uses the same grid-size formula as the planet screen.
+   */
+  private hasFreeBuildingSlot(planet: PlanetTile): boolean {
+    const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
+    const occupied = new Set<string>();
+    for (const b of planet.buildings ?? []) {
+      for (let r = b.y; r < b.y + b.size; r++) {
+        for (let c = b.x; c < b.x + b.size; c++) {
+          occupied.add(`${r},${c}`);
+        }
+      }
+    }
+    const totalCells = gridSize * gridSize;
+    return occupied.size < totalCells;
+  }
+
+  /*
+   * selectDevelopBuilding: Chooses a building based on the planet's
+   * current economy needs. Returns the building id or undefined if
+   * no suitable building is available.
+   */
+  private selectDevelopBuilding(faction: Faction, planet: PlanetTile): string | undefined {
+    const economy = this.economyService.calculatePlanetEconomy(planet);
+    const buildings = (planetData as any).buildings;
+
+    if (economy.energyProduction < economy.energyConsumption) {
+      const candidate = buildings.find((b: any) => b.role === 'power' && this.researchService.isBuildingUnlocked(faction, b.id));
+      if (candidate) return candidate.id;
+    }
+
+    if (economy.workforceAvailable < economy.workforceRequired) {
+      const candidate = buildings.find((b: any) => b.role === 'housing' && this.researchService.isBuildingUnlocked(faction, b.id));
+      if (candidate) return candidate.id;
+    }
+
+    const rawMaterialProd = economy.production['rawmaterials'] ?? 0;
+    if (rawMaterialProd < 10) {
+      const candidate = buildings.find((b: any) => b.role === 'industry' && this.researchService.isBuildingUnlocked(faction, b.id));
+      if (candidate) return candidate.id;
+    }
+
+    const candidate = buildings.find((b: any) => b.role === 'research' && this.researchService.isBuildingUnlocked(faction, b.id));
+    if (candidate) return candidate.id;
+
+    return undefined;
+  }
+
+  /*
+   * findValidPlacement: Scans the planet grid for the first valid
+   * top-left coordinate where the building footprint fits without
+   * overlapping existing buildings or resource tiles (and satisfies
+   * ore-proximity rules). Returns {x, y} or undefined.
+   */
+  private findValidPlacement(
+    planet: PlanetTile,
+    buildingSize: number,
+    buildingId: string,
+    gridSize: number,
+  ): { x: number; y: number } | undefined {
+    const buildingDef = (planetData as any).buildings.find((b: any) => b.id === buildingId);
+    const requiresOre = buildingDef?.requiresOreProximity === true;
+    const resourceTiles = planet.resourceTiles ?? [];
+
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
+        if (!this.canPlaceBuilding(planet, buildingSize, x, y, resourceTiles, requiresOre)) {
+          continue;
+        }
+        return { x, y };
+      }
+    }
+    return undefined;
+  }
+
+  /*
+   * canPlaceBuilding: Checks bounds, building overlap, and resource
+   * tile rules for a candidate placement.
+   */
+  private canPlaceBuilding(
+    planet: PlanetTile,
+    buildingSize: number,
+    x: number,
+    y: number,
+    resourceTiles: { type: string; x: number; y: number }[],
+    requiresOre: boolean,
+  ): boolean {
+    const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
+    if (x + buildingSize > gridSize || y + buildingSize > gridSize) {
+      return false;
+    }
+
+    for (const b of planet.buildings ?? []) {
+      if (x < b.x + b.size && x + buildingSize > b.x && y < b.y + b.size && y + buildingSize > b.y) {
+        return false;
+      }
+    }
+
+    let touchesResource = false;
+    for (let r = y; r < y + buildingSize; r++) {
+      for (let c = x; c < x + buildingSize; c++) {
+        for (const rt of resourceTiles) {
+          if (r === rt.y && c === rt.x) {
+            if (requiresOre) {
+              touchesResource = true;
+            } else {
+              return false;
+            }
+          }
+        }
+      }
+    }
+
+    if (requiresOre && !touchesResource) {
+      return false;
+    }
+
     return true;
   }
 
