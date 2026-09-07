@@ -7,6 +7,9 @@ import {
   FactionShipStock,
   Fleet,
   PlanetTile,
+  ColonizeGoal,
+  AttackGoal,
+  DefendGoal,
 } from './star-map.models';
 import { ProductionService } from '../../services/production.service';
 import { ShipService } from '../../services/ship.service';
@@ -20,23 +23,26 @@ import { SpaceportService } from '../../services/spaceport.service';
  * ENEMY ACTION EXECUTOR
  * =========================================================
  *
- * V5.1 / V5.2 action execution layer. Reads the current
+ * V5.1 / V5.2 / V5.3 action execution layer. Reads the current
  * ActionResult from EnemyActionService and executes the
  * supported action types:
  *   - produce_colonizer (V5.1)
  *   - assemble_fleet   (V5.2)
+ *   - move_to_target   (V5.3)
  *
  * This layer mutates game state only through the existing
  * service pathways (ProductionService.queueOrder for
  * production, FleetAssemblyService.reinforceFleet /
- * createFleet for assembly). It does not evaluate goals,
- * capabilities, or actions.
+ * createFleet for assembly, and Fleet.targetX/targetY for
+ * movement). It does not evaluate goals, capabilities, or
+ * actions.
  *
  * Duplicate-execution protection is stateless: every frame
  * the executor re-checks the game-state fact that its own
  * mutation establishes (a queued colonizer order for
  * production; a fleet already carrying a colonizer for
- * assembly). No mutable executor state is kept.
+ * assembly; a fleet already moving to the same destination
+ * for movement). No mutable executor state is kept.
  *
  * Timing: runs on the same RAF loop as the other AI layers,
  * using the same scaled gameDeltaTime. Returns early when
@@ -90,6 +96,8 @@ export class EnemyActionExecutor {
         return this.executeProduceColonizer(action, factions, starSystems, production);
       case 'assemble_fleet':
         return this.executeAssembleFleet(action, starSystems, shipStock, fleets);
+      case 'move_to_target':
+        return this.executeMoveToTarget(action, fleets, starSystems);
       default:
         return false;
     }
@@ -199,7 +207,9 @@ export class EnemyActionExecutor {
       if (!result.ok) {
         return false;
       }
-      console.log(`[Enemy AI] ${action.factionId} executed assemble_fleet: reinforced fleet ${result.fleet?.name} with 1 colonizer`);
+      console.log(
+        `[Enemy AI] ${action.factionId} executed assemble_fleet: reinforced fleet ${result.fleet?.name} with 1 colonizer`,
+      );
       return true;
     }
 
@@ -218,7 +228,85 @@ export class EnemyActionExecutor {
     if (!result.ok) {
       return false;
     }
-    console.log(`[Enemy AI] ${action.factionId} executed assemble_fleet: created fleet ${result.fleet?.name} with 1 colonizer`);
+    console.log(
+      `[Enemy AI] ${action.factionId} executed assemble_fleet: created fleet ${result.fleet?.name} with 1 colonizer`,
+    );
+    return true;
+  }
+
+  /*
+   * executeMoveToTarget: Starts map movement for an AI fleet toward
+   * the target encoded in the action/goal. Reuses the existing
+   * movement system by setting fleet.targetX/targetY; the game loop
+   * advances the fleet frame-by-frame via StarMapMovementService.
+   *
+   * Supported goal types:
+   *  - colonize: moves to the target star system's map position.
+   *              Also validates that the target planet is still unhabited.
+   *  - attack:   moves to the target fleet's current map position.
+   *              Validates that the target fleet still exists and is alive.
+   *  - defend:   moves to the threatened star system's map position.
+   *
+   * Stateless guards prevent duplicate restarts when the fleet is
+   * already heading to the same destination, and protect against
+   * invalid or missing targets.
+   */
+  private executeMoveToTarget(
+    action: ActionResult,
+    fleets: Fleet[],
+    starSystems: StarSystem[],
+  ): boolean {
+    const fleet = fleets.find((f) => f.id === action.targetId);
+    if (!fleet || fleet.destroyed || fleet.factionId !== action.factionId) {
+      return false;
+    }
+
+    let destX: number | null = null;
+    let destY: number | null = null;
+
+    if (action.goalType === 'colonize') {
+      const goal = action.goal as ColonizeGoal;
+      const system = starSystems.find((s) => s.id === goal.targetSystemId);
+      const planet = system?.planetsTiles.find((p) => p.id === goal.targetPlanetId);
+      if (!system || !planet || planet.factionId !== 'unhabited') {
+        return false;
+      }
+      destX = system.x;
+      destY = system.y;
+    } else if (action.goalType === 'attack') {
+      const goal = action.goal as AttackGoal;
+      const targetFleet = fleets.find((f) => f.id === goal.targetFleetId);
+      if (!targetFleet || targetFleet.destroyed) {
+        return false;
+      }
+      destX = targetFleet.x;
+      destY = targetFleet.y;
+    } else if (action.goalType === 'defend') {
+      const goal = action.goal as DefendGoal;
+      const system = starSystems.find((s) => s.id === goal.targetSystemId);
+      if (!system) {
+        return false;
+      }
+      destX = system.x;
+      destY = system.y;
+    } else {
+      return false;
+    }
+
+    if (destX === null || destY === null) {
+      return false;
+    }
+
+    if (fleet.targetX === destX && fleet.targetY === destY) {
+      return false;
+    }
+
+    fleet.targetX = destX;
+    fleet.targetY = destY;
+
+    console.log(
+      `[Enemy AI] ${action.factionId} fleet ${fleet.name} moving to (${destX}, ${destY})`,
+    );
     return true;
   }
 
@@ -294,10 +382,7 @@ export class EnemyActionExecutor {
    * has a colonizer order in its production queue. Prevents the
    * executor from queuing duplicate orders every evaluation cycle.
    */
-  private hasPendingColonizerOrder(
-    production: FactionProduction[],
-    factionId: string,
-  ): boolean {
+  private hasPendingColonizerOrder(production: FactionProduction[], factionId: string): boolean {
     const factionProd = production.find((p) => p.factionId === factionId);
     if (!factionProd) {
       return false;
