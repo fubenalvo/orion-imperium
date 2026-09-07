@@ -56,11 +56,11 @@ describe('EnemyGoalService', () => {
   });
 
   const factions: Faction[] = [
-    { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, currencies: {} },
-    { id: 'enemy1', name: 'Enemy 1', color: '#d65757', team: 2, currencies: {} },
-    { id: 'enemy2', name: 'Enemy 2', color: '#39b8a8', team: 2, currencies: {} },
-    { id: 'independent', name: 'Independent', color: '#ffcc00', team: 0, currencies: {} },
-    { id: 'unhabited', name: 'Unhabited', color: '#666666', team: 0, currencies: {} },
+    { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, ai: false, currencies: {} },
+    { id: 'enemy1', name: 'Enemy 1', color: '#d65757', team: 2, ai: true, currencies: {} },
+    { id: 'enemy2', name: 'Enemy 2', color: '#39b8a8', team: 2, ai: true, currencies: {} },
+    { id: 'independent', name: 'Independent', color: '#ffcc00', team: 0, ai: false, currencies: {} },
+    { id: 'unhabited', name: 'Unhabited', color: '#666666', team: 0, ai: false, currencies: {} },
   ];
 
   describe('expand strategy', () => {

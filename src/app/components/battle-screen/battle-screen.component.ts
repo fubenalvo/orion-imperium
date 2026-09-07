@@ -5,6 +5,7 @@ import { BattleService, Battle, BattleState, BattleLogEntry, FleetShip, Fleet } 
 import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
+import { GameTimeService } from '../../services/game-time.service';
 
 /*
  * =========================================================
@@ -43,6 +44,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     private shipService: ShipService,
     private planetBattleService: PlanetBattleService,
     private saveGameService: SaveGameService,
+    private gameTimeService: GameTimeService,
     private cdr: ChangeDetectorRef
   ) {
     this.battle = this.battleService.getBattle();
@@ -57,10 +59,24 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
       this.battleOver = this.battleService.isBattleOver();
       this.startStepTimer();
     }
+    // Freeze the galaxy-map simulation while the player is on the battle
+    // screen. Without this, StarMap's RAF loop (and the movement, AI,
+    // economy and battle-detection it drives) keeps running in the
+    // background because Angular reuses the StarMap component instance
+    // across the /star-map -> /battle -> /star-map navigation. That
+    // causes fleets to move, resources to tick and, worst case, new
+    // battles to trigger while the player is fighting this one, which
+    // looks indistinguishable from a full state reset on return.
+    this.gameTimeService.pause();
   }
 
   ngOnDestroy(): void {
     this.stopStepTimer();
+    // Resume the galaxy-map simulation as we leave the battle screen so
+    // the player returns to a live world. Back to Star Map also calls
+    // resume defensively before navigating, but this catches the case
+    // where the component is torn down via browser back / route reuse.
+    this.gameTimeService.resume();
   }
 
   private startStepTimer(): void {
@@ -107,11 +123,44 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     if (battle?.type === 'planet' && battle.planetId && winner) {
       this.applyPlanetBattleResult(battle, winner, loser);
     } else if (loser) {
-      loser.destroyed = true;
-      this.battleService.setDestroyedFleetId(loser.id);
+      this.persistFleetBattleResult(loser);
     }
 
+    // Resume the galaxy-map simulation before navigating so that the
+    // returned-to StarMap component is already receiving scaled deltas
+    // and the player sees a live world. ngOnDestroy would also resume,
+    // but Angular may not tear this component down before the StarMap
+    // is shown again, so resume here as a safety net.
+    this.gameTimeService.resume();
+
     this.router.navigate(['/star-map']);
+  }
+
+  /**
+   * Persists the outcome of a fleet-vs-fleet battle to the autosave slot
+   * before navigating back to the star map. The previous flow only
+   * mutated the in-memory fleet and stored the destroyed id in
+   * BattleService, relying on StarMap.reloadAfterBattle() to read the
+   * stale pre-battle autosave and then re-apply the destroyed flag — a
+   * fragile dance that was the proximate cause of the apparent "reset"
+   * when returning to the map after a battle.
+   */
+  private persistFleetBattleResult(loser: Fleet): void {
+    loser.destroyed = true;
+    this.battleService.setDestroyedFleetId(loser.id);
+
+    const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
+    if (!data || !data.fleets) {
+      // No save to patch — StarMap.reloadAfterBattle() will still pick
+      // up the destroyedFleetId and apply it in-memory.
+      return;
+    }
+
+    const fleet = data.fleets.find((f) => f.id === loser.id);
+    if (fleet) {
+      fleet.destroyed = true;
+      this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
+    }
   }
 
   private applyPlanetBattleResult(battle: Battle, winner: Fleet, loser: Fleet | null): void {

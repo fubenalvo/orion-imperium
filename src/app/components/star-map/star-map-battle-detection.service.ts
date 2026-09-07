@@ -35,8 +35,7 @@ export class StarMapBattleDetectionService {
     calculateGridCell: (x: number, y: number) => { col: number; row: number },
     isFleetInSystem: (fleet: Fleet, system: StarSystem) => boolean,
     starSystems: StarSystem[],
-    saveGame: () => void,
-    navigateToBattle: () => void,
+    enterBattleScreen: () => void,
     triggeredBattles: Set<string>,
   ): boolean {
     const activeFleets = fleets.filter((f) => !f.destroyed);
@@ -95,8 +94,7 @@ export class StarMapBattleDetectionService {
           defenderId,
         });
 
-        saveGame();
-        navigateToBattle();
+        enterBattleScreen();
 
         return true;
       }

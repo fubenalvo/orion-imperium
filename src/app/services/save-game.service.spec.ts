@@ -16,6 +16,7 @@ describe('SaveGameService — research migration', () => {
         name: 'Player',
         color: '#8cc4ff',
         team: 1,
+        ai: false,
         currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
       } as Faction,
       {
@@ -23,6 +24,7 @@ describe('SaveGameService — research migration', () => {
         name: 'Enemy 1',
         color: '#d65757',
         team: 2,
+        ai: true,
         currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
       } as Faction,
     ],
@@ -54,6 +56,7 @@ describe('SaveGameService — research migration', () => {
           name: 'Player',
           color: '#8cc4ff',
           team: 1,
+          ai: false,
           currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
           researchedTechnologies: ['basic_engineering'],
         } as Faction,
@@ -62,6 +65,32 @@ describe('SaveGameService — research migration', () => {
     const migrated = service.migrateSave(data);
 
     expect(migrated.factions[0].researchedTechnologies).toEqual(['basic_engineering']);
+  });
+
+  it('should backfill the ai flag from team (team 2 → ai: true)', () => {
+    const data = makeData({
+      factions: [
+        { id: 'player', name: 'Player', color: '#fff', team: 1, currencies: {} } as Faction,
+        { id: 'enemy1', name: 'Enemy 1', color: '#f00', team: 2, currencies: {} } as Faction,
+        { id: 'independent', name: 'Independent', color: '#ff0', team: 0, currencies: {} } as Faction,
+      ],
+    });
+    const migrated = service.migrateSave(data);
+
+    expect(migrated.factions[0].ai).toBe(false);
+    expect(migrated.factions[1].ai).toBe(true);
+    expect(migrated.factions[2].ai).toBe(false);
+  });
+
+  it('should not overwrite an existing ai flag', () => {
+    const data = makeData({
+      factions: [
+        { id: 'enemy1', name: 'Enemy 1', color: '#f00', team: 2, ai: false, currencies: {} } as Faction,
+      ],
+    });
+    const migrated = service.migrateSave(data);
+
+    expect(migrated.factions[0].ai).toBe(false);
   });
 
   it('should preserve other migration behaviors', () => {

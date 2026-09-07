@@ -24,6 +24,7 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `name`: display name
 - `color`: hex color used for the UI accent
 - `team`: `0` neutral, `1` player, `2+` enemies. Same-team factions never fight; team 0 is never attacked and never attacks
+- `ai?: boolean`: `true` when the AI pipeline should tick this faction. Replaces the previous hardcoded `enemy1`/`enemy2` ID sets — any faction with `ai: true` is managed by the AI layers (V3 target selection → V4.1 strategy → V4.2 goal → V4.3 capability → V5 action → V5.1/V5.2 execution). `false` for player and neutral factions. Backfilled from `team === 2` by `SaveGameService.migrateSave` for older saves.
 - `currencies`: `Record<string, number>` containing at least `credits`, `rawmaterials`, `research`
 
 ## Ship Stock & Production

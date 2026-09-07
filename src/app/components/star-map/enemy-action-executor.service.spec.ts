@@ -66,6 +66,7 @@ describe('EnemyActionExecutor', () => {
     name: 'Enemy 1',
     color: '#d65757',
     team: 2,
+    ai: true,
     currencies: { credits: 200 },
     ...overrides,
   });
@@ -108,12 +109,13 @@ describe('EnemyActionExecutor', () => {
   });
 
   const baseFactions: Faction[] = [
-    { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, currencies: {} },
+    { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, ai: false, currencies: {} },
     {
       id: 'enemy1',
       name: 'Enemy 1',
       color: '#d65757',
       team: 2,
+      ai: true,
       currencies: { credits: 200 },
       researchedTechnologies: ['basic_engineering'],
     },
@@ -122,6 +124,7 @@ describe('EnemyActionExecutor', () => {
       name: 'Enemy 2',
       color: '#39b8a8',
       team: 2,
+      ai: true,
       currencies: { credits: 200 },
       researchedTechnologies: ['basic_engineering'],
     },

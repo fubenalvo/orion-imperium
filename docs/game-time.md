@@ -120,11 +120,23 @@ Arrow keys continue to pan the camera (step-based, not time-dependent).
 | System | Reason |
 |--------|--------|
 | Camera pan | Fixed `cameraSpeed = 2` vw per input event; step-based, not time-based |
-| Battle screen | Uses `setInterval(tickRateMs)` on a separate route; turn-based |
+| Battle screen turn progression | Uses `setInterval(tickRateMs)` on a separate route; turn-based |
 | Navigation dpad | `setInterval(50ms)` for continuous camera pan |
 | Pause save-toast | `setTimeout(2000ms)` for toast display |
 | Minimap drag throttle | `performance.now()` 16 ms throttle for input smoothing |
 | CSS animations | Background starfield, sensor pulse — pure CSS |
+
+## Battle Screen Pause Behaviour
+
+The galaxy-map simulation is **paused while the player is on the battle screen**
+(`/battle`). `BattleScreenComponent.ngOnInit` calls `gameTimeService.pause()` and
+`ngOnDestroy` plus `backToStarMap()` both call `resume()` before returning to the
+map. This is required because Angular reuses the `StarMap` component instance
+across the `/star-map` → `/battle` → `/star-map` navigation, so its RAF loop and
+all simulation systems (fleet movement, AI, economy, battle detection) would
+otherwise keep ticking in the background during the battle. That behaviour made
+fleets and resources appear to "reset" on return and could even cascade into
+additional battles firing while the player was still fighting the first one.
 
 ## Initialization and Reset
 

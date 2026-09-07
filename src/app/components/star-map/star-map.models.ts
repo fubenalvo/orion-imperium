@@ -65,8 +65,16 @@ export interface Faction {
   name: string;
   color: string;
   team: number;
+  ai?: boolean;
   currencies: Record<string, number>;
   researchedTechnologies?: string[];
+}
+
+// Derives the IDs of AI-controlled factions from the live factions array.
+// Replaces the previous hardcoded `new Set(['enemy1', 'enemy2'])` pattern,
+// so adding/removing/renameing enemy factions is a data-only change.
+export function getAiFactionIds(factions: Faction[]): string[] {
+  return factions.filter((f) => f.ai === true).map((f) => f.id);
 }
 
 /*

@@ -103,6 +103,7 @@ export class SaveGameService {
   /*
    * migrateSave: Backfills optional fields that were introduced after the
    * original save format so older saves keep loading. Currently:
+   * - ai: derived from team (team 2 → ai: true) for saves that predate the flag
    * - shipStock: per-faction global ship reserve
    * - production: per-faction production queue
    * - resourceTiles: per-planet resource deposit positions
@@ -122,6 +123,10 @@ export class SaveGameService {
       }
     }
     for (const faction of data.factions ?? []) {
+      if (faction.ai === undefined) {
+        // Old saves lack the ai flag; derive from team (team 2 = AI enemy in the original convention)
+        faction.ai = faction.team === 2;
+      }
       if (!faction.researchedTechnologies) {
         faction.researchedTechnologies = [
           'basic_engineering',

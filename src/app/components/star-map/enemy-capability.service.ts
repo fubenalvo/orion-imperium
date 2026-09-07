@@ -37,7 +37,6 @@ import { ShipStockService } from '../../services/ship-stock.service';
 
 @Injectable({ providedIn: 'root' })
 export class EnemyCapabilityService {
-  private readonly enemyFactionIds = new Set(['enemy1', 'enemy2']);
   private readonly STRATEGY_TICK_INTERVAL = 2;
   private readonly THREAT_DISTANCE = 5;
 

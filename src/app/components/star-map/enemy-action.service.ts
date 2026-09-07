@@ -44,7 +44,6 @@ import { StarMapMovementService } from './star-map-movement.service';
 
 @Injectable({ providedIn: 'root' })
 export class EnemyActionService {
-  private readonly enemyFactionIds = new Set(['enemy1', 'enemy2']);
   private readonly STRATEGY_TICK_INTERVAL = 2;
 
   private accumulator = 0;

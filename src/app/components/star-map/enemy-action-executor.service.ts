@@ -51,8 +51,6 @@ import { SpaceportService } from '../../services/spaceport.service';
 
 @Injectable({ providedIn: 'root' })
 export class EnemyActionExecutor {
-  private readonly enemyFactionIds = new Set(['enemy1', 'enemy2']);
-
   constructor(
     private readonly productionService: ProductionService,
     private readonly shipService: ShipService,
@@ -87,7 +85,8 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    if (!this.enemyFactionIds.has(action.factionId)) {
+    const faction = factions.find((f) => f.id === action.factionId);
+    if (faction?.ai !== true) {
       return false;
     }
 

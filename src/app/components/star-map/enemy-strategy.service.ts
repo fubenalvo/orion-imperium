@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Fleet, Faction, StarSystem, AiStrategy } from './star-map.models';
+import { Fleet, Faction, StarSystem, AiStrategy, getAiFactionIds } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
 
 /*
@@ -21,7 +21,6 @@ import { ShipService } from '../../services/ship.service';
 
 @Injectable({ providedIn: 'root' })
 export class EnemyStrategyService {
-  private readonly enemyFactionIds = new Set(['enemy1', 'enemy2']);
   private readonly STRATEGY_TICK_INTERVAL = 2;
   private readonly THREAT_DISTANCE = 5;
   private readonly ENGAGEMENT_DISTANCE = 15;
@@ -60,7 +59,9 @@ export class EnemyStrategyService {
 
     let changed = false;
 
-    for (const factionId of this.enemyFactionIds) {
+    const aiFactionIds = getAiFactionIds(factions);
+
+    for (const factionId of aiFactionIds) {
       const previous = this.currentStrategies.get(factionId);
       const next = this.determineStrategy(factionId, fleets, factions, starSystems);
 

@@ -1,10 +1,9 @@
 import { Injectable } from '@angular/core';
-import { Fleet, Faction } from './star-map.models';
+import { Fleet, Faction, getAiFactionIds } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
 
 @Injectable({ providedIn: 'root' })
 export class EnemyAiService {
-  private readonly enemyFactionIds = new Set(['enemy1', 'enemy2']);
   private readonly currentTargets = new Map<number, number>();
 
   constructor(private readonly shipService: ShipService) {}
@@ -34,9 +33,11 @@ export class EnemyAiService {
   }
 
   tick(gameDeltaTime: number, fleets: Fleet[], factions: Faction[]): boolean {
-    if (gameDeltaTime <= 0) {
+     if (gameDeltaTime <= 0) {
       return false;
     }
+
+    const aiFactionIds = new Set(getAiFactionIds(factions));
 
     const playerFactionIds = new Set(
       factions
@@ -62,7 +63,7 @@ export class EnemyAiService {
     let changed = false;
 
     for (const fleet of fleets) {
-      if (!this.enemyFactionIds.has(fleet.factionId)) {
+      if (!aiFactionIds.has(fleet.factionId)) {
         continue;
       }
 

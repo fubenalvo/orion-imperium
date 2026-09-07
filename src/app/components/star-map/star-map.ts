@@ -57,6 +57,7 @@ import {
   ResourceDeposit,
   Faction,
   StrategicGoal,
+  getAiFactionIds,
 } from './star-map.models';
 import {
   createMulberry32,
@@ -148,6 +149,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   // Track which fleet is currently on which planet grid cell to log arrivals
   private fleetPlanetMap = new Map<number, number>();
   private routerSubscription = new Subscription();
+  // Tracks the most recent router URL that was not /star-map, so that
+  // reloadAfterBattle() only runs when the player is actually returning
+  // from the battle screen — not on MainMenu -> StarMap or any other
+  // re-entry into the map view. The default '/' handles the very first
+  // navigation into the component (MainMenu -> /star-map).
+  private lastNonStarMapUrl: string = '/';
   // Selection state
   selectedSystem: StarSystem | null = null;
   selectedFleet: Fleet | null = null;
@@ -243,8 +250,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private readonly economyTickInterval = 1;
   private cachedPlayerEconomyBreakdown: EconomyBreakdown | null = null;
 
-  private readonly enemyFactionIds = new Set(['enemy1', 'enemy2']);
-
   // Sensor range & fog-of-war state
   exploredGridCells = new Set<string>();
   sensorRangeCells: Map<string, SensorCellInfo> = new Map();
@@ -288,7 +293,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.routerSubscription = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event: NavigationEnd) => {
-        if (event.url === '/star-map' || event.urlAfterRedirects === '/star-map') {
+        const url = event.urlAfterRedirects || event.url;
+        const previousUrl = this.lastNonStarMapUrl;
+        this.lastNonStarMapUrl = url;
+        if (url === '/star-map' && previousUrl === '/battle') {
           this.reloadAfterBattle();
         }
       });
@@ -1809,7 +1817,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * All simulation systems use this value directly — none check pause or
    * multiply speed themselves; that is centralized in GameTimeService.
    */
-  private gameLoopCallback(gameDeltaTime: number): void {
+   private gameLoopCallback(gameDeltaTime: number): void {
     const didMoveFleets = this.updateFleets(gameDeltaTime);
     const aiChanged = this.enemyAiService.tick(gameDeltaTime, this.fleets, this.factions);
     const strategyChanged = this.enemyStrategyService.tick(
@@ -1819,8 +1827,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.starSystems,
     );
 
+    const aiFactionIds = getAiFactionIds(this.factions);
+
     let goalChanged = false;
-    for (const factionId of this.enemyFactionIds) {
+    for (const factionId of aiFactionIds) {
       const strategy = this.enemyStrategyService.getStrategy(factionId);
       if (strategy === undefined) {
         continue;
@@ -1838,7 +1848,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
-    for (const factionId of this.enemyFactionIds) {
+    for (const factionId of aiFactionIds) {
       const goal = this.enemyGoalService.getGoal(factionId);
       this.enemyCapabilityService.tick(
         gameDeltaTime,
@@ -1853,7 +1863,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     let actionChanged = false;
-    for (const factionId of this.enemyFactionIds) {
+    for (const factionId of aiFactionIds) {
       const goal = this.enemyGoalService.getGoal(factionId);
       const capability = this.enemyCapabilityService.getCapability(factionId);
       const factionActionChanged = this.enemyActionService.tick(
@@ -1875,7 +1885,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     let actionExecuted = false;
-    for (const factionId of this.enemyFactionIds) {
+    for (const factionId of aiFactionIds) {
       const action = this.enemyActionService.getAction(factionId);
       actionExecuted = this.enemyActionExecutor.tick(
         gameDeltaTime,
@@ -1962,8 +1972,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       (x, y) => this.movementService.calculateGridCell(x, y),
       (fleet, system) => this.movementService.isFleetInSystem(fleet, system),
       this.starSystems,
-      () => this.saveGame(),
-      () => this.ngZone.run(() => this.router.navigate(['/battle'])),
+      this.enterBattleScreen.bind(this),
       this.triggeredBattles,
     );
 
@@ -2246,8 +2255,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       planetId: targetPlanet.id,
     });
 
-    this.saveGame();
-    this.ngZone.run(() => this.router.navigate(['/battle']));
+    this.enterBattleScreen();
   }
 
   /** Registers window blur and visibility-change listeners to auto-pause the game. */
@@ -2345,6 +2353,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private saveGame(): void {
     const data = this.serializeGameState();
     this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
+  }
+
+  /**
+   * Writes the autosave and then navigates to the battle screen.
+   *
+   * Centralizes the "navigate to /battle" operation so that every
+   * path that enters the battle screen is guaranteed to persist a
+   * pre-battle snapshot first. Without this helper, future
+   * contributors could add a new battle trigger that forgets to
+   * save, which would re-introduce the post-battle "reset" bug.
+   */
+  private enterBattleScreen(): void {
+    this.saveGame();
+    this.ngZone.run(() => this.router.navigate(['/battle']));
   }
 
   /** Restores game state from the active save slot and refreshes selection and grid data. */
@@ -2516,7 +2538,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   private reloadAfterBattle(): void {
     if (this.saveGameService.currentSlot === null) return;
-    this.currentView = 'map';
     console.log('[RELOAD AFTER BATTLE] Reloading game state from save...');
     this.loadGame();
     console.log(

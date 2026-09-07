@@ -246,8 +246,9 @@ src/app/
 - 5 slots: 1 autosave (slot 0) + 4 manual (slots 1–4), localStorage key `orion_save_slots`
 - Full StarMapData snapshot per slot
 - Autosave triggers: entering/leaving systems, pausing, exiting to menu, battle trigger, component destroy
-- Migration: shipStock/production backfill, vw→grid (legacy width=200 saves), destroyedFleetId, resourceTiles, researchedTechnologies (defaults to 4 starting techs)
-- `researchedTechnologies` migration: if missing, defaults to `['basic_engineering', 'basic_science', 'basic_industry', 'basic_power']`
+  - Migration: shipStock/production backfill, vw→grid (legacy width=200 saves), destroyedFleetId, resourceTiles, researchedTechnologies (defaults to 4 starting techs), ai flag (derived from team: team 2 → ai: true)
+  - `researchedTechnologies` migration: if missing, defaults to `['basic_engineering', 'basic_science', 'basic_industry', 'basic_power']`
+  - `ai` flag migration: if missing, set to `faction.team === 2` — replaces the old hardcoded `enemy1`/`enemy2` ID set for identifying AI-controlled factions
 
 ### 4.11 Research Tree
 - Data-driven system: 18 technologies defined in `research-tree.json`
@@ -275,7 +276,7 @@ src/app/
 ### 4.13 Enemy AI V3
 - `EnemyAiService` runs every frame inside the existing `StarMap.gameLoopCallback`
 - Uses the same scaled `gameDeltaTime` as other systems (pause-safe, 1x/2x-aware)
-- Only enemy factions (`enemy1`, `enemy2`) are controlled; player, independent, and unhabited fleets are never modified
+  - Only AI-controlled factions (`f.ai === true`, dynamically derived from the `factions` array) are controlled; player, independent, and unhabited fleets are never modified
 - Runtime state tracks `enemyFleetId → targetPlayerFleetId` in a `Map<number, number>`
   - This is purely in-memory state; no persistent properties are added to the `Fleet` model
   - The map is cleared via `reset()` for test isolation
@@ -405,7 +406,7 @@ src/app/
   - **defend**: finds best enemy fleet, checks if at threatened system → `defend`; otherwise → `move_to_target`
   - **develop**: always returns `develop` action
 - `canProduceColonizer`: checks if faction has basic_engineering researched, colonizer unlocked, sufficient credits, and at least one planet with available spaceship factory capacity.
-- Integration: `StarMap.gameLoopCallback` calls `EnemyActionService.tick()` every frame AFTER the capability layer, once per enemy faction (`enemy1`, `enemy2`), passing the faction's current goal (`EnemyGoalService.getGoal`) and capability (`EnemyCapabilityService.getCapability`). Pipeline order: V3 AI → V4.1 Strategy → V4.2 Goal → V4.3 Capability → V5 Action → V5.1/V5.2 Execution. The `ActionResult` is stored per faction and is queryable via `getAction(factionId)`; the action layer itself never mutates state (execution is delegated to `EnemyActionExecutor`). Change detection and the `[Enemy AI] <factionId> action: <type>` debug log fire only when the result actually changes.
+  - Integration: `StarMap.gameLoopCallback` calls `EnemyActionService.tick()` every frame AFTER the capability layer, once per AI faction (`factions.filter(f => f.ai)`), passing the faction's current goal (`EnemyGoalService.getGoal`) and capability (`EnemyCapabilityService.getCapability`). Pipeline order: V3 AI → V4.1 Strategy → V4.2 Goal → V4.3 Capability → V5 Action → V5.1/V5.2 Execution. The `ActionResult` is stored per faction and is queryable via `getAction(factionId)`; the action layer itself never mutates state (execution is delegated to `EnemyActionExecutor`). Change detection and the `[Enemy AI] <factionId> action: <type>` debug log fire only when the result actually changes.
 - Reset: action state is cleared on game load / new game via `EnemyActionService.reset()`, called alongside the V3/V4.1/V4.2/V4.3 resets in `StarMap.loadGame()`.
 - Test coverage: 23 Vitest tests covering all action types, preparation vs execution paths, determinism, no state mutation, independent multi-faction behavior, accumulator timing, reset behavior, and edge cases.
 
@@ -420,7 +421,7 @@ src/app/
   - `assemble_fleet` (V5.2): moves one colonizer from the faction ship stock into a fleet via `FleetAssemblyService`. Prefers reinforcing the faction's deterministic lowest-id usable fleet (`reinforceFleet`); when no usable fleet exists, creates a new fleet at the faction's deterministic first owned Spaceport planet (`createFleet`).
 - Not yet executable (still generated but ignored by the executor): `move_to_target`, `colonize`, `attack`, `defend`, `develop`, `none`.
 - Duplicate-execution protection is stateless: every frame the executor re-checks the game-state fact its mutation establishes (a pending colonizer order; a fleet already carrying a colonizer). It keeps no mutable executor state, so `reset()` stays a no-op.
-- The executor only acts for AI factions (`enemy1`, `enemy2`), never for player / independent factions, and only mutates the acting faction's stock and fleets. Failed assembly (e.g., no Spaceport, no stock) leaves the state unchanged.
+  - The executor only acts for AI factions (`f.ai === true`), never for player / independent factions, and only mutates the acting faction's stock and fleets. Failed assembly (e.g., no Spaceport, no stock) leaves the state unchanged.
 - Execution logging follows the existing convention and fires only on actual execution, e.g. `[Enemy AI] enemy1 executed assemble_fleet: reinforced fleet RAIDER with 1 colonizer`.
 - Integration: `StarMap.gameLoopCallback` calls `EnemyActionExecutor.tick()` every frame after the action layer, once per enemy faction, with the faction's current `ActionResult`. The executor is not called on reset (`reset()` is a no-op).
 - Test coverage: 32 Vitest tests covering produce_colonizer execution and assemble_fleet execution (reinforcement, new-fleet fallback, duplicate/stale-action guards, wrong-faction and player safety, failed-assembly no-mutation, pause safety, logging).
@@ -435,9 +436,10 @@ src/app/
 - exploredGridCells, shipStock, production
 - destroyedFleetId, targetX, targetY
 - defaultView: `{ type: 'map' | 'system' | 'planet', systemId?, planetId?, cameraX?, cameraY? }`
+  ### Faction
 
-### Faction
-- id, name, color, team
+  - id, name, color, team
+  - ai?: boolean — true for AI-controlled factions; replaces hardcoded enemy IDs
 - currencies: credits, rawmaterials, research
 - researchedTechnologies?: string[]
 
@@ -554,12 +556,12 @@ src/app/
 
 ## 7. Kezdeti adatok
 
-### Factions
-- Player (team 1, blue, 1000 credits/rawmaterials/research, 4 researched techs)
-- Enemy1 (team 2, red)
-- Enemy2 (team 2, teal)
-- Independent (team 0, yellow)
-- Unhabited (team 0, grey)
+  ### Factions
+  - Player (team 1, blue, 1000 credits/rawmaterials/research, 4 researched techs, ai=false)
+  - Enemy1 (team 2, red, ai=true)
+  - Enemy2 (team 2, teal, ai=true)
+  - Independent (team 0, yellow, ai=false)
+  - Unhabited (team 0, grey, ai=false)
 
 ### Galaxy
 - 14 star systems, 1-6 planets each (35 total planets)
