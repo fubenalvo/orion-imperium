@@ -453,7 +453,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Loads a save game from the specified slot index. */
   loadFromMenu(slotIndex: number): void {
-    this.saveGameService.currentSlot = slotIndex;
+    if (!this.saveGameService.activateSlot(slotIndex)) {
+      return;
+    }
     this.loadGame();
   }
 
@@ -2496,6 +2498,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * even when a save exists. In that case, auto-load the most recent save.
    * If no save exists at all, redirect to the main menu instead of starting
    * an unsaveable default game.
+   *
+   * Any non-autosave slot is normalized through activateSlot() so the active
+   * session is backed by the autosave slot; otherwise a stale manual
+   * snapshot could resurrect fleets destroyed in earlier battles.
    */
   ngOnInit(): void {
     this.onResize();
@@ -2505,6 +2511,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
       if (slotIndex !== null) {
         this.saveGameService.currentSlot = slotIndex;
       } else {
+        this.router.navigate(['']);
+        return;
+      }
+    }
+
+    if (this.saveGameService.currentSlot !== SaveSlotId.AUTOSAVE) {
+      if (!this.saveGameService.activateSlot(this.saveGameService.currentSlot)) {
         this.router.navigate(['']);
         return;
       }
@@ -2521,6 +2534,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
     });
   }
 
+  /*
+   * reloadAfterBattle: Reloads the game state from the active save slot
+   * after the player returns from the battle screen. The active session is
+   * always backed by the AUTOSAVE slot (slot 0): session start (new game,
+   * manual load, pause-menu load, direct /star-map navigation) normalizes
+   * currentSlot to autosave, and every runtime save plus battle result
+   * writes to the same slot. This method therefore reads the same snapshot
+   * that carries cumulative fleet destructions and planet ownership changes.
+   */
   private reloadAfterBattle(): void {
     if (this.saveGameService.currentSlot === null) return;
     console.log('[RELOAD AFTER BATTLE] Reloading game state from save...');
@@ -2544,7 +2566,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
-  /** Applies a previously destroyed fleet from the battle service into the current save. */
+  /**
+   * Applies a previously destroyed fleet from the battle service into the
+   * current save. The active session is backed by the AUTOSAVE slot, so the
+   * destroyed flag persists across sibling-route reloads even though the
+   * StarMap component instance is recreated on every /star-map navigation.
+   */
   private removeDestroyedFleetFromService(): void {
     const destroyedFleetId = this.battleService.getDestroyedFleetId();
     if (destroyedFleetId != null) {

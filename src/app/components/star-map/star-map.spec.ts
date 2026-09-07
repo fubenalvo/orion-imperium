@@ -287,4 +287,101 @@ describe('StarMap', () => {
       expect(component.fleets.find((f: any) => f.id === 3)!.ships.filter((s: any) => s.type === 'colonizer')).toHaveLength(1);
     });
   });
+
+  describe('Battle return session state', () => {
+    let saveGameService: SaveGameService;
+
+    beforeEach(() => {
+      saveGameService = TestBed.inject(SaveGameService);
+      saveGameService.currentSlot = null;
+      localStorage.clear();
+    });
+
+    // A stale manual snapshot with every fleet alive — the trap that the old
+    // code fell into when it read currentSlot instead of autosave.
+    const seedStaleManualSnapshot = (): void => {
+      saveGameService.saveToSlot(1, {
+        factions: component.factions,
+        map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
+        starSystems: component.starSystems,
+        fleets: component.fleets.map((f) => ({ ...f, destroyed: false })),
+        currentView: 'map',
+        cameraX: 0,
+        cameraY: 0,
+        selectedSystemId: null,
+        selectedFleetId: null,
+        selectedPlanetTileId: null,
+        selectedFleetAction: null,
+        targetX: null,
+        targetY: null,
+        destroyedFleetId: null,
+        exploredGridCells: [],
+        shipStock: component.shipStock,
+        production: component.production,
+      });
+    };
+
+    /*
+     * Regression: a fleet destroyed in an earlier battle must not be
+     * resurrected after a later battle returns to the map. During gameplay
+     * the active session is always backed by the autosave slot, so
+     * reloadAfterBattle reads the cumulative destructions from autosave even
+     * when a stale manual snapshot exists alongside it.
+     */
+    it('should keep earlier fleet destructions after reloadAfterBattle', () => {
+      component.fleets.find((f) => f.id === 1)!.destroyed = true;
+
+      // Autosave holds the live session state (ORION destroyed).
+      component['saveGame']();
+      saveGameService.currentSlot = SaveSlotId.AUTOSAVE;
+      seedStaleManualSnapshot();
+
+      // Return from battle: reloadAfterBattle must keep ORION destroyed.
+      component['reloadAfterBattle']();
+      expect(component.fleets.find((f) => f.id === 1)!.destroyed).toBe(true);
+      expect(component.fleets.find((f) => f.id === 2)!.destroyed).toBe(false);
+
+      // Second battle: PEGASUS destroyed too. Cumulative destructions must
+      // survive another reload cycle.
+      component.fleets.find((f) => f.id === 2)!.destroyed = true;
+      component['saveGame']();
+      component['reloadAfterBattle']();
+
+      expect(component.fleets.find((f) => f.id === 1)!.destroyed).toBe(true);
+      expect(component.fleets.find((f) => f.id === 2)!.destroyed).toBe(true);
+    });
+
+    it('should keep planet ownership changes after a later battle reload', () => {
+      const sol = component.starSystems.find((s) => s.id === 'sol')!;
+      sol.planetsTiles.find((p) => p.id === 1)!.factionId = 'enemy1';
+
+      // Autosave holds the live session state (planet captured).
+      component['saveGame']();
+      saveGameService.currentSlot = SaveSlotId.AUTOSAVE;
+
+      component['reloadAfterBattle']();
+
+      const earth = component.starSystems
+        .find((s) => s.id === 'sol')!
+        .planetsTiles.find((p) => p.id === 1)!;
+      expect(earth.factionId).toBe('enemy1');
+    });
+
+    it('should seed autosave from a manual pause-menu load and switch currentSlot to 0', () => {
+      seedStaleManualSnapshot();
+
+      // Pause-menu load: activation seeds autosave and switches to slot 0,
+      // so all subsequent runtime saves and battle results accumulate there.
+      component.loadFromMenu(1);
+
+      expect(saveGameService.currentSlot).toBe(SaveSlotId.AUTOSAVE);
+      expect(component.fleets.find((f) => f.id === 1)!.destroyed).toBe(false);
+
+      // A new destruction now lands in autosave and survives a reload.
+      component.fleets.find((f) => f.id === 1)!.destroyed = true;
+      component['saveGame']();
+      component.loadGame();
+      expect(component.fleets.find((f) => f.id === 1)!.destroyed).toBe(true);
+    });
+  });
 });

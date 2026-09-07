@@ -171,9 +171,11 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 
 ## Save System
 
-- 4 save slots are stored in `localStorage` under the key `orion_save_slots`.
-- Each slot contains a full `StarMapData` snapshot plus an ISO date string.
-- The service exposes `getSlots`, `getSlot(i)`, `saveToSlot(i, data)`, `loadFromSlot(i)`, `clearSlot(i)`, `hasAnySave`, and `getMostRecentSlotIndex`.
+- 5 save slots are stored in `localStorage` under the key `orion_save_slots`: slot 0 (autosave) + slots 1–4 (manual). Each slot contains a full `StarMapData` snapshot plus an ISO date string.
+- The service exposes `getSlots`, `getSlot(i)`, `saveToSlot(i, data)`, `loadFromSlot(i)`, `clearSlot(i)`, `hasAnySave`, `getMostRecentSlotIndex`, and `activateSlot(i)`.
+- **Autosave is the active session source of truth.** `activateSlot(i)` loads the requested slot and, for a manual slot, copies its full snapshot into autosave before switching `currentSlot` to 0. Session start (new game, manual load, pause-menu load, direct `/star-map` navigation) always normalizes `currentSlot` to autosave.
+- Every runtime save (`StarMap.saveGame`), autosave trigger, and battle result therefore writes to the same slot that `loadGame()` and `reloadAfterBattle()` read back. Without this, a stale manual snapshot can resurrect fleets destroyed in earlier battles once the player returns from a later battle.
+- Manual slots remain explicit snapshots: they are not mutated by activation and are only written to when the player explicitly saves to one.
 - `currentSlot` is the only piece of state kept on the service itself; it is set by `MainMenu` (new game / load) and by `StarMap` when loading via the pause menu.
 - `StarMap.saveGame()` is called on: entering a system, leaving a system, opening the planet view, leaving the planet view, opening the pause menu, exiting to the main menu, battle trigger (both fleet and planet), planet colonization, planet capture, and on `ngOnDestroy`.
 - Loading happens in `loadGame()` from the pause menu or on `ngOnInit` when the user reaches `/star-map` without going through the main menu. If `currentSlot` is null but a save exists, the most recent slot is auto-selected; if no save exists, the user is redirected to the main menu.

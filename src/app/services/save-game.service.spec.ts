@@ -1,37 +1,50 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { SaveGameService } from './save-game.service';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { SaveGameService, SaveSlotId } from './save-game.service';
 import { StarMapData, Faction } from '../components/star-map/star-map.models';
+
+const PLAYER_FACTION = {
+  id: 'player',
+  name: 'Player',
+  color: '#8cc4ff',
+  team: 1,
+  ai: false,
+  currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
+} as Faction;
+
+const ENEMY1_FACTION = {
+  id: 'enemy1',
+  name: 'Enemy 1',
+  color: '#d65757',
+  team: 2,
+  ai: true,
+  currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
+} as Faction;
+
+const makeData = (
+  overrides: Partial<StarMapData> = {},
+  factions: Faction[] = [PLAYER_FACTION, ENEMY1_FACTION],
+): StarMapData => ({
+  factions,
+  map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
+  starSystems: [],
+  fleets: [],
+  ...overrides,
+});
 
 describe('SaveGameService — research migration', () => {
   let service: SaveGameService;
 
   beforeEach(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
     service = new SaveGameService();
   });
 
-  const makeData = (overrides: Partial<StarMapData> = {}): StarMapData => ({
-    factions: [
-      {
-        id: 'player',
-        name: 'Player',
-        color: '#8cc4ff',
-        team: 1,
-        ai: false,
-        currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
-      } as Faction,
-      {
-        id: 'enemy1',
-        name: 'Enemy 1',
-        color: '#d65757',
-        team: 2,
-        ai: true,
-        currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
-      } as Faction,
-    ],
-    map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
-    starSystems: [],
-    fleets: [],
-    ...overrides,
+  afterEach(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
   });
 
   it('should backfill researchedTechnologies with starting techs for factions that lack the field', () => {
@@ -128,5 +141,85 @@ describe('SaveGameService — research migration', () => {
     expect(migrated.shipStock).toEqual([]);
     expect(migrated.production).toEqual([]);
     expect(migrated.starSystems[0].planetsTiles[0].resourceTiles).toEqual([]);
+  });
+});
+
+describe('SaveGameService — active session activation', () => {
+  let service: SaveGameService;
+
+  beforeEach(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
+    service = new SaveGameService();
+  });
+
+  afterEach(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
+  });
+
+  it('should copy a manual snapshot into autosave and select slot 0 on activation', () => {
+    const manual = makeData({
+      fleets: [{ id: 1, name: 'ORION', factionId: 'player', x: 5, y: 5, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }],
+    });
+    service.saveToSlot(1, manual);
+
+    expect(service.activateSlot(1)).toBe(true);
+    expect(service.currentSlot).toBe(SaveSlotId.AUTOSAVE);
+
+    const active = service.loadFromSlot(SaveSlotId.AUTOSAVE);
+    expect(active).not.toBeNull();
+    expect(active!.fleets[0].id).toBe(1);
+    expect(active!.fleets[0].name).toBe('ORION');
+
+    // The manual snapshot itself is not mutated by activation.
+    const manualReloaded = service.loadFromSlot(1);
+    expect(manualReloaded!.fleets[0].name).toBe('ORION');
+  });
+
+  it('should be a no-op copy when activating the autosave slot itself', () => {
+    const active = makeData({
+      fleets: [{ id: 7, name: 'PEGASUS', factionId: 'player', x: 9, y: 9, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }],
+    });
+    service.saveToSlot(SaveSlotId.AUTOSAVE, active);
+
+    expect(service.activateSlot(SaveSlotId.AUTOSAVE)).toBe(true);
+    expect(service.currentSlot).toBe(SaveSlotId.AUTOSAVE);
+
+    const reloaded = service.loadFromSlot(SaveSlotId.AUTOSAVE);
+    expect(reloaded!.fleets[0].id).toBe(7);
+  });
+
+  it('should not change the current session for an empty or invalid slot', () => {
+    const active = makeData({
+      fleets: [{ id: 3, name: 'Fleet', factionId: 'player', x: 1, y: 1, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }],
+    });
+    service.saveToSlot(SaveSlotId.AUTOSAVE, active);
+    service.currentSlot = SaveSlotId.AUTOSAVE;
+
+    expect(service.activateSlot(2)).toBe(false);
+    expect(service.currentSlot).toBe(SaveSlotId.AUTOSAVE);
+
+    const reloaded = service.loadFromSlot(SaveSlotId.AUTOSAVE);
+    expect(reloaded!.fleets[0].id).toBe(3);
+  });
+
+  it('should reject a truthy-but-malformed manual slot without overwriting autosave', () => {
+    const active = makeData({
+      fleets: [{ id: 9, name: 'Live Fleet', factionId: 'player', x: 1, y: 1, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }],
+    });
+    service.saveToSlot(SaveSlotId.AUTOSAVE, active);
+    service.currentSlot = SaveSlotId.AUTOSAVE;
+
+    // Truthy but missing fleets/starSystems/factions — must not clobber autosave.
+    service.saveToSlot(2, { map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 } } as StarMapData);
+
+    expect(service.activateSlot(2)).toBe(false);
+    expect(service.currentSlot).toBe(SaveSlotId.AUTOSAVE);
+
+    const reloaded = service.loadFromSlot(SaveSlotId.AUTOSAVE);
+    expect(reloaded!.fleets[0].id).toBe(9);
   });
 });

@@ -50,6 +50,10 @@ export class MainMenu {
   /*
    * newGame: Saves the default map data into the chosen slot and starts the game.
    * The starMapData JSON is cast to StarMapData; it contains the initial game state.
+   *
+   * After writing the manual snapshot, the slot is activated so the active
+   * session is backed by the autosave slot. This keeps runtime saves and
+   * battle results on the same slot that reloadAfterBattle / loadGame read.
    */
   newGame(slotIndex: number): void {
     if (slotIndex < MANUAL_SLOT_START) {
@@ -58,21 +62,23 @@ export class MainMenu {
 
     const defaultData = structuredClone(starMapData) as StarMapData;
     this.saveGameService.saveToSlot(slotIndex, defaultData);
-    this.saveGameService.currentSlot = slotIndex;
+    if (!this.saveGameService.activateSlot(slotIndex)) {
+      return;
+    }
     this.router.navigate(['/star-map']);
   }
 
   /*
-   * loadGame: Sets the current slot and navigates to /star-map.
-   * The actual data loading and state restoration is performed by StarMap.
+   * loadGame: Activates the chosen slot as the active session and navigates to
+   * /star-map. Activation copies the manual snapshot into autosave and
+   * switches currentSlot to 0, so subsequent gameplay writes and battle
+   * results accumulate in the same slot that StarMap reads back. The actual
+   * data loading and state restoration is performed by StarMap.
    */
   loadGame(slotIndex: number): void {
-    const data = this.saveGameService.loadFromSlot(slotIndex);
-    if (!data) {
+    if (!this.saveGameService.activateSlot(slotIndex)) {
       return;
     }
-
-    this.saveGameService.currentSlot = slotIndex;
     this.router.navigate(['/star-map']);
   }
 }

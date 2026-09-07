@@ -199,6 +199,7 @@ src/app/
   - Winner survivor roster does not persist back to the star map; only fleet destruction is tracked
   - `BattleScreenComponent` pauses `GameTimeService` on init and resumes on destroy/back-to-map, so the galaxy simulation (movement, AI, economy, production) does not run while the player is fighting
   - `backToStarMap()` persists the loser fleet's destroyed flag to the AUTOSAVE slot before navigating, preventing post-battle state resets
+  - Battle results are cumulative: the active session is always backed by the AUTOSAVE slot, so fleets destroyed in earlier battles stay destroyed after a later battle returns to the map.
 - Fleet state after battle
   - Surviving fleets return to their pre-battle positions or remain at the battle location
   - Destroyed fleets have `destroyed = true` and are filtered from movement, collision, and rendering

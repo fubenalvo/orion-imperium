@@ -47,6 +47,9 @@ Conditions that must remain true across the codebase. When changing any code tha
 - `loadGame()` early-returns if the loaded data is missing `fleets`, `starSystems`, or `factions`. The current in-memory state is preserved on failure.
 - Legacy saves (where `map.width > 150`, i.e. the old 200vw grid) are migrated in `loadGame()`: vw positions are converted to 1-indexed grid cells using a 2vw reference cell size and clamped to `[1, mapWidth]`/`[1, mapHeight]`.
 - `destroyedFleetId` is read on load: the matching fleet is marked `destroyed = true`. The id is then dropped from the next save.
+- **Active session slot invariant:** during gameplay `SaveGameService.currentSlot` is always `SaveSlotId.AUTOSAVE` (slot 0). Session start — `MainMenu.newGame`, `MainMenu.loadGame`, `StarMap.loadFromMenu`, and the `currentSlot === null` fallback in `StarMap.ngOnInit` — normalizes any non-autosave slot through `activateSlot()`, which copies the selected snapshot into autosave before switching `currentSlot` to 0. This keeps every runtime save, autosave trigger, and battle result on the same slot that `loadGame()` and `reloadAfterBattle()` read back, so fleets destroyed in earlier battles cannot be resurrected by a stale manual snapshot.
+- **Manual slot snapshot invariant:** `activateSlot()` never mutates the selected manual snapshot; manual slots are only written to when the player explicitly saves to one. Activating a manual slot intentionally replaces the previous autosave, matching "load game" semantics.
+- **Failed activation is non-destructive:** `activateSlot()` returns `false` for an empty or invalid slot without changing `currentSlot` or overwriting autosave.
 - `triggeredBattles` is a `Set<string>` of `"minId-maxId"` pair keys. It is not serialized and is re-created on every `StarMap` instance; pairs of destroyed fleets are filtered out, so a survivor is never re-matched against a destroyed opponent even after reload.
 
 ## Pause/Resume Guarantees

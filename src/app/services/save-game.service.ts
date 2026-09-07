@@ -101,6 +101,50 @@ export class SaveGameService {
   }
 
   /*
+   * activateSlot: Prepares a save slot as the active session.
+   *
+   * The active session is always backed by the AUTOSAVE slot (slot 0).
+   * Loading a manual slot copies its full snapshot into autosave and
+   * switches `currentSlot` to 0 so every subsequent runtime save
+   * (StarMap.saveGame, battle results, autosave triggers) writes to the
+   * same slot that reloadAfterBattle / loadGame read back. Without this,
+   * a stale manual snapshot can resurrect fleets destroyed in earlier
+   * battles once the player returns from a later battle.
+   *
+   * - Empty or invalid slots leave the current session untouched.
+   * - Activating autosave itself is a no-op copy (it is already the
+   *   active session source).
+   * - The selected manual snapshot is never mutated by activation.
+   */
+  activateSlot(slotIndex: number): boolean {
+    const slot = this.getSlot(slotIndex);
+    if (!slot.data || !this.isValidSaveData(slot.data)) {
+      return false;
+    }
+    if (slotIndex !== SaveSlotId.AUTOSAVE) {
+      this.saveToSlot(SaveSlotId.AUTOSAVE, this.migrateSave(slot.data));
+    }
+    this.currentSlot = SaveSlotId.AUTOSAVE;
+    return true;
+  }
+
+  /*
+   * isValidSaveData: Minimum structural check shared by activation and
+   * StarMap.loadGame. Activation must reject a malformed slot BEFORE it can
+   * overwrite the live autosave session, so the same shape requirement that
+   * gates state restoration also gates the cross-slot copy.
+   */
+  private isValidSaveData(data: StarMapData): boolean {
+    return (
+      typeof data === 'object' &&
+      data !== null &&
+      Array.isArray(data.fleets) &&
+      Array.isArray(data.starSystems) &&
+      Array.isArray(data.factions)
+    );
+  }
+
+  /*
    * migrateSave: Backfills optional fields that were introduced after the
    * original save format so older saves keep loading. Currently:
    * - ai: derived from team (team 2 → ai: true) for saves that predate the flag

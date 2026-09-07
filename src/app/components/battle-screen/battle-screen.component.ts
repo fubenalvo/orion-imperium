@@ -138,12 +138,10 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
 
   /**
    * Persists the outcome of a fleet-vs-fleet battle to the autosave slot
-   * before navigating back to the star map. The previous flow only
-   * mutated the in-memory fleet and stored the destroyed id in
-   * BattleService, relying on StarMap.reloadAfterBattle() to read the
-   * stale pre-battle autosave and then re-apply the destroyed flag — a
-   * fragile dance that was the proximate cause of the apparent "reset"
-   * when returning to the map after a battle.
+   * before navigating back to the star map. The active session is always
+   * backed by the autosave slot, so this mutation is read back by
+   * StarMap.reloadAfterBattle() on the next /star-map navigation even
+   * though the StarMap component instance is recreated between routes.
    */
   private persistFleetBattleResult(loser: Fleet): void {
     loser.destroyed = true;

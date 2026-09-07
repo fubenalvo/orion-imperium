@@ -92,7 +92,7 @@ The empty legacy directories `src/app/components/ship`, `src/app/components/ship
 
 ## Component Communication
 
-- `MainMenu` writes a fresh `StarMapData` snapshot into a save slot, sets `SaveGameService.currentSlot`, then navigates to `/star-map`.
+- `MainMenu` writes a fresh `StarMapData` snapshot into a save slot, activates it (which copies the snapshot into the autosave slot and switches `currentSlot` to 0), then navigates to `/star-map`.
 - `StarMap` is the runtime source of truth: it holds the live `factions`, `starSystems`, and `fleets` arrays and is the only component that mutates them during gameplay.
 - `StarMap` delegates pure logic to injected services (`StarMapGameLoopService`, `StarMapMovementService`, `StarMapBattleDetectionService`) and delegates UI to its child components.
 - When two fleets collide, or when a fleet arrives at an enemy planet with defenses, `StarMap` calls `BattleService.setBattle()` (or `setPlanetBattle()`) and navigates to `/battle`.
@@ -101,6 +101,15 @@ The empty legacy directories `src/app/components/ship`, `src/app/components/ship
   - For a fleet battle, the loser is marked `destroyed = true` and the destroyed fleet id is stored in `BattleService` so `StarMap` can pick it up.
   - For a planet battle, the saved data is reloaded and the planet is either transferred to the attacker's faction (attacker wins) or the attacker is destroyed.
 - `StarMap` reacts to the `/star-map` navigation end via a `Router.events` subscription (`reloadAfterBattle()`) and applies the destroyed fleet / planet ownership change.
+
+## Save Slots and Active Session
+
+- Five slots are stored in `localStorage` under the key `orion_save_slots`: slot 0 (autosave) plus slots 1–4 (manual).
+- Each slot contains a full `StarMapData` snapshot plus an ISO date string. The service exposes `getSlots`, `getSlot(i)`, `saveToSlot(i, data)`, `loadFromSlot(i)`, `clearSlot(i)`, `hasAnySave`, `getMostRecentSlotIndex`, and `activateSlot(i)`.
+- **Autosave is the active session source of truth.** `activateSlot(i)` loads the requested slot and, for a manual slot, copies its full snapshot into autosave before switching `currentSlot` to 0. Session start (new game, manual load, pause-menu load, direct `/star-map` navigation) always normalizes `currentSlot` to autosave.
+- Every runtime save (`StarMap.saveGame`), autosave trigger, and battle result therefore writes to the same slot that `loadGame()` and `reloadAfterBattle()` read back. Without this, a stale manual snapshot can resurrect fleets destroyed in earlier battles once the player returns from a later battle.
+- Manual slots remain explicit snapshots: they are not mutated by activation and are only written to when the player explicitly saves to one.
+- `destroyedFleetId` is stored as part of the save so the destruction persists across reloads.
 
 ## State Ownership
 

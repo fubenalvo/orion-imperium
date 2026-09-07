@@ -103,8 +103,9 @@ The losing fleet is filtered from `visibleFleets` and excluded from movement, co
 
 - A `FleetShip` whose type is unknown to `ShipService` and not a building type contributes `0` attack and `0` defense; it can still be hit and destroyed.
 - The `triggeredBattles` set is never cleared. Once a pair has fought, the survivor is filtered out as `destroyed` so the pair cannot recur. If both survive (impossible today), the survivor cannot re-fight the same id; clearing the set on reload happens implicitly because the set is re-created in `StarMap`'s field initializer.
-- A planet battle runs through `applyPlanetBattleResult()` which loads the save slot, mutates the planet, and saves back. If `currentSlot` is null or the save is missing, the result is silently dropped.
+- A planet battle runs through `applyPlanetBattleResult()` which loads the save slot, mutates the planet, and saves back. The active session is always backed by the AUTOSAVE slot, so the result accumulates with every earlier battle; if the active slot is null or the save is missing, the result is silently dropped.
 - The "Back to Star Map" button is always available; the user can leave a battle in progress, but only the post-resolution branch updates fleet/planet state.
+- Battle results are cumulative: a fleet destroyed in an earlier battle stays destroyed after a later battle returns to the map, because the active session slot is the same one that `reloadAfterBattle()` reads back.
 
 ## Limitations
 
