@@ -16,10 +16,10 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  display: grid;
-  gap: 0.5vw;
+  display: flex;
+  align-items: center;
   justify-content: center;
-  align-content: center;
+  overflow: hidden;
   background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
   background-image: url('/planet-surface-noise-light.png');
 
@@ -72,6 +72,46 @@
       250% 250%,
       5vw 5vw,
       5vw 5vw;
+  }
+}
+
+/*
+ * Inner grid that holds the surface cells and buildings.
+ * `.planet-surface` is just a static (unrotated) background + clipping box;
+ * the tilt is applied to this wrapper so the planet color / clouds / noise
+ * stay upright while the grid itself reads as an isometric diamond.
+ */
+.planet-surface__grid {
+  display: grid;
+  gap: 1vw;
+  justify-content: center;
+  align-content: center;
+  width: max-content;
+}
+
+/*
+ * 45° isometric projection: rotate the square tile grid into a diamond and
+ * scale it back down so the diamond's bounding box matches the original grid
+ * footprint (1/sqrt(2) = cos 45deg; tuned slightly smaller to account for the
+ * inter-cell gap). `overflow: hidden` on the parent crops the four corner
+ * triangles that appear when a square is rotated — the intended "diamond window".
+ */
+.planet-surface__grid--isometric {
+  //transform: rotate(45deg) rotateX(55deg) scale(var(--planet-grid-scale, 0.7));
+
+  //transform: perspective(1500px) rotateX(55deg) rotateZ(45deg);
+  transform: rotateX(45deg) rotateZ(45deg);
+
+  transform-origin: center center;
+
+  will-change: transform;
+
+  /* Keep building labels readable: the grid tilts +45deg, so the label text
+     is counter-rotated back to upright. Sprites stay diamond-tilted for a
+     coherent isometric tile look. */
+  .planet-surface__building-name {
+    transform: rotate(-45deg) translate(33%, 10%);
+    transform-origin: center;
   }
 }
 
@@ -133,70 +173,91 @@
   &::after {
     content: '';
     position: absolute;
-    top: 0%;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: calc(0% - 0.6vw);
+    left: calc(0% - 0.6vw);
+    width: calc(100% + 1.2vw);
+    height: calc(100% + 1.2vw);
 
     background-repeat: no-repeat;
     background-position: center;
     background-size: 100% 100%;
+    background-color: #292929;
     border-radius: 3px;
     pointer-events: none;
     z-index: 2;
+    border: 0.6vw solid #222;
+    opacity: 0.7;
+  }
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 120%;
+    height: 280%;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    pointer-events: none;
+    z-index: 4;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(48%, -54%);
+    border: none;
+    box-shadow: none;
   }
 
   // ---- Building type images ----
-  // The ::after background-image is overridden in each modifier class.
+  // The ::before background-image is overridden in each modifier class.
   // Drop the matching PNG into /public/buildings/ and the image will render
   // automatically because Angular serves /public assets at the site root.
-  &--laser-turret::after {
-    background-image: url('/buildings/laser-turret.png');
+
+  &--laser-turret::before {
+    background-image: url('/buildings-isometric/laser-turret.png');
   }
-  &--missile-turret::after {
-    background-image: url('/buildings/missile-turret.png');
+  &--missile-turret::before {
+    background-image: url('/buildings-isometric/missile-turret.png');
   }
-  &--planetary-shield::after {
-    background-image: url('/buildings/planetary-shield.png');
+  &--planetary-shield::before {
+    background-image: url('/buildings-isometric/planetary-shield.png');
   }
-  &--small-residential::after {
-    background-image: url('/buildings/small-residential.png');
+  &--small-residential::before {
+    background-image: url('/buildings-isometric/small-residential.png');
   }
-  &--medium-residential::after {
-    background-image: url('/buildings/medium-residential.png');
+  &--medium-residential::before {
+    background-image: url('/buildings-isometric/medium-residential.png');
   }
-  &--large-residential::after {
-    background-image: url('/buildings/large-residential.png');
+  &--large-residential::before {
+    background-image: url('/buildings-isometric/large-residential.png');
   }
-  &--park::after {
-    background-image: url('/buildings/park.png');
+  &--park::before {
+    background-image: url('/buildings-isometric/park.png');
   }
-  &--hospital::after {
-    background-image: url('/buildings/hospital.png');
+  &--hospital::before {
+    background-image: url('/buildings-isometric/hospital.png');
   }
-  &--school::after {
-    background-image: url('/buildings/school.png');
+  &--school::before {
+    background-image: url('/buildings-isometric/school.png');
   }
-  &--entertainment-center::after {
-    background-image: url('/buildings/entertainment-center.png');
+  &--entertainment-center::before {
+    background-image: url('/buildings-isometric/entertainment-center.png');
   }
-  &--fusion-plant::after {
-    background-image: url('/buildings/fusion-plant.png');
+  &--fusion-plant::before {
+    background-image: url('/buildings-isometric/fusion-plant.png');
   }
-  &--solar-array::after {
-    background-image: url('/buildings/solar-array.png');
+  &--solar-array::before {
+    background-image: url('/buildings-isometric/solar-array.png');
   }
-  &--spaceship-factory::after {
-    background-image: url('/buildings/spaceship-factory.png');
+  &--spaceship-factory::before {
+    background-image: url('/buildings-isometric/spaceship-factory.png');
   }
-  &--mining-complex::after {
-    background-image: url('/buildings/mining-complex.png');
+  &--mining-complex::before {
+    background-image: url('/buildings-isometric/mining-complex.png');
   }
-  &--small-research-lab::after {
-    background-image: url('/buildings/small-research-lab.png');
+  &--small-research-lab::before {
+    background-image: url('/buildings-isometric/small-research-lab.png');
   }
-  &--research-lab::after {
-    background-image: url('/buildings/research-lab.png');
+  &--research-lab::before {
+    background-image: url('/buildings-isometric/research-lab.png');
   }
 }
 
@@ -205,8 +266,8 @@
   bottom: 0.3vw;
   left: 0;
   right: 0;
-  font-size: 0.6rem;
-  z-index: 3;
+  font-size: 1rem;
+  z-index: 4;
   text-shadow:
     -1px -1px 0 rgba(0, 0, 0, 0.8),
     0 -1px 0 rgba(0, 0, 0, 0.8),

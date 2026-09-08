@@ -94,6 +94,8 @@ export class StarMapPlanetScreenComponent {
   @Input() planet: PlanetTile | null = null;
   @Input() gridSize: number = 5;
   @Input() planetColor: string = '#ffffff';
+  /** When true the surface grid is rendered with a 45° isometric tilt. */
+  @Input() isometric = true;
   @Input() getFactionName: (factionId: string) => string = () => 'Unknown';
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
   @Input() getFactionCurrencies: (factionId: string) => { name: string; value: number }[] =
