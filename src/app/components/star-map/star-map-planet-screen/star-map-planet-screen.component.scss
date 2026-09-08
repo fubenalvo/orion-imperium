@@ -16,9 +16,6 @@
   position: relative;
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
   background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
   background-image: url('/planet-surface-noise-light.png');
@@ -76,35 +73,46 @@
 }
 
 /*
- * Inner grid that holds the surface cells and buildings.
- * `.planet-surface` is just a static (unrotated) background + clipping box;
- * the tilt is applied to this wrapper so the planet color / clouds / noise
- * stay upright while the grid itself reads as an isometric diamond.
+ * Clipping + interaction viewport for the surface grid. It fills the surface
+ * and is the pointer-capture target for drag panning. `touch-action: none`
+ * lets pointer events take over touch gestures instead of native scrolling.
  */
-.planet-surface__grid {
-  display: grid;
-  gap: 1vw;
-  justify-content: center;
-  align-content: center;
-  width: max-content;
+.planet-surface__viewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+
+  &.dragging {
+    cursor: grabbing;
+  }
 }
 
 /*
- * 45° isometric projection: rotate the square tile grid into a diamond and
- * scale it back down so the diamond's bounding box matches the original grid
- * footprint (1/sqrt(2) = cos 45deg; tuned slightly smaller to account for the
- * inter-cell gap). `overflow: hidden` on the parent crops the four corner
- * triangles that appear when a square is rotated — the intended "diamond window".
+ * The grid is absolutely positioned and centered on the viewport via
+ * `translate(-50%, -50%)` in the inline `gridTransform`; the pan offset and
+ * isometric tilt are part of the same inline transform so scrolling moves in
+ * screen space. The isometric class keeps only the descendant rules.
+ */
+.planet-surface__grid {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  gap: 1vw;
+  width: max-content;
+  will-change: transform;
+}
+
+/*
+ * 45° isometric projection: the square tile grid is rotated into a diamond by
+ * the inline `gridTransform` (combined with the pan translate). `overflow:
+ * hidden` on the parent crops the four corner triangles that appear when a
+ * square is rotated — the intended "diamond window".
  */
 .planet-surface__grid--isometric {
-  //transform: rotate(45deg) rotateX(55deg) scale(var(--planet-grid-scale, 0.7));
-
-  //transform: perspective(1500px) rotateX(55deg) rotateZ(45deg);
-  transform: rotateX(45deg) rotateZ(45deg);
-
   transform-origin: center center;
-
-  will-change: transform;
 
   /* Keep building labels readable: the grid tilts +45deg, so the label text
      is counter-rotated back to upright. Sprites stay diamond-tilted for a
@@ -123,6 +131,71 @@
   to {
     background-position-x: -1000px;
   }
+}
+
+/*
+ * Surface navigation d-pad: overlays the bottom-left of the surface so it
+ * never covers the sidebar or the grid center. Rendered above the cloud/color
+ * overlays (z-index 10) so the buttons stay clickable.
+ */
+.planet-surface__nav {
+  position: absolute;
+  left: 1em;
+  bottom: 1em;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(3, 2.5em);
+  grid-template-rows: repeat(3, 2.5em);
+  gap: 0.3em;
+  padding: 0.3em;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(53, 134, 229, 0.35);
+  border-radius: 4px;
+}
+
+.planet-surface__nav-btn {
+  width: 2.5em;
+  min-height: 2.5em;
+  padding: 0;
+  border: 1px solid var(--color-blue);
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--color-text);
+  font-family: var(--font-primary);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    color: var(--color-blue-bright);
+    border-color: var(--color-blue-bright);
+    background: rgba(0, 20, 25, 0.9);
+  }
+}
+
+.planet-surface__nav-btn--up {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.planet-surface__nav-btn--left {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.planet-surface__nav-btn--center {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.planet-surface__nav-btn--right {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.planet-surface__nav-btn--down {
+  grid-column: 2;
+  grid-row: 3;
 }
 
 .planet-surface__cell {

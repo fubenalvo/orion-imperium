@@ -1,4 +1,16 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  AfterViewInit,
+  OnChanges,
+  OnDestroy,
+  SimpleChanges,
+  ViewChild,
+  ElementRef,
+  HostListener,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
   PlanetTile,
@@ -90,7 +102,7 @@ export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production';
   templateUrl: './star-map-planet-screen.component.html',
   styleUrl: './star-map-planet-screen.component.scss',
 })
-export class StarMapPlanetScreenComponent {
+export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() planet: PlanetTile | null = null;
   @Input() gridSize: number = 5;
   @Input() planetColor: string = '#ffffff';
@@ -136,6 +148,30 @@ export class StarMapPlanetScreenComponent {
   readonly cellVw = PLANET_SURFACE_CELL_VW;
   private readonly _buildingTypes: BuildingType[] = (planetData as { buildings: BuildingType[] }).buildings;
 
+  // Surface panning state (in vw units, matching the codebase grid convention).
+  // `scrollX/Y = 0` means the grid is centered in the viewport; positive
+  // values pan toward the right/bottom edge of the surface.
+  scrollX = 0;
+  scrollY = 0;
+  private isSurfaceDragging = false;
+  private dragMoved = false;
+  private wasDragged = false;
+  private dragStartX = 0;
+  private dragStartY = 0;
+  private dragScrollStartX = 0;
+  private dragScrollStartY = 0;
+  private readonly dragThreshold = 5;
+  private panIntervalId: number | null = null;
+  private readonly panStepVw = 3;
+  private readonly panRepeatDelay = 50;
+  private maxScrollX = 0;
+  private maxScrollY = 0;
+
+  @ViewChild('surfaceViewport') surfaceViewport: ElementRef<HTMLElement> | null = null;
+
+  /** Gap between surface cells, must match the `gap` in the SCSS grid. */
+  private readonly gridGapVw = 1;
+
   get buildingTypes(): BuildingType[] {
     return this._buildingTypes;
   }
@@ -165,6 +201,20 @@ export class StarMapPlanetScreenComponent {
   /** Returns the CSS grid template string for the planet surface grid. */
   get gridTemplateColumns(): string {
     return `repeat(${this.gridSize}, ${this.cellVw}vw)`;
+  }
+
+  /**
+   * Combined transform for the surface grid: centers the grid on the
+   * viewport, pans it by the current scroll offset, then applies the
+   * optional isometric tilt. The pan must be outermost so scrolling moves
+   * the grid in screen space regardless of the rotation.
+   */
+  get gridTransform(): string {
+    const translate = `translate(-50%, -50%) translate(${-this.scrollX}vw, ${-this.scrollY}vw)`;
+    if (this.isometric) {
+      return `${translate} rotateX(45deg) rotateZ(45deg)`;
+    }
+    return translate;
   }
 
   /**
@@ -239,6 +289,10 @@ export class StarMapPlanetScreenComponent {
   }
 
   onCellClick(row: number, col: number): void {
+    // Suppress the trailing click of a drag-pan so it cannot place a building.
+    if (this.wasDragged || this.dragMoved) {
+      return;
+    }
     if (!this.isBuildMode || !this.selectedBuildingType) {
       return;
     }
@@ -367,13 +421,193 @@ export class StarMapPlanetScreenComponent {
     return this.previewCells.has(`${row},${col}`);
   }
 
+  ngAfterViewInit(): void {
+    this.updateClamp();
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['gridSize']) {
+      this.updateClamp();
+    }
+  }
+
+  @HostListener('window:resize')
+  onResize(): void {
+    this.updateClamp();
+  }
+
+  /**
+   * Recomputes scroll clamp bounds from the viewport's current size. Uses
+   * DOM measurement so it stays correct when the sidebar width changes
+   * (26% / 320px cap) or the window is resized. Grid size is analytic:
+   * `gridSize * cellVw + (gridSize - 1) * gap`.
+   */
+  private updateClamp(): void {
+    if (!this.surfaceViewport) {
+      return;
+    }
+    const vwUnit = window.innerWidth / 100;
+    const viewport = this.surfaceViewport.nativeElement;
+    const viewportWidthVw = viewport.offsetWidth / vwUnit;
+    const viewportHeightVw = viewport.offsetHeight / vwUnit;
+    const gridSizeVw = this.gridSize * this.cellVw + (this.gridSize - 1) * this.gridGapVw;
+
+    this.maxScrollX = Math.max(0, (gridSizeVw - viewportWidthVw) / 2);
+    this.maxScrollY = Math.max(0, (gridSizeVw - viewportHeightVw) / 2);
+    this.clampScroll();
+  }
+
+  /**
+   * Clamps scroll to the computed bounds. Returns true when the scroll was
+   * actually changed, false when it was already within bounds.
+   */
+  private clampScroll(): boolean {
+    const clampedX = Math.max(-this.maxScrollX, Math.min(this.maxScrollX, this.scrollX));
+    const clampedY = Math.max(-this.maxScrollY, Math.min(this.maxScrollY, this.scrollY));
+    const moved = clampedX !== this.scrollX || clampedY !== this.scrollY;
+    this.scrollX = clampedX;
+    this.scrollY = clampedY;
+    return moved;
+  }
+
+  /** Pans the surface by the given vw delta. Stops panning when clamped so
+   * a held d-pad button at the edge does not keep scheduling change
+   * detection. */
+  panBy(deltaX: number, deltaY: number): void {
+    this.scrollX += deltaX;
+    this.scrollY += deltaY;
+    if (!this.clampScroll()) {
+      this.stopPan();
+    }
+  }
+
+  /** Resets panning so the grid is centered again. */
+  centerScroll(): void {
+    this.scrollX = 0;
+    this.scrollY = 0;
+  }
+
+  /**
+   * Starts continuous panning in the given direction. Emits one step
+   * immediately, then repeats every 50ms — mirrors the galaxy navigation
+   * d-pad behaviour. Stop with {@link stopPan}.
+   */
+  startPan(direction: 'up' | 'down' | 'left' | 'right'): void {
+    this.stopPan();
+    this.panStep(direction);
+    this.panIntervalId = window.setInterval(() => {
+      this.panStep(direction);
+    }, this.panRepeatDelay);
+  }
+
+  /** Stops the continuous pan interval. */
+  stopPan(): void {
+    if (this.panIntervalId !== null) {
+      window.clearInterval(this.panIntervalId);
+      this.panIntervalId = null;
+    }
+  }
+
+  /** Clears the pan interval so a held button cannot leak past component teardown. */
+  ngOnDestroy(): void {
+    this.stopPan();
+  }
+
+  private panStep(direction: 'up' | 'down' | 'left' | 'right'): void {
+    switch (direction) {
+      case 'up':
+        this.panBy(0, -this.panStepVw);
+        break;
+      case 'down':
+        this.panBy(0, this.panStepVw);
+        break;
+      case 'left':
+        this.panBy(-this.panStepVw, 0);
+        break;
+      case 'right':
+        this.panBy(this.panStepVw, 0);
+        break;
+    }
+  }
+
+  /** Pointer down on the surface viewport — begins drag tracking. */
+  onSurfacePointerDown(event: PointerEvent): void {
+    this.dragMoved = false;
+    this.wasDragged = false;
+    // While in build mode, cells are interactive (building placement), so
+    // drags must not start there. Outside build mode cells are inert, so
+    // letting the drag start on them keeps touch panning usable.
+    if (this.isBuildMode && this.isCellOrBuilding(event.target as HTMLElement)) {
+      return;
+    }
+    const viewport = event.currentTarget as HTMLElement;
+    viewport.setPointerCapture(event.pointerId);
+
+    this.isSurfaceDragging = true;
+    this.dragStartX = event.clientX;
+    this.dragStartY = event.clientY;
+    this.dragScrollStartX = this.scrollX;
+    this.dragScrollStartY = this.scrollY;
+
+    viewport.classList.add('dragging');
+  }
+
+  /** Pointer move during drag — updates scroll with clamping. */
+  onSurfacePointerMove(event: PointerEvent): void {
+    if (!this.isSurfaceDragging) {
+      return;
+    }
+    const deltaX = event.clientX - this.dragStartX;
+    const deltaY = event.clientY - this.dragStartY;
+
+    if (Math.abs(deltaX) + Math.abs(deltaY) > this.dragThreshold) {
+      this.dragMoved = true;
+    }
+
+    const vwUnit = window.innerWidth / 100;
+    this.scrollX = this.dragScrollStartX - deltaX / vwUnit;
+    this.scrollY = this.dragScrollStartY - deltaY / vwUnit;
+    this.clampScroll();
+  }
+
+  /** Pointer up — ends drag; a short drag that moved is treated as a pan. */
+  onSurfacePointerUp(event: PointerEvent): void {
+    if (!this.isSurfaceDragging) {
+      return;
+    }
+    const viewport = event.currentTarget as HTMLElement;
+    if (viewport.hasPointerCapture(event.pointerId)) {
+      viewport.releasePointerCapture(event.pointerId);
+    }
+    viewport.classList.remove('dragging');
+
+    this.isSurfaceDragging = false;
+    if (this.dragMoved) {
+      this.wasDragged = true;
+    }
+  }
+
+  /** Returns true when the drag started on an interactive grid element. */
+  private isCellOrBuilding(element: HTMLElement): boolean {
+    let el: HTMLElement | null = element;
+    while (el && el !== document.body) {
+      if (
+        el.classList.contains('planet-surface__cell') ||
+        el.classList.contains('planet-surface__building')
+      ) {
+        return true;
+      }
+      el = el.parentElement;
+    }
+    return false;
+  }
+
   /**
    * Returns the BEM modifier class for a placed building based on its id/name,
    * e.g. `medium_residential` -> `planet-surface__building--medium-residential`.
    * Looks up the original BuildingType by name (the name is the only field we
    * have on PlanetBuilding) and falls back to a slugified version of the name.
-   */
-  getBuildingTypeClass(b: PlanetBuilding): string {
+   */  getBuildingTypeClass(b: PlanetBuilding): string {
     const def = this.buildingTypes.find(
       (t) => t.name === b.name || t.id === (b as { id?: string }).id,
     );

@@ -18,43 +18,108 @@
       [style.--planet-color]="planetColor"
     >
       <div
-        class="planet-surface__grid"
-        [class.planet-surface__grid--isometric]="isometric"
-        [style.grid-template-columns]="gridTemplateColumns"
-        [style.grid-template-rows]="gridTemplateColumns"
+        #surfaceViewport
+        class="planet-surface__viewport"
+        (pointerdown)="onSurfacePointerDown($event)"
+        (pointermove)="onSurfacePointerMove($event)"
+        (pointerup)="onSurfacePointerUp($event)"
+        (pointercancel)="onSurfacePointerUp($event)"
       >
-        @for (row of gridCells; track row) {
-          @for (col of gridCells; track col) {
-            <div
-              class="planet-surface__cell"
-              [class.planet-surface__cell--resource]="isResourceTile(row, col)"
-              [class.planet-surface__cell--build-valid]="
-                isBuildMode && isCellInPreview(row, col) && isPreviewValid
-              "
-              [class.planet-surface__cell--build-invalid]="
-                isBuildMode && isCellInPreview(row, col) && !isPreviewValid
-              "
-              [class.planet-surface__cell--build-selected]="
-                isBuildMode && selectedCell?.row === row && selectedCell?.col === col
-              "
-              [style.grid-column]="col + 1"
-              [style.grid-row]="row + 1"
-              (click)="onCellClick(row, col)"
-            ></div>
+        <div
+          class="planet-surface__grid"
+          [class.planet-surface__grid--isometric]="isometric"
+          [style.transform]="gridTransform"
+          [style.grid-template-columns]="gridTemplateColumns"
+          [style.grid-template-rows]="gridTemplateColumns"
+        >
+          @for (row of gridCells; track row) {
+            @for (col of gridCells; track col) {
+              <div
+                class="planet-surface__cell"
+                [class.planet-surface__cell--resource]="isResourceTile(row, col)"
+                [class.planet-surface__cell--build-valid]="
+                  isBuildMode && isCellInPreview(row, col) && isPreviewValid
+                "
+                [class.planet-surface__cell--build-invalid]="
+                  isBuildMode && isCellInPreview(row, col) && !isPreviewValid
+                "
+                [class.planet-surface__cell--build-selected]="
+                  isBuildMode && selectedCell?.row === row && selectedCell?.col === col
+                "
+                [style.grid-column]="col + 1"
+                [style.grid-row]="row + 1"
+                (click)="onCellClick(row, col)"
+              ></div>
+            }
           }
-        }
 
-        @for (b of planet?.buildings; track $index) {
-          <div
-            class="planet-surface__building"
-            [ngClass]="getBuildingTypeClass(b)"
-            [style.--building-x]="b.x"
-            [style.--building-y]="b.y"
-            [style.--building-size]="b.size"
-          >
-            <div class="planet-surface__building-name">{{ b.name }}</div>
-          </div>
-        }
+          @for (b of planet?.buildings; track $index) {
+            <div
+              class="planet-surface__building"
+              [ngClass]="getBuildingTypeClass(b)"
+              [style.--building-x]="b.x"
+              [style.--building-y]="b.y"
+              [style.--building-size]="b.size"
+            >
+              <div class="planet-surface__building-name">{{ b.name }}</div>
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- SURFACE NAVIGATION D-PAD -->
+      <div class="planet-surface__nav" (click)="$event.stopPropagation()">
+        <button
+          class="planet-surface__nav-btn planet-surface__nav-btn--up"
+          type="button"
+          (pointerdown)="startPan('up'); $event.preventDefault()"
+          (pointerup)="stopPan()"
+          (pointerleave)="stopPan()"
+          (pointercancel)="stopPan()"
+          (click)="$event.stopPropagation()"
+        >
+          ▲
+        </button>
+        <button
+          class="planet-surface__nav-btn planet-surface__nav-btn--left"
+          type="button"
+          (pointerdown)="startPan('left'); $event.preventDefault()"
+          (pointerup)="stopPan()"
+          (pointerleave)="stopPan()"
+          (pointercancel)="stopPan()"
+          (click)="$event.stopPropagation()"
+        >
+          ◀
+        </button>
+        <button
+          class="planet-surface__nav-btn planet-surface__nav-btn--center"
+          type="button"
+          (click)="centerScroll(); $event.stopPropagation()"
+        >
+          ●
+        </button>
+        <button
+          class="planet-surface__nav-btn planet-surface__nav-btn--right"
+          type="button"
+          (pointerdown)="startPan('right'); $event.preventDefault()"
+          (pointerup)="stopPan()"
+          (pointerleave)="stopPan()"
+          (pointercancel)="stopPan()"
+          (click)="$event.stopPropagation()"
+        >
+          ▶
+        </button>
+        <button
+          class="planet-surface__nav-btn planet-surface__nav-btn--down"
+          type="button"
+          (pointerdown)="startPan('down'); $event.preventDefault()"
+          (pointerup)="stopPan()"
+          (pointerleave)="stopPan()"
+          (pointercancel)="stopPan()"
+          (click)="$event.stopPropagation()"
+        >
+          ▼
+        </button>
       </div>
     </div>
 
