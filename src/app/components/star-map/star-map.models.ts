@@ -47,9 +47,11 @@ export const PLANET_TYPE_HABITABILITY: Record<PlanetType, number> = {
   desert: -0.05,
 };
 
-// Planet surface grid cell size in vw units. Doubled so large planet
-// surfaces overflow the viewport and rely on panning to be fully visible.
-export const PLANET_SURFACE_CELL_VW = 6;
+// Planet surface grid cell size in vw units. 80% of the doubled size so
+// large planet surfaces still overflow the viewport while leaving room to
+// pan a little around the grid. Surfaces larger than the viewport rely on
+// panning to be fully visible.
+export const PLANET_SURFACE_CELL_VW = 3.36;
 
 export interface Technology {
   id: string;

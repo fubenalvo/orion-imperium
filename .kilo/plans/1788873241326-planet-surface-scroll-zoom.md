@@ -54,3 +54,44 @@
 ## Out of scope
 - `gridSize` képlet / `planetData` size bővítés (scroll már támogatja, külön task).
 - Zoom/pinch, minimap a surface-hez.
+
+---
+
+# Fix: horizontal scroll nélkül marad a clamp (isometric layout bbox ≠ visual bbox)
+
+## Problem
+`updateClamp()` a grid **layout** méretét használja:
+```ts
+const gridSizeVw = this.gridSize * this.cellVw + (this.gridSize - 1) * this.gridGapVw;
+this.maxScrollX = Math.max(0, (gridSizeVw - viewportWidthVw) / 2);
+```
+A grid viszont 45°-os isometric tiltben van (`rotateX(45deg) rotateZ(45deg)`), így a **vizuális** diamond sokkal szélesebb, mint a layout bbox:
+- layout szélesség = `gridSize*6 + (gridSize-1)*1` vw
+- vizuális szélesség = layout * √2 ≈ layout * 1.414
+- vizuális magasság ≈ layout (rotateX 45° összenyomja a függőleges tengelyt)
+
+Earth = medium → gridSize 9 → layout 62vw, vizuális W ≈ 87.7vw, H ≈ 62vw.
+Viewport szélessége a sidebar (26%/320px) levonása után ~75vw, magasság ~52vw (landscape).
+`maxScrollX = (62-75)/2 = 0` → **horizontálisan nem scrollozható**, a diamond bal/jobb sarkai (a távoli tile-ok) `overflow:hidden`-vel le van vágva, és a pan sem engedi őket láttatni. Vertikálisan viszont a magasság (62vw) > viewport (52vw) → `maxScrollY > 0`, így függőlegesen működik.
+
+## Fix
+A clamp-ban a **vizuális** méretet kell használni, nem a layout-ot:
+
+```ts
+const gridSizeVw = this.gridSize * this.cellVw + (this.gridSize - 1) * this.gridGapVw;
+const visualWidthVw = this.isometric ? gridSizeVw * Math.SQRT2 : gridSizeVw;
+const visualHeightVw = this.isometric ? gridSizeVw : gridSizeVw;
+this.maxScrollX = Math.max(0, (visualWidthVw - viewportWidthVw) / 2);
+this.maxScrollY = Math.max(0, (visualHeightVw - viewportHeightVw) / 2);
+```
+
+Megjegyzés: `rotateX(45°) rotateZ(45°)` után a vizuális bbox mérete `W = L*√2`, `H = L` (a rotateX összenyomja a magasságot cos45°-re, ami éppen √2/2, és a rotateZ elforgatja). A `Math.SQRT2` közelítés jó; ha pontosság kell, mérhető a grid `getBoundingClientRect()`-jéből, de a layout-alapú számítás elegendő.
+
+## Tasks
+1. `star-map-planet-screen.component.ts:445 updateClamp()` — bevezeti a `visualWidthVw`/`visualHeightVw` számítást a fenti képlettel, és azokat használja a clamp-ban.
+2. Validáció: `npm run build` + `npm run test` (345 pass, a pre-existing app.spec.ts failure nem érintett).
+3. Manuális: Earth (medium, 9x9) → mostantól bal/jobb gombbal panolva látszódjanak a távoli tile-ok; a clamp széleken ne engedje a diamond teljes eltűnését.
+
+## Risks
+- A `Math.SQRT2` közelítés miatt a clamp kissé szűkebb vagy tágabb lehet, mint a pontos bbox; az `overflow:hidden` miatt egy pár pixelnyi eltolódás nem látványos.
+- Ha a vizuális méret kisebb, mint a viewport (kis bolygók), `maxScroll` 0 marad, nincs pan — helyes.

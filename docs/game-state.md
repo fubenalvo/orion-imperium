@@ -148,8 +148,10 @@ src/app/
 
 ### 4.3 Planet Surface
 - Grid: `numericSize * 2 + 3` (5/7/9/11)
-- 6vw cells (`PLANET_SURFACE_CELL_VW`); surfaces larger than the viewport are pannable via mouse drag, touch drag, and a d-pad overlay (`startPan`/`stopPan` continuous pan)
+- 4.8vw cells (`PLANET_SURFACE_CELL_VW`, 80% of the doubled size); surfaces larger than the viewport are pannable via mouse drag, touch drag, and a d-pad overlay (`startPan`/`stopPan` continuous pan)
 - Panning state (`scrollX`/`scrollY` in vw) is clamped so the centered grid cannot be panned fully off-screen; the center d-pad button re-centers
+- Clamp is computed against the **visual** extent of the isometric diamond (`layout * sqrt(2)` wide), not the layout box — otherwise a 45°-rotated grid wider than the viewport would report `maxScrollX = 0` and the edge tiles could never be panned into view
+- Two cells of padding are added on each side so the camera can be panned a little beyond the grid edges
 - Tabs: Details, Build (player only), Production (if factory), Assembly (if spaceport)
 - Deterministic resource deposits on ~20% of planets, visible in planet view
 - Mining Complex buildings must be placed adjacent to resource tiles

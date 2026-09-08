@@ -120,6 +120,10 @@
   box-sizing: border-box;
 }
 
+* {
+  user-select: none;
+}
+
 html,
 body {
   width: 100%;

@@ -172,6 +172,10 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   /** Gap between surface cells, must match the `gap` in the SCSS grid. */
   private readonly gridGapVw = 1;
 
+  /** Extra padding (in vw) around the grid so the camera can be panned a
+   * little beyond the grid edges. Two cells on each side. */
+  private readonly surfacePaddingVw = 2 * this.cellVw;
+
   get buildingTypes(): BuildingType[] {
     return this._buildingTypes;
   }
@@ -421,6 +425,13 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     return this.previewCells.has(`${row},${col}`);
   }
 
+  getCellZIndex(row: number, col: number): number {
+    // Isometric depth: row + col determines visual depth (0-indexed).
+    // Cells on the same anti-diagonal share visual depth; use row as tiebreaker.
+    // +1 so (0,0) starts at 1.
+    return (row + col) * this.gridSize + row + 1;
+  }
+
   ngAfterViewInit(): void {
     this.updateClamp();
   }
@@ -441,6 +452,12 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
    * DOM measurement so it stays correct when the sidebar width changes
    * (26% / 320px cap) or the window is resized. Grid size is analytic:
    * `gridSize * cellVw + (gridSize - 1) * gap`.
+   *
+   * When the grid is rotated into the isometric diamond, its visual extent is
+   * wider than its layout box (layout * sqrt(2)), so the clamp must be based
+   * on the visual size — otherwise a 45°-rotated grid that is wider than the
+   * viewport would report maxScrollX = 0 and the edge tiles could never be
+   * panned into view.
    */
   private updateClamp(): void {
     if (!this.surfaceViewport) {
@@ -451,9 +468,13 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     const viewportWidthVw = viewport.offsetWidth / vwUnit;
     const viewportHeightVw = viewport.offsetHeight / vwUnit;
     const gridSizeVw = this.gridSize * this.cellVw + (this.gridSize - 1) * this.gridGapVw;
+    const visualWidthVw = this.isometric ? gridSizeVw * Math.SQRT2 : gridSizeVw;
+    const visualHeightVw = this.isometric ? gridSizeVw : gridSizeVw;
 
-    this.maxScrollX = Math.max(0, (gridSizeVw - viewportWidthVw) / 2);
-    this.maxScrollY = Math.max(0, (gridSizeVw - viewportHeightVw) / 2);
+    // Add two cells of padding on each side so the camera can be panned a
+    // little beyond the grid edges.
+    this.maxScrollX = Math.max(0, (visualWidthVw + this.surfacePaddingVw - viewportWidthVw) / 2);
+    this.maxScrollY = Math.max(0, (visualHeightVw + this.surfacePaddingVw - viewportHeightVw) / 2);
     this.clampScroll();
   }
 

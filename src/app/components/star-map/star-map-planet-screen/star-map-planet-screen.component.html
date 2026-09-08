@@ -60,6 +60,7 @@
               [style.--building-x]="b.x"
               [style.--building-y]="b.y"
               [style.--building-size]="b.size"
+              [style.z-index]="getCellZIndex(b.y + b.size - 1, b.x + b.size - 1)"
             >
               <div class="planet-surface__building-name">{{ b.name }}</div>
             </div>

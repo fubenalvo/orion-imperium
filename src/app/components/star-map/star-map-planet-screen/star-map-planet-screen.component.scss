@@ -100,7 +100,7 @@
   top: 50%;
   left: 50%;
   display: grid;
-  gap: 1vw;
+  gap: 2.5vw;
   width: max-content;
   will-change: transform;
 }
@@ -113,6 +113,11 @@
  */
 .planet-surface__grid--isometric {
   transform-origin: center center;
+  position: relative;
+  background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
+  background-image: url('/planet-surface-noise-light.png');
+  background-size: 30% 30%;
+  //background-blend-mode: overlay, normal, normal;
 
   /* Keep building labels readable: the grid tilts +45deg, so the label text
      is counter-rotated back to upright. Sprites stay diamond-tilted for a
@@ -120,6 +125,36 @@
   .planet-surface__building-name {
     transform: rotate(-45deg) translate(33%, 10%);
     transform-origin: center;
+  }
+
+  &:before {
+    content: '';
+    position: absolute;
+    top: -50vw;
+    left: -50vh;
+    right: -50vh;
+    bottom: -50vw;
+    background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
+    background-image: url('/planet-surface-noise-light.png');
+    background-size: 10% 10%;
+    opacity: 0.5;
+    mix-blend-mode: color;
+    pointer-events: none;
+  }
+
+  &:after {
+    content: '';
+    position: absolute;
+    top: -50vw;
+    left: -50vh;
+    right: -50vh;
+    bottom: -50vw;
+    background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
+    background-image: url('/planet-surface-noise-light.png');
+    background-size: 100% 100%;
+    opacity: 0.7;
+    mix-blend-mode: color;
+    pointer-events: none;
   }
 }
 
@@ -227,6 +262,7 @@
   grid-column: calc(var(--building-x, 0) + 1) / span var(--building-size, 1);
   grid-row: calc(var(--building-y, 0) + 1) / span var(--building-size, 1);
   position: relative;
+  isolation: isolate;
 
   &::before {
     content: '';
@@ -246,19 +282,21 @@
   &::after {
     content: '';
     position: absolute;
-    top: calc(0% - 0.6vw);
-    left: calc(0% - 0.6vw);
-    width: calc(100% + 1.2vw);
-    height: calc(100% + 1.2vw);
+    top: calc(0% - 1vw);
+    left: calc(0% - 1vw);
+    width: calc(100% + 2vw);
+    height: calc(100% + 2vw);
 
     background-repeat: no-repeat;
     background-position: center;
     background-size: 100% 100%;
-    background-color: #292929;
+    background: color-mix(in srgb, #292929 40%, #111 60%);
+    background-image: url('/planet-surface-noise-light.png');
+
     border-radius: 3px;
     pointer-events: none;
-    z-index: 2;
-    border: 0.6vw solid #222;
+    z-index: 0;
+    border: 0.3vw solid #44444454;
     opacity: 0.7;
   }
 
@@ -277,6 +315,7 @@
     transform: rotateZ(-45deg) rotateX(-55deg) translate(48%, -54%);
     border: none;
     box-shadow: none;
+    filter: saturate(1.1) contrast(1.1);
   }
 
   // ---- Building type images ----
@@ -286,6 +325,9 @@
 
   &--laser-turret::before {
     background-image: url('/buildings-isometric/laser-turret.png');
+    width: 148%;
+    height: 351%;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(43%, -71%);
   }
   &--missile-turret::before {
     background-image: url('/buildings-isometric/missile-turret.png');
@@ -295,12 +337,18 @@
   }
   &--small-residential::before {
     background-image: url('/buildings-isometric/small-residential.png');
+    width: 164%;
+    height: 470%;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(66%, -76%);
   }
   &--medium-residential::before {
     background-image: url('/buildings-isometric/medium-residential.png');
   }
   &--large-residential::before {
     background-image: url('/buildings-isometric/large-residential.png');
+    width: 120%;
+    height: 318%;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(57%, -63%);
   }
   &--park::before {
     background-image: url('/buildings-isometric/park.png');
@@ -319,18 +367,33 @@
   }
   &--solar-array::before {
     background-image: url('/buildings-isometric/solar-array.png');
+    width: 151%;
+    height: 307%;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(36%, -56%);
   }
   &--spaceship-factory::before {
     background-image: url('/buildings-isometric/spaceship-factory.png');
   }
   &--mining-complex::before {
     background-image: url('/buildings-isometric/mining-complex.png');
+    width: 145%;
+    height: 307%;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(39%, -60%);
   }
   &--small-research-lab::before {
     background-image: url('/buildings-isometric/small-research-lab.png');
+    width: 148%;
+    height: 351%;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(43%, -60%);
   }
   &--research-lab::before {
     background-image: url('/buildings-isometric/research-lab.png');
+  }
+  &--spaceport::before {
+    background-image: url('/buildings-isometric/spaceport.png');
+    width: 122%;
+    height: 341%;
+    transform: rotateZ(-45deg) rotateX(-55deg) translate(64%, -62%);
   }
 }
 
