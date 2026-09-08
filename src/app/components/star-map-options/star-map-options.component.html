@@ -1,0 +1,21 @@
+<div class="star-map-options">
+  <div class="star-map-options__backdrop" (click)="onBackdropClick($event)">
+    <div class="star-map-options__content">
+      <div class="star-map-options__title">OPTIONS</div>
+
+      <div class="star-map-options__row">
+        <label class="star-map-options__checkbox-label">
+          <input
+            type="checkbox"
+            class="star-map-options__checkbox"
+            [checked]="fogOfWarEnabled"
+            (change)="onToggleFogOfWar()"
+          />
+          <span>FOG OF WAR</span>
+        </label>
+      </div>
+
+      <button class="star-map-options__btn-back" type="button" (click)="onClose()">BACK</button>
+    </div>
+  </div>
+</div>

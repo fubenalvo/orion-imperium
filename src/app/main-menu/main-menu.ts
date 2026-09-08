@@ -1,6 +1,12 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
-import { SaveGameService, SaveSlot, SaveSlotId, MANUAL_SLOT_START } from '../services/save-game.service';
+import {
+  SaveGameService,
+  SaveSlot,
+  SaveSlotId,
+  MANUAL_SLOT_START,
+} from '../services/save-game.service';
+import { GameSettingsService } from '../services/game-settings.service';
 import { StarMapData } from '../components/star-map/star-map.models';
 import starMapData from '../components/star-map/star-map-data.json';
 
@@ -28,7 +34,11 @@ export class MainMenu {
   showNewGameSlots = false;
   showLoadGameSlots = false;
 
-  constructor(private saveGameService: SaveGameService, private router: Router) {}
+  constructor(
+    private saveGameService: SaveGameService,
+    private router: Router,
+    private gameSettingsService: GameSettingsService,
+  ) {}
 
   get slots(): SaveSlot[] {
     return this.saveGameService.getSlots();
@@ -80,5 +90,9 @@ export class MainMenu {
       return;
     }
     this.router.navigate(['/star-map']);
+  }
+
+  onOptions(): void {
+    this.gameSettingsService.openOptionsMenu();
   }
 }

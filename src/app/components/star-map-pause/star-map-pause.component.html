@@ -1,5 +1,10 @@
 <div class="star-map-pause">
-  <button class="star-map-pause__btn" type="button" (click)="openPauseMenu.emit()" aria-label="Open pause menu">
+  <button
+    class="star-map-pause__btn"
+    type="button"
+    (click)="openPauseMenu.emit()"
+    aria-label="Open pause menu"
+  >
     <span class="hamburger-icon">
       <span></span>
       <span></span>
@@ -14,10 +19,17 @@
       <div class="pause-overlay__content">
         <div class="pause-overlay__title">PAUSED</div>
         <div class="pause-menu-buttons">
-          <button class="pause-overlay__btn" type="button" (click)="closePauseMenu.emit()">CONTINUE</button>
+          <button class="pause-overlay__btn" type="button" (click)="closePauseMenu.emit()">
+            CONTINUE
+          </button>
           <button class="pause-overlay__btn" type="button" (click)="onSaveGame()">SAVE GAME</button>
           <button class="pause-overlay__btn" type="button" (click)="onLoadGame()">LOAD GAME</button>
-          <button class="pause-overlay__btn" type="button" (click)="exitToMainMenu.emit()">MAIN MENU</button>
+          <button class="pause-overlay__btn" type="button" (click)="openOptionsMenu.emit()">
+            OPTIONS
+          </button>
+          <button class="pause-overlay__btn" type="button" (click)="exitToMainMenu.emit()">
+            MAIN MENU
+          </button>
         </div>
         @if (gameSaved) {
           <div class="game-saved-message">GAME SAVED</div>
@@ -41,7 +53,13 @@
             }
           }
         </div>
-        <button class="pause-overlay__btn pause-overlay__btn--back" type="button" (click)="onBackToMenu()">BACK</button>
+        <button
+          class="pause-overlay__btn pause-overlay__btn--back"
+          type="button"
+          (click)="onBackToMenu()"
+        >
+          BACK
+        </button>
       </div>
     } @else {
       <div class="pause-overlay__content">
@@ -63,7 +81,13 @@
             </button>
           }
         </div>
-        <button class="pause-overlay__btn pause-overlay__btn--back" type="button" (click)="onBackToMenu()">BACK</button>
+        <button
+          class="pause-overlay__btn pause-overlay__btn--back"
+          type="button"
+          (click)="onBackToMenu()"
+        >
+          BACK
+        </button>
       </div>
     }
   </div>

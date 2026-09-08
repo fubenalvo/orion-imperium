@@ -1,31 +1,31 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { SaveGameService, SaveSlot, SaveSlotId } from '../../services/save-game.service';
 
- /*
-  * =========================================================
-  * STAR MAP PAUSE COMPONENT
-  * =========================================================
-  *
-  * Renders the pause menu overlay and handles save/load UI.
-  * Communicates with StarMap via event emitters.
-  *
-  * States:
-  * - Normal: shows ☰ hamburger button (opens pause menu)
-  * - Paused (menu open): shows Continue, Save, Load, Main Menu buttons
-  * - Paused (load slots): shows 4 save slots for loading
-  *
-  * Notes:
-  * - The simulation freezes when paused (via GameTimeService), and the
-  *   overlay appears when the hamburger button is clicked or ESC is pressed.
-  * - The ☰ button opens the pause menu (pause + overlay).
-  * - ESC opens the pause menu (pause + overlay).
-  */
+/*
+ * =========================================================
+ * STAR MAP PAUSE COMPONENT
+ * =========================================================
+ *
+ * Renders the pause menu overlay and handles save/load UI.
+ * Communicates with StarMap via event emitters.
+ *
+ * States:
+ * - Normal: shows ☰ hamburger button (opens pause menu)
+ * - Paused (menu open): shows Continue, Save, Load, Main Menu buttons
+ * - Paused (load slots): shows 4 save slots for loading
+ *
+ * Notes:
+ * - The simulation freezes when paused (via GameTimeService), and the
+ *   overlay appears when the hamburger button is clicked or ESC is pressed.
+ * - The ☰ button opens the pause menu (pause + overlay).
+ * - ESC opens the pause menu (pause + overlay).
+ */
 
 @Component({
   selector: 'app-star-map-pause',
   standalone: true,
   templateUrl: './star-map-pause.component.html',
-  styleUrl: './star-map-pause.component.scss'
+  styleUrl: './star-map-pause.component.scss',
 })
 export class StarMapPauseComponent {
   @Input() pauseMenuOpen = false;
@@ -37,6 +37,7 @@ export class StarMapPauseComponent {
   @Output() loadGame = new EventEmitter<number>();
   @Output() togglePause = new EventEmitter<void>();
   @Output() exitToMainMenu = new EventEmitter<void>();
+  @Output() openOptionsMenu = new EventEmitter<void>();
 
   SaveSlotId = SaveSlotId;
 

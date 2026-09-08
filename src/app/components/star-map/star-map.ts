@@ -14,6 +14,7 @@ import { ShipService } from '../../services/ship.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
+import { GameSettingsService } from '../../services/game-settings.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { ShipStockService } from '../../services/ship-stock.service';
 import { ProductionService } from '../../services/production.service';
@@ -83,9 +84,7 @@ import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-co
 import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
 import { StarMapGalaxyViewComponent } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { StarMapSystemGridViewComponent } from './star-map-system-grid/star-map-system-grid.component';
-import {
-  ShipStockEntryDisplay,
-} from './star-map-ship-stock/star-map-ship-stock.component';
+import { ShipStockEntryDisplay } from './star-map-ship-stock/star-map-ship-stock.component';
 import {
   ProductionPanelViewModel,
   QueueOrderRequest,
@@ -222,6 +221,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   private timeControlSubscription?: Subscription;
+  private settingsSubscription?: Subscription;
 
   // Production / spaceport panel state
   showProductionPanel = false;
@@ -279,6 +279,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private researchService: ResearchService,
     private panelVmService: StarMapPanelVmService,
     private arrivalService: StarMapPlanetArrivalService,
+    private gameSettingsService: GameSettingsService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -436,6 +437,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   openPauseMenu(): void {
     this.pauseMenuOpen = true;
     this.gameTimeService.pause();
+  }
+
+  onOpenOptionsMenu(): void {
+    this.gameSettingsService.openOptionsMenu();
   }
 
   /** Closes the pause menu and resumes the game loop. */
@@ -1691,7 +1696,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * All simulation systems use this value directly — none check pause or
    * multiply speed themselves; that is centralized in GameTimeService.
    */
-   private gameLoopCallback(gameDeltaTime: number): void {
+  private gameLoopCallback(gameDeltaTime: number): void {
     const didMoveFleets = this.updateFleets(gameDeltaTime);
     const aiChanged = this.aiTickService.tick(gameDeltaTime, {
       fleets: this.fleets,
@@ -2107,10 +2112,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     // Selection state: saved IDs take precedence; fall back to whatever applyDefaultView set.
-    this.selectedSystem = this.starSystems.find((s) => s.id === data.selectedSystemId) ?? this.selectedSystem;
+    this.selectedSystem =
+      this.starSystems.find((s) => s.id === data.selectedSystemId) ?? this.selectedSystem;
     this.selectedFleet = this.fleets.find((f) => f.id === data.selectedFleetId) ?? null;
     this.selectedPlanetTile =
-      this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? this.selectedPlanetTile;
+      this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ??
+      this.selectedPlanetTile;
 
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
 
@@ -2175,11 +2182,22 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.loadGame();
     this.removeDestroyedFleetFromService();
 
+    this.sensorRangeEnabled = this.gameSettingsService.fogOfWarEnabled;
+
     // Subscribe to game time state changes (pause/resume/speed)
     // so the header overlays update reactively on auto-pause (blur/visibility)
     // and keyboard shortcuts.
     this.timeControlSubscription = this.gameTimeService.state$.subscribe(() => {
       this.cdr.detectChanges();
+    });
+
+    // Subscribe to game settings changes so fog-of-war toggles from the
+    // options menu are applied immediately while the star map is active.
+    this.settingsSubscription = this.gameSettingsService.state$.subscribe((settings) => {
+      if (this.sensorRangeEnabled !== settings.fogOfWarEnabled) {
+        this.sensorRangeEnabled = settings.fogOfWarEnabled;
+        this.cdr.detectChanges();
+      }
     });
   }
 
@@ -2246,7 +2264,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   handleKeyboard(event: KeyboardEvent): void {
     // Skip when typing in an input/textarea to avoid conflicts
     const target = event.target as HTMLElement | null;
-    const isInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+    const isInput =
+      target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
     if (isInput) return;
 
     switch (event.key) {
@@ -2293,6 +2312,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     this.routerSubscription.unsubscribe();
     this.timeControlSubscription?.unsubscribe();
+    this.settingsSubscription?.unsubscribe();
 
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
