@@ -41,6 +41,7 @@ import {
 import {
   StarMapData,
   Fleet,
+  FleetTrail,
   StarSystem,
   PlanetTile,
   ShipType,
@@ -328,6 +329,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Returns true if a fleet is visible to the player under fog-of-war rules. */
   isFleetVisible(fleet: Fleet): boolean {
+    if (!this.sensorRangeEnabled) {
+      return true;
+    }
     if (fleet.factionId === 'player') {
       return true;
     }
@@ -361,6 +365,87 @@ export class StarMap implements AfterViewInit, OnDestroy {
     const row = Math.floor(fleet.y);
     const key = `${col}-${row}`;
     return this.sensorPreviewCells.has(key) && !this.sensorRangeCells.has(key);
+  }
+
+  /**
+   * Movement trails for the galaxy map view.
+   *
+   * A trail is rendered for every fleet that has an active target, i.e. is
+   * currently travelling. Visibility follows the same fog-of-war rules as
+   * fleets themselves:
+   * - Fog of war ON: only the player's own trails are shown.
+   * - Fog of war OFF: every faction's trails are shown, regardless of
+   *   sensor range.
+   *
+   * The returned coordinates are already in vw units so the presentational
+   * galaxy-view child component only binds style properties.
+   */
+  get galaxyTrails(): FleetTrail[] {
+    const trails: FleetTrail[] = [];
+    for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
+      }
+      // Visibility: player trails always show; enemy trails only when
+      // fog of war is disabled OR the fleet itself is visible.
+      if (fleet.factionId !== 'player') {
+        if (this.sensorRangeEnabled && !this.isFleetVisible(fleet)) {
+          continue;
+        }
+      }
+      const vw = this.movementService.getGalaxyTrailVw(fleet);
+      if (!vw) {
+        continue;
+      }
+      trails.push({
+        fleetId: fleet.id,
+        factionId: fleet.factionId,
+        color: this.getFactionColor(fleet.factionId),
+        x1: vw.x1,
+        y1: vw.y1,
+        x2: vw.x2,
+        y2: vw.y2,
+      });
+    }
+    return trails;
+  }
+
+  /**
+   * Movement trails for the currently open star system view.
+   *
+   * Only fleets that are inside the selected system AND have an active
+   * system-view target contribute a trail. Visibility follows the same
+   * fog-of-war rules as `galaxyTrails`.
+   */
+  get systemTrails(): FleetTrail[] {
+    if (!this.selectedSystem) {
+      return [];
+    }
+    const trails: FleetTrail[] = [];
+    for (const fleet of this.fleets) {
+      if (fleet.destroyed) {
+        continue;
+      }
+      if (fleet.factionId !== 'player') {
+        if (this.sensorRangeEnabled && !this.isFleetVisible(fleet)) {
+          continue;
+        }
+      }
+      const vw = this.movementService.getSystemTrailVw(fleet, this.selectedSystem.id);
+      if (!vw) {
+        continue;
+      }
+      trails.push({
+        fleetId: fleet.id,
+        factionId: fleet.factionId,
+        color: this.getFactionColor(fleet.factionId),
+        x1: vw.x1,
+        y1: vw.y1,
+        x2: vw.x2,
+        y2: vw.y2,
+      });
+    }
+    return trails;
   }
 
   /** Returns the array of sensor range cell infos for template rendering. */

@@ -95,6 +95,21 @@
       </div>
     }
 
+    <!-- MOVEMENT TRAILS -->
+    @for (trail of trails; track trail.fleetId) {
+      @if (getTrailLength(trail) > 0) {
+        <div
+          class="fleet-trail"
+          [class.fleet-trail--player]="trail.factionId === 'player'"
+          [style.left]="trail.x1 + 'vw'"
+          [style.top]="trail.y1 + 'vw'"
+          [style.width]="getTrailLength(trail) + 'vw'"
+          [style.transform]="getTrailTransform(trail)"
+          [style.--trail-color]="trail.color"
+        ></div>
+      }
+    }
+
     <!-- SHIP DESTINATION -->
     @if (targetX !== null && targetY !== null && selectedFleet) {
       <div

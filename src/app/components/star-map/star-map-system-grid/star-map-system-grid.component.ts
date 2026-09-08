@@ -1,6 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
-import { Fleet, PlanetTile, StarSystem } from '../star-map.models';
+import { Fleet, FleetTrail, PlanetTile, StarSystem } from '../star-map.models';
 import { StarMapMovementService } from '../star-map-movement.service';
 
 /*
@@ -38,6 +38,33 @@ export class StarMapSystemGridViewComponent {
   } = { cells: [], preview: [] };
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
   @Input() getPlanetClassNames: (planet: PlanetTile) => string[] = () => [];
+  @Input() trails: FleetTrail[] = [];
+
+  /*
+   * getTrailTransform: Computes the CSS transform for a movement-trail div
+   * that runs from (x1, y1) to (x2, y2) in vw units (system view uses vw
+   * directly). The div is positioned at the start point with its left edge
+   * there (transform-origin: 0 0), stretched to the line length along the
+   * X axis, then rotated around the origin to point toward the target.
+   * Returns null when the trail is degenerate so the template can hide it.
+   */
+  getTrailTransform(trail: FleetTrail): string | null {
+    const dx = trail.x2 - trail.x1;
+    const dy = trail.y2 - trail.y1;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (length < 0.0001) {
+      return null;
+    }
+    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    return `rotate(${angleDeg}deg)`;
+  }
+
+  /** Returns the line length in vw, or 0 when the trail is degenerate. */
+  getTrailLength(trail: FleetTrail): number {
+    const dx = trail.x2 - trail.x1;
+    const dy = trail.y2 - trail.y1;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
 
   @Input() onSystemGridClick: (event: MouseEvent) => void = () => {};
   @Input() onPlanetClick: (planet: PlanetTile, event: MouseEvent) => void = () => {};

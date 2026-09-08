@@ -110,10 +110,58 @@
 }
 
 .fleet--preview,
-.fleet-cell--preview {
-  opacity: 0.45;
-  filter: grayscale(40%);
-}
+  .fleet-cell--preview {
+    opacity: 0.45;
+    filter: grayscale(40%);
+  }
+
+  /* =========================================================
+     MOVEMENT TRAILS
+     ========================================================= */
+
+  /*
+   * A movement trail is a thin, absolutely-positioned line that connects
+   * a fleet's current position to its target. It is rendered as a rotated
+   * div (no SVG/canvas): the div is placed at the start point with its
+   * left edge there (transform-origin: 0 0), stretched along the X axis
+   * to the line length, then rotated around the origin to point toward
+   * the target.
+   *
+   * The dash pattern is animated to give a sense of motion direction —
+   * dashes appear to travel along the line toward the target.
+   */
+  .fleet-trail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 2px;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to right,
+      var(--trail-color, var(--color-blue)) 0,
+      var(--trail-color, var(--color-blue)) 6px,
+      transparent 6px,
+      transparent 12px
+    );
+    transform-origin: 0 0;
+    z-index: 14;
+    opacity: 0.85;
+    filter: drop-shadow(0 0 3px var(--trail-color, var(--color-blue)));
+    animation: trail-dash-move 0.5s linear infinite;
+  }
+
+  .fleet-trail--player {
+    opacity: 1;
+  }
+
+  @keyframes trail-dash-move {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 12px 0;
+    }
+  }
 
 /* =========================================================
    SHIP TARGET

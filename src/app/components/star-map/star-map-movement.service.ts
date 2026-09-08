@@ -361,4 +361,48 @@ export class StarMapMovementService {
 
     return items;
   }
+
+  /*
+   * getGalaxyTrailVw: Converts a fleet's current position and target
+   * (1-indexed grid cells) into vw coordinates suitable for rendering
+   * a movement trail on the galaxy map.
+   *
+   * The fleet's center in vw is `(gridCell - 0.5) * cellSize`, matching the
+   * positioning used by `.fleet-cell` in the galaxy view template.
+   * Returns null when the fleet has no active target (not moving).
+   */
+  getGalaxyTrailVw(fleet: Fleet): { x1: number; y1: number; x2: number; y2: number } | null {
+    if (fleet.targetX == null || fleet.targetY == null) {
+      return null;
+    }
+    const x1 = (fleet.x - 0.5) * this.cellSizeVw;
+    const y1 = (fleet.y - 0.5) * this.cellSizeVh;
+    const x2 = (fleet.targetX - 0.5) * this.cellSizeVw;
+    const y2 = (fleet.targetY - 0.5) * this.cellSizeVh;
+    return { x1, y1, x2, y2 };
+  }
+
+  /*
+   * getSystemTrailVw: Returns a fleet's current system-view position and
+   * target in vw units for rendering a movement trail inside a star system.
+   * The system view uses vw units directly, so no conversion is needed.
+   * Returns null when the fleet is not in the given system or has no target.
+   */
+  getSystemTrailVw(
+    fleet: Fleet,
+    systemId: string,
+  ): { x1: number; y1: number; x2: number; y2: number } | null {
+    if (!fleet.system || fleet.system.id !== systemId) {
+      return null;
+    }
+    if (fleet.system.targetX == null || fleet.system.targetY == null) {
+      return null;
+    }
+    return {
+      x1: fleet.system.x,
+      y1: fleet.system.y,
+      x2: fleet.system.targetX,
+      y2: fleet.system.targetY,
+    };
+  }
 }

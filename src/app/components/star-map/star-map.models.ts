@@ -366,6 +366,26 @@ export interface SystemLocation {
 }
 
 /*
+ * A movement trail rendered from a fleet's current position to its target.
+ *
+ * Coordinates are pre-converted to vw units for the view that will render
+ * them, so the template only needs to bind style properties — no coordinate
+ * math leaks into the presentational child components.
+ *
+ * The trail is only emitted for fleets that have an active target
+ * (targetX/targetY !== null), i.e. fleets that are actually moving.
+ */
+export interface FleetTrail {
+  fleetId: number;
+  factionId: string;
+  color: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/*
  * Fleet position on the galaxy map.
  * x/y and targetX/Y are 1-indexed grid cell coordinates (floats for smooth movement).
  * Speed is in vw/s; the movement service converts to cells/s using cellSizeVw.
