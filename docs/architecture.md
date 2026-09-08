@@ -38,6 +38,24 @@ src/app/
         → Fleet movement, grid cell math, coordinate conversion, planet grid layout
       star-map-battle-detection.service.ts
         → Fleet-vs-fleet collision detection on the map / inside systems
+      star-map-planet-arrival.service.ts
+        → Fleet arrivals on planets: colonization, capture, planet battle trigger;
+          owns the arrival bookkeeping map and the triggered-battle registry
+      star-map-ai-tick.service.ts
+        → Sequences one AI pipeline tick (ai → strategy → goal → capability →
+          action → executor) and resets the pipeline on load
+      star-map-panel-vm.service.ts
+        → View models for the production/spaceport panels, error message mapping,
+          fleet name suggestion
+      star-map-display.util.ts
+        → Pure display helpers (faction colors/names/currencies, planet
+          classes/sizes/colors, fleet ship summaries); uses raw ship-data.json
+      star-map-galaxy-view/
+        → Presentational galaxy map viewport (fog, sensor highlights, systems,
+          fleets, movement target); forwards events to StarMap handler inputs
+      star-map-system-grid/
+        → Presentational system view grid (sun, system sensor highlights,
+          planets, fleets in system, movement target)
       star-map-data.json
         → Initial galaxy (factions, systems, planets, fleets, map config)
       ship-data.json
@@ -94,7 +112,7 @@ The empty legacy directories `src/app/components/ship`, `src/app/components/ship
 
 - `MainMenu` writes a fresh `StarMapData` snapshot into a save slot, activates it (which copies the snapshot into the autosave slot and switches `currentSlot` to 0), then navigates to `/star-map`.
 - `StarMap` is the runtime source of truth: it holds the live `factions`, `starSystems`, and `fleets` arrays and is the only component that mutates them during gameplay.
-- `StarMap` delegates pure logic to injected services (`StarMapGameLoopService`, `StarMapMovementService`, `StarMapBattleDetectionService`) and delegates UI to its child components.
+- `StarMap` delegates pure logic to injected services (`StarMapGameLoopService`, `StarMapMovementService`, `StarMapBattleDetectionService`, `StarMapPlanetArrivalService`, `StarMapAiTickService`, `StarMapPanelVmService`) and delegates UI to its child components (`StarMapGalaxyViewComponent`, `StarMapSystemGridViewComponent`, and the panel components).
 - When two fleets collide, or when a fleet arrives at an enemy planet with defenses, `StarMap` calls `BattleService.setBattle()` (or `setPlanetBattle()`) and navigates to `/battle`.
 - `BattleScreenComponent` drives a `setInterval` that calls `BattleService.processStep()`; the service advances one ship attack per tick. When the battle ends, the screen reveals a "Back to Star Map" button.
 - On "Back to Star Map":

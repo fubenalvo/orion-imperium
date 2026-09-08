@@ -1,0 +1,14 @@
+@use '../_star-map-base';
+@use '../_star-map-grid';
+@use '../_star-map-star-system';
+@use '../_star-map-ships';
+@use '../_star-map-sensor';
+
+/*
+ * The host must not generate a layout box: .map-viewport is absolutely
+ * positioned and must keep resolving against .star-map exactly as it did
+ * before the extraction.
+ */
+:host {
+  display: contents;
+}

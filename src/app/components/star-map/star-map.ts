@@ -6,7 +6,6 @@ import {
   NgZone,
   AfterViewInit,
 } from '@angular/core';
-import { NgClass } from '@angular/common';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -30,12 +29,7 @@ import planetData from './planet-data.json';
 import { StarMapGameLoopService } from './star-map-game-loop.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
-import { EnemyAiService } from './enemy-ai.service';
-import { EnemyStrategyService } from './enemy-strategy.service';
-import { EnemyGoalService } from './enemy-goal.service';
-import { EnemyCapabilityService } from './enemy-capability.service';
-import { EnemyActionService } from './enemy-action.service';
-import { EnemyActionExecutor } from './enemy-action-executor.service';
+import { StarMapAiTickService } from './star-map-ai-tick.service';
 import {
   StarMapSensorService,
   SensorCellInfo,
@@ -51,19 +45,32 @@ import {
   ShipType,
   FleetShipTypeSummary,
   ContextMenuItem,
-  PLANET_SIZE_MAP,
-  PLANET_TYPE_COLORS,
   PlanetEconomyEntry,
   ResourceDeposit,
   Faction,
-  StrategicGoal,
-  getAiFactionIds,
 } from './star-map.models';
 import {
   createMulberry32,
   generateResourceTilesForPlanet as generateResourceTilesUtil,
   selectPlanetsForResources as selectPlanetsUtil,
 } from './star-map-resources.util';
+import { StarMapPanelVmService } from './star-map-panel-vm.service';
+import { StarMapPlanetArrivalService } from './star-map-planet-arrival.service';
+import {
+  getFactionColor as getFactionColorUtil,
+  getFactionName as getFactionNameUtil,
+  getFactionCurrencies as getFactionCurrenciesUtil,
+  getPlayerCurrencies as getPlayerCurrenciesUtil,
+  getPlayerCredits as getPlayerCreditsUtil,
+  getPlanetClassNames as getPlanetClassNamesUtil,
+  getPlanetNumericSize as getPlanetNumericSizeUtil,
+  getPlanetGridSize as getPlanetGridSizeUtil,
+  getPlanetColor as getPlanetColorUtil,
+  getFleetShipTypeSummary as getFleetShipTypeSummaryUtil,
+  getFleetTotalAttack as getFleetTotalAttackUtil,
+  getFleetTotalDefense as getFleetTotalDefenseUtil,
+  getShipTypeById,
+} from './star-map-display.util';
 
 import { EconomyBreakdown } from '../../services/economy.service';
 
@@ -74,6 +81,8 @@ import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-
 import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
 import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
+import { StarMapGalaxyViewComponent } from './star-map-galaxy-view/star-map-galaxy-view.component';
+import { StarMapSystemGridViewComponent } from './star-map-system-grid/star-map-system-grid.component';
 import {
   ShipStockEntryDisplay,
 } from './star-map-ship-stock/star-map-ship-stock.component';
@@ -119,8 +128,9 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapFleetButtonsComponent,
     StarMapContextMenuComponent,
     StarMapHeaderComponent,
+    StarMapGalaxyViewComponent,
+    StarMapSystemGridViewComponent,
     StarMapResearchTreeComponent,
-    NgClass,
   ],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
@@ -144,8 +154,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
   shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
   production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
 
-  // Track which fleet is currently on which planet grid cell to log arrivals
-  private fleetPlanetMap = new Map<number, number>();
   private routerSubscription = new Subscription();
   // Tracks the most recent router URL that was not /star-map, so that
   // reloadAfterBattle() only runs when the player is actually returning
@@ -237,12 +245,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   // Ship types
   readonly shipTypes: ShipType[] = (shipData as { shipTypes: ShipType[] }).shipTypes;
-  private readonly shipTypeById: Map<string, ShipType> = new Map(
-    this.shipTypes.map((type) => [type.id, type] as [string, ShipType]),
-  );
-
-  // Battle tracking
-  private triggeredBattles = new Set<string>();
 
   private economyAccumulator = 0;
   private readonly economyTickInterval = 1;
@@ -268,18 +270,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
     private gameTimeService: GameTimeService,
     public movementService: StarMapMovementService,
     private battleDetectionService: StarMapBattleDetectionService,
-    private enemyAiService: EnemyAiService,
-    private enemyStrategyService: EnemyStrategyService,
-    private enemyGoalService: EnemyGoalService,
-    private enemyCapabilityService: EnemyCapabilityService,
-    private enemyActionService: EnemyActionService,
-    private enemyActionExecutor: EnemyActionExecutor,
+    private aiTickService: StarMapAiTickService,
     private sensorService: StarMapSensorService,
     private shipStockService: ShipStockService,
     private productionService: ProductionService,
     public spaceportService: SpaceportService,
     private fleetAssemblyService: FleetAssemblyService,
     private researchService: ResearchService,
+    private panelVmService: StarMapPanelVmService,
+    private arrivalService: StarMapPlanetArrivalService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -648,35 +647,22 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Returns the color associated with a faction ID. */
   getFactionColor(factionId: string): string {
-    if (!this.factions) {
-      return '#ffffff';
-    }
-    const faction = this.factions.find((f) => f.id === factionId);
-    return faction ? faction.color : '#ffffff';
+    return getFactionColorUtil(this.factions, factionId);
   }
 
   /** Returns the display name of a faction by its ID. */
   getFactionName(factionId: string): string {
-    if (!this.factions) {
-      return 'Unknown';
-    }
-    const faction = this.factions.find((f) => f.id === factionId);
-    return faction ? faction.name : 'Unknown';
+    return getFactionNameUtil(this.factions, factionId);
   }
 
   /** Returns the player's currencies as key-value pairs. */
   getPlayerCurrencies(): { name: string; value: number }[] {
-    const player = this.factions.find((f) => f.id === 'player');
-    if (!player?.currencies) {
-      return [];
-    }
-    return Object.entries(player.currencies).map(([name, value]) => ({ name, value }));
+    return getPlayerCurrenciesUtil(this.factions);
   }
 
   /** Returns the player's current credit balance. */
   getPlayerCredits(): number {
-    const player = this.factions.find((f) => f.id === 'player');
-    return player?.currencies?.['credits'] ?? 0;
+    return getPlayerCreditsUtil(this.factions);
   }
 
   /** Handles confirmation of a building placement from the planet screen. */
@@ -739,76 +725,23 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   getProductionPanelVm(): ProductionPanelViewModel | null {
-    if (!this.selectedPlanetTile || !this.selectedSystem) {
-      return null;
-    }
-    const buildable = this.productionService
-      .listBuildableShipTypes(this.selectedPlanetTile)
-      .filter((t) => this.researchService.isShipUnlocked(this.getPlayerFaction()!, t.id));
-    const queue = this.productionService.getQueue(this, 'player', this.selectedPlanetTile.id);
-    const etas: Record<number, number | null> = {};
-    for (const order of queue) {
-      etas[order.id] = this.productionService.getOrderEta(order, this.selectedPlanetTile);
-    }
-    const shipCosts: Record<string, number> = {};
-    const shipBuildTimes: Record<string, number> = {};
-    for (const t of buildable) {
-      shipCosts[t.id] = t.cost;
-      shipBuildTimes[t.id] = t.buildTime ?? Math.max(1, t.cost * 0.1);
-    }
-    return {
-      planet: this.selectedPlanetTile,
-      system: this.selectedSystem,
-      factionId: 'player',
-      buildable,
-      capacity: this.productionService.getPlanetCapacity(this.selectedPlanetTile),
-      power: this.productionService.getPlanetPower(this.selectedPlanetTile),
-      queue,
-      shipCosts,
-      shipBuildTimes,
-      etas,
-      factionCredits: this.getPlayerCredits(),
-    };
+    return this.panelVmService.getProductionPanelVm(
+      this,
+      this.selectedPlanetTile,
+      this.selectedSystem,
+      this.factions,
+    );
   }
 
   getSpaceportPanelVm(): SpaceportPanelViewModel | null {
-    if (!this.selectedPlanetTile || !this.selectedSystem) {
-      return null;
-    }
-    if (!this.spaceportService.isSpaceportPlanet(this.selectedPlanetTile)) {
-      return null;
-    }
-    const assemblySystems = this.spaceportService
-      .listSpaceports('player', this.starSystems)
-      .map((loc) => ({
-        systemId: loc.system.id,
-        systemName: loc.system.name,
-        planets: loc.system.planetsTiles
-          .filter((p) => p.factionId === 'player' && this.spaceportService.isSpaceportPlanet(p))
-          .map((p) => ({ id: p.id, name: p.name })),
-      }));
-    const summary = this.shipStockService.getSummary(this, 'player');
-    const available = summary
-      .map((entry) => {
-        const type = this.shipService.getShipType(entry.typeId);
-        return {
-          typeId: entry.typeId,
-          typeName: type?.name ?? entry.typeId,
-          available: entry.count,
-        };
-      })
-      .filter((entry) => this.researchService.isShipUnlocked(this.getPlayerFaction()!, entry.typeId))
-      .sort((a, b) => a.typeName.localeCompare(b.typeName));
-    return {
-      system: this.selectedSystem,
-      planet: this.selectedPlanetTile,
-      factionId: 'player',
-      available,
-      selectedSystemId: this.selectedSystem.id,
-      selectedPlanetId: this.selectedPlanetTile.id,
-      assemblySystems,
-      errorMessage: this.spaceportError,
-    };
+    return this.panelVmService.getSpaceportPanelVm(
+      this,
+      this.selectedPlanetTile,
+      this.selectedSystem,
+      this.starSystems,
+      this.factions,
+      this.spaceportError,
+    );
   }
 
   openProductionPanel(): void {
@@ -867,18 +800,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   private describeProductionError(reason: string | undefined): string {
-    switch (reason) {
-      case 'no_factory':
-        return 'No factory on this planet.';
-      case 'insufficient_resources':
-        return 'Not enough credits.';
-      case 'invalid_type':
-        return 'Invalid ship type.';
-      case 'invalid_quantity':
-        return 'Invalid quantity.';
-      default:
-        return 'Could not queue order.';
-    }
+    return this.panelVmService.describeProductionError(reason);
   }
 
   openSpaceportPanel(mode: 'create' | 'reinforce' = 'create', fleetId: number | null = null): void {
@@ -1047,48 +969,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
   }
 
   private describeAssemblyError(reason: string | undefined): string {
-    switch (reason) {
-      case 'no_spaceport':
-        return 'No Spaceport available.';
-      case 'insufficient_stock':
-        return 'Not enough ships in stock.';
-      case 'invalid_composition':
-        return 'Select at least one ship.';
-      case 'invalid_target':
-        return 'Invalid assembly point.';
-      case 'fleet_not_found':
-        return 'Fleet not found.';
-      case 'enemy_fleet':
-        return 'Cannot modify an enemy fleet.';
-      default:
-        return 'Assembly failed.';
-    }
+    return this.panelVmService.describeAssemblyError(reason);
   }
 
   private suggestFleetName(): string {
-    const used = new Set(this.fleets.filter((f) => f.factionId === 'player').map((f) => f.name));
-    for (let i = 1; i < 1000; i++) {
-      const name = `${i}${this.ordinalSuffix(i)} Fleet`;
-      if (!used.has(name)) {
-        return name;
-      }
-    }
-    return 'New Fleet';
-  }
-
-  private ordinalSuffix(n: number): string {
-    const s = ['th', 'st', 'nd', 'rd'];
-    const v = n % 100;
-    return s[(v - 20) % 10] || s[v] || s[0];
+    return this.panelVmService.suggestFleetName(this.fleets);
   }
 
   /** Returns a faction's currencies as key-value pairs. */
   getFactionCurrencies(factionId: string): { name: string; value: number }[] {
-    const faction = this.factions.find((f) => f.id === factionId);
-    if (!faction?.currencies) {
-      return [];
-    }
-    return Object.entries(faction.currencies).map(([name, value]) => ({ name, value }));
+    return getFactionCurrenciesUtil(this.factions, factionId);
   }
 
   // Bound versions for child component inputs to preserve `this` context
@@ -1098,6 +988,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetPlayerEconomyBreakdown = this.getPlayerEconomyBreakdown.bind(this);
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
   readonly boundGetPlayerCredits = this.getPlayerCredits.bind(this);
+  readonly boundIsEnemyInPreview = this.isEnemyInPreview.bind(this);
   readonly boundOnConfirmBuild = (buildingId: string, x: number, y: number) =>
     this.onBuildingConfirmed({ buildingId, x, y });
   readonly boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
@@ -1109,45 +1000,40 @@ export class StarMap implements AfterViewInit, OnDestroy {
   readonly boundGetSpaceportPanelVm = this.getSpaceportPanelVm.bind(this);
   readonly boundHasFactory = this.hasFactoryOnSelectedPlanet.bind(this);
   readonly boundHasSpaceportOnSelectedPlanet = this.hasSpaceportOnSelectedPlanet.bind(this);
+  // Event handlers forwarded to the galaxy/system grid child components
+  readonly boundOnMapClick = this.onMapClick.bind(this);
+  readonly boundOnPointerDown = this.onPointerDown.bind(this);
+  readonly boundOnPointerMove = this.onPointerMove.bind(this);
+  readonly boundOnPointerUp = this.onPointerUp.bind(this);
+  readonly boundOnSystemClick = this.onSystemClick.bind(this);
+  readonly boundOnFleetClick = this.onFleetClick.bind(this);
+  readonly boundOnSystemGridClick = this.onSystemGridClick.bind(this);
+  readonly boundOnPlanetClick = this.onPlanetClick.bind(this);
+  readonly boundOnSystemContextMenu = this.onSystemContextMenu.bind(this);
+  readonly boundOnFleetContextMenu = this.onFleetContextMenu.bind(this);
+  readonly boundOnPlanetContextMenu = this.onPlanetContextMenu.bind(this);
+  readonly boundGetPlanetClassNames = this.getPlanetClassNames.bind(this);
 
   // Ship type helpers
 
   /** Looks up a ship type definition by its ID. */
   getShipType(typeId: string): ShipType | undefined {
-    return this.shipTypeById.get(typeId);
+    return getShipTypeById(typeId);
   }
 
   /** Builds a summary of ship types and counts present in a fleet. */
   getFleetShipTypeSummary(fleet: Fleet): FleetShipTypeSummary[] {
-    const counts = new Map<string, number>();
-    for (const ship of fleet.ships) {
-      counts.set(ship.type, (counts.get(ship.type) || 0) + 1);
-    }
-
-    const summary: FleetShipTypeSummary[] = [];
-    for (const [typeId, count] of counts) {
-      const type = this.getShipType(typeId);
-      if (type) {
-        summary.push({
-          typeId,
-          typeName: type.name,
-          count,
-          attack: type.attack,
-          defense: type.defense,
-        });
-      }
-    }
-    return summary;
+    return getFleetShipTypeSummaryUtil(fleet);
   }
 
   /** Calculates the total attack value of all ships in a fleet. */
   getFleetTotalAttack(fleet: Fleet): number {
-    return fleet.ships.reduce((sum, ship) => sum + (this.getShipType(ship.type)?.attack ?? 0), 0);
+    return getFleetTotalAttackUtil(fleet);
   }
 
   /** Calculates the total defense value of all ships in a fleet. */
   getFleetTotalDefense(fleet: Fleet): number {
-    return fleet.ships.reduce((sum, ship) => sum + (this.getShipType(ship.type)?.defense ?? 0), 0);
+    return getFleetTotalDefenseUtil(fleet);
   }
 
   /** Computes energy production for a planet based on its power-producing buildings. */
@@ -1167,16 +1053,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Returns the CSS class names to apply to a planet tile for styling. */
   getPlanetClassNames(planet: PlanetTile): string[] {
-    return [
-      planet.type,
-      planet.size,
-      planet.size ? `planet-size-${planet.size}` : undefined,
-    ].filter((className): className is string => Boolean(className));
+    return getPlanetClassNamesUtil(planet);
   }
 
   /** Maps a planet's string size to a numeric size (1-4) for grid calculations. */
   getPlanetNumericSize(planet: PlanetTile): number {
-    return PLANET_SIZE_MAP[planet.size] ?? 3;
+    return getPlanetNumericSizeUtil(planet);
   }
 
   /**
@@ -1184,13 +1066,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * Formula: size * 2 + 3, so size 1 -> 5, size 2 -> 7, size 3 -> 9, size 4 -> 11.
    */
   getPlanetGridSize(planet: PlanetTile): number {
-    const numericSize = this.getPlanetNumericSize(planet);
-    return numericSize * 2 + 3;
+    return getPlanetGridSizeUtil(planet);
   }
 
   /** Returns the representative color for a planet based on its type. */
   getPlanetColor(planet: PlanetTile): string {
-    return PLANET_TYPE_COLORS[planet.type] ?? '#ffffff';
+    return getPlanetColorUtil(planet);
   }
 
   // Resource deposit generation helpers
@@ -1372,6 +1253,29 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.cdr.detectChanges();
   }
 
+  /*
+   * Contextmenu handlers for the extracted galaxy/system grid child
+   * components. Preserve the original inline binding behavior exactly:
+   * deselect first, then suppress the native menu and stop propagation.
+   */
+  onSystemContextMenu(event: MouseEvent): void {
+    this.deselectSystem();
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  onFleetContextMenu(event: MouseEvent): void {
+    this.deselectFleet();
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  onPlanetContextMenu(event: MouseEvent): void {
+    this.deselectPlanetTile();
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
   // Click handlers
 
   /** Handles a click on a fleet icon, resolving overlapping objects via context menu if needed. */
@@ -1529,7 +1433,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
 
       if (planet.factionId === 'player') {
-        const fleetOnPlanet = this.getFleetOnPlanet(planet);
+        const fleetOnPlanet = this.arrivalService.getFleetOnPlanet(
+          this.fleets,
+          this.selectedSystem,
+          planet,
+        );
         if (fleetOnPlanet) {
           return 'blocked-ours';
         }
@@ -1540,27 +1448,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     return 'allowed';
-  }
-
-  /** Returns a garrisoned fleet on the given planet that belongs to the planet's owner faction. */
-  private getFleetOnPlanet(planet: PlanetTile): Fleet | null {
-    if (!this.selectedSystem) return null;
-
-    for (const fleet of this.fleets) {
-      if (fleet.destroyed || fleet.system?.id !== this.selectedSystem.id) continue;
-      if (fleet.factionId !== planet.factionId) continue;
-      if (fleet.system.targetX != null || fleet.system.targetY != null) continue;
-
-      const fleetCell = this.movementService.calculateSystemGridCell(
-        fleet.system.x,
-        fleet.system.y,
-      );
-      const planetCell = this.movementService.getPlanetGridPosition(planet);
-      if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
-        return fleet;
-      }
-    }
-    return null;
   }
 
   /** Commands the selected fleet to move to the given world coordinates. */
@@ -1806,84 +1693,13 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
    private gameLoopCallback(gameDeltaTime: number): void {
     const didMoveFleets = this.updateFleets(gameDeltaTime);
-    const aiChanged = this.enemyAiService.tick(gameDeltaTime, this.fleets, this.factions);
-    const strategyChanged = this.enemyStrategyService.tick(
-      gameDeltaTime,
-      this.fleets,
-      this.factions,
-      this.starSystems,
-    );
-
-    const aiFactionIds = getAiFactionIds(this.factions);
-
-    let goalChanged = false;
-    for (const factionId of aiFactionIds) {
-      const strategy = this.enemyStrategyService.getStrategy(factionId);
-      if (strategy === undefined) {
-        continue;
-      }
-      const factionGoalChanged = this.enemyGoalService.tick(
-        gameDeltaTime,
-        strategy,
-        factionId,
-        this.fleets,
-        this.factions,
-        this.starSystems,
-      );
-      if (factionGoalChanged) {
-        goalChanged = true;
-      }
-    }
-
-    for (const factionId of aiFactionIds) {
-      const goal = this.enemyGoalService.getGoal(factionId);
-      this.enemyCapabilityService.tick(
-        gameDeltaTime,
-        goal,
-        factionId,
-        this.fleets,
-        this.factions,
-        this.starSystems,
-        this.shipStock,
-        this.production,
-      );
-    }
-
-    let actionChanged = false;
-    for (const factionId of aiFactionIds) {
-      const goal = this.enemyGoalService.getGoal(factionId);
-      const capability = this.enemyCapabilityService.getCapability(factionId);
-      const factionActionChanged = this.enemyActionService.tick(
-        gameDeltaTime,
-        goal,
-        capability,
-        factionId,
-        this.fleets,
-        this.factions,
-        this.starSystems,
-        this.shipStock,
-        this.production,
-      );
-      if (factionActionChanged) {
-        const action = this.enemyActionService.getAction(factionId);
-        console.log(`[Enemy AI] ${factionId} action: ${action?.type ?? 'none'}`);
-        actionChanged = true;
-      }
-    }
-
-    let actionExecuted = false;
-    for (const factionId of aiFactionIds) {
-      const action = this.enemyActionService.getAction(factionId);
-      actionExecuted = this.enemyActionExecutor.tick(
-        gameDeltaTime,
-        action,
-        this.factions,
-        this.starSystems,
-        this.production,
-        this.shipStock,
-        this.fleets,
-      ) || actionExecuted;
-    }
+    const aiChanged = this.aiTickService.tick(gameDeltaTime, {
+      fleets: this.fleets,
+      factions: this.factions,
+      starSystems: this.starSystems,
+      shipStock: this.shipStock,
+      production: this.production,
+    });
 
     const visibilityChanged = this.updateSensorVisibility();
 
@@ -1918,7 +1734,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       economyUpdated = true;
     }
 
-    if (didMoveFleets || aiChanged || goalChanged || actionChanged || actionExecuted || economyUpdated || visibilityChanged || productionChanged || strategyChanged) {
+    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
     }
   }
@@ -1951,7 +1767,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
     }
 
     this.updateExploredPlanets();
-    this.checkFleetPlanetArrivals();
+    this.arrivalService.checkFleetPlanetArrivals({
+      fleets: this.fleets,
+      currentView: this.currentView,
+      selectedSystem: this.selectedSystem,
+      factions: this.factions,
+      saveGame: () => this.saveGame(),
+      enterBattleScreen: () => this.enterBattleScreen(),
+    });
 
     this.battleDetectionService.checkForBattles(
       this.fleets,
@@ -1960,7 +1783,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       (fleet, system) => this.movementService.isFleetInSystem(fleet, system),
       this.starSystems,
       this.enterBattleScreen.bind(this),
-      this.triggeredBattles,
+      this.arrivalService.triggeredBattles,
     );
 
     return didMoveFleets;
@@ -2073,176 +1896,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
         }
       }
     }
-  }
-
-  /** Checks if any fleet arrived at a planet's grid cell and handles the interaction. */
-  private checkFleetPlanetArrivals(): void {
-    if (this.currentView !== 'system' || !this.selectedSystem) {
-      return;
-    }
-
-    for (const fleet of this.fleets) {
-      if (fleet.destroyed || fleet.system?.id !== this.selectedSystem.id) {
-        continue;
-      }
-      if (fleet.system.targetX != null || fleet.system.targetY != null) {
-        continue;
-      }
-
-      const fleetCell = this.movementService.calculateSystemGridCell(
-        fleet.system.x,
-        fleet.system.y,
-      );
-
-      for (const planet of this.selectedSystem.planetsTiles) {
-        const planetCell = this.movementService.getPlanetGridPosition(planet);
-        if (fleetCell.col !== planetCell.col || fleetCell.row !== planetCell.row) {
-          continue;
-        }
-
-        const lastPlanetId = this.fleetPlanetMap.get(fleet.id);
-        if (lastPlanetId === planet.id) {
-          break;
-        }
-
-        console.log(
-          '[PLANET ARRIVAL] Fleet',
-          fleet.id,
-          fleet.name,
-          'factionId:',
-          fleet.factionId,
-          'arrived at planet',
-          planet.id,
-          planet.name,
-          'factionId:',
-          planet.factionId,
-          'cell:',
-          fleetCell,
-        );
-        this.fleetPlanetMap.set(fleet.id, planet.id);
-        this.handleFleetPlanetArrival(fleet, planet);
-        break;
-      }
-    }
-  }
-
-  /** Handles a fleet arriving at a planet: colonization, orbit, or battle trigger. */
-  private handleFleetPlanetArrival(fleet: Fleet, planet: PlanetTile): void {
-    if (planet.factionId === 'unhabited') {
-      const result = this.planetBattleService.resolveUninhabitedArrival(fleet);
-      if (result.colonized && result.colonizerIndex >= 0) {
-        fleet.ships.splice(result.colonizerIndex, 1);
-        planet.factionId = fleet.factionId;
-        console.log(`[StarMap] Fleet ${fleet.name} colonized ${planet.name}`);
-      } else {
-        console.log(
-          `[StarMap] Fleet ${fleet.name} orbiting uninhabited ${planet.name} (no colonizer)`,
-        );
-      }
-      this.saveGame();
-      return;
-    }
-
-    if (planet.factionId === fleet.factionId) {
-      console.log(
-        `[StarMap] Fleet ${fleet.name} arrived at own planet ${planet.name} (factionId: ${planet.factionId})`,
-      );
-      return;
-    }
-
-    const planetFaction = this.factions.find((f) => f.id === planet.factionId);
-    const fleetFaction = this.factions.find((f) => f.id === fleet.factionId);
-    if (!planetFaction || !fleetFaction) {
-      console.log(
-        `[StarMap] Faction not found - planetFaction: ${planetFaction?.id}, fleetFaction: ${fleetFaction?.id}`,
-      );
-      return;
-    }
-
-    console.log(
-      `[StarMap] Fleet ${fleet.name} (${fleetFaction.name}, team ${fleetFaction.team}) vs planet ${planet.name} (${planetFaction.name}, team ${planetFaction.team})`,
-    );
-
-    if (planetFaction.team === fleetFaction.team) {
-      console.log(`[StarMap] Fleet ${fleet.name} cannot attack teammate planet ${planet.name}`);
-      return;
-    }
-
-    if (!this.planetBattleService.hasPlanetDefenses(planet)) {
-      console.log(`[StarMap] Fleet ${fleet.name} captured undefended planet ${planet.name}`);
-      planet.factionId = fleet.factionId;
-      this.saveGame();
-      return;
-    }
-
-    this.triggerPlanetBattle(fleet, planet);
-  }
-
-  /** Triggers a battle between an attacking fleet and a planet's defenses. */
-  private triggerPlanetBattle(attackerFleet: Fleet, targetPlanet: PlanetTile): void {
-    const garrisonFleet = this.getFleetOnPlanet(targetPlanet);
-    const defenseFleet = this.planetBattleService.createVirtualDefenseFleet(
-      targetPlanet,
-      garrisonFleet,
-    );
-
-    const attackerFaction = this.factions.find((f) => f.id === attackerFleet.factionId);
-    const defenderFaction = this.factions.find((f) => f.id === targetPlanet.factionId);
-    if (!attackerFaction || !defenderFaction) {
-      return;
-    }
-
-    if (garrisonFleet) {
-      const battleKey = `${Math.min(attackerFleet.id, garrisonFleet.id)}-${Math.max(attackerFleet.id, garrisonFleet.id)}`;
-      this.triggeredBattles.add(battleKey);
-    }
-
-    console.log(
-      '[PLANET BATTLE] Attacker:',
-      JSON.stringify({
-        id: attackerFleet.id,
-        name: attackerFleet.name,
-        factionId: attackerFleet.factionId,
-        ships: attackerFleet.ships.map((s) => ({ type: s.type, hp: s.currentHp })),
-      }),
-    );
-    console.log(
-      '[PLANET BATTLE] Planet:',
-      JSON.stringify({
-        id: targetPlanet.id,
-        name: targetPlanet.name,
-        factionId: targetPlanet.factionId,
-        buildings: targetPlanet.buildings.map((b) => b.name),
-      }),
-    );
-    console.log(
-      '[PLANET BATTLE] Garrison:',
-      garrisonFleet
-        ? JSON.stringify({
-            id: garrisonFleet.id,
-            name: garrisonFleet.name,
-            factionId: garrisonFleet.factionId,
-          })
-        : 'none',
-    );
-    console.log(
-      '[PLANET BATTLE] Virtual Defense Fleet ships:',
-      JSON.stringify(defenseFleet.ships.map((s) => ({ type: s.type, name: s.name }))),
-    );
-
-    this.battleService.setPlanetBattle({
-      fleet1: attackerFleet,
-      fleet2: defenseFleet,
-      faction1Name: attackerFaction.name,
-      faction1Color: attackerFaction.color,
-      faction2Name: defenderFaction.name,
-      faction2Color: defenderFaction.color,
-      attackerId: attackerFleet.id,
-      defenderId: defenseFleet.id,
-      planetId: targetPlanet.id,
-    });
-
-    this.enterBattleScreen();
   }
 
   /** Registers window blur and visibility-change listeners to auto-pause the game. */
@@ -2471,11 +2124,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
     // Reset game time state (speed=1, not paused) on every load
     this.gameTimeService.reset();
 
-    this.enemyAiService.reset();
-    this.enemyStrategyService.reset();
-    this.enemyGoalService.reset();
-    this.enemyCapabilityService.reset();
-    this.enemyActionService.reset();
+    this.aiTickService.resetAiPipeline();
 
     this.clampCamera();
   }

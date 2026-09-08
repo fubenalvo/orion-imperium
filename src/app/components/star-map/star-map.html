@@ -39,117 +39,35 @@
 
   @if (currentView === 'map') {
     <!-- MAP VIEWPORT -->
-    <div
-      #mapViewport
-      class="map-viewport"
-      (click)="onMapClick($event)"
-      (pointerdown)="onPointerDown($event)"
-      (pointermove)="onPointerMove($event)"
-      (pointerup)="onPointerUp($event)"
-      (pointercancel)="onPointerUp($event)"
+    <app-star-map-galaxy-view
+      [cameraX]="cameraX"
+      [cameraY]="cameraY"
+      [cellSizeVw]="cellSizeVw"
+      [cellSizeVh]="cellSizeVh"
+      [gridColumns]="movementService.gridColumns"
+      [gridRows]="movementService.gridRows"
+      [sensorRangeEnabled]="sensorRangeEnabled"
+      [fogCells]="fogCells"
+      [sensorRangeCells]="sensorRangeCellsArray"
+      [sensorPreviewCells]="sensorPreviewCellsArray"
+      [systems]="exploredStarSystems"
+      [fleets]="visibleFleets"
+      [selectedSystem]="selectedSystem"
+      [selectedFleet]="selectedFleet"
+      [targetX]="targetX"
+      [targetY]="targetY"
+      [isEnemyInPreview]="boundIsEnemyInPreview"
+      [getFactionColor]="boundGetFactionColor"
+      [onMapClick]="boundOnMapClick"
+      [onPointerDown]="boundOnPointerDown"
+      [onPointerMove]="boundOnPointerMove"
+      [onPointerUp]="boundOnPointerUp"
+      [onSystemClick]="boundOnSystemClick"
+      [onFleetClick]="boundOnFleetClick"
+      [onSystemContextMenu]="boundOnSystemContextMenu"
+      [onFleetContextMenu]="boundOnFleetContextMenu"
     >
-      <!-- WORLD GRID -->
-      <div
-        class="map-world"
-        [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
-        [style.gridTemplateColumns]="
-          'repeat(' + movementService.gridColumns + ', ' + cellSizeVw + 'vw)'
-        "
-        [style.gridTemplateRows]="'repeat(' + movementService.gridRows + ', ' + cellSizeVh + 'vw)'"
-      >
-        <!-- FOG OF WAR CELLS (viewport-culled, unexplored areas) -->
-        @if (sensorRangeEnabled) {
-          @for (cell of fogCells; track cell.col + '-' + cell.row) {
-            <div
-              class="fog-cell"
-              [class.fog-cell--explored]="cell.explored"
-              [style.gridColumn]="cell.col"
-              [style.gridRow]="cell.row"
-            ></div>
-          }
-        }
-
-        <!-- SENSOR RANGE HIGHLIGHT CELLS -->
-        @if (sensorRangeEnabled) {
-          @for (cell of sensorRangeCellsArray; track cell.col + '-' + cell.row) {
-            <div
-              class="sensor-range-cell"
-              [style.--sensor-color]="cell.color"
-              [style.gridColumn]="cell.col"
-              [style.gridRow]="cell.row"
-            ></div>
-          }
-
-          <!-- SENSOR OUTER-RING PREVIEW CELLS (R+1..R+2, not explored) -->
-          @for (cell of sensorPreviewCellsArray; track cell.col + '-' + cell.row) {
-            <div
-              class="sensor-preview-cell"
-              [style.--sensor-color]="cell.color"
-              [style.gridColumn]="cell.col"
-              [style.gridRow]="cell.row"
-            ></div>
-          }
-        }
-
-        <!-- GRID CELLS WITH STAR SYSTEMS (explored only) -->
-        @for (system of exploredStarSystems; track system.id) {
-          <div class="system-cell" [style.gridColumn]="system.x" [style.gridRow]="system.y">
-            <button
-              class="star-system"
-              [class.selected]="selectedSystem?.id === system.id"
-              [style.--star-color]="system.color"
-              type="button"
-              (click)="onSystemClick(system, $event)"
-              (contextmenu)="deselectSystem(); $event.preventDefault(); $event.stopPropagation()"
-            >
-              <span class="star-system__star">&#10022;</span>
-              <span class="star-system__name">{{ system.name }}</span>
-            </button>
-          </div>
-        }
-
-        <!-- FLEETS -->
-        @for (fleet of visibleFleets; track fleet.id) {
-          <div
-            class="fleet-cell"
-            [class.fleet-cell--preview]="isEnemyInPreview(fleet)"
-            [style.left]="(fleet.x - 0.5) * cellSizeVw + 'vw'"
-            [style.top]="(fleet.y - 0.5) * cellSizeVh + 'vw'"
-            [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
-          >
-            <button
-              class="fleet"
-              [class.selected]="selectedFleet?.id === fleet.id"
-              [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
-              [class.arriced]="fleet.targetX === null || fleet.targetY === null"
-              [class.fleet--preview]="isEnemyInPreview(fleet)"
-              type="button"
-              (click)="onFleetClick(fleet, $event)"
-              (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
-            >
-              <span class="fleet__icon">
-                <img src="/fleet.svg" />
-              </span>
-              <span class="fleet__name" [style.color]="getFactionColor(fleet.factionId)">
-                {{ fleet.name }}
-              </span>
-            </button>
-          </div>
-        }
-
-        <!-- SHIP DESTINATION -->
-        @if (targetX !== null && targetY !== null && selectedFleet) {
-          <div
-            class="ship-target"
-            [style.gridColumn]="movementService.calculateGridCell(targetX, targetY).col"
-            [style.gridRow]="movementService.calculateGridCell(targetX, targetY).row"
-          >
-            <span class="ship-target__crosshair">+</span>
-            <span class="ship-target__line">TARGET</span>
-          </div>
-        }
-      </div>
-    </div>
+    </app-star-map-galaxy-view>
 
     <!-- TOP HUD -->
   <app-star-map-header
@@ -239,103 +157,23 @@
 
       <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
 
-      <div class="system-grid" (click)="onSystemGridClick($event)">
-        @if (selectedSystem) {
-          <!-- SUN -->
-          <div class="sun" [style.--sun-color]="selectedSystem.color">
-            <div class="sun-glow"></div>
-            <div class="sun-core"></div>
-          </div>
-
-          <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
-          @if (sensorRangeEnabled) {
-            @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {
-              <div
-                class="sensor-range-cell system-sensor-cell"
-                [style.--sensor-color]="getFactionColor('player')"
-                [style.gridColumn]="cell.col"
-                [style.gridRow]="cell.row"
-              ></div>
-            }
-
-            <!-- SYSTEM SENSOR OUTER-RING PREVIEW CELLS -->
-            @for (cell of systemSensorCells.preview; track cell.col + '-' + cell.row) {
-              <div
-                class="sensor-preview-cell system-sensor-preview-cell"
-                [style.--sensor-color]="getFactionColor('player')"
-                [style.gridColumn]="cell.col"
-                [style.gridRow]="cell.row"
-              ></div>
-            }
-          }
-
-          <!-- PLANETS -->
-          @for (planet of selectedSystem.planetsTiles; track planet.id) {
-            <button
-              class="planet"
-              [ngClass]="getPlanetClassNames(planet)"
-              [class.planet--unexplored]="!planet.explored"
-              [style.gridColumn]="movementService.getPlanetGridPosition(planet).col"
-              [style.gridRow]="movementService.getPlanetGridPosition(planet).row"
-              [style.--planet-color]="selectedSystem.color"
-              (click)="onPlanetClick(planet, $event)"
-              (contextmenu)="
-                deselectPlanetTile(); $event.preventDefault(); $event.stopPropagation()
-              "
-            >
-              <div class="planet-body"></div>
-              <div class="planet-name" [style.color]="getFactionColor(planet.factionId)">
-                {{ planet.name }}
-              </div>
-            </button>
-          }
-
-          <!-- FLEETS IN SYSTEM -->
-          @for (fleet of visibleFleets; track fleet.id) {
-            @if (fleet.system?.id === selectedSystem.id) {
-              <div
-                class="fleet-cell"
-                [style.left]="fleet.system?.x + 'vw'"
-                [style.top]="fleet.system?.y + 'vw'"
-              >
-                <button
-                  class="fleet"
-                  [class.selected]="selectedFleet?.id === fleet.id"
-                  [class.moving]="fleet.system?.targetX !== null && fleet.system?.targetY !== null"
-                  [class.arriced]="fleet.system?.targetX === null || fleet.system?.targetY === null"
-                  type="button"
-                  (click)="onFleetClick(fleet, $event)"
-                  (contextmenu)="deselectFleet(); $event.preventDefault(); $event.stopPropagation()"
-                >
-                  <span class="fleet__icon">
-                    <img src="/fleet.svg" />
-                  </span>
-                  <span class="fleet__name" [style.color]="getFactionColor(fleet.factionId)">{{
-                    fleet.name
-                  }}</span>
-                </button>
-              </div>
-            }
-          }
-
-          <!-- FLEET SYSTEM DESTINATION -->
-          @if (
-            targetX !== null &&
-            targetY !== null &&
-            selectedFleet &&
-            selectedFleet.system?.id === selectedSystem.id
-          ) {
-            <div
-              class="ship-target system-target"
-              [style.left]="targetX + 'vw'"
-              [style.top]="targetY + 'vw'"
-            >
-              <span class="ship-target__crosshair">+</span>
-              <span class="ship-target__line">TARGET</span>
-            </div>
-          }
-        }
-      </div>
+      <app-star-map-system-grid
+        [selectedSystem]="selectedSystem"
+        [selectedFleet]="selectedFleet"
+        [fleets]="visibleFleets"
+        [targetX]="targetX"
+        [targetY]="targetY"
+        [sensorRangeEnabled]="sensorRangeEnabled"
+        [systemSensorCells]="systemSensorCells"
+        [getFactionColor]="boundGetFactionColor"
+        [getPlanetClassNames]="boundGetPlanetClassNames"
+        [onSystemGridClick]="boundOnSystemGridClick"
+        [onPlanetClick]="boundOnPlanetClick"
+        [onFleetClick]="boundOnFleetClick"
+        [onPlanetContextMenu]="boundOnPlanetContextMenu"
+        [onFleetContextMenu]="boundOnFleetContextMenu"
+      >
+      </app-star-map-system-grid>
 
       <!-- SELECTED FLEET INFO -->
       @if (selectedFleet) {

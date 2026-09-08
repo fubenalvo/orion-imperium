@@ -1,0 +1,13 @@
+@use '../_star-map-grid';
+@use '../_star-map-ships';
+@use '../_star-map-sensor';
+@use '../_star-map-system-view';
+
+/*
+ * The host must not generate a layout box: .system-grid is a flex item of
+ * .system-view (margin: auto centering) and must keep participating in that
+ * flex layout directly, exactly as it did before the extraction.
+ */
+:host {
+  display: contents;
+}
