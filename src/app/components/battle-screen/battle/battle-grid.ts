@@ -128,3 +128,117 @@ export function getAttackTargetIds(state: BattleModelState, stack: BattleStack):
     .filter((s) => !s.destroyed && s.side !== stack.side && isInRange(origin, s, stack.attackRange))
     .map((s) => s.stackId);
 }
+
+/*
+ * Cells from which a stack could attack a specific target stack.
+ * Returns all unoccupied cells within the stack's moveRange that have
+ * the target within attackRange and a clear straight-line path.
+ */
+export function getMoveToAttackCells(
+  state: BattleModelState,
+  stack: BattleStack,
+  targetStack: BattleStack,
+): GridCell[] {
+  if (stack.destroyed || stack.immobile || targetStack.destroyed) {
+    return [];
+  }
+  const maxSteps = Math.min(
+    stack.moveRange - stack.cellsMovedThisTurn,
+    Math.floor(state.ap / stack.moveApPerCell),
+  );
+  if (maxSteps <= 0) {
+    return [];
+  }
+  const origin: GridCell = { col: stack.col, row: stack.row };
+  const cells: GridCell[] = [];
+  for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
+    for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+      if (c === stack.col && r === stack.row) {
+        continue;
+      }
+      const steps = Math.max(Math.abs(c - stack.col), Math.abs(r - stack.row));
+      if (steps > maxSteps) {
+        continue;
+      }
+      if (isOccupied(state, c, r, stack.stackId)) {
+        continue;
+      }
+      const path = linePath(origin, { col: c, row: r });
+      if (!path || path.some((cell) => isOccupied(state, cell.col, cell.row, stack.stackId))) {
+        continue;
+      }
+      // Check if target is in attack range from this cell
+      if (isInRange({ col: c, row: r }, targetStack, stack.attackRange)) {
+        cells.push({ col: c, row: r });
+      }
+    }
+  }
+  return cells;
+}
+
+/*
+ * Returns the single best cell for move-to-attack: closest to attacker
+ * (minimizes move cost), breaking ties by closest to target.
+ */
+export function findBestMoveToAttackCell(
+  state: BattleModelState,
+  stack: BattleStack,
+  targetStack: BattleStack,
+): GridCell | null {
+  const candidates = getMoveToAttackCells(state, stack, targetStack);
+  if (candidates.length === 0) {
+    return null;
+  }
+  const origin: GridCell = { col: stack.col, row: stack.row };
+  return candidates.reduce((best, cell) => {
+    const bestDist = Math.max(Math.abs(best.col - origin.col), Math.abs(best.row - origin.row));
+    const cellDist = Math.max(Math.abs(cell.col - origin.col), Math.abs(cell.row - origin.row));
+    if (cellDist < bestDist) {
+      return cell;
+    }
+    if (cellDist === bestDist) {
+      const bestToTarget = Math.max(Math.abs(best.col - targetStack.col), Math.abs(best.row - targetStack.row));
+      const cellToTarget = Math.max(Math.abs(cell.col - targetStack.col), Math.abs(cell.row - targetStack.row));
+      if (cellToTarget < bestToTarget) {
+        return cell;
+      }
+    }
+    return best;
+  });
+}
+
+/*
+ * Enemy stacks that are within (moveRange + attackRange) but outside direct attackRange.
+ * These are valid move-to-attack targets.
+ */
+export function getMoveToAttackTargetIds(
+  state: BattleModelState,
+  stack: BattleStack,
+): string[] {
+  if (stack.destroyed || stack.immobile) {
+    return [];
+  }
+  const maxMoveSteps = Math.min(
+    stack.moveRange - stack.cellsMovedThisTurn,
+    Math.floor(state.ap / stack.moveApPerCell),
+  );
+  if (maxMoveSteps <= 0) {
+    return [];
+  }
+  const origin: GridCell = { col: stack.col, row: stack.row };
+  return state.stacks
+    .filter((s) => !s.destroyed && s.side !== stack.side)
+    .filter((s) => {
+      const directDist = Math.max(Math.abs(s.col - origin.col), Math.abs(s.row - origin.row));
+      if (directDist <= stack.attackRange) {
+        return false; // Already in direct attack range
+      }
+      const minDistToAttack = Math.max(Math.abs(s.col - origin.col), Math.abs(s.row - origin.row)) - stack.attackRange;
+      return minDistToAttack <= maxMoveSteps;
+    })
+    .filter((s) => {
+      // Check if there's at least one valid move-to-attack cell
+      return getMoveToAttackCells(state, stack, s).length > 0;
+    })
+    .map((s) => s.stackId);
+}

@@ -37,14 +37,14 @@ describe('battle-ship-stats', () => {
     }
   });
 
-  it('reuses the existing speed and range stats for movement and attack range', () => {
+  it('uses battleMoveRange for movement and range for attack range', () => {
     const fighter = stats('fighter');
-    expect(fighter.moveRange).toBe(5);
+    expect(fighter.moveRange).toBe(10); // battleMoveRange from ship-data.json
     expect(fighter.attackRange).toBe(2);
     expect(fighter.immobile).toBe(false);
 
     const dreadnought = stats('dreadnought');
-    expect(dreadnought.moveRange).toBe(1);
+    expect(dreadnought.moveRange).toBe(2); // battleMoveRange from ship-data.json
     expect(dreadnought.attackRange).toBe(5);
   });
 

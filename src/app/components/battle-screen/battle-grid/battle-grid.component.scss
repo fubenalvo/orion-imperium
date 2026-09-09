@@ -98,6 +98,14 @@
   animation: target-pulse 0.9s ease-in-out infinite;
 }
 
+.stack.move-to-attack-target {
+  border-color: #ffaa00;
+  box-shadow:
+    0 0 8px rgba(255, 170, 0, 0.7),
+    0 0 18px rgba(255, 170, 0, 0.4);
+  animation: target-pulse 0.9s ease-in-out infinite;
+}
+
 .stack__icons {
   display: flex;
   flex-direction: row;

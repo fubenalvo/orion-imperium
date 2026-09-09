@@ -81,7 +81,7 @@ export function getBattleShipStats(
       tier,
       moveApPerCell: tier,
       attackAp: tier,
-      moveRange: shipType.speed,
+      moveRange: shipType.battleMoveRange ?? shipType.speed,
       attackRange: shipType.range,
       immobile: false,
     };

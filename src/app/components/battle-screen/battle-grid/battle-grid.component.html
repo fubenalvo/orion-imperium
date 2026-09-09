@@ -23,7 +23,8 @@
           selected: stack.stackId === selectedStackId,
           moving: stack.moving,
           firing: stack.firing,
-          'attack-target': isAttackTarget(stack.stackId)
+          'attack-target': isAttackTarget(stack.stackId),
+          'move-to-attack-target': isMoveToAttackTarget(stack.stackId)
         }"
         type="button"
         (click)="onStackClickHandler(stack.stackId)"

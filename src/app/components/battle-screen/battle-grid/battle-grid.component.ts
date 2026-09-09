@@ -34,6 +34,7 @@ export class BattleGridComponent {
   @Input() selectedStackId: string | null = null;
   @Input() moveCells: GridCell[] = [];
   @Input() attackTargetIds: string[] = [];
+  @Input() moveToAttackTargetIds: string[] = [];
   @Input() effect: BattleAttackEffect | null = null;
   @Input() canSelect = true;
 
@@ -80,6 +81,10 @@ export class BattleGridComponent {
 
   isAttackTarget(stackId: string): boolean {
     return this.attackTargetIds.includes(stackId);
+  }
+
+  isMoveToAttackTarget(stackId: string): boolean {
+    return this.moveToAttackTargetIds.includes(stackId);
   }
 
   /* Projectile line geometry (same pattern as the fleet movement trails). */

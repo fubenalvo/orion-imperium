@@ -16,6 +16,7 @@ export interface ShipType {
   defense: number;
   speed: number;
   range: number;
+  battleMoveRange: number;
   cost: number;
   maintenanceCost: number;
   /*

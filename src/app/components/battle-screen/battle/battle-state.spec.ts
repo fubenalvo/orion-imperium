@@ -106,7 +106,7 @@ describe('battle-state', () => {
     const state = createBattleState(b, shipService, planetBattleService);
     const stack = getStacks(state, 'attacker')[0];
     expect(stack.tier).toBe(1);
-    expect(stack.moveRange).toBe(5);
+    expect(stack.moveRange).toBe(10); // battleMoveRange from ship-data.json
     expect(stack.attackRange).toBe(2);
     expect(stack.ships[0].maxHp).toBe(50);
   });

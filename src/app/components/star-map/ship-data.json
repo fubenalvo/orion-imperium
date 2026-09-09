@@ -13,6 +13,7 @@
       "defense": 2,
       "speed": 5,
       "range": 3,
+      "battleMoveRange": 12,
       "cost": 50,
       "maintenanceCost": 2
     },
@@ -29,6 +30,7 @@
       "defense": 3,
       "speed": 5,
       "range": 2,
+      "battleMoveRange": 10,
       "cost": 75,
       "maintenanceCost": 3
     },
@@ -45,6 +47,7 @@
       "defense": 5,
       "speed": 4,
       "range": 2,
+      "battleMoveRange": 9,
       "cost": 120,
       "maintenanceCost": 5
     },
@@ -61,6 +64,7 @@
       "defense": 8,
       "speed": 4,
       "range": 3,
+      "battleMoveRange": 8,
       "cost": 180,
       "maintenanceCost": 8
     },
@@ -77,6 +81,7 @@
       "defense": 10,
       "speed": 3,
       "range": 3,
+      "battleMoveRange": 6,
       "cost": 260,
       "maintenanceCost": 12
     },
@@ -93,6 +98,7 @@
       "defense": 14,
       "speed": 3,
       "range": 3,
+      "battleMoveRange": 5,
       "cost": 400,
       "maintenanceCost": 18
     },
@@ -109,6 +115,7 @@
       "defense": 12,
       "speed": 2,
       "range": 4,
+      "battleMoveRange": 3,
       "cost": 500,
       "maintenanceCost": 22
     },
@@ -125,6 +132,7 @@
       "defense": 20,
       "speed": 2,
       "range": 4,
+      "battleMoveRange": 3,
       "cost": 700,
       "maintenanceCost": 32
     },
@@ -141,6 +149,7 @@
       "defense": 16,
       "speed": 3,
       "range": 5,
+      "battleMoveRange": 4,
       "cost": 750,
       "maintenanceCost": 35
     },
@@ -157,6 +166,7 @@
       "defense": 28,
       "speed": 1,
       "range": 5,
+      "battleMoveRange": 2,
       "cost": 1200,
       "maintenanceCost": 55
     },
@@ -173,6 +183,7 @@
       "defense": 2,
       "speed": 3,
       "range": 1,
+      "battleMoveRange": 5,
       "cost": 100,
       "maintenanceCost": 5
     }

@@ -15,7 +15,7 @@ import {
   GridCell,
 } from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
-import { getAttackTargetIds as computeAttackTargetIds, getReachableCells } from './battle/battle-grid';
+import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds } from './battle/battle-grid';
 import { buildBattleOutcome } from './battle/battle-result';
 import { BattleMovementService } from './battle/battle-movement.service';
 import { BattleCombatService } from './battle/battle-combat.service';
@@ -73,6 +73,9 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   ) {
     this.battle = this.battleService.getBattle();
     this.ticksSub = this.anim.ticks$.subscribe(() => this.cdr.detectChanges());
+    // Bind callbacks passed to child components to preserve `this` context
+    this.onStackClick = this.onStackClick.bind(this);
+    this.onCellClick = this.onCellClick.bind(this);
   }
 
   get battleState(): BattleModelState | null {
@@ -95,11 +98,11 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   }
 
   get canAct(): boolean {
-    return this.playerControlsActiveSide && !this.anim.isBusy;
+    return this.playerControlsActiveSide && !this.anim?.isBusy;
   }
 
   get canEndTurn(): boolean {
-    return this.playerControlsActiveSide && !this.anim.isBusy;
+    return this.playerControlsActiveSide && !this.anim?.isBusy;
   }
 
   get phaseLabel(): string {
@@ -126,6 +129,14 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
       return [];
     }
     return computeAttackTargetIds(this.state, stack);
+  }
+
+  get moveToAttackTargetIds(): string[] {
+    const stack = this.selectedStack();
+    if (!this.state || !stack || !this.playerControlsActiveSide) {
+      return [];
+    }
+    return getMoveToAttackTargetIds(this.state, stack);
   }
 
   get effect(): BattleModelState['effect'] {
@@ -157,7 +168,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   }
 
   onStackClick(stackId: string): void {
-    console.log('[BattleScreen] onStackClick:', stackId, 'canAct:', this.canAct, 'activeSide:', this.state?.activeSide, 'playerControlsActiveSide:', this.playerControlsActiveSide, 'animBusy:', this.anim.isBusy);
+    console.log('[BattleScreen] onStackClick:', stackId, 'canAct:', this.canAct, 'activeSide:', this.state?.activeSide, 'playerControlsActiveSide:', this.playerControlsActiveSide, 'animBusy:', this.anim?.isBusy);
     if (!this.state || !this.canAct) {
       return;
     }
@@ -168,13 +179,22 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     if (stack.side === this.state.activeSide) {
       // Own stack: select it to reveal movement / attack options.
       this.selectedStackId = stack.stackId;
-      console.log('[BattleScreen] Selected stack:', stackId, 'moveCells:', this.moveCells, 'attackTargetIds:', this.attackTargetIds);
+      console.log('[BattleScreen] Selected stack:', stackId, 'moveCells:', this.moveCells, 'attackTargetIds:', this.attackTargetIds, 'moveToAttackTargetIds:', this.moveToAttackTargetIds);
       return;
     }
     // Enemy stack: attack it if the selected stack can.
     const selected = this.selectedStack();
-    if (selected && computeAttackTargetIds(this.state, selected).includes(stack.stackId)) {
+    if (!selected) {
+      return;
+    }
+    // Direct attack
+    if (computeAttackTargetIds(this.state, selected).includes(stack.stackId)) {
       void this.doAttack(selected, stack);
+      return;
+    }
+    // Move-to-attack
+    if (this.moveToAttackTargetIds.includes(stack.stackId)) {
+      void this.doMoveToAttack(selected, stack);
     }
   }
 
@@ -216,6 +236,18 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
       return;
     }
     await this.combat.attackStack(this.state, attacker.stackId, target.stackId);
+    if (!this.selectedStack()) {
+      this.selectedStackId = null;
+    }
+    this.cdr.detectChanges();
+  }
+
+  private async doMoveToAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
+    if (!this.state) {
+      return;
+    }
+    console.log('[BattleScreen] doMoveToAttack:', attacker.stackId, '->', target.stackId);
+    await this.movement.moveToAttack(this.state, attacker.stackId, target.stackId);
     if (!this.selectedStack()) {
       this.selectedStackId = null;
     }

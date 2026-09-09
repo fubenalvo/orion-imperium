@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
 import { ANIMATION_MS, BattleModelState, GridCell } from './battle.types';
-import { isInBounds, isOccupied, linePath } from './battle-grid';
+import { isInBounds, isOccupied, linePath, findBestMoveToAttackCell, isInRange } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
+import { BattleCombatService } from './battle-combat.service';
 
 /*
  * =========================================================
@@ -20,7 +21,10 @@ import { BattleAnimationService } from './battle-animation.service';
 
 @Injectable({ providedIn: 'root' })
 export class BattleMovementService {
-  constructor(private anim: BattleAnimationService) {}
+  constructor(
+    private anim: BattleAnimationService,
+    private combat: BattleCombatService,
+  ) {}
 
   async moveStack(
     state: BattleModelState,
@@ -80,5 +84,61 @@ export class BattleMovementService {
       this.anim.tick();
     });
     return true;
+  }
+
+  /*
+   * Move-to-attack: move to the best attack position for a target,
+   * then attack it. Both actions consume AP and must succeed atomically.
+   * Returns true if both move and attack completed.
+   */
+  async moveToAttack(
+    state: BattleModelState,
+    stackId: string,
+    targetStackId: string,
+  ): Promise<boolean> {
+    const stack = state.stacks.find((s) => s.stackId === stackId && !s.destroyed);
+    const target = state.stacks.find((s) => s.stackId === targetStackId && !s.destroyed);
+    if (!stack || !target || state.winner || this.anim.isBusy) {
+      return false;
+    }
+    if (state.activeSide !== stack.side || stack.side === target.side || stack.immobile) {
+      return false;
+    }
+
+    // Check if already in direct attack range
+    const from: GridCell = { col: stack.col, row: stack.row };
+    const to: GridCell = { col: target.col, row: target.row };
+    if (isInRange(from, to, stack.attackRange)) {
+      // Direct attack is possible - delegate to combat service
+      return this.combat.attackStack(state, stackId, targetStackId);
+    }
+
+    // Find best attack position
+    const bestCell = findBestMoveToAttackCell(state, stack, target);
+    if (!bestCell) {
+      return false; // No valid path to attack position
+    }
+
+    const moveSteps = Math.max(Math.abs(bestCell.col - from.col), Math.abs(bestCell.row - from.row));
+    const moveCost = moveSteps * stack.moveApPerCell;
+    const attackCost = stack.attackAp;
+    const totalCost = moveCost + attackCost;
+
+    if (totalCost > state.ap) {
+      return false; // Insufficient AP for both move and attack
+    }
+    if (stack.cellsMovedThisTurn + moveSteps > stack.moveRange) {
+      return false; // Exceeds move range
+    }
+
+    // Execute move
+    const moveResult = await this.moveStack(state, stackId, bestCell.col, bestCell.row);
+    if (!moveResult) {
+      return false;
+    }
+
+    // Execute attack from new position
+    const attackResult = await this.combat.attackStack(state, stackId, targetStackId);
+    return attackResult;
   }
 }
