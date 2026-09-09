@@ -4,27 +4,27 @@
       @switch (currency.name) {
         @case ('credits') {
           <span class="faction-currencies__icon faction-currencies__icon--clickable" (click)="toggleBreakdown('credits')">
-            <img src="/icon-credits.png" alt="" width="16" height="16" />
+            <img src="icon-credits.png" alt="" width="16" height="16" />
           </span>
         }
         @case ('rawmaterials') {
           <span class="faction-currencies__icon faction-currencies__icon--clickable" (click)="toggleBreakdown('rawmaterials')">
-            <img src="/icon-rawmaterial.png" alt="" width="16" height="16" />
+            <img src="icon-rawmaterial.png" alt="" width="16" height="16" />
           </span>
         }
         @case ('research') {
           <span class="faction-currencies__icon faction-currencies__icon--clickable" (click)="openResearchTree.emit()">
-            <img src="/icon-research.png" alt="" width="16" height="16" />
+            <img src="icon-research.png" alt="" width="16" height="16" />
           </span>
         }
         @case ('energy') {
           <span class="faction-currencies__icon faction-currencies__icon--clickable" (click)="toggleBreakdown('energy')">
-            <img src="/icon-energy.png" alt="" width="16" height="16" />
+            <img src="icon-energy.png" alt="" width="16" height="16" />
           </span>
         }
         @default {
           <span class="faction-currencies__icon faction-currencies__icon--clickable" (click)="toggleBreakdown(currency.name)">
-            <img src="/icon-credits.png" alt="" width="16" height="16" />
+            <img src="icon-credits.png" alt="" width="16" height="16" />
           </span>
         }
       }

@@ -32,6 +32,30 @@
                 "input": "public"
               }
             ],
+            "externalDependencies": [
+              "stars.png",
+              "stars-background-a.jpg",
+              "planet-surface-noise-light.png",
+              "planet-surface-noise.png",
+              "planet-clouds.png",
+              "buildings-isometric/laser-turret.png",
+              "buildings-isometric/missile-turret.png",
+              "buildings-isometric/planetary-shield.png",
+              "buildings-isometric/small-residential.png",
+              "buildings-isometric/medium-residential.png",
+              "buildings-isometric/large-residential.png",
+              "buildings-isometric/park.png",
+              "buildings-isometric/hospital.png",
+              "buildings-isometric/school.png",
+              "buildings-isometric/entertainment-center.png",
+              "buildings-isometric/fusion-plant.png",
+              "buildings-isometric/solar-array.png",
+              "buildings-isometric/spaceship-factory.png",
+              "buildings-isometric/mining-complex.png",
+              "buildings-isometric/small-research-lab.png",
+              "buildings-isometric/research-lab.png",
+              "buildings-isometric/spaceport.png"
+            ],
             "styles": [
               "src/styles.scss"
             ]

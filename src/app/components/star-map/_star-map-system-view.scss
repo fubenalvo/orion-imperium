@@ -45,7 +45,7 @@
   width: 30vw;
   height: 30vw;
   border-radius: 50%;
-  background: url('/planet-surface-noise-light.png'), var(--sun-color);
+  background: url('planet-surface-noise-light.png'), var(--sun-color);
   box-shadow:
     0 0 60px var(--sun-color),
     inset 0 0 20px rgba(255, 255, 255, 0.7);
@@ -115,7 +115,7 @@
   height: 3vw;
   border-radius: 50%;
   background-image:
-    url('/planet-surface-noise.png'), radial-gradient(circle at 100% 50%, var(--planet-color), #111);
+    url('planet-surface-noise.png'), radial-gradient(circle at 100% 50%, var(--planet-color), #111);
   background-size:
     200% 100%,
     100% 100%;

@@ -33,10 +33,6 @@ jobs:
       - name: Create GitHub Pages fallback
         run: cp dist/orion-imperium/browser/index.html dist/orion-imperium/browser/404.html
 
-      - name: Fix asset paths for GitHub Pages
-        run: |
-          find dist/orion-imperium/browser -type f \( -name "*.css" -o -name "*.html" -o -name "*.js" \) -exec sed -i 's|/images/|/orion-imperium/images/|g' {} +
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

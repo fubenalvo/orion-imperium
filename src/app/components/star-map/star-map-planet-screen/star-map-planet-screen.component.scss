@@ -18,7 +18,7 @@
   min-width: 0;
   overflow: hidden;
   background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-  background-image: url('/planet-surface-noise-light.png');
+  background-image: url('planet-surface-noise-light.png');
 
   background-size:
     10vw 10vw,
@@ -57,7 +57,7 @@
     content: '';
     z-index: 10;
     background-blend-mode: overlay, normal, normal;
-    background-image: url('/planet-clouds.png');
+    background-image: url('planet-clouds.png');
     background-size: 70vw 70vw;
     background-repeat: repeat;
     background-position: 0 0;
@@ -115,7 +115,7 @@
   transform-origin: center center;
   position: relative;
   background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-  background-image: url('/planet-surface-noise-light.png');
+  background-image: url('planet-surface-noise-light.png');
   background-size: 30% 30%;
   //background-blend-mode: overlay, normal, normal;
 
@@ -135,7 +135,7 @@
     right: -50vh;
     bottom: -50vw;
     background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-    background-image: url('/planet-surface-noise-light.png');
+    background-image: url('planet-surface-noise-light.png');
     background-size: 10% 10%;
     opacity: 0.5;
     mix-blend-mode: color;
@@ -150,7 +150,7 @@
     right: -50vh;
     bottom: -50vw;
     background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-    background-image: url('/planet-surface-noise-light.png');
+    background-image: url('planet-surface-noise-light.png');
     background-size: 100% 100%;
     opacity: 0.7;
     mix-blend-mode: color;
@@ -291,7 +291,7 @@
     background-position: center;
     background-size: 100% 100%;
     background: color-mix(in srgb, #292929 40%, #111 60%);
-    background-image: url('/planet-surface-noise-light.png');
+    background-image: url('planet-surface-noise-light.png');
 
     border-radius: 3px;
     pointer-events: none;
@@ -324,73 +324,73 @@
   // automatically because Angular serves /public assets at the site root.
 
   &--laser-turret::before {
-    background-image: url('/buildings-isometric/laser-turret.png');
+    background-image: url('buildings-isometric/laser-turret.png');
     width: 148%;
     height: 351%;
     transform: rotateZ(-45deg) rotateX(-55deg) translate(43%, -71%);
   }
   &--missile-turret::before {
-    background-image: url('/buildings-isometric/missile-turret.png');
+    background-image: url('buildings-isometric/missile-turret.png');
   }
   &--planetary-shield::before {
-    background-image: url('/buildings-isometric/planetary-shield.png');
+    background-image: url('buildings-isometric/planetary-shield.png');
   }
   &--small-residential::before {
-    background-image: url('/buildings-isometric/small-residential.png');
+    background-image: url('buildings-isometric/small-residential.png');
     width: 164%;
     height: 470%;
     transform: rotateZ(-45deg) rotateX(-55deg) translate(66%, -76%);
   }
   &--medium-residential::before {
-    background-image: url('/buildings-isometric/medium-residential.png');
+    background-image: url('buildings-isometric/medium-residential.png');
   }
   &--large-residential::before {
-    background-image: url('/buildings-isometric/large-residential.png');
+    background-image: url('buildings-isometric/large-residential.png');
     width: 120%;
     height: 318%;
     transform: rotateZ(-45deg) rotateX(-55deg) translate(57%, -63%);
   }
   &--park::before {
-    background-image: url('/buildings-isometric/park.png');
+    background-image: url('buildings-isometric/park.png');
   }
   &--hospital::before {
-    background-image: url('/buildings-isometric/hospital.png');
+    background-image: url('buildings-isometric/hospital.png');
   }
   &--school::before {
-    background-image: url('/buildings-isometric/school.png');
+    background-image: url('buildings-isometric/school.png');
   }
   &--entertainment-center::before {
-    background-image: url('/buildings-isometric/entertainment-center.png');
+    background-image: url('buildings-isometric/entertainment-center.png');
   }
   &--fusion-plant::before {
-    background-image: url('/buildings-isometric/fusion-plant.png');
+    background-image: url('buildings-isometric/fusion-plant.png');
   }
   &--solar-array::before {
-    background-image: url('/buildings-isometric/solar-array.png');
+    background-image: url('buildings-isometric/solar-array.png');
     width: 151%;
     height: 307%;
     transform: rotateZ(-45deg) rotateX(-55deg) translate(36%, -56%);
   }
   &--spaceship-factory::before {
-    background-image: url('/buildings-isometric/spaceship-factory.png');
+    background-image: url('buildings-isometric/spaceship-factory.png');
   }
   &--mining-complex::before {
-    background-image: url('/buildings-isometric/mining-complex.png');
+    background-image: url('buildings-isometric/mining-complex.png');
     width: 145%;
     height: 307%;
     transform: rotateZ(-45deg) rotateX(-55deg) translate(39%, -60%);
   }
   &--small-research-lab::before {
-    background-image: url('/buildings-isometric/small-research-lab.png');
+    background-image: url('buildings-isometric/small-research-lab.png');
     width: 148%;
     height: 351%;
     transform: rotateZ(-45deg) rotateX(-55deg) translate(43%, -60%);
   }
   &--research-lab::before {
-    background-image: url('/buildings-isometric/research-lab.png');
+    background-image: url('buildings-isometric/research-lab.png');
   }
   &--spaceport::before {
-    background-image: url('/buildings-isometric/spaceport.png');
+    background-image: url('buildings-isometric/spaceport.png');
     width: 122%;
     height: 341%;
     transform: rotateZ(-45deg) rotateX(-55deg) translate(64%, -62%);

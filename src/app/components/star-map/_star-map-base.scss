@@ -23,7 +23,7 @@
      to be 200% of the actual map grid, centered on the viewport.  This guarantees
      the background always covers the visible area even at maximum parallax shift. */
 
-  background-image: url('/stars-background-a.jpg');
+  background-image: url('stars-background-a.jpg');
 
   background-size: 200vw;
 
@@ -46,7 +46,7 @@
 
   inset: 0;
 
-  background-image: url('/stars.png');
+  background-image: url('stars.png');
 
   background-repeat: repeat;
 

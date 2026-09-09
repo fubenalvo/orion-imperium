@@ -252,7 +252,7 @@
           @default {
             <div class="planet-sidebar__info-row">
               <span
-                ><img src="/icon-faction.png" alt="" width="14" height="14" class="info-icon" />
+                ><img src="icon-faction.png" alt="" width="14" height="14" class="info-icon" />
                 TYPE</span
               >
               <span>{{ planet?.type | uppercase }}</span>
@@ -260,7 +260,7 @@
 
             <div class="planet-sidebar__info-row">
               <span
-                ><img src="/icon-faction.png" alt="" width="14" height="14" class="info-icon" />
+                ><img src="icon-faction.png" alt="" width="14" height="14" class="info-icon" />
                 FACTION</span
               >
               <span [style.color]="getFactionColor(planet!.factionId)">{{
@@ -278,7 +278,7 @@
 
             <div class="planet-sidebar__info-row">
               <span
-                ><img src="/icon-popuilation.png" alt="" width="14" height="14" class="info-icon" />
+                ><img src="icon-popuilation.png" alt="" width="14" height="14" class="info-icon" />
                 POPULATION</span
               >
               <span>{{ planet?.population | number: '1.0-0' }}</span>
@@ -288,7 +288,7 @@
               <div class="planet-sidebar__info-row">
                 <span
                   ><img
-                    src="/icon-popuilation.png"
+                    src="icon-popuilation.png"
                     alt=""
                     width="14"
                     height="14"
@@ -309,7 +309,7 @@
               >
                 <span
                   ><img
-                    src="/icon-efficiency.png"
+                    src="icon-efficiency.png"
                     alt=""
                     width="14"
                     height="14"
@@ -321,7 +321,7 @@
               </div>
               <div class="planet-sidebar__info-row">
                 <span
-                  ><img src="/icon-energy.png" alt="" width="14" height="14" class="info-icon" />
+                  ><img src="icon-energy.png" alt="" width="14" height="14" class="info-icon" />
                   ENERGY</span
                 >
                 <span
@@ -335,7 +335,7 @@
                 [class.planet-sidebar__info-row--danger]="planetEconomy.energyBalance < 0"
               >
                 <span
-                  ><img src="/icon-energy.png" alt="" width="14" height="14" class="info-icon" />
+                  ><img src="icon-energy.png" alt="" width="14" height="14" class="info-icon" />
                   ENERGY BAL</span
                 >
                 <span>{{ planetEconomy.energyBalance | number: '1.0-0' }}</span>
@@ -343,7 +343,7 @@
 
               <div class="planet-sidebar__info-row">
                 <span
-                  ><img src="/icon-credits.png" alt="" width="14" height="14" class="info-icon" />
+                  ><img src="icon-credits.png" alt="" width="14" height="14" class="info-icon" />
                   INCOME</span
                 >
                 <span
@@ -363,7 +363,7 @@
               >
                 <span
                   ><img
-                    src="/icon-popuilation.png"
+                    src="icon-popuilation.png"
                     alt=""
                     width="14"
                     height="14"
@@ -398,7 +398,7 @@
                   <div class="planet-sidebar__info-row">
                     <span
                       ><img
-                        src="/icon-{{
+                        src="icon-{{
                           resource === 'rawmaterials' ? 'rawmaterial' : 'research'
                         }}.png"
                         alt=""
@@ -417,7 +417,7 @@
                 <div class="planet-sidebar__info-row">
                   <span
                     ><img
-                      src="/icon-efficiency.png"
+                      src="icon-efficiency.png"
                       alt=""
                       width="14"
                       height="14"
@@ -433,7 +433,7 @@
             <hr class="planet-sidebar__divider" />
 
             <div class="planet-sidebar__buildings-title">
-              <img src="/icon-build.png" alt="" width="14" height="14" class="info-icon" />
+              <img src="icon-build.png" alt="" width="14" height="14" class="info-icon" />
               BUILDINGS ({{ planet?.buildings.length }})
             </div>
 
