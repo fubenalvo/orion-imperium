@@ -14,14 +14,6 @@
     </div>
 
     <div class="battle-screen__content">
-      <app-battle-fleet-panel
-        [fleetName]="state.attackerName"
-        [factionColor]="state.attackerColor"
-        [roster]="state.attackerShips"
-        [isActive]="isActiveSide('attacker')"
-        [result]="getSideResult('attacker')"
-      ></app-battle-fleet-panel>
-
       <app-battle-grid
         [stacks]="liveStacks"
         [selectedStackId]="selectedStackId"
@@ -33,14 +25,6 @@
         [onStackClick]="onStackClick"
         [onCellClick]="onCellClick"
       ></app-battle-grid>
-
-      <app-battle-fleet-panel
-        [fleetName]="state.defenderName"
-        [factionColor]="state.defenderColor"
-        [roster]="state.defenderShips"
-        [isActive]="isActiveSide('defender')"
-        [result]="getSideResult('defender')"
-      ></app-battle-fleet-panel>
     </div>
 
     <div class="battle-screen__controls">

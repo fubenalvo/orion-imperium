@@ -4,13 +4,13 @@
 
 .battle-grid {
   position: relative;
-  width: 45vw;
-  height: 17.5vw;
+  width: 72vw;
+  height: 28vw;
   flex-shrink: 0;
   background-image:
     linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
     linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
-  background-size: 2.5vw 2.5vw;
+  background-size: 4vw 4vw;
   border-bottom: rgba(53, 134, 229, 0.1) 2px solid;
   cursor: crosshair;
 }
@@ -21,8 +21,8 @@
 
 .move-cell {
   position: absolute;
-  width: 2vw;
-  height: 2vw;
+  width: 3.2vw;
+  height: 3.2vw;
   transform: translate(-50%, -50%);
   border: 1px dashed rgba(140, 196, 255, 0.45);
   border-radius: 2px;
@@ -36,8 +36,8 @@
 
 .stack-cell {
   position: absolute;
-  width: 2.3vw;
-  height: 2.3vw;
+  width: 3.7vw;
+  height: 3.7vw;
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
@@ -147,9 +147,9 @@
 
 .stack__hp {
   width: 90%;
-  height: 4px;
+  height: 8px;
   background: rgba(255, 255, 255, 0.12);
-  border-radius: 2px;
+  border-radius: 4px;
   overflow: hidden;
 }
 
@@ -196,8 +196,8 @@
 
 .impact {
   position: absolute;
-  width: 1.5vw;
-  height: 1.5vw;
+  width: 2.4vw;
+  height: 2.4vw;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(214, 87, 87, 0.5) 40%, transparent 70%);

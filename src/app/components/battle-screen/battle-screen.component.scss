@@ -1,17 +1,17 @@
 .battle-screen {
   position: relative;
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   background: #020609;
   color: var(--color-text);
-  gap: 0.6rem;
-  padding: 0.75rem 1rem 1rem;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem 0.75rem;
   box-sizing: border-box;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .battle-screen__header {
@@ -20,7 +20,7 @@
 }
 
 .battle-screen__title {
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.3em;
   color: #d65757;
@@ -28,10 +28,10 @@
 }
 
 .battle-screen__phase {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   letter-spacing: 0.15em;
   opacity: 0.8;
-  margin-top: 0.25rem;
+  margin-top: 0.2rem;
   color: var(--color-blue);
 }
 
@@ -41,9 +41,9 @@
 }
 
 .battle-screen__ap {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   letter-spacing: 0.2em;
-  margin-top: 0.15rem;
+  margin-top: 0.1rem;
   color: #4caf50;
 }
 
@@ -51,10 +51,11 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  gap: 0.8rem;
+  gap: 0.5rem;
   width: 100%;
-  max-width: 1400px;
   flex-shrink: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .battle-screen__controls {
@@ -64,13 +65,13 @@
 }
 
 .end-turn-btn {
-  padding: 0.5rem 2.5rem;
+  padding: 0.45rem 2rem;
   border: 1px solid var(--color-blue);
   border-radius: 2px;
   background: rgba(53, 134, 229, 0.15);
   color: var(--color-text);
   font-family: var(--font-primary);
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.2em;
   cursor: pointer;
@@ -90,7 +91,7 @@
 }
 
 .battle-screen__hint {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   letter-spacing: 0.2em;
   opacity: 0.55;
   min-height: 1em;
@@ -99,8 +100,7 @@
 
 .battle-screen__log {
   width: 100%;
-  max-width: 1400px;
-  max-height: 140px;
+  max-height: 120px;
   overflow-y: auto;
   border: 1px solid rgba(53, 134, 229, 0.2);
   border-radius: 4px;
@@ -109,8 +109,8 @@
 }
 
 .log-header {
-  padding: 0.4rem 1rem;
-  font-size: 0.8rem;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.15em;
   border-bottom: 1px solid rgba(53, 134, 229, 0.2);
@@ -118,15 +118,15 @@
 }
 
 .log-entries {
-  padding: 0.4rem 1rem;
+  padding: 0.35rem 0.8rem;
 }
 
 .log-entry {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.2rem 0;
-  font-size: 0.75rem;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  font-size: 0.68rem;
   border-bottom: 1px solid rgba(53, 134, 229, 0.08);
   flex-wrap: wrap;
 }
@@ -134,7 +134,7 @@
 .log-round {
   font-weight: 700;
   color: var(--color-blue);
-  min-width: 30px;
+  min-width: 26px;
 }
 
 .log-action {
@@ -161,7 +161,7 @@
 }
 
 .battle-screen__summary {
-  padding: 0.6rem 1.5rem;
+  padding: 0.5rem 1.2rem;
   background: rgba(53, 134, 229, 0.1);
   border: 1px solid rgba(53, 134, 229, 0.3);
   border-radius: 4px;
@@ -170,18 +170,18 @@
 }
 
 .summary-text {
-  font-size: 1rem;
+  font-size: 0.9rem;
   letter-spacing: 0.1em;
 }
 
 .back-btn {
-  padding: 0.6rem 2.5rem;
+  padding: 0.5rem 2rem;
   border: 1px solid #4caf50;
   border-radius: 2px;
   background: rgba(76, 175, 80, 0.15);
   color: #4caf50;
   font-family: var(--font-primary);
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.2em;
   cursor: pointer;
@@ -197,7 +197,7 @@
 }
 
 .battle-screen__error {
-  font-size: 1.2rem;
+  font-size: 1rem;
   letter-spacing: 0.3em;
   color: #d65757;
   margin-top: 20vh;

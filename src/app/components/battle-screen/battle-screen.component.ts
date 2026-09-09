@@ -23,7 +23,6 @@ import { BattleTurnService } from './battle/battle-turn.service';
 import { BattleAnimationService } from './battle/battle-animation.service';
 import { BattleAiService } from './battle/battle-ai.service';
 import { BattleGridComponent } from './battle-grid/battle-grid.component';
-import { BattleFleetPanelComponent } from './battle-fleet-panel/battle-fleet-panel.component';
 
 /*
  * =========================================================
@@ -46,7 +45,7 @@ import { BattleFleetPanelComponent } from './battle-fleet-panel/battle-fleet-pan
 @Component({
   selector: 'app-battle-screen',
   standalone: true,
-  imports: [CommonModule, BattleGridComponent, BattleFleetPanelComponent],
+  imports: [CommonModule, BattleGridComponent],
   templateUrl: './battle-screen.component.html',
   styleUrl: './battle-screen.component.scss',
 })
