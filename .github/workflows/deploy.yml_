@@ -1,4 +1,4 @@
-name: Deploy Angular to GitHub Pages
+name: Deploy Angular app to GitHub Pages
 
 on:
   push:
@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
@@ -27,31 +27,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build Angular
+      - name: Build
         run: npm run build -- --base-href=/orion-imperium/
 
-      - name: Create GitHub Pages fallback
-        run: cp dist/orion-imperium/browser/index.html dist/orion-imperium/browser/404.html
-
-      - name: Fix asset paths for GitHub Pages
-        run: |
-          find dist/orion-imperium/browser -type f \( -name "*.css" -o -name "*.html" -o -name "*.js" \) -exec sed -i 's|/images/|/orion-imperium/images/|g' {} +
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist/orion-imperium/browser
 
   deploy:
-    needs: build
-    runs-on: ubuntu-latest
-
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+
+    runs-on: ubuntu-latest
+
+    needs: build
+
+    permissions:
+      pages: write
+      id-token: write
 
     steps:
       - name: Deploy to GitHub Pages
