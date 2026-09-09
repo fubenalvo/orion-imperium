@@ -1,0 +1,30 @@
+<div class="fleet-panel" [ngClass]="{ active: isActive, winner: result === 'winner', loser: result === 'loser' }">
+  <h2 class="fleet-panel__name">{{ fleetName }}</h2>
+  <div class="fleet-panel__count">
+    SHIPS: {{ aliveCount }} / {{ roster.length }}
+  </div>
+
+  <div class="fleet-panel__ships">
+    @for (ship of roster; track ship.shipId) {
+      <div class="ship-row" [class.destroyed]="!ship.alive">
+        <span class="ship-row__type">{{ ship.name }}</span>
+        <div class="ship-row__hp">
+          <div
+            class="hp-bar"
+            [style.width.%]="ship.alive ? hullFraction(ship) * 100 : 0"
+          ></div>
+        </div>
+        <span class="ship-row__hp-text">
+          {{ ship.alive ? ship.hp + ' HP' : 'DESTROYED' }}
+        </span>
+      </div>
+    }
+  </div>
+
+  @if (result === 'winner') {
+    <div class="fleet-panel__result winner">VICTORY</div>
+  }
+  @if (result === 'loser') {
+    <div class="fleet-panel__result loser">DESTROYED</div>
+  }
+</div>

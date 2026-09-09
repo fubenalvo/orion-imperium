@@ -1,0 +1,238 @@
+:host {
+  display: contents;
+}
+
+.battle-grid {
+  position: relative;
+  width: 90vw;
+  height: 35vw;
+  flex-shrink: 0;
+  background-image:
+    linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
+    linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
+  background-size: 5vw 5vw;
+  border-bottom: rgba(53, 134, 229, 0.1) 2px solid;
+  cursor: crosshair;
+}
+
+/* =========================================================
+   MOVEMENT HIGHLIGHTS
+   ========================================================= */
+
+.move-cell {
+  position: absolute;
+  width: 4vw;
+  height: 4vw;
+  transform: translate(-50%, -50%);
+  border: 1px dashed rgba(140, 196, 255, 0.45);
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* =========================================================
+   STACK CELLS
+   ========================================================= */
+
+.stack-cell {
+  position: absolute;
+  width: 4.6vw;
+  height: 4.6vw;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: left 180ms linear, top 180ms linear;
+  will-change: left, top;
+  pointer-events: none;
+}
+
+.stack-cell--selected {
+  z-index: 11;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2em;
+  width: 100%;
+  height: 100%;
+  padding: 0.2em;
+  border: 1px solid var(--color-blue);
+  background: rgba(0, 0, 0, 0.75);
+  color: var(--color-text);
+  font-family: var(--font-primary);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(53, 134, 229, 0.5);
+  pointer-events: auto;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.stack:hover {
+  border-color: var(--color-blue-bright);
+  box-shadow: 0 0 12px rgba(140, 196, 255, 0.6);
+}
+
+.stack.selected {
+  border-color: var(--color-blue-bright);
+  box-shadow:
+    0 0 8px var(--color-blue),
+    0 0 18px rgba(53, 134, 229, 0.5);
+}
+
+.stack.moving {
+  border-color: var(--color-blue-bright);
+  box-shadow: 0 0 12px rgba(140, 196, 255, 0.7);
+}
+
+.stack.attack-target {
+  border-color: #d65757;
+  box-shadow:
+    0 0 8px rgba(214, 87, 87, 0.7),
+    0 0 18px rgba(214, 87, 87, 0.4);
+  animation: target-pulse 0.9s ease-in-out infinite;
+}
+
+.stack__icons {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
+  min-height: 1.1em;
+}
+
+.stack__icon {
+  width: 0.7em;
+  height: 0.7em;
+  background: var(--color-blue-bright);
+  transform: rotate(45deg);
+  box-shadow: 0 0 4px currentColor;
+}
+
+.stack__icon--damaged {
+  background: var(--color-blue-dark);
+  box-shadow: none;
+}
+
+.stack__count {
+  position: absolute;
+  top: 0.1em;
+  right: 0.3em;
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  opacity: 0.85;
+}
+
+.stack__name {
+  font-size: 0.55rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.9;
+}
+
+.stack__hp {
+  width: 90%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.stack__hp-bar {
+  display: block;
+  height: 100%;
+  background: var(--color-blue);
+  transition: width 0.25s ease;
+}
+
+/* =========================================================
+   ATTACK EFFECTS
+   ========================================================= */
+
+.projectile {
+  position: absolute;
+  height: 3px;
+  transform-origin: 0 0;
+  background: repeating-linear-gradient(
+    to right,
+    #d65757 0,
+    #d65757 5px,
+    rgba(214, 87, 87, 0.1) 5px,
+    rgba(214, 87, 87, 0.1) 9px
+  );
+  box-shadow: 0 0 6px #d65757;
+  z-index: 20;
+  animation: projectile-fly 320ms linear forwards;
+}
+
+@keyframes projectile-fly {
+  0% {
+    transform: scaleX(0);
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1);
+    opacity: 0;
+  }
+}
+
+.impact {
+  position: absolute;
+  width: 3vw;
+  height: 3vw;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(214, 87, 87, 0.5) 40%, transparent 70%);
+  z-index: 21;
+  animation: impact-flash 200ms ease-out forwards;
+  pointer-events: none;
+}
+
+.impact--explosion {
+  background: radial-gradient(circle, #fff, #ffcc00 25%, #d65757 55%, transparent 75%);
+  animation: impact-explosion 420ms ease-out forwards;
+}
+
+@keyframes impact-flash {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+}
+
+@keyframes impact-explosion {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.4);
+  }
+}
+
+@keyframes target-pulse {
+  0% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.8;
+  }
+}

@@ -1,7 +1,7 @@
 # Orion Imperium — Játékállapot, Feature lista és Készültségi fok
 
-> **Verzió:** 0.4
-> **Utoljára frissítve:** 2026-09-07
+> **Verzió:** 0.5
+> **Utoljára frissítve:** 2026-09-09
 > **Scope:** Angular 22 standalone, kliens-oldali, localStorage persistence.
 
 ---

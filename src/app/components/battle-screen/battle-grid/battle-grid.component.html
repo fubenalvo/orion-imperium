@@ -1,0 +1,67 @@
+<div class="battle-grid" (click)="onGridClickHandler($event)">
+  <!-- MOVEMENT HIGHLIGHTS -->
+  @for (cell of moveCells; track cell.col + '-' + cell.row) {
+    <div
+      class="move-cell"
+      [style.left]="cellVw(cell).x + 'vw'"
+      [style.top]="cellVw(cell).y + 'vw'"
+    ></div>
+  }
+
+  <!-- STACKS -->
+  @for (stack of stacks; track stack.stackId) {
+    <div
+      class="stack-cell"
+      [style.left]="stackVw(stack).x + 'vw'"
+      [style.top]="stackVw(stack).y + 'vw'"
+      [style.transition]="stackTransition(stack)"
+      [class.stack-cell--selected]="stack.stackId === selectedStackId"
+    >
+      <button
+        class="stack"
+        [ngClass]="{
+          selected: stack.stackId === selectedStackId,
+          moving: stack.moving,
+          firing: stack.firing,
+          'attack-target': isAttackTarget(stack.stackId)
+        }"
+        type="button"
+        (click)="onStackClickHandler(stack.stackId)"
+      >
+        <span class="stack__icons">
+          @for (ship of stack.ships; track ship.shipId) {
+            @if (ship.alive) {
+              <span class="stack__icon" [class.stack__icon--damaged]="ship.hp < ship.maxHp"></span>
+            }
+          }
+        </span>
+        @if (stack.ships.length > 1) {
+          <span class="stack__count">×{{ stack.ships.length }}</span>
+        }
+        <span class="stack__name">{{ stack.typeName }}</span>
+        <span class="stack__hp">
+          <span class="stack__hp-bar" [style.width.%]="hullFraction(stack) * 100"></span>
+        </span>
+      </button>
+    </div>
+  }
+
+  <!-- ATTACK EFFECTS -->
+  @if (getProjectileLine(); as line) {
+    <div
+      class="projectile"
+      [style.left]="line.x + 'vw'"
+      [style.top]="line.y + 'vw'"
+      [style.width]="line.length + 'vw'"
+      [style.transform]="line.angle"
+    ></div>
+  }
+  @if (effect?.phase === 'impact' || effect?.phase === 'explosion') {
+    <div
+      class="impact"
+      [class.impact--explosion]="effect?.phase === 'explosion'"
+      [style.left]="cellVw(effect!.to).x + 'vw'"
+      [style.top]="cellVw(effect!.to).y + 'vw'"
+    ></div>
+  }
+</div>

@@ -9,7 +9,7 @@ import {
 import { Router, NavigationEnd } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { BattleService } from '../../services/battle.service';
+import { BattleService, BattleOutcome } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { EconomyService } from '../../services/economy.service';
@@ -2323,11 +2323,24 @@ export class StarMap implements AfterViewInit, OnDestroy {
    * current save. The active session is backed by the AUTOSAVE slot, so the
    * destroyed flag persists across sibling-route reloads even though the
    * StarMap component instance is recreated on every /star-map navigation.
+   *
+   * Also applies the survivor rosters carried by the battle result: both
+   * real fleets get their per-ship final HP / destroyed flags written
+   * back, so a damaged winner returns damaged and a fleet can lose ships
+   * without being wiped out.
    */
   private removeDestroyedFleetFromService(): void {
     const destroyedFleetId = this.battleService.getDestroyedFleetId();
+    const battleResult = this.battleService.getBattleResult();
+    if (destroyedFleetId == null && battleResult == null) {
+      return;
+    }
+
+    if (battleResult) {
+      this.applyBattleResult(battleResult);
+    }
+
     if (destroyedFleetId != null) {
-      this.battleService.clearBattle();
       const fleet = this.fleets.find((f) => f.id === destroyedFleetId);
       if (fleet) {
         fleet.destroyed = true;
@@ -2338,7 +2351,35 @@ export class StarMap implements AfterViewInit, OnDestroy {
         this.targetX = null;
         this.targetY = null;
       }
-      this.saveGame();
+    }
+
+    this.battleService.clearBattle();
+    this.saveGame();
+  }
+
+  /*
+   * Applies a battle outcome's per-fleet rosters onto the live fleets.
+   * Virtual planet-defense fleets (negative ids) never persist.
+   */
+  private applyBattleResult(result: BattleOutcome): void {
+    for (const fleetOutcome of [result.attacker, result.defender]) {
+      if (fleetOutcome.fleetId < 0) {
+        continue;
+      }
+      const fleet = this.fleets.find((f) => f.id === fleetOutcome.fleetId);
+      if (!fleet) {
+        continue;
+      }
+      fleet.ships = fleetOutcome.ships.map((s) => ({
+        id: s.shipId,
+        name: s.name,
+        type: s.typeId,
+        currentHp: s.hp,
+        destroyed: s.destroyed,
+      }));
+      if (fleetOutcome.wipedOut) {
+        fleet.destroyed = true;
+      }
     }
   }
 

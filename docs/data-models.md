@@ -144,28 +144,62 @@ Read from `planet-data.json`:
 
 ## Battle
 
-Owned by `BattleService` while a battle is in progress. Lives between `StarMap` and `BattleScreenComponent`.
+Transport type `Battle` (defined in `src/app/components/battle-screen/battle/battle.types.ts`,
+re-exported by `BattleService`). Lives between `StarMap` and `BattleScreenComponent` and is
+**never mutated** by the minigame — it deep-clones the fleets it needs.
 
-- `fleet1`, `fleet2`: `Fleet` references (the defender may be a virtual defense fleet for planet battles)
+- `fleet1`, `fleet2`: `Fleet`-shaped references (the defender may be a virtual defense fleet
+  for planet battles; its `id` is `-planet.id`). Only `id`, `name`, `factionId`, and `ships`
+  are read.
 - `faction1Name`, `faction1Color`, `faction2Name`, `faction2Color`: display data
-- `attackerId`, `defenderId`: ids of the attacker and defender (`fleet1.id` / `fleet2.id`)
-- `type`: `'fleet' | 'planet' | undefined` — set to `'planet'` by `setPlanetBattle()`
-- `planetId`: only set for planet battles; used by the result handler to update the planet's owner
-- `capturedPlanetId`: reserved for future capture flow
+- `attackerId`, `defenderId`: ids of the attacker and defender — sides are resolved by id,
+  not by fleet1/fleet2 order (the attacker may be fleet2).
+- `type`: `'fleet' | 'planet'` — set to `'planet'` by `setPlanetBattle()`
+- `planetId`: only set for planet battles; used by the result handler to update the planet
+  owner
 
-## BattleState
+## Battle State Model
 
-- `attackerId`, `defenderId`: ids from the `Battle`
-- `currentFleetId`: whose turn it is
-- `currentShipIndex`: index into the current fleet's alive ships
-- `log`: `BattleLogEntry[]`
-- `round`: increments every time the attacker has had a full turn
-- `isOver`: `true` once one side has no alive ships
-- `winnerId`, `loserId`: set when the battle ends
+Battle-local simulation state lived in `BattleService.BattleState` during the old
+auto-resolving implementation. It now lives in
+`src/app/components/battle-screen/battle/battle.types.ts` as `BattleModelState` and is built
+by `createBattleState()` (in `battle/battle-state.ts`), **not** by `BattleService`.
 
-## BattleLogEntry
+- `round`: increments each time the active side returns to the attacker
+- `activeSide`: `'attacker' | 'defender'` whose AP pool is currently spending
+- `phase`: `'playerTurn' | 'aiTurn' | 'over'` — the non-player side is auto-played
+- `ap` / `apPerTurn`: remaining and full Action Point pool (10)
+- `stacks`: `BattleStack[]` — the tactical units on the grid
+- `effect`: the single in-flight `BattleAttackEffect` (projectile / impact / explosion)
+- `winner`: the battle side with surviving stacks, or `null`
+- `attackerFleetId`, `defenderFleetId`, faction ids, and display names/colors
+- `attackerShips`, `defenderShips`: full rosters in input order (used to build the outcome)
 
-- `round`, `attackerFleetName`, `attackerShipName`, `defenderFleetName`, `defenderShipName`, `damage`, `targetDestroyed`
+### BattleStack
+
+- `stackId`: `${side}:${typeId}:${index}`
+- `side`, `typeId`, `typeName`, `col`, `row`
+- `ships`: `BattleShip[]` (≤ `MAX_STACK_SIZE = 5`)
+- `tier`: AP tier (also `moveApPerCell` and `attackAp`)
+- `moveRange`: = the ship type's `speed` (cells per turn)
+- `attackRange`: = the ship type's `range`
+- `immobile`: true for planet-defense buildings
+- `cellsMovedThisTurn`, `attackedThisTurn`, `moving`, `firing`
+- `destroyed`: true when every ship in the stack is dead
+
+### BattleShip
+
+`shipId` === overworld `FleetShip.id` (the key used to map the outcome back onto the
+fleet roster), `hp` / `maxHp`, `attack`, `defense`, `alive`.
+
+## BattleOutcome
+
+Returned by `buildBattleOutcome()` and stored on `BattleService` via `setBattleResult()`:
+
+- `winnerSide` / `winnerFleetId` / `loserFleetId`
+- `attacker`, `defender`: `BattleFleetOutcome` (roster in input order with final `hp` /
+  `destroyed`, `survivors`, `wipedOut`)
+- `rounds`, `battleType`, `planetId?`
 
 ## Economy Types
 

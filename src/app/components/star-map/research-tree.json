@@ -3,7 +3,7 @@
     {
       "id": "basic_engineering",
       "name": "Basic Engineering",
-      "description": "Fundamentals of spacecraft construction and repair.",
+      "description": "Fundamentals of spacecraft construction and repair. Enables basic ship production and infrastructure.",
       "researchCost": 0,
       "prerequisites": [],
       "unlocksShips": ["scout", "fighter", "colonizer"],
@@ -39,10 +39,19 @@
     {
       "id": "advanced_engineering",
       "name": "Advanced Engineering",
-      "description": "Improved hull design, shielding, and construction methods.",
+      "description": "Improved hull design, shielding, and construction methods. Enables escort-class vessels and expanded habitation.",
       "researchCost": 150,
       "prerequisites": ["basic_engineering"],
       "unlocksShips": ["corvette", "frigate"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "advanced_construction",
+      "name": "Advanced Construction",
+      "description": "Large-scale structural engineering and urban planning techniques.",
+      "researchCost": 250,
+      "prerequisites": ["advanced_engineering"],
+      "unlocksShips": [],
       "unlocksBuildings": ["medium_residential"]
     },
     {
@@ -55,65 +64,11 @@
       "unlocksBuildings": ["planetary_shield", "hospital", "school"]
     },
     {
-      "id": "industrial_engineering",
-      "name": "Industrial Engineering",
-      "description": "Optimized production chains and workforce management.",
-      "researchCost": 150,
-      "prerequisites": ["basic_industry"],
-      "unlocksShips": [],
-      "unlocksBuildings": ["large_residential", "park"]
-    },
-    {
-      "id": "fusion_power",
-      "name": "Fusion Power",
-      "description": "Harnessing fusion energy for large-scale consumption.",
-      "researchCost": 200,
-      "prerequisites": ["basic_power"],
-      "unlocksShips": [],
-      "unlocksBuildings": ["fusion_plant"]
-    },
-    {
-      "id": "advanced_research",
-      "name": "Advanced Research",
-      "description": "High-capacity research facilities for cutting-edge science.",
-      "researchCost": 200,
-      "prerequisites": ["basic_science"],
-      "unlocksShips": [],
-      "unlocksBuildings": ["research_lab"]
-    },
-    {
       "id": "orbital_engineering",
       "name": "Orbital Engineering",
       "description": "Large-scale orbital construction and docking facilities.",
       "researchCost": 300,
       "prerequisites": ["advanced_engineering"],
-      "unlocksShips": [],
-      "unlocksBuildings": []
-    },
-    {
-      "id": "advanced_industry",
-      "name": "Advanced Industry",
-      "description": "Fully automated factories and logistics networks.",
-      "researchCost": 300,
-      "prerequisites": ["industrial_engineering"],
-      "unlocksShips": [],
-      "unlocksBuildings": ["entertainment_center"]
-    },
-    {
-      "id": "advanced_power_systems",
-      "name": "Advanced Power Systems",
-      "description": "Next-generation energy management and distribution.",
-      "researchCost": 300,
-      "prerequisites": ["fusion_power"],
-      "unlocksShips": [],
-      "unlocksBuildings": []
-    },
-    {
-      "id": "applied_science",
-      "name": "Applied Science",
-      "description": "Converting theoretical research into practical technologies.",
-      "researchCost": 300,
-      "prerequisites": ["advanced_research"],
       "unlocksShips": [],
       "unlocksBuildings": []
     },
@@ -127,12 +82,84 @@
       "unlocksBuildings": []
     },
     {
-      "id": "advanced_weapons",
-      "name": "Advanced Weapons",
-      "description": "Heavy armament systems and dreadnought construction.",
+      "id": "advanced_industry",
+      "name": "Advanced Industry",
+      "description": "Fully automated factories and logistics networks.",
+      "researchCost": 150,
+      "prerequisites": ["basic_industry"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["entertainment_center", "park"]
+    },
+    {
+      "id": "advanced_manufacturing",
+      "name": "Advanced Manufacturing",
+      "description": "Next-generation production lines and supply chain optimization.",
+      "researchCost": 300,
+      "prerequisites": ["advanced_industry"],
+      "unlocksShips": [],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "urban_infrastructure",
+      "name": "Urban Infrastructure",
+      "description": "High-density habitation systems and integrated city planning.",
+      "researchCost": 350,
+      "prerequisites": ["advanced_construction", "advanced_manufacturing"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["large_residential"]
+    },
+    {
+      "id": "improved_power",
+      "name": "Improved Power",
+      "description": "More efficient energy generation and distribution networks.",
+      "researchCost": 100,
+      "prerequisites": ["basic_power"],
+      "unlocksShips": [],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "fusion_power",
+      "name": "Fusion Power",
+      "description": "Harnessing fusion energy for large-scale consumption.",
+      "researchCost": 200,
+      "prerequisites": ["improved_power"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["fusion_plant"]
+    },
+    {
+      "id": "advanced_power",
+      "name": "Advanced Power Infrastructure",
+      "description": "Next-generation energy management and distribution.",
+      "researchCost": 300,
+      "prerequisites": ["fusion_power"],
+      "unlocksShips": [],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "advanced_science",
+      "name": "Advanced Science",
+      "description": "High-level theoretical research and scientific institutions.",
+      "researchCost": 150,
+      "prerequisites": ["basic_science"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["hospital", "school"]
+    },
+    {
+      "id": "advanced_research",
+      "name": "Advanced Research",
+      "description": "High-capacity research facilities for cutting-edge science.",
+      "researchCost": 250,
+      "prerequisites": ["advanced_science"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["research_lab"]
+    },
+    {
+      "id": "applied_science",
+      "name": "Applied Science",
+      "description": "Converting theoretical research into practical technologies.",
       "researchCost": 400,
-      "prerequisites": ["military_engineering"],
-      "unlocksShips": ["battleship", "battlecruiser", "dreadnought"],
+      "prerequisites": ["advanced_research"],
+      "unlocksShips": [],
       "unlocksBuildings": []
     },
     {
@@ -164,6 +191,96 @@
       "unlocksShips": [],
       "unlocksBuildings": [],
       "bonuses": [{ "type": "sensorRange", "value": 1 }]
+    },
+    {
+      "id": "scout_technology",
+      "name": "Scout Technology",
+      "description": "Light reconnaissance craft and sensor platforms.",
+      "researchCost": 50,
+      "prerequisites": ["basic_engineering"],
+      "unlocksShips": ["scout"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "fighter_technology",
+      "name": "Fighter Technology",
+      "description": "Fast interceptors and point-defense systems.",
+      "researchCost": 75,
+      "prerequisites": ["basic_engineering"],
+      "unlocksShips": ["fighter"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "corvette_technology",
+      "name": "Corvette Technology",
+      "description": "Light combat vessels with improved armor and armament.",
+      "researchCost": 150,
+      "prerequisites": ["advanced_engineering"],
+      "unlocksShips": ["corvette"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "frigate_technology",
+      "name": "Frigate Technology",
+      "description": "Escort ships with balanced combat capabilities.",
+      "researchCost": 200,
+      "prerequisites": ["advanced_engineering"],
+      "unlocksShips": ["frigate"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "destroyer_technology",
+      "name": "Destroyer Technology",
+      "description": "Anti-ship warfare platforms with heavy weaponry.",
+      "researchCost": 250,
+      "prerequisites": ["military_engineering"],
+      "unlocksShips": ["destroyer"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "cruiser_technology",
+      "name": "Cruiser Technology",
+      "description": "Line-of-battle ships with heavy armor and firepower.",
+      "researchCost": 400,
+      "prerequisites": ["advanced_shipyards"],
+      "unlocksShips": ["cruiser"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "carrier_technology",
+      "name": "Carrier Technology",
+      "description": "Fleet support vessels with hangar bays and missile systems.",
+      "researchCost": 450,
+      "prerequisites": ["advanced_shipyards"],
+      "unlocksShips": ["carrier"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "capital_ship_technology",
+      "name": "Capital Ship Technology",
+      "description": "Ultra-heavy warship construction and advanced dreadnought systems.",
+      "researchCost": 500,
+      "prerequisites": ["advanced_weapons"],
+      "unlocksShips": ["battleship", "battlecruiser", "dreadnought"],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "advanced_weapons",
+      "name": "Advanced Weapons",
+      "description": "Heavy armament systems and dreadnought construction.",
+      "researchCost": 350,
+      "prerequisites": ["military_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": []
+    },
+    {
+      "id": "colonization_technology",
+      "name": "Colonization Technology",
+      "description": "Life support systems, habitation modules, and colonization capability.",
+      "researchCost": 300,
+      "prerequisites": ["advanced_construction", "advanced_science"],
+      "unlocksShips": ["colonizer"],
+      "unlocksBuildings": []
     }
   ]
 }

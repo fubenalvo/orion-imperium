@@ -1,42 +1,61 @@
 import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { BattleService, Battle, BattleState, BattleLogEntry, FleetShip, Fleet } from '../../services/battle.service';
+import { Subscription } from 'rxjs';
+import { CommonModule } from '@angular/common';
+import { BattleService } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { GameTimeService } from '../../services/game-time.service';
+import {
+  Battle,
+  BattleModelState,
+  BattleOutcome,
+  BattleStack,
+  GridCell,
+} from './battle/battle.types';
+import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
+import { getAttackTargetIds as computeAttackTargetIds, getReachableCells } from './battle/battle-grid';
+import { buildBattleOutcome } from './battle/battle-result';
+import { BattleMovementService } from './battle/battle-movement.service';
+import { BattleCombatService } from './battle/battle-combat.service';
+import { BattleTurnService } from './battle/battle-turn.service';
+import { BattleAnimationService } from './battle/battle-animation.service';
+import { BattleAiService } from './battle/battle-ai.service';
+import { BattleGridComponent } from './battle-grid/battle-grid.component';
+import { BattleFleetPanelComponent } from './battle-fleet-panel/battle-fleet-panel.component';
 
 /*
  * =========================================================
  * BATTLE SCREEN COMPONENT
  * =========================================================
  *
- * View for turn-based battle simulation.
+ * Orchestrator for the self-contained tactical battle minigame.
+ * It receives the Battle transport object from BattleService, builds
+ * battle-local state (deep-cloned ships), and forwards player input to
+ * the battle services. All simulation state lives in this component's
+ * BattleModelState — the minigame never touches StarMap state.
  *
- * Navigation flow:
+ * Navigation flow (unchanged from the old placeholder):
  * 1. StarMap detects collision -> BattleService.setBattle() -> navigate to /battle
- * 2. BattleScreen initializes battle in ngOnInit()
- * 3. A timer calls processStep() every tickRateMs
- * 4. Each step processes one ship attack and updates the UI
- * 5. When battle ends, "Back to Star Map" becomes visible
- * 6. On back navigation, loser fleet is marked destroyed -> navigate back
- * 7. StarMap processes destroyedFleetId on next init
+ * 2. The minigame runs turn-based, AP-driven combat
+ * 3. "Back to Star Map" persists the BattleOutcome and navigates back
+ * 4. StarMap applies the outcome via reloadAfterBattle()
  */
 
 @Component({
   selector: 'app-battle-screen',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, BattleGridComponent, BattleFleetPanelComponent],
   templateUrl: './battle-screen.component.html',
-  styleUrl: './battle-screen.component.scss'
+  styleUrl: './battle-screen.component.scss',
 })
 export class BattleScreenComponent implements OnInit, OnDestroy {
-  battle: Battle | null = null;
-  battleState: BattleState | null = null;
-  battleLog: BattleLogEntry[] = [];
-  battleOver = false;
-  private stepTimer: any = null;
+  private battle: Battle | null = null;
+  private state: BattleModelState | null = null;
+  private ticksSub: Subscription;
+
+  selectedStackId: string | null = null;
 
   constructor(
     private router: Router,
@@ -45,190 +64,290 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     private planetBattleService: PlanetBattleService,
     private saveGameService: SaveGameService,
     private gameTimeService: GameTimeService,
-    private cdr: ChangeDetectorRef
+    private movement: BattleMovementService,
+    private combat: BattleCombatService,
+    private turn: BattleTurnService,
+    private ai: BattleAiService,
+    readonly anim: BattleAnimationService,
+    private cdr: ChangeDetectorRef,
   ) {
     this.battle = this.battleService.getBattle();
+    this.ticksSub = this.anim.ticks$.subscribe(() => this.cdr.detectChanges());
+  }
+
+  get battleState(): BattleModelState | null {
+    return this.state;
+  }
+
+  get liveStacks(): BattleModelState['stacks'] {
+    return this.state?.stacks.filter((s) => !s.destroyed) ?? [];
+  }
+
+  get battleOver(): boolean {
+    return this.state?.winner != null;
+  }
+
+  get playerControlsActiveSide(): boolean {
+    if (!this.state || this.state.winner) {
+      return false;
+    }
+    return isSidePlayerControlled(this.state, this.state.activeSide);
+  }
+
+  get canAct(): boolean {
+    return this.playerControlsActiveSide && !this.anim.isBusy;
+  }
+
+  get canEndTurn(): boolean {
+    return this.playerControlsActiveSide && !this.anim.isBusy;
+  }
+
+  get phaseLabel(): string {
+    if (!this.state) {
+      return '';
+    }
+    if (this.state.winner) {
+      return 'BATTLE OVER';
+    }
+    return this.state.activeSide === 'attacker' ? 'ATTACKER TURN' : 'DEFENDER TURN';
+  }
+
+  get moveCells(): GridCell[] {
+    const stack = this.selectedStack();
+    if (!this.state || !stack || !this.playerControlsActiveSide) {
+      return [];
+    }
+    return getReachableCells(this.state, stack);
+  }
+
+  get attackTargetIds(): string[] {
+    const stack = this.selectedStack();
+    if (!this.state || !stack || !this.playerControlsActiveSide) {
+      return [];
+    }
+    return computeAttackTargetIds(this.state, stack);
+  }
+
+  get effect(): BattleModelState['effect'] {
+    return this.state?.effect ?? null;
   }
 
   ngOnInit(): void {
     if (this.battle) {
-      this.battleService.startBattle();
-      this.battle = this.battleService.getBattle();
-      this.battleState = this.battleService.getBattleState();
-      this.battleLog = this.battleService.getBattleLog();
-      this.battleOver = this.battleService.isBattleOver();
-      this.startStepTimer();
+      this.state = createBattleState(this.battle, this.shipService, this.planetBattleService);
+      this.turn.checkVictory(this.state);
+      void this.runAiTurns();
     }
     // Freeze the galaxy-map simulation while the player is on the battle
-    // screen. Without this, StarMap's RAF loop (and the movement, AI,
-    // economy and battle-detection it drives) keeps running in the
-    // background because Angular reuses the StarMap component instance
-    // across the /star-map -> /battle -> /star-map navigation. That
-    // causes fleets to move, resources to tick and, worst case, new
-    // battles to trigger while the player is fighting this one, which
-    // looks indistinguishable from a full state reset on return.
+    // screen (same behaviour as the old placeholder): the StarMap RAF
+    // loop keeps running in the background because Angular reuses the
+    // StarMap component instance across /star-map -> /battle navigation.
     this.gameTimeService.pause();
   }
 
   ngOnDestroy(): void {
-    this.stopStepTimer();
-    // Resume the galaxy-map simulation as we leave the battle screen so
-    // the player returns to a live world. Back to Star Map also calls
-    // resume defensively before navigating, but this catches the case
-    // where the component is torn down via browser back / route reuse.
+    this.ticksSub.unsubscribe();
+    this.anim.reset();
     this.gameTimeService.resume();
   }
 
-  private startStepTimer(): void {
-    this.stopStepTimer();
-    const tickRate = this.battleService.getTickRate();
-    this.stepTimer = setInterval(() => {
-      this.tick();
-    }, tickRate);
-  }
-
-  private stopStepTimer(): void {
-    if (this.stepTimer) {
-      clearInterval(this.stepTimer);
-      this.stepTimer = null;
+  onStackClick(stackId: string): void {
+    if (!this.state || !this.canAct) {
+      return;
+    }
+    const stack = this.state.stacks.find((s) => s.stackId === stackId);
+    if (!stack || stack.destroyed) {
+      return;
+    }
+    if (stack.side === this.state.activeSide) {
+      // Own stack: select it to reveal movement / attack options.
+      this.selectedStackId = stack.stackId;
+      return;
+    }
+    // Enemy stack: attack it if the selected stack can.
+    const selected = this.selectedStack();
+    if (selected && computeAttackTargetIds(this.state, selected).includes(stack.stackId)) {
+      void this.doAttack(selected, stack);
     }
   }
 
-  private tick(): void {
-    const processed = this.battleService.processStep();
-    if (processed) {
-      this.battle = this.battleService.getBattle();
-      this.battleLog = [...this.battleService.getBattleLog()];
-      this.battleState = this.battleService.getBattleState();
+  onCellClick(col: number, row: number): void {
+    if (!this.state || !this.canAct) {
+      return;
     }
-
-    if (this.battleService.isBattleOver()) {
-      this.battleOver = true;
-      this.stopStepTimer();
-      this.battle = this.battleService.getBattle();
-      this.battleState = this.battleService.getBattleState();
+    const selected = this.selectedStack();
+    if (!selected) {
+      return;
     }
+    if (!getReachableCells(this.state, selected).some((c) => c.col === col && c.row === row)) {
+      return;
+    }
+    void this.doMove(selected, col, row);
+  }
 
+  private selectedStack(): BattleStack | null {
+    if (!this.state || !this.selectedStackId) {
+      return null;
+    }
+    return this.state.stacks.find((s) => s.stackId === this.selectedStackId && !s.destroyed) ?? null;
+  }
+
+  private async doMove(stack: BattleStack, col: number, row: number): Promise<void> {
+    if (!this.state) {
+      return;
+    }
+    await this.movement.moveStack(this.state, stack.stackId, col, row);
+    if (!this.selectedStack()) {
+      this.selectedStackId = null;
+    }
     this.cdr.detectChanges();
   }
 
+  private async doAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
+    if (!this.state) {
+      return;
+    }
+    await this.combat.attackStack(this.state, attacker.stackId, target.stackId);
+    if (!this.selectedStack()) {
+      this.selectedStackId = null;
+    }
+    this.cdr.detectChanges();
+  }
+
+  onEndTurn(): void {
+    if (!this.state || !this.canEndTurn) {
+      return;
+    }
+    this.turn.endTurn(this.state);
+    this.selectedStackId = null;
+    void this.runAiTurns();
+    this.cdr.detectChanges();
+  }
+
+  /* Plays AI turns for however many consecutive AI-controlled sides
+   * remain active (AI-vs-AI collisions included). */
+  private async runAiTurns(): Promise<void> {
+    if (!this.state) {
+      return;
+    }
+    while (!this.state.winner && !isSidePlayerControlled(this.state, this.state.activeSide)) {
+      await this.ai.playTurn(this.state);
+    }
+  }
+
+  getActiveSideName(): string {
+    if (!this.state) {
+      return '';
+    }
+    return this.state.activeSide === 'attacker' ? this.state.attackerName : this.state.defenderName;
+  }
+
+  isActiveSide(side: 'attacker' | 'defender'): boolean {
+    return this.state?.activeSide === side && !this.state.winner;
+  }
+
+  getSideResult(side: 'attacker' | 'defender'): 'winner' | 'loser' | null {
+    if (!this.state?.winner) {
+      return null;
+    }
+    return this.state.winner === side ? 'winner' : 'loser';
+  }
+
   backToStarMap(): void {
-    this.stopStepTimer();
-    const battle = this.battleService.getBattle();
-    const loser = this.battleService.getLoser();
-    const winner = this.battleService.getWinner();
+    const battle = this.battle;
+    if (battle && this.state) {
+      const outcome = buildBattleOutcome(this.state);
+      this.battleService.setBattleResult(outcome);
 
-    this.battleService.clearBattle();
+      if (outcome.battleType === 'planet') {
+        // The virtual defense fleet id is negative (-planet.id); only a
+        // real wiped-out attacker is reported to the overworld.
+        if (outcome.winnerSide === 'defender') {
+          this.battleService.setDestroyedFleetId(outcome.attacker.fleetId);
+        }
+      } else {
+        this.battleService.setDestroyedFleetId(outcome.loserFleetId);
+      }
 
-    if (battle?.type === 'planet' && battle.planetId && winner) {
-      this.applyPlanetBattleResult(battle, winner, loser);
-    } else if (loser) {
-      this.persistFleetBattleResult(loser);
+      if (battle.type === 'planet' && battle.planetId) {
+        this.applyPlanetBattleResult(battle, outcome);
+      } else {
+        this.persistFleetBattleResult(outcome);
+      }
     }
 
-    // Resume the galaxy-map simulation before navigating so that the
-    // returned-to StarMap component is already receiving scaled deltas
-    // and the player sees a live world. ngOnDestroy would also resume,
-    // but Angular may not tear this component down before the StarMap
-    // is shown again, so resume here as a safety net.
+    // Resume the galaxy-map simulation before navigating (safety net for
+    // route reuse, same as the old placeholder).
     this.gameTimeService.resume();
-
     this.router.navigate(['/star-map']);
   }
 
-  /**
-   * Persists the outcome of a fleet-vs-fleet battle to the autosave slot
-   * before navigating back to the star map. The active session is always
-   * backed by the autosave slot, so this mutation is read back by
-   * StarMap.reloadAfterBattle() on the next /star-map navigation even
-   * though the StarMap component instance is recreated between routes.
+  /*
+   * Persists fleet-vs-fleet damage to the autosave slot. Both real
+   * fleets get their per-ship roster (final HP + destroyed flags)
+   * written back; a wiped-out fleet is additionally marked destroyed.
+   * StarMap.reloadAfterBattle() reads the same slot on the next
+   * /star-map navigation.
    */
-  private persistFleetBattleResult(loser: Fleet): void {
-    loser.destroyed = true;
-    this.battleService.setDestroyedFleetId(loser.id);
-
+  private persistFleetBattleResult(outcome: BattleOutcome): void {
     const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
     if (!data || !data.fleets) {
-      // No save to patch — StarMap.reloadAfterBattle() will still pick
-      // up the destroyedFleetId and apply it in-memory.
       return;
     }
-
-    const fleet = data.fleets.find((f) => f.id === loser.id);
-    if (fleet) {
-      fleet.destroyed = true;
-      this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
+    for (const fleetOutcome of [outcome.attacker, outcome.defender]) {
+      const fleet = data.fleets.find((f) => f.id === fleetOutcome.fleetId);
+      if (!fleet) {
+        continue;
+      }
+      fleet.ships = shipsToSave(fleetOutcome.ships);
+      if (fleetOutcome.wipedOut) {
+        fleet.destroyed = true;
+      }
     }
+    this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
 
-  private applyPlanetBattleResult(battle: Battle, winner: Fleet, loser: Fleet | null): void {
+  /*
+   * Persists a planet battle outcome: on attacker victory the planet
+   * changes owner; the attacker's ship roster is always written back so
+   * a damaged winner returns damaged. The virtual defense fleet is
+   * never written back.
+   */
+  private applyPlanetBattleResult(battle: Battle, outcome: BattleOutcome): void {
     const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
-    if (!data || !data.starSystems) return;
-
+    if (!data || !data.starSystems) {
+      return;
+    }
     for (const system of data.starSystems) {
       const planet = system.planetsTiles?.find((p) => p.id === battle.planetId);
-      if (!planet) continue;
-
-      if (winner.id === battle.attackerId) {
-        planet.factionId = winner.factionId;
-      } else {
-        const fleet = data.fleets?.find((f) => f.id === battle.attackerId);
-        if (fleet) {
+      if (!planet) {
+        continue;
+      }
+      if (outcome.winnerSide === 'attacker') {
+        planet.factionId = outcome.attacker.factionId;
+      }
+      const fleet = data.fleets?.find((f) => f.id === outcome.attacker.fleetId);
+      if (fleet) {
+        fleet.ships = shipsToSave(outcome.attacker.ships);
+        if (outcome.attacker.wipedOut) {
           fleet.destroyed = true;
         }
       }
       break;
     }
-
     this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
+}
 
-  getWinnerName(): string {
-    return this.battleService.getWinner()?.name ?? '';
-  }
-
-  getLoserName(): string {
-    return this.battleService.getLoser()?.name ?? '';
-  }
-
-  isWinner(fleetId: number): boolean {
-    return this.battleService.getWinner()?.id === fleetId;
-  }
-
-  isLoser(fleetId: number): boolean {
-    return this.battleService.getLoser()?.id === fleetId;
-  }
-
-  getFleetShips(fleetId: number): FleetShip[] {
-    if (!this.battle) return [];
-    const fleet = fleetId === this.battle.fleet1.id ? this.battle.fleet1 : this.battle.fleet2;
-    return fleet.ships;
-  }
-
-  getShipTypeCounts(ships: FleetShip[]): { type: string; count: number }[] {
-    const counts = new Map<string, number>();
-    for (const ship of ships) {
-      counts.set(ship.type, (counts.get(ship.type) ?? 0) + 1);
-    }
-    return Array.from(counts.entries(), ([type, count]) => ({ type, count }));
-  }
-
-  getAliveCount(ships: FleetShip[]): number {
-    return ships.filter((s) => !s.destroyed).length;
-  }
-
-  getCurrentPhase(): string {
-    if (!this.battleState || this.battleOver) return 'BATTLE OVER';
-    if (this.battleState.currentFleetId === this.battleState.attackerId) {
-      return 'ATTACKER TURN';
-    }
-    return 'DEFENDER TURN';
-  }
-
-  getMaxHp(shipTypeId: string): number {
-    const shipType = this.shipService.getShipType(shipTypeId);
-    if (shipType) return shipType.hitPoints;
-    const virtualType = this.planetBattleService.getVirtualShipType(shipTypeId);
-    return virtualType?.hitPoints ?? 1;
-  }
+/* Converts outcome ship records back to the overworld FleetShip shape. */
+function shipsToSave(
+  ships: BattleOutcome['attacker']['ships'],
+): { id: number; name: string; type: string; currentHp: number; destroyed: boolean }[] {
+  return ships.map((s) => ({
+    id: s.shipId,
+    name: s.name,
+    type: s.typeId,
+    currentHp: s.hp,
+    destroyed: s.destroyed,
+  }));
 }

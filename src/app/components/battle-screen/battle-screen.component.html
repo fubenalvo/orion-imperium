@@ -1,106 +1,95 @@
 <div class="battle-screen">
-  <div class="battle-screen__header">
-    <h1 class="battle-screen__title">BATTLE</h1>
-    <div class="battle-screen__phase">
-      ROUND {{ battleState?.round ?? 1 }} - {{ getCurrentPhase() }}
-    </div>
-  </div>
-
-  <div class="battle-screen__content">
-    <div class="fleet-panel fleet-panel--left" [class.winner]="battleOver && battle && isWinner(battle.fleet1.id)" [class.loser]="battleOver && battle && isLoser(battle.fleet1.id)">
-      @if (battle) {
-        <h2 class="fleet-panel__name">{{ battle.fleet1.name }}</h2>
-        <p class="fleet-panel__faction" [style.color]="battle.faction1Color">
-          {{ battle.faction1Name }}
-        </p>
-        <div class="fleet-panel__ships">
-          @for (ship of getFleetShips(battle.fleet1.id); track ship.id) {
-            <div class="ship-row" [class.destroyed]="ship.destroyed">
-              <span class="ship-row__type">{{ ship.name }}</span>
-              <div class="ship-row__hp">
-                  <div class="hp-bar" [style.width.%]="ship.destroyed ? 0 : ((ship.currentHp ?? 0) / getMaxHp(ship.type)) * 100"></div>
-              </div>
-              <span class="ship-row__hp-text">
-                {{ ship.destroyed ? 'DESTROYED' : (ship.currentHp ?? 0) + ' HP' }}
-              </span>
-            </div>
-          }
-        </div>
-        <div class="fleet-panel__count">
-          SHIPS: {{ getAliveCount(battle.fleet1.ships) }} / {{ battle.fleet1.ships.length }}
-        </div>
-        @if (battleOver) {
-          @if (isWinner(battle.fleet1.id)) {
-            <div class="fleet-panel__result winner">VICTORY</div>
-          }
-          @if (isLoser(battle.fleet1.id)) {
-            <div class="fleet-panel__result loser">DESTROYED</div>
-          }
+  @if (battleState; as state) {
+    <div class="battle-screen__header">
+      <h1 class="battle-screen__title">TACTICAL BATTLE</h1>
+      <div class="battle-screen__phase">
+        ROUND {{ state.round }} — {{ phaseLabel }}
+        @if (!battleOver) {
+          <span class="battle-screen__active-fleet">{{ getActiveSideName() }}</span>
         }
+      </div>
+      @if (!battleOver) {
+        <div class="battle-screen__ap">AP: {{ state.ap }} / {{ state.apPerTurn }}</div>
       }
     </div>
 
-    <div class="battle-screen__vs">VS</div>
+    <div class="battle-screen__content">
+      <app-battle-fleet-panel
+        [fleetName]="state.attackerName"
+        [factionColor]="state.attackerColor"
+        [roster]="state.attackerShips"
+        [isActive]="isActiveSide('attacker')"
+        [result]="getSideResult('attacker')"
+      ></app-battle-fleet-panel>
 
-    <div class="fleet-panel fleet-panel--right" [class.winner]="battleOver && battle && isWinner(battle.fleet2.id)" [class.loser]="battleOver && battle && isLoser(battle.fleet2.id)">
-      @if (battle) {
-        <h2 class="fleet-panel__name">{{ battle.fleet2.name }}</h2>
-        <p class="fleet-panel__faction" [style.color]="battle.faction2Color">
-          {{ battle.faction2Name }}
-        </p>
-        <div class="fleet-panel__ships">
-          @for (ship of getFleetShips(battle.fleet2.id); track ship.id) {
-            <div class="ship-row" [class.destroyed]="ship.destroyed">
-              <span class="ship-row__type">{{ ship.name }}</span>
-              <div class="ship-row__hp">
-                  <div class="hp-bar" [style.width.%]="ship.destroyed ? 0 : ((ship.currentHp ?? 0) / getMaxHp(ship.type)) * 100"></div>
-              </div>
-              <span class="ship-row__hp-text">
-                {{ ship.destroyed ? 'DESTROYED' : (ship.currentHp ?? 0) + ' HP' }}
-              </span>
-            </div>
-          }
-        </div>
-        <div class="fleet-panel__count">
-          SHIPS: {{ getAliveCount(battle.fleet2.ships) }} / {{ battle.fleet2.ships.length }}
-        </div>
-        @if (battleOver) {
-          @if (isWinner(battle.fleet2.id)) {
-            <div class="fleet-panel__result winner">VICTORY</div>
-          }
-          @if (isLoser(battle.fleet2.id)) {
-            <div class="fleet-panel__result loser">DESTROYED</div>
-          }
+      <app-battle-grid
+        [stacks]="liveStacks"
+        [selectedStackId]="selectedStackId"
+        [moveCells]="moveCells"
+        [attackTargetIds]="attackTargetIds"
+        [effect]="effect"
+        [canSelect]="canAct"
+        [onStackClick]="onStackClick"
+        [onCellClick]="onCellClick"
+      ></app-battle-grid>
+
+      <app-battle-fleet-panel
+        [fleetName]="state.defenderName"
+        [factionColor]="state.defenderColor"
+        [roster]="state.defenderShips"
+        [isActive]="isActiveSide('defender')"
+        [result]="getSideResult('defender')"
+      ></app-battle-fleet-panel>
+    </div>
+
+    <div class="battle-screen__controls">
+      <button
+        class="end-turn-btn"
+        type="button"
+        [disabled]="!canEndTurn"
+        (click)="onEndTurn()"
+      >
+        END TURN
+      </button>
+    </div>
+
+    <div class="battle-screen__hint">
+      @if (!battleOver && !playerControlsActiveSide) {
+        <span>ENEMY TURN — STAND BY</span>
+      } @else if (!battleOver) {
+        <span>SELECT A SHIP STACK, MOVE OR ATTACK</span>
+      }
+    </div>
+
+    <div class="battle-screen__log">
+      <div class="log-header">BATTLE LOG</div>
+      <div class="log-entries">
+        @for (entry of state.log; track $index) {
+          <div class="log-entry">
+            <span class="log-round">R{{ entry.round }}</span>
+            <span class="log-action">{{ entry.side === 'attacker' ? 'ATT' : 'DEF' }}</span>
+            <span class="log-attacker">{{ entry.attackerStack }}</span>
+            <span class="log-action">attacks</span>
+            <span class="log-defender">{{ entry.defenderStack }}</span>
+            <span class="log-damage">-{{ entry.damage }} HP</span>
+            @if (entry.kills > 0) {
+              <span class="log-kills">({{ entry.kills }} DESTROYED)</span>
+            }
+          </div>
         }
-      }
-    </div>
-  </div>
-
-  <div class="battle-screen__log">
-    <div class="log-header">BATTLE LOG</div>
-    <div class="log-entries">
-      @for (entry of battleLog; track entry.round) {
-        <div class="log-entry">
-          <span class="log-round">R{{ entry.round }}</span>
-          <span class="log-attacker">{{ entry.attackerFleetName }} - {{ entry.attackerShipName }}</span>
-          <span class="log-action">attacks</span>
-          <span class="log-defender">{{ entry.defenderShipName }} ({{ entry.defenderFleetName }})</span>
-          <span class="log-damage">-{{ entry.damage }} HP</span>
-          @if (entry.targetDestroyed) {
-            <span class="log-destroyed">DESTROYED</span>
-          }
-        </div>
-      }
-    </div>
-  </div>
-
-  @if (battleOver) {
-    <div class="battle-screen__summary">
-      <span class="summary-text">
-        {{ getWinnerName() }} WINS
-      </span>
+      </div>
     </div>
 
-    <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
+    @if (battleOver) {
+      <div class="battle-screen__summary">
+        <span class="summary-text">
+          {{ state.winner === 'attacker' ? state.attackerName : state.defenderName }} WINS
+        </span>
+      </div>
+
+      <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
+    }
+  } @else {
+    <div class="battle-screen__error">NO ACTIVE BATTLE</div>
   }
 </div>

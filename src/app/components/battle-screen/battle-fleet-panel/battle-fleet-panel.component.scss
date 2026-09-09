@@ -1,0 +1,128 @@
+.fleet-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  border: 1px solid rgba(53, 134, 229, 0.3);
+  border-radius: 4px;
+  background: rgba(2, 6, 9, 0.8);
+  text-align: center;
+  min-width: 0;
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.fleet-panel.active {
+  border-color: rgba(140, 196, 255, 0.6);
+  box-shadow: 0 0 12px rgba(53, 134, 229, 0.25);
+}
+
+.fleet-panel.winner {
+  border-color: #4caf50;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+}
+
+.fleet-panel.loser {
+  border-color: #d65757;
+  box-shadow: 0 0 20px rgba(214, 87, 87, 0.3);
+  opacity: 0.6;
+}
+
+.fleet-panel__name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.fleet-panel__count {
+  font-size: 0.8rem;
+  letter-spacing: 0.15em;
+  opacity: 0.6;
+}
+
+.fleet-panel__ships {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  overflow-y: auto;
+  max-height: 34vh;
+}
+
+.ship-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid rgba(53, 134, 229, 0.15);
+  font-size: 0.8rem;
+  transition: opacity 0.3s ease;
+}
+
+.ship-row.destroyed {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.ship-row__type {
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  min-width: 90px;
+  text-align: left;
+}
+
+.ship-row__hp {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.hp-bar {
+  height: 100%;
+  background: var(--color-blue);
+  transition:
+    width 0.3s ease,
+    background 0.3s ease;
+}
+
+.ship-row.destroyed .hp-bar {
+  background: #d65757;
+}
+
+.ship-row__hp-text {
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  min-width: 70px;
+  text-align: right;
+  opacity: 0.8;
+}
+
+.fleet-panel__result {
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  border-radius: 2px;
+}
+
+.fleet-panel__result.winner {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+}
+
+.fleet-panel__result.loser {
+  background: rgba(214, 87, 87, 0.2);
+  color: #d65757;
+}
