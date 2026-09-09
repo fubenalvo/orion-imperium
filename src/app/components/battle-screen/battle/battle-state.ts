@@ -50,7 +50,7 @@ export function createBattleState(
     ap: 10,
     apPerTurn: 10,
     stacks: [...attackerStacks, ...defenderStacks],
-    phase: 'playerTurn',
+    phase: isSidePlayerControlled({ attackerFactionId: attackerFleet.factionId, defenderFactionId: defenderFleet.factionId } as any, 'attacker') ? 'playerTurn' : 'aiTurn',
     log: [],
     effect: null,
     winner: null,

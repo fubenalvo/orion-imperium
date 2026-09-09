@@ -136,12 +136,17 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     if (this.battle) {
       this.state = createBattleState(this.battle, this.shipService, this.planetBattleService);
       this.turn.checkVictory(this.state);
+      console.log('[BattleScreen] Initial state:', {
+        attackerFactionId: this.state.attackerFactionId,
+        defenderFactionId: this.state.defenderFactionId,
+        activeSide: this.state.activeSide,
+        playerControlsActiveSide: isSidePlayerControlled(this.state, this.state.activeSide),
+        canAct: isSidePlayerControlled(this.state, this.state.activeSide) && !this.anim.isBusy,
+        animBusy: this.anim.isBusy,
+        stacks: this.state.stacks.map(s => ({ id: s.stackId, side: s.side, col: s.col, row: s.row, destroyed: s.destroyed }))
+      });
       void this.runAiTurns();
     }
-    // Freeze the galaxy-map simulation while the player is on the battle
-    // screen (same behaviour as the old placeholder): the StarMap RAF
-    // loop keeps running in the background because Angular reuses the
-    // StarMap component instance across /star-map -> /battle navigation.
     this.gameTimeService.pause();
   }
 
@@ -152,6 +157,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   }
 
   onStackClick(stackId: string): void {
+    console.log('[BattleScreen] onStackClick:', stackId, 'canAct:', this.canAct, 'activeSide:', this.state?.activeSide, 'playerControlsActiveSide:', this.playerControlsActiveSide, 'animBusy:', this.anim.isBusy);
     if (!this.state || !this.canAct) {
       return;
     }
@@ -162,6 +168,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     if (stack.side === this.state.activeSide) {
       // Own stack: select it to reveal movement / attack options.
       this.selectedStackId = stack.stackId;
+      console.log('[BattleScreen] Selected stack:', stackId, 'moveCells:', this.moveCells, 'attackTargetIds:', this.attackTargetIds);
       return;
     }
     // Enemy stack: attack it if the selected stack can.
@@ -172,6 +179,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   }
 
   onCellClick(col: number, row: number): void {
+    console.log('[BattleScreen] onCellClick:', col, row, 'canAct:', this.canAct);
     if (!this.state || !this.canAct) {
       return;
     }
@@ -230,9 +238,24 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     if (!this.state) {
       return;
     }
+    let safetyCounter = 0;
     while (!this.state.winner && !isSidePlayerControlled(this.state, this.state.activeSide)) {
-      await this.ai.playTurn(this.state);
+      console.log('[BattleScreen] AI turn start:', { activeSide: this.state.activeSide, ap: this.state.ap, animBusy: this.anim.isBusy });
+      try {
+        await this.ai.playTurn(this.state);
+      } catch (e) {
+        console.error('[BattleScreen] AI turn error:', e);
+        break;
+      }
+      console.log('[BattleScreen] AI turn end:', { winner: this.state.winner, activeSide: this.state.activeSide, animBusy: this.anim.isBusy });
+      safetyCounter++;
+      if (safetyCounter > 10) {
+        console.error('[BattleScreen] AI turn safety limit reached, breaking');
+        break;
+      }
     }
+    console.log('[BattleScreen] runAiTurns complete, playerControlsActiveSide:', this.playerControlsActiveSide);
+    this.cdr.detectChanges();
   }
 
   getActiveSideName(): string {

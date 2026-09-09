@@ -16,10 +16,10 @@
 export type BattleSide = 'attacker' | 'defender';
 export type BattlePhase = 'playerTurn' | 'aiTurn' | 'over';
 
-/* Grid: same rendered dimensions as the System View grid (90vw x 35vw, 5vw cells). */
+/* Grid: half-size of System View grid (45vw x 17.5vw, 2.5vw cells). */
 export const BATTLE_GRID_COLUMNS = 18;
 export const BATTLE_GRID_ROWS = 7;
-export const BATTLE_CELL_SIZE_VW = 5;
+export const BATTLE_CELL_SIZE_VW = 2.5;
 
 /* Shared per-side Action Point pool, refilled every turn. */
 export const AP_PER_TURN = 10;

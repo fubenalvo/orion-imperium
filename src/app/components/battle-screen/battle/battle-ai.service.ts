@@ -36,6 +36,8 @@ export class BattleAiService {
       return;
     }
 
+    console.log('[BattleAI] playTurn start:', { activeSide: state.activeSide, ap: state.ap, animBusy: this.turn['anim']?.isBusy });
+
     const stacks = getStacks(state, state.activeSide);
 
     for (const stack of stacks) {
@@ -44,6 +46,7 @@ export class BattleAiService {
       }
       const target = this.bestTarget(state, stack);
       if (target) {
+        console.log('[BattleAI] attacking:', stack.stackId, '->', target.stackId);
         await this.combat.attackStack(state, stack.stackId, target.stackId);
       }
     }
@@ -61,13 +64,20 @@ export class BattleAiService {
       }
       const target = this.bestTarget(state, stack);
       if (target) {
+        console.log('[BattleAI] post-move attacking:', stack.stackId, '->', target.stackId);
         await this.combat.attackStack(state, stack.stackId, target.stackId);
       }
     }
 
     if (!state.winner) {
-      this.turn.endTurn(state);
+      console.log('[BattleAI] ending turn');
+      const ended = this.turn.endTurn(state);
+      if (!ended) {
+        console.error('[BattleAI] endTurn failed - anim.isBusy:', this.turn['anim']?.isBusy);
+        throw new Error('AI turn could not end: animation lock still active');
+      }
     }
+    console.log('[BattleAI] playTurn complete');
   }
 
   private bestTarget(state: BattleModelState, stack: BattleStack): BattleStack | null {
