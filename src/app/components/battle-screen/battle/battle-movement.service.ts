@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { ANIMATION_MS, BattleModelState, GridCell } from './battle.types';
-import { isInBounds, isOccupied, linePath, findBestMoveToAttackCell, isInRange } from './battle-grid';
+import { isInBounds, isPathClear, linePath, findBestMoveToAttackCell, isInRange } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 import { BattleCombatService } from './battle-combat.service';
 
@@ -62,10 +62,8 @@ export class BattleMovementService {
     if (!path) {
       return false;
     }
-    for (const cell of path) {
-      if (isOccupied(state, cell.col, cell.row, stack.stackId)) {
-        return false;
-      }
+    if (!isPathClear(state, path, stack)) {
+      return false;
     }
 
     // Commit the AP cost up-front; the busy lock prevents any concurrent

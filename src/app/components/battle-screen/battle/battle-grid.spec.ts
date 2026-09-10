@@ -5,9 +5,11 @@ import {
   cellDistance,
   getAttackTargetIds,
   getReachableCells,
+  getOccupiedCells,
   isInRange,
   isInBounds,
   isOccupied,
+  isPathClear,
   linePath,
 } from './battle-grid';
 
@@ -20,6 +22,7 @@ function baseStack(): BattleStack {
     col: 2,
     row: 4,
     ships: [],
+    size: 1,
     tier: 1,
     moveApPerCell: 1,
     attackAp: 1,
@@ -143,5 +146,44 @@ describe('battle-grid', () => {
     expect(targets).toContain('d1');
     expect(targets).not.toContain('d2');
     expect(targets).toHaveLength(1);
+  });
+
+  it('getOccupiedCells respects size and side direction', () => {
+    const attacker = { ...baseStack(), stackId: 'a', side: 'attacker' as const, col: 2, row: 4, size: 3 };
+    const defender = { ...baseStack(), stackId: 'd', side: 'defender' as const, col: 17, row: 4, size: 2 };
+    expect(getOccupiedCells(attacker)).toEqual([
+      { col: 2, row: 4 },
+      { col: 3, row: 4 },
+      { col: 4, row: 4 },
+    ]);
+    expect(getOccupiedCells(defender)).toEqual([
+      { col: 16, row: 4 },
+      { col: 17, row: 4 },
+    ]);
+  });
+
+  it('isOccupied blocks wider stacks', () => {
+    const blocker = { ...baseStack(), stackId: 'b', side: 'defender' as const, col: 4, row: 4, size: 2 };
+    const state = makeState([blocker]);
+    expect(isOccupied(state, 3, 4)).toBe(true);
+    expect(isOccupied(state, 4, 4)).toBe(true);
+    expect(isOccupied(state, 5, 4)).toBe(false);
+  });
+
+  it('getReachableCells blocks wider stacks and path', () => {
+    const stack = { ...baseStack(), col: 2, row: 4, moveRange: 3, moveApPerCell: 1, size: 2 };
+    const blocker = { ...baseStack(), stackId: 'blocker', side: 'defender' as const, col: 5, row: 4, size: 2 };
+    const state = makeState([stack, blocker]);
+    const cells = getReachableCells(state, stack);
+    expect(cells.some((c) => c.col === 4 && c.row === 4)).toBe(false);
+    expect(cells.some((c) => c.col === 5 && c.row === 4)).toBe(false);
+  });
+
+  it('isPathClear checks all occupied cells along the path', () => {
+    const stack = { ...baseStack(), stackId: 'a', side: 'attacker' as const, col: 2, row: 4, size: 2 };
+    const blocker = { ...baseStack(), stackId: 'b', side: 'defender' as const, col: 5, row: 4, size: 1 };
+    const state = makeState([stack, blocker]);
+    const path = linePath({ col: 2, row: 4 }, { col: 5, row: 4 })!;
+    expect(isPathClear(state, path, stack)).toBe(false);
   });
 });

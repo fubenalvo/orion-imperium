@@ -212,7 +212,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     void this.doMove(selected, col, row);
   }
 
-  private selectedStack(): BattleStack | null {
+  selectedStack(): BattleStack | null {
     if (!this.state || !this.selectedStackId) {
       return null;
     }

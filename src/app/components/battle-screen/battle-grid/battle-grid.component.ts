@@ -43,8 +43,10 @@ export class BattleGridComponent {
 
   /* vw offset of a stack cell centre, relative to the grid container. */
   stackVw(stack: BattleStack): { x: number; y: number } {
+    const offset = (stack.size - 1) / 2;
+    const visualCol = stack.side === 'attacker' ? stack.col + offset : stack.col - offset;
     return {
-      x: (stack.col - 0.5) * BATTLE_CELL_SIZE_VW,
+      x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW,
       y: (stack.row - 0.5) * BATTLE_CELL_SIZE_VW,
     };
   }
@@ -87,13 +89,37 @@ export class BattleGridComponent {
     return this.moveToAttackTargetIds.includes(stackId);
   }
 
+  stackSize(stack: BattleStack): number {
+    return stack.size;
+  }
+
+  stackClasses(stack: BattleStack): string[] {
+    const classes = ['stack', stack.typeId, 'stack-' + stack.ships.length];
+    if (stack.stackId === this.selectedStackId) {
+      classes.push('selected');
+    }
+    if (stack.moving) {
+      classes.push('moving');
+    }
+    if (stack.firing) {
+      classes.push('firing');
+    }
+    if (this.isAttackTarget(stack.stackId)) {
+      classes.push('attack-target');
+    }
+    if (this.isMoveToAttackTarget(stack.stackId)) {
+      classes.push('move-to-attack-target');
+    }
+    return classes;
+  }
+
   /* Projectile line geometry (same pattern as the fleet movement trails). */
-  getProjectileLine(): { x: number; y: number; length: number; angle: string } | null {
+  getProjectileLine(): { x: number; y: number; length: number; angleDeg: number } | null {
     if (!this.effect || this.effect.phase !== 'projectile') {
       return null;
     }
-    const from = this.cellVw(this.effect.from);
-    const to = this.cellVw(this.effect.to);
+    const from = this.effect.from;
+    const to = this.effect.to;
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const length = Math.sqrt(dx * dx + dy * dy);
@@ -101,7 +127,7 @@ export class BattleGridComponent {
       return null;
     }
     const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    return { x: from.x, y: from.y, length, angle: `rotate(${angleDeg}deg)` };
+    return { x: from.x, y: from.y, length, angleDeg };
   }
 
   onStackClickHandler(stackId: string): void {

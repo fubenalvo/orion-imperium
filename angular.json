@@ -54,7 +54,8 @@
               "buildings-isometric/mining-complex.png",
               "buildings-isometric/small-research-lab.png",
               "buildings-isometric/research-lab.png",
-              "buildings-isometric/spaceport.png"
+              "buildings-isometric/spaceport.png",
+              "ship.svg"
             ],
             "styles": [
               "src/styles.scss"

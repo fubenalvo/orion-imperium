@@ -35,14 +35,42 @@ export function isOccupied(
   excludeStackId?: string,
 ): boolean {
   return state.stacks.some(
-    (s) => !s.destroyed && s.stackId !== excludeStackId && s.col === col && s.row === row,
+    (s) => !s.destroyed && s.stackId !== excludeStackId && occupiesCell(s, col, row),
   );
+}
+
+export function occupiesCell(stack: BattleStack, col: number, row: number): boolean {
+  if (stack.row !== row) {
+    return false;
+  }
+  const direction = stack.side === 'attacker' ? 1 : -1;
+  for (let i = 0; i < stack.size; i++) {
+    if (stack.col + i * direction === col) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function getOccupiedCells(stack: BattleStack): GridCell[] {
+  const cells: GridCell[] = [];
+  const direction = stack.side === 'attacker' ? 1 : -1;
+  for (let i = 0; i < stack.size; i++) {
+    cells.push({
+      col: stack.col + i * direction,
+      row: stack.row,
+    });
+  }
+  if (stack.side === 'defender') {
+    cells.reverse();
+  }
+  return cells;
 }
 
 /* Stack at a cell, or null. */
 export function getStackAt(state: BattleModelState, col: number, row: number): BattleStack | null {
   return (
-    state.stacks.find((s) => !s.destroyed && s.col === col && s.row === row) ?? null
+    state.stacks.find((s) => !s.destroyed && occupiesCell(s, col, row)) ?? null
   );
 }
 
@@ -55,6 +83,16 @@ export function cellToVw(cell: GridCell): { x: number; y: number } {
   return {
     x: (cell.col - 0.5) * BATTLE_CELL_SIZE_VW,
     y: (cell.row - 0.5) * BATTLE_CELL_SIZE_VW,
+  };
+}
+
+/* Visual centre of a sized stack, accounting for side direction. */
+export function stackCenterVw(stack: BattleStack): { x: number; y: number } {
+  const offset = (stack.size - 1) / 2;
+  const visualCol = stack.side === 'attacker' ? stack.col + offset : stack.col - offset;
+  return {
+    x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW,
+    y: (stack.row - 0.5) * BATTLE_CELL_SIZE_VW,
   };
 }
 
@@ -108,17 +146,41 @@ export function getReachableCells(state: BattleModelState, stack: BattleStack): 
       if (steps > maxSteps) {
         continue;
       }
-      if (isOccupied(state, c, r, stack.stackId)) {
+      const destCols = occupiedCols(stack, c);
+      if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) {
         continue;
       }
       const path = linePath(origin, { col: c, row: r });
-      if (!path || path.some((cell) => isOccupied(state, cell.col, cell.row, stack.stackId))) {
+      if (!path || !isPathClear(state, path, stack)) {
         continue;
       }
       cells.push({ col: c, row: r });
     }
   }
   return cells;
+}
+
+function occupiedCols(stack: BattleStack, anchorCol: number): number[] {
+  const cols: number[] = [];
+  const direction = stack.side === 'attacker' ? 1 : -1;
+  for (let i = 0; i < stack.size; i++) {
+    cols.push(anchorCol + i * direction);
+  }
+  return cols;
+}
+
+export function isPathClear(
+  state: BattleModelState,
+  path: GridCell[],
+  stack: BattleStack,
+): boolean {
+  for (const cell of path) {
+    const cols = occupiedCols(stack, cell.col);
+    if (cols.some((c) => !isInBounds(c, cell.row) || isOccupied(state, c, cell.row, stack.stackId))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /* Enemy stacks within a stack's attack range (ids only). */
@@ -160,14 +222,14 @@ export function getMoveToAttackCells(
       if (steps > maxSteps) {
         continue;
       }
-      if (isOccupied(state, c, r, stack.stackId)) {
+      const destCols = occupiedCols(stack, c);
+      if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) {
         continue;
       }
       const path = linePath(origin, { col: c, row: r });
-      if (!path || path.some((cell) => isOccupied(state, cell.col, cell.row, stack.stackId))) {
+      if (!path || !isPathClear(state, path, stack)) {
         continue;
       }
-      // Check if target is in attack range from this cell
       if (isInRange({ col: c, row: r }, targetStack, stack.attackRange)) {
         cells.push({ col: c, row: r });
       }

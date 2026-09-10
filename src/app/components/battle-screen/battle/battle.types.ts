@@ -87,6 +87,7 @@ export interface BattleStack {
   col: number;
   row: number;
   ships: BattleShip[];
+  size: number;
   tier: number;
   moveApPerCell: number;
   attackAp: number;
@@ -108,8 +109,8 @@ export interface BattleStack {
  * slot on the state is sufficient. */
 export interface BattleAttackEffect {
   phase: 'projectile' | 'impact' | 'explosion';
-  from: GridCell;
-  to: GridCell;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
   targetStackId: string;
 }
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { ANIMATION_MS, BattleModelState, GridCell } from './battle.types';
-import { isInRange } from './battle-grid';
+import { isInRange, stackCenterVw } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 import { BattleTurnService } from './battle-turn.service';
 
@@ -44,9 +44,9 @@ export class BattleCombatService {
       return false;
     }
 
-    const from: GridCell = { col: attacker.col, row: attacker.row };
-    const to: GridCell = { col: target.col, row: target.row };
-    if (!isInRange(from, to, attacker.attackRange)) {
+    const from = stackCenterVw(attacker);
+    const to = stackCenterVw(target);
+    if (!isInRange({ col: attacker.col, row: attacker.row }, { col: target.col, row: target.row }, attacker.attackRange)) {
       return false;
     }
 

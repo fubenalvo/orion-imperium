@@ -12,6 +12,7 @@
   @for (stack of stacks; track stack.stackId) {
     <div
       class="stack-cell"
+      [ngClass]="'stack-cell--size-' + stackSize(stack)"
       [style.left]="stackVw(stack).x + 'vw'"
       [style.top]="stackVw(stack).y + 'vw'"
       [style.transition]="stackTransition(stack)"
@@ -19,27 +20,11 @@
     >
       <button
         class="stack"
-        [ngClass]="{
-          selected: stack.stackId === selectedStackId,
-          moving: stack.moving,
-          firing: stack.firing,
-          'attack-target': isAttackTarget(stack.stackId),
-          'move-to-attack-target': isMoveToAttackTarget(stack.stackId)
-        }"
+        [ngClass]="stackClasses(stack)"
         type="button"
         (click)="onStackClickHandler(stack.stackId)"
       >
-        <span class="stack__icons">
-          @for (ship of stack.ships; track ship.shipId) {
-            @if (ship.alive) {
-              <span class="stack__icon" [class.stack__icon--damaged]="ship.hp < ship.maxHp"></span>
-            }
-          }
-        </span>
-        @if (stack.ships.length > 1) {
-          <span class="stack__count">×{{ stack.ships.length }}</span>
-        }
-        <span class="stack__name">{{ stack.typeName }}</span>
+        <span class="stack__count">{{ stack.ships.length }}</span>
         <span class="stack__hp">
           <span class="stack__hp-bar" [style.width.%]="hullFraction(stack) * 100"></span>
         </span>
@@ -54,15 +39,15 @@
       [style.left]="line.x + 'vw'"
       [style.top]="line.y + 'vw'"
       [style.width]="line.length + 'vw'"
-      [style.transform]="line.angle"
+      [style.--projectile-angle]="line.angleDeg + 'deg'"
     ></div>
   }
   @if (effect?.phase === 'impact' || effect?.phase === 'explosion') {
     <div
       class="impact"
       [class.impact--explosion]="effect?.phase === 'explosion'"
-      [style.left]="cellVw(effect!.to).x + 'vw'"
-      [style.top]="cellVw(effect!.to).y + 'vw'"
+      [style.left]="effect.to.x + 'vw'"
+      [style.top]="effect.to.y + 'vw'"
     ></div>
   }
 </div>

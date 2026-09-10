@@ -116,6 +116,7 @@ function buildStacks(
   let index = 0;
   for (const [typeId, ships] of grouped) {
     const stats = getBattleShipStats(typeId, shipService, planetBattleService);
+    const size = stats.tier >= 5 ? 3 : stats.tier >= 3 ? 2 : 1;
     for (let offset = 0; offset < ships.length; offset += MAX_STACK_SIZE) {
       const chunk = ships.slice(offset, offset + MAX_STACK_SIZE);
       stacks.push({
@@ -126,6 +127,7 @@ function buildStacks(
         col: 1,
         row: 1,
         ships: chunk,
+        size,
         tier: stats.tier,
         moveApPerCell: stats.moveApPerCell,
         attackAp: stats.attackAp,

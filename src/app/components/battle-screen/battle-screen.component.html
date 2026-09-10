@@ -46,24 +46,28 @@
       }
     </div>
 
-    <div class="battle-screen__log">
-      <div class="log-header">BATTLE LOG</div>
-      <div class="log-entries">
-        @for (entry of state.log; track $index) {
-          <div class="log-entry">
-            <span class="log-round">R{{ entry.round }}</span>
-            <span class="log-action">{{ entry.side === 'attacker' ? 'ATT' : 'DEF' }}</span>
-            <span class="log-attacker">{{ entry.attackerStack }}</span>
-            <span class="log-action">attacks</span>
-            <span class="log-defender">{{ entry.defenderStack }}</span>
-            <span class="log-damage">-{{ entry.damage }} HP</span>
-            @if (entry.kills > 0) {
-              <span class="log-kills">({{ entry.kills }} DESTROYED)</span>
-            }
-          </div>
-        }
+    @if (selectedStack(); as stack) {
+      <div class="battle-screen__selection">
+        <div class="selection-header">
+          <span class="selection-type">{{ stack.typeName }}</span>
+          <span class="selection-side" [class.selection-side--attacker]="stack.side === 'attacker'" [class.selection-side--defender]="stack.side === 'defender'">{{ stack.side === 'attacker' ? 'ATTACKER' : 'DEFENDER' }}</span>
+        </div>
+        <div class="selection-stats">
+          <span>TIER {{ stack.tier }}</span>
+          <span>MOVE {{ stack.moveRange }}</span>
+          <span>RANGE {{ stack.attackRange }}</span>
+          <span>AP {{ stack.attackAp }}</span>
+          <span>MOVED {{ stack.cellsMovedThisTurn }}</span>
+        </div>
+        <div class="selection-hp">
+          <span class="selection-hp-label">HP</span>
+          <span class="selection-hp-bar">
+            <span class="selection-hp-fill" [style.width.%]="(stack.ships.reduce((sum, s) => sum + s.hp, 0) / stack.ships.reduce((sum, s) => sum + s.maxHp, 0)) * 100"></span>
+          </span>
+          <span class="selection-hp-text">{{ stack.ships.reduce((sum, s) => sum + s.hp, 0) }} / {{ stack.ships.reduce((sum, s) => sum + s.maxHp, 0) }}</span>
+        </div>
       </div>
-    </div>
+    }
 
     @if (battleOver) {
       <div class="battle-screen__summary">
