@@ -22,7 +22,7 @@
         class="stack"
         [ngClass]="stackClasses(stack)"
         type="button"
-        (click)="onStackClickHandler(stack.stackId)"
+        (click)="onStackClickHandler($event, stack.stackId)"
       >
         <span class="stack__count">{{ stack.ships.length }}</span>
         <span class="stack__hp">

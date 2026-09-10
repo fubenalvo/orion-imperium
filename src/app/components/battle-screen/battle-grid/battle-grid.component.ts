@@ -130,8 +130,9 @@ export class BattleGridComponent {
     return { x: from.x, y: from.y, length, angleDeg };
   }
 
-  onStackClickHandler(stackId: string): void {
+  onStackClickHandler(event: MouseEvent, stackId: string): void {
     if (this.canSelect) {
+      event.stopPropagation();
       this.onStackClick(stackId);
     }
   }
