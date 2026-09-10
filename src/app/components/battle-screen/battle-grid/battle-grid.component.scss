@@ -121,6 +121,10 @@
   animation: target-pulse 0.9s ease-in-out infinite;
 }
 
+.stack--defender {
+  transform: scaleX(-1);
+}
+
 .stack__icons {
   display: flex;
   flex-direction: row;

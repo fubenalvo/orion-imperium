@@ -47,8 +47,8 @@ export function createBattleState(
   return {
     round: 1,
     activeSide: 'attacker',
-    ap: 10,
-    apPerTurn: 10,
+    ap: 50,
+    apPerTurn: 50,
     stacks: [...attackerStacks, ...defenderStacks],
     phase: isSidePlayerControlled({ attackerFactionId: attackerFleet.factionId, defenderFactionId: defenderFleet.factionId } as any, 'attacker') ? 'playerTurn' : 'aiTurn',
     log: [],
@@ -102,6 +102,40 @@ function buildStacks(
   shipService: ShipService,
   planetBattleService: PlanetBattleService,
 ): BattleStack[] {
+  const maxIndividual = 4 * ROW_ORDER.length;
+
+  if (roster.length <= maxIndividual) {
+    const stacks: BattleStack[] = [];
+    let index = 0;
+    for (const ship of roster) {
+      const stats = getBattleShipStats(ship.typeId, shipService, planetBattleService);
+      const size = stats.tier >= 5 ? 3 : stats.tier >= 3 ? 2 : 1;
+      stacks.push({
+        stackId: `${side}:${ship.typeId}:${index++}`,
+        side,
+        typeId: ship.typeId,
+        typeName: stats.typeName,
+        col: 1,
+        row: 1,
+        ships: [ship],
+        size,
+        tier: stats.tier,
+        moveApPerCell: stats.moveApPerCell,
+        attackAp: stats.attackAp,
+        moveRange: stats.moveRange,
+        attackRange: stats.attackRange,
+        immobile: stats.immobile,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        moving: false,
+        firing: false,
+        moveMs: ANIMATION_MS.move,
+        destroyed: false,
+      });
+    }
+    return stacks;
+  }
+
   const grouped = new Map<string, BattleShip[]>();
   for (const ship of roster) {
     const bucket = grouped.get(ship.typeId);

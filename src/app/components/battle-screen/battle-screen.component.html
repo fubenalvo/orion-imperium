@@ -15,7 +15,10 @@
         }
       </div>
       @if (!battleOver) {
-        <div class="battle-screen__ap">AP: {{ state.ap }} / {{ state.apPerTurn }}</div>
+        <div class="battle-screen__ap-bar" [style.width.vw]="72">
+          <div class="battle-screen__ap-fill" [style.width.%]="(state.ap / state.apPerTurn) * 100"></div>
+          <span class="battle-screen__ap-text">AP: {{ state.ap }} / {{ state.apPerTurn }}</span>
+        </div>
       }
     </div>
 
@@ -39,6 +42,7 @@
           class="end-turn-btn"
           type="button"
           [disabled]="!canEndTurn"
+          [class.pulse]="shouldPulseEndTurn"
           (click)="onEndTurn()"
         >
           END TURN

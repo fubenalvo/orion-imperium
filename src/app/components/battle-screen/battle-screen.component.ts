@@ -109,6 +109,33 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     return this.playerControlsActiveSide && !this.anim?.isBusy;
   }
 
+  get shouldPulseEndTurn(): boolean {
+    if (!this.state || !this.playerControlsActiveSide || this.anim?.isBusy) {
+      return false;
+    }
+    // Pulse when AP is depleted
+    if (this.state.ap <= 0) {
+      return true;
+    }
+    // Pulse when no player-controlled stacks have valid actions remaining
+    const playerStacks = this.state.stacks.filter(
+      (s) => s.side === this.state!.activeSide && !s.destroyed && !s.immobile
+    );
+    if (playerStacks.length === 0) {
+      return true;
+    }
+    const hasValidAction = playerStacks.some((stack) => {
+      // Can move at least one cell
+      const canMove =
+        stack.cellsMovedThisTurn < stack.moveRange &&
+        this.state!.ap >= stack.moveApPerCell;
+      // Can attack
+      const canAttack = !stack.attackedThisTurn && this.state!.ap >= stack.attackAp;
+      return canMove || canAttack;
+    });
+    return !hasValidAction;
+  }
+
   get phaseLabel(): string {
     if (!this.state) {
       return '';

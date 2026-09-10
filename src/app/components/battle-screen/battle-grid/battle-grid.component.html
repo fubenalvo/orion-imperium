@@ -21,6 +21,7 @@
       <button
         class="stack"
         [ngClass]="stackClasses(stack)"
+        [class.stack--defender]="stack.side === 'defender'"
         type="button"
         (click)="onStackClickHandler($event, stack.stackId)"
       >

@@ -50,7 +50,7 @@ describe('battle-state', () => {
   });
 
   it('groups same-type ships into stacks capped at MAX_STACK_SIZE', () => {
-    const ships: FleetShip[] = Array.from({ length: 12 }, (_, i) => ({
+    const ships: FleetShip[] = Array.from({ length: 30 }, (_, i) => ({
       id: 100 + i,
       name: 'Ftr',
       type: 'fighter',
@@ -58,9 +58,22 @@ describe('battle-state', () => {
     const b = battle({ fleet1: fleet(1, 'ORION', 'player', ships) });
     const state = createBattleState(b, shipService, planetBattleService);
     const attackerStacks = getStacks(state, 'attacker');
-    expect(attackerStacks).toHaveLength(3);
-    expect(attackerStacks.map((s) => s.ships.length).sort()).toEqual([2, 5, 5]);
+    expect(attackerStacks).toHaveLength(6);
+    expect(attackerStacks.map((s) => s.ships.length).sort()).toEqual([5, 5, 5, 5, 5, 5]);
     expect(attackerStacks.every((s) => s.ships.length <= 5)).toBe(true);
+  });
+
+  it('places each ship individually when total ships fit in 4 columns', () => {
+    const ships: FleetShip[] = Array.from({ length: 12 }, (_, i) => ({
+      id: 200 + i,
+      name: 'Ftr',
+      type: 'fighter',
+    }));
+    const b = battle({ fleet1: fleet(1, 'ORION', 'player', ships) });
+    const state = createBattleState(b, shipService, planetBattleService);
+    const attackerStacks = getStacks(state, 'attacker');
+    expect(attackerStacks).toHaveLength(12);
+    expect(attackerStacks.every((s) => s.ships.length === 1)).toBe(true);
   });
 
   it('deploys attacker on the left columns and defender on the right', () => {
@@ -71,9 +84,10 @@ describe('battle-state', () => {
     const state = createBattleState(b, shipService, planetBattleService);
     const attacker = getStacks(state, 'attacker')[0];
     const defender = getStacks(state, 'defender')[0];
-    expect(attacker.col).toBeLessThanOrEqual(3);
+    expect(attacker.col).toBeLessThanOrEqual(4);
     expect(attacker.col).toBeGreaterThanOrEqual(1);
-    expect(defender.col).toBeGreaterThanOrEqual(16);
+    expect(defender.col).toBeGreaterThanOrEqual(15);
+    expect(defender.col).toBeLessThanOrEqual(18);
 
     for (const stack of state.stacks) {
       expect(stack.row).toBeGreaterThanOrEqual(1);

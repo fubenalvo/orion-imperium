@@ -22,7 +22,7 @@ export const BATTLE_GRID_ROWS = 7;
 export const BATTLE_CELL_SIZE_VW = 4;
 
 /* Shared per-side Action Point pool, refilled every turn. */
-export const AP_PER_TURN = 10;
+export const AP_PER_TURN = 50;
 
 /*
  * A stack renders up to MAX_STACK_SIZE ship icons; larger fleets of a
@@ -32,8 +32,8 @@ export const MAX_STACK_SIZE = 5;
 
 /* Deployment columns: attacker left, defender right. A third column is
  * used only when the number of stacks exceeds the two standard columns. */
-export const ATTACKER_DEPLOY_COLS = [1, 2, 3];
-export const DEFENDER_DEPLOY_COLS = [17, 18, 16];
+export const ATTACKER_DEPLOY_COLS = [1, 2, 3, 4];
+export const DEFENDER_DEPLOY_COLS = [18, 17, 16, 15];
 
 /* Animation durations in ms. State commits after the animation resolves,
  * so the visible grid never shows a half-resolved action. */
