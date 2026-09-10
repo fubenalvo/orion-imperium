@@ -546,6 +546,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       return;
     }
     this.loadGame();
+    this.closePauseMenu();
   }
 
   /** Saves the game and navigates back to the main menu. */
@@ -2105,6 +2106,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
       return;
     }
 
+    this.arrivalService.triggeredBattles.clear();
+
     const data = this.saveGameService.loadFromSlot(this.saveGameService.currentSlot);
     if (!data || !data.fleets || !data.starSystems || !data.factions) {
       return;
@@ -2298,6 +2301,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private reloadAfterBattle(): void {
     if (this.saveGameService.currentSlot === null) return;
     console.log('[RELOAD AFTER BATTLE] Reloading game state from save...');
+    this.arrivalService.triggeredBattles.clear();
     this.loadGame();
     console.log(
       '[RELOAD AFTER BATTLE] Planets:',

@@ -328,6 +328,8 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
       } else {
         this.persistFleetBattleResult(outcome);
       }
+    } else {
+      this.battleService.clearBattle();
     }
 
     // Resume the galaxy-map simulation before navigating (safety net for

@@ -28,14 +28,24 @@
     </div>
 
     <div class="battle-screen__controls">
-      <button
-        class="end-turn-btn"
-        type="button"
-        [disabled]="!canEndTurn"
-        (click)="onEndTurn()"
-      >
-        END TURN
-      </button>
+      @if (!battleOver) {
+        <button
+          class="end-turn-btn"
+          type="button"
+          [disabled]="!canEndTurn"
+          (click)="onEndTurn()"
+        >
+          END TURN
+        </button>
+      } @else {
+        <button
+          class="back-btn"
+          type="button"
+          (click)="backToStarMap()"
+        >
+          BACK TO STAR MAP
+        </button>
+      }
     </div>
 
     <div class="battle-screen__hint">
@@ -74,11 +84,15 @@
         <span class="summary-text">
           {{ state.winner === 'attacker' ? state.attackerName : state.defenderName }} WINS
         </span>
+        <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
       </div>
-
-      <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
     }
   } @else {
-    <div class="battle-screen__error">NO ACTIVE BATTLE</div>
+    <div class="battle-screen__error">
+      <div>NO ACTIVE BATTLE</div>
+      <button class="back-btn" type="button" (click)="backToStarMap()">
+        BACK TO STAR MAP
+      </button>
+    </div>
   }
 </div>

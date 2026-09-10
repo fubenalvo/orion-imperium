@@ -95,6 +95,54 @@ describe('BattleScreenComponent', () => {
     expect(component.battleOver).toBe(false);
   });
 
+  it('should show a recovery action and clear stale battle state when no battle is active', async () => {
+    seedAutosave();
+    const before = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
+    const routerSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    battleService.setBattleResult({
+      winnerSide: 'attacker',
+      winnerFleetId: 1,
+      loserFleetId: 2,
+      attacker: {
+        fleetId: 1,
+        side: 'attacker',
+        factionId: 'player',
+        ships: [],
+        survivors: [],
+        wipedOut: false,
+      },
+      defender: {
+        fleetId: 2,
+        side: 'defender',
+        factionId: 'enemy1',
+        ships: [],
+        survivors: [],
+        wipedOut: false,
+      },
+      rounds: 1,
+      battleType: 'fleet',
+    });
+    battleService.setDestroyedFleetId(99);
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const error = fixture.nativeElement.querySelector('.battle-screen__error');
+    const button = error?.querySelector('button');
+    expect(error?.textContent).toContain('NO ACTIVE BATTLE');
+    expect(button).toBeTruthy();
+
+    button.click();
+
+    expect(routerSpy).toHaveBeenCalledWith(['/star-map']);
+    expect(gameTimeService.isPaused).toBe(false);
+    expect(battleService.getBattle()).toBeNull();
+    expect(battleService.getBattleResult()).toBeNull();
+    expect(battleService.getDestroyedFleetId()).toBeNull();
+    expect(saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)).toEqual(before);
+  });
+
   it('END TURN is disabled while an animation is in flight', async () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
