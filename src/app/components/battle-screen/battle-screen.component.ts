@@ -56,6 +56,11 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
 
   selectedStackId: string | null = null;
 
+  private pointerX = 0.5;
+  private pointerY = 0.5;
+  private motionEnabled = false;
+  private motionPermissionRequested = false;
+
   constructor(
     private router: Router,
     private battleService: BattleService,
@@ -142,6 +147,63 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     return this.state?.effect ?? null;
   }
 
+  get bgDeepTransform(): string {
+    const offsetX = (this.pointerX - 0.5) * 2;
+    const offsetY = (this.pointerY - 0.5) * 2;
+    return `translate(${offsetX * 5}vw, ${offsetY * 5}vh)`;
+  }
+
+  get bgForegroundTransform(): string {
+    const offsetX = (this.pointerX - 0.5) * 2;
+    const offsetY = (this.pointerY - 0.5) * 2;
+    return `translate(${offsetX * 2.5}vw, ${offsetY * 2.5}vh)`;
+  }
+
+  public onPointerMove = (event: MouseEvent): void => {
+    this.pointerX = event.clientX / window.innerWidth;
+    this.pointerY = event.clientY / window.innerHeight;
+  };
+
+  public onPointerLeave = (): void => {
+    this.pointerX = 0.5;
+    this.pointerY = 0.5;
+  };
+
+  public onDeviceOrientation = (event: DeviceOrientationEvent): void => {
+    if (!this.motionEnabled) {
+      return;
+    }
+    const gamma = event.gamma ?? 0;
+    const beta = event.beta ?? 0;
+    this.pointerX = Math.max(0, Math.min(1, (gamma + 90) / 180));
+    this.pointerY = Math.max(0, Math.min(1, (beta + 45) / 90));
+    this.cdr.detectChanges();
+  };
+
+  public async requestMotionPermission(): Promise<void> {
+    if (this.motionPermissionRequested) {
+      return;
+    }
+    this.motionPermissionRequested = true;
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
+      try {
+        const response = await (DeviceOrientationEvent as any).requestPermission();
+        if (response === 'granted') {
+          this.enableMotion();
+        }
+      } catch {
+        // Permission denied or unavailable — background remains centered.
+      }
+    } else if ('DeviceOrientationEvent' in window) {
+      this.enableMotion();
+    }
+  }
+
+  private enableMotion(): void {
+    this.motionEnabled = true;
+    window.addEventListener('deviceorientation', this.onDeviceOrientation);
+  }
+
   ngOnInit(): void {
     if (this.battle) {
       this.state = createBattleState(this.battle, this.shipService, this.planetBattleService);
@@ -164,6 +226,7 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     this.ticksSub.unsubscribe();
     this.anim.reset();
     this.gameTimeService.resume();
+    window.removeEventListener('deviceorientation', this.onDeviceOrientation);
   }
 
   onStackClick(stackId: string): void {

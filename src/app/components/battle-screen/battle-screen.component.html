@@ -1,4 +1,10 @@
-<div class="battle-screen">
+<div class="battle-screen"
+     (mousemove)="onPointerMove($event)"
+     (mouseleave)="onPointerLeave()"
+     (click)="requestMotionPermission()">
+  <div class="battle-bg-deep" [style.transform]="bgDeepTransform"></div>
+  <div class="battle-bg-foreground" [style.transform]="bgForegroundTransform"></div>
+  <div class="battle-screen__ui">
   @if (battleState; as state) {
     <div class="battle-screen__header">
       <h1 class="battle-screen__title">TACTICAL BATTLE</h1>
@@ -95,4 +101,5 @@
       </button>
     </div>
   }
+  </div>
 </div>

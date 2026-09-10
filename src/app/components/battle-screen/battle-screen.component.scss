@@ -6,8 +6,52 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  background: #020609;
   color: var(--color-text);
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* =========================================================
+   BATTLE SCREEN PARALLAX BACKGROUND
+   ========================================================= */
+
+.battle-bg-deep {
+  position: absolute;
+  width: 200vw;
+  height: 200vh;
+  left: -50vw;
+  top: -50vh;
+  background-image: url('stars-background-a.jpg');
+  background-size: 200vw;
+  background-position: center;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+}
+
+.battle-bg-foreground {
+  position: absolute;
+  inset: 0;
+  background-image: url('stars.png');
+  background-repeat: repeat;
+  background-size: 100vw;
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 3;
+  will-change: transform;
+}
+
+.battle-screen__ui {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  height: 100%;
   gap: 0.4rem;
   padding: 0.5rem 0.75rem 0.75rem;
   box-sizing: border-box;
