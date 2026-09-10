@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BattleModelState, BattleStack, GridCell } from './battle.types';
 import { getStacks } from './battle-state';
-import { cellDistance, isInRange, linePath } from './battle-grid';
+import { cellDistance, findBestMoveToAttackCell, isInRange, linePath } from './battle-grid';
 import { BattleCombatService } from './battle-combat.service';
 import { BattleMovementService } from './battle-movement.service';
 import { BattleTurnService } from './battle-turn.service';
@@ -109,6 +109,29 @@ export class BattleAiService {
       return;
     }
     const origin: GridCell = { col: stack.col, row: stack.row };
+
+    // Prefer move-to-attack: advance only as far as needed to bring a
+    // target within attackRange, then stop. This keeps the stack at its
+    // weapon's effective range instead of charging into point-blank range.
+    const moveAttackTarget = state.stacks
+      .filter((s) => !s.destroyed && s.side !== stack.side)
+      .filter((s) => !isInRange(origin, s, stack.attackRange))
+      .sort(
+        (a, b) =>
+          cellDistance(origin, a) - cellDistance(origin, b) ||
+          a.stackId.localeCompare(b.stackId),
+      )[0];
+
+    if (moveAttackTarget) {
+      const bestCell = findBestMoveToAttackCell(state, stack, moveAttackTarget);
+      if (bestCell) {
+        await this.movement.moveStack(state, stack.stackId, bestCell.col, bestCell.row);
+        return;
+      }
+    }
+
+    // No target can be brought into range this turn — fall back to moving
+    // toward the nearest enemy (e.g. when range is 0 or AP is exhausted).
     const enemy = state.stacks
       .filter((s) => !s.destroyed && s.side !== stack.side)
       .sort(
