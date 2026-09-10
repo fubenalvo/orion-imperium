@@ -121,6 +121,19 @@
   animation: target-pulse 0.9s ease-in-out infinite;
 }
 
+.stack.spent {
+  border-color: transparent;
+  box-shadow: none;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stack.spent:hover {
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .stack--defender {
   transform: scaleX(-1);
 }
