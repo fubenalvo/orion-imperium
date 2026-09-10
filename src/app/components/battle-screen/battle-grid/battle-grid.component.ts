@@ -2,7 +2,6 @@ import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import {
   BattleAttackEffect,
-  BattleSide,
   BattleStack,
   GridCell,
 } from '../battle/battle.types';
@@ -38,7 +37,6 @@ export class BattleGridComponent {
   @Input() moveToAttackTargetIds: string[] = [];
   @Input() effect: BattleAttackEffect | null = null;
   @Input() canSelect = true;
-  @Input() activeSide: BattleSide = 'attacker';
 
   @Input() onStackClick: (stackId: string) => void = () => {};
   @Input() onCellClick: (col: number, row: number) => void = () => {};
@@ -111,16 +109,6 @@ export class BattleGridComponent {
     }
     if (this.isMoveToAttackTarget(stack.stackId)) {
       classes.push('move-to-attack-target');
-    }
-    // Spent: already moved or attacked this turn, and animation has finished
-    // Only apply to active side's own stacks (not enemy targets)
-    if (
-      stack.side === this.activeSide &&
-      (stack.cellsMovedThisTurn > 0 || stack.attackedThisTurn) &&
-      !stack.moving &&
-      !stack.firing
-    ) {
-      classes.push('spent');
     }
     return classes;
   }
