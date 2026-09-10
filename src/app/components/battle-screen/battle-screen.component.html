@@ -32,6 +32,8 @@
         [effect]="effect"
         [canSelect]="canAct"
         [activeSide]="battleState?.activeSide ?? 'attacker'"
+        [ap]="battleState?.ap ?? 0"
+        [spentStackIds]="spentStackIds"
         [onStackClick]="onStackClick"
         [onCellClick]="onCellClick"
       ></app-battle-grid>

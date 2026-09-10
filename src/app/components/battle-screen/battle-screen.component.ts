@@ -136,6 +136,51 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     return !hasValidAction;
   }
 
+  get spentStackIds(): Set<string> {
+    const spent = new Set<string>();
+    if (!this.state || this.state.winner) {
+      return spent;
+    }
+    // Only active side's stacks can be spent
+    const activeSide = this.state.activeSide;
+    const ap = this.state.ap;
+
+    // If AP is fully depleted, all active side stacks are spent
+    const apDepleted = ap <= 0;
+
+    for (const stack of this.state.stacks) {
+      if (stack.side !== activeSide || stack.destroyed || stack.immobile) {
+        continue;
+      }
+      // Skip if currently animating
+      if (stack.moving || stack.firing) {
+        continue;
+      }
+
+      if (apDepleted) {
+        spent.add(stack.stackId);
+        continue;
+      }
+
+      // Check if can move
+      const reachableCells = getReachableCells(this.state, stack);
+      const canMove = reachableCells.length > 0 && ap >= stack.moveApPerCell;
+
+      // Check if can attack
+      const attackTargets = computeAttackTargetIds(this.state, stack);
+      const canAttack = attackTargets.length > 0 && !stack.attackedThisTurn && ap >= stack.attackAp;
+
+      // Check if can move-to-attack
+      const moveToAttackTargets = getMoveToAttackTargetIds(this.state, stack);
+      const canMoveToAttack = moveToAttackTargets.length > 0 && ap >= stack.moveApPerCell + stack.attackAp;
+
+      if (!canMove && !canAttack && !canMoveToAttack) {
+        spent.add(stack.stackId);
+      }
+    }
+    return spent;
+  }
+
   get phaseLabel(): string {
     if (!this.state) {
       return '';
