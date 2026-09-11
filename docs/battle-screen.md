@@ -384,19 +384,27 @@ async playTurn(state):
 - Planet defense buildings (`immobile: true`) never move
 - No strategic knowledge — pure tactical
 
-### 9. Result (`BattleResult.buildBattleOutcome`)
+### 9. Result overlay
 
-```typescript
-buildBattleOutcome(state): BattleOutcome
-1. fleetOutcome(side):
-   - Maps state.attackerShips/defenderShips (input order preserved)
-   - Each ship → { shipId, typeId, name, hp: max(0, round(hp)), destroyed: !alive }
-   - survivors = filter !destroyed
-   - wipedOut = survivors.length === 0
-2. winnerSide = state.winner
-3. winnerFleetId / loserFleetId from winnerSide
-4. Return BattleOutcome with all fields
-```
+`BattleScreenComponent` derives the final `BattleOutcome` from the finished
+`BattleModelState` and renders it as a modal overlay on `/battle` after the
+final combat animation completes. The overlay sits above the tactical grid and
+controls, dims the background, and prevents further battle input.
+
+The result summary is aggregate-only:
+
+- winner fleet name and side
+- fleet or planet battle type
+- planet result (`CAPTURED` or `DEFENDED`) for planet battles
+- round count
+- both fleet names
+- surviving ships / total ships per side
+- losses per side
+
+The modal has a scrollable summary area and a fixed footer containing the only
+close action, `BACK TO STAR MAP`. Clicking the backdrop or pressing Escape does
+not dismiss it. The button keeps the existing persistence and navigation
+contract described in the next section.
 
 ### 10. Exit (BattleScreen → StarMap)
 

@@ -134,43 +134,6 @@
       </div>
     }
 
-    @if (battleOver) {
-      <div class="battle-screen__result">
-        <div class="result-header">
-          <span class="result-title">BATTLE COMPLETE</span>
-          <span class="result-meta">
-            ROUND {{ battleOutcome?.rounds }}
-            @if (battleOutcome?.battleType === 'planet') {
-              <span class="result-planet">PLANET BATTLE</span>
-            } @else {
-              <span class="result-planet">FLEET BATTLE</span>
-            }
-          </span>
-          @if (getPlanetResultLabel()) {
-            <span class="result-planet-label" [class.result-planet-label--captured]="getPlanetResultLabel() === 'CAPTURED'" [class.result-planet-label--defended]="getPlanetResultLabel() === 'DEFENDED'">
-              {{ getPlanetResultLabel() }}
-            </span>
-          }
-        </div>
-
-        <div class="result-sides">
-          <app-battle-fleet-panel
-            fleetName="{{ state.attackerName }}"
-            [factionColor]="state.attackerColor"
-            [roster]="battleOutcome?.attacker.ships ?? []"
-            [result]="getSideResult('attacker')"
-          ></app-battle-fleet-panel>
-          <app-battle-fleet-panel
-            fleetName="{{ state.defenderName }}"
-            [factionColor]="state.defenderColor"
-            [roster]="battleOutcome?.defender.ships ?? []"
-            [result]="getSideResult('defender')"
-          ></app-battle-fleet-panel>
-        </div>
-
-        <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
-      </div>
-    }
   } @else {
     <div class="battle-screen__error">
       <div>NO ACTIVE BATTLE</div>
@@ -180,4 +143,76 @@
     </div>
   }
   </div>
+
+  @if (showBattleResult) {
+    @if (battleOutcome; as outcome) {
+      <div class="battle-screen__result-overlay" role="presentation">
+      <section
+        class="battle-screen__result-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="battle-result-title"
+      >
+        <header class="result-modal__header">
+          <div class="result-modal__winner">
+            <span class="result-title" id="battle-result-title">BATTLE COMPLETE</span>
+            <div class="result-winner">
+              <span class="result-winner__label">WINNER</span>
+              <span class="result-winner__name">{{ resultWinnerName }}</span>
+              <span class="result-winner__side">{{ resultWinnerSideLabel }}</span>
+            </div>
+          </div>
+          <div class="result-meta">
+            <span>{{ resultBattleTypeLabel }}</span>
+            <span>ROUNDS: {{ outcome.rounds }}</span>
+            @if (getPlanetResultLabel()) {
+              <span
+                class="result-planet-label"
+                [class.result-planet-label--captured]="getPlanetResultLabel() === 'CAPTURED'"
+                [class.result-planet-label--defended]="getPlanetResultLabel() === 'DEFENDED'"
+              >{{ getPlanetResultLabel() }}</span>
+            }
+          </div>
+        </header>
+
+        <div class="result-modal__body">
+          <div class="result-sides">
+            @for (summary of resultSideSummaries; track summary.side) {
+              <article
+                class="result-side"
+                [class.result-side--winner]="summary.result === 'winner'"
+                [style.border-left-color]="summary.color"
+              >
+                <div class="result-side__header">
+                  <div>
+                    <span class="result-side__side">{{ summary.side === 'attacker' ? 'ATTACKER' : 'DEFENDER' }}</span>
+                    <span class="result-side__name">{{ summary.name }}</span>
+                  </div>
+                  <span
+                    class="result-side__badge"
+                    [class.result-side__badge--winner]="summary.result === 'winner'"
+                    [class.result-side__badge--loser]="summary.result === 'loser'"
+                  >{{ summary.result === 'winner' ? 'VICTORY' : 'DEFEAT' }}</span>
+                </div>
+                <div class="result-side__stats">
+                  <span>SURVIVORS: {{ summary.survivors }} / {{ summary.total }}</span>
+                  <span>LOSSES: {{ summary.losses }}</span>
+                </div>
+              </article>
+            }
+          </div>
+        </div>
+
+        <footer class="result-modal__footer">
+          <button
+            #resultBackButton
+            class="result-modal__back-btn"
+            type="button"
+            (click)="backToStarMap()"
+          >BACK TO STAR MAP</button>
+        </footer>
+      </section>
+    </div>
+    }
+  }
 </div>

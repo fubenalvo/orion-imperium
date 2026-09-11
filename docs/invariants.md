@@ -80,7 +80,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 1. `StarMap` detects a collision (fleet) or planet arrival (planet) → `BattleService.setBattle()` / `setPlanetBattle()` → save → navigate to `/battle`.
 2. `BattleScreenComponent.ngOnInit()` calls `BattleService.startBattle()`, which initialises per-ship HP and `BattleState`.
 3. A `setInterval(tickRateMs)` (default 1000 ms) calls `BattleService.processStep()` once per tick. `BattleScreenComponent` re-reads the battle and runs change detection.
-4. When the battle ends, the timer is stopped and the "Back to Star Map" button becomes visible.
+4. When the battle ends, the timer is stopped and the result appears as a modal overlay above the `/battle` tactical interface after the final animation completes. The overlay dims the background, blocks further battle input, and can only be dismissed with `BACK TO STAR MAP`.
 5. On "Back to Star Map":
    - Fleet battle: `loser.destroyed = true`; `setDestroyedFleetId(loser.id)`; `clearBattle()`.
    - Planet battle: `applyPlanetBattleResult()` reloads the save, sets `planet.factionId` to the attacker's faction (if attacker won) or marks the attacker destroyed (otherwise), and writes the save back. `clearBattle()` is also called.

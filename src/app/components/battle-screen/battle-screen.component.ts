@@ -1,4 +1,12 @@
-import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
+import {
+  AfterViewChecked,
+  ChangeDetectorRef,
+  Component,
+  ElementRef,
+  OnDestroy,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -9,10 +17,12 @@ import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { GameTimeService } from '../../services/game-time.service';
 import {
   Battle,
+  BattleFleetOutcome,
   BattleModelState,
   BattleOutcome,
   BattlePlanetVisual,
   BattleShieldPool,
+  BattleSide,
   BattleStack,
   GridCell,
 } from './battle/battle.types';
@@ -25,7 +35,6 @@ import { BattleTurnService } from './battle/battle-turn.service';
 import { BattleAnimationService } from './battle/battle-animation.service';
 import { BattleAiService } from './battle/battle-ai.service';
 import { BattleGridComponent } from './battle-grid/battle-grid.component';
-import { BattleFleetPanelComponent } from './battle-fleet-panel/battle-fleet-panel.component';
 
 /*
  * =========================================================
@@ -45,14 +54,24 @@ import { BattleFleetPanelComponent } from './battle-fleet-panel/battle-fleet-pan
  * 4. StarMap applies the outcome via reloadAfterBattle()
  */
 
+interface BattleResultSideSummary {
+  side: BattleSide;
+  name: string;
+  color: string;
+  result: 'winner' | 'loser';
+  survivors: number;
+  total: number;
+  losses: number;
+}
+
 @Component({
   selector: 'app-battle-screen',
   standalone: true,
-  imports: [CommonModule, BattleGridComponent, BattleFleetPanelComponent],
+  imports: [CommonModule, BattleGridComponent],
   templateUrl: './battle-screen.component.html',
   styleUrl: './battle-screen.component.scss',
 })
-export class BattleScreenComponent implements OnInit, OnDestroy {
+export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestroy {
   private battle: Battle | null = null;
   private state: BattleModelState | null = null;
   private ticksSub: Subscription;
@@ -63,6 +82,9 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
   private pointerY = 0.5;
   private motionEnabled = false;
   private motionPermissionRequested = false;
+  private resultModalFocused = false;
+
+  @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
   constructor(
     private router: Router,
@@ -95,6 +117,56 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
 
   get battleOver(): boolean {
     return this.state?.winner != null;
+  }
+
+  get showBattleResult(): boolean {
+    return this.battleOver && !this.anim.isBusy;
+  }
+
+  get resultWinnerName(): string {
+    const outcome = this.battleOutcome;
+    if (!outcome || !this.state) {
+      return '';
+    }
+    return outcome.winnerSide === 'attacker' ? this.state.attackerName : this.state.defenderName;
+  }
+
+  get resultWinnerSideLabel(): string {
+    return this.battleOutcome?.winnerSide === 'attacker' ? 'ATTACKER' : 'DEFENDER';
+  }
+
+  get resultBattleTypeLabel(): string {
+    return this.battleOutcome?.battleType === 'planet' ? 'PLANET BATTLE' : 'FLEET BATTLE';
+  }
+
+  get resultSideSummaries(): BattleResultSideSummary[] {
+    const outcome = this.battleOutcome;
+    if (!outcome || !this.state) {
+      return [];
+    }
+    return [
+      this.createSideSummary('attacker', this.state.attackerName, this.state.attackerColor, outcome.attacker),
+      this.createSideSummary('defender', this.state.defenderName, this.state.defenderColor, outcome.defender),
+    ];
+  }
+
+  private createSideSummary(
+    side: BattleSide,
+    name: string,
+    color: string,
+    fleet: BattleFleetOutcome,
+  ): BattleResultSideSummary {
+    const total = fleet.ships.length;
+    const survivors = fleet.survivors.length;
+    return {
+      side,
+      name,
+      color,
+      result: this.getSideResult(side) ?? 'loser',
+      survivors,
+      total,
+      losses: total - survivors,
+    };
   }
 
   get playerControlsActiveSide(): boolean {
@@ -322,6 +394,15 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
       void this.runAiTurns();
     }
     this.gameTimeService.pause();
+  }
+
+  ngAfterViewChecked(): void {
+    if (this.showBattleResult && !this.resultModalFocused) {
+      this.resultBackButton?.nativeElement.focus();
+      this.resultModalFocused = true;
+    } else if (!this.showBattleResult) {
+      this.resultModalFocused = false;
+    }
   }
 
   ngOnDestroy(): void {
