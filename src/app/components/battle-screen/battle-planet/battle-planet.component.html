@@ -1,0 +1,16 @@
+@if (planet; as p) {
+  <div class="battle-planet" [style.--planet-color]="p.color">
+    <div class="battle-planet__body"></div>
+    <div class="battle-planet__clouds"></div>
+
+    @if (shieldFraction > 0) {
+      <div
+        class="battle-planet__shield"
+        [style.opacity]="shieldOpacity()"
+        [style.transform]="'scale(' + shieldScale() + ')'"
+      ></div>
+    }
+
+    <div class="battle-planet__name">{{ p.name }}</div>
+  </div>
+}

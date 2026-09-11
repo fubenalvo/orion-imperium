@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BattleService } from '../../services/battle.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
-import { Faction, Fleet, PlanetTile, StarSystem } from './star-map.models';
+import { Faction, Fleet, PlanetTile, StarSystem, PLANET_TYPE_COLORS } from './star-map.models';
 import { StarMapMovementService } from './star-map-movement.service';
 
 /*
@@ -186,6 +186,20 @@ export class StarMapPlanetArrivalService {
       garrisonFleet,
     );
 
+    /*
+     * A planet can have only a shield building and no turrets or garrison.
+     * That produces a pool but zero combat stacks, so treat it as an
+     * undefended capture instead of opening an unwinnable empty battle.
+     */
+    if (defenseFleet.ships.length === 0) {
+      console.log(
+        `[StarMap] Fleet ${attackerFleet.name} captured shield-only planet ${targetPlanet.name}`,
+      );
+      targetPlanet.factionId = attackerFleet.factionId;
+      ctx.saveGame();
+      return;
+    }
+
     const attackerFaction = ctx.factions.find((f) => f.id === attackerFleet.factionId);
     const defenderFaction = ctx.factions.find((f) => f.id === targetPlanet.factionId);
     if (!attackerFaction || !defenderFaction) {
@@ -240,6 +254,8 @@ export class StarMapPlanetArrivalService {
       attackerId: attackerFleet.id,
       defenderId: defenseFleet.id,
       planetId: targetPlanet.id,
+      planetName: targetPlanet.name,
+      planetColor: PLANET_TYPE_COLORS[targetPlanet.type] ?? '#ffffff',
     });
 
     ctx.enterBattleScreen();

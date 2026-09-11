@@ -89,6 +89,22 @@
   overflow: hidden;
 }
 
+/* Two stacked bars per ship: shield (cyan, top) then hull HP (blue,
+ * bottom). BattleOutcome ships have no shield fields so the shield bar
+ * stays empty in the end-of-battle result view. */
+.ship-row__shield {
+  height: 4px;
+  background: rgba(80, 220, 255, 0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.shield-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3ec8ff, #8be9ff);
+  transition: width 0.3s ease;
+}
+
 .hp-bar {
   height: 100%;
   background: var(--color-blue);

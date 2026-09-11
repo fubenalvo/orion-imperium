@@ -36,6 +36,11 @@ export interface BattleShipStats {
   moveRange: number;
   attackRange: number;
   immobile: boolean;
+  shield: number;
+  shieldRegen: number;
+  attackType: string;
+  weakness: string;
+  role: string;
 }
 
 const TIER_LOOKUP: Record<string, number> = {
@@ -84,6 +89,11 @@ export function getBattleShipStats(
       moveRange: shipType.battleMoveRange ?? shipType.speed,
       attackRange: shipType.range,
       immobile: false,
+      shield: shipType.shield ?? 0,
+      shieldRegen: shipType.shieldRegen ?? 0,
+      attackType: shipType.attackType ?? 'kinetic',
+      weakness: shipType.weakness ?? 'energy',
+      role: shipType.role ?? 'Light Combat',
     };
   }
 
@@ -101,6 +111,14 @@ export function getBattleShipStats(
       moveRange: 0,
       attackRange: VIRTUAL_RANGE_LOOKUP[typeId] ?? 2,
       immobile: true,
+      // Virtual defense buildings (turrets) have no per-ship shield in
+      // planet-data.json. The shield building is filtered out of virtual
+      // fleets and becomes a shared pool instead, so these stay zero.
+      shield: 0,
+      shieldRegen: 0,
+      attackType: virtual.attackType ?? 'kinetic',
+      weakness: virtual.weakness ?? 'energy',
+      role: virtual.role ?? 'defense',
     };
   }
 
@@ -116,5 +134,10 @@ export function getBattleShipStats(
     moveRange: 0,
     attackRange: 0,
     immobile: true,
+    shield: 0,
+    shieldRegen: 0,
+    attackType: 'kinetic',
+    weakness: 'energy',
+    role: 'Light Combat',
   };
 }

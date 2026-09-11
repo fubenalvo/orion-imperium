@@ -36,13 +36,15 @@ battle returns to the map.
 
 ## Tactical Grid
 
-- 18 columns × 7 rows of 5vw cells — the **rendered** dimensions of the System View grid
-  (`_star-map-system-view.scss`). Concepts (1-indexed cells, 5vw cell size,
-  `floor(vw / 5) + 1` conversion) are reused; the minigame keeps its own constants
+- 18 columns × 7 rows of 4vw cells (72vw × 28vw). Concepts (1-indexed cells, grid
+  coordinates) are reused from the System View; the minigame keeps its own constants
   (`battle.types.ts`) so it does not import `StarMapMovementService`.
-- The attacker deploys on the left columns (1–2, expanding to 3 if needed); the defender
-  deploys on the right columns (17–18, expanding to 16). Rows fill centre-out from row 4.
-- Planet-defense buildings deploy as stacks in the defender columns with `immobile = true`.
+- The attacker deploys on the left columns (`ATTACKER_DEPLOY_COLS = 1, 2, 3, 4`); the
+  defender deploys on the right columns (`DEFENDER_DEPLOY_COLS = 18, 17, 16, 15`). Rows
+  fill centre-out from row 4.
+- Planet-defense buildings deploy as `immobile = true` stacks in the **outermost defender
+  column (18) first**, then overflow inward. Garrison stacks fill the remaining defender
+  cells behind them. See [Planet Battles](#planet-battles).
 
 ## Ships and Stacks
 
@@ -57,27 +59,28 @@ battle returns to the map.
 
 ## Action Points
 
-Each side gets a shared pool of `AP_PER_TURN = 10` per turn. A ship's AP cost is its **size
-tier** (derived from `ship-data.json`):
+Each side gets a shared pool of `AP_PER_TURN = 50` per turn. A stack's AP cost is derived
+from its size tier (`Math.ceil(tier * 1.5)`):
 
 | Tier | Move AP / cell | Attack AP | Ships (cost) |
 |---|---|---|---|
-| 1 | 1 | 1 | scout (50), fighter (75), colonizer (100), corvette (120) |
-| 2 | 2 | 2 | frigate (180), destroyer (260) |
-| 3 | 3 | 3 | cruiser (400), carrier (500) |
-| 4 | 4 | 4 | battleship (700), battlecruiser (750) |
-| 5 | 5 | 5 | dreadnought (1200) |
+| 1 | 2 | 2 | scout (50), fighter (75), colonizer (100), corvette (120) |
+| 2 | 3 | 3 | frigate (180), destroyer (260) |
+| 3 | 5 | 5 | cruiser (400), carrier (500) |
+| 4 | 6 | 6 | battleship (700), battlecruiser (750) |
+| 5 | 8 | 8 | dreadnought (1200) |
 
-The existing `speed` stat is the ship's movement range per turn; the existing `range` stat is
-its attack range. With 10 AP per turn this reproduces the design intent: 5 fighters can each
-move a cell and attack (10 AP), while 2 frigates consume most of the turn's AP.
+The `speed` stat is the ship's movement range per turn; the `range` stat is its attack
+range. Virtual defense buildings (turrets) are tier 3, immobile, and use their building
+definition's `range` for attacks.
 
 ## Movement
 
 - Grid-based, 8-direction straight-line steps. One move command relocates a stack to a
   target cell up to its remaining move range away; every intermediate cell must be in bounds
   and unoccupied (no pathfinding).
-- Moving costs `tier` AP per cell and is capped at `speed` cells per turn per stack.
+- Moving costs `moveApPerCell` AP per cell and is capped at `moveRange` cells per turn per
+  stack.
 - Immobile stacks (planet-defense buildings) cannot move.
 - The stack's grid position is committed when the animation starts (CSS tween plays the
   move); the **animation lock** holds the turn until the tween finishes, so END TURN and all
@@ -85,21 +88,39 @@ move a cell and attack (10 AP), while 2 frigates consume most of the turn's AP.
 
 ## Combat
 
-- A stack may attack once per turn, costing `attackAp = tier` AP.
+- A stack may attack once per turn, costing `attackAp` AP.
 - Target must be an enemy stack within `range` (Euclidean: `dx² + dy² ≤ range²`, matching the
   project-wide sensor-range convention documented in `docs/invariants.md`).
 - **Damage = whole-stack volley:** `totalAttack = Σ attack of alive ships in the firing
-  stack`; `damage = max(1, totalAttack − frontTargetShip.defense)` — the same
-  `max(1, attack − defense)` rule the strategic battle used, now aggregated over the stack.
-  Defense is per-ship (the front target ship's `defense`), not summed.
-- Damage is applied to the target stack's ships in order; overkill spills across ships. A
-  stack with no alive ships is destroyed.
-- Each attack appends a `BattleLogEntry` (round, side, stacks, damage, kills).
+  stack`; `raw = max(1, totalAttack − frontTargetShip.defense)`. Defense is per-ship (the
+  front target ship's `defense`), not summed.
+- Weapon effectiveness scales raw damage by the attacker's `attackType` vs the front target
+  ship's `weakness` using the table in `battle-grid.ts`: each attacker type has one strong
+  matchup (1.5×), one neutral matchup (1.0×), and one resisted matchup (0.5×). The target's
+  own `weakness` type is the resisted matchup. `max(1, floor(...))` keeps the damage floor.
+- Shield absorbs damage before hull: each ship's own `shield` absorbs first; only overflow
+  reaches hull HP. A stack with no alive ships is destroyed.
+- Each attack appends a `BattleLogEntry` (round, side, stacks, gross volley damage, kills).
+
+## Planet Battles
+
+- A planet with defensive buildings spawns a virtual defender fleet (`id = -planet.id`) made
+  of immobile turret stacks plus any garrison ships.
+- `planetary_shield` buildings do **not** become ships. They grant one shared planetary
+  shield pool:
+  - `max` = sum of all shield-building `shield` values.
+  - `current` starts at `max`.
+  - It absorbs damage for **immobile turret stacks only**; garrison ships use their own
+    per-ship shields.
+  - At the start of each **defender turn**, the pool regenerates by the sum of all
+    shield-building `shieldRegen` values, capped at `max`.
+- The planet visual is presentation-only and never part of `BattleStack` or combat state.
+  It is rendered separately by the battle grid, using the planet's name and type color.
 
 ## Turn Lifecycle
 
 ```
-deploy → ATTACKER TURN (10 AP) → END TURN → DEFENDER TURN (10 AP) → END TURN → round++ → ...
+deploy → ATTACKER TURN (50 AP) → END TURN → DEFENDER TURN (50 AP) → END TURN → round++ → ...
 ```
 
 1. Attacker always acts first.
@@ -145,9 +166,9 @@ The minigame returns a `BattleOutcome`:
 
 ## Limitations / Out of Scope
 
-- No weapon-type effectiveness: `attackType`, `weakness`, and `shield` / `shieldRegen` are
-  loaded but **not applied** in damage calculation (consistent with the prior implementation).
 - No critical hits, evasion, or random factors — combat is deterministic.
+- The shared planetary shield generator is not a targetable unit; only its pool is part of
+  the battle. Garrison ships are intentionally not protected by the shared pool.
 - A virtual defense fleet (negative fleet id) never persists; only the attacker's real roster
   is written back after a planet battle. A garrisoned fleet parked on the planet is not
   touched (pre-existing simplification preserved).

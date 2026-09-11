@@ -11,11 +11,13 @@ import {
   Battle,
   BattleModelState,
   BattleOutcome,
+  BattlePlanetVisual,
+  BattleShieldPool,
   BattleStack,
   GridCell,
 } from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
-import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds } from './battle/battle-grid';
+import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds, computeCarrierBoostTargets } from './battle/battle-grid';
 import { buildBattleOutcome } from './battle/battle-result';
 import { BattleMovementService } from './battle/battle-movement.service';
 import { BattleCombatService } from './battle/battle-combat.service';
@@ -23,6 +25,7 @@ import { BattleTurnService } from './battle/battle-turn.service';
 import { BattleAnimationService } from './battle/battle-animation.service';
 import { BattleAiService } from './battle/battle-ai.service';
 import { BattleGridComponent } from './battle-grid/battle-grid.component';
+import { BattleFleetPanelComponent } from './battle-fleet-panel/battle-fleet-panel.component';
 
 /*
  * =========================================================
@@ -45,7 +48,7 @@ import { BattleGridComponent } from './battle-grid/battle-grid.component';
 @Component({
   selector: 'app-battle-screen',
   standalone: true,
-  imports: [CommonModule, BattleGridComponent],
+  imports: [CommonModule, BattleGridComponent, BattleFleetPanelComponent],
   templateUrl: './battle-screen.component.html',
   styleUrl: './battle-screen.component.scss',
 })
@@ -219,6 +222,33 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     return this.state?.effect ?? null;
   }
 
+  /*
+   * Planet-battle presentation data. planetVisual is null in fleet battles,
+   * which keeps the planet component and its shared-shield bar out of that
+   * mode entirely.
+   */
+  get planetVisual(): BattlePlanetVisual | null {
+    if (!this.state?.planetName) {
+      return null;
+    }
+    return {
+      name: this.state.planetName,
+      color: this.state.planetColor ?? '#ffffff',
+    };
+  }
+
+  get planetShield(): BattleShieldPool | null {
+    return this.state?.defenderShieldPool ?? null;
+  }
+
+  get planetShieldFraction(): number {
+    const pool = this.planetShield;
+    if (!pool || pool.max <= 0) {
+      return 0;
+    }
+    return Math.max(0, Math.min(1, pool.current / pool.max));
+  }
+
   get bgDeepTransform(): string {
     const offsetX = (this.pointerX - 0.5) * 2;
     const offsetY = (this.pointerY - 0.5) * 2;
@@ -354,6 +384,96 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
     return this.state.stacks.find((s) => s.stackId === this.selectedStackId && !s.destroyed) ?? null;
   }
 
+  /* Aggregate stats for the selected stack's info panel. Pure reads of
+   * BattleStack/BattleShip state; no combat logic is duplicated here —
+   * the sums mirror the values used by BattleCombatService (totalAttack)
+   * and BattleGridComponent.hullFraction (HP fraction). */
+  get selectedShipCount(): number {
+    const stack = this.selectedStack();
+    return stack ? stack.ships.filter((s) => s.alive).length : 0;
+  }
+
+  get selectedTotalHp(): number {
+    const stack = this.selectedStack();
+    return stack ? stack.ships.reduce((sum, s) => (s.alive ? sum + s.hp : sum), 0) : 0;
+  }
+
+  get selectedMaxHp(): number {
+    const stack = this.selectedStack();
+    return stack ? stack.ships.reduce((sum, s) => sum + s.maxHp, 0) : 0;
+  }
+
+  get selectedTotalAttack(): number {
+    const stack = this.selectedStack();
+    return stack ? stack.ships.reduce((sum, s) => (s.alive ? sum + s.attack : sum), 0) : 0;
+  }
+
+  get selectedTotalDefense(): number {
+    const stack = this.selectedStack();
+    return stack ? stack.ships.reduce((sum, s) => (s.alive ? sum + s.defense : sum), 0) : 0;
+  }
+
+  /* Aggregate shield for the selected stack's info panel. Pure reads of
+   * BattleShip.shield/maxShield — no combat logic duplicated here. */
+  get selectedTotalShield(): number {
+    const stack = this.selectedStack();
+    return stack ? stack.ships.reduce((sum, s) => (s.alive ? sum + (s.shield ?? 0) : sum), 0) : 0;
+  }
+
+  get selectedMaxShield(): number {
+    const stack = this.selectedStack();
+    return stack ? stack.ships.reduce((sum, s) => sum + (s.maxShield ?? 0), 0) : 0;
+  }
+
+  get selectedShieldFraction(): number {
+    const max = this.selectedMaxShield;
+    return max > 0 ? Math.max(0, this.selectedTotalShield / max) : 0;
+  }
+
+  get selectedHullFraction(): number {
+    const max = this.selectedMaxHp;
+    return max > 0 ? Math.max(0, this.selectedTotalHp / max) : 0;
+  }
+
+  /* Carrier Shield Pulse: the selected stack is a Carrier that can act,
+   * has not yet acted this turn, and has enough AP. Pure read of existing
+   * state — no combat logic duplicated here. */
+  get canCarrierBoost(): boolean {
+    if (!this.state || !this.canAct) {
+      return false;
+    }
+    const stack = this.selectedStack();
+    if (!stack || stack.typeId !== 'carrier' || stack.destroyed) {
+      return false;
+    }
+    if (stack.attackedThisTurn || stack.attackAp > this.state.ap) {
+      return false;
+    }
+    return computeCarrierBoostTargets(this.state, stack).length > 0;
+  }
+
+  /* Friendly stacks that would be restored by a Shield Pulse. Pure read
+   * of existing state — used only to highlight them in the grid. */
+  get carrierBoostTargetIds(): string[] {
+    const stack = this.selectedStack();
+    return stack && this.state ? computeCarrierBoostTargets(this.state, stack) : [];
+  }
+
+  async doCarrierBoost(): Promise<void> {
+    if (!this.state) {
+      return;
+    }
+    const stack = this.selectedStack();
+    if (!stack) {
+      return;
+    }
+    const ok = await this.combat.carrierShieldBoost(this.state, stack.stackId);
+    if (!ok) {
+      return;
+    }
+    this.cdr.detectChanges();
+  }
+
   private async doMove(stack: BattleStack, col: number, row: number): Promise<void> {
     if (!this.state) {
       return;
@@ -440,6 +560,28 @@ export class BattleScreenComponent implements OnInit, OnDestroy {
       return null;
     }
     return this.state.winner === side ? 'winner' : 'loser';
+  }
+
+  /* BattleOutcome built from the current simulation state. Pure: reads only
+   * BattleModelState, never mutates anything. Used by the end-of-battle
+   * result view so the UI presents the same outcome the overworld persists. */
+  get battleOutcome(): BattleOutcome | null {
+    if (!this.state || !this.state.winner) {
+      return null;
+    }
+    return buildBattleOutcome(this.state);
+  }
+
+  /* Planet-battle result label derived purely from BattleOutcome fields.
+   * 'CAPTURED' = attacker (player or AI) took the planet.
+   * 'DEFENDED' = the planet's defenders held it.
+   * Empty string for fleet battles (no planet line to show). */
+  getPlanetResultLabel(): string {
+    const outcome = this.battleOutcome;
+    if (!outcome || outcome.battleType !== 'planet') {
+      return '';
+    }
+    return outcome.winnerSide === 'attacker' ? 'CAPTURED' : 'DEFENDED';
   }
 
   backToStarMap(): void {

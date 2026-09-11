@@ -108,4 +108,146 @@ describe('BattleTurnService', () => {
     expect(state.winner).toBe('defender');
     expect(state.phase).toBe('over');
   });
+
+  /*
+   * Shield regeneration. The newly-active side's living ships recover
+   * shieldRegen per turn, capped at maxShield. Destroyed ships and the
+   * inactive side are skipped. HP, AP, movement, combat, and AI are all
+   * untouched.
+   */
+  it('regenerates the active side shield by shieldRegen, capped at maxShield', () => {
+    // Fighter: shield 30, shieldRegen 2, maxShield 30.
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
+    const defender = getStacks(state, 'defender')[0];
+    defender.ships[0].shield = 50;
+
+    turn.endTurn(state); // active becomes defender
+
+    expect(state.activeSide).toBe('defender');
+    expect(defender.ships[0].shield).toBe(55); // 50 + 5 (frigate regen)
+  });
+
+  it('caps regeneration at maxShield', () => {
+    // Frigate: shield 80, shieldRegen 5, maxShield 80.
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
+    const defender = getStacks(state, 'defender')[0];
+    defender.ships[0].shield = 78;
+
+    turn.endTurn(state); // active becomes defender
+
+    expect(defender.ships[0].shield).toBe(80); // 78 + 5 capped at 80
+  });
+
+  it('does not regenerate the inactive side', () => {
+    // Fighter: shield 30, shieldRegen 2, maxShield 30.
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
+    const attacker = getStacks(state, 'attacker')[0];
+    attacker.ships[0].shield = 10;
+
+    turn.endTurn(state); // active becomes defender; attacker is now inactive
+
+    expect(attacker.ships[0].shield).toBe(10); // untouched
+  });
+
+  it('does not regenerate destroyed ships', () => {
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
+    const defender = getStacks(state, 'defender')[0];
+    defender.ships[0].shield = 40;
+    defender.ships[0].alive = false;
+
+    turn.endTurn(state); // active becomes defender
+
+    expect(defender.ships[0].shield).toBe(40); // dead ship, no regen
+  });
+
+  it('leaves ships with no shield data unchanged', () => {
+    // Laser turret: shield 0, shieldRegen 0, maxShield 0 (virtual defense).
+    const state = setup(
+      [fleetShip(1, 'fighter')],
+      [fleetShip(100, 'laser_turret')],
+    );
+    const defender = getStacks(state, 'defender')[0];
+
+    turn.endTurn(state); // active becomes defender
+
+    expect(defender.ships[0].shield).toBe(0);
+    expect(defender.ships[0].shieldRegen).toBe(0);
+  });
+
+  it('applies regeneration before the turn-counter reset', () => {
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
+    const defender = getStacks(state, 'defender')[0];
+    defender.ships[0].shield = 50;
+    defender.cellsMovedThisTurn = 5;
+    defender.attackedThisTurn = true;
+
+    turn.endTurn(state); // active becomes defender
+
+    expect(defender.ships[0].shield).toBe(55); // regen applied
+    expect(defender.cellsMovedThisTurn).toBe(0); // counters reset
+    expect(defender.attackedThisTurn).toBe(false);
+  });
+
+  /*
+   * Shared planetary shield. The pool is planet-battle only and regenerates
+   * at the start of the defender's turn, capped at its max. Attacker turns
+   * must never touch it.
+   */
+  const planetSetup = (shieldPool: number, shieldPoolRegen: number): BattleModelState => {
+    const state = createBattleState(
+      {
+        fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+        fleet2: {
+          id: -5,
+          name: 'DEFENSE',
+          factionId: 'enemy1',
+          ships: [fleetShip(100, 'laser_turret')],
+          shieldPool,
+          shieldPoolRegen,
+        },
+        faction1Name: 'Player',
+        faction1Color: '#8cc4ff',
+        faction2Name: 'Enemy 1',
+        faction2Color: '#d65757',
+        attackerId: 1,
+        defenderId: -5,
+        type: 'planet',
+        planetId: 5,
+      },
+      shipService,
+      planetBattleService,
+    );
+    anim.reset();
+    return state;
+  };
+
+  it('regenerates the shared planetary shield at the start of the defender turn', () => {
+    const state = planetSetup(300, 15);
+    state.defenderShieldPool!.current = 100;
+
+    turn.endTurn(state); // attacker -> defender
+
+    expect(state.activeSide).toBe('defender');
+    expect(state.defenderShieldPool?.current).toBe(115);
+  });
+
+  it('caps shared planetary shield regen at its max', () => {
+    const state = planetSetup(300, 15);
+    state.defenderShieldPool!.current = 295;
+
+    turn.endTurn(state); // attacker -> defender
+
+    expect(state.defenderShieldPool?.current).toBe(300);
+  });
+
+  it('does not regenerate the shared planetary shield on the attacker turn', () => {
+    const state = planetSetup(300, 15);
+    state.defenderShieldPool!.current = 100;
+    state.activeSide = 'defender';
+
+    turn.endTurn(state); // defender -> attacker
+
+    expect(state.activeSide).toBe('attacker');
+    expect(state.defenderShieldPool?.current).toBe(100);
+  });
 });

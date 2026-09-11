@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BattleModelState, BattleStack, GridCell } from './battle.types';
 import { getStacks } from './battle-state';
-import { cellDistance, findBestMoveToAttackCell, isInRange, linePath } from './battle-grid';
+import { cellDistance, computeTargetScore, findBestMoveToAttackCell, isInRange, linePath } from './battle-grid';
 import { BattleCombatService } from './battle-combat.service';
 import { BattleMovementService } from './battle-movement.service';
 import { BattleTurnService } from './battle-turn.service';
@@ -69,6 +69,20 @@ export class BattleAiService {
       }
     }
 
+    // Carrier Shield Pulse fallback: only when a Carrier has nothing better
+    // to do and at least one friendly ally in range needs shield. This is a
+    // deterministic, greedy fallback — it never overrides a profitable
+    // attack, so no other AI behavior changes.
+    for (const stack of stacks) {
+      if (state.winner || stack.attackedThisTurn || stack.typeId !== 'carrier') {
+        continue;
+      }
+      const boosted = await this.combat.carrierShieldBoost(state, stack.stackId);
+      if (boosted) {
+        console.log('[BattleAI] Carrier shield boost:', stack.stackId);
+      }
+    }
+
     if (!state.winner) {
       console.log('[BattleAI] ending turn');
       const ended = this.turn.endTurn(state);
@@ -91,13 +105,15 @@ export class BattleAiService {
     if (candidates.length === 0) {
       return null;
     }
+    // Role-aware scoring: prefer high-value / high-threat targets, then
+    // nearest, then stackId. Pure and deterministic — no randomness.
     return candidates.reduce((best, s) => {
-      const bestDist = cellDistance(origin, best);
-      const dist = cellDistance(origin, s);
-      if (dist < bestDist) {
+      const bestScore = computeTargetScore(stack, best, cellDistance(origin, best));
+      const score = computeTargetScore(stack, s, cellDistance(origin, s));
+      if (score > bestScore) {
         return s;
       }
-      if (dist === bestDist && s.stackId < best.stackId) {
+      if (score === bestScore && s.stackId < best.stackId) {
         return s;
       }
       return best;

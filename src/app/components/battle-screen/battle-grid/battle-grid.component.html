@@ -1,4 +1,12 @@
 <div class="battle-grid" (click)="onGridClickHandler($event)">
+  <!-- PLANET VISUAL (planet battles only; separate from BattleStack) -->
+  @if (planet) {
+    <app-battle-planet
+      [planet]="planet"
+      [shieldFraction]="planetShieldFraction"
+    ></app-battle-planet>
+  }
+
   <!-- MOVEMENT HIGHLIGHTS -->
   @for (cell of moveCells; track cell.col + '-' + cell.row) {
     <div
@@ -22,6 +30,7 @@
         class="stack"
         [ngClass]="stackClasses(stack)"
         [class.stack--defender]="stack.side === 'defender'"
+        [class.carrier-boost-target]="isCarrierBoostTarget(stack.stackId)"
         type="button"
         (click)="onStackClickHandler($event, stack.stackId)"
       >
@@ -29,6 +38,15 @@
         <span class="stack__hp">
           <span class="stack__hp-bar" [style.width.%]="hullFraction(stack) * 100"></span>
         </span>
+        <span class="stack__shield" [class.stack__shield--hit]="isShieldHit(stack.stackId)">
+          <span class="stack__shield-bar" [style.width.%]="shieldFraction(stack) * 100"></span>
+        </span>
+        <!-- Attack-available marker: crosshair.png in the top-right corner.
+             Only shown for the active side; hidden once the stack has fired. -->
+        <span
+          class="stack__attack-dot"
+          [class.stack__attack-dot--hidden]="!hasAttackDot(stack)"
+        ></span>
       </button>
     </div>
   }

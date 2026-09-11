@@ -33,6 +33,17 @@ interface BuildingDef {
   [key: string]: unknown;
 }
 
+/*
+ * Virtual defense fleet returned to the battle transport. The two shield
+ * fields are not part of the overworld Fleet model; they tell the battle
+ * minigame how large the shared planetary shield is and how much it
+ * regenerates at the start of each defender turn.
+ */
+export interface VirtualDefenseFleet extends Fleet {
+  shieldPool: number;
+  shieldPoolRegen: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class PlanetBattleService {
   private readonly buildingDefs: BuildingDef[];
@@ -46,13 +57,18 @@ export class PlanetBattleService {
    * defensive buildings and optional garrison fleet.
    *
    * Each defense building becomes one virtual ship with stats from the
-   * building definition. Shield buildings contribute to a shared shield pool.
+   * building definition. Shield buildings do not become ships; they add to
+   * the shared shield pool and its per-turn regeneration instead.
    * Garrison ships are appended to the virtual fleet.
    */
-  createVirtualDefenseFleet(planet: PlanetTile, garrisonFleet: Fleet | null): Fleet {
+  createVirtualDefenseFleet(
+    planet: PlanetTile,
+    garrisonFleet: Fleet | null,
+  ): VirtualDefenseFleet {
     const virtualShips: FleetShip[] = [];
     let nextShipId = 1000000;
     let totalShield = 0;
+    let totalShieldRegen = 0;
 
     for (const building of planet.buildings) {
       const def = this.buildingDefs.find((b) => b.name === building.name);
@@ -62,6 +78,7 @@ export class PlanetBattleService {
 
       if (def.type === 'shield') {
         totalShield += def.shield ?? 0;
+        totalShieldRegen += def.shieldRegen ?? 0;
         continue;
       }
 
@@ -97,7 +114,8 @@ export class PlanetBattleService {
       ships: virtualShips,
       destroyed: false,
       shieldPool: totalShield,
-    } as Fleet & { shieldPool: number };
+      shieldPoolRegen: totalShieldRegen,
+    };
   }
 
   /*
@@ -152,6 +170,7 @@ export class PlanetBattleService {
     defense: number;
     attackType: string;
     weakness: string;
+    role: string;
   } | null {
     const def = this.buildingDefs.find((d) => d.id === typeId);
     if (!def) return null;
@@ -164,6 +183,7 @@ export class PlanetBattleService {
       defense: this.getBuildingDefense(def.name),
       attackType: def.attackType ?? 'kinetic',
       weakness: def.weakness ?? 'energy',
+      role: def.role ?? 'defense',
     };
   }
 

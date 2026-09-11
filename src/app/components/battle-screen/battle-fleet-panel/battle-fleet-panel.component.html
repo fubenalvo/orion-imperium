@@ -5,17 +5,25 @@
   </div>
 
   <div class="fleet-panel__ships">
-    @for (ship of roster; track ship.shipId) {
-      <div class="ship-row" [class.destroyed]="!ship.alive">
+    @for (ship of roster; track ship.name + $index) {
+      <div class="ship-row" [class.destroyed]="isDestroyed(ship)">
         <span class="ship-row__type">{{ ship.name }}</span>
-        <div class="ship-row__hp">
-          <div
-            class="hp-bar"
-            [style.width.%]="ship.alive ? hullFraction(ship) * 100 : 0"
-          ></div>
+        <div class="ship-row__bars">
+          <div class="ship-row__shield">
+            <div
+              class="shield-bar"
+              [style.width.%]="isDestroyed(ship) ? 0 : shieldFraction(ship) * 100"
+            ></div>
+          </div>
+          <div class="ship-row__hp">
+            <div
+              class="hp-bar"
+              [style.width.%]="isDestroyed(ship) ? 0 : hullFraction(ship) * 100"
+            ></div>
+          </div>
         </div>
         <span class="ship-row__hp-text">
-          {{ ship.alive ? ship.hp + ' HP' : 'DESTROYED' }}
+          {{ isDestroyed(ship) ? 'DESTROYED' : ship.hp + ' HP' }}
         </span>
       </div>
     }

@@ -62,17 +62,27 @@ export interface FleetShip {
 }
 
 /* One real ship inside a stack. shipId === FleetShip.id, the key used to
- * map battle results back onto the overworld fleet roster. */
-export interface BattleShip {
-  shipId: number;
-  name: string;
-  typeId: string;
-  hp: number;
-  maxHp: number;
-  attack: number;
-  defense: number;
-  alive: boolean;
-}
+   * map battle results back onto the overworld fleet roster.
+   *
+   * Shield and weapon fields are optional (default 0 / '') so existing test
+   * fixtures that build BattleShip literals without them keep working.
+   * BattleShipStats carries the authoritative values; toBattleShip()
+   * copies them in. */
+  export interface BattleShip {
+    shipId: number;
+    name: string;
+    typeId: string;
+    hp: number;
+    maxHp: number;
+    shield?: number;
+    maxShield?: number;
+    shieldRegen?: number;
+    attackType?: string;
+    weakness?: string;
+    attack: number;
+    defense: number;
+    alive: boolean;
+  }
 
 /*
  * BattleStack is the tactical unit: movement, attack, targeting, and
@@ -84,6 +94,7 @@ export interface BattleStack {
   side: BattleSide;
   typeId: string;
   typeName: string;
+  role: string;
   col: number;
   row: number;
   ships: BattleShip[];
@@ -123,6 +134,24 @@ export interface BattleLogEntry {
   kills: number;
 }
 
+/*
+ * Battle-local shared shield pool granted by planetary shield buildings.
+ * It protects only immobile defense stacks and is never persisted to a save
+ * or to BattleOutcome.
+ */
+export interface BattleShieldPool {
+  current: number;
+  max: number;
+  regen: number;
+}
+
+/* Planet identity used by the battle screen to render the separate planet
+ * visual. This is presentation-only; it is never part of combat state. */
+export interface BattlePlanetVisual {
+  name: string;
+  color: string;
+}
+
 export interface BattleModelState {
   round: number;
   activeSide: BattleSide;
@@ -143,6 +172,13 @@ export interface BattleModelState {
   defenderColor: string;
   battleType: 'fleet' | 'planet';
   planetId?: number;
+  planetName?: string;
+  planetColor?: string;
+  /*
+   * Shared planetary shield. Optional so existing model-state fixtures that
+   * predate planet battles keep compiling without a new required field.
+   */
+  defenderShieldPool?: BattleShieldPool | null;
   /*
    * Full rosters in input order. Stacks reference the same BattleShip
    * objects, so damage applied to a stack is immediately reflected here.
@@ -200,6 +236,13 @@ export interface BattleFleet {
   name: string;
   factionId: string;
   ships: FleetShip[];
+  /*
+   * Planet-battle only: shared shield granted by planetary shield
+   * buildings. StarMap sets these on the virtual defense fleet; normal
+   * fleets leave them undefined.
+   */
+  shieldPool?: number;
+  shieldPoolRegen?: number;
 }
 
 export interface Battle {
@@ -213,4 +256,6 @@ export interface Battle {
   defenderId: number;
   type?: 'fleet' | 'planet';
   planetId?: number;
+  planetName?: string;
+  planetColor?: string;
 }

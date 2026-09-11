@@ -55,6 +55,40 @@ describe('battle-ship-stats', () => {
     expect(frigate.defense).toBe(8);
   });
 
+  it('carries weapon type and weakness from the ship definition', () => {
+    const fighter = stats('fighter');
+    expect(fighter.attackType).toBe('kinetic');
+    expect(fighter.weakness).toBe('energy');
+    expect(fighter.role).toBe('Interceptor');
+
+    const corvette = stats('corvette');
+    expect(corvette.attackType).toBe('energy');
+    expect(corvette.weakness).toBe('kinetic');
+    expect(corvette.role).toBe('Light Combat');
+
+    const carrier = stats('carrier');
+    expect(carrier.attackType).toBe('missile');
+    expect(carrier.weakness).toBe('kinetic');
+    expect(carrier.role).toBe('Fleet Support');
+
+    const dreadnought = stats('dreadnought');
+    expect(dreadnought.role).toBe('Capital Ship');
+  });
+
+  it('carries shield and shieldRegen from the ship definition', () => {
+    const fighter = stats('fighter');
+    expect(fighter.shield).toBe(30); // ship-data.json
+    expect(fighter.shieldRegen).toBe(2);
+
+    const frigate = stats('frigate');
+    expect(frigate.shield).toBe(80);
+    expect(frigate.shieldRegen).toBe(5);
+
+    const dreadnought = stats('dreadnought');
+    expect(dreadnought.shield).toBe(400);
+    expect(dreadnought.shieldRegen).toBe(6);
+  });
+
   it('marks virtual defense buildings immobile with fixed AP costs and data-driven range', () => {
     const laser = stats('laser_turret');
     expect(laser.immobile).toBe(true);
@@ -69,6 +103,15 @@ describe('battle-ship-stats', () => {
     expect(missile.immobile).toBe(true);
     expect(missile.attackRange).toBe(5);
     expect(missile.attack).toBe(35);
+    expect(missile.shield).toBe(0); // turrets carry no shield
+    expect(missile.shieldRegen).toBe(0);
+    expect(missile.attackType).toBe('missile');
+    expect(missile.weakness).toBe('energy');
+    expect(missile.role).toBe('defense');
+
+    expect(laser.attackType).toBe('energy');
+    expect(laser.weakness).toBe('kinetic');
+    expect(laser.role).toBe('defense');
   });
 
   it('falls back safely for unknown type ids', () => {
@@ -77,5 +120,10 @@ describe('battle-ship-stats', () => {
     expect(unknown.maxHp).toBe(1);
     expect(unknown.attack).toBe(0);
     expect(unknown.attackRange).toBe(0);
+    expect(unknown.shield).toBe(0);
+    expect(unknown.shieldRegen).toBe(0);
+    expect(unknown.attackType).toBe('kinetic');
+    expect(unknown.weakness).toBe('energy');
+    expect(unknown.role).toBe('Light Combat');
   });
 });

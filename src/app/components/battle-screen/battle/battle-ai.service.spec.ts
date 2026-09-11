@@ -175,4 +175,77 @@ describe('BattleAiService', () => {
     // The active side must have flipped back to the player (defender).
     expect(state.activeSide).toBe('defender');
   });
+
+  /*
+   * Role-aware target selection. bestTarget() scores in-range candidates by
+   * target role priority + threat weight + distance, then stackId. It is
+   * pure and deterministic — no randomness, no lookahead.
+   */
+  it('prefers a high-value target over a nearer low-value one', async () => {
+    // AI destroyer (Anti-Ship, range 3) vs a dreadnought (Capital Ship) and
+    // a colonizer (Colonizer), both in range.
+    const state = setup([fleetShip(1, 'destroyer')], [
+      fleetShip(100, 'dreadnought'),
+      fleetShip(101, 'colonizer'),
+    ]);
+    const atk = getStacks(state, 'attacker')[0];
+    const dread = getStacks(state, 'defender').find((s) => s.typeId === 'dreadnought')!;
+    const colonizer = getStacks(state, 'defender').find((s) => s.typeId === 'colonizer')!;
+    // Colonizer is nearer but the dreadnought is far more valuable.
+    colonizer.col = atk.col + 1;
+    dread.col = atk.col + 2;
+
+    const p = ai.playTurn(state);
+    await flush();
+    await p;
+
+    expect(atk.attackedThisTurn).toBe(true);
+    expect(state.log[0].defenderStack).toBe(dread.stackId);
+  });
+
+  it('prefers the nearest when threat scores are equal', async () => {
+    // AI fighter vs two frigates (same role Escort) at different distances.
+    const state = setup([fleetShip(1, 'fighter')], [
+      fleetShip(100, 'frigate'),
+      fleetShip(101, 'frigate'),
+    ]);
+    const atk = getStacks(state, 'attacker')[0];
+    const near = getStacks(state, 'defender').find((s) => s.stackId < 'defender:frigate:1')!;
+    const far = getStacks(state, 'defender').find((s) => s.stackId !== near.stackId)!;
+    near.col = atk.col + 1;
+    far.col = atk.col + 2;
+
+    const p = ai.playTurn(state);
+    await flush();
+    await p;
+
+    expect(state.log[0].defenderStack).toBe(near.stackId);
+  });
+
+  it('is deterministic across identical states', async () => {
+    const make = (): BattleModelState => {
+      const s = setup([fleetShip(1, 'destroyer')], [
+        fleetShip(100, 'dreadnought'),
+        fleetShip(101, 'colonizer'),
+      ]);
+      const atk = getStacks(s, 'attacker')[0];
+      const dread = getStacks(s, 'defender').find((x) => x.typeId === 'dreadnought')!;
+      const colonizer = getStacks(s, 'defender').find((x) => x.typeId === 'colonizer')!;
+      colonizer.col = atk.col + 1;
+      dread.col = atk.col + 2;
+      return s;
+    };
+
+    const s1 = make();
+    const p1 = ai.playTurn(s1);
+    await flush();
+    await p1;
+
+    const s2 = make();
+    const p2 = ai.playTurn(s2);
+    await flush();
+    await p2;
+
+    expect(s2.log[0].defenderStack).toBe(s1.log[0].defenderStack);
+  });
 });

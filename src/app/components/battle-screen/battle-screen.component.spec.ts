@@ -93,6 +93,8 @@ describe('BattleScreenComponent', () => {
     expect(component.battleState).toBeTruthy();
     expect(gameTimeService.isPaused).toBe(true);
     expect(component.battleOver).toBe(false);
+    expect(component.planetVisual).toBeNull();
+    expect(component.planetShield).toBeNull();
   });
 
   it('should show a recovery action and clear stale battle state when no battle is active', async () => {
@@ -216,5 +218,237 @@ describe('BattleScreenComponent', () => {
 
     expect(routerSpy).toHaveBeenCalledWith(['/star-map']);
     expect(gameTimeService.isPaused).toBe(false);
+  });
+
+  /*
+   * Selection-panel aggregate getters. The panel derives every value from
+   * the selected BattleStack/BattleShip state; no combat logic is duplicated.
+   *
+   * NOTE: buildStacks() gives each ship its own stack when the roster is
+   * small, so to exercise multi-ship aggregation we merge two ships into
+   * the selected stack directly (mirroring the >28-ship grouped path).
+   */
+  it('exposes aggregate stats for the selected stack', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(3, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const stack = state.stacks.find((s) => s.side === 'attacker')!;
+    // Merge the second fighter into this stack so it holds 2 ships.
+    const second = state.stacks.find((s) => s.side === 'attacker' && s.stackId !== stack.stackId)!;
+    stack.ships.push(second.ships[0]);
+
+    component.selectedStackId = stack.stackId;
+
+    // Two fighters: 50 maxHp each, 15 attack each, 3 defense each.
+    expect(component.selectedShipCount).toBe(2);
+    expect(component.selectedTotalHp).toBe(100);
+    expect(component.selectedMaxHp).toBe(100);
+    expect(component.selectedTotalAttack).toBe(30);
+    expect(component.selectedTotalDefense).toBe(6);
+    expect(component.selectedHullFraction).toBe(1);
+  });
+
+  it('reflects damaged ships in the aggregate HP and fraction', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(3, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const stack = state.stacks.find((s) => s.side === 'attacker')!;
+    const second = state.stacks.find((s) => s.side === 'attacker' && s.stackId !== stack.stackId)!;
+    stack.ships.push(second.ships[0]);
+
+    component.selectedStackId = stack.stackId;
+
+    // Knock 20 HP off the first fighter (50 -> 30).
+    stack.ships[0].hp = 30;
+
+    expect(component.selectedTotalHp).toBe(80);
+    expect(component.selectedMaxHp).toBe(100);
+    expect(component.selectedHullFraction).toBe(0.8);
+  });
+
+  it('does not count destroyed ships in alive aggregates', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(3, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const stack = state.stacks.find((s) => s.side === 'attacker')!;
+    const second = state.stacks.find((s) => s.side === 'attacker' && s.stackId !== stack.stackId)!;
+    stack.ships.push(second.ships[0]);
+
+    component.selectedStackId = stack.stackId;
+
+    stack.ships[1].alive = false;
+    stack.ships[1].hp = 0;
+
+    expect(component.selectedShipCount).toBe(1);
+    expect(component.selectedTotalHp).toBe(50);
+    expect(component.selectedTotalAttack).toBe(15);
+    expect(component.selectedTotalDefense).toBe(3);
+  });
+
+  it('returns zero-safe aggregates when no stack is selected', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.selectedStackId).toBeNull();
+    expect(component.selectedShipCount).toBe(0);
+    expect(component.selectedTotalHp).toBe(0);
+    expect(component.selectedMaxHp).toBe(0);
+    expect(component.selectedTotalAttack).toBe(0);
+    expect(component.selectedTotalDefense).toBe(0);
+    expect(component.selectedHullFraction).toBe(0);
+  });
+
+  /*
+   * End-of-battle result view. The outcome is derived from the same
+   * buildBattleOutcome() the overworld persists — no duplicated logic.
+   */
+  it('builds a BattleOutcome from the finished state', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Not over yet — no outcome.
+    expect(component.battleOutcome).toBeNull();
+    expect(component.getPlanetResultLabel()).toBe('');
+
+    const state = component['state']!;
+    state.winner = 'attacker';
+    state.defenderShips[0].hp = 0;
+    state.defenderShips[0].alive = false;
+
+    const outcome = component.battleOutcome!;
+    expect(outcome.winnerSide).toBe('attacker');
+    expect(outcome.winnerFleetId).toBe(1);
+    expect(outcome.loserFleetId).toBe(2);
+    expect(outcome.battleType).toBe('fleet');
+    expect(outcome.attacker.survivors).toHaveLength(1);
+    expect(outcome.defender.wipedOut).toBe(true);
+    expect(outcome.defender.ships[0].destroyed).toBe(true);
+  });
+
+  it('returns the planet result label for planet battles', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: -7, name: 'DEFENSE', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: -7,
+      type: 'planet',
+      planetId: 7,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Defender holds the planet.
+    const state = component['state']!;
+    state.winner = 'defender';
+    expect(component.getPlanetResultLabel()).toBe('DEFENDED');
+
+    // Attacker takes the planet.
+    state.winner = 'attacker';
+    expect(component.getPlanetResultLabel()).toBe('CAPTURED');
+  });
+
+  it('exposes the separate planet visual and shared shield pool for planet battles', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: {
+        id: -7,
+        name: 'DEFENSE',
+        factionId: 'enemy1',
+        ships: [fleetShip(2, 'laser_turret')],
+        shieldPool: 300,
+        shieldPoolRegen: 15,
+      },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: -7,
+      type: 'planet',
+      planetId: 7,
+      planetName: 'Mars',
+      planetColor: '#b35a2a',
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.planetVisual).toEqual({ name: 'Mars', color: '#b35a2a' });
+    expect(component.planetShield).toEqual({ current: 300, max: 300, regen: 15 });
+    expect(component.planetShieldFraction).toBe(1);
+
+    const shieldBar = fixture.nativeElement.querySelector('.battle-screen__planet-shield');
+    expect(shieldBar).toBeTruthy();
+    expect(shieldBar.textContent).toContain('300');
   });
 });

@@ -1,0 +1,82 @@
+/*
+ * Planet marker for planet battles. The host is absolutely positioned over
+ * the defender's outermost column so the planet reads as the objective the
+ * attacker is closing on, behind the defense line and never clickable.
+ */
+:host {
+  position: absolute;
+  left: 70vw;
+  top: 14vw;
+  width: 20vw;
+  height: 20vw;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.battle-planet {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.battle-planet__body {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-color: color-mix(in srgb, var(--planet-color) 65%, #111 35%);
+  background-image: url('planet-surface-noise-light.png');
+  background-size: 130% 130%;
+  background-blend-mode: overlay;
+  box-shadow:
+    inset -1.4vw -1.4vw 2.4vw rgba(0, 0, 0, 0.6),
+    0 0 2vw rgba(140, 196, 255, 0.12);
+}
+
+.battle-planet__body::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.28), transparent 55%);
+  pointer-events: none;
+}
+
+/* Cloud layer reuses the existing planet-clouds asset so the battle marker
+ * matches the system-view planet rendering without a new art dependency. */
+.battle-planet__clouds {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image: url('planet-clouds.png');
+  background-size: 130% 130%;
+  mix-blend-mode: screen;
+  opacity: 0.14;
+  pointer-events: none;
+}
+
+.battle-planet__shield {
+  position: absolute;
+  inset: -0.8vw;
+  border-radius: 50%;
+  border: 1px solid rgba(62, 200, 255, 0.6);
+  box-shadow:
+    0 0 1.2vw rgba(62, 200, 255, 0.35),
+    inset 0 0 1.2vw rgba(62, 200, 255, 0.2);
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+
+.battle-planet__name {
+  position: absolute;
+  left: 50%;
+  bottom: -1.5vw;
+  transform: translateX(-50%);
+  color: var(--color-text-bright);
+  font-size: 0.65rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
+}

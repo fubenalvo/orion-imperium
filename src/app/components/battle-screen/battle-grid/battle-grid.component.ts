@@ -1,7 +1,14 @@
 import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
-import { BattleAttackEffect, BattleSide, BattleStack, GridCell } from '../battle/battle.types';
+import {
+  BattleAttackEffect,
+  BattlePlanetVisual,
+  BattleSide,
+  BattleStack,
+  GridCell,
+} from '../battle/battle.types';
 import { ANIMATION_MS, BATTLE_CELL_SIZE_VW } from '../battle/battle.types';
+import { BattlePlanetComponent } from '../battle-planet/battle-planet.component';
 
 /*
  * =========================================================
@@ -21,7 +28,7 @@ import { ANIMATION_MS, BATTLE_CELL_SIZE_VW } from '../battle/battle.types';
 @Component({
   selector: 'app-battle-grid',
   standalone: true,
-  imports: [NgClass],
+  imports: [NgClass, BattlePlanetComponent],
   templateUrl: './battle-grid.component.html',
   styleUrl: './battle-grid.component.scss',
 })
@@ -31,11 +38,18 @@ export class BattleGridComponent {
   @Input() moveCells: GridCell[] = [];
   @Input() attackTargetIds: string[] = [];
   @Input() moveToAttackTargetIds: string[] = [];
+  @Input() carrierBoostTargetIds: string[] = [];
   @Input() effect: BattleAttackEffect | null = null;
   @Input() canSelect = true;
   @Input() activeSide: BattleSide = 'attacker';
   @Input() ap = 0;
   @Input() spentStackIds: Set<string> = new Set();
+  /*
+   * Planet battles only: a separate visual target and its shared-shield
+   * fraction. Both are null/0 in fleet battles, so the grid stays clean.
+   */
+  @Input() planet: BattlePlanetVisual | null = null;
+  @Input() planetShieldFraction = 0;
 
   @Input() onStackClick: (stackId: string) => void = () => {};
   @Input() onCellClick: (col: number, row: number) => void = () => {};
@@ -76,6 +90,24 @@ export class BattleGridComponent {
     return stack.ships.reduce((sum, s) => sum + s.hp, 0) / total;
   }
 
+  /* Aggregate stack shield fraction for the shield bar. Pure read of
+   * BattleShip.shield/maxShield — no combat logic duplicated here. */
+  shieldFraction(stack: BattleStack): number {
+    const total = stack.ships.reduce((sum, s) => sum + (s.maxShield ?? 0), 0);
+    if (total <= 0) {
+      return 0;
+    }
+    return stack.ships.reduce((sum, s) => sum + (s.shield ?? 0), 0) / total;
+  }
+
+  /* True while an attack is landing on this stack — used to flash the
+   * shield bar so shield absorption is visibly distinct from hull HP. */
+  isShieldHit(stackId: string): boolean {
+    return !!this.effect &&
+      (this.effect.phase === 'impact' || this.effect.phase === 'explosion') &&
+      this.effect.targetStackId === stackId;
+  }
+
   isMoveCell(col: number, row: number): boolean {
     return this.moveCells.some((c) => c.col === col && c.row === row);
   }
@@ -88,8 +120,20 @@ export class BattleGridComponent {
     return this.moveToAttackTargetIds.includes(stackId);
   }
 
+  isCarrierBoostTarget(stackId: string): boolean {
+    return this.carrierBoostTargetIds.includes(stackId);
+  }
+
   stackSize(stack: BattleStack): number {
     return stack.size;
+  }
+
+  /* Attack-available indicator: bottom-right corner, diagonally opposite
+   * the ship count so it never overlaps. Visible only while the stack still
+   * has its attack for the turn — hidden once it has fired. Only rendered
+   * for the active side, since only they can act this turn. */
+  hasAttackDot(stack: BattleStack): boolean {
+    return stack.side === this.activeSide && !stack.attackedThisTurn;
   }
 
   stackClasses(stack: BattleStack): string[] {

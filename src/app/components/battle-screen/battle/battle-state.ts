@@ -10,8 +10,9 @@ import {
   FleetShip,
   MAX_STACK_SIZE,
 } from './battle.types';
-import { ATTACKER_DEPLOY_COLS, DEFENDER_DEPLOY_COLS, ANIMATION_MS } from './battle.types';
+import { ATTACKER_DEPLOY_COLS, DEFENDER_DEPLOY_COLS, ANIMATION_MS, BATTLE_GRID_COLUMNS } from './battle.types';
 import { getBattleShipStats } from './battle-ship-stats';
+import { isInBounds } from './battle-grid';
 
 /*
  * =========================================================
@@ -42,7 +43,15 @@ export function createBattleState(
   const attackerStacks = buildStacks('attacker', attackerShips, shipService, planetBattleService);
   const defenderStacks = buildStacks('defender', defenderShips, shipService, planetBattleService);
   deployStacks(attackerStacks, ATTACKER_DEPLOY_COLS);
-  deployStacks(defenderStacks, DEFENDER_DEPLOY_COLS);
+  deployDefenderStacks(defenderStacks);
+
+  /*
+   * Shared shield pool exists only for planet battles. Fleet-vs-fleet
+   * fleets never carry the transport fields, so they always get null.
+   */
+  const shieldPool = battle.type === 'planet' ? (defenderFleet.shieldPool ?? 0) : 0;
+  const shieldPoolRegen =
+    battle.type === 'planet' ? (defenderFleet.shieldPoolRegen ?? 0) : 0;
 
   return {
     round: 1,
@@ -64,6 +73,12 @@ export function createBattleState(
     defenderColor: defenderFleet === battle.fleet1 ? battle.faction1Color : battle.faction2Color,
     battleType: battle.type === 'planet' ? 'planet' : 'fleet',
     planetId: battle.planetId,
+    planetName: battle.planetName,
+    planetColor: battle.planetColor,
+    defenderShieldPool:
+      shieldPool > 0
+        ? { current: shieldPool, max: shieldPool, regen: shieldPoolRegen }
+        : null,
     attackerShips,
     defenderShips,
   };
@@ -90,6 +105,15 @@ function toBattleShip(
     typeId: ship.type,
     hp,
     maxHp: stats.maxHp,
+    // Shield is copied from the resolved ship stats so the battle state is
+    // fully self-contained; the overworld FleetShip is never mutated.
+    shield: stats.shield,
+    maxShield: stats.shield,
+    shieldRegen: stats.shieldRegen,
+    // Weapon type is copied alongside shield so the battle sim is fully
+    // self-contained; the overworld FleetShip is never mutated.
+    attackType: stats.attackType,
+    weakness: stats.weakness,
     attack: stats.attack,
     defense: stats.defense,
     alive: true,
@@ -115,6 +139,7 @@ function buildStacks(
         side,
         typeId: ship.typeId,
         typeName: stats.typeName,
+        role: stats.role,
         col: 1,
         row: 1,
         ships: [ship],
@@ -158,6 +183,7 @@ function buildStacks(
         side,
         typeId,
         typeName: stats.typeName,
+        role: stats.role,
         col: 1,
         row: 1,
         ships: chunk,
@@ -186,6 +212,116 @@ function deployStacks(stacks: BattleStack[], columns: number[]): void {
     stack.col = columns[Math.min(colIndex, columns.length - 1)];
     stack.row = ROW_ORDER[i % ROW_ORDER.length];
   });
+}
+
+/*
+ * Planet-defender deployment: immobile defense stacks claim the outer
+ * defender columns first, then garrison stacks fill the remaining defender
+ * cells behind them. Fleet-vs-fleet defenders have no immobile stacks, so
+ * they keep the original deployStacks() behavior exactly.
+ */
+function deployDefenderStacks(stacks: BattleStack[]): void {
+  const defenseStacks = stacks.filter((s) => s.immobile);
+  const garrisonStacks = stacks.filter((s) => !s.immobile);
+
+  if (defenseStacks.length === 0) {
+    deployStacks(stacks, DEFENDER_DEPLOY_COLS);
+    return;
+  }
+
+  const occupied = new Set<string>();
+  let defenseColumnIndex = 0;
+  let lastDefenseColumnIndex = -1;
+
+  for (const stack of defenseStacks) {
+    let placed = false;
+    while (!placed && defenseColumnIndex < DEFENDER_DEPLOY_COLS.length) {
+      const col = DEFENDER_DEPLOY_COLS[defenseColumnIndex];
+      for (const row of ROW_ORDER) {
+        if (canPlaceDefenderStack(stack, col, row, occupied)) {
+          placeDefenderStack(stack, col, row, occupied);
+          lastDefenseColumnIndex = defenseColumnIndex;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        defenseColumnIndex++;
+      }
+    }
+    if (!placed) {
+      placeDefenderStackAnywhere(stack, occupied);
+    }
+  }
+
+  const garrisonStartIndex = Math.min(
+    lastDefenseColumnIndex + 1,
+    DEFENDER_DEPLOY_COLS.length,
+  );
+
+  for (const stack of garrisonStacks) {
+    let placed = false;
+    for (let i = garrisonStartIndex; i < DEFENDER_DEPLOY_COLS.length && !placed; i++) {
+      const col = DEFENDER_DEPLOY_COLS[i];
+      for (const row of ROW_ORDER) {
+        if (canPlaceDefenderStack(stack, col, row, occupied)) {
+          placeDefenderStack(stack, col, row, occupied);
+          placed = true;
+          break;
+        }
+      }
+    }
+    if (!placed) {
+      placeDefenderStackAnywhere(stack, occupied);
+    }
+  }
+}
+
+/* Defender stacks grow left from their anchor column. */
+function canPlaceDefenderStack(
+  stack: BattleStack,
+  col: number,
+  row: number,
+  occupied: Set<string>,
+): boolean {
+  for (let offset = 0; offset < stack.size; offset++) {
+    const cellCol = col - offset;
+    if (!isInBounds(cellCol, row) || occupied.has(cellKey(cellCol, row))) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function placeDefenderStack(
+  stack: BattleStack,
+  col: number,
+  row: number,
+  occupied: Set<string>,
+): void {
+  stack.col = col;
+  stack.row = row;
+  for (let offset = 0; offset < stack.size; offset++) {
+    occupied.add(cellKey(col - offset, row));
+  }
+}
+
+function placeDefenderStackAnywhere(stack: BattleStack, occupied: Set<string>): void {
+  for (let col = BATTLE_GRID_COLUMNS; col >= 1; col--) {
+    for (const row of ROW_ORDER) {
+      if (canPlaceDefenderStack(stack, col, row, occupied)) {
+        placeDefenderStack(stack, col, row, occupied);
+        return;
+      }
+    }
+  }
+  /* Last resort: keep a defender stack in bounds even if the grid is full. */
+  stack.col = BATTLE_GRID_COLUMNS;
+  stack.row = ROW_ORDER[0];
+}
+
+function cellKey(col: number, row: number): string {
+  return `${col}:${row}`;
 }
 
 /* Stack for a side in a deterministic (stackId) order, alive only. */

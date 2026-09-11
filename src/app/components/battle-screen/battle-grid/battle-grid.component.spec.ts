@@ -25,6 +25,7 @@ function makeStack(size: number): BattleStack {
     firing: false,
     moveMs: 180,
     destroyed: false,
+    role: 'Interceptor',
   };
 }
 
@@ -59,5 +60,18 @@ describe('BattleGridComponent', () => {
     expect(onStackClick).toHaveBeenCalledOnce();
     expect(onStackClick).toHaveBeenCalledWith(stack.stackId);
     expect(onCellClick).not.toHaveBeenCalled();
+  });
+
+  it('renders the separate planet marker only when a planet is provided', () => {
+    expect(fixture.nativeElement.querySelector('app-battle-planet')).toBeNull();
+
+    fixture.componentRef.setInput('planet', { name: 'Mars', color: '#b35a2a' });
+    fixture.componentRef.setInput('planetShieldFraction', 0.5);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('app-battle-planet')).toBeTruthy();
+    expect(
+      fixture.nativeElement.querySelector('.battle-planet__name')?.textContent,
+    ).toContain('Mars');
   });
 });

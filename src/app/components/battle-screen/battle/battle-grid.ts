@@ -28,6 +28,106 @@ export function isInRange(a: GridCell, b: GridCell, range: number): boolean {
   return dc * dc + dr * dr <= range * range;
 }
 
+/*
+ * =========================================================
+ *  WEAPON EFFECTIVENESS
+ *  =========================================================
+ *
+ * Every ship declares one attackType and one weakness in ship-data.json.
+ * This table maps (attacker attackType, target weakness) to a per-volley
+ * damage multiplier. The target's own weakness type is resisted (0.5x);
+ * each attacker type also has one strong matchup (1.5x) and one neutral
+ * matchup (1.0x). Pure and deterministic — no randomness, no per-ship
+ * abilities, no ammo or cooldowns.
+ */
+
+export type WeaponType = 'kinetic' | 'energy' | 'missile';
+
+const WEAPON_EFFECTIVENESS: Record<WeaponType, Record<WeaponType, number>> = {
+  kinetic: { kinetic: 0.5, energy: 1.5, missile: 1.0 },
+  energy: { kinetic: 1.0, energy: 0.5, missile: 1.5 },
+  missile: { kinetic: 1.5, energy: 1.0, missile: 0.5 },
+};
+
+export function weaponMultiplier(attackerType: string, targetWeakness: string): number {
+  const row = WEAPON_EFFECTIVENESS[attackerType as WeaponType];
+  if (!row) {
+    return 1.0;
+  }
+  return row[targetWeakness as WeaponType] ?? 1.0;
+}
+
+/*
+ * Applies one shield-regen tick, capped at max. Kept as a single pure
+ * helper so per-ship regen, shared planetary-pool regen, and Carrier Shield
+ * Pulse cannot drift apart.
+ */
+export function applyShieldRegen(current: number, max: number, regen: number): number {
+  if (regen <= 0 || max <= 0) {
+    return current;
+  }
+  return Math.min(max, current + regen);
+}
+
+/*
+ * =========================================================
+ *  ROLE-AWARE TARGET SCORING
+ *  =========================================================
+ *
+ * The tactical AI scores in-range enemy candidates before attacking. The
+ * score is a pure, deterministic function of the attacker's role, the
+ * target's role, and the target's existing combat stats — no new data,
+ * no randomness, no lookahead.
+ *
+ *   score = rolePriority * 1000 + threatWeight * 10 + (maxRange - distance)
+ *
+ * Higher is better. Ties fall through to distance (nearest first) and
+ * finally to stackId, so the choice is always unique.
+ */
+
+/* Coarse priority of target roles. Capital ships and fleet-support ships
+ * are the most valuable; fragile support/immobile targets are the least.
+ * Values are arbitrary constants — only their relative order matters. */
+const TARGET_ROLE_PRIORITY: Record<string, number> = {
+  'Capital Ship': 6,
+  'Heavy Assault': 5,
+  'Heavy Combat': 5,
+  'Fleet Support': 5,
+  'Anti-Ship': 4,
+  'Line Ship': 4,
+  'Escort': 3,
+  'Light Combat': 3,
+  'Interceptor': 2,
+  'Recon': 2,
+  'Colonizer': 1,
+  'defense': 1,
+};
+
+/* Threat weight derived from the target's existing combat stats. Pure
+ * read — no combat logic duplicated. */
+function threatWeight(stack: BattleStack): number {
+  const totalAttack = stack.ships.reduce((sum, s) => (s.alive ? sum + s.attack : sum), 0);
+  const totalHp = stack.ships.reduce((sum, s) => (s.alive ? sum + s.hp : sum), 0);
+  // 0..100 scale: attack dominates, HP is a secondary signal.
+  const attackPart = Math.min(40, totalAttack * 0.5);
+  const hpPart = Math.min(10, totalHp * 0.02);
+  return Math.round(attackPart + hpPart);
+}
+
+export function computeTargetScore(
+  attacker: BattleStack,
+  target: BattleStack,
+  distance: number,
+): number {
+  const rolePriority = TARGET_ROLE_PRIORITY[target.role ?? 'Light Combat'] ?? 3;
+  const threat = threatWeight(target);
+  // Prefer the attacker's own role class slightly: an Anti-Ship role
+  // prefers high-value targets, an Interceptor prefers low-value ones.
+  const attackerPriority = TARGET_ROLE_PRIORITY[attacker.role ?? 'Light Combat'] ?? 3;
+  const roleBonus = attackerPriority >= 4 && rolePriority >= 4 ? 50 : 0;
+  return rolePriority * 1000 + threat * 10 + roleBonus + (attacker.attackRange - distance);
+}
+
 export function isOccupied(
   state: BattleModelState,
   col: number,
@@ -188,6 +288,30 @@ export function getAttackTargetIds(state: BattleModelState, stack: BattleStack):
   const origin: GridCell = { col: stack.col, row: stack.row };
   return state.stacks
     .filter((s) => !s.destroyed && s.side !== stack.side && isInRange(origin, s, stack.attackRange))
+    .map((s) => s.stackId);
+}
+
+/*
+ * Friendly stacks within a Carrier's attack range (ids only). Used by the
+ * Shield Pulse action to highlight which allies would be restored. Pure
+ * read of existing state — no combat logic duplicated here.
+ */
+export function computeCarrierBoostTargets(
+  state: BattleModelState,
+  carrier: BattleStack,
+): string[] {
+  if (carrier.typeId !== 'carrier' || carrier.destroyed) {
+    return [];
+  }
+  const origin: GridCell = { col: carrier.col, row: carrier.row };
+  return state.stacks
+    .filter(
+      (s) =>
+        !s.destroyed &&
+        s.side === carrier.side &&
+        s.stackId !== carrier.stackId &&
+        isInRange(origin, s, carrier.attackRange),
+    )
     .map((s) => s.stackId);
 }
 

@@ -20,6 +20,20 @@
           <span class="battle-screen__ap-text">AP: {{ state.ap }} / {{ state.apPerTurn }}</span>
         </div>
       }
+      @if (planetShield; as shield) {
+        <div class="battle-screen__planet-shield">
+          <span class="battle-screen__planet-shield-label">PLANET SHIELD</span>
+          <span class="battle-screen__planet-shield-bar">
+            <span
+              class="battle-screen__planet-shield-fill"
+              [style.width.%]="planetShieldFraction * 100"
+            ></span>
+          </span>
+          <span class="battle-screen__planet-shield-text">
+            {{ shield.current }} / {{ shield.max }}
+          </span>
+        </div>
+      }
     </div>
 
     <div class="battle-screen__content">
@@ -29,11 +43,14 @@
         [moveCells]="moveCells"
         [attackTargetIds]="attackTargetIds"
         [moveToAttackTargetIds]="moveToAttackTargetIds"
+        [carrierBoostTargetIds]="carrierBoostTargetIds"
         [effect]="effect"
         [canSelect]="canAct"
         [activeSide]="battleState?.activeSide ?? 'attacker'"
         [ap]="battleState?.ap ?? 0"
         [spentStackIds]="spentStackIds"
+        [planet]="planetVisual"
+        [planetShieldFraction]="planetShieldFraction"
         [onStackClick]="onStackClick"
         [onCellClick]="onCellClick"
       ></app-battle-grid>
@@ -50,6 +67,15 @@
         >
           END TURN
         </button>
+        @if (canCarrierBoost) {
+          <button
+            class="carrier-boost-btn"
+            type="button"
+            (click)="doCarrierBoost()"
+          >
+            SHIELD PULSE
+          </button>
+        }
       } @else {
         <button
           class="back-btn"
@@ -74,29 +100,74 @@
         <div class="selection-header">
           <span class="selection-type">{{ stack.typeName }}</span>
           <span class="selection-side" [class.selection-side--attacker]="stack.side === 'attacker'" [class.selection-side--defender]="stack.side === 'defender'">{{ stack.side === 'attacker' ? 'ATTACKER' : 'DEFENDER' }}</span>
+          @if (stack.immobile) {
+            <span class="selection-immobile">IMMOBILE</span>
+          }
         </div>
         <div class="selection-stats">
+          <span>SHIPS {{ selectedShipCount }} / {{ stack.ships.length }}</span>
           <span>TIER {{ stack.tier }}</span>
+          <span>ATK {{ selectedTotalAttack }}</span>
+          <span>DEF {{ selectedTotalDefense }}</span>
+        </div>
+        <div class="selection-stats">
           <span>MOVE {{ stack.moveRange }}</span>
           <span>RANGE {{ stack.attackRange }}</span>
-          <span>AP {{ stack.attackAp }}</span>
+          <span>MOVE AP {{ stack.moveApPerCell }}</span>
+          <span>ATTACK AP {{ stack.attackAp }}</span>
           <span>MOVED {{ stack.cellsMovedThisTurn }}</span>
+        </div>
+        <div class="selection-shield">
+          <span class="selection-shield-label">SHIELD</span>
+          <span class="selection-shield-bar">
+            <span class="selection-shield-fill" [style.width.%]="selectedShieldFraction * 100"></span>
+          </span>
+          <span class="selection-shield-text">{{ selectedTotalShield }} / {{ selectedMaxShield }}</span>
         </div>
         <div class="selection-hp">
           <span class="selection-hp-label">HP</span>
           <span class="selection-hp-bar">
-            <span class="selection-hp-fill" [style.width.%]="(stack.ships.reduce((sum, s) => sum + s.hp, 0) / stack.ships.reduce((sum, s) => sum + s.maxHp, 0)) * 100"></span>
+            <span class="selection-hp-fill" [style.width.%]="selectedHullFraction * 100"></span>
           </span>
-          <span class="selection-hp-text">{{ stack.ships.reduce((sum, s) => sum + s.hp, 0) }} / {{ stack.ships.reduce((sum, s) => sum + s.maxHp, 0) }}</span>
+          <span class="selection-hp-text">{{ selectedTotalHp }} / {{ selectedMaxHp }}</span>
         </div>
       </div>
     }
 
     @if (battleOver) {
-      <div class="battle-screen__summary">
-        <span class="summary-text">
-          {{ state.winner === 'attacker' ? state.attackerName : state.defenderName }} WINS
-        </span>
+      <div class="battle-screen__result">
+        <div class="result-header">
+          <span class="result-title">BATTLE COMPLETE</span>
+          <span class="result-meta">
+            ROUND {{ battleOutcome?.rounds }}
+            @if (battleOutcome?.battleType === 'planet') {
+              <span class="result-planet">PLANET BATTLE</span>
+            } @else {
+              <span class="result-planet">FLEET BATTLE</span>
+            }
+          </span>
+          @if (getPlanetResultLabel()) {
+            <span class="result-planet-label" [class.result-planet-label--captured]="getPlanetResultLabel() === 'CAPTURED'" [class.result-planet-label--defended]="getPlanetResultLabel() === 'DEFENDED'">
+              {{ getPlanetResultLabel() }}
+            </span>
+          }
+        </div>
+
+        <div class="result-sides">
+          <app-battle-fleet-panel
+            fleetName="{{ state.attackerName }}"
+            [factionColor]="state.attackerColor"
+            [roster]="battleOutcome?.attacker.ships ?? []"
+            [result]="getSideResult('attacker')"
+          ></app-battle-fleet-panel>
+          <app-battle-fleet-panel
+            fleetName="{{ state.defenderName }}"
+            [factionColor]="state.defenderColor"
+            [roster]="battleOutcome?.defender.ships ?? []"
+            [result]="getSideResult('defender')"
+          ></app-battle-fleet-panel>
+        </div>
+
         <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
       </div>
     }

@@ -35,6 +35,7 @@ function baseStack(): BattleStack {
     firing: false,
     moveMs: 180,
     destroyed: false,
+    role: 'Interceptor',
   };
 }
 
