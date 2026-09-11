@@ -1,0 +1,67 @@
+/* =========================================================
+   HUD PANEL FRAME
+   ---------------------------------------------------------
+   Reusable sci-fi frame mixin: clipped corners with cyan
+   accent notches on the top-left and bottom-right edges.
+
+   Only apply to boxes that do NOT already use ::before/::after
+   for other purposes (e.g. planet-surface grid, building
+   sprites). Applying the mixin on such boxes would wipe out
+   their decorative pseudo-elements.
+   ========================================================= */
+
+@mixin hud-frame {
+  position: relative;
+  clip-path: polygon(
+    20px 0,
+    calc(100% - 20px) 0,
+    100% 20px,
+    100% calc(100% - 20px),
+    calc(100% - 20px) 100%,
+    20px 100%,
+    0 calc(100% - 20px),
+    0 20px
+  );
+
+  background: rgba(4, 28, 50, 0.65);
+  border: 2px solid var(--color-blue);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+  backdrop-filter: blur(4px);
+}
+
+@mixin hud-accent-notches {
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 30px;
+    width: 60px;
+    height: 4px;
+    background-color: var(--color-blue);
+    box-shadow: 0 0 8px var(--color-blue);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    right: 30px;
+    width: 40px;
+    height: 4px;
+    background-color: var(--color-blue-bright);
+    box-shadow: 0 0 8px var(--color-blue-bright);
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+/* =========================================================
+   HUD PANEL — shorthand that applies frame + notches together
+   ========================================================= */
+
+@mixin hud-panel {
+  @include hud-frame;
+  @include hud-accent-notches;
+}

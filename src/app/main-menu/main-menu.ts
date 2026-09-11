@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   SaveGameService,
@@ -10,35 +10,58 @@ import { GameSettingsService } from '../services/game-settings.service';
 import { StarMapData } from '../components/star-map/star-map.models';
 import starMapData from '../components/star-map/star-map-data.json';
 
-/*
- * =========================================================
- * MAIN MENU COMPONENT
- * =========================================================
- *
- * Entry point of the application.
- * Provides New Game, Load Game, Options, and Credits buttons.
- *
- * New Game: Saves the default starMapData JSON into the selected slot,
- *           then navigates to /star-map.
- * Load Game: Reads saved data from the selected slot and navigates to /star-map.
- *            The actual state restoration happens in StarMap.ngOnInit().
- */
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): void;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 @Component({
-  imports: [],
   selector: 'app-main-menu',
   styleUrl: './main-menu.scss',
   templateUrl: './main-menu.html',
 })
-export class MainMenu {
+export class MainMenu implements OnInit, OnDestroy {
   showNewGameSlots = false;
   showLoadGameSlots = false;
+  showInstallButton = false;
+  showIOSGuide = false;
+
+  private deferredPrompt: BeforeInstallPromptEvent | null = null;
 
   constructor(
     private saveGameService: SaveGameService,
     private router: Router,
     private gameSettingsService: GameSettingsService,
   ) {}
+
+  ngOnInit(): void {
+    this.updateInstallVisibility();
+  }
+
+  @HostListener('window:resize')
+  onResize(): void {
+    this.updateInstallVisibility();
+  }
+
+  private updateInstallVisibility(): void {
+    if (this.isStandalone) {
+      this.showInstallButton = false;
+      this.showIOSGuide = false;
+      this.removeDisplayModeListener();
+      return;
+    }
+    if (this.isMobile) {
+      this.showInstallButton = true;
+      this.addDisplayModeListener();
+    } else {
+      this.showInstallButton = false;
+      this.removeDisplayModeListener();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.removeDisplayModeListener();
+  }
 
   get slots(): SaveSlot[] {
     return this.saveGameService.getSlots();
@@ -57,14 +80,24 @@ export class MainMenu {
     return d.toLocaleString();
   }
 
-  /*
-   * newGame: Saves the default map data into the chosen slot and starts the game.
-   * The starMapData JSON is cast to StarMapData; it contains the initial game state.
-   *
-   * After writing the manual snapshot, the slot is activated so the active
-   * session is backed by the autosave slot. This keeps runtime saves and
-   * battle results on the same slot that reloadAfterBattle / loadGame read.
-   */
+  onInstallClick(): void {
+    if (this.deferredPrompt) {
+      this.deferredPrompt.prompt();
+      this.deferredPrompt.userChoice.then((choice) => {
+        if (choice.outcome === 'accepted') {
+          this.showInstallButton = false;
+        }
+        this.deferredPrompt = null;
+      });
+    } else {
+      this.showIOSGuide = true;
+    }
+  }
+
+  onCloseIOSGuide(): void {
+    this.showIOSGuide = false;
+  }
+
   newGame(slotIndex: number): void {
     if (slotIndex < MANUAL_SLOT_START) {
       return;
@@ -78,13 +111,6 @@ export class MainMenu {
     this.router.navigate(['/star-map']);
   }
 
-  /*
-   * loadGame: Activates the chosen slot as the active session and navigates to
-   * /star-map. Activation copies the manual snapshot into autosave and
-   * switches currentSlot to 0, so subsequent gameplay writes and battle
-   * results accumulate in the same slot that StarMap reads back. The actual
-   * data loading and state restoration is performed by StarMap.
-   */
   loadGame(slotIndex: number): void {
     if (!this.saveGameService.activateSlot(slotIndex)) {
       return;
@@ -94,5 +120,67 @@ export class MainMenu {
 
   onOptions(): void {
     this.gameSettingsService.openOptionsMenu();
+  }
+
+  @HostListener('window:beforeinstallprompt', ['$event'])
+  onBeforeInstallPrompt(event: Event): void {
+    const promptEvent = event as BeforeInstallPromptEvent;
+    promptEvent.preventDefault();
+    this.deferredPrompt = promptEvent;
+    if (this.isMobile && !this.isStandalone) {
+      this.showInstallButton = true;
+    }
+  }
+
+  @HostListener('window:appinstalled')
+  onAppInstalled(): void {
+    this.showInstallButton = false;
+    this.showIOSGuide = false;
+    this.deferredPrompt = null;
+    this.removeDisplayModeListener();
+  }
+
+  @HostListener('window:load')
+  onWindowLoad(): void {
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    if (nav.standalone) {
+      this.showInstallButton = false;
+      this.showIOSGuide = false;
+    }
+  }
+
+  private get isMobile(): boolean {
+    return window.innerWidth <= 768;
+  }
+
+  private get isStandalone(): boolean {
+    const nav = window.navigator as Navigator & { standalone?: boolean };
+    const displayModeStandalone =
+      typeof window.matchMedia === 'function'
+        ? window.matchMedia('(display-mode: standalone)').matches
+        : false;
+    return nav.standalone === true || displayModeStandalone;
+  }
+
+  private displayModeListener: ((e: MediaQueryListEvent) => void) | null = null;
+
+  private addDisplayModeListener(): void {
+    this.removeDisplayModeListener();
+    const mq = window.matchMedia('(display-mode: standalone)');
+    this.displayModeListener = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        this.showInstallButton = false;
+        this.showIOSGuide = false;
+      }
+    };
+    mq.addEventListener('change', this.displayModeListener);
+  }
+
+  private removeDisplayModeListener(): void {
+    if (this.displayModeListener) {
+      const mq = window.matchMedia('(display-mode: standalone)');
+      mq.removeEventListener('change', this.displayModeListener);
+      this.displayModeListener = null;
+    }
   }
 }

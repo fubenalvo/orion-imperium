@@ -16,6 +16,13 @@
     z-index: 10;
   }
 
+  .install-btn {
+    @media (max-width: 768px) {
+      width: 70vw;
+      min-width: 0;
+    }
+  }
+
   /* Fullscreen dark background mimicking classic NC theme */
   body {
     margin: 0;
@@ -167,6 +174,83 @@
         min-width: 0;
       }
     }
+  }
+}
+
+/* =========================================================
+   iOS INSTALL GUIDE MODAL
+   ========================================================= */
+
+.ios-guide-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 6, 9, 0.9);
+  backdrop-filter: blur(6px);
+}
+
+.ios-guide-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.5vh;
+  padding: 4vh 4vw;
+  background: color-mix(in srgb, var(--panel-background) 85%, transparent);
+  border: 2px solid var(--panel-border);
+  box-shadow:
+    inset 2px 2px 0 rgba(53, 134, 229, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.8),
+    0 0 40px rgba(53, 134, 229, 0.08);
+  min-width: 28vw;
+
+  @include mobile-view {
+    min-width: 0;
+    width: 90vw;
+    gap: 1.5vh;
+    padding: 2.5vh 3vw;
+  }
+}
+
+.ios-guide__title {
+  color: var(--color-turquoise-bright);
+  font-size: 1.3em;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 8px rgba(109, 229, 211, 0.35),
+    0 0 20px rgba(109, 229, 211, 0.12);
+
+  @include mobile-view {
+    font-size: 0.7em;
+    letter-spacing: 0.2em;
+  }
+}
+
+.ios-guide__steps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5vh;
+  color: var(--color-text);
+  font-family: var(--font-primary);
+  font-size: 1.1em;
+  letter-spacing: 0.08em;
+  list-style-position: inside;
+  padding: 0;
+  margin: 0;
+
+  li {
+    text-align: center;
+  }
+
+  @include mobile-view {
+    font-size: 0.9em;
   }
 }
 

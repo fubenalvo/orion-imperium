@@ -1,0 +1,27 @@
+.hud-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.hud-dots span {
+  width: 6px;
+  height: 6px;
+  background-color: var(--color-blue-light);
+  border-radius: 50%;
+  opacity: 0.4;
+  box-shadow: 0 0 4px var(--color-blue-light);
+  transition: opacity 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.hud-dots span.active {
+  background-color: var(--color-blue-bright);
+  opacity: 1;
+  box-shadow: 0 0 6px var(--color-blue-bright), 0 0 10px var(--color-blue-bright);
+}
+
+.hud-dots--sm span {
+  width: 4px;
+  height: 4px;
+}

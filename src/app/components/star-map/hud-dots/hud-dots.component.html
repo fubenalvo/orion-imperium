@@ -1,0 +1,5 @@
+<div class="hud-dots" [class.hud-dots--sm]="size === 'sm'">
+  @for (dot of dots; track $index) {
+    <span [class.active]="dot"></span>
+  }
+</div>

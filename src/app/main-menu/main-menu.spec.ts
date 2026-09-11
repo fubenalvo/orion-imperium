@@ -4,11 +4,36 @@ import { vi } from 'vitest';
 import { MainMenu } from './main-menu';
 import { SaveGameService, SaveSlotId } from '../services/save-game.service';
 
+interface MockBeforeInstallPromptEvent extends Event {
+  prompt: () => void;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+function createMockPromptEvent(
+  promptFn: () => void,
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>,
+): MockBeforeInstallPromptEvent {
+  return Object.assign(new Event('beforeinstallprompt'), {
+    prompt: promptFn,
+    userChoice,
+  }) as MockBeforeInstallPromptEvent;
+}
+
 describe('MainMenu', () => {
   let component: MainMenu;
   let fixture: ComponentFixture<MainMenu>;
   let saveGameService: SaveGameService;
   let navigateSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    if (typeof window.matchMedia !== 'function') {
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+    }
+  });
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -27,6 +52,7 @@ describe('MainMenu', () => {
 
   afterEach(() => {
     localStorage.clear();
+    vi.restoreAllMocks();
   });
 
   it('should create', () => {
@@ -85,5 +111,148 @@ describe('MainMenu', () => {
 
     expect(saveGameService.currentSlot).toBeNull();
     expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  describe('PWA install', () => {
+    let standaloneWasAdded = false;
+
+    beforeEach(() => {
+      if (fixture) {
+        fixture.destroy();
+      }
+      fixture = TestBed.createComponent(MainMenu);
+      component = fixture.componentInstance;
+      (window as any).innerWidth = 390;
+    });
+
+    afterEach(() => {
+      (window as any).innerWidth = 1280;
+      if (standaloneWasAdded) {
+        delete (window.navigator as any).standalone;
+        standaloneWasAdded = false;
+      }
+    });
+
+    it('should show install button on mobile when not standalone', () => {
+      (window.navigator as any).standalone = undefined;
+      standaloneWasAdded = true;
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+
+      fixture.detectChanges();
+
+      expect(component.showInstallButton).toBe(true);
+    });
+
+    it('should not show install button when in standalone mode', () => {
+      (window.navigator as any).standalone = true;
+      standaloneWasAdded = true;
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+
+      fixture.detectChanges();
+
+      expect(component.showInstallButton).toBe(false);
+      expect(component.showIOSGuide).toBe(false);
+    });
+
+    it('should not show install button on desktop', () => {
+      (window as any).innerWidth = 1280;
+      (window.navigator as any).standalone = undefined;
+      standaloneWasAdded = true;
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+
+      fixture.detectChanges();
+
+      expect(component.showInstallButton).toBe(false);
+    });
+
+    it('should show iOS guide on install click when no deferred prompt', () => {
+      (window.navigator as any).standalone = undefined;
+      standaloneWasAdded = true;
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+
+      fixture.detectChanges();
+      component.onInstallClick();
+
+      expect(component.showIOSGuide).toBe(true);
+    });
+
+    it('should trigger native install dialog when deferred prompt exists', () => {
+      (window.navigator as any).standalone = undefined;
+      standaloneWasAdded = true;
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+
+      const mockPrompt = vi.fn();
+      const mockUserChoice = Promise.resolve({ outcome: 'accepted' as const });
+      (component as any).deferredPrompt = {
+        prompt: mockPrompt,
+        userChoice: mockUserChoice,
+      };
+
+      fixture.detectChanges();
+      component.onInstallClick();
+
+      expect(mockPrompt).toHaveBeenCalled();
+      expect(component.showIOSGuide).toBe(false);
+    });
+
+    it('should hide install button on appinstalled event', () => {
+      (window.navigator as any).standalone = undefined;
+      standaloneWasAdded = true;
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+
+      component.showInstallButton = true;
+      fixture.detectChanges();
+
+      const event = new Event('appinstalled');
+      window.dispatchEvent(event);
+
+      expect(component.showInstallButton).toBe(false);
+      expect(component.showIOSGuide).toBe(false);
+    });
+
+    it('should handle beforeinstallprompt event', () => {
+      (window.navigator as any).standalone = undefined;
+      standaloneWasAdded = true;
+      window.matchMedia = vi.fn().mockReturnValue({
+        matches: false,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      });
+
+      fixture.detectChanges();
+
+      const mockPrompt = vi.fn();
+      const mockUserChoice = Promise.resolve({ outcome: 'dismissed' as const });
+      const event = createMockPromptEvent(mockPrompt, mockUserChoice);
+
+      window.dispatchEvent(event);
+
+      expect(component.showInstallButton).toBe(true);
+      expect((component as any).deferredPrompt).toBe(event);
+    });
   });
 });

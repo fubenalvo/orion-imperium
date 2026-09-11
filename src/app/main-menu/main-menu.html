@@ -21,6 +21,12 @@
 
           <button type="button" (click)="onOptions()">OPTIONS</button>
 
+          @if (showInstallButton) {
+            <button type="button" class="install-btn" (click)="onInstallClick()">
+              INSTALL GAME
+            </button>
+          }
+
           <button type="button">CREDITS</button>
         </nav>
       }
@@ -74,6 +80,26 @@
           >
             CLOSE
           </button>
+        </div>
+      }
+
+      @if (showIOSGuide) {
+        <div class="ios-guide-overlay" (click)="onCloseIOSGuide()">
+          <div class="ios-guide-content" (click)="$event.stopPropagation()">
+            <div class="ios-guide__title">INSTALL GAME</div>
+            <ol class="ios-guide__steps">
+              <li>Tap the Share button in Safari</li>
+              <li>Tap &ldquo;Add to Home Screen&rdquo;</li>
+              <li>Tap &ldquo;Add&rdquo; to confirm</li>
+            </ol>
+            <button
+              class="star-map-options__btn-back"
+              type="button"
+              (click)="onCloseIOSGuide()"
+            >
+              DONE
+            </button>
+          </div>
         </div>
       }
 
