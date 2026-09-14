@@ -343,7 +343,7 @@ async attackStack(state, attackerStackId, targetStackId): Promise<boolean>
 - **Formula**: `damage = max(1, totalAttack - front.defense)`
 - **Spillover**: Remaining damage continues to next ship in stack
 - **No RNG**: Fully deterministic
-- **Shields/weapon types**: Loaded from data but **not applied** (per design)
+- **Shields/weapon types**: Loaded from data and applied in `BattleCombatService.attackStack()` and `BattleAiService`. Shield absorbs before hull for immobile targets; weapon effectiveness scales via `attackType` vs `weakness`. See [Battle Rules](./battle-rules.md) §Combat.
 
 ### 7. Animation Lock (`BattleAnimationService`)
 

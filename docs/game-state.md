@@ -190,12 +190,13 @@ src/app/
 - Virtual defense fleet from buildings
   - `PlanetBattleService` generates defense fleets based on defensive buildings (Laser Turret, Missile Turret, Planetary Shield)
   - These virtual fleets participate in battle like normal fleets but do not persist after battle
-  - Shield buildings contribute to a `shieldPool` value on the virtual fleet (not yet applied in battle damage)
+  - Shield buildings contribute to a `shieldPool` value on the virtual fleet (applied in battle damage via `BattleCombatService`)
 - Turn-based: attacker → defender, weakest HP target
   - `BattleService` manages turn order and battle state
   - Each turn, the active side selects the weakest non-destroyed ship from the opposing fleet
   - Damage formula: `max(1, attack - defense)`
-  - No weapon effectiveness, no crit/evasion/randomness
+  - Weapon effectiveness scales via `attackType` vs `weakness` (see [Battle Rules](./battle-rules.md) §Combat)
+  - No crit/evasion/randomness
 - Battle state persistence
   - Active battles are tracked in `BattleService`
   - `destroyedFleetId` is remembered across navigation to handle fleet cleanup after returning from battle screen
@@ -367,9 +368,10 @@ src/app/
 - `EnemyCapabilityService` runs below `EnemyGoalService` V4.2 and above the `EnemyActionService` (V5).
 - Given a faction's current goal, evaluates whether the faction currently has the capabilities required to pursue that goal.
 - Result type: `CapabilityResult` with `canExecute: boolean`, `goalType`, `factionId`, and `requirements: CapabilityRequirement[]`.
-- Each `CapabilityRequirement` has `type`, `satisfied`, and `reason` so the future Action layer can identify what is missing and how to obtain it.
+- Each `CapabilityRequirement` has `type`, `satisfied`, `reason`, and an optional numeric `value` for context (used by `fleet_needs_reinforcement` to carry peak strength).
 - The layer does NOT execute actions. It only inspects the current game state and reports what is available and what is missing.
 - Evaluation timing: every 2 seconds of game time using an internal accumulator, matching the V4.1/V4.2 cadence.
+- Peak fleet strength is tracked per faction (`updatePeakStrength`) by summing the strength of living ships in living fleets. It only ever increases and is cleared on `reset()`.
 - Capability checks by goal type:
   - **COLONIZE**:
     - `colonizer_technology`: faction has `basic_engineering` researched.
@@ -380,41 +382,46 @@ src/app/
   - **ATTACK**:
     - `available_fleet`: at least one non-destroyed enemy fleet with ships exists.
     - `target_valid`: goal target fleet still exists, is not destroyed, has ships, and is still a player fleet.
-    - `fleet_can_engage`: at least one enemy fleet has positive fleet strength (`attack + defense + hitPoints/10 + shield/10`).
+    - `fleet_can_engage`: at least one enemy fleet contains a living combat-role ship (role is neither `Recon` nor `Colonizer`). Transport-only fleets do not count as able to engage.
   - **DEFEND**:
     - `available_fleet`: at least one non-destroyed enemy fleet with ships exists.
     - `target_valid`: goal target system/planet still exists and planet is still owned by the faction.
     - `threat_present`: at least one player fleet is within `THREAT_DISTANCE` (5 cells) of the target system.
+    - `fleet_can_engage`: same combat-role check as ATTACK.
+    - `fleet_needs_reinforcement`: the faction has fleets and its living strength is below `REINFORCEMENT_THRESHOLD` (0.5) of its tracked peak. This requirement is informational: `canExecute` ignores it so a weak fleet can still be considered executable, and the action layer decides whether to reinforce.
   - **DEVELOP**:
     - `always_executable`: always satisfied (no special capability required).
 - The layer does NOT duplicate V4.2 goal validity predicates; it only adds capability-specific checks.
 - The layer does NOT duplicate V4.1 strategy selection or V3 fleet movement/battle logic.
-- Fleet strength formula matches V3: `sum(attack + defense + hitPoints/10 + shield/10)` per ship, resolved via `ShipService.getShipType()`.
-- No persistent AI state stores capability flags; all checks are derived from the live game snapshot.
+- Fleet strength formula matches V3: `sum(attack + defense + hitPoints/10 + shield/10)` per ship, resolved via `ShipService.getShipType()`. Destroyed ships remain in a fleet roster after battle (`applyBattleResult`), so they must be filtered out of every strength aggregation.
+- No persistent AI state stores capability flags; all checks are derived from the live game snapshot (peak strength is in-memory only and rebuilt from the live state).
 - Integration: `StarMap.gameLoopCallback` calls `EnemyCapabilityService.tick()` for each enemy faction each frame; results are stored per faction and can be queried via `getCapability(factionId)`.
-- Reset: capability state is cleared on game load / new game via `EnemyCapabilityService.reset()`.
-- Test coverage: 25 Vitest tests covering colonization prerequisites, attack/defend fleet and target checks, develop executability, determinism, no state mutation, multi-faction independence, accumulator timing, reset behavior, and edge cases (undefined goal, missing researchedTechnologies, destroyed-ship fleets).
+- Reset: capability state, including tracked peak strength, is cleared on game load / new game via `EnemyCapabilityService.reset()`.
+- Test coverage: 27 Vitest tests covering colonization prerequisites, attack/defend fleet and target checks, transport-only and post-loss strength handling, develop executability, determinism, no state mutation, multi-faction independence, accumulator timing, reset behavior, and edge cases (undefined goal, missing researchedTechnologies, destroyed-ship fleets).
 
 ### 4.17 Enemy Action Layer (V5) — Integrated
 
 - `EnemyActionService` runs below `EnemyCapabilityService` V4.3 and is the fourth strategic AI layer.
 - Given a faction's current goal and capability assessment, determines the single next action the faction should take.
-- Result type: `ActionResult` with `type`, `factionId`, `goalType`, `goal`, `targetId`, `targetSystemId`, `targetPlanetId`, `reason`.
-- Action types: `none` | `produce_colonizer` | `assemble_fleet` | `move_to_target` | `colonize` | `attack` | `defend` | `develop`
+- Result type: `ActionResult` with `type`, `factionId`, `goalType`, `goal`, `targetId`, `targetSystemId`, `targetPlanetId`, `shipTypeId`, `targetStrength`, `reason`.
+- Action types: `none` | `produce_colonizer` | `produce_combat_ship` | `reinforce_fleet` | `create_fleet` | `assemble_fleet` | `move_to_target` | `colonize` | `attack` | `defend` | `develop`
 - The layer does NOT execute actions. It only inspects the current game state and returns an `ActionResult` describing the recommended next step.
 - Evaluation timing: actions are recalculated every 2 seconds of game time using an internal accumulator, matching the V4.1/V4.2/V4.3 cadence.
 - Action evaluation logic:
   - If capability is not satisfied: evaluates preparation actions (e.g., `produce_colonizer` when colonizer is missing but production is possible)
   - If capability is satisfied: evaluates execute actions (e.g., `move_to_target` → `colonize` when fleet reaches the planet)
+  - `defend` is special-cased: its preparation result is evaluated first, so an under-strength fleet returns `reinforce_fleet` even when the defend goal is otherwise executable
 - Action selection by goal type:
   - **colonize**: finds fleet with colonizer, checks if at target planet → `colonize`; if not at target → `move_to_target`; if no colonizer but in stock → `assemble_fleet`; if no colonizer at all → `produce_colonizer` (if conditions met)
-  - **attack**: finds best enemy fleet, checks if at target position → `attack`; otherwise → `move_to_target`
-  - **defend**: finds best enemy fleet, checks if at threatened system → `defend`; otherwise → `move_to_target`
+  - **attack**: finds best enemy fleet, checks if at target position → `attack`; otherwise → `move_to_target`. When the fleet has no combat-role ships but a combat ship is unlocked, affordable, and buildable → `produce_combat_ship`
+  - **defend**: finds best enemy fleet, checks if at threatened system → `defend`; otherwise → `move_to_target`. When the fleet is under-strength → `reinforce_fleet` (economy-guarded); when there is no combat capability at all → `create_fleet` from stock at the nearest owned Spaceport, else `produce_combat_ship` as the production fallback
   - **develop**: always returns `develop` action
+- `selectCheapestCombatShip`: picks the lowest-cost ship whose role is neither `Recon` nor `Colonizer`, is unlocked by the faction, and is affordable. Used by `produce_combat_ship`.
+- `selectStockCombatShip`: picks the lowest-cost combat ship type present in the faction's global stock. Used by `create_fleet`, which assembles from stock, so credits/unlock are irrelevant.
 - `canProduceColonizer`: checks if faction has basic_engineering researched, colonizer unlocked, sufficient credits, and at least one planet with available spaceship factory capacity.
   - Integration: `StarMap.gameLoopCallback` calls `EnemyActionService.tick()` every frame AFTER the capability layer, once per AI faction (`factions.filter(f => f.ai)`), passing the faction's current goal (`EnemyGoalService.getGoal`) and capability (`EnemyCapabilityService.getCapability`). Pipeline order: V3 AI → V4.1 Strategy → V4.2 Goal → V4.3 Capability → V5 Action → V5.1/V5.2 Execution. The `ActionResult` is stored per faction and is queryable via `getAction(factionId)`; the action layer itself never mutates state (execution is delegated to `EnemyActionExecutor`). Change detection and the `[Enemy AI] <factionId> action: <type>` debug log fire only when the result actually changes.
 - Reset: action state is cleared on game load / new game via `EnemyActionService.reset()`, called alongside the V3/V4.1/V4.2/V4.3 resets in `StarMap.loadGame()`.
-- Test coverage: 23 Vitest tests covering all action types, preparation vs execution paths, determinism, no state mutation, independent multi-faction behavior, accumulator timing, reset behavior, and edge cases.
+- Test coverage: 32 Vitest tests covering all action types, preparation vs execution paths, determinism, no state mutation, independent multi-faction behavior, accumulator timing, reset behavior, and edge cases.
 
 ### 4.18 Enemy Action Execution Layer (V5.1 → V5.2 → V5.3 → V5.4)
 
@@ -424,6 +431,9 @@ src/app/
   - `EnemyActionExecutor` = state mutation / execution, always through existing game service APIs.
 - Executable actions:
   - `produce_colonizer` (V5.1): queues one colonizer order via `ProductionService.queueOrder` at the faction's deterministic first factory planet.
+  - `produce_combat_ship`: queues one combat ship order (ship type chosen by `EnemyActionService.selectCheapestCombatShip`, carried in `action.shipTypeId`) at the faction's deterministic first factory planet. Guards: basic_engineering researched, ship unlocked, credits ≥ cost, no pending order of the same type, factory capacity available. Used when a faction needs combat capability but has none.
+  - `reinforce_fleet`: adds one ship of each combat type already present in the target fleet from the global stock via `FleetAssemblyService.reinforceFleet`, reusing the real stock and Spaceport rules. Guards: fleet exists / alive / owned, living strength below `action.targetStrength`, and not co-located with an enemy fleet (active engagement). `targetStrength` is the faction's peak fleet strength from the V4.3 `fleet_needs_reinforcement` requirement, which makes the action idempotent across the frame loop — once the fleet's living strength reaches the target the executor stops consuming stock even though the action object persists until the next strategy tick. Fleet id, name, position, and system are preserved; only `fleet.ships` grows.
+  - `create_fleet`: creates a new fleet at the faction's deterministic nearest owned Spaceport planet via `FleetAssemblyService.createFleet` with a two-ship composition of a combat ship type taken from the faction's stock (`action.shipTypeId` × 2). Used when the faction has no combat-role ships but does have combat ships in stock. Avoids meaningless one-ship fleets. Guard: skipped once the faction owns a living fleet containing a combat-role ship, which makes creation idempotent across the frame loop.
   - `assemble_fleet` (V5.2): moves one colonizer from the faction ship stock into a fleet via `FleetAssemblyService`. Prefers reinforcing the faction's deterministic lowest-id usable fleet (`reinforceFleet`); when no usable fleet exists, creates a new fleet at the faction's deterministic first owned Spaceport planet (`createFleet`).
   - `move_to_target` (V5.3): sets `fleet.targetX/targetY` to start map movement toward the goal target. Supports colonize (system position + planet still unhabited), attack (target fleet position + still alive), and defend (threatened system position) goals. Stateless guards prevent duplicate restarts.
   - `colonize` (V5.4): verifies the target planet still exists and is `unhabited`, finds an AI fleet with a living colonizer at the planet's grid cell, removes the colonizer from the fleet, and sets `planet.factionId`. Reuses `PlanetBattleService.resolveUninhabitedArrival` for colonizer detection.
@@ -431,11 +441,12 @@ src/app/
   - `defend` (V5.4): validates that an AI fleet is positioned at the threatened star system's grid cell. Movement to the system is already handled by the `move_to_target` action; this method only confirms the fleet has arrived.
   - `develop` (V5.4): selects the first owned planet with a free building slot, chooses a building based on economy priority (energy → workforce → raw materials → research fallback), verifies research unlock and credits, finds a valid placement, and places the building. Uses the same overlap/grid bounds logic as the planet screen component.
 - Not executable: `none`.
-- Duplicate-execution protection is stateless: every frame the executor re-checks the game-state fact its mutation establishes. It keeps no mutable executor state, so `reset()` stays a no-op.
-  - The executor only acts for AI factions (`f.ai === true`, dynamically derived from the `factions` array), never for player / independent factions, and only mutates the acting faction's stock and fleets.
+- Duplicate-execution protection is stateless: every frame the executor re-checks the game-state fact its mutation establishes. It keeps no mutable executor state, so `reset()` stays a no-op. Production and propagation actions re-check queue/stock/strength facts; `reinforce_fleet` re-checks fleet strength against `targetStrength`; `create_fleet` re-checks stock and Spaceport validity through `FleetAssemblyService`.
+  - The executor only acts for AI factions (`f.ai === true`, dynamically derived from the `factions` array), never for player / independent factions, and only mutates the acting faction's stock and fleets. Player fleet assembly behavior is unchanged because it goes through the same `FleetAssemblyService` with different callers.
+- Reinforced fleets use the existing `Fleet` / `ShipStockEntry` structures, which are plain serializable objects, so reinforcement survives save/load without additional persistence state.
 - Execution logging follows the existing convention and fires only on actual execution.
 - Integration: `StarMap.gameLoopCallback` calls `EnemyActionExecutor.tick()` every frame after the action layer, once per enemy faction, with the faction's current `ActionResult`. The executor is not called on reset (`reset()` is a no-op).
-- Test coverage: 76 Vitest tests covering produce_colonizer execution, assemble_fleet execution, move_to_target execution, colonize execution, attack execution, defend execution, develop execution (power/housing/industry/research building selection, research lock, credit shortage, placement validation, duplicate prevention), and all guard conditions.
+- Test coverage: 109 Vitest tests covering produce_colonizer execution, produce_combat_ship execution, reinforce_fleet execution (damaged fleet, combat losses, target-strength dedup, destroyed fleet, no stock, no combat ships, no Spaceport, paused, player faction, multi-faction, active engagement, fleet identity/save-load), create_fleet execution, assemble_fleet execution, move_to_target execution, colonize execution, attack execution, defend execution, develop execution (power/housing/industry/research building selection, research lock, credit shortage, placement validation, duplicate prevention), and all guard conditions.
 
 ---
 
@@ -590,9 +601,6 @@ src/app/
 
 ## 8. Ismert korlátok
 
-- No weapon effectiveness (attackType/weakness not applied in damage formula)
-- No shield regen in battle (shieldRegen field exists on ships but is not used)
-- No shield pool application (Planetary Shield buildings contribute to shieldPool on virtual fleets, but the battle service does not apply it)
 - No crit/evasion/randomness
 - Weakest-HP targeting only
 - Winner survivor roster doesn't persist back to the star map
@@ -601,9 +609,9 @@ src/app/
 - No re-conquest for independent planets
 - Debug console.log statements present
 - Enemy AI V3 tracks targets by fleet ID and validates them; strength-based selection prefers weak/comparable targets, distance breaks ties
-- Strategic AI layers V4.1 (strategy), V4.2 (goal), V4.3 (capability), and V5 (action) only evaluate and log intentions; the V5.1/V5.2/V5.3/V5.4 `EnemyActionExecutor` executes `produce_colonizer`, `assemble_fleet`, `move_to_target`, `colonize`, `attack`, `defend`, and `develop`
-- Enemy Action Execution Layer V5.4 now executes `colonize`, `attack`, `defend`, and `develop` actions. `colonize` reuses `PlanetBattleService.resolveUninhabitedArrival` for colonizer detection. `attack` validates same-cell engagement without triggering battles (battle detection remains automatic). `defend` validates fleet arrival at the threatened system. `develop` performs minimal deterministic building placement based on economy needs (energy → workforce → raw materials → research fallback).
-- No enemy fleet production or reinforcement from conquered planets
+- Strategic AI layers V4.1 (strategy), V4.2 (goal), V4.3 (capability), and V5 (action) only evaluate and log intentions; the `EnemyActionExecutor` executes `produce_colonizer`, `produce_combat_ship`, `reinforce_fleet`, `create_fleet`, `assemble_fleet`, `move_to_target`, `colonize`, `attack`, `defend`, and `develop`
+- Enemy Action Execution Layer now executes `colonize`, `attack`, `defend`, `develop`, `produce_combat_ship`, `reinforce_fleet`, and `create_fleet` actions. `colonize` reuses `PlanetBattleService.resolveUninhabitedArrival` for colonizer detection. `attack` validates same-cell engagement without triggering battles (battle detection remains automatic). `defend` validates fleet arrival at the threatened system. `develop` performs minimal deterministic building placement based on economy needs (energy → workforce → raw materials → research fallback). `produce_combat_ship` queues combat ship production at a factory planet. `reinforce_fleet` replenishes living AI fleets from the global stock up to the peak strength in `action.targetStrength` and skips fleets engaged with an enemy. `create_fleet` assembles a two-ship combat fleet at the nearest owned Spaceport.
+- AI fleet reinforcement reuses the global `ShipStockService` and `FleetAssemblyService`; no second fleet stock system exists. Reinforcement preserves fleet id/name/position and is serialized through the existing `Fleet` structures.
 - Only one Spaceship Factory building type exists (no Small/Medium/Large Factory tiers)
 - `orbital_factory` is defined as a `ProductionBuildingKind` type but no building produces it and no ship requires it
 - School moraleRate is 1.0 in planet-data.json, which is much higher than other social buildings and may be overpowered
@@ -649,8 +657,8 @@ A játék jelenlegi állapota:
 - Sensor system: preview rings, research-based range bonuses, system/fleet range computation
 - Enemy AI V3: ellenséges flották erősségi szempontból választanak célpontot (weak > comparable > strong), távolság csökkenti a kötést ugyanazon kategórián belül
 - Harcrendszer autonóm: az AI nem indítja a csatákat, a `StarMapBattleDetectionService` detektálja az ütközéseket és a `BattleService` kezeli a csatát; a csataidő alatt a `GameTimeService` szünetelteti a galaxis-szimulációt
-- Stratégiai AI rétegzett rendszere: Strategy (V4.1) → Goal (V4.2) → Capability (V4.3) → Action (V5, implementálva és integrálva a game loop-ba; az action értékelése minden faction-re lekérdezhető, a V5.1/V5.2/V5.3/V5.4 `EnemyActionExecutor` pedig a `colonize`, `attack`, `defend`, `develop`, `produce_colonizer`, `assemble_fleet` és `move_to_target` actionöket hajtja végre a meglévő service-eken keresztül)
+- Stratégiai AI rétegzett rendszere: Strategy (V4.1) → Goal (V4.2) → Capability (V4.3) → Action (V5, implementálva és integrálva a game loop-ba; az action értékelése minden faction-re lekérdezhető, az `EnemyActionExecutor` pedig a `colonize`, `attack`, `defend`, `develop`, `produce_colonizer`, `produce_combat_ship`, `reinforce_fleet`, `create_fleet`, `assemble_fleet` és `move_to_target` actionöket hajtja végre a meglévő service-eken keresztül)
 - Hiányzik: diplomacia, ship design, hang, multiplayer
-- Ismert korlátok: no shield pool in battle, no weapon effectiveness, no crit/evasion, only one factory type, School/Research Lab moraleRate 1.0 potentially overpowered
+- Ismert korlátok: no shield pool in battle, no crit/evasion, only one factory type, School/Research Lab moraleRate 1.0 potentially overpowered
 
 Ez a dokumentum a játék teljes jelenlegi állapotát írja le feature-felel és készültségi fokok szerint.

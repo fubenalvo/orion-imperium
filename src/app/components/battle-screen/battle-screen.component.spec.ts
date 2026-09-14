@@ -451,4 +451,194 @@ describe('BattleScreenComponent', () => {
     expect(shieldBar).toBeTruthy();
     expect(shieldBar.textContent).toContain('300');
   });
+
+  it('returns shield pool in BattleOutcome after planet battle', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: {
+        id: -7,
+        name: 'DEFENSE',
+        factionId: 'enemy1',
+        ships: [fleetShip(2, 'laser_turret')],
+        shieldPool: 300,
+        shieldPoolRegen: 15,
+      },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: -7,
+      type: 'planet',
+      planetId: 7,
+      planetName: 'Mars',
+      planetColor: '#b35a2a',
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Simulate partial shield depletion during battle.
+    const state = component['state']!;
+    state.defenderShieldPool!.current = 150;
+    state.winner = 'attacker';
+    state.defenderShips[0].hp = 0;
+    state.defenderShips[0].alive = false;
+
+    const outcome = component.battleOutcome!;
+    expect(outcome.defender.shieldPoolCurrent).toBe(150);
+    expect(outcome.defender.shieldPoolMax).toBe(300);
+  });
+
+  it('writes final shield pool back to planet on attacker victory', () => {
+    seedAutosave();
+    const routerSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const planetId = 101;
+
+    // Add the target planet to autosave.
+    const autosave = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)!;
+    autosave.starSystems = [
+      {
+        id: 'sol',
+        name: 'Sol',
+        x: 0,
+        y: 0,
+        planets: 1,
+        color: '#8cc4ff',
+        planetsTiles: [
+          {
+            id: planetId,
+            index: 0,
+            name: 'Terra',
+            factionId: 'enemy1',
+            x: 0,
+            y: 0,
+            type: 'earthlike',
+            size: 'medium',
+            population: 100,
+            buildings: [],
+            explored: true,
+            shieldPoolCurrent: 300,
+          },
+        ],
+      },
+    ];
+    saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, autosave);
+
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: {
+        id: -7,
+        name: 'DEFENSE',
+        factionId: 'enemy1',
+        ships: [fleetShip(2, 'laser_turret')],
+        shieldPool: 300,
+        shieldPoolRegen: 15,
+      },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: -7,
+      type: 'planet',
+      planetId,
+      planetName: 'Terra',
+      planetColor: '#b35a2a',
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Simulate partial shield depletion during battle.
+    const state = component['state']!;
+    state.winner = 'attacker';
+    state.defenderShieldPool!.current = 150;
+    state.defenderShips[0].hp = 0;
+    state.defenderShips[0].alive = false;
+
+    component.backToStarMap();
+
+    const saved = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)!;
+    const planet = saved.starSystems[0].planetsTiles[0];
+    expect(planet.factionId).toBe('player');
+    expect(planet.shieldPoolCurrent).toBe(150);
+  });
+
+  it('writes final shield pool back to planet on defender victory', () => {
+    seedAutosave();
+    const routerSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const planetId = 102;
+
+    const autosave = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)!;
+    autosave.starSystems = [
+      {
+        id: 'sol',
+        name: 'Sol',
+        x: 0,
+        y: 0,
+        planets: 1,
+        color: '#8cc4ff',
+        planetsTiles: [
+          {
+            id: planetId,
+            index: 0,
+            name: 'Terra',
+            factionId: 'enemy1',
+            x: 0,
+            y: 0,
+            type: 'earthlike',
+            size: 'medium',
+            population: 100,
+            buildings: [],
+            explored: true,
+            shieldPoolCurrent: 300,
+          },
+        ],
+      },
+    ];
+    saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, autosave);
+
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: {
+        id: -7,
+        name: 'DEFENSE',
+        factionId: 'enemy1',
+        ships: [fleetShip(2, 'laser_turret')],
+        shieldPool: 300,
+        shieldPoolRegen: 15,
+      },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: -7,
+      type: 'planet',
+      planetId,
+      planetName: 'Terra',
+      planetColor: '#b35a2a',
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Defender wins with shield remaining.
+    const state = component['state']!;
+    state.winner = 'defender';
+    state.defenderShieldPool!.current = 200;
+    state.attackerShips[0].hp = 0;
+    state.attackerShips[0].alive = false;
+
+    component.backToStarMap();
+
+    const saved = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
+    const planet = saved!.starSystems[0].planetsTiles[0];
+    expect(planet.factionId).toBe('enemy1');
+    expect(planet.shieldPoolCurrent).toBe(200);
+  });
 });

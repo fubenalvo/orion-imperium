@@ -105,7 +105,6 @@ export class StarMapAiTickService {
       );
       if (factionActionChanged) {
         const action = this.enemyActionService.getAction(factionId);
-        console.log(`[Enemy AI] ${factionId} action: ${action?.type ?? 'none'}`);
         actionChanged = true;
       }
     }

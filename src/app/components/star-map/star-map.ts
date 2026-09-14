@@ -1295,12 +1295,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
     this.selectedFleet = null;
 
     if (this.selectedPlanetTile && this.selectedPlanetTile.id !== tile.id) {
-      console.log(
-        '[StarMap] selectPlanetTile: closing window from',
-        this.selectedPlanetTile.name,
-        '-> switching to',
-        tile.name,
-      );
       this.selectedPlanetTile = null;
       this.cdr.detectChanges();
     }
@@ -1452,8 +1446,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
     event.stopPropagation();
 
     if (this.currentView === 'system' && this.selectedSystem) {
-      console.log(planet);
-
       const planetCell = this.movementService.getPlanetGridPosition(planet);
       const items = this.movementService.getObjectsAtSystemCell(
         this.fleets,
@@ -1468,7 +1460,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
 
       if (items.length === 1) {
-        console.log(items[0]);
         this.onContextMenuSelect(items[0]);
         return;
       }
@@ -1549,11 +1540,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     const validation = this.validateFleetMove(x, y);
     if (validation === 'blocked-team') {
-      console.log('[StarMap] Cannot move fleet to teammate planet');
       return;
     }
     if (validation === 'blocked-ours') {
-      console.log('[StarMap] Cannot move fleet to own planet with existing fleet');
       return;
     }
 
@@ -1761,7 +1750,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Starts the game loop and registers focus-loss pause handlers after the view initializes. */
   ngAfterViewInit(): void {
-    console.log('[StarMap] ngAfterViewInit, starting game loop');
     this.startGameLoop();
     this.setupFocusHandlers();
     window.addEventListener('orientationchange', this.onOrientationChange);
@@ -1770,7 +1758,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
   /** Registers the game loop tick callback with the game loop service. */
   private startGameLoop(): void {
-    console.log('[StarMap] startGameLoop called');
     this.gameLoopService.startGameLoop((deltaTime: number) => {
       this.gameLoopCallback(deltaTime);
     });
@@ -1839,7 +1826,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.currentView,
       deltaTime,
       (fleetId: number) => {
-        console.log('[StarMap] Target reached for fleet', fleetId);
         if (this.selectedFleet?.id === fleetId) {
           this.targetX = null;
           this.targetY = null;
@@ -1852,10 +1838,6 @@ export class StarMap implements AfterViewInit, OnDestroy {
         }
       },
     );
-
-    if (didMoveFleets) {
-      console.log('[StarMap] movementService.updateFleets returned true');
-    }
 
     this.updateExploredPlanets();
     this.arrivalService.checkFleetPlanetArrivals({
@@ -2300,24 +2282,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
    */
   private reloadAfterBattle(): void {
     if (this.saveGameService.currentSlot === null) return;
-    console.log('[RELOAD AFTER BATTLE] Reloading game state from save...');
     this.arrivalService.triggeredBattles.clear();
     this.loadGame();
-    console.log(
-      '[RELOAD AFTER BATTLE] Planets:',
-      this.starSystems
-        .flatMap((s) => s.planetsTiles)
-        .map((p) => ({ id: p.id, name: p.name, factionId: p.factionId })),
-    );
-    console.log(
-      '[RELOAD AFTER BATTLE] Fleets:',
-      this.fleets.map((f) => ({
-        id: f.id,
-        name: f.name,
-        factionId: f.factionId,
-        destroyed: f.destroyed,
-      })),
-    );
     this.removeDestroyedFleetFromService();
     this.cdr.detectChanges();
   }
@@ -2364,6 +2330,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /*
    * Applies a battle outcome's per-fleet rosters onto the live fleets.
    * Virtual planet-defense fleets (negative ids) never persist.
+   * Surviving fleets are snapped to their current grid cell and have
+   * movement targets cleared to prevent immediate re-triggering of
+   * the same encounter. Destroyed fleets are marked destroyed and
+   * left in place (they are filtered from rendering and movement).
    */
   private applyBattleResult(result: BattleOutcome): void {
     for (const fleetOutcome of [result.attacker, result.defender]) {
@@ -2383,6 +2353,14 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }));
       if (fleetOutcome.wipedOut) {
         fleet.destroyed = true;
+      } else {
+        // Winner stays at the battle location, snapped to the nearest
+        // grid cell. Movement targets are cleared so the fleet does not
+        // immediately re-enter the same encounter.
+        fleet.x = Math.floor(fleet.x);
+        fleet.y = Math.floor(fleet.y);
+        fleet.targetX = null;
+        fleet.targetY = null;
       }
     }
   }

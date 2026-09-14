@@ -33,6 +33,7 @@ describe('EnemyActionExecutor', () => {
   let researchService: any;
   let planetBattleService: any;
   let economyService: any;
+  let fleetAssemblyService: FleetAssemblyService;
 
   beforeEach(() => {
     productionService = {
@@ -43,7 +44,23 @@ describe('EnemyActionExecutor', () => {
       getPlanetCapacity: vi.fn(() => 1),
     };
     shipService = {
-      getShipType: vi.fn(() => ({ id: 'colonizer', name: 'Colonizer', cost: 100 })),
+      getShipType: vi.fn((id: string) => {
+        const types: Record<string, { id: string; name: string; role: string; cost: number; hitPoints: number; shield: number; shieldRegen: number; attack: number; attackType: string; weakness: string; defense: number; speed: number; range: number; maintenanceCost: number }> = {
+          'colonizer': { id: 'colonizer', name: 'Colonizer', role: 'Colonizer', cost: 100, hitPoints: 10, shield: 0, shieldRegen: 0, attack: 0, attackType: 'melee', weakness: 'kinetic', defense: 5, speed: 3, range: 1, maintenanceCost: 5 },
+          'frigate': { id: 'frigate', name: 'Frigate', role: 'Combat', cost: 200, hitPoints: 20, shield: 5, shieldRegen: 0, attack: 10, attackType: 'kinetic', weakness: 'energy', defense: 8, speed: 4, range: 2, maintenanceCost: 10 },
+          'destroyer': { id: 'destroyer', name: 'Destroyer', role: 'Combat', cost: 350, hitPoints: 35, shield: 10, shieldRegen: 1, attack: 15, attackType: 'energy', weakness: 'kinetic', defense: 12, speed: 5, range: 3, maintenanceCost: 18 },
+        };
+        return types[id];
+      }),
+      calculateFleetStrength: vi.fn((ships: { type: string }[]) =>
+        ships.reduce((sum, ship) => {
+          const t = (shipService.getShipType as any)(ship.type);
+          if (!t) {
+            return sum;
+          }
+          return sum + t.attack + t.defense + t.hitPoints / 10 + t.shield / 10;
+        }, 0),
+      ),
     };
     researchService = {
       isResearched: vi.fn(() => true),
@@ -84,6 +101,16 @@ describe('EnemyActionExecutor', () => {
     });
 
     service = TestBed.inject(EnemyActionExecutor);
+    fleetAssemblyService = TestBed.inject(FleetAssemblyService);
+    vi.spyOn(fleetAssemblyService, 'reinforceFleet');
+    vi.spyOn(fleetAssemblyService, 'createFleet');
+
+    // The real FleetAssemblyService mutates the fleets/stock arrays it is
+    // given, so the shared "empty" fixtures must be cleared between tests
+    // or state (e.g. an auto-created fleet) leaks into the next test.
+    emptyProduction.length = 0;
+    emptyShipStock.length = 0;
+    emptyFleets.length = 0;
   });
 
   afterEach(() => {
@@ -126,6 +153,21 @@ describe('EnemyActionExecutor', () => {
     planets: 1,
     color: '#fff',
     planetsTiles: [createPlanet()],
+    ...overrides,
+  });
+
+  const createFleet = (overrides: Partial<Fleet> = {}): Fleet => ({
+    id: 1,
+    name: 'FLEET',
+    factionId: 'player',
+    x: 0,
+    y: 0,
+    targetX: null,
+    targetY: null,
+    speed: 5,
+    system: null,
+    ships: [{ id: 1, name: 'Ship', type: 'frigate', currentHp: 10, destroyed: false }],
+    destroyed: false,
     ...overrides,
   });
 
@@ -531,7 +573,7 @@ describe('EnemyActionExecutor', () => {
       expect(playerProduction[0].ordersByPlanet[1][0].shipTypeId).toBe('scout');
     });
 
-    it('should log execution success', () => {
+    it('should not log execution success', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const systems = [
         createSystem({
@@ -549,10 +591,696 @@ describe('EnemyActionExecutor', () => {
 
       service.tick(2, action, baseFactions, systems, emptyProduction, emptyShipStock, emptyFleets);
 
-      expect(logSpy).toHaveBeenCalledWith(
-        '[Enemy AI] enemy1 executed produce_colonizer at planet Planet',
-      );
+      expect(logSpy).not.toHaveBeenCalled();
       logSpy.mockRestore();
+    });
+  });
+
+  describe('produce_combat_ship execution', () => {
+    const makeCombatShipAction = (overrides: Partial<ActionResult> = {}): ActionResult => ({
+      type: 'produce_combat_ship',
+      factionId: 'enemy1',
+      goalType: 'attack',
+      goal: { type: 'attack', targetFleetId: 1 } as AttackGoal,
+      reason: 'No combat capability but production is possible',
+      shipTypeId: 'frigate',
+      ...overrides,
+    });
+
+    it('should start combat ship production when action is produce_combat_ship and conditions are met', () => {
+      const factions = baseFactions.map((f) =>
+        f.id === 'enemy1'
+          ? { ...f, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] }
+          : f,
+      );
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({
+              id: 1,
+              factionId: 'enemy1',
+              buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }],
+            }),
+          ],
+        }),
+      ];
+      const action = makeCombatShipAction();
+
+      const result = service.tick(
+        2,
+        action,
+        factions,
+        systems,
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(true);
+      expect(productionService.queueOrder).toHaveBeenCalledWith(
+        { production: [] },
+        'enemy1',
+        1,
+        'frigate',
+        1,
+        systems,
+        factions,
+      );
+    });
+
+    it('should not execute when shipTypeId is missing', () => {
+      const action = makeCombatShipAction({ shipTypeId: undefined });
+
+      const result = service.tick(
+        2,
+        action,
+        baseFactions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute when ship type does not exist', () => {
+      const action = makeCombatShipAction({ shipTypeId: 'nonexistent' });
+
+      const result = service.tick(
+        2,
+        action,
+        baseFactions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute when combat ship is not unlocked', () => {
+      (researchService.isShipUnlocked as any).mockReturnValue(false);
+      const action = makeCombatShipAction();
+
+      const result = service.tick(
+        2,
+        action,
+        baseFactions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute when faction lacks basic_engineering', () => {
+      (researchService.isResearched as any).mockReturnValue(false);
+      const action = makeCombatShipAction();
+
+      const result = service.tick(
+        2,
+        action,
+        baseFactions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute when faction has insufficient credits', () => {
+      const factions = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 10 } } : f,
+      );
+      const action = makeCombatShipAction();
+
+      const result = service.tick(
+        2,
+        action,
+        factions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute when no planet has factory capacity', () => {
+      (productionService.getPlanetCapacity as any).mockReturnValue(0);
+      const action = makeCombatShipAction();
+
+      const result = service.tick(
+        2,
+        action,
+        baseFactions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not create duplicate orders when a pending order exists', () => {
+      const existingProduction: FactionProduction[] = [
+        {
+          factionId: 'enemy1',
+          ordersByPlanet: {
+            1: [{ id: 1, shipTypeId: 'frigate', quantity: 1, progress: 0.5, startedAtTick: 0 }],
+          },
+        },
+      ];
+      const action = makeCombatShipAction();
+
+      const result = service.tick(
+        2,
+        action,
+        baseFactions,
+        [],
+        existingProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute for player faction', () => {
+      const action = makeCombatShipAction({ factionId: 'player' });
+      const factions = baseFactions;
+
+      const result = service.tick(
+        2,
+        action,
+        factions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute when gameDeltaTime is 0 (paused)', () => {
+      const action = makeCombatShipAction();
+
+      const result = service.tick(
+        0,
+        action,
+        baseFactions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+
+    it('should not execute when action type is not produce_combat_ship', () => {
+      const action = makeCombatShipAction({ type: 'none' });
+
+      const result = service.tick(
+        2,
+        action,
+        baseFactions,
+        [],
+        emptyProduction,
+        emptyShipStock,
+        emptyFleets,
+      );
+
+      expect(result).toBe(false);
+      expect(productionService.queueOrder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reinforce_fleet execution', () => {
+    const makeReinforceAction = (overrides: Partial<ActionResult> = {}): ActionResult => ({
+      type: 'reinforce_fleet',
+      factionId: 'enemy1',
+      goalType: 'defend',
+      goal: { type: 'defend', targetPlanetId: 1, targetSystemId: 'sys1' } as DefendGoal,
+      reason: 'Fleet under-strength, reinforcing from stock',
+      targetId: 1,
+      ...overrides,
+    });
+
+    const spaceportSystems = (): StarSystem[] => [
+      createSystem({
+        id: 'sys1',
+        planetsTiles: [
+          createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] }),
+        ],
+      }),
+    ];
+
+    it('should reinforce a damaged fleet from stock', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const systems = spaceportSystems();
+      const action = makeReinforceAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(result).toBe(true);
+      expect(fleetAssemblyService.reinforceFleet).toHaveBeenCalledWith(
+        { fleets, shipStock: stock },
+        systems,
+        { factionId: 'enemy1', fleetId: 1, composition: [{ typeId: 'frigate', count: 1 }] },
+      );
+    });
+
+    it('should not reinforce once the fleet has reached the target strength (frame-loop dedup)', () => {
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1,
+          ships: [
+            { id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+            { id: 2, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+          ],
+        }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const systems = spaceportSystems();
+      const currentStrength = (shipService.getShipType as any)('frigate').attack
+        + (shipService.getShipType as any)('frigate').defense
+        + (shipService.getShipType as any)('frigate').hitPoints / 10
+        + (shipService.getShipType as any)('frigate').shield / 10;
+      const action = makeReinforceAction({ targetStrength: currentStrength });
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).not.toHaveBeenCalled();
+    });
+
+    it('should reinforce after combat losses until the target strength is reached', () => {
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1,
+          // One frigate left after a combat loss; the second was removed
+          // from the roster when it was destroyed.
+          ships: [
+            { id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+          ],
+        }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const systems = spaceportSystems();
+      const frigateStrength = (shipService.getShipType as any)('frigate').attack
+        + (shipService.getShipType as any)('frigate').defense
+        + (shipService.getShipType as any)('frigate').hitPoints / 10
+        + (shipService.getShipType as any)('frigate').shield / 10;
+      const action = makeReinforceAction({ targetStrength: frigateStrength * 2 });
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(result).toBe(true);
+      expect(fleetAssemblyService.reinforceFleet).toHaveBeenCalled();
+      expect(stock[0].ships).toHaveLength(0);
+      expect(fleets[0].ships).toHaveLength(2);
+    });
+
+    it('should preserve fleet identity and persist reinforced ships in fleet state', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 12, y: 34, id: 7, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const systems = spaceportSystems();
+      const action = makeReinforceAction({ targetId: 7 });
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(result).toBe(true);
+      expect(fleets).toHaveLength(1);
+      expect(fleets[0].id).toBe(7);
+      expect(fleets[0].name).toBe('RAIDER');
+      expect(fleets[0].x).toBe(12);
+      expect(fleets[0].y).toBe(34);
+      expect(fleets[0].ships).toHaveLength(2);
+      // Fleet and stock are plain serializable objects, so a save/load
+      // round-trip preserves the reinforced roster without extra state.
+      const roundTripped = JSON.parse(JSON.stringify({ fleets, stock }));
+      expect(roundTripped.fleets[0].ships).toHaveLength(2);
+      expect(roundTripped.fleets[0].id).toBe(7);
+      expect(roundTripped.stock[0].ships).toHaveLength(0);
+    });
+
+    it('should not reinforce a destroyed fleet', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, destroyed: true, ships: [] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const action = makeReinforceAction();
+
+      const result = service.tick(2, action, baseFactions, [], emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not reinforce when no stock available', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const systems = spaceportSystems();
+      const action = makeReinforceAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, emptyShipStock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).toHaveBeenCalled();
+    });
+
+    it('should not reinforce a fleet with no combat ships', () => {
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1,
+          ships: [{ id: 1, name: 'Colonizer', type: 'colonizer', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'colonizer', name: 'Colonizer' }] }];
+      const action = makeReinforceAction();
+
+      const result = service.tick(2, action, baseFactions, [], emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not reinforce for player faction', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const action = makeReinforceAction({ factionId: 'player' });
+
+      const result = service.tick(2, action, baseFactions, [], emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not reinforce when paused (deltaTime is 0)', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const action = makeReinforceAction();
+
+      const result = service.tick(0, action, baseFactions, [], emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not reinforce when fleet does not belong to faction', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const action = makeReinforceAction({ factionId: 'enemy2' });
+
+      const result = service.tick(2, action, baseFactions, [], emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).not.toHaveBeenCalled();
+    });
+
+    it('should reinforce multiple AI factions independently', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+        createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 50, y: 50, id: 2, ships: [{ id: 2, name: 'Destroyer', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [
+        { factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] },
+        { factionId: 'enemy2', ships: [{ id: 11, type: 'destroyer', name: 'Destroyer' }] },
+      ];
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] })],
+        }),
+        createSystem({
+          id: 'sys2',
+          planetsTiles: [createPlanet({ id: 2, factionId: 'enemy2', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+
+      const first = service.tick(2, makeReinforceAction({ targetId: 1 }), baseFactions, systems, emptyProduction, stock, fleets);
+      const second = service.tick(2, makeReinforceAction({ factionId: 'enemy2', targetId: 2 }), baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(first).toBe(true);
+      expect(second).toBe(true);
+      expect(stock[0].ships).toHaveLength(0);
+      expect(stock[1].ships).toHaveLength(0);
+      expect(fleets[0].ships).toHaveLength(2);
+      expect(fleets[1].ships).toHaveLength(2);
+    });
+
+    it('should not reinforce a fleet that is engaged with an enemy fleet', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 10, y: 10, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+        createFleet({ factionId: 'player', name: 'ORION', x: 10, y: 10, id: 2, ships: [{ id: 2, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const systems = spaceportSystems();
+      const action = makeReinforceAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.reinforceFleet).not.toHaveBeenCalled();
+      expect(stock[0].ships).toHaveLength(1);
+    });
+
+    it('should still reinforce a fleet co-located with an ally', () => {
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 10, y: 10, id: 1, ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+        createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 10, y: 10, id: 2, ships: [{ id: 2, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }] }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }] }];
+      const systems = spaceportSystems();
+      const action = makeReinforceAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(result).toBe(true);
+      expect(fleetAssemblyService.reinforceFleet).toHaveBeenCalled();
+    });
+  });
+
+  describe('create_fleet execution', () => {
+    const makeCreateFleetAction = (overrides: Partial<ActionResult> = {}): ActionResult => ({
+      type: 'create_fleet',
+      factionId: 'enemy1',
+      goalType: 'defend',
+      goal: { type: 'defend', targetPlanetId: 1, targetSystemId: 'sys1' } as DefendGoal,
+      reason: 'No combat capability, creating new fleet',
+      shipTypeId: 'frigate',
+      targetSystemId: 'sys1',
+      targetPlanetId: 1,
+      ...overrides,
+    });
+
+    it('should create fleet at Spaceport with 2 ships', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({
+              id: 1,
+              factionId: 'enemy1',
+              buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }],
+            }),
+          ],
+        }),
+      ];
+      const stock = [
+        { factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }, { id: 11, type: 'frigate', name: 'Frigate' }] },
+      ];
+      const action = makeCreateFleetAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, emptyFleets);
+
+      expect(result).toBe(true);
+      expect(fleetAssemblyService.createFleet).toHaveBeenCalledWith(
+        { fleets: emptyFleets, shipStock: stock },
+        systems,
+        {
+          factionId: 'enemy1',
+          fleetName: 'enemy1 Fleet',
+          systemId: 'sys1',
+          planetId: 1,
+          composition: [{ typeId: 'frigate', count: 2 }],
+        },
+      );
+    });
+
+    it('should not create fleet when planet is not owned by faction', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({ id: 1, factionId: 'unhabited', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] }),
+          ],
+        }),
+      ];
+      const action = makeCreateFleetAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, emptyShipStock, emptyFleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.createFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not create a second fleet once the faction has a combat fleet', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] }),
+          ],
+        }),
+      ];
+      const stock = [
+        { factionId: 'enemy1', ships: [{ id: 10, type: 'frigate', name: 'Frigate' }, { id: 11, type: 'frigate', name: 'Frigate' }] },
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1,
+          ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const action = makeCreateFleetAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, stock, fleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.createFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not create fleet when no Spaceport', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({ id: 1, factionId: 'enemy1', buildings: [] }),
+          ],
+        }),
+      ];
+      const action = makeCreateFleetAction();
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, emptyShipStock, emptyFleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.createFleet).toHaveBeenCalled();
+    });
+
+    it('should not create fleet when ship type does not exist', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] }),
+          ],
+        }),
+      ];
+      const action = makeCreateFleetAction({ shipTypeId: 'nonexistent' });
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, emptyShipStock, emptyFleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.createFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not create fleet for player faction', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] }),
+          ],
+        }),
+      ];
+      const action = makeCreateFleetAction({ factionId: 'player' });
+
+      const result = service.tick(2, action, baseFactions, systems, emptyProduction, emptyShipStock, emptyFleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.createFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not create fleet when paused (deltaTime is 0)', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] }),
+          ],
+        }),
+      ];
+      const action = makeCreateFleetAction();
+
+      const result = service.tick(0, action, baseFactions, systems, emptyProduction, emptyShipStock, emptyFleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.createFleet).not.toHaveBeenCalled();
+    });
+
+    it('should not create fleet when system does not exist', () => {
+      const action = makeCreateFleetAction({ targetSystemId: 'nonexistent', targetPlanetId: 1 });
+
+      const result = service.tick(2, action, baseFactions, [], emptyProduction, emptyShipStock, emptyFleets);
+
+      expect(result).toBe(false);
+      expect(fleetAssemblyService.createFleet).not.toHaveBeenCalled();
+    });
+
+    it('should create fleet with composition from shipTypeId', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          planetsTiles: [
+            createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] }),
+          ],
+        }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'destroyer', name: 'Destroyer' }] }];
+      const action = makeCreateFleetAction({ shipTypeId: 'destroyer' });
+
+      service.tick(2, action, baseFactions, systems, emptyProduction, stock, emptyFleets);
+
+      expect(fleetAssemblyService.createFleet).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          composition: [{ typeId: 'destroyer', count: 2 }],
+        }),
+      );
     });
   });
 
@@ -751,7 +1479,7 @@ describe('EnemyActionExecutor', () => {
       expect(fleets[0].ships.some((s) => s.type === 'colonizer')).toBe(true);
     });
 
-    it('should log execution success exactly once', () => {
+    it('should not log execution success', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const fleets: Fleet[] = [createEnemyFleet()];
       const shipStock: FactionShipStock[] = makeStock('enemy1', [101]);
@@ -766,9 +1494,7 @@ describe('EnemyActionExecutor', () => {
         fleets,
       );
 
-      expect(logSpy).toHaveBeenCalledWith(
-        '[Enemy AI] enemy1 executed assemble_fleet: reinforced fleet RAIDER with 1 colonizer',
-      );
+      expect(logSpy).not.toHaveBeenCalled();
       logSpy.mockRestore();
     });
 
@@ -1315,7 +2041,7 @@ describe('EnemyActionExecutor', () => {
       expect(fleets[0].targetY).toBeNull();
     });
 
-    it('should log execution success exactly once', () => {
+    it('should not log execution success', () => {
       const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       const fleets: Fleet[] = [createEnemyFleet()];
       const systems = baseSystems();
@@ -1323,7 +2049,7 @@ describe('EnemyActionExecutor', () => {
 
       service.tick(2, action, baseFactions, systems, emptyProduction, emptyShipStock, fleets);
 
-      expect(logSpy).toHaveBeenCalledWith('[Enemy AI] enemy1 fleet RAIDER moving to (10, 10)');
+      expect(logSpy).not.toHaveBeenCalled();
       logSpy.mockRestore();
     });
 

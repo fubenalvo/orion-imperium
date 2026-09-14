@@ -382,15 +382,6 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (this.battle) {
       this.state = createBattleState(this.battle, this.shipService, this.planetBattleService);
       this.turn.checkVictory(this.state);
-      console.log('[BattleScreen] Initial state:', {
-        attackerFactionId: this.state.attackerFactionId,
-        defenderFactionId: this.state.defenderFactionId,
-        activeSide: this.state.activeSide,
-        playerControlsActiveSide: isSidePlayerControlled(this.state, this.state.activeSide),
-        canAct: isSidePlayerControlled(this.state, this.state.activeSide) && !this.anim.isBusy,
-        animBusy: this.anim.isBusy,
-        stacks: this.state.stacks.map(s => ({ id: s.stackId, side: s.side, col: s.col, row: s.row, destroyed: s.destroyed }))
-      });
       void this.runAiTurns();
     }
     this.gameTimeService.pause();
@@ -413,7 +404,6 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   onStackClick(stackId: string): void {
-    console.log('[BattleScreen] onStackClick:', stackId, 'canAct:', this.canAct, 'activeSide:', this.state?.activeSide, 'playerControlsActiveSide:', this.playerControlsActiveSide, 'animBusy:', this.anim?.isBusy);
     if (!this.state || !this.canAct) {
       return;
     }
@@ -421,12 +411,11 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!stack || stack.destroyed) {
       return;
     }
-    if (stack.side === this.state.activeSide) {
-      // Own stack: select it to reveal movement / attack options.
-      this.selectedStackId = stack.stackId;
-      console.log('[BattleScreen] Selected stack:', stackId, 'moveCells:', this.moveCells, 'attackTargetIds:', this.attackTargetIds, 'moveToAttackTargetIds:', this.moveToAttackTargetIds);
-      return;
-    }
+      if (stack.side === this.state.activeSide) {
+        // Own stack: select it to reveal movement / attack options.
+        this.selectedStackId = stack.stackId;
+        return;
+      }
     // Enemy stack: attack it if the selected stack can.
     const selected = this.selectedStack();
     if (!selected) {
@@ -444,7 +433,6 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   onCellClick(col: number, row: number): void {
-    console.log('[BattleScreen] onCellClick:', col, row, 'canAct:', this.canAct);
     if (!this.state || !this.canAct) {
       return;
     }
@@ -581,7 +569,6 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!this.state) {
       return;
     }
-    console.log('[BattleScreen] doMoveToAttack:', attacker.stackId, '->', target.stackId);
     await this.movement.moveToAttack(this.state, attacker.stackId, target.stackId);
     if (!this.selectedStack()) {
       this.selectedStackId = null;
@@ -607,21 +594,16 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
     let safetyCounter = 0;
     while (!this.state.winner && !isSidePlayerControlled(this.state, this.state.activeSide)) {
-      console.log('[BattleScreen] AI turn start:', { activeSide: this.state.activeSide, ap: this.state.ap, animBusy: this.anim.isBusy });
       try {
         await this.ai.playTurn(this.state);
       } catch (e) {
-        console.error('[BattleScreen] AI turn error:', e);
         break;
       }
-      console.log('[BattleScreen] AI turn end:', { winner: this.state.winner, activeSide: this.state.activeSide, animBusy: this.anim.isBusy });
       safetyCounter++;
       if (safetyCounter > 10) {
-        console.error('[BattleScreen] AI turn safety limit reached, breaking');
         break;
       }
     }
-    console.log('[BattleScreen] runAiTurns complete, playerControlsActiveSide:', this.playerControlsActiveSide);
     this.cdr.detectChanges();
   }
 
@@ -739,6 +721,9 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       }
       if (outcome.winnerSide === 'attacker') {
         planet.factionId = outcome.attacker.factionId;
+      }
+      if (outcome.defender.shieldPoolCurrent !== undefined) {
+        planet.shieldPoolCurrent = outcome.defender.shieldPoolCurrent;
       }
       const fleet = data.fleets?.find((f) => f.id === outcome.attacker.fleetId);
       if (fleet) {

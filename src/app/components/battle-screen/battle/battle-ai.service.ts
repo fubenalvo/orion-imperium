@@ -36,19 +36,16 @@ export class BattleAiService {
       return;
     }
 
-    console.log('[BattleAI] playTurn start:', { activeSide: state.activeSide, ap: state.ap, animBusy: this.turn['anim']?.isBusy });
-
     const stacks = getStacks(state, state.activeSide);
 
     for (const stack of stacks) {
       if (state.winner) {
         break;
       }
-      const target = this.bestTarget(state, stack);
-      if (target) {
-        console.log('[BattleAI] attacking:', stack.stackId, '->', target.stackId);
-        await this.combat.attackStack(state, stack.stackId, target.stackId);
-      }
+        const target = this.bestTarget(state, stack);
+        if (target) {
+          await this.combat.attackStack(state, stack.stackId, target.stackId);
+        }
     }
 
     for (const stack of stacks) {
@@ -62,11 +59,10 @@ export class BattleAiService {
       if (state.winner || stack.attackedThisTurn) {
         continue;
       }
-      const target = this.bestTarget(state, stack);
-      if (target) {
-        console.log('[BattleAI] post-move attacking:', stack.stackId, '->', target.stackId);
-        await this.combat.attackStack(state, stack.stackId, target.stackId);
-      }
+        const target = this.bestTarget(state, stack);
+        if (target) {
+          await this.combat.attackStack(state, stack.stackId, target.stackId);
+        }
     }
 
     // Carrier Shield Pulse fallback: only when a Carrier has nothing better
@@ -79,19 +75,16 @@ export class BattleAiService {
       }
       const boosted = await this.combat.carrierShieldBoost(state, stack.stackId);
       if (boosted) {
-        console.log('[BattleAI] Carrier shield boost:', stack.stackId);
+        // Carrier shield boost applied
       }
     }
 
     if (!state.winner) {
-      console.log('[BattleAI] ending turn');
       const ended = this.turn.endTurn(state);
       if (!ended) {
-        console.error('[BattleAI] endTurn failed - anim.isBusy:', this.turn['anim']?.isBusy);
         throw new Error('AI turn could not end: animation lock still active');
       }
     }
-    console.log('[BattleAI] playTurn complete');
   }
 
   private bestTarget(state: BattleModelState, stack: BattleStack): BattleStack | null {

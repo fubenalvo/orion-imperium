@@ -207,6 +207,8 @@ export interface BattleFleetOutcome {
   ships: BattleShipOutcome[];
   survivors: BattleShipOutcome[];
   wipedOut: boolean;
+  shieldPoolCurrent?: number;
+  shieldPoolMax?: number;
 }
 
 export interface BattleOutcome {

@@ -160,6 +160,46 @@ describe('BattleTurnService', () => {
     expect(defender.ships[0].shield).toBe(40); // dead ship, no regen
   });
 
+  it('regenerates all living ships across all stacks', () => {
+    // buildStacks gives each ship its own stack for small rosters.
+    const state = setup(
+      [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')],
+      [fleetShip(100, 'frigate')],
+    );
+    const attackerStacks = getStacks(state, 'attacker');
+    attackerStacks.forEach((stack) => {
+      stack.ships[0].shield = 10;
+    });
+
+    // First endTurn: defender becomes active (regenerates).
+    turn.endTurn(state);
+    // Second endTurn: attacker becomes active (regenerates).
+    turn.endTurn(state);
+
+    // All living ships regen independently, regardless of stack grouping.
+    for (const stack of attackerStacks) {
+      expect(stack.ships[0].shield).toBe(12); // 10 + 2
+    }
+  });
+
+  it('regenerates shields for both player and AI sides', () => {
+    // Fighter (player): shield 30, shieldRegen 2, maxShield 30.
+    // Frigate (AI): shield 80, shieldRegen 5, maxShield 80.
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
+    const attacker = getStacks(state, 'attacker')[0];
+    const defender = getStacks(state, 'defender')[0];
+    attacker.ships[0].shield = 10;
+    defender.ships[0].shield = 50;
+
+    // First endTurn: defender becomes active, regenerates.
+    turn.endTurn(state);
+    expect(defender.ships[0].shield).toBe(55); // 50 + 5
+
+    // Second endTurn: attacker becomes active, regenerates.
+    turn.endTurn(state);
+    expect(attacker.ships[0].shield).toBe(12); // 10 + 2
+  });
+
   it('leaves ships with no shield data unchanged', () => {
     // Laser turret: shield 0, shieldRegen 0, maxShield 0 (virtual defense).
     const state = setup(

@@ -692,4 +692,63 @@ describe('BattleCombatService', () => {
       garrison.ships[0].maxHp + (garrison.ships[0].maxShield ?? 0),
     );
   });
+
+  it('depletes the shared planetary shield over multiple attacks', async () => {
+    const state = planetSetup([fleetShip(100, 'laser_turret')], 30, 0);
+    const atk = getStacks(state, 'attacker')[0];
+    const turret = getStacks(state, 'defender')[0];
+    placeAdjacent(atk, turret);
+    expect(state.defenderShieldPool?.current).toBe(30);
+
+    const p1 = combat.attackStack(state, atk.stackId, turret.stackId);
+    await vi.advanceTimersByTimeAsync(5000);
+    await p1;
+
+    const shieldAfterFirst = state.defenderShieldPool?.current ?? 0;
+    expect(shieldAfterFirst).toBeLessThan(30);
+
+    // END TURN to reset attackedThisTurn for another attack this round.
+    turn.endTurn(state);
+    turn.endTurn(state);
+
+    const p2 = combat.attackStack(state, atk.stackId, turret.stackId);
+    await vi.advanceTimersByTimeAsync(5000);
+    await p2;
+
+    expect(state.defenderShieldPool?.current ?? 0).toBeLessThan(shieldAfterFirst);
+  });
+
+  it('shield-only planet: defender has no stacks, attacker wins immediately', async () => {
+    const state = planetSetup([], 300, 15);
+    const atk = getStacks(state, 'attacker')[0];
+    const defenderStacks = getStacks(state, 'defender');
+
+    expect(defenderStacks).toHaveLength(0);
+
+    const p = combat.attackStack(state, atk.stackId, 'nonexistent');
+    await vi.advanceTimersByTimeAsync(5000);
+    await p;
+
+    // No attack happened (no target). After end turn, attacker wins by default.
+    const ended = turn.endTurn(state);
+    expect(ended).toBe(true);
+    expect(state.winner).toBe('attacker');
+    expect(state.defenderShieldPool?.current).toBe(300);
+  });
+
+  it('planet battle without shield: no pool, turret takes full damage', async () => {
+    const state = planetSetup([fleetShip(100, 'laser_turret')], 0, 0);
+    const atk = getStacks(state, 'attacker')[0];
+    const turret = getStacks(state, 'defender')[0];
+    placeAdjacent(atk, turret);
+
+    expect(state.defenderShieldPool).toBeNull();
+
+    const p = combat.attackStack(state, atk.stackId, turret.stackId);
+    await vi.advanceTimersByTimeAsync(5000);
+    await p;
+
+    expect(state.log[0].damage).toBeGreaterThan(0);
+    expect(turret.ships[0].hp).toBeLessThan(100);
+  });
 });

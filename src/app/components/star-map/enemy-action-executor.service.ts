@@ -21,6 +21,7 @@ import { SpaceportService } from '../../services/spaceport.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { EconomyService } from '../../services/economy.service';
 import { StarMapMovementService } from './star-map-movement.service';
+import { isCombatShipType } from './ai-queries';
 import planetData from '../../components/star-map/planet-data.json';
 
 /*
@@ -100,6 +101,12 @@ export class EnemyActionExecutor {
     switch (action.type) {
       case 'produce_colonizer':
         return this.executeProduceColonizer(action, factions, starSystems, production);
+      case 'produce_combat_ship':
+        return this.executeProduceCombatShip(action, factions, starSystems, production);
+      case 'reinforce_fleet':
+        return this.executeReinforceFleet(action, factions, starSystems, fleets, shipStock);
+      case 'create_fleet':
+        return this.executeCreateFleet(action, factions, starSystems, fleets, shipStock);
       case 'assemble_fleet':
         return this.executeAssembleFleet(action, starSystems, shipStock, fleets);
       case 'move_to_target':
@@ -152,7 +159,7 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    if (this.hasPendingColonizerOrder(production, faction.id)) {
+    if (this.hasPendingOrder(production, faction.id, 'colonizer')) {
       return false;
     }
 
@@ -174,9 +181,245 @@ export class EnemyActionExecutor {
     if (!result.ok) {
       return false;
     }
-
-    console.log(`[Enemy AI] ${faction.id} executed produce_colonizer at planet ${planet.name}`);
     return true;
+  }
+
+  /*
+   * executeProduceCombatShip: Queues one combat ship production order
+   * at the faction's deterministic first factory planet. The ship type
+   * is taken from action.shipTypeId which was selected by
+   * EnemyActionService.selectCheapestCombatShip.
+   *
+   * Guards (checked every frame) prevent duplicate execution:
+   *   - faction has researched basic_engineering
+   *   - faction has unlocked the specific combat ship type
+   *   - faction can afford the ship
+   *   - no pending order for the same ship type already exists
+   *   - a planet with spaceship_factory capacity exists
+   */
+  private executeProduceCombatShip(
+    action: ActionResult,
+    factions: Faction[],
+    starSystems: StarSystem[],
+    production: FactionProduction[],
+  ): boolean {
+    const faction = factions.find((f) => f.id === action.factionId);
+    if (!faction) {
+      return false;
+    }
+
+    const shipTypeId = action.shipTypeId;
+    if (!shipTypeId) {
+      return false;
+    }
+
+    const shipType = this.shipService.getShipType(shipTypeId);
+    if (!shipType) {
+      return false;
+    }
+
+    if (!this.researchService.isResearched(faction, 'basic_engineering')) {
+      return false;
+    }
+
+    if (!this.researchService.isShipUnlocked(faction, shipTypeId)) {
+      return false;
+    }
+
+    const credits = faction.currencies['credits'] ?? 0;
+    if (credits < shipType.cost) {
+      return false;
+    }
+
+    if (this.hasPendingOrder(production, faction.id, shipTypeId)) {
+      return false;
+    }
+
+    const planet = this.selectProductionPlanet(faction.id, starSystems);
+    if (!planet) {
+      return false;
+    }
+
+    const result = this.productionService.queueOrder(
+      { production },
+      faction.id,
+      planet.id,
+      shipTypeId,
+      1,
+      starSystems,
+      factions,
+    );
+
+    if (!result.ok) {
+      return false;
+    }
+    return true;
+  }
+
+  /*
+   * executeReinforceFleet: Pulls one combat ship of each combat
+   * type already present in the target fleet from the faction's
+   * stock to replace losses.
+   *
+   * Guards:
+   *   - Fleet exists, is not destroyed, belongs to the faction
+   *   - Fleet has at least one combat ship type to reinforce
+   *   - Fleet strength is still below action.targetStrength
+   *     (the peak strength computed by the capability layer).
+   *     This makes the action idempotent across the frame loop:
+   *     once the fleet is healed the action produces no further
+   *     stock consumption even though the action object persists
+   *     until the next strategy tick.
+   * The FleetAssemblyService validates spaceport and stock.
+   */
+  private executeReinforceFleet(
+    action: ActionResult,
+    factions: Faction[],
+    starSystems: StarSystem[],
+    fleets: Fleet[],
+    shipStock: FactionShipStock[],
+  ): boolean {
+    const faction = factions.find((f) => f.id === action.factionId);
+    if (!faction) {
+      return false;
+    }
+
+    const fleet = fleets.find((f) => f.id === action.targetId);
+    if (!fleet || fleet.destroyed || fleet.factionId !== faction.id) {
+      return false;
+    }
+
+    /*
+     * Compare living strength only. Destroyed ships stay in the roster
+     * after a battle, so counting them would make a damaged fleet look
+     * already healed and block the reinforcement it needs.
+     */
+    const livingShips = fleet.ships.filter((ship) => !ship.destroyed);
+    if (action.targetStrength !== undefined
+      && this.shipService.calculateFleetStrength(livingShips) >= action.targetStrength) {
+      return false;
+    }
+
+    /*
+     * Do not reinforce a fleet that is currently engaged. The map
+     * battle flow triggers as soon as hostile fleets share a map
+     * cell, so co-location with a non-allied living fleet is the
+     * best available signal that a battle is being resolved or is
+     * about to start. Reinforcing mid-engagement would feed stock
+     * into a fight that is already being simulated elsewhere.
+     */
+    const inActiveBattle = fleets.some((other) => {
+      if (other.id === fleet.id || other.destroyed) {
+        return false;
+      }
+      if (other.factionId === fleet.factionId) {
+        return false;
+      }
+      if (other.x !== fleet.x || other.y !== fleet.y) {
+        return false;
+      }
+      const otherFaction = factions.find((f) => f.id === other.factionId);
+      return otherFaction !== undefined && otherFaction.team !== faction.team;
+    });
+
+    if (inActiveBattle) {
+      return false;
+    }
+
+    const combatTypes = new Map<string, number>();
+    for (const ship of livingShips) {
+      if (isCombatShipType(this.shipService.getShipType(ship.type))) {
+        combatTypes.set(ship.type, (combatTypes.get(ship.type) ?? 0) + 1);
+      }
+    }
+
+    if (combatTypes.size === 0) {
+      return false;
+    }
+
+    const data = { fleets, shipStock };
+    const composition = Array.from(combatTypes.entries())
+      .sort((a, b) => a[1] - b[1])
+      .map(([typeId]) => ({ typeId, count: 1 }));
+
+    const result = this.fleetAssemblyService.reinforceFleet(data, starSystems, {
+      factionId: faction.id,
+      fleetId: fleet.id,
+      composition,
+    });
+
+    return result.ok;
+  }
+
+  /*
+   * executeCreateFleet: Creates a new defensive fleet at the
+   * faction's nearest owned Spaceport planet with 2 copies
+   * of the cheapest available combat ship type.
+   *
+   * Guard: skip once the faction already owns a living fleet with a
+   * combat ship. The new fleet satisfies that fact immediately, which
+   * makes creation idempotent across the frame loop — otherwise the
+   * executor would create a fleet every frame until stock ran out.
+   * FleetAssemblyService validates the planet and stock.
+   */
+  private executeCreateFleet(
+    action: ActionResult,
+    factions: Faction[],
+    starSystems: StarSystem[],
+    fleets: Fleet[],
+    shipStock: FactionShipStock[],
+  ): boolean {
+    const faction = factions.find((f) => f.id === action.factionId);
+    if (!faction) {
+      return false;
+    }
+
+    if (this.hasCombatFleet(faction.id, fleets)) {
+      return false;
+    }
+
+    const shipTypeId = action.shipTypeId;
+    if (!shipTypeId) {
+      return false;
+    }
+
+    const shipType = this.shipService.getShipType(shipTypeId);
+    if (!shipType) {
+      return false;
+    }
+
+    const system = starSystems.find((s) => s.id === action.targetSystemId);
+    if (!system) {
+      return false;
+    }
+
+    const planet = system.planetsTiles.find((p) => p.id === action.targetPlanetId);
+    if (!planet || planet.factionId !== faction.id) {
+      return false;
+    }
+
+    const data = { fleets, shipStock };
+    const result = this.fleetAssemblyService.createFleet(data, starSystems, {
+      factionId: faction.id,
+      fleetName: `${faction.id} Fleet`,
+      systemId: system.id,
+      planetId: planet.id,
+      composition: [{ typeId: shipTypeId, count: 2 }],
+    });
+
+    return result.ok;
+  }
+
+  /*
+   * hasCombatFleet: True when the faction owns at least one living fleet
+   * that contains at least one living combat-role ship.
+   */
+  private hasCombatFleet(factionId: string, fleets: Fleet[]): boolean {
+    return fleets.some((fleet) =>
+      fleet.factionId === factionId
+      && !fleet.destroyed
+      && fleet.ships.some((ship) => !ship.destroyed && isCombatShipType(this.shipService.getShipType(ship.type))),
+    );
   }
 
   /*
@@ -221,9 +464,6 @@ export class EnemyActionExecutor {
       if (!result.ok) {
         return false;
       }
-      console.log(
-        `[Enemy AI] ${action.factionId} executed assemble_fleet: reinforced fleet ${result.fleet?.name} with 1 colonizer`,
-      );
       return true;
     }
 
@@ -242,9 +482,6 @@ export class EnemyActionExecutor {
     if (!result.ok) {
       return false;
     }
-    console.log(
-      `[Enemy AI] ${action.factionId} executed assemble_fleet: created fleet ${result.fleet?.name} with 1 colonizer`,
-    );
     return true;
   }
 
@@ -317,10 +554,6 @@ export class EnemyActionExecutor {
 
     fleet.targetX = destX;
     fleet.targetY = destY;
-
-    console.log(
-      `[Enemy AI] ${action.factionId} fleet ${fleet.name} moving to (${destX}, ${destY})`,
-    );
     return true;
   }
 
@@ -368,7 +601,6 @@ export class EnemyActionExecutor {
     fleet.ships.splice(result.colonizerIndex, 1);
     planet.factionId = action.factionId;
 
-    console.log(`[Enemy AI] ${action.factionId} executed colonize: ${fleet.name} colonized ${planet.name}`);
     return true;
   }
 
@@ -408,9 +640,6 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    console.log(
-      `[Enemy AI] ${action.factionId} executed attack: ${attackerFleet.name} engaging ${targetFleet.name}`,
-    );
     return true;
   }
 
@@ -443,9 +672,6 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    console.log(
-      `[Enemy AI] ${action.factionId} executed defend: ${fleet.name} defending ${system.name}`,
-    );
     return true;
   }
 
@@ -509,9 +735,6 @@ export class EnemyActionExecutor {
       y: placement.y,
     });
 
-    console.log(
-      `[Enemy AI] ${action.factionId} executed develop: built ${buildingDef.name} on ${planet.name}`,
-    );
     return true;
   }
 
@@ -725,18 +948,13 @@ export class EnemyActionExecutor {
     return { system: location.system, planet: location.planet };
   }
 
-  /*
-   * hasPendingColonizerOrder: Returns true if the faction already
-   * has a colonizer order in its production queue. Prevents the
-   * executor from queuing duplicate orders every evaluation cycle.
-   */
-  private hasPendingColonizerOrder(production: FactionProduction[], factionId: string): boolean {
+  private hasPendingOrder(production: FactionProduction[], factionId: string, shipTypeId: string): boolean {
     const factionProd = production.find((p) => p.factionId === factionId);
     if (!factionProd) {
       return false;
     }
     return Object.values(factionProd.ordersByPlanet).some((orders) =>
-      orders.some((order) => order.shipTypeId === 'colonizer'),
+      orders.some((order) => order.shipTypeId === shipTypeId),
     );
   }
 

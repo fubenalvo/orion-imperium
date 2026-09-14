@@ -91,4 +91,67 @@ describe('PlanetBattleService', () => {
     expect(fleet.ships).toHaveLength(1);
     expect(fleet.ships[0].type).toBe('fighter');
   });
+
+  it('shield-only planet: no turrets, pool created but no ships', () => {
+    const fleet = service.createVirtualDefenseFleet(
+      planet([{ name: 'Planetary Shield', size: 2, x: 0, y: 0 }]),
+      null,
+    );
+
+    expect(fleet.ships).toHaveLength(0);
+    expect(fleet.shieldPool).toBe(300);
+    expect(fleet.shieldPoolRegen).toBe(15);
+    expect(fleet.destroyed).toBe(false);
+  });
+
+  it('planet without shield: turrets present, no pool', () => {
+    const fleet = service.createVirtualDefenseFleet(
+      planet([{ name: 'Laser Turret', size: 1, x: 0, y: 0 }]),
+      null,
+    );
+
+    expect(fleet.ships).toHaveLength(1);
+    expect(fleet.ships[0].type).toBe('laser_turret');
+    expect(fleet.shieldPool).toBe(0);
+    expect(fleet.shieldPoolRegen).toBe(0);
+  });
+
+  it('uses persisted shield value as starting pool (clamped to max)', () => {
+    const p = planet([{ name: 'Planetary Shield', size: 2, x: 0, y: 0 }]) as unknown as PlanetTile;
+    p.shieldPoolCurrent = 150;
+
+    const fleet = service.createVirtualDefenseFleet(p, null);
+
+    expect(fleet.shieldPool).toBe(150);
+    expect(fleet.shieldPoolRegen).toBe(15);
+  });
+
+  it('clamps persisted shield above max to max', () => {
+    const p = planet([{ name: 'Planetary Shield', size: 2, x: 0, y: 0 }]) as unknown as PlanetTile;
+    p.shieldPoolCurrent = 500;
+
+    const fleet = service.createVirtualDefenseFleet(p, null);
+
+    expect(fleet.shieldPool).toBe(300);
+    expect(fleet.shieldPoolRegen).toBe(15);
+  });
+
+  it('keeps a fully depleted persisted shield pool at zero', () => {
+    const p = planet([{ name: 'Planetary Shield', size: 2, x: 0, y: 0 }]) as unknown as PlanetTile;
+    p.shieldPoolCurrent = 0;
+
+    const fleet = service.createVirtualDefenseFleet(p, null);
+
+    expect(fleet.shieldPool).toBe(0);
+    expect(fleet.shieldPoolRegen).toBe(15);
+  });
+
+  it('uses max when no persisted shield value', () => {
+    const fleet = service.createVirtualDefenseFleet(
+      planet([{ name: 'Planetary Shield', size: 2, x: 0, y: 0 }]),
+      null,
+    );
+
+    expect(fleet.shieldPool).toBe(300);
+  });
 });

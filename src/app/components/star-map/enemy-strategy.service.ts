@@ -69,7 +69,6 @@ export class EnemyStrategyService {
       if (previous !== next) {
         this.currentStrategies.set(factionId, next);
         changed = true;
-        console.log(`[Enemy Strategy] ${factionId}: ${previous ?? 'none'} -> ${next}`);
       }
     }
 

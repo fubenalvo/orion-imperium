@@ -76,20 +76,6 @@ export class StarMapPlanetArrivalService {
           break;
         }
 
-        console.log(
-          '[PLANET ARRIVAL] Fleet',
-          fleet.id,
-          fleet.name,
-          'factionId:',
-          fleet.factionId,
-          'arrived at planet',
-          planet.id,
-          planet.name,
-          'factionId:',
-          planet.factionId,
-          'cell:',
-          fleetCell,
-        );
         this.fleetPlanetMap.set(fleet.id, planet.id);
         this.handleFleetPlanetArrival(fleet, planet, ctx);
         break;
@@ -129,43 +115,27 @@ export class StarMapPlanetArrivalService {
       if (result.colonized && result.colonizerIndex >= 0) {
         fleet.ships.splice(result.colonizerIndex, 1);
         planet.factionId = fleet.factionId;
-        console.log(`[StarMap] Fleet ${fleet.name} colonized ${planet.name}`);
       } else {
-        console.log(
-          `[StarMap] Fleet ${fleet.name} orbiting uninhabited ${planet.name} (no colonizer)`,
-        );
       }
       ctx.saveGame();
       return;
     }
 
     if (planet.factionId === fleet.factionId) {
-      console.log(
-        `[StarMap] Fleet ${fleet.name} arrived at own planet ${planet.name} (factionId: ${planet.factionId})`,
-      );
       return;
     }
 
     const planetFaction = ctx.factions.find((f) => f.id === planet.factionId);
     const fleetFaction = ctx.factions.find((f) => f.id === fleet.factionId);
     if (!planetFaction || !fleetFaction) {
-      console.log(
-        `[StarMap] Faction not found - planetFaction: ${planetFaction?.id}, fleetFaction: ${fleetFaction?.id}`,
-      );
       return;
     }
 
-    console.log(
-      `[StarMap] Fleet ${fleet.name} (${fleetFaction.name}, team ${fleetFaction.team}) vs planet ${planet.name} (${planetFaction.name}, team ${planetFaction.team})`,
-    );
-
     if (planetFaction.team === fleetFaction.team) {
-      console.log(`[StarMap] Fleet ${fleet.name} cannot attack teammate planet ${planet.name}`);
       return;
     }
 
     if (!this.planetBattleService.hasPlanetDefenses(planet)) {
-      console.log(`[StarMap] Fleet ${fleet.name} captured undefended planet ${planet.name}`);
       planet.factionId = fleet.factionId;
       ctx.saveGame();
       return;
@@ -192,9 +162,6 @@ export class StarMapPlanetArrivalService {
      * undefended capture instead of opening an unwinnable empty battle.
      */
     if (defenseFleet.ships.length === 0) {
-      console.log(
-        `[StarMap] Fleet ${attackerFleet.name} captured shield-only planet ${targetPlanet.name}`,
-      );
       targetPlanet.factionId = attackerFleet.factionId;
       ctx.saveGame();
       return;
@@ -210,39 +177,6 @@ export class StarMapPlanetArrivalService {
       const battleKey = `${Math.min(attackerFleet.id, garrisonFleet.id)}-${Math.max(attackerFleet.id, garrisonFleet.id)}`;
       this.triggeredBattles.add(battleKey);
     }
-
-    console.log(
-      '[PLANET BATTLE] Attacker:',
-      JSON.stringify({
-        id: attackerFleet.id,
-        name: attackerFleet.name,
-        factionId: attackerFleet.factionId,
-        ships: attackerFleet.ships.map((s) => ({ type: s.type, hp: s.currentHp })),
-      }),
-    );
-    console.log(
-      '[PLANET BATTLE] Planet:',
-      JSON.stringify({
-        id: targetPlanet.id,
-        name: targetPlanet.name,
-        factionId: targetPlanet.factionId,
-        buildings: targetPlanet.buildings.map((b) => b.name),
-      }),
-    );
-    console.log(
-      '[PLANET BATTLE] Garrison:',
-      garrisonFleet
-        ? JSON.stringify({
-            id: garrisonFleet.id,
-            name: garrisonFleet.name,
-            factionId: garrisonFleet.factionId,
-          })
-        : 'none',
-    );
-    console.log(
-      '[PLANET BATTLE] Virtual Defense Fleet ships:',
-      JSON.stringify(defenseFleet.ships.map((s) => ({ type: s.type, name: s.name }))),
-    );
 
     this.battleService.setPlanetBattle({
       fleet1: attackerFleet,

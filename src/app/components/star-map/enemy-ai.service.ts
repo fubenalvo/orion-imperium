@@ -121,9 +121,6 @@ export class EnemyAiService {
         fleet.targetY = nearestPlayerFleet.y;
         this.currentTargets.set(fleet.id, nearestPlayerFleet.id);
         changed = true;
-        console.log(
-          `[Enemy AI] ${fleet.name} -> ${nearestPlayerFleet.name} (${bestCandidate.category} target, ratio=${bestCandidate.ratio.toFixed(2)})`,
-        );
         continue;
       }
 

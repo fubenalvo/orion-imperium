@@ -84,22 +84,16 @@ export class EnemyGoalService {
 
     if (previousGoal !== undefined && nextGoal !== undefined) {
       this.currentGoals.set(factionId, nextGoal);
-      console.log(
-        `[Enemy Goal] ${factionId}: ${this.getGoalType(previousGoal)} -> ${this.getGoalType(nextGoal)}`,
-        nextGoal,
-      );
       return true;
     }
 
     if (previousGoal === undefined && nextGoal !== undefined) {
       this.currentGoals.set(factionId, nextGoal);
-      console.log(`[Enemy Goal] ${factionId}: none -> ${this.getGoalType(nextGoal)}`, nextGoal);
       return true;
     }
 
     if (previousGoal !== undefined && nextGoal === undefined) {
       this.currentGoals.delete(factionId);
-      console.log(`[Enemy Goal] ${factionId}: ${this.getGoalType(previousGoal)} -> none`);
       return true;
     }
 

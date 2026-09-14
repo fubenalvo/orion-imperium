@@ -14,7 +14,7 @@ import {
 import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { ShipStockService } from '../../services/ship-stock.service';
-import { isPlayerFleet } from './ai-queries';
+import { isPlayerFleet, isCombatShipType } from './ai-queries';
 
 /*
  * =========================================================
@@ -40,9 +40,11 @@ import { isPlayerFleet } from './ai-queries';
 export class EnemyCapabilityService {
   private readonly STRATEGY_TICK_INTERVAL = 2;
   private readonly THREAT_DISTANCE = 5;
+  private readonly REINFORCEMENT_THRESHOLD = 0.5;
 
   private accumulator = 0;
   private readonly currentCapabilities = new Map<string, CapabilityResult>();
+  private readonly peakStrength = new Map<string, number>();
 
   constructor(
     private readonly shipService: ShipService,
@@ -53,6 +55,7 @@ export class EnemyCapabilityService {
   reset(): void {
     this.accumulator = 0;
     this.currentCapabilities.clear();
+    this.peakStrength.clear();
   }
 
   tick(
@@ -77,6 +80,10 @@ export class EnemyCapabilityService {
     this.accumulator -= this.STRATEGY_TICK_INTERVAL;
     if (this.accumulator < 0) {
       this.accumulator = 0;
+    }
+
+    if (currentGoal !== undefined) {
+      this.updatePeakStrength(factionId, fleets);
     }
 
     const previous = this.currentCapabilities.get(factionId);
@@ -285,8 +292,36 @@ export class EnemyCapabilityService {
       reason: threatPresent ? 'satisfied' : 'no_threat',
     });
 
+    /*
+     * Combat capability must come from combat-role ships, not from any
+     * hull. Colonizers and scouts still contribute hitPoints/defense to
+     * calculateFleetStrength, so a strength>0 test would report a
+     * transport-only fleet as able to engage, which in turn made the
+     * combat-production and fleet-creation branches unreachable.
+     */
+    const hasCombatCapability = hasFleet && enemyFleets.some((fleet) =>
+      fleet.ships.some((ship) => !ship.destroyed && isCombatShipType(this.shipService.getShipType(ship.type))),
+    );
+    requirements.push({
+      type: 'fleet_can_engage',
+      satisfied: hasCombatCapability,
+      reason: hasCombatCapability ? 'satisfied' : 'no_combat_capability',
+    });
+
+    const peak = this.peakStrength.get(factionId) ?? 0;
+    const currentStrength = this.totalFactionStrength(factionId, fleets);
+    const needsReinforcement = hasFleet && peak > 0 && currentStrength < this.REINFORCEMENT_THRESHOLD * peak;
+    requirements.push({
+      type: 'fleet_needs_reinforcement',
+      satisfied: needsReinforcement,
+      reason: needsReinforcement ? 'fleet_under_strength' : 'fleet_at_strength',
+      value: peak,
+    });
+
     return {
-      canExecute: requirements.every((r) => r.satisfied),
+      canExecute: requirements
+        .filter((r) => r.type !== 'fleet_needs_reinforcement')
+        .every((r) => r.satisfied),
       goalType: 'defend',
       factionId,
       requirements,
@@ -306,6 +341,30 @@ export class EnemyCapabilityService {
         },
       ],
     };
+  }
+
+  private updatePeakStrength(factionId: string, fleets: Fleet[]): void {
+    const currentStrength = this.totalFactionStrength(factionId, fleets);
+    const peak = this.peakStrength.get(factionId) ?? 0;
+    if (currentStrength > peak) {
+      this.peakStrength.set(factionId, currentStrength);
+    }
+  }
+
+  /*
+   * totalFactionStrength: Sums the combat strength of every living ship
+   * in the faction's living fleets. Destroyed ships stay in the roster
+   * after a battle (applyBattleResult re-maps them with destroyed:true),
+   * so they must be filtered or a fleet that took losses would keep
+   * reporting pre-loss strength and never trigger reinforcement.
+   */
+  private totalFactionStrength(factionId: string, fleets: Fleet[]): number {
+    return fleets
+      .filter((fleet) => fleet.factionId === factionId && !fleet.destroyed)
+      .reduce((sum, fleet) => {
+        const livingShips = fleet.ships.filter((ship) => !ship.destroyed);
+        return sum + this.shipService.calculateFleetStrength(livingShips);
+      }, 0);
   }
 }
 

@@ -30,6 +30,10 @@ export function buildBattleOutcome(state: BattleModelState): BattleOutcome {
     'defender',
     state.defenderShips,
   );
+  if (state.battleType === 'planet' && state.defenderShieldPool) {
+    defender.shieldPoolCurrent = state.defenderShieldPool.current;
+    defender.shieldPoolMax = state.defenderShieldPool.max;
+  }
 
   const winnerSide: BattleSide = state.winner ?? 'attacker';
   const winnerFleetId = winnerSide === 'attacker' ? attacker.fleetId : defender.fleetId;

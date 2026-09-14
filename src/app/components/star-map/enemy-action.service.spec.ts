@@ -23,6 +23,11 @@ describe('EnemyActionService', () => {
   beforeEach(() => {
     shipService = {
       getShipType: vi.fn(() => ({ id: 'colonizer', name: 'Colonizer', cost: 100 })),
+      getAllShipTypes: vi.fn(() => [
+        { id: 'colonizer', name: 'Colonizer', role: 'Colonizer', cost: 100, hitPoints: 10, shield: 0, shieldRegen: 0, attack: 0, attackType: 'melee', weakness: 'kinetic', defense: 5, speed: 3, range: 1, maintenanceCost: 5 },
+        { id: 'frigate', name: 'Frigate', role: 'Combat', cost: 200, hitPoints: 20, shield: 5, shieldRegen: 0, attack: 10, attackType: 'kinetic', weakness: 'energy', defense: 8, speed: 4, range: 2, maintenanceCost: 10 },
+        { id: 'destroyer', name: 'Destroyer', role: 'Combat', cost: 350, hitPoints: 35, shield: 10, shieldRegen: 1, attack: 15, attackType: 'energy', weakness: 'kinetic', defense: 12, speed: 5, range: 3, maintenanceCost: 18 },
+      ]),
     };
     researchService = {
       isResearched: vi.fn(() => true),
@@ -37,6 +42,20 @@ describe('EnemyActionService', () => {
     };
     spaceportService = {
       hasSpaceport: vi.fn(() => true),
+      isSpaceportPlanet: vi.fn((planet: any) =>
+        (planet?.buildings ?? []).some((b: any) => b.name === 'Spaceport'),
+      ),
+      listSpaceports: vi.fn((factionId: string, starSystems: any[]) => {
+        const out: any[] = [];
+        for (const system of starSystems ?? []) {
+          for (const planet of system.planetsTiles ?? []) {
+            if (planet.factionId === factionId && (planet.buildings ?? []).some((b: any) => b.name === 'Spaceport')) {
+              out.push({ system, planet });
+            }
+          }
+        }
+        return out;
+      }),
     };
     fleetAssemblyService = {};
     movementService = {
@@ -415,6 +434,82 @@ describe('EnemyActionService', () => {
       expect(result!.type).toBe('none');
       expect(result!.reason).toBe('target_destroyed');
     });
+
+    it('should produce PRODUCE_COMBAT_SHIP when unable to engage but combat ship production is possible', () => {
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 0,
+          y: 0,
+          id: 1,
+          ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const goal = makeAttackGoal({ targetFleetId: 2 });
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'attack',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('produce_combat_ship');
+      expect(result!.factionId).toBe('enemy1');
+      expect(result!.goalType).toBe('attack');
+      expect(result!.shipTypeId).toBeDefined();
+      expect(result!.shipTypeId).toBe('frigate');
+    });
+
+    it('should produce NONE for attack when unable to engage and no combat ship can be produced', () => {
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 0,
+          y: 0,
+          id: 1,
+          ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const goal = makeAttackGoal({ targetFleetId: 2 });
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'attack',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, baseFactions, [], emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('none');
+      expect(result!.reason).toBe('no_combat_capability');
+    });
   });
 
   describe('defend goal', () => {
@@ -471,6 +566,7 @@ describe('EnemyActionService', () => {
           { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
           { type: 'target_valid', satisfied: true, reason: 'satisfied' },
           { type: 'threat_present', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: true, reason: 'satisfied' },
         ],
       });
 
@@ -479,6 +575,300 @@ describe('EnemyActionService', () => {
 
       expect(result).toBeDefined();
       expect(result!.type).toBe('defend');
+    });
+
+    it('should produce PRODUCE_COMBAT_SHIP when threatened and no combat ships available', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 10,
+          y: 10,
+          id: 1,
+          ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const goal = makeDefendGoal();
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'defend',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'threat_present', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('produce_combat_ship');
+      expect(result!.factionId).toBe('enemy1');
+      expect(result!.goalType).toBe('defend');
+    });
+
+    it('should produce REINFORCE_FLEET with the target strength when a fleet is under-strength', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 10,
+          y: 10,
+          id: 1,
+          ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const goal = makeDefendGoal();
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'defend',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'threat_present', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_needs_reinforcement', satisfied: true, reason: 'fleet_under_strength', value: 114 },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('reinforce_fleet');
+      expect(result!.factionId).toBe('enemy1');
+      expect(result!.goalType).toBe('defend');
+      expect(result!.targetId).toBe(1);
+      expect(result!.targetStrength).toBe(114);
+    });
+
+    it('should prefer REINFORCE_FLEET over defend when the goal can execute but the fleet is under-strength', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 10,
+          y: 10,
+          id: 1,
+          ships: [{ id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const goal = makeDefendGoal();
+      const capability = makeCapability({
+        canExecute: true,
+        goalType: 'defend',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'threat_present', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_needs_reinforcement', satisfied: true, reason: 'fleet_under_strength', value: 228 },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('reinforce_fleet');
+      expect(result!.targetStrength).toBe(228);
+    });
+
+    it('should create a fleet from stock with the stock combat ship type', () => {
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const stock = [{ factionId: 'enemy1', ships: [{ id: 10, type: 'destroyer', name: 'Destroyer' }] }];
+      const goal = makeDefendGoal();
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'defend',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: false, reason: 'no_available_fleet' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'threat_present', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', [], baseFactions, systems, stock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('create_fleet');
+      expect(result!.shipTypeId).toBe('destroyer');
+      expect(result!.targetSystemId).toBe('sys1');
+      expect(result!.targetPlanetId).toBe(1);
+    });
+
+    it('should produce COLONIZER when colonize goal is active even under threat', () => {
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 200 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 0,
+          y: 0,
+          id: 1,
+          ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const goal = makeColonizeGoal();
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'colonize',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'colonizer_technology', satisfied: true, reason: 'satisfied' },
+          { type: 'colonizer_unlocked', satisfied: true, reason: 'satisfied' },
+          { type: 'colonizer_available', satisfied: false, reason: 'no_colonizer_available' },
+          { type: 'usable_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('produce_colonizer');
+      expect(result!.goalType).toBe('colonize');
+    });
+
+    it('should produce PRODUCE_COMBAT_SHIP when attack goal is active and unable to engage', () => {
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 0,
+          y: 0,
+          id: 1,
+          ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const goal = makeAttackGoal({ targetFleetId: 2 });
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'attack',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('produce_combat_ship');
+      expect(result!.goalType).toBe('attack');
+    });
+
+    it('should produce NONE for defend when no combat ship can be produced', () => {
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 10,
+          y: 10,
+          id: 1,
+          ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1' })],
+        }),
+      ];
+      const goal = makeDefendGoal();
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'defend',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'threat_present', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      service.tick(3, goal, capability, 'enemy1', fleets, baseFactions, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result).toBeDefined();
+      expect(result!.type).toBe('none');
+      expect(result!.reason).toBe('no_combat_capability');
     });
   });
 
@@ -671,6 +1061,106 @@ describe('EnemyActionService', () => {
       expect(result2).toBeDefined();
       expect(result1!.type).toBe('none');
       expect(result2!.type).toBe('move_to_target');
+    });
+
+    it('should produce combat ships independently for multiple AI factions', () => {
+      const factions = [
+        { id: 'enemy1', name: 'Enemy 1', color: '#d65757', team: 2, ai: true, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] },
+        { id: 'enemy2', name: 'Enemy 2', color: '#39b8a8', team: 2, ai: true, currencies: { credits: 10 }, researchedTechnologies: ['basic_engineering'] },
+      ];
+      const fleets = [
+        createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }] }),
+        createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 100, y: 100, id: 2, ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }] }),
+      ];
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+        createSystem({
+          id: 'sys2',
+          x: 20,
+          y: 20,
+          planetsTiles: [createPlanet({ id: 2, factionId: 'enemy2', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const goal1 = makeAttackGoal({ targetFleetId: 3 });
+      const goal2 = makeAttackGoal({ targetFleetId: 3 });
+      const capability1 = makeCapability({
+        canExecute: false,
+        goalType: 'attack',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+      const capability2 = makeCapability({
+        canExecute: false,
+        goalType: 'attack',
+        factionId: 'enemy2',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      service.tick(3, goal1, capability1, 'enemy1', fleets, factions, systems, emptyShipStock, emptyProduction);
+      service.tick(3, goal2, capability2, 'enemy2', fleets, factions, systems, emptyShipStock, emptyProduction);
+
+      const result1 = service.getAction('enemy1');
+      const result2 = service.getAction('enemy2');
+
+      expect(result1).toBeDefined();
+      expect(result1!.type).toBe('produce_combat_ship');
+      expect(result1!.factionId).toBe('enemy1');
+      expect(result2).toBeDefined();
+      expect(result2!.type).toBe('none');
+      expect(result2!.factionId).toBe('enemy2');
+    });
+
+    it('should not produce combat ships when paused (deltaTime is 0)', () => {
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 500 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          name: 'RAIDER',
+          x: 0,
+          y: 0,
+          id: 1,
+          ships: [{ id: 1, name: 'Scout', type: 'scout', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const goal = makeAttackGoal({ targetFleetId: 2 });
+      const capability = makeCapability({
+        canExecute: false,
+        goalType: 'attack',
+        factionId: 'enemy1',
+        requirements: [
+          { type: 'available_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+          { type: 'fleet_can_engage', satisfied: false, reason: 'no_combat_capability' },
+        ],
+      });
+
+      const result = service.tick(0, goal, capability, 'enemy1', fleets, factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      expect(result).toBe(false);
+      const action = service.getAction('enemy1');
+      expect(action).toBeUndefined();
     });
   });
 

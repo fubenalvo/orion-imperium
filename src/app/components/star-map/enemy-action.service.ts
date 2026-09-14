@@ -13,6 +13,7 @@ import {
   CapabilityResult,
   ShipStockEntry,
   ProductionOrder,
+  ShipType,
 } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
@@ -21,6 +22,7 @@ import { ProductionService } from '../../services/production.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { StarMapMovementService } from './star-map-movement.service';
+import { isCombatShipType } from './ai-queries';
 
 /*
  * =========================================================
@@ -129,6 +131,23 @@ export class EnemyActionService {
     shipStock: { factionId: string; ships: ShipStockEntry[] }[],
     production: { factionId: string; ordersByPlanet: Record<number, ProductionOrder[]> }[],
   ): ActionResult {
+    /*
+     * Reinforcement is a valid behavior for a fleet that can still
+     * defend, so capability.canExecute stays true and the normal
+     * prepare path would never run. Evaluate the defend preparation
+     * first and prefer a reinforcement action; otherwise fall through
+     * to the regular execute path.
+     */
+    if (goal.type === 'defend') {
+      const prepare = this.evaluateDefendPrepare(goal, capability, factionId, fleets, factions, starSystems, shipStock);
+      if (prepare.type === 'reinforce_fleet') {
+        return prepare;
+      }
+      if (!capability.canExecute) {
+        return prepare;
+      }
+    }
+
     if (!capability.canExecute) {
       return this.evaluatePreparationAction(goal, capability, factionId, fleets, factions, starSystems, shipStock, production);
     }
@@ -161,9 +180,9 @@ export class EnemyActionService {
       case 'colonize':
         return this.evaluateColonizePrepare(goal, capability, factionId, fleets, factions, starSystems, shipStock, production);
       case 'attack':
-        return this.evaluateAttackPrepare(goal, capability, factionId, fleets);
+        return this.evaluateAttackPrepare(goal, capability, factionId, fleets, factions);
       case 'defend':
-        return this.evaluateDefendPrepare(goal, capability, factionId, fleets, starSystems);
+        return this.evaluateDefendPrepare(goal, capability, factionId, fleets, factions, starSystems, shipStock);
       case 'develop':
         return this.createAction('develop', factionId, goal, undefined, undefined, undefined, 'Develop goal is always executable');
       default:
@@ -254,6 +273,7 @@ export class EnemyActionService {
     capability: CapabilityResult,
     factionId: string,
     fleets: Fleet[],
+    factions: Faction[],
   ): ActionResult {
     const reqMap = new Map(capability.requirements.map((r) => [r.type, r]));
 
@@ -270,6 +290,10 @@ export class EnemyActionService {
     }
 
     if (canEngage && !canEngage.satisfied) {
+      const ship = this.selectCheapestCombatShip(factionId, factions);
+      if (ship) {
+        return this.createAction('produce_combat_ship', factionId, goal, undefined, undefined, undefined, 'No combat capability but production is possible', ship.id);
+      }
       return this.createNoneAction(factionId, goal, canEngage.reason);
     }
 
@@ -305,15 +329,55 @@ export class EnemyActionService {
     capability: CapabilityResult,
     factionId: string,
     fleets: Fleet[],
+    factions: Faction[],
     starSystems: StarSystem[],
+    shipStock: { factionId: string; ships: ShipStockEntry[] }[],
   ): ActionResult {
     const reqMap = new Map(capability.requirements.map((r) => [r.type, r]));
 
-    const availableFleet = reqMap.get('available_fleet');
     const targetValid = reqMap.get('target_valid');
+    const needsReinforcement = reqMap.get('fleet_needs_reinforcement');
+    const canEngage = reqMap.get('fleet_can_engage');
+    const availableFleet = reqMap.get('available_fleet');
 
     if (targetValid && !targetValid.satisfied) {
       return this.createNoneAction(factionId, goal, targetValid.reason);
+    }
+
+    if (needsReinforcement && needsReinforcement.satisfied) {
+      const economyOk = this.canAffordReinforcement(factionId, factions);
+      if (economyOk) {
+        if (availableFleet && availableFleet.satisfied) {
+          const reinforceAction = this.createAction('reinforce_fleet', factionId, goal, this.selectWeakestFleet(factionId, fleets)?.id, undefined, undefined, 'Fleet under-strength, reinforcing from stock');
+          reinforceAction.targetStrength = needsReinforcement.value;
+          return reinforceAction;
+        }
+        return this.createNoneAction(factionId, goal, 'no_available_fleet');
+      }
+      return this.createNoneAction(factionId, goal, 'fleet_under_strength_economy_collapsing');
+    }
+
+    if (canEngage && !canEngage.satisfied) {
+      /*
+       * Prefer assembling a combat fleet from ships already in stock: it
+       * gives immediate combat capability, whereas production only pays
+       * off after the build time. The ship type must therefore come from
+       * the stock, not from the (credits-based) production selection.
+       */
+      const stockShip = this.selectStockCombatShip(factionId, shipStock);
+      if (stockShip) {
+        const planet = this.selectReinforcementPlanet(factionId, starSystems);
+        if (planet) {
+          return this.createAction('create_fleet', factionId, goal, undefined, planet.system.id, planet.id, 'No combat capability, creating new fleet from stock', stockShip.id);
+        }
+      }
+
+      const ship = this.selectCheapestCombatShip(factionId, factions);
+      if (ship) {
+        return this.createAction('produce_combat_ship', factionId, goal, undefined, undefined, undefined, 'No combat capability but production is possible', ship.id);
+      }
+
+      return this.createNoneAction(factionId, goal, canEngage.reason);
     }
 
     if (availableFleet && !availableFleet.satisfied) {
@@ -423,6 +487,103 @@ export class EnemyActionService {
     return false;
   }
 
+  private selectCheapestCombatShip(factionId: string, factions: Faction[]): ShipType | undefined {
+    const faction = factions.find((f) => f.id === factionId);
+    if (!faction) {
+      return undefined;
+    }
+
+    const combatShips = this.shipService.getAllShipTypes().filter((ship) => {
+      if (!isCombatShipType(ship)) {
+        return false;
+      }
+      if (!this.researchService.isShipUnlocked(faction, ship.id)) {
+        return false;
+      }
+      const credits = faction.currencies['credits'] ?? 0;
+      if (credits < ship.cost) {
+        return false;
+      }
+      return true;
+    });
+
+    if (combatShips.length === 0) {
+      return undefined;
+    }
+
+    combatShips.sort((a, b) => a.cost - b.cost);
+    return combatShips[0];
+  }
+
+  /*
+   * selectStockCombatShip: Picks the cheapest combat ship type the
+   * faction currently has in the global stock. Used by create_fleet,
+   * which assembles from stock rather than producing new ships, so
+   * credits/unlock are irrelevant here — only stock presence matters.
+   */
+  private selectStockCombatShip(
+    factionId: string,
+    shipStock: { factionId: string; ships: ShipStockEntry[] }[],
+  ): ShipType | undefined {
+    const stock = shipStock.find((entry) => entry.factionId === factionId);
+    if (!stock || stock.ships.length === 0) {
+      return undefined;
+    }
+    const stockTypes = new Set(stock.ships.map((ship) => ship.type));
+    const candidates = this.shipService
+      .getAllShipTypes()
+      .filter((shipType) => stockTypes.has(shipType.id) && isCombatShipType(shipType))
+      .sort((a, b) => a.cost - b.cost);
+    return candidates[0];
+  }
+
+  private canAffordReinforcement(factionId: string, factions: Faction[]): boolean {
+    const faction = factions.find((f) => f.id === factionId);
+    if (!faction) {
+      return false;
+    }
+    const ship = this.selectCheapestCombatShip(factionId, factions);
+    if (!ship) {
+      return false;
+    }
+    const credits = faction.currencies['credits'] ?? 0;
+    return credits >= ship.cost;
+  }
+
+  private selectWeakestFleet(factionId: string, fleets: Fleet[]): Fleet | undefined {
+    const factionFleets = fleets.filter(
+      (fleet) => fleet.factionId === factionId && !fleet.destroyed && fleet.ships.length > 0,
+    );
+    if (factionFleets.length === 0) {
+      return undefined;
+    }
+    factionFleets.sort((a, b) =>
+      this.shipService.calculateFleetStrength(a.ships) - this.shipService.calculateFleetStrength(b.ships),
+    );
+    return factionFleets[0];
+  }
+
+  /*
+   * selectReinforcementPlanet: Picks the faction's deterministic first
+   * owned Spaceport planet (lowest system id, then lowest planet id).
+   * Delegates Spaceport detection to SpaceportService so the assembly
+   * rules cannot drift from FleetAssemblyService.
+   */
+  private selectReinforcementPlanet(factionId: string, starSystems: StarSystem[]): { id: number; system: StarSystem } | undefined {
+    const spaceports = this.spaceportService.listSpaceports(factionId, starSystems);
+    if (spaceports.length === 0) {
+      return undefined;
+    }
+    const sorted = [...spaceports].sort((a, b) => {
+      const systemCompare = a.system.id.localeCompare(b.system.id, undefined, { numeric: true });
+      if (systemCompare !== 0) {
+        return systemCompare;
+      }
+      return a.planet.id - b.planet.id;
+    });
+    return { id: sorted[0].planet.id, system: sorted[0].system };
+  }
+
   private createAction(
     type: ActionType,
     factionId: string,
@@ -431,6 +592,7 @@ export class EnemyActionService {
     targetSystemId: string | undefined,
     targetPlanetId: number | undefined,
     reason: string,
+    shipTypeId?: string,
   ): ActionResult {
     return {
       type,
@@ -440,6 +602,7 @@ export class EnemyActionService {
       targetId,
       targetSystemId,
       targetPlanetId,
+      shipTypeId,
       reason,
     };
   }

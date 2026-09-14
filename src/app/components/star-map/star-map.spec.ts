@@ -190,7 +190,7 @@ describe('StarMap', () => {
       expect(actionService.getAction('enemy2')).toBeUndefined();
     });
 
-    it('should only log when ActionResult changes', () => {
+    it('should not log AI action changes', () => {
       const logCalls: string[] = [];
       logSpy.mockImplementation((msg: unknown) => {
         if (typeof msg === 'string' && msg.includes('[Enemy AI]')) {
@@ -199,10 +199,10 @@ describe('StarMap', () => {
       });
 
       component['gameLoopCallback'](2);
-      expect(logCalls.length).toBe(2);
+      expect(logCalls.length).toBe(0);
 
       component['gameLoopCallback'](2);
-      expect(logCalls.length).toBe(2);
+      expect(logCalls.length).toBe(0);
     });
 
     it('should execute produce_colonizer through the full AI pipeline', () => {
@@ -451,6 +451,265 @@ describe('StarMap', () => {
       expect(updatedRaider.destroyed).toBe(true);
       expect(updatedRaider.ships.every((s) => s.destroyed)).toBe(true);
       expect(battleService.getBattleResult()).toBeNull();
+    });
+  });
+
+  describe('Battle return — fleet position update', () => {
+    let saveGameService: SaveGameService;
+    let battleService: BattleService;
+
+    beforeEach(() => {
+      saveGameService = TestBed.inject(SaveGameService);
+      battleService = TestBed.inject(BattleService);
+      saveGameService.currentSlot = SaveSlotId.AUTOSAVE;
+      localStorage.clear();
+    });
+
+    it('snaps winner position to grid cell and clears movement targets', () => {
+      component['saveGame']();
+
+      const orion = component.fleets.find((f) => f.id === 1)!;
+      const raider = component.fleets.find((f) => f.id === 3)!;
+      // Reset to known state — prior tests may have mutated initialStarMapData.
+      orion.destroyed = false;
+      orion.x = 18.7;
+      orion.y = 42.3;
+      orion.targetX = 25;
+      orion.targetY = 40;
+      raider.destroyed = false;
+      raider.x = 18.5;
+      raider.y = 42.1;
+
+      const outcome: BattleOutcome = {
+        winnerSide: 'attacker',
+        winnerFleetId: 1,
+        loserFleetId: 3,
+        attacker: {
+          fleetId: 1, side: 'attacker', factionId: orion.factionId,
+          ships: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: s.currentHp ?? 100, destroyed: false,
+          })),
+          survivors: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: s.currentHp ?? 100, destroyed: false,
+          })),
+          wipedOut: false,
+        },
+        defender: {
+          fleetId: 3, side: 'defender', factionId: raider.factionId,
+          ships: raider.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: 0, destroyed: true,
+          })),
+          survivors: [],
+          wipedOut: true,
+        },
+        rounds: 3,
+        battleType: 'fleet',
+      };
+      battleService.setBattleResult(outcome);
+      component['removeDestroyedFleetFromService']();
+
+      const updatedOrion = component.fleets.find((f) => f.id === 1)!;
+      const updatedRaider = component.fleets.find((f) => f.id === 3)!;
+
+      expect(updatedOrion.x).toBe(18);
+      expect(updatedOrion.y).toBe(42);
+      expect(updatedOrion.targetX).toBeNull();
+      expect(updatedOrion.targetY).toBeNull();
+      expect(updatedOrion.destroyed).toBe(false);
+      expect(updatedRaider.destroyed).toBe(true);
+    });
+
+    it('marks fleet destroyed when wiped out', () => {
+      component['saveGame']();
+
+      const orion = component.fleets.find((f) => f.id === 1)!;
+      const outcome: BattleOutcome = {
+        winnerSide: 'defender',
+        winnerFleetId: 2,
+        loserFleetId: 1,
+        attacker: {
+          fleetId: 1, side: 'attacker', factionId: orion.factionId,
+          ships: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: 0, destroyed: true,
+          })),
+          survivors: [],
+          wipedOut: true,
+        },
+        defender: {
+          fleetId: 2, side: 'defender', factionId: 'enemy1',
+          ships: [],
+          survivors: [],
+          wipedOut: false,
+        },
+        rounds: 1,
+        battleType: 'fleet',
+      };
+      battleService.setBattleResult(outcome);
+      component['removeDestroyedFleetFromService']();
+
+      const updatedOrion = component.fleets.find((f) => f.id === 1)!;
+      expect(updatedOrion.destroyed).toBe(true);
+    });
+
+    it('preserves damaged survivor HP after battle', () => {
+      component['saveGame']();
+
+      const orion = component.fleets.find((f) => f.id === 1)!;
+      const raider = component.fleets.find((f) => f.id === 3)!;
+      orion.destroyed = false;
+      raider.destroyed = false;
+      const originalShipId = orion.ships[0].id;
+
+      const outcome: BattleOutcome = {
+        winnerSide: 'attacker',
+        winnerFleetId: 1,
+        loserFleetId: 3,
+        attacker: {
+          fleetId: 1, side: 'attacker', factionId: orion.factionId,
+          ships: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: 37, destroyed: false,
+          })),
+          survivors: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: 37, destroyed: false,
+          })),
+          wipedOut: false,
+        },
+        defender: {
+          fleetId: 3, side: 'defender', factionId: raider.factionId,
+          ships: raider.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: 0, destroyed: true,
+          })),
+          survivors: [],
+          wipedOut: true,
+        },
+        rounds: 2,
+        battleType: 'fleet',
+      };
+      battleService.setBattleResult(outcome);
+      component['removeDestroyedFleetFromService']();
+
+      const updatedOrion = component.fleets.find((f) => f.id === 1)!;
+      expect(updatedOrion.ships.find((s) => s.id === originalShipId)!.currentHp).toBe(37);
+    });
+
+    it('does not resurrect destroyed ships after save/load', () => {
+      component['saveGame']();
+
+      const orion = component.fleets.find((f) => f.id === 1)!;
+      const raider = component.fleets.find((f) => f.id === 3)!;
+
+      const outcome: BattleOutcome = {
+        winnerSide: 'attacker',
+        winnerFleetId: 1,
+        loserFleetId: 3,
+        attacker: {
+          fleetId: 1, side: 'attacker', factionId: orion.factionId,
+          ships: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: s.currentHp ?? 100, destroyed: false,
+          })),
+          survivors: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: s.currentHp ?? 100, destroyed: false,
+          })),
+          wipedOut: false,
+        },
+        defender: {
+          fleetId: 3, side: 'defender', factionId: raider.factionId,
+          ships: raider.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: 0, destroyed: true,
+          })),
+          survivors: [],
+          wipedOut: true,
+        },
+        rounds: 1,
+        battleType: 'fleet',
+      };
+      battleService.setBattleResult(outcome);
+      component['removeDestroyedFleetFromService']();
+      component['saveGame']();
+      component.loadGame();
+
+      const updatedRaider = component.fleets.find((f) => f.id === 3)!;
+      expect(updatedRaider.destroyed).toBe(true);
+      expect(updatedRaider.ships.every((s) => s.destroyed)).toBe(true);
+    });
+
+    it('snaps position for planet battle winner too', () => {
+      component['saveGame']();
+
+      const orion = component.fleets.find((f) => f.id === 1)!;
+      orion.destroyed = false;
+      orion.x = 18.7;
+      orion.y = 42.3;
+      orion.targetX = 25;
+      orion.targetY = 40;
+
+      const outcome: BattleOutcome = {
+        winnerSide: 'attacker',
+        winnerFleetId: 1,
+        loserFleetId: -1,
+        attacker: {
+          fleetId: 1, side: 'attacker', factionId: orion.factionId,
+          ships: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: s.currentHp ?? 100, destroyed: false,
+          })),
+          survivors: orion.ships.map((s) => ({
+            shipId: s.id, typeId: s.type, name: s.name,
+            hp: s.currentHp ?? 100, destroyed: false,
+          })),
+          wipedOut: false,
+        },
+        defender: {
+          fleetId: -1, side: 'defender', factionId: 'enemy1',
+          ships: [],
+          survivors: [],
+          wipedOut: true,
+        },
+        rounds: 2,
+        battleType: 'planet',
+        planetId: 1,
+      };
+      battleService.setBattleResult(outcome);
+      component['removeDestroyedFleetFromService']();
+
+      const updatedOrion = component.fleets.find((f) => f.id === 1)!;
+      expect(updatedOrion.x).toBe(18);
+      expect(updatedOrion.y).toBe(42);
+      expect(updatedOrion.targetX).toBeNull();
+      expect(updatedOrion.targetY).toBeNull();
+      expect(updatedOrion.destroyed).toBe(false);
+    });
+
+    it('handles empty or invalid fleet IDs without throwing', () => {
+      component['saveGame']();
+
+      const outcome: BattleOutcome = {
+        winnerSide: 'attacker',
+        winnerFleetId: 99999,
+        loserFleetId: 99998,
+        attacker: {
+          fleetId: 99999, side: 'attacker', factionId: 'player',
+          ships: [], survivors: [], wipedOut: false,
+        },
+        defender: {
+          fleetId: 99998, side: 'defender', factionId: 'enemy1',
+          ships: [], survivors: [], wipedOut: false,
+        },
+        rounds: 1,
+        battleType: 'fleet',
+      };
+      battleService.setBattleResult(outcome);
+      expect(() => component['removeDestroyedFleetFromService']()).not.toThrow();
     });
   });
 });

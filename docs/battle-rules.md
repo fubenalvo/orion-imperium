@@ -109,7 +109,8 @@ definition's `range` for attacks.
 - `planetary_shield` buildings do **not** become ships. They grant one shared planetary
   shield pool:
   - `max` = sum of all shield-building `shield` values.
-  - `current` starts at `max`.
+  - `current` starts at the persisted value on the planet tile (`shieldPoolCurrent`),
+    or `max` if no persisted value exists (first battle after placement).
   - It absorbs damage for **immobile turret stacks only**; garrison ships use their own
     per-ship shields.
   - At the start of each **defender turn**, the pool regenerates by the sum of all
@@ -163,6 +164,9 @@ The minigame returns a `BattleOutcome`:
 - per-side rosters in input order with final `hp` and `destroyed` flags, plus `survivors`
   and `wipedOut`
 - `rounds` and the `battleType` / `planetId`
+- **Planet battles only:** `defender.shieldPoolCurrent` and `defender.shieldPoolMax`
+  on the defender fleet outcome, reporting the remaining shield pool after the battle
+  and the pool's maximum capacity
 
 ## Limitations / Out of Scope
 

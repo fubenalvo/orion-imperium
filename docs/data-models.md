@@ -122,8 +122,12 @@ Read from `ship-data.json`:
 
 - `id`: type key (e.g. `'frigate'`, `'cruiser'`, `'colonizer'`)
 - `name`, `role`: display info
-- `hitPoints`, `shield`, `shieldRegen`: defense stats (only `hitPoints` is used in battle resolution)
-- `attack`, `attackType`, `weakness`: offense stats (only `attack` is used in battle resolution; `weakness` and `attackType` are tracked but not yet applied)
+- `hitPoints`, `shield`, `shieldRegen`: defense stats.
+  `hitPoints` is reduced by damage. `shield` absorbs damage before hull HP.
+  `shieldRegen` regenerates shield per ship at the start of each side's turn via `BattleTurnService.endTurn()`.
+- `attack`, `attackType`, `weakness`: offense stats. `attack` is the base
+  damage. `attackType` and `weakness` drive the weapon effectiveness table in
+  `battle-grid.ts` via `weaponMultiplier()` in `battle-combat.service.ts`.
 - `defense`: flat damage reduction per ship
 - `speed`, `range`, `cost`: `range` is used as each ship's sensor contribution (fleets take the max ship range as a floor above `Fleet.sensorRange`); `cost` is not currently used in gameplay logic
 - `maintenanceCost`: per-second credit cost applied by `EconomyService`

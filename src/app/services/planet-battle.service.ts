@@ -69,6 +69,7 @@ export class PlanetBattleService {
     let nextShipId = 1000000;
     let totalShield = 0;
     let totalShieldRegen = 0;
+    let persistedShieldCurrent: number | null = null;
 
     for (const building of planet.buildings) {
       const def = this.buildingDefs.find((b) => b.name === building.name);
@@ -91,6 +92,16 @@ export class PlanetBattleService {
       });
     }
 
+    /*
+     * Restore the persisted shared shield pool. A persisted 0 is a real
+     * value (the pool was fully depleted in a previous battle) and must
+     * not be treated as "no persisted value", or a drained planet would
+     * start its next battle at full shields.
+     */
+    if (planet.shieldPoolCurrent !== undefined) {
+      persistedShieldCurrent = Math.min(planet.shieldPoolCurrent, totalShield);
+    }
+
     if (garrisonFleet) {
       for (const ship of garrisonFleet.ships) {
         if (ship.destroyed) continue;
@@ -100,6 +111,8 @@ export class PlanetBattleService {
         });
       }
     }
+
+    const startingCurrent = persistedShieldCurrent !== null ? persistedShieldCurrent : totalShield;
 
     return {
       id: -planet.id,
@@ -113,7 +126,7 @@ export class PlanetBattleService {
       system: null,
       ships: virtualShips,
       destroyed: false,
-      shieldPool: totalShield,
+      shieldPool: startingCurrent,
       shieldPoolRegen: totalShieldRegen,
     };
   }

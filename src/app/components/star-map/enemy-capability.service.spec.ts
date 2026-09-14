@@ -325,7 +325,70 @@ describe('EnemyCapabilityService', () => {
       expect(result).toBeDefined();
       expect(result!.canExecute).toBe(true);
       expect(result!.goalType).toBe('defend');
-      result!.requirements.forEach((r) => expect(r.satisfied).toBe(true));
+      const blocking = result!.requirements.filter((r) => r.type !== 'fleet_needs_reinforcement');
+      blocking.forEach((r) => expect(r.satisfied).toBe(true));
+      const reinReq = result!.requirements.find((r) => r.type === 'fleet_needs_reinforcement');
+      expect(reinReq).toBeDefined();
+      expect(reinReq!.satisfied).toBe(false);
+    });
+
+    it('should not treat a transport-only fleet as able to engage', () => {
+      const goal = { type: 'defend' as const, targetPlanetId: 1, targetSystemId: 'sys1' };
+      const systems = [
+        createSystem({ id: 'sys1', x: 5, y: 5, planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1' })] }),
+      ];
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1', name: 'SETTLER', x: 0, y: 0, id: 1,
+          ships: [{ id: 1, name: 'Colonizer', type: 'colonizer', currentHp: 10, destroyed: false }],
+        }),
+        createFleet({ factionId: 'player', name: 'ORION', x: 3, y: 3, id: 2 }),
+      ];
+
+      service.tick(3, goal, 'enemy1', fleets, factions, systems, emptyShipStock, emptyProduction);
+      const result = service.getCapability('enemy1');
+
+      expect(result).toBeDefined();
+      const engageReq = result!.requirements.find((r) => r.type === 'fleet_can_engage');
+      expect(engageReq).toBeDefined();
+      expect(engageReq!.satisfied).toBe(false);
+      expect(engageReq!.reason).toBe('no_combat_capability');
+    });
+
+    it('should count only living ships when detecting under-strength fleets', () => {
+      const goal = { type: 'defend' as const, targetPlanetId: 1, targetSystemId: 'sys1' };
+      const systems = [
+        createSystem({ id: 'sys1', x: 5, y: 5, planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1' })] }),
+      ];
+      const playerFleet = createFleet({ factionId: 'player', name: 'ORION', x: 3, y: 3, id: 2 });
+      const raider = createFleet({
+        factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1,
+        ships: [
+          { id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+          { id: 2, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+          { id: 3, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+          { id: 4, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+        ],
+      });
+
+      // Establish the peak with four living combat ships.
+      service.tick(3, goal, 'enemy1', [raider, playerFleet], factions, systems, emptyShipStock, emptyProduction);
+
+      // Battle losses keep destroyed ships in the roster.
+      raider.ships = [
+        { id: 1, name: 'Frigate', type: 'frigate', currentHp: 10, destroyed: false },
+        { id: 2, name: 'Frigate', type: 'frigate', currentHp: 0, destroyed: true },
+        { id: 3, name: 'Frigate', type: 'frigate', currentHp: 0, destroyed: true },
+        { id: 4, name: 'Frigate', type: 'frigate', currentHp: 0, destroyed: true },
+      ];
+      service.tick(3, goal, 'enemy1', [raider, playerFleet], factions, systems, emptyShipStock, emptyProduction);
+      const result = service.getCapability('enemy1');
+
+      expect(result).toBeDefined();
+      const reinReq = result!.requirements.find((r) => r.type === 'fleet_needs_reinforcement');
+      expect(reinReq).toBeDefined();
+      expect(reinReq!.satisfied).toBe(true);
+      expect(reinReq!.reason).toBe('fleet_under_strength');
     });
 
     it('should detect missing enemy fleet', () => {

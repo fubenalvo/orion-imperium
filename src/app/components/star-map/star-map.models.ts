@@ -101,6 +101,7 @@ export interface PlanetTile {
   explored: boolean;
   satisfaction?: number;
   resourceTiles?: ResourceDeposit[];
+  shieldPoolCurrent?: number;
 }
 
 /*
@@ -416,6 +417,13 @@ export interface CapabilityRequirement {
   type: string;
   satisfied: boolean;
   reason: string;
+  /*
+   * Optional numeric context for the requirement. Used by
+   * fleet_needs_reinforcement to carry the faction's peak fleet
+   * strength so the action layer can target it without
+   * re-tracking peak strength in a second service.
+   */
+  value?: number;
 }
 
 export interface CapabilityResult {
@@ -428,6 +436,9 @@ export interface CapabilityResult {
 export type ActionType =
   | 'none'
   | 'produce_colonizer'
+  | 'produce_combat_ship'
+  | 'reinforce_fleet'
+  | 'create_fleet'
   | 'assemble_fleet'
   | 'move_to_target'
   | 'colonize'
@@ -443,5 +454,14 @@ export interface ActionResult {
   targetId?: number;
   targetSystemId?: string;
   targetPlanetId?: number;
+  shipTypeId?: string;
+  /*
+   * Reinforcement target fleet strength copied from the
+   * fleet_needs_reinforcement capability requirement. The executor
+   * stops reinforcing once the fleet reaches this strength, which
+   * makes reinforcement idempotent across the frame loop and
+   * prevents draining the global stock in a single strategy tick.
+   */
+  targetStrength?: number;
   reason: string;
 }

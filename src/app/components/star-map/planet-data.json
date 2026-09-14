@@ -302,7 +302,7 @@
       "size": 1,
       "population": 0,
       "workforce": 30,
-      "moraleRate": 1,
+      "moraleRate": 0,
       "price": 100,
       "production": {
         "research": 2
@@ -322,7 +322,7 @@
       "size": 2,
       "population": 0,
       "workforce": 60,
-      "moraleRate": 1,
+      "moraleRate": 0,
       "price": 100,
       "production": {
         "research": 5
