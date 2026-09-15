@@ -52,6 +52,8 @@ export function createBattleState(
   const shieldPool = battle.type === 'planet' ? (defenderFleet.shieldPool ?? 0) : 0;
   const shieldPoolRegen =
     battle.type === 'planet' ? (defenderFleet.shieldPoolRegen ?? 0) : 0;
+  const shieldPoolMax =
+    battle.type === 'planet' ? (defenderFleet.shieldPoolMax ?? defenderFleet.shieldPool ?? 0) : 0;
 
   return {
     round: 1,
@@ -76,8 +78,8 @@ export function createBattleState(
     planetName: battle.planetName,
     planetColor: battle.planetColor,
     defenderShieldPool:
-      shieldPool > 0
-        ? { current: shieldPool, max: shieldPool, regen: shieldPoolRegen }
+      battle.type === 'planet' && shieldPoolMax > 0
+        ? { current: shieldPool, max: shieldPoolMax, regen: shieldPoolRegen }
         : null,
     attackerShips,
     defenderShips,
@@ -94,11 +96,35 @@ function toBattleShip(
   planetBattleService: PlanetBattleService,
 ): BattleShip {
   const stats = getBattleShipStats(ship.type, shipService, planetBattleService);
-  // Real ships always start a battle at full hull; virtual defense ships
-  // carry their pre-set currentHp (PlanetBattleService builds them with
-  // hp = attack * 3) because they have no ShipType entry.
-  const hp =
-    shipService.getShipType(ship.type) != null ? stats.maxHp : (ship.currentHp ?? stats.maxHp);
+  const isRealShip = shipService.getShipType(ship.type) != null;
+  const isVirtualShip = planetBattleService.getVirtualShipType(ship.type) != null;
+  const recognized = isRealShip || isVirtualShip;
+  const cameInDestroyed = ship.destroyed === true;
+
+  /*
+   * Real ships persist strategic HP and destroyed flags across battles.
+   * Destroyed ships stay in the outcome roster (so the flag round-trips)
+   * but are never deployed. Unknown ship types are quarantined: kept in
+   * the save but excluded from combat instead of fighting as 1-HP units.
+   */
+  let hp: number;
+  if (!recognized || cameInDestroyed) {
+    hp = 0;
+  } else if (isVirtualShip) {
+    // Virtual defense ships carry their pre-set currentHp (PlanetBattleService
+    // builds them with hp = attack * 3) because they have no ShipType entry.
+    hp =
+      typeof ship.currentHp === 'number' && Number.isFinite(ship.currentHp) && ship.currentHp > 0
+        ? ship.currentHp
+        : stats.maxHp;
+  } else {
+    const persisted =
+      typeof ship.currentHp === 'number' && Number.isFinite(ship.currentHp)
+        ? ship.currentHp
+        : stats.maxHp;
+    hp = persisted <= 0 ? 0 : Math.max(1, Math.min(persisted, stats.maxHp));
+  }
+
   return {
     shipId: ship.id,
     name: ship.name,
@@ -116,7 +142,7 @@ function toBattleShip(
     weakness: stats.weakness,
     attack: stats.attack,
     defense: stats.defense,
-    alive: true,
+    alive: hp > 0,
   };
 }
 
@@ -132,6 +158,9 @@ function buildStacks(
     const stacks: BattleStack[] = [];
     let index = 0;
     for (const ship of roster) {
+      if (!ship.alive) {
+        continue;
+      }
       const stats = getBattleShipStats(ship.typeId, shipService, planetBattleService);
       const size = stats.tier >= 5 ? 3 : stats.tier >= 3 ? 2 : 1;
       stacks.push({
@@ -161,8 +190,13 @@ function buildStacks(
     return stacks;
   }
 
+  const living = roster.filter((ship) => ship.alive);
+  if (living.length === 0) {
+    return [];
+  }
+
   const grouped = new Map<string, BattleShip[]>();
-  for (const ship of roster) {
+  for (const ship of living) {
     const bucket = grouped.get(ship.typeId);
     if (bucket) {
       bucket.push(ship);

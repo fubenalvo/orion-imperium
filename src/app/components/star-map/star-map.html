@@ -12,6 +12,8 @@
   <app-star-map-pause
     [pauseMenuOpen]="pauseMenuOpen"
     [currentSlot]="currentSlot"
+    [loadError]="loadError"
+    [saveError]="saveError"
     (openPauseMenu)="openPauseMenu()"
     (closePauseMenu)="closePauseMenu()"
     (saveGame)="saveFromMenu($event)"

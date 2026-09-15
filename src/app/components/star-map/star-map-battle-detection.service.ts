@@ -38,7 +38,7 @@ export class StarMapBattleDetectionService {
     enterBattleScreen: () => void,
     triggeredBattles: Set<string>,
   ): boolean {
-    const activeFleets = fleets.filter((f) => !f.destroyed);
+    const activeFleets = fleets.filter((f) => !f.destroyed && this.hasLivingShips(f));
 
     for (let i = 0; i < activeFleets.length; i++) {
       for (let j = i + 1; j < activeFleets.length; j++) {
@@ -97,5 +97,9 @@ export class StarMapBattleDetectionService {
     }
 
     return false;
+  }
+
+  private hasLivingShips(fleet: Fleet): boolean {
+    return (fleet.ships ?? []).some((ship) => ship.destroyed !== true);
   }
 }

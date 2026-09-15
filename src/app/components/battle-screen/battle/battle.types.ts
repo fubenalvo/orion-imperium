@@ -245,6 +245,19 @@ export interface BattleFleet {
    */
   shieldPool?: number;
   shieldPoolRegen?: number;
+  /*
+   * Planet-battle only: the total shared shield granted by shield buildings.
+   * Kept separate from the current pool so a fully depleted (0) pool is
+   * still represented as a regenerating pool in the battle minigame.
+   */
+  shieldPoolMax?: number;
+  /*
+   * Planet-battle only: identity of the real garrison fleet and a mapping
+   * from the virtual ship ids used in battle back to the garrison fleet's
+   * original ship ids. Used by the overworld to persist garrison damage.
+   */
+  garrisonFleetId?: number;
+  garrisonShipMap?: Record<number, number>;
 }
 
 export interface Battle {

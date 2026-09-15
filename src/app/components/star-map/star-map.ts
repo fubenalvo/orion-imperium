@@ -12,6 +12,7 @@ import { filter } from 'rxjs/operators';
 import { BattleService, BattleOutcome } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
+import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
 import { GameSettingsService } from '../../services/game-settings.service';
@@ -138,7 +139,9 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
 export class StarMap implements AfterViewInit, OnDestroy {
   currentView: 'map' | 'system' | 'planet' = 'map';
 
-  pauseMenuOpen = false;
+pauseMenuOpen = false;
+loadError = '';
+  saveError = '';
 
   // Map configuration
   readonly mapWidth = initialStarMapData.map.width;
@@ -153,6 +156,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   factions: StarMapData['factions'] = initialStarMapData.factions;
   shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
   production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
+  defaultView: import('./star-map.models').StarMapData['defaultView'] = initialStarMapData.defaultView ?? undefined;
 
   private routerSubscription = new Subscription();
   // Tracks the most recent router URL that was not /star-map, so that
@@ -250,6 +254,12 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private economyAccumulator = 0;
   private readonly economyTickInterval = 1;
   private cachedPlayerEconomyBreakdown: EconomyBreakdown | null = null;
+
+  // Throttled autosave for simulation-driven mutations (AI, economy,
+  // production) that do not each have their own save trigger.
+  private autosaveAccumulator = 0;
+  private readonly autosaveIntervalSeconds = 3;
+  private simStateDirty = false;
 
   // Sensor range & fog-of-war state
   exploredGridCells = new Set<string>();
@@ -538,6 +548,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   saveFromMenu(slotIndex: number): void {
     const data = this.serializeGameState();
     this.saveGameService.saveToSlot(slotIndex, data);
+    this.saveError = this.saveGameService.getSlotsError() ?? '';
   }
 
   /** Loads a save game from the specified slot index. */
@@ -545,6 +556,9 @@ export class StarMap implements AfterViewInit, OnDestroy {
     if (!this.saveGameService.activateSlot(slotIndex)) {
       return;
     }
+    // A manual load starts a fresh session; drop any transient battle
+    // residue that belongs to the session being replaced.
+    this.battleService.clearBattle();
     this.loadGame();
     this.closePauseMenu();
   }
@@ -1814,6 +1828,16 @@ export class StarMap implements AfterViewInit, OnDestroy {
 
     if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
+      this.simStateDirty = true;
+    }
+
+    // Persist simulation mutations together with a bounded write cadence
+    // instead of writing on every frame.
+    this.autosaveAccumulator += gameDeltaTime;
+    if (this.simStateDirty && this.autosaveAccumulator >= this.autosaveIntervalSeconds) {
+      this.saveGame();
+      this.autosaveAccumulator = 0;
+      this.simStateDirty = false;
     }
   }
 
@@ -2037,6 +2061,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /** Builds the current StarMapData snapshot without writing to any slot. */
   private serializeGameState(): StarMapData {
     return {
+      saveVersion: SAVE_VERSION,
       factions: this.factions,
       map: {
         width: this.mapWidth,
@@ -2059,6 +2084,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
       exploredGridCells: Array.from(this.exploredGridCells),
       shipStock: this.shipStock,
       production: this.production,
+      defaultView: this.defaultView,
     };
   }
 
@@ -2088,18 +2114,31 @@ export class StarMap implements AfterViewInit, OnDestroy {
       return;
     }
 
-    this.arrivalService.triggeredBattles.clear();
+    this.arrivalService.reset();
 
     const data = this.saveGameService.loadFromSlot(this.saveGameService.currentSlot);
     if (!data || !data.fleets || !data.starSystems || !data.factions) {
+      this.loadError = 'save_unreadable';
       return;
     }
+
+    // Reject structurally invalid saves before replacing live state. This
+    // mirrors the gate used by activateSlot so manual loads and runtime
+    // autosaves agree on what is loadable.
+    const validation = validateSaveData(data);
+    if (!validation.ok) {
+      this.loadError = validation.errors[0]?.message ?? 'save_invalid';
+      console.warn('[save/load] rejecting invalid save:', validation.errors);
+      return;
+    }
+    this.loadError = '';
 
     this.factions = data.factions;
     this.starSystems = data.starSystems;
     this.fleets = data.fleets ?? [];
     this.shipStock = data.shipStock ?? [];
     this.production = data.production ?? [];
+    this.productionService.rebaseFromSave(this.production);
 
     // Backward compatibility: old saves have no exploredGridCells or
     // StarSystem.explored. Default: all systems explored so old saves
@@ -2115,9 +2154,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
-    // Ensure every system has an explored flag (old saves may not have it)
-    if (!hasSensorData) {
-      for (const system of this.starSystems) {
+    // Old saves may not carry the per-system explored flag. Treat the
+    // absence as explored (matches the no-fog-regression fallback above).
+    for (const system of this.starSystems) {
+      if (system.explored === undefined) {
         system.explored = true;
       }
     }
@@ -2131,26 +2171,10 @@ export class StarMap implements AfterViewInit, OnDestroy {
       }
     }
 
-    // Legacy save migration: old saves stored map dimensions in vw (width=200)
-    // and star system / fleet x/y in vw units. Convert to grid cell coordinates.
-    if (data.map && data.map.width === 200) {
-      const refCellSize = 2;
-      for (const system of this.starSystems) {
-        system.x = Math.min(Math.floor(system.x / refCellSize) + 1, this.mapWidth);
-        system.y = Math.min(Math.floor(system.y / refCellSize) + 1, this.mapHeight);
-      }
-      for (const fleet of this.fleets) {
-        if (fleet.destroyed) continue;
-        fleet.x = Math.min(Math.floor(fleet.x / refCellSize) + 1, this.mapWidth);
-        fleet.y = Math.min(Math.floor(fleet.y / refCellSize) + 1, this.mapHeight);
-        if (fleet.targetX != null) {
-          fleet.targetX = Math.min(Math.floor(fleet.targetX / refCellSize) + 1, this.mapWidth);
-        }
-        if (fleet.targetY != null) {
-          fleet.targetY = Math.min(Math.floor(fleet.targetY / refCellSize) + 1, this.mapHeight);
-        }
-      }
-    }
+    // Legacy grid migration is performed by SaveGameService.migrateSave
+    // (versioned and idempotent). Here we only renormalize values that
+    // depend on the current building set.
+    this.planetBattleService.reconcilePlanetShields(this.starSystems);
 
     if (data.destroyedFleetId != null) {
       const fleet = this.fleets.find((f) => f.id === data.destroyedFleetId);
@@ -2181,13 +2205,20 @@ export class StarMap implements AfterViewInit, OnDestroy {
       this.selectedFleetAction = null;
     }
 
-    // Selection state: saved IDs take precedence; fall back to whatever applyDefaultView set.
+    this.defaultView = data.defaultView;
+
+    // Selection state: saved IDs take precedence; stale/missing IDs are
+    // cleared instead of silently keeping the previous session's selection.
     this.selectedSystem =
-      this.starSystems.find((s) => s.id === data.selectedSystemId) ?? this.selectedSystem;
-    this.selectedFleet = this.fleets.find((f) => f.id === data.selectedFleetId) ?? null;
+      data.selectedSystemId != null
+        ? (this.starSystems.find((s) => s.id === data.selectedSystemId) ?? null)
+        : null;
+    this.selectedFleet =
+      data.selectedFleetId != null ? (this.fleets.find((f) => f.id === data.selectedFleetId) ?? null) : null;
     this.selectedPlanetTile =
-      this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ??
-      this.selectedPlanetTile;
+      data.selectedPlanetTileId != null
+        ? (this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null)
+        : null;
 
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
 

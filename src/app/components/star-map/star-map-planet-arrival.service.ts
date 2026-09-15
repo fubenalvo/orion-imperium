@@ -46,6 +46,12 @@ export class StarMapPlanetArrivalService {
     private movementService: StarMapMovementService,
   ) {}
 
+  /** Clears per-session arrival bookkeeping. Safe to call on every load. */
+  reset(): void {
+    this.fleetPlanetMap.clear();
+    this.triggeredBattles.clear();
+  }
+
   /** Checks if any fleet arrived at a planet's grid cell and handles the interaction. */
   checkFleetPlanetArrivals(ctx: PlanetArrivalContext): void {
     if (ctx.currentView !== 'system' || !ctx.selectedSystem) {
@@ -54,6 +60,9 @@ export class StarMapPlanetArrivalService {
 
     for (const fleet of ctx.fleets) {
       if (fleet.destroyed || fleet.system?.id !== ctx.selectedSystem.id) {
+        continue;
+      }
+      if (!this.hasLivingShips(fleet)) {
         continue;
       }
       if (fleet.system.targetX != null || fleet.system.targetY != null) {
@@ -93,6 +102,7 @@ export class StarMapPlanetArrivalService {
 
     for (const fleet of fleets) {
       if (fleet.destroyed || fleet.system?.id !== selectedSystem.id) continue;
+      if (!this.hasLivingShips(fleet)) continue;
       if (fleet.factionId !== planet.factionId) continue;
       if (fleet.system.targetX != null || fleet.system.targetY != null) continue;
 
@@ -150,6 +160,9 @@ export class StarMapPlanetArrivalService {
     targetPlanet: PlanetTile,
     ctx: PlanetArrivalContext,
   ): void {
+    if (!this.hasLivingShips(attackerFleet)) {
+      return;
+    }
     const garrisonFleet = this.getFleetOnPlanet(ctx.fleets, ctx.selectedSystem, targetPlanet);
     const defenseFleet = this.planetBattleService.createVirtualDefenseFleet(
       targetPlanet,
@@ -193,5 +206,9 @@ export class StarMapPlanetArrivalService {
     });
 
     ctx.enterBattleScreen();
+  }
+
+  private hasLivingShips(fleet: Fleet): boolean {
+    return (fleet.ships ?? []).some((ship) => ship.destroyed !== true);
   }
 }

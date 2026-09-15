@@ -30,6 +30,8 @@ import { SaveGameService, SaveSlot, SaveSlotId } from '../../services/save-game.
 export class StarMapPauseComponent {
   @Input() pauseMenuOpen = false;
   @Input() currentSlot: number | null = null;
+  @Input() loadError = '';
+  @Input() saveError = '';
 
   @Output() openPauseMenu = new EventEmitter<void>();
   @Output() closePauseMenu = new EventEmitter<void>();

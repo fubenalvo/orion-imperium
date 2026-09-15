@@ -44,6 +44,12 @@ export class BattleGridComponent {
   @Input() activeSide: BattleSide = 'attacker';
   @Input() ap = 0;
   @Input() spentStackIds: Set<string> = new Set();
+  /* Faction colors per side, passed from the orchestrator. Used only for
+   * subtle per-stack tinting (background wash, count text, hull bar) so each
+   * stack reads as belonging to its faction without fighting the existing
+   * state-driven highlights (selected / attack-target / spent / etc.). */
+  @Input() attackerColor = '#ff5252';
+  @Input() defenderColor = '#4caf50';
   /*
    * Planet battles only: a separate visual target and its shared-shield
    * fraction. Both are null/0 in fleet battles, so the grid stays clean.
@@ -134,6 +140,13 @@ export class BattleGridComponent {
    * for the active side, since only they can act this turn. */
   hasAttackDot(stack: BattleStack): boolean {
     return stack.side === this.activeSide && !stack.attackedThisTurn;
+  }
+
+  /* Faction color for a stack — used to tint per-stack accents (count text,
+   * hull bar, background wash) so each stack reads as belonging to its
+   * faction without fighting the state-driven highlights. */
+  factionColor(stack: BattleStack): string {
+    return stack.side === 'attacker' ? this.attackerColor : this.defenderColor;
   }
 
   stackClasses(stack: BattleStack): string[] {

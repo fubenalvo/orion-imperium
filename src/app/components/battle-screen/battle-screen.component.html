@@ -51,6 +51,8 @@
         [spentStackIds]="spentStackIds"
         [planet]="planetVisual"
         [planetShieldFraction]="planetShieldFraction"
+        [attackerColor]="battleState?.attackerColor ?? '#ff5252'"
+        [defenderColor]="battleState?.defenderColor ?? '#4caf50'"
         [onStackClick]="onStackClick"
         [onCellClick]="onCellClick"
       ></app-battle-grid>
@@ -99,7 +101,7 @@
       <div class="battle-screen__selection">
         <div class="selection-header">
           <span class="selection-type">{{ stack.typeName }}</span>
-          <span class="selection-side" [class.selection-side--attacker]="stack.side === 'attacker'" [class.selection-side--defender]="stack.side === 'defender'">{{ stack.side === 'attacker' ? 'ATTACKER' : 'DEFENDER' }}</span>
+          <span class="selection-side" [class.selection-side--attacker]="stack.side === 'attacker'" [class.selection-side--defender]="stack.side === 'defender'" [style.--faction-color]="stack.side === 'attacker' ? (battleState?.attackerColor ?? '#ff5252') : (battleState?.defenderColor ?? '#4caf50')" [style.color]="stack.side === 'attacker' ? (battleState?.attackerColor ?? '#ff5252') : (battleState?.defenderColor ?? '#4caf50')">{{ stack.side === 'attacker' ? 'ATTACKER' : 'DEFENDER' }}</span>
           @if (stack.immobile) {
             <span class="selection-immobile">IMMOBILE</span>
           }
@@ -127,7 +129,7 @@
         <div class="selection-hp">
           <span class="selection-hp-label">HP</span>
           <span class="selection-hp-bar">
-            <span class="selection-hp-fill" [style.width.%]="selectedHullFraction * 100"></span>
+            <span class="selection-hp-fill" [style.width.%]="selectedHullFraction * 100" [style.background]="stack.side === 'attacker' ? (battleState?.attackerColor ?? '#ff5252') : (battleState?.defenderColor ?? '#4caf50')"></span>
           </span>
           <span class="selection-hp-text">{{ selectedTotalHp }} / {{ selectedMaxHp }}</span>
         </div>

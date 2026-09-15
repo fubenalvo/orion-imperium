@@ -80,7 +80,9 @@ describe('MainMenu', () => {
     saveGameService.saveToSlot(1, {
       factions: [{ id: 'player', name: 'Player', color: '#fff', team: 1, ai: false, currencies: { credits: 0, rawmaterials: 0, research: 0 } }],
       map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
-      starSystems: [],
+      starSystems: [
+        { id: 'sol', name: 'Sol', x: 1, y: 1, planets: 0, color: '#fff', planetsTiles: [], explored: true },
+      ],
       fleets: [{ id: 1, name: 'Saved Fleet', factionId: 'player', x: 1, y: 1, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }],
       currentView: 'map',
       cameraX: 0,

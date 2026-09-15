@@ -34,6 +34,9 @@
         @if (gameSaved) {
           <div class="game-saved-message">GAME SAVED</div>
         }
+        @if (loadError) {
+          <div class="game-saved-message game-saved-message--error">{{ loadError }}</div>
+        }
       </div>
     } @else if (showSaveSlots) {
       <div class="pause-overlay__content">

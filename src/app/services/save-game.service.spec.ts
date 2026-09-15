@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SaveGameService, SaveSlotId } from './save-game.service';
 import { StarMapData, Faction } from '../components/star-map/star-map.models';
+import { SAVE_VERSION, validateSaveData } from './save-validation';
 
 const PLAYER_FACTION = {
   id: 'player',
@@ -26,7 +27,18 @@ const makeData = (
 ): StarMapData => ({
   factions,
   map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
-  starSystems: [],
+  starSystems: [
+    {
+      id: 'sol',
+      name: 'Sol',
+      x: 1,
+      y: 1,
+      planets: 0,
+      color: '#ffffff',
+      planetsTiles: [],
+      explored: true,
+    },
+  ],
   fleets: [],
   ...overrides,
 });
@@ -221,5 +233,188 @@ describe('SaveGameService — active session activation', () => {
 
     const reloaded = service.loadFromSlot(SaveSlotId.AUTOSAVE);
     expect(reloaded!.fleets[0].id).toBe(9);
+  });
+
+  it('should keep the active session when copying a manual slot fails', () => {
+    const active = makeData({
+      fleets: [{ id: 9, name: 'Live Fleet', factionId: 'player', x: 1, y: 1, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }],
+    });
+    const manual = makeData({
+      fleets: [{ id: 10, name: 'Manual Fleet', factionId: 'player', x: 2, y: 2, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }],
+    });
+    service.saveToSlot(SaveSlotId.AUTOSAVE, active);
+    service.saveToSlot(1, manual);
+    service.currentSlot = SaveSlotId.AUTOSAVE;
+
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    expect(service.activateSlot(1)).toBe(false);
+    expect(service.currentSlot).toBe(SaveSlotId.AUTOSAVE);
+    expect(service.lastError).toBe('save_quota_error');
+    expect(service.loadFromSlot(SaveSlotId.AUTOSAVE)!.fleets[0].id).toBe(9);
+    expect(setItemSpy).toHaveBeenCalled();
+
+    setItemSpy.mockRestore();
+  });
+});
+
+describe('SaveGameService — versioned migration and resilience', () => {
+  let service: SaveGameService;
+
+  beforeEach(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
+    service = new SaveGameService();
+  });
+
+  afterEach(() => {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.clear();
+    }
+  });
+
+  it('migrates legacy map coordinates once and pins the map dimensions', () => {
+    const legacy = makeData({
+      map: { width: 200, height: 120, cellSizeVw: 2, cellSizeVh: 2 },
+      starSystems: [
+        { id: 'sol', name: 'Sol', x: 40, y: 20, planets: 0, color: '#fff', planetsTiles: [], explored: true },
+      ],
+      fleets: [
+        { id: 1, name: 'F', factionId: 'player', x: 80, y: 40, targetX: 160, targetY: 80, speed: 4, ships: [], destroyed: false, system: null },
+      ],
+    });
+
+    const first = service.migrateSave(legacy);
+    expect(first.saveVersion).toBe(SAVE_VERSION);
+    expect(first.map.width).toBe(300);
+
+    const systemBefore = first.starSystems[0].x;
+    const fleetBefore = first.fleets[0].x;
+    expect(systemBefore).toBe(21);
+    expect(fleetBefore).toBe(41);
+    expect(first.fleets[0].targetX).toBe(81);
+
+    // A second pass must not re-convert the now-grid coordinates.
+    const second = service.migrateSave(first);
+    expect(second.starSystems[0].x).toBe(systemBefore);
+    expect(second.fleets[0].x).toBe(fleetBefore);
+    expect(second.fleets[0].targetX).toBe(81);
+  });
+
+  it('sets saveVersion on modern saves without running legacy conversion', () => {
+    const modern = makeData();
+    const migrated = service.migrateSave(modern);
+    expect(migrated.saveVersion).toBe(SAVE_VERSION);
+    expect(migrated.map.width).toBe(100);
+  });
+
+  it('warns about unknown ship types without rejecting the save', () => {
+    const data = makeData({
+      fleets: [
+        {
+          id: 1,
+          name: 'Unknown Fleet',
+          factionId: 'player',
+          x: 1,
+          y: 1,
+          targetX: null,
+          targetY: null,
+          speed: 1,
+          ships: [{ id: 1, name: 'Unknown', type: 'ship_that_does_not_exist' }],
+          destroyed: false,
+          system: null,
+        },
+      ],
+      shipStock: [
+        {
+          factionId: 'player',
+          ships: [{ id: 2, name: 'Unknown Stock', type: 'stock_type_unknown' }],
+        },
+      ],
+      production: [
+        {
+          factionId: 'player',
+          ordersByPlanet: {
+            1: [
+              {
+                id: 1,
+                shipTypeId: 'production_type_unknown',
+                quantity: 1,
+                progress: 0,
+                startedAtTick: 0,
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const result = validateSaveData(data);
+
+    expect(result.ok).toBe(true);
+    expect(result.warnings.map((issue) => issue.code)).toEqual([
+      'ship_type_unknown',
+      'stock_ship_type_unknown',
+      'order_ship_type_unknown',
+    ]);
+  });
+
+  it('ignores malformed dates when selecting the most recent slot', () => {
+    service.saveToSlot(1, makeData({ fleets: [{ id: 1, name: 'Old', factionId: 'player', x: 1, y: 1, targetX: null, targetY: null, speed: 1, ships: [], destroyed: false, system: null }] }));
+    service.saveToSlot(2, makeData({ fleets: [{ id: 2, name: 'New', factionId: 'player', x: 2, y: 2, targetX: null, targetY: null, speed: 1, ships: [], destroyed: false, system: null }] }));
+
+    const raw = JSON.parse(localStorage.getItem('orion_save_slots')!) as Array<{ date: string | null }>;
+    raw[0].date = 'not-a-date';
+    raw[1].date = '2026-01-02T00:00:00.000Z';
+    raw[2].date = '2026-01-03T00:00:00.000Z';
+    localStorage.setItem('orion_save_slots', JSON.stringify(raw));
+
+    expect(service.getMostRecentSlotIndex()).toBe(2);
+  });
+
+  it('rejects a save with a newer format version', () => {
+    const data = makeData({ saveVersion: SAVE_VERSION + 1 } as Partial<StarMapData>);
+
+    expect(service.isValidSaveData(data)).toBe(false);
+    expect(service.lastError).toContain('save_invalid');
+  });
+
+  it('accepts an unversioned save for migration', () => {
+    const data = makeData();
+    delete data.saveVersion;
+
+    expect(service.isValidSaveData(data)).toBe(true);
+  });
+
+  it('isolates a malformed slot from readable slots and quarantines the raw value', () => {
+    service.saveToSlot(SaveSlotId.AUTOSAVE, makeData());
+    service.saveToSlot(1, makeData({ fleets: [{ id: 4, name: 'G', factionId: 'player', x: 2, y: 2, targetX: null, targetY: null, speed: 4, ships: [], destroyed: false, system: null }] }));
+
+    // Manually corrupt slot 1's nested shape in the raw JSON.
+    const raw = JSON.parse(localStorage.getItem('orion_save_slots')!) as {
+      data: StarMapData;
+      date: string | null;
+    }[];
+    (raw[1].data as unknown as { starSystems: unknown }).starSystems = { broken: true };
+    (raw[1].data as unknown as { fleets: unknown }).fleets = null;
+    localStorage.setItem('orion_save_slots', JSON.stringify(raw));
+
+    const slots = service.getSlots();
+    expect(slots[0].data).not.toBeNull();
+    expect(slots[1].data).toBeNull();
+    expect(slots[2].data).toBeNull();
+    expect(localStorage.getItem('orion_save_slots_corrupt_backup')).not.toBeNull();
+  });
+
+  it('rejects saves without a player faction', () => {
+    const data = makeData();
+    data.factions = [
+      { id: 'enemy1', name: 'Enemy 1', color: '#d65757', team: 2, ai: true, currencies: { credits: 0, rawmaterials: 0, research: 0 } },
+    ];
+    expect(service.isValidSaveData(data)).toBe(false);
+    expect(service.lastError).toContain('save_invalid');
   });
 });

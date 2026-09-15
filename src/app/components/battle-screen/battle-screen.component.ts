@@ -714,6 +714,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!data || !data.starSystems) {
       return;
     }
+    const defenderFleet = battle.attackerId === battle.fleet1.id ? battle.fleet2 : battle.fleet1;
+    const garrisonFleetId = defenderFleet.garrisonFleetId;
+    const garrisonShipMap = defenderFleet.garrisonShipMap;
+
     for (const system of data.starSystems) {
       const planet = system.planetsTiles?.find((p) => p.id === battle.planetId);
       if (!planet) {
@@ -730,6 +734,36 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         fleet.ships = shipsToSave(outcome.attacker.ships);
         if (outcome.attacker.wipedOut) {
           fleet.destroyed = true;
+        }
+      }
+
+      // Persist the real garrison fleet's damage and losses. Virtual turret
+      // ids below 1000000 are never in garrisonShipMap and are skipped.
+      if (garrisonFleetId != null) {
+        const garrisonFleet = data.fleets?.find((f) => f.id === garrisonFleetId);
+        if (garrisonFleet) {
+          if (outcome.winnerSide === 'attacker') {
+            // The captured garrison is destroyed along with the planet loss.
+            garrisonFleet.destroyed = true;
+            for (const ship of garrisonFleet.ships) {
+              ship.destroyed = true;
+            }
+          } else if (garrisonShipMap) {
+            for (const shipOutcome of outcome.defender.ships) {
+              const originalShipId = garrisonShipMap[shipOutcome.shipId];
+              if (originalShipId === undefined) {
+                continue;
+              }
+              const ship = garrisonFleet.ships.find((s) => s.id === originalShipId);
+              if (ship) {
+                ship.currentHp = Math.max(0, shipOutcome.hp);
+                ship.destroyed = shipOutcome.destroyed;
+              }
+            }
+            if (garrisonFleet.ships.length > 0 && garrisonFleet.ships.every((s) => s.destroyed === true)) {
+              garrisonFleet.destroyed = true;
+            }
+          }
         }
       }
       break;

@@ -278,4 +278,50 @@ describe('battle-state', () => {
     expect(getStacks(state, 'attacker').length).toBe(1);
     expect(getStacks(state, 'defender').length).toBe(1);
   });
+
+  it('uses persisted HP and keeps destroyed ships out of deployment', () => {
+    const b = battle({
+      fleet1: fleet(1, 'ORION', 'player', [
+        { id: 1, name: 'A', type: 'fighter', currentHp: 30 },
+        { id: 2, name: 'B', type: 'fighter', currentHp: 40, destroyed: true },
+      ]),
+    });
+    const state = createBattleState(b, shipService, planetBattleService);
+
+    expect(state.attackerShips[0].hp).toBe(30);
+    expect(state.attackerShips[0].alive).toBe(true);
+    expect(state.attackerShips[1].hp).toBe(0);
+    expect(state.attackerShips[1].alive).toBe(false);
+    // Only the living ship is deployed as a stack.
+    expect(getStacks(state, 'attacker')).toHaveLength(1);
+  });
+
+  it('quarantines unknown ship types instead of fielding 1-HP units', () => {
+    const b = battle({
+      fleet1: fleet(1, 'ORION', 'player', [{ id: 1, name: 'Mystery', type: 'ship_that_does_not_exist' }]),
+      fleet2: fleet(2, 'RAIDER', 'enemy1', [{ id: 2, name: 'R1', type: 'frigate' }]),
+    });
+    const state = createBattleState(b, shipService, planetBattleService);
+
+    expect(state.attackerShips[0].alive).toBe(false);
+    expect(getStacks(state, 'attacker')).toHaveLength(0);
+  });
+
+  it('represents a fully depleted planetary shield as a real zero-current pool', () => {
+    const b = battle({
+      fleet1: fleet(1, 'ORION', 'player', [{ id: 1, name: 'F1', type: 'fighter' }]),
+      fleet2: {
+        ...fleet(2, 'DEFENSE', 'enemy1', [{ id: 2, name: 'Laser', type: 'laser_turret' }]),
+        shieldPool: 0,
+        shieldPoolRegen: 15,
+        shieldPoolMax: 300,
+      },
+      attackerId: 1,
+      defenderId: 2,
+      type: 'planet',
+      planetId: 5,
+    });
+    const state = createBattleState(b, shipService, planetBattleService);
+    expect(state.defenderShieldPool).toEqual({ current: 0, max: 300, regen: 15 });
+  });
 });

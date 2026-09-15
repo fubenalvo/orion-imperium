@@ -641,4 +641,198 @@ describe('BattleScreenComponent', () => {
     expect(planet.factionId).toBe('enemy1');
     expect(planet.shieldPoolCurrent).toBe(200);
   });
+
+  it('persists garrison ship damage after a defender victory', () => {
+    seedAutosave();
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const planetId = 103;
+
+    const autosave = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)!;
+    autosave.starSystems = [
+      {
+        id: 'sol',
+        name: 'Sol',
+        x: 0,
+        y: 0,
+        planets: 1,
+        color: '#8cc4ff',
+        planetsTiles: [
+          {
+            id: planetId,
+            index: 0,
+            name: 'Terra',
+            factionId: 'enemy1',
+            x: 0,
+            y: 0,
+            type: 'earthlike',
+            size: 'medium',
+            population: 100,
+            buildings: [],
+            explored: true,
+            shieldPoolCurrent: 300,
+          },
+        ],
+      },
+    ];
+    autosave.fleets = [
+      ...autosave.fleets,
+      {
+        id: 99,
+        name: 'GARRISON',
+        factionId: 'enemy1',
+        x: 0,
+        y: 0,
+        targetX: null,
+        targetY: null,
+        speed: 0,
+        system: { id: 'sol', x: 1, y: 1, targetX: null, targetY: null },
+        ships: [{ id: 22, name: 'G1', type: 'frigate', currentHp: 40 }],
+        destroyed: false,
+      },
+    ];
+    saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, autosave);
+
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: {
+        id: -7,
+        name: 'DEFENSE',
+        factionId: 'enemy1',
+        ships: [fleetShip(2, 'laser_turret'), { id: 1002, name: 'G1', type: 'frigate', currentHp: 40 }],
+        shieldPool: 300,
+        shieldPoolRegen: 15,
+        shieldPoolMax: 300,
+        garrisonFleetId: 99,
+        garrisonShipMap: { 1002: 22 },
+      },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: -7,
+      type: 'planet',
+      planetId,
+      planetName: 'Terra',
+      planetColor: '#b35a2a',
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Defender wins; the turret is destroyed but the garrison ship lives on at 20 HP.
+    const state = component['state']!;
+    state.winner = 'defender';
+    state.defenderShips[0].hp = 0;
+    state.defenderShips[0].alive = false;
+    const garrison = state.defenderShips.find((s) => s.shipId === 1002)!;
+    garrison.hp = 20;
+    state.attackerShips[0].hp = 0;
+    state.attackerShips[0].alive = false;
+
+    component.backToStarMap();
+
+    const savedGarrison = saveGameService
+      .loadFromSlot(SaveSlotId.AUTOSAVE)!
+      .fleets.find((f) => f.id === 99)!;
+    expect(savedGarrison.ships[0].currentHp).toBe(20);
+    expect(savedGarrison.ships[0].destroyed).toBe(false);
+    expect(savedGarrison.destroyed).toBe(false);
+  });
+
+  it('marks the garrison fleet destroyed when the planet is captured', () => {
+    seedAutosave();
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const planetId = 104;
+
+    const autosave = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)!;
+    autosave.starSystems = [
+      {
+        id: 'sol',
+        name: 'Sol',
+        x: 0,
+        y: 0,
+        planets: 1,
+        color: '#8cc4ff',
+        planetsTiles: [
+          {
+            id: planetId,
+            index: 0,
+            name: 'Terra',
+            factionId: 'enemy1',
+            x: 0,
+            y: 0,
+            type: 'earthlike',
+            size: 'medium',
+            population: 100,
+            buildings: [],
+            explored: true,
+            shieldPoolCurrent: 300,
+          },
+        ],
+      },
+    ];
+    autosave.fleets = [
+      ...autosave.fleets,
+      {
+        id: 98,
+        name: 'GARRISON',
+        factionId: 'enemy1',
+        x: 0,
+        y: 0,
+        targetX: null,
+        targetY: null,
+        speed: 0,
+        system: { id: 'sol', x: 1, y: 1, targetX: null, targetY: null },
+        ships: [{ id: 30, name: 'G1', type: 'frigate', currentHp: 50 }],
+        destroyed: false,
+      },
+    ];
+    saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, autosave);
+
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: {
+        id: -7,
+        name: 'DEFENSE',
+        factionId: 'enemy1',
+        ships: [fleetShip(2, 'laser_turret'), { id: 1003, name: 'G1', type: 'frigate', currentHp: 50 }],
+        shieldPool: 300,
+        shieldPoolRegen: 15,
+        shieldPoolMax: 300,
+        garrisonFleetId: 98,
+        garrisonShipMap: { 1003: 30 },
+      },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: -7,
+      type: 'planet',
+      planetId,
+      planetName: 'Terra',
+      planetColor: '#b35a2a',
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    state.winner = 'attacker';
+    state.defenderShips.forEach((s) => {
+      s.hp = 0;
+      s.alive = false;
+    });
+
+    component.backToStarMap();
+
+    const captured = saveGameService
+      .loadFromSlot(SaveSlotId.AUTOSAVE)!
+      .fleets.find((f) => f.id === 98)!;
+    expect(captured.destroyed).toBe(true);
+    expect(captured.ships.every((s) => s.destroyed === true)).toBe(true);
+  });
 });

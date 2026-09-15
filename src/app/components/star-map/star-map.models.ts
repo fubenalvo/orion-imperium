@@ -189,6 +189,11 @@ export interface FleetShipTypeSummary {
 }
 
 export interface StarMapData {
+  /*
+   * Save format version. Missing (older saves) is treated as 0 and
+   * migrated on first load; additional future fields must bump this.
+   */
+  saveVersion?: number;
   factions: Faction[];
   /*
    * map: Grid layout configuration.

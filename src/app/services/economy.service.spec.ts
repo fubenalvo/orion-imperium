@@ -100,6 +100,18 @@ describe('EconomyService — habitability & workforce', () => {
     });
   });
 
+  describe('4. research buildings do not affect morale', () => {
+    it('research laboratories contribute zero morale', () => {
+      const planet = makePlanet(1, 'earthlike', [
+        b('Small Research Laboratory'),
+        b('Research Laboratory'),
+      ]);
+
+      expect(economy.calculatePlanetEconomy(planet).buildingMoraleBonus).toBe(0);
+      expect(economy.getMoraleDriftPerSecond(planet)).toBe(0);
+    });
+  });
+
   describe('5. sufficient workforce => efficiency = 1', () => {
     it('available >= required yields efficiency 1', () => {
       // Large Residential provides 100; Spaceship Factory requires 100 (req == available).

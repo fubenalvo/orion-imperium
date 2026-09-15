@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
-import { Router } from '@angular/router';
 import { StarMapData } from '../components/star-map/star-map.models';
+import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
 
 /*
  * =========================================================
@@ -17,12 +17,9 @@ import { StarMapData } from '../components/star-map/star-map.models';
  * Storage key: 'orion_save_slots'
  * Format: JSON array of SaveSlot objects
  *
- * Auto-save triggers:
- * - Entering/leaving star systems
- * - Pausing the game
- * - Exiting to main menu
- * - Battle trigger
- * - Component destroy
+ * Corruption is isolated per slot: a single unreadable slot never hides
+ * the others. The raw value is quarantined to a backup key before any
+ * rewrite so a future migration can recover it.
  */
 
 export interface SaveSlot {
@@ -45,36 +42,82 @@ export const TOTAL_SLOT_COUNT = MANUAL_SLOT_COUNT + 1;
 @Injectable({ providedIn: 'root' })
 export class SaveGameService {
   private readonly storageKey = 'orion_save_slots';
+  private readonly backupKey = 'orion_save_slots_corrupt_backup';
   private readonly slotCount = TOTAL_SLOT_COUNT;
 
   currentSlot: number | null = null;
 
+  /*
+   * Last persistence error, or null when the last operation succeeded.
+   * Used by the UI to avoid reporting "GAME SAVED" after a failed write.
+   * Note that activation/validation errors also surface here.
+   */
+  lastError: string | null = null;
+
+  getSlotsError(): string | null {
+    return this.lastError;
+  }
+
   getSlots(): SaveSlot[] {
-    const raw = localStorage.getItem(this.storageKey);
-    if (!raw) {
-      return Array.from({ length: this.slotCount }, () => ({ data: null, date: null }));
-    }
-
+    let raw: string | null = null;
     try {
-      const parsed = JSON.parse(raw) as SaveSlot[];
-      const slots: SaveSlot[] = [];
-
-      for (let i = 0; i < this.slotCount; i++) {
-        const slot = parsed[i];
-        if (slot && slot.data) {
-          slots.push({
-            data: this.migrateSave(slot.data as StarMapData),
-            date: slot.date ?? null,
-          });
-        } else {
-          slots.push({ data: null, date: null });
-        }
-      }
-
-      return slots;
+      raw = localStorage.getItem(this.storageKey);
     } catch {
-      return Array.from({ length: this.slotCount }, () => ({ data: null, date: null }));
+      this.lastError = 'storage_unavailable';
+      return this.emptySlots();
     }
+
+    if (!raw) {
+      this.lastError = null;
+      return this.emptySlots();
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      this.lastError = 'save_corrupt_parse';
+      this.backupRaw(raw);
+      return this.emptySlots();
+    }
+
+    if (!Array.isArray(parsed)) {
+      this.lastError = 'save_corrupt_shape';
+      this.backupRaw(raw);
+      return this.emptySlots();
+    }
+
+    const slots: SaveSlot[] = this.emptySlots();
+    let sawCorruptSlot = false;
+
+    for (let i = 0; i < this.slotCount; i++) {
+      try {
+        const slot = parsed[i] as { data?: StarMapData | null; date?: string | null } | undefined;
+        if (slot && typeof slot === 'object' && slot.data) {
+          const migrated = this.migrateSave(slot.data as StarMapData);
+          if (this.isSlotShapeValid(migrated)) {
+            slots[i] = { data: migrated, date: slot.date ?? null };
+          } else {
+            sawCorruptSlot = true;
+            slots[i] = { data: null, date: null };
+          }
+        } else {
+          slots[i] = { data: null, date: null };
+        }
+      } catch {
+        sawCorruptSlot = true;
+        slots[i] = { data: null, date: null };
+      }
+    }
+
+    if (sawCorruptSlot) {
+      this.lastError = 'slot_corrupt';
+      this.backupRaw(raw);
+    } else {
+      this.lastError = null;
+    }
+
+    return slots;
   }
 
   getSlot(slotIndex: number): SaveSlot {
@@ -82,14 +125,21 @@ export class SaveGameService {
     return slots[slotIndex] ?? { data: null, date: null };
   }
 
-  saveToSlot(slotIndex: number, data: StarMapData): void {
+  saveToSlot(slotIndex: number, data: StarMapData): boolean {
     const slots = this.getSlots();
     slots[slotIndex] = {
       data,
       date: new Date().toISOString(),
     };
 
-    localStorage.setItem(this.storageKey, JSON.stringify(slots));
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(slots));
+      this.lastError = null;
+      return true;
+    } catch {
+      this.lastError = 'save_quota_error';
+      return false;
+    }
   }
 
   loadFromSlot(slotIndex: number): StarMapData | null {
@@ -105,71 +155,74 @@ export class SaveGameService {
    *
    * The active session is always backed by the AUTOSAVE slot (slot 0).
    * Loading a manual slot copies its full snapshot into autosave and
-   * switches `currentSlot` to 0 so every subsequent runtime save
-   * (StarMap.saveGame, battle results, autosave triggers) writes to the
-   * same slot that reloadAfterBattle / loadGame read back. Without this,
-   * a stale manual snapshot can resurrect fleets destroyed in earlier
-   * battles once the player returns from a later battle.
+   * switches `currentSlot` to 0 so every subsequent runtime save writes
+   * to the same slot that reloadAfterBattle / loadGame read back.
    *
-   * - Empty or invalid slots leave the current session untouched.
-   * - Activating autosave itself is a no-op copy (it is already the
-   *   active session source).
-   * - The selected manual snapshot is never mutated by activation.
+   * The selected manual snapshot is never mutated by activation, and
+   * malformed slots leave the current session untouched.
    */
   activateSlot(slotIndex: number): boolean {
+    const previousSlot = this.currentSlot;
     const slot = this.getSlot(slotIndex);
     if (!slot.data || !this.isValidSaveData(slot.data)) {
       return false;
     }
     if (slotIndex !== SaveSlotId.AUTOSAVE) {
-      this.saveToSlot(SaveSlotId.AUTOSAVE, this.migrateSave(slot.data));
+      if (!this.saveToSlot(SaveSlotId.AUTOSAVE, this.migrateSave(slot.data))) {
+        this.currentSlot = previousSlot;
+        return false;
+      }
     }
     this.currentSlot = SaveSlotId.AUTOSAVE;
     return true;
   }
 
-  /*
-   * isValidSaveData: Minimum structural check shared by activation and
-   * StarMap.loadGame. Activation must reject a malformed slot BEFORE it can
-   * overwrite the live autosave session, so the same shape requirement that
-   * gates state restoration also gates the cross-slot copy.
-   */
-  private isValidSaveData(data: StarMapData): boolean {
-    return (
-      typeof data === 'object' &&
-      data !== null &&
-      Array.isArray(data.fleets) &&
-      Array.isArray(data.starSystems) &&
-      Array.isArray(data.factions)
-    );
+  isValidSaveData(data: StarMapData): boolean {
+    const result = validateSaveData(data);
+    if (!result.ok) {
+      this.lastError = `save_invalid: ${result.errors[0]?.message ?? 'unknown error'}`;
+      return false;
+    }
+    return true;
   }
 
   /*
-   * migrateSave: Backfills optional fields that were introduced after the
-   * original save format so older saves keep loading. Currently:
-   * - ai: derived from team (team 2 → ai: true) for saves that predate the flag
-   * - shipStock: per-faction global ship reserve
-   * - production: per-faction production queue
-   * - resourceTiles: per-planet resource deposit positions
+   * migrateSave: Backfills optional fields introduced after the original
+   * save format and runs the versioned legacy migration.
+   *
+   * Version 0 -> SAVE_VERSION conversions are intentionally placed here
+   * (not in StarMap) so the same migration runs on slot reads, activation,
+   * and saves, and so it can be made idempotent in one place.
    */
   migrateSave(data: StarMapData): StarMapData {
+    if (!data || typeof data !== 'object') {
+      return data;
+    }
+
+    const version = typeof data.saveVersion === 'number' ? data.saveVersion : 0;
+
     if (!data.shipStock) {
       data.shipStock = [];
     }
     if (!data.production) {
       data.production = [];
     }
-    for (const system of data.starSystems ?? []) {
-      for (const planet of system.planetsTiles ?? []) {
+
+    const systems = Array.isArray(data.starSystems) ? data.starSystems : [];
+    for (const system of systems) {
+      const planets = Array.isArray(system?.planetsTiles) ? system.planetsTiles : [];
+      for (const planet of planets) {
         if (!planet.resourceTiles) {
           planet.resourceTiles = [];
         }
       }
     }
-    for (const faction of data.factions ?? []) {
+
+    const factions = Array.isArray(data.factions) ? data.factions : [];
+    for (const faction of factions) {
       if (faction.ai === undefined) {
-        // Old saves lack the ai flag; derive from team (team 2 = AI enemy in the original convention)
-        faction.ai = faction.team === 2;
+        // Old saves lack the ai flag; derive it from team (team 2+ = AI-controlled).
+        faction.ai = faction.team >= 2;
       }
       if (!faction.researchedTechnologies) {
         faction.researchedTechnologies = [
@@ -180,13 +233,89 @@ export class SaveGameService {
         ];
       }
     }
+
+    if (data.map && data.map.width === 200) {
+      this.migrateLegacyGrid(data);
+    }
+
+    if (version < SAVE_VERSION) {
+      data.saveVersion = SAVE_VERSION;
+    }
+
     return data;
+  }
+
+  /*
+   * migrateLegacyGrid: Converts the old 200vw map (map.width === 200)
+   * to 1-indexed grid cells using a 2vw reference cell size, then pins
+   * the map to the current grid dimensions so the migration never runs
+   * twice. System-view coordinates are converted with the 5vw reference
+   * cell size used by StarMapMovementService.
+   */
+  private migrateLegacyGrid(data: StarMapData): void {
+    const mapRefCellSize = 2;
+    const systemRefCellSize = 5;
+    const maxX = CURRENT_MAP_GRID.width;
+    const maxY = CURRENT_MAP_GRID.height;
+    const maxSystemCol = 18;
+    const maxSystemRow = 10;
+
+    const toGrid = (value: unknown, refCellSize: number, max: number): number | unknown => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return value;
+      }
+      const grid = Math.floor(value / refCellSize) + 1;
+      return Math.max(1, Math.min(grid, max));
+    };
+
+    if (data.map) {
+      data.map.width = maxX;
+      data.map.height = maxY;
+    }
+
+    for (const system of Array.isArray(data.starSystems) ? data.starSystems : []) {
+      system.x = toGrid(system.x, mapRefCellSize, maxX) as number;
+      system.y = toGrid(system.y, mapRefCellSize, maxY) as number;
+    }
+
+    for (const fleet of Array.isArray(data.fleets) ? data.fleets : []) {
+      fleet.x = toGrid(fleet.x, mapRefCellSize, maxX) as number;
+      fleet.y = toGrid(fleet.y, mapRefCellSize, maxY) as number;
+      if (typeof fleet.targetX === 'number') {
+        fleet.targetX = toGrid(fleet.targetX, mapRefCellSize, maxX) as number;
+      }
+      if (typeof fleet.targetY === 'number') {
+        fleet.targetY = toGrid(fleet.targetY, mapRefCellSize, maxY) as number;
+      }
+      if (fleet.system) {
+        fleet.system.x = toGrid(fleet.system.x, systemRefCellSize, maxSystemCol) as number;
+        fleet.system.y = toGrid(fleet.system.y, systemRefCellSize, maxSystemRow) as number;
+        if (typeof fleet.system.targetX === 'number') {
+          fleet.system.targetX = toGrid(fleet.system.targetX, systemRefCellSize, maxSystemCol) as number;
+        }
+        if (typeof fleet.system.targetY === 'number') {
+          fleet.system.targetY = toGrid(fleet.system.targetY, systemRefCellSize, maxSystemRow) as number;
+        }
+      }
+    }
+
+    if (typeof data.targetX === 'number') {
+      data.targetX = toGrid(data.targetX, mapRefCellSize, maxX) as number;
+    }
+    if (typeof data.targetY === 'number') {
+      data.targetY = toGrid(data.targetY, mapRefCellSize, maxY) as number;
+    }
   }
 
   clearSlot(slotIndex: number): void {
     const slots = this.getSlots();
     slots[slotIndex] = { data: null, date: null };
-    localStorage.setItem(this.storageKey, JSON.stringify(slots));
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify(slots));
+      this.lastError = null;
+    } catch {
+      this.lastError = 'save_quota_error';
+    }
   }
 
   hasAnySave(): boolean {
@@ -194,20 +323,57 @@ export class SaveGameService {
   }
 
   /*
-   * getMostRecentSlotIndex: Returns the index of the save slot with the latest date.
-   * Returns null if no saves exist.
+   * getMostRecentSlotIndex: Returns the index of the save slot with the
+   * latest date. Returns null if no saves exist or no readable date exists.
    */
   getMostRecentSlotIndex(): number | null {
     const slots = this.getSlots();
     let bestIndex: number | null = null;
-    let bestDate: string | null = null;
+    let bestDate: number | null = null;
     for (let i = 0; i < slots.length; i++) {
-      const date = slots[i].date;
-      if (date && (bestDate === null || date > bestDate)) {
-        bestDate = date;
+      const dateValue = this.parseSlotDate(slots[i].date);
+      if (dateValue !== null && (bestDate === null || dateValue > bestDate)) {
+        bestDate = dateValue;
         bestIndex = i;
       }
     }
     return bestIndex;
+  }
+
+  private parseSlotDate(date: string | null): number | null {
+    if (!date) {
+      return null;
+    }
+    const timestamp = Date.parse(date);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+
+  private emptySlots(): SaveSlot[] {
+    return Array.from({ length: this.slotCount }, () => ({ data: null, date: null }));
+  }
+
+  /*
+   * isSlotShapeValid: Top-level structural check applied while listing slots.
+   * Deliberately permissive (empty arrays are accepted at list time) so
+   * battle-screen autosaves and legacy seeds still list; strict domain
+   * validation is intentionally NOT applied here — it belongs to activation
+   * and load so partial data can never be destroyed by a list read.
+   */
+  private isSlotShapeValid(data: StarMapData): boolean {
+    return (
+      typeof data === 'object' &&
+      data !== null &&
+      Array.isArray(data.fleets) &&
+      Array.isArray(data.starSystems) &&
+      Array.isArray(data.factions)
+    );
+  }
+
+  private backupRaw(raw: string): void {
+    try {
+      localStorage.setItem(this.backupKey, raw);
+    } catch {
+      // Backup is best-effort; the original raw string may still be recoverable manually.
+    }
   }
 }

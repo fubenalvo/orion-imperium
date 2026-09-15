@@ -249,31 +249,15 @@ export class StarMapMovementService {
   }
 
   /*
-   * initializeCoordinates: Ensures all fleets and systems have grid cell coordinates.
-   * In the new system, x/y are already 1-indexed grid cells. For legacy saves
-   * (map.width === 200, meaning vw dimensions), converts vw positions to grid cells
-   * using the reference cell size of 2vw.
+   * initializeCoordinates: Ensures all fleets and systems have grid cell
+   * coordinates. Legacy vw->grid conversion is centralized in
+   * SaveGameService.migrateSave so it is versioned and idempotent; the
+   * grid columns/rows here come from the current map constants.
    */
   initializeCoordinates(fleets: Fleet[], starSystems: StarSystem[]): void {
-    const isLegacyVw = this.gridColumns === 0 || this.gridColumns > 150;
-
     for (const fleet of fleets) {
       if (fleet.destroyed) {
         continue;
-      }
-
-      if (isLegacyVw && (fleet.x > this.gridColumns || fleet.y > this.gridRows)) {
-        // Legacy: x/y are vw coordinates; convert to 1-indexed grid cells
-        const gridX = Math.floor(fleet.x / this.cellSizeVw) + 1;
-        const gridY = Math.floor(fleet.y / this.cellSizeVh) + 1;
-        fleet.x = gridX;
-        fleet.y = gridY;
-        if (fleet.targetX != null) {
-          fleet.targetX = Math.floor(fleet.targetX / this.cellSizeVw) + 1;
-        }
-        if (fleet.targetY != null) {
-          fleet.targetY = Math.floor(fleet.targetY / this.cellSizeVh) + 1;
-        }
       }
 
       fleet.gridCol = Math.floor(fleet.x);
@@ -281,10 +265,6 @@ export class StarMapMovementService {
     }
 
     for (const system of starSystems) {
-      if (isLegacyVw && (system.x > this.gridColumns || system.y > this.gridRows)) {
-        system.x = Math.floor(system.x / this.cellSizeVw) + 1;
-        system.y = Math.floor(system.y / this.cellSizeVh) + 1;
-      }
       system.gridCol = Math.floor(system.x);
       system.gridRow = Math.floor(system.y);
     }

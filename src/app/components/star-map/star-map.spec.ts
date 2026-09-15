@@ -10,6 +10,7 @@ import { StarMapGameLoopService } from './star-map-game-loop.service';
 import { ProductionService } from '../../services/production.service';
 import { EconomyService } from '../../services/economy.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
+import { SAVE_VERSION } from '../../services/save-validation';
 import { BattleService } from '../../services/battle.service';
 import type { BattleOutcome } from '../../services/battle.service';
 
@@ -42,6 +43,11 @@ describe('StarMap', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('serializes the current save format version', () => {
+    const data = component['serializeGameState']();
+    expect(data.saveVersion).toBe(SAVE_VERSION);
   });
 
   describe('EnemyActionService integration', () => {

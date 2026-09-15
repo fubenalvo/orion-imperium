@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Fleet, FleetShip, PlanetTile } from '../components/star-map/star-map.models';
+import { Fleet, FleetShip, PlanetTile, StarSystem } from '../components/star-map/star-map.models';
 import planetData from '../components/star-map/planet-data.json';
 
 /*
@@ -42,6 +42,9 @@ interface BuildingDef {
 export interface VirtualDefenseFleet extends Fleet {
   shieldPool: number;
   shieldPoolRegen: number;
+  shieldPoolMax: number;
+  garrisonFleetId?: number;
+  garrisonShipMap?: Record<number, number>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -70,6 +73,7 @@ export class PlanetBattleService {
     let totalShield = 0;
     let totalShieldRegen = 0;
     let persistedShieldCurrent: number | null = null;
+    const garrisonShipMap: Record<number, number> = {};
 
     for (const building of planet.buildings) {
       const def = this.buildingDefs.find((b) => b.name === building.name);
@@ -99,15 +103,21 @@ export class PlanetBattleService {
      * start its next battle at full shields.
      */
     if (planet.shieldPoolCurrent !== undefined) {
-      persistedShieldCurrent = Math.min(planet.shieldPoolCurrent, totalShield);
+      if (typeof planet.shieldPoolCurrent === 'number' && Number.isFinite(planet.shieldPoolCurrent)) {
+        persistedShieldCurrent = Math.max(0, Math.min(planet.shieldPoolCurrent, totalShield));
+      } else {
+        persistedShieldCurrent = totalShield;
+      }
     }
 
     if (garrisonFleet) {
       for (const ship of garrisonFleet.ships) {
         if (ship.destroyed) continue;
+        const virtualShipId = nextShipId++;
+        garrisonShipMap[virtualShipId] = ship.id;
         virtualShips.push({
           ...ship,
-          id: nextShipId++,
+          id: virtualShipId,
         });
       }
     }
@@ -128,6 +138,9 @@ export class PlanetBattleService {
       destroyed: false,
       shieldPool: startingCurrent,
       shieldPoolRegen: totalShieldRegen,
+      shieldPoolMax: totalShield,
+      garrisonFleetId: garrisonFleet?.id,
+      garrisonShipMap: garrisonFleet ? garrisonShipMap : undefined,
     };
   }
 
@@ -139,6 +152,38 @@ export class PlanetBattleService {
       const def = this.buildingDefs.find((d) => d.name === b.name);
       return def?.role === 'defense';
     });
+  }
+
+  /*
+   * reconcilePlanetShields: Clamps every persisted shield pool to its
+   * building-defined maximum after a load. A missing value stays missing
+   * (meaning "start full on next battle"); negative, NaN, and over-max
+   * values are normalized instead of being allowed to poison battle state.
+   */
+  reconcilePlanetShields(starSystems: StarSystem[]): void {
+    for (const system of starSystems) {
+      for (const planet of system.planetsTiles ?? []) {
+        if (planet.shieldPoolCurrent === undefined) {
+          continue;
+        }
+        const totalShield = this.getTotalShieldForPlanet(planet);
+        const current =
+          typeof planet.shieldPoolCurrent === 'number' && Number.isFinite(planet.shieldPoolCurrent)
+            ? planet.shieldPoolCurrent
+            : totalShield;
+        planet.shieldPoolCurrent = Math.max(0, Math.min(current, totalShield));
+      }
+    }
+  }
+
+  private getTotalShieldForPlanet(planet: PlanetTile): number {
+    return planet.buildings.reduce((sum, building) => {
+      const def = this.buildingDefs.find((d) => d.name === building.name);
+      if (def?.role === 'defense' && def.type === 'shield') {
+        return sum + (def.shield ?? 0);
+      }
+      return sum;
+    }, 0);
   }
 
   /*

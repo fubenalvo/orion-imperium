@@ -56,6 +56,32 @@ export class ProductionService {
   ) {}
 
   /*
+   * rebaseFromSave: Resynchronizes the in-memory id/tick counters with a
+   * freshly loaded save. Without this, a browser refresh resets both to 0
+   * while persisted orders carry large absolute startedAtTick values
+   * (negative stall ages) and newly queued orders collide with persisted
+   * order ids.
+   */
+  rebaseFromSave(production: FactionProduction[] | undefined): void {
+    let maxOrderId = 0;
+    let maxStartedAtTick = 0;
+    for (const factionProd of production ?? []) {
+      for (const orders of Object.values(factionProd.ordersByPlanet ?? {})) {
+        for (const order of orders ?? []) {
+          if (typeof order.id === 'number' && Number.isFinite(order.id)) {
+            maxOrderId = Math.max(maxOrderId, order.id);
+          }
+          if (typeof order.startedAtTick === 'number' && Number.isFinite(order.startedAtTick)) {
+            maxStartedAtTick = Math.max(maxStartedAtTick, order.startedAtTick);
+          }
+        }
+      }
+    }
+    this.orderIdCounter = Math.max(1, maxOrderId + 1);
+    this.tickCounter = Math.max(0, maxStartedAtTick);
+  }
+
+  /*
    * queueOrder: Deducts the resource cost up-front, then enqueues the
    * order on the planet. Returns a structured result so the UI can
    * display the failure reason.
@@ -216,7 +242,11 @@ export class ProductionService {
         const head = queue[0];
         const shipType = this.shipService.getShipType(head.shipTypeId);
         if (!shipType) {
+          // Unknown/removed ship type: refund rather than silently dropping
+          // the order (and the credits paid up front for it).
           queue.shift();
+          const refund = this.refundOrder(head, factions, factionProd.factionId);
+          result.refundedOrders.push({ factionId: factionProd.factionId, planetId, orderId: head.id, refunded: refund });
           result.stateChanged = true;
           continue;
         }
