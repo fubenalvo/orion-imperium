@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { ANIMATION_MS, BattleModelState, GridCell } from './battle.types';
+import { BattleModelState, GridCell, BATTLE_CELL_SIZE_VW } from './battle.types';
 import { isInBounds, isPathClear, linePath, findBestMoveToAttackCell, isInRange } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 import { BattleCombatService } from './battle-combat.service';
@@ -9,14 +9,17 @@ import { BattleCombatService } from './battle-combat.service';
  * BATTLE MINIGAME — MOVEMENT SERVICE
  * =========================================================
  *
- * Tactical, grid-based movement controlled by AP. One command moves a
- * stack in a straight line (orthogonal + diagonal) to a target cell up
- * to its remaining moveRange away, costing `tier` AP per cell. Every
- * intermediate cell must be in bounds and unoccupied — no pathfinding.
+ * Real-time, speed-based movement. One command sets a stack's vw target;
+ * the game loop (BattleScreenComponent) calls updateStackPositions() every
+ * frame to interpolate the stack toward its target at `speed` vw/s.
  *
- * The stack's grid position is committed immediately and the CSS
- * transition on the stack element plays the tween; the busy lock holds
- * until the tween duration has elapsed.
+ * No AP costs, no moveRange limits. The only gate is the animation busy
+ * lock during attacks — stacks can move while attacks are animating on
+ * other stacks.
+ *
+ * Movement direction uses straight-line paths (orthogonal + diagonal),
+ * matching the star-map fleet movement pattern. Each intermediate cell
+ * must be in bounds and unoccupied — no pathfinding through obstacles.
  */
 
 @Injectable({ providedIn: 'root' })
@@ -33,28 +36,13 @@ export class BattleMovementService {
     targetRow: number,
   ): Promise<boolean> {
     const stack = state.stacks.find((s) => s.stackId === stackId && !s.destroyed);
-    if (!stack || state.winner || this.anim.isBusy) {
-      return false;
-    }
-    if (state.activeSide !== stack.side || stack.immobile) {
+    if (!stack || state.winner || stack.moving || stack.immobile) {
       return false;
     }
 
     const from: GridCell = { col: stack.col, row: stack.row };
     const target: GridCell = { col: targetCol, row: targetRow };
-    if (!isInBounds(target.col, target.row)) {
-      return false;
-    }
-    if (from.col === target.col && from.row === target.row) {
-      return false;
-    }
-
-    const steps = Math.max(Math.abs(target.col - from.col), Math.abs(target.row - from.row));
-    if (stack.cellsMovedThisTurn + steps > stack.moveRange) {
-      return false;
-    }
-    const cost = steps * stack.moveApPerCell;
-    if (cost > state.ap) {
+    if (!isInBounds(target.col, target.row) || target.col === stack.col && target.row === stack.row) {
       return false;
     }
 
@@ -66,28 +54,18 @@ export class BattleMovementService {
       return false;
     }
 
-    // Commit the AP cost up-front; the busy lock prevents any concurrent
-    // command from overdrawing the pool.
-    state.ap -= cost;
-    stack.cellsMovedThisTurn += steps;
-    stack.moveMs = steps * ANIMATION_MS.move;
-
-    await this.anim.run(async () => {
-      stack.col = target.col;
-      stack.row = target.row;
-      stack.moving = true;
-      this.anim.tick();
-      await this.anim.wait(steps * ANIMATION_MS.move);
-      stack.moving = false;
-      this.anim.tick();
-    });
+    // Set target to the visual centre of the destination cell.
+    const targetVw = cellCenterVw(target, stack);
+    stack.targetX = targetVw.x;
+    stack.targetY = targetVw.y;
+    stack.moving = true;
     return true;
   }
 
   /*
-   * Move-to-attack: move to the best attack position for a target,
-   * then attack it. Both actions consume AP and must succeed atomically.
-   * Returns true if both move and attack completed.
+   * Move to attack: find the best cell within attack range of the target,
+   * then move there. When the stack arrives, the caller (player clicks or
+   * AI tick) handles the attack separately.
    */
   async moveToAttack(
     state: BattleModelState,
@@ -96,47 +74,34 @@ export class BattleMovementService {
   ): Promise<boolean> {
     const stack = state.stacks.find((s) => s.stackId === stackId && !s.destroyed);
     const target = state.stacks.find((s) => s.stackId === targetStackId && !s.destroyed);
-    if (!stack || !target || state.winner || this.anim.isBusy) {
+    if (!stack || !target || state.winner || stack.moving || stack.immobile) {
       return false;
     }
-    if (state.activeSide !== stack.side || stack.side === target.side || stack.immobile) {
+    if (stack.side === target.side) {
       return false;
     }
 
-    // Check if already in direct attack range
     const from: GridCell = { col: stack.col, row: stack.row };
     const to: GridCell = { col: target.col, row: target.row };
     if (isInRange(from, to, stack.attackRange)) {
-      // Direct attack is possible - delegate to combat service
       return this.combat.attackStack(state, stackId, targetStackId);
     }
 
-    // Find best attack position
     const bestCell = findBestMoveToAttackCell(state, stack, target);
     if (!bestCell) {
-      return false; // No valid path to attack position
-    }
-
-    const moveSteps = Math.max(Math.abs(bestCell.col - from.col), Math.abs(bestCell.row - from.row));
-    const moveCost = moveSteps * stack.moveApPerCell;
-    const attackCost = stack.attackAp;
-    const totalCost = moveCost + attackCost;
-
-    if (totalCost > state.ap) {
-      return false; // Insufficient AP for both move and attack
-    }
-    if (stack.cellsMovedThisTurn + moveSteps > stack.moveRange) {
-      return false; // Exceeds move range
-    }
-
-    // Execute move
-    const moveResult = await this.moveStack(state, stackId, bestCell.col, bestCell.row);
-    if (!moveResult) {
       return false;
     }
 
-    // Execute attack from new position
-    const attackResult = await this.combat.attackStack(state, stackId, targetStackId);
-    return attackResult;
+    return this.moveStack(state, stackId, bestCell.col, bestCell.row);
   }
+}
+
+/* Compute the vw centre of a cell adjusted for the stack's visual offset. */
+function cellCenterVw(cell: GridCell, stack: { side: 'attacker' | 'defender'; size: number }): { x: number; y: number } {
+  const offset = (stack.size - 1) / 2;
+  const visualCol = stack.side === 'attacker' ? cell.col + offset : cell.col - offset;
+  return {
+    x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW,
+    y: (cell.row - 0.5) * BATTLE_CELL_SIZE_VW,
+  };
 }

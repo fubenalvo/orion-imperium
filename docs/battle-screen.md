@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Battle Screen is a **fully self-contained tactical combat minigame** that runs at the `/battle` route. It receives two fleets via the `BattleService` transport boundary, runs a turn-based, AP-driven tactical simulation on an 18×7 grid, and returns a `BattleOutcome` with surviving/destroyed ships. It **never touches StarMap strategic state** — no fleet movement, economy, AI strategy, production, or research.
+The Battle Screen is a **fully self-contained real-time tactical combat minigame** that runs at the `/battle` route. It receives two fleets via the `BattleService` transport boundary, runs a speed-based tactical simulation on an 18×7 grid, and returns a `BattleOutcome` with surviving/destroyed ships. It **never touches StarMap strategic state** — no fleet movement, economy, AI strategy, production, or research.
 
 ---
 
@@ -28,8 +28,8 @@ The Battle Screen is a **fully self-contained tactical combat minigame** that ru
 │   ┌───────┼───────┐                                              │
 │   ▼       ▼       ▼                                              │
 │ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐ ┌────┐                │
-│ │State│ │Grid │ │Turn │ │Move │ │Cmbt │ │Anim │                  │
-│ │Fact.│ │Geom.│ │Svc  │ │Svc  │ │Svc  │ │Svc  │                  │
+│ │State│ │Grid │ │Game  │ │Move │ │Cmbt │ │Anim │                  │
+│ │Fact.│ │Geom.│ │Loop │ │Svc  │ │Svc  │ │Svc  │                  │
 │ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘ └────┘                │
 │                                                                  │
 │  ┌─────────────┐  ┌────────────┐                                │
@@ -72,9 +72,9 @@ src/app/components/battle-screen/
     ├── battle.types.ts             # Core types, constants, interfaces
     ├── battle-state.ts             # State factory (createBattleState)
     ├── battle-grid.ts              # Pure grid math (bounds, distance, paths)
-    ├── battle-turn.service.ts      # Turn lifecycle, AP, victory check
-    ├── battle-movement.service.ts  # Grid movement with AP cost
-    ├── battle-combat.service.ts    # Attack resolution, damage, animation
+    ├── battle-game-loop.service.ts # RAF loop (raw real-time delta)
+    ├── battle-movement.service.ts  # Grid movement (vw-based targeting)
+    ├── battle-combat.service.ts    # Attack resolution, damage
     ├── battle-animation.service.ts # Animation lock (busy flag)
     ├── battle-ai.service.ts        # Tactical AI for non-player sides
     ├── battle-result.ts            # BattleOutcome builder
@@ -91,11 +91,13 @@ src/app/components/battle-screen/
 BATTLE_GRID_COLUMNS = 18          // Grid width (cells)
 BATTLE_GRID_ROWS = 7              // Grid height (cells)
 BATTLE_CELL_SIZE_VW = 2.5         // Cell size in viewport width units
-AP_PER_TURN = 10                  // Action Points per turn per side
 MAX_STACK_SIZE = 5                // Max ships per visual stack
 ATTACKER_DEPLOY_COLS = [1, 2, 3]  // Attacker deployment columns (left)
 DEFENDER_DEPLOY_COLS = [17, 18, 16] // Defender deployment columns (right)
 ANIMATION_MS = { move: 180, projectile: 320, hit: 200, explosion: 420 }
+AI_ACTION_INTERVAL_MS = 200        // Milliseconds between AI stack actions
+SHIELD_REGEN_INTERVAL_MS = 1000   // Milliseconds between shield regeneration ticks
+```
 ```
 
 ### Key Interfaces
@@ -110,18 +112,18 @@ interface BattleStack {
   col: number;               // Grid column (1-18)
   row: number;               // Grid row (1-7)
   ships: BattleShip[];       // Individual ships in this stack
-  tier: number;              // AP tier (1-5 from ship cost)
-  moveApPerCell: number;     // AP cost per cell moved
-  attackAp: number;          // AP cost to attack
-  moveRange: number;         // Max cells per turn (from ship.speed)
-  attackRange: number;       // Attack range (from ship.range)
+  tier: number;              // AP tier (1-5 from ship cost) — used for AI targeting priority
+  speed: number;             // Movement speed in VW/s (1-5 from ShipType.speed)
+  attackRange: number;       // Attack range in cells (from ship.range)
   immobile: boolean;         // True for planet defenses
-  cellsMovedThisTurn: number;
-  attackedThisTurn: boolean;
   moving: boolean;           // Animation flags
   firing: boolean;
-  moveMs: number;            // Move animation duration
   destroyed: boolean;
+  // Real-time movement fields (VW coordinates)
+  x: number;                 // Current VW position (center of stack)
+  y: number;
+  targetX: number | null;    // Target VW position (null = stationary)
+  targetY: number | null;
 }
 
 // Individual ship — HP tracked per ship, not per stack
@@ -138,12 +140,8 @@ interface BattleShip {
 
 // Complete simulation state
 interface BattleModelState {
-  round: number;
-  activeSide: 'attacker' | 'defender';
-  ap: number;                // Current AP remaining
-  apPerTurn: number;         // Always 10
+  round: number;             // AI tick counter
   stacks: BattleStack[];
-  phase: 'playerTurn' | 'aiTurn' | 'over';
   log: BattleLogEntry[];
   effect: BattleAttackEffect | null;  // projectile/impact/explosion
   winner: 'attacker' | 'defender' | null;
@@ -218,8 +216,8 @@ this.state = createBattleState(this.battle, shipService, planetBattleService);
 // 1. Deep-clone both fleets' ships → BattleShip[] (never mutates originals)
 // 2. Group by side + typeId → stacks (max 5 ships each)
 // 3. Deploy: attacker cols 1-3, defender cols 16-18, rows center-out from 4
-// 4. Set activeSide = 'attacker', ap = 10, phase = playerTurn/aiTurn
-// 5. If AI controls active side → runAiTurns()
+// 4. Initialize VW positions (x, y) centered on each stack's grid cell
+// 5. Start RAF game loop + AI interval timer
 ```
 
 ### 2. State Factory (`createBattleState`)
@@ -234,97 +232,75 @@ this.state = createBattleState(this.battle, shipService, planetBattleService);
 // 4. deployStacks(): Place on grid
 //    - ROW_ORDER = [4, 3, 5, 2, 6, 1, 7] (center-out)
 //    - Column cycles through ATTACKER_DEPLOY_COLS / DEFENDER_DEPLOY_COLS
-// 5. Return BattleModelState
+// 5. initializeStackPositions(): Set x/y/targetXY to VW center of each stack's cell
+// 6. Return BattleModelState
 ```
 
-### 3. Turn Lifecycle
+### 3. Real-Time Game Loop
 
-```
-ATTACKER TURN (10 AP)
-  └─ Player/AI spends AP on Move/Attack
-  └─ END TURN pressed (or AI auto-ends)
-     │
-     ▼
-DEFENDER TURN (10 AP)
-  └─ Player/AI spends AP
-  └─ END TURN
-     │
-     ▼
-ROUND++ → ATTACKER TURN (10 AP)
-```
+The battle runs in continuous real-time. Two independent systems drive the simulation:
 
-**BattleTurnService.endTurn(state):**
+**A. RAF Game Loop (`battle-game-loop.service.ts`):**
 ```typescript
-if (state.winner || anim.isBusy) return false;  // Blocked during animation
-
-state.activeSide = otherSide(state.activeSide);
-if (state.activeSide === 'attacker') state.round++;
-state.ap = state.apPerTurn;  // Reset to 10
-
-// Reset per-stack turn counters for NEW active side
-for (stack of state.stacks) {
-  if (stack.side === state.activeSide) {
-    stack.cellsMovedThisTurn = 0;
-    stack.attackedThisTurn = false;
-  }
-}
-state.phase = isSidePlayerControlled(state, state.activeSide) ? 'playerTurn' : 'aiTurn';
-checkVictory(state);
-return true;
+// Runs via requestAnimationFrame, outside Angular zone for performance
+// Uses raw real delta time (NOT GameTimeService — that returns 0 when paused)
+// Delta is clamped to 0.1s to prevent large jumps
+// Updates: stack VW positions toward targets via updateStackPositions()
 ```
 
-**Victory Check:** After every attack and at end of turn — side with 0 alive stacks loses.
+**B. AI Interval Timer (in `battle-screen.component.ts`):**
+```typescript
+// Every AI_ACTION_INTERVAL_MS (200ms), fires one AI stack action
+// Only non-player-controlled stacks act during each tick
+// Each tick = one stack performs either attack or move (not both)
+```
+
+**Shield Regeneration:**
+```typescript
+// Every SHIELD_REGEN_INTERVAL_MS (1000ms), regenerate all shield sides
+// Handled by regenerateAllShields() in battle-grid.ts
+```
 
 ### 4. Player Input
 
-**Conditions to act (`canAct`):**
+**Conditions to act (`canPlayerAct`):**
 ```typescript
-get canAct(): boolean {
-  return this.playerControlsActiveSide && !this.anim.isBusy;
+get canPlayerAct(): boolean {
+  return !this.anim.isBusy;  // Animation lock is the only gate
 }
 ```
 
 **Selection Flow:**
 1. **Click own stack** → `selectedStackId` set → `moveCells` (green) + `attackTargetIds` (red pulse) computed
-2. **Click green cell** → `doMove()` → `BattleMovementService.moveStack()`
+2. **Click green cell** → `doMove()` → `BattleMovementService.moveStack()` — sets VW target
 3. **Click red enemy stack** → `doAttack()` → `BattleCombatService.attackStack()`
-4. **END TURN** → `turn.endTurn()` → if AI next → `runAiTurns()`
 
 ### 5. Movement (`BattleMovementService.moveStack`)
 
 ```typescript
 async moveStack(state, stackId, targetCol, targetRow): Promise<boolean>
-1. Validate: stack exists, not destroyed, correct side, not immobile, not animating
+1. Validate: stack exists, not destroyed, not immobile, not already at target
 2. Check bounds (1-18, 1-7)
-3. Calculate steps = max(|dc|, |dr|)  // 8-direction straight line
-4. Check: cellsMovedThisTurn + steps ≤ moveRange
-5. Check: steps * moveApPerCell ≤ state.ap
-6. linePath() → all intermediate cells must be in bounds + unoccupied
-7. Commit AP: state.ap -= cost; stack.cellsMovedThisTurn += steps
-8. Animate: anim.run(() => {
-      stack.moving = true; tick();
-      stack.col = targetCol; stack.row = targetRow;  // Position commits immediately
-      wait(steps * ANIMATION_MS.move);
-      stack.moving = false; tick();
-   })
-9. Return true
+3. Check: isPathClear(stack, targetCol, targetRow)  // No distance limit
+4. Snap stack to grid cell (col, row = targetCol, targetRow)
+5. Set VW target (targetX, targetY = cellToVw(target))
+6. Set stack.moving = true
+7. Return true (game loop handles VW interpolation)
 ```
 
 ### 6. Combat (`BattleCombatService.attackStack`)
 
 ```typescript
 async attackStack(state, attackerStackId, targetStackId): Promise<boolean>
-1. Validate: both stacks exist, alive, correct side, attacker not attackedThisTurn, AP sufficient
-2. Range check: isInRange(attacker, target, attacker.attackRange)  // Euclidean dx²+dy² ≤ range²
-3. Commit AP: state.ap -= attacker.attackAp; attacker.attackedThisTurn = true
-4. Animation sequence via anim.run():
+1. Validate: both stacks exist, alive, correct side, attacker not already moving
+2. Range check: isInRange(attacker, target, attacker.attackRange)
+3. Animation sequence via anim.run():
    a) PROJECTILE (320ms): state.effect = { phase: 'projectile', from, to, targetStackId }
       attacker.firing = true; tick(); wait(320ms);
    b) DAMAGE CALCULATION:
       totalAttack = Σ alive ships in attacker stack .attack
       front = first alive ship in target stack
-      damage = max(1, totalAttack - front.defense)  // Per-ship defense, not summed
-      // Apply damage ship-by-ship, overkill spills to next
+      damage = max(1, totalAttack - front.defense)
       for (ship of target.ships) if alive:
          applied = min(ship.hp, remaining)
          ship.hp -= applied; remaining -= applied
@@ -334,7 +310,7 @@ async attackStack(state, attackerStackId, targetStackId): Promise<boolean>
    d) IMPACT/EXPLOSION (200/420ms): state.effect = { phase: 'impact'|'explosion', ... }
       tick(); wait(200 or 420ms);
    e) CLEANUP: state.effect = null; attacker.firing = false; checkVictory(); tick()
-5. Return true
+4. Return true
 ```
 
 **Damage Model:**
@@ -365,21 +341,21 @@ tick(): void { ticks$.next(); }  // Notifies view of mid-animation state changes
 ```
 
 **What `isBusy` blocks:**
-- END TURN button (`canEndTurn`)
-- Stack selection (`canAct`)
-- Movement input (`canAct`)
-- Attack input (`canAct`)
-- AI turn progression (`runAiTurns` loop checks `!state.winner && !isSidePlayerControlled...`)
+- Player stack selection (via `canPlayerAct`)
+- Player movement input (via `canPlayerAct`)
+- Player attack input (via `canPlayerAct`)
 
-### 8. AI (`BattleAiService.playTurn`)
+### 8. AI (`BattleAiService.playAction`)
 
 ```typescript
-async playTurn(state):
-1. Attack phase 1: Every in-range stack attacks nearest enemy
-2. Move phase: Remaining stacks move toward nearest enemy (straight line, max moveRange)
-3. Attack phase 2: Stacks that moved into range attack
-4. endTurn()
+async playAction(state):
+1. Find next non-moving, non-firing AI stack (not player-controlled side)
+2. If none: return (no action this tick)
+3. Try attack: if any enemy in range → attack nearest in-range target
+4. Else try move: if any reachable attack cell → move toward nearest enemy
+5. Each tick = one action only (no "end turn" call)
 ```
+- Called every `AI_ACTION_INTERVAL_MS` (200ms) by interval timer
 - Deterministic, greedy
 - Planet defense buildings (`immobile: true`) never move
 - No strategic knowledge — pure tactical
@@ -449,23 +425,15 @@ saveGame();  // Persists to AUTOSAVE
 | `isOccupied(state, col, row, excludeStackId?)` | Any alive stack at cell |
 | `getStackAt(state, col, row)` | Stack at cell or null |
 | `cellToVw(cell)` | `{ x: (col-0.5)*2.5, y: (row-0.5)*2.5 }` — center in vw |
-| `getReachableCells(state, stack)` | Within moveRange, AP budget, bounds, unoccupied, clear linePath |
+| `stackCenterVw(stack)` | VW center of a stack's current grid cell |
+| `vwToStackCell(stack, x, y)` | Convert VW coordinates to grid cell |
+| `getReachableCells(state, stack)` | Cells with clear linePath (no distance limit) |
 | `getAttackTargetIds(state, stack)` | Enemy stacks within attackRange |
-
----
-
-## AP Cost Model (Tier-Based)
-
-| Tier | Ships (Cost) | Move AP/Cell | Attack AP | Move Range (speed) | Attack Range |
-|------|--------------|--------------|-----------|---------------------|--------------|
-| 1 | Scout (50), Fighter (75), Colonizer (100), Corvette (120) | 1 | 1 | 5, 5, 3, 4 | 3, 2, 1, 2 |
-| 2 | Frigate (180), Destroyer (260) | 2 | 2 | 4, 3 | 3, 3 |
-| 3 | Cruiser (400), Carrier (500) | 3 | 3 | 3, 2 | 3, 4 |
-| 4 | Battleship (700), Battlecruiser (750) | 4 | 4 | 2, 3 | 4, 5 |
-| 5 | Dreadnought (1200) | 5 | 5 | 1 | 5 |
-
-**Example:** 5 fighters (tier 1) can each move 1 cell + attack = 10 AP total.
-2 frigates (tier 2) moving 2 cells each = 8 AP, leaving 2 for one attack.
+| `getMoveToAttackCells(state, stack)` | Cells where stack can get into attack range |
+| `getMoveToAttackTargetIds(state, stack)` | Enemy stacks reachable for attack |
+| `checkVictory(state)` | Returns winner side or null |
+| `regenerateAllShields(state)` | Restore all shield sides by regen amount |
+| `updateStackPositions(state, deltaTime)` | Move stacks VW toward targets at speed |
 
 ---
 
@@ -473,7 +441,7 @@ saveGame();  // Persists to AUTOSAVE
 
 - Same minigame, `battle.type === 'planet'`
 - Defender fleet built by `PlanetBattleService` from planet's defense buildings
-- Virtual ships: `immobile = true`, `moveRange = 0`, stats from `planet-data.json`
+- Virtual ships: `immobile = true`, stats from `planet-data.json`
 - Attacker wins → planet.factionId = attacker.factionId (in `applyPlanetBattleResult`)
 - Virtual defender fleet (negative ID) never persists
 - Attacker ship roster always written back (damaged winner returns damaged)
@@ -485,19 +453,18 @@ saveGame();  // Persists to AUTOSAVE
 - **Only AUTOSAVE slot (0)** used for battle persistence
 - Battle result written to AUTOSAVE in `backToStarMap()` → `persistFleetBattleResult()` / `applyPlanetBattleResult()`
 - `reloadAfterBattle()` loads same AUTOSAVE → cumulative fleet destructions persist
-- **No tactical state saved** (grid positions, AP, turn, animations) — battle is a temporary minigame
+- **No tactical state saved** (grid positions, animations) — battle is a temporary minigame
 
 ---
 
 ## Control Summary (Player)
 
-| Action | How | Cost | Requirements |
-|--------|-----|------|--------------|
-| Select stack | Click own unit | — | Your turn, not busy |
-| Move | Click green dashed cell | steps × tier AP | ≤ moveRange, ≤ AP, clear path |
-| Attack | Click red pulsing enemy | tier AP | In range, not attacked this turn, ≤ AP |
-| End Turn | Press END TURN button | — | Your turn, not busy |
-| Cancel selection | Click own stack again / click empty | — | — |
+| Action | How | Requirements |
+|--------|-----|--------------|
+| Select stack | Click own unit | Not busy |
+| Move | Click green dashed cell | Stack selected, clear path to target cell |
+| Attack | Click red pulsing enemy | Stack selected, in range, not moving |
+| Cancel selection | Click own stack again / click empty | — |
 
 **Visual Feedback:**
 - **Selected stack**: Bright blue border + glow
@@ -516,16 +483,17 @@ saveGame();  // Persists to AUTOSAVE
 | Module | Tests | Key Coverage |
 |--------|-------|--------------|
 | `battle-state.spec.ts` | 8 | No input mutation, stack grouping (5/5/2), deployment columns, row centering, stat resolution, planet immobile, player control check, fleet order independence |
-| `battle-grid.spec.ts` | 9 | Grid bounds (18×7), Euclidean distance, range check, linePath, occupancy (ignores destroyed/excluded), reachable cells (moveRange, AP, blockers, paths), attack targets |
-| `battle-ship-stats.spec.ts` | 8 | All 13 ship tiers, tier = moveAp = attackAp, speed/range reuse, combat stats, virtual defenses immobile, unknown type fallback |
-| `battle-turn.spec.ts` | 6 | Turn flip, AP reset, round increment, victory detection, AI vs player phase, anim busy blocks |
-| `battle-movement.spec.ts` | 7 | Valid move, AP cost, moveRange cap, bounds, occupancy, path blocking, anim lock |
-| `battle-combat.spec.ts` | 9 | Damage formula, overkill spill, stack destruction → victory, effect lifecycle (projectile→impact→clear), range reject, same-side reject, double-attack reject, anim busy reject |
+| `battle-grid.spec.ts` | 10 | Grid bounds (18×7), Euclidean distance, range check, linePath, occupancy (ignores destroyed/excluded), reachable cells (no AP/range limits, path blocking), attack targets, move-to-attack cells, checkVictory, shield regen |
+| `battle-ship-stats.spec.ts` | 8 | All 13 ship tiers, speed from ShipType.speed, combat stats, virtual defenses immobile, unknown type fallback |
+| `battle-movement.spec.ts` | 7 | Valid move, path checking, bounds, occupancy, path blocking, animation lock, immediate resolution |
+| `battle-combat.spec.ts` | 9 | Damage formula, overkill spill, stack destruction → victory, effect lifecycle (projectile→impact→clear), range reject, same-side reject, moving-stack reject, anim busy reject |
 | `battle-animation.spec.ts` | 6 | begin/end balance, busy signal, run() wraps, wait timing, tick emission, reset |
-| `battle-ai.spec.ts` | 5 | Attack in range, move toward enemy, post-move attack, end turn, immobile skipped |
+| `battle-ai.spec.ts` | 5 | Attack in range, move toward enemy, post-move attack, immobile skipped, one action per tick |
+| `battle-screen.component.spec.ts` | 5 | Component init, game loop lifecycle, player input gating, AI tick integration, victory detection |
+| `battle-grid.component.spec.ts` | 4 | VW position rendering, attack dot visibility, stack classes, selection highlighting |
 | `battle-result.spec.ts` | 5 | Input order preserved, final HP/destroyed, survivors/wipedOut, winner/loser IDs, planetId carried |
 
-**Total: 63 tests, all passing**
+Note: `battle-turn.service.ts` and its tests were removed — turn logic is now real-time.
 
 ---
 
@@ -534,20 +502,19 @@ saveGame();  // Persists to AUTOSAVE
 | ❌ NOT in Battle Subsystem | ✅ ONLY in Battle Subsystem |
 |---------------------------|----------------------------|
 | StarMap strategic movement | Tactical grid (18×7, 2.5vw cells) |
-| Galaxy/system map logic | AP system (10/turn, tier-based) |
+| Galaxy/system map logic | Speed-based movement (vw/s, real-time) |
 | Economy/production/research | Stack grouping (max 5, by type) |
-| Strategic AI (enemy-*) | Turn lifecycle (attacker→defender) |
-| Fleet.x/y, targetX/Y | Movement (grid, straight line, AP) |
-| Sensor range / fog of war | Combat (volley, defense, spillover) |
-| Save game internals | Animation lock (busy flag) |
-| Planet ownership logic | Tactical AI (greedy, deterministic) |
-| Ship production | Result builder (preserves ship IDs) |
+| Strategic AI (enemy-*) | Real-time game loop (RAF) |
+| Fleet.x/y, targetX/Y | Combat (volley, defense, spillover) |
+| Sensor range / fog of war | Animation lock (busy flag) |
+| Save game internals | Tactical AI (greedy, deterministic, 200ms ticks) |
+| Planet ownership logic | Result builder (preserves ship IDs) |
+| Ship production | Shield regeneration (timer-based) |
 
 **Dependencies IN (allowed):**
 - `ShipService` — read-only ship type stats
 - `PlanetBattleService` — virtual defense fleet builder
 - `BattleService` — transport boundary only
-- `GameTimeService` — pause/resume during battle
 
 **Dependencies OUT (none):**
 - No imports from `star-map/` in `battle/`
@@ -557,23 +524,22 @@ saveGame();  // Persists to AUTOSAVE
 
 ## Debugging
 
-Enable console logs (already added in recent changes):
+Enable console logs:
 ```typescript
 // BattleScreenComponent
-console.log('[BattleScreen] Initial state:', { attackerFactionId, defenderFactionId, activeSide, playerControlsActiveSide, animBusy, stacks });
+console.log('[BattleScreen] Initial state:', { ...stacks });
 console.log('[BattleScreen] onStackClick/onCellClick:', ...);
-console.log('[BattleScreen] AI turn start/end:', ...);
+console.log('[BattleScreen] AI action:', ...);
 
 // BattleAiService
-console.log('[BattleAI] playTurn start/complete:', ...);
-console.log('[BattleAI] attacking:', ...);
+console.log('[BattleAI] playAction:', ...);
+console.log('[BattleAI] action type:', ...);
 ```
 
 **Key state to watch:**
-- `state.activeSide` — whose turn
-- `state.ap` — AP remaining
 - `anim.isBusy` — animation lock
-- `playerControlsActiveSide` — can player act?
+- `playerHasStacks` — can player act at all?
+- `canPlayerAct` — animation lock check
 - `state.stacks.map(s => s.side)` — which stacks belong to whom
 
 ---
@@ -582,11 +548,10 @@ console.log('[BattleAI] attacking:', ...);
 
 | Symptom | Likely Cause |
 |---------|--------------|
-| Nothing happens on click | Not your turn (enemy is attacker), or `anim.isBusy` stuck |
-| AI plays forever | `runAiTurns` safety counter (10) prevents infinite loop |
-| END TURN disabled | `anim.isBusy === true` — wait for animation |
-| Green cells don't appear | Stack not selected, or not your turn, or no AP/moveRange |
-| Red targets don't pulse | Selected stack out of range, or no enemy in range |
+| Nothing happens on click | `anim.isBusy` stuck — wait for animation to finish |
+| AI spam attacks | Animation lock not released properly |
+| Green cells don't appear | Stack not selected, or path blocked |
+| Red targets don't pulse | Selected stack out of range, or stack is moving |
 | Battle ends immediately | One side deployed with 0 stacks (empty fleet) |
 
 ---
@@ -594,7 +559,7 @@ console.log('[BattleAI] attacking:', ...);
 ## Extending the System
 
 ### Add New Ship Type
-1. Add to `ship-data.json`
+1. Add to `ship-data.json` (speed field 1-5 automatically becomes movement speed)
 2. Add tier to `TIER_LOOKUP` in `battle-ship-stats.ts`
 3. Stats auto-resolved via `ShipService`
 
@@ -627,6 +592,7 @@ console.log('[BattleAI] attacking:', ...);
 | Phase 4 | AI (attack/move/attack, end turn) |
 | Phase 5 | Result mapping, StarMap integration, planet battles |
 | Phase 6 | Cell size fix (5vw → 2.5vw), debug logging |
+| Phase 7 | **Real-time conversion**: Removed AP system, removed turn cycling, replaced `BattleTurnService` with `BattleGameLoopService` (RAF), added speed-based VW movement, AI acts every 200ms, timer-based shield regen |
 
 ---
 
@@ -634,6 +600,6 @@ console.log('[BattleAI] attacking:', ...);
 
 - **Pure functions** in `battle-grid.ts`, `battle-result.ts`, `battle-ship-stats.ts` — no side effects, easily testable
 - **OnPush-friendly**: `BattleAnimationService.ticks$` emits only on state change
-- **No zone.js polling**: Animation uses `setTimeout` + `anim.run()` wrapper
+- **RAF loop** runs outside Angular zone for smooth 60fps movement
 - **Shallow state**: `BattleModelState` is flat, no deep nesting
 - **Stack limit**: MAX_STACK_SIZE=5 caps visual complexity

@@ -10,9 +10,9 @@ import {
   FleetShip,
   MAX_STACK_SIZE,
 } from './battle.types';
-import { ATTACKER_DEPLOY_COLS, DEFENDER_DEPLOY_COLS, ANIMATION_MS, BATTLE_GRID_COLUMNS } from './battle.types';
+import { ATTACKER_DEPLOY_COLS, DEFENDER_DEPLOY_COLS, BATTLE_CELL_SIZE_VW, BATTLE_GRID_COLUMNS } from './battle.types';
 import { getBattleShipStats } from './battle-ship-stats';
-import { isInBounds } from './battle-grid';
+import { isInBounds, cellToVw, stackCenterVw } from './battle-grid';
 
 /*
  * =========================================================
@@ -44,6 +44,7 @@ export function createBattleState(
   const defenderStacks = buildStacks('defender', defenderShips, shipService, planetBattleService);
   deployStacks(attackerStacks, ATTACKER_DEPLOY_COLS);
   deployDefenderStacks(defenderStacks);
+  initializeStackPositions([...attackerStacks, ...defenderStacks]);
 
   /*
    * Shared shield pool exists only for planet battles. Fleet-vs-fleet
@@ -57,11 +58,7 @@ export function createBattleState(
 
   return {
     round: 1,
-    activeSide: 'attacker',
-    ap: 50,
-    apPerTurn: 50,
     stacks: [...attackerStacks, ...defenderStacks],
-    phase: isSidePlayerControlled({ attackerFactionId: attackerFleet.factionId, defenderFactionId: defenderFleet.factionId } as any, 'attacker') ? 'playerTurn' : 'aiTurn',
     log: [],
     effect: null,
     winner: null,
@@ -174,17 +171,16 @@ function buildStacks(
         ships: [ship],
         size,
         tier: stats.tier,
-        moveApPerCell: stats.moveApPerCell,
-        attackAp: stats.attackAp,
-        moveRange: stats.moveRange,
         attackRange: stats.attackRange,
         immobile: stats.immobile,
-        cellsMovedThisTurn: 0,
-        attackedThisTurn: false,
         moving: false,
         firing: false,
-        moveMs: ANIMATION_MS.move,
         destroyed: false,
+        speed: stats.speed,
+        x: 0,
+        y: 0,
+        targetX: null,
+        targetY: null,
       });
     }
     return stacks;
@@ -223,17 +219,16 @@ function buildStacks(
         ships: chunk,
         size,
         tier: stats.tier,
-        moveApPerCell: stats.moveApPerCell,
-        attackAp: stats.attackAp,
-        moveRange: stats.moveRange,
         attackRange: stats.attackRange,
         immobile: stats.immobile,
-        cellsMovedThisTurn: 0,
-        attackedThisTurn: false,
         moving: false,
         firing: false,
-        moveMs: ANIMATION_MS.move,
         destroyed: false,
+        speed: stats.speed,
+        x: 0,
+        y: 0,
+        targetX: null,
+        targetY: null,
       });
     }
   }
@@ -356,6 +351,15 @@ function placeDefenderStackAnywhere(stack: BattleStack, occupied: Set<string>): 
 
 function cellKey(col: number, row: number): string {
   return `${col}:${row}`;
+}
+
+/* Initialize x/y vw coordinates for all stacks based on their col/row deployment. */
+function initializeStackPositions(stacks: BattleStack[]): void {
+  for (const stack of stacks) {
+    const center = stackCenterVw(stack);
+    stack.x = center.x;
+    stack.y = center.y;
+  }
 }
 
 /* Stack for a side in a deterministic (stackId) order, alive only. */

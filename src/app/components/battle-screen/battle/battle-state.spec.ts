@@ -222,8 +222,8 @@ describe('battle-state', () => {
     const state = createBattleState(b, shipService, planetBattleService);
     const stack = getStacks(state, 'attacker')[0];
     expect(stack.tier).toBe(1);
-    expect(stack.moveRange).toBe(10); // battleMoveRange from ship-data.json
     expect(stack.attackRange).toBe(2);
+    expect(stack.ships[0].maxHp).toBe(50);
     expect(stack.ships[0].maxHp).toBe(50);
   });
 
@@ -249,7 +249,6 @@ describe('battle-state', () => {
     const state = createBattleState(b, shipService, planetBattleService);
     const defender = getStacks(state, 'defender')[0];
     expect(defender.immobile).toBe(true);
-    expect(defender.moveRange).toBe(0);
   });
 
   it('isSidePlayerControlled reports faction ownership', () => {

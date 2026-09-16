@@ -174,14 +174,11 @@ auto-resolving implementation. It now lives in
 `src/app/components/battle-screen/battle/battle.types.ts` as `BattleModelState` and is built
 by `createBattleState()` (in `battle/battle-state.ts`), **not** by `BattleService`.
 
-- `round`: increments each time the active side returns to the attacker
-- `activeSide`: `'attacker' | 'defender'` whose AP pool is currently spending
-- `phase`: `'playerTurn' | 'aiTurn' | 'over'` — the non-player side is auto-played
-- `ap` / `apPerTurn`: remaining and full Action Point pool (50)
+- `round`: increments every 1s shield-regen tick (real-time model)
 - `battleType`: `'fleet' | 'planet'`
 - `planetId?`, `planetName?`, `planetColor?`: planet-battle metadata
 - `defenderShieldPool?`: `{ current, max, regen } | null` — shared planetary shield that
-  absorbs damage for immobile turret stacks only and regenerates on the defender turn
+  absorbs damage for immobile turret stacks only and regenerates every 1s
 - `stacks`: `BattleStack[]` — the tactical units on the grid
 - `effect`: the single in-flight `BattleAttackEffect` (projectile / impact / explosion)
 - `winner`: the battle side with surviving stacks, or `null`
@@ -192,12 +189,14 @@ by `createBattleState()` (in `battle/battle-state.ts`), **not** by `BattleServic
 
 - `stackId`: `${side}:${typeId}:${index}`
 - `side`, `typeId`, `typeName`, `col`, `row`
+- `x`, `y`: real-time vw position (updated every frame by the game loop)
+- `targetX`, `targetY`: vw destination (null when idle); set by `moveStack`, cleared on arrival
+- `speed`: movement speed in vw/s (from `ShipType.speed`, 1–5; 0 for immobile)
 - `ships`: `BattleShip[]` (≤ `MAX_STACK_SIZE = 5`)
-- `tier`: AP tier; `moveApPerCell` / `attackAp` = `Math.ceil(tier * 1.5)`
-- `moveRange`: `battleMoveRange ?? speed` (0 for immobile defenses)
+- `tier`: size/combat tier
 - `attackRange`: = the ship type's `range` (0 for unknown/fallback types)
 - `immobile`: true for planet-defense buildings, which also receive the shared shield
-- `cellsMovedThisTurn`, `attackedThisTurn`, `moving`, `firing`
+- `moving`, `firing`
 - `destroyed`: true when every ship in the stack is dead
 
 ### BattleShip

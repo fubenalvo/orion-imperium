@@ -44,10 +44,6 @@
   align-items: center;
   justify-content: center;
   z-index: 10;
-  transition:
-    left 180ms linear,
-    top 180ms linear;
-  will-change: left, top;
   pointer-events: none;
 }
 
@@ -129,19 +125,6 @@
   animation: target-pulse 0.9s ease-in-out infinite;
 }
 
-.stack.spent {
-  border-color: transparent;
-  box-shadow: none;
-  background-color: rgba(0, 0, 0, 0.5);
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.stack.spent:hover {
-  border-color: transparent;
-  box-shadow: none;
-}
-
 /* Highlight friendly stacks a selected Carrier could restore with Shield
  * Pulse. Cyan ring — distinct from the red attack-target and orange
  * move-to-attack-target highlights. */
@@ -202,9 +185,7 @@
 }
 
 /* Attack-available indicator: crosshair.png in the top-right corner.
- * Visible only while the stack still has its attack for the turn — hidden
- * once it has fired. Only rendered for the active side, since only they
- * can act this turn. */
+ * Visible while the stack can act (not moving or firing). */
 .stack__attack-dot {
   position: absolute;
   top: 0.15em;

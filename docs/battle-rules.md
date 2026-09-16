@@ -59,36 +59,29 @@ battle returns to the map.
 
 ## Action Points
 
-Each side gets a shared pool of `AP_PER_TURN = 50` per turn. A stack's AP cost is derived
-from its size tier (`Math.ceil(tier * 1.5)`):
+Battles are **real-time, speed-based** — there are no Action Points. Stacks move continuously at their
+`speed` stat (vw/s, range 1–5 from `ship-data.json`). Both sides are active simultaneously; the
+animation busy lock gates attacks only, not movement.
 
-| Tier | Move AP / cell | Attack AP | Ships (cost) |
-|---|---|---|---|
-| 1 | 2 | 2 | scout (50), fighter (75), colonizer (100), corvette (120) |
-| 2 | 3 | 3 | frigate (180), destroyer (260) |
-| 3 | 5 | 5 | cruiser (400), carrier (500) |
-| 4 | 6 | 6 | battleship (700), battlecruiser (750) |
-| 5 | 8 | 8 | dreadnought (1200) |
-
-The `speed` stat is the ship's movement range per turn; the `range` stat is its attack
-range. Virtual defense buildings (turrets) are tier 3, immobile, and use their building
-definition's `range` for attacks.
+The `speed` stat is the ship's movement speed in vw/s. The `range` stat is its attack range.
+Virtual defense buildings (turrets) are immobile (speed 0) and use their building definition's
+`range` for attacks.
 
 ## Movement
 
-- Grid-based, 8-direction straight-line steps. One move command relocates a stack to a
-  target cell up to its remaining move range away; every intermediate cell must be in bounds
-  and unoccupied (no pathfinding).
-- Moving costs `moveApPerCell` AP per cell and is capped at `moveRange` cells per turn per
-  stack.
+- Real-time, grid-based 8-direction straight-line movement. One move command sets a stack's vw
+  target; the RAF game loop interpolates the stack toward that target at `speed` vw/s. No AP cost,
+  no move range limit — any reachable cell with a clear path is valid.
+- Every intermediate cell along the path must be in bounds and unoccupied (no pathfinding through
+  obstacles).
+- Stacks can move while attacks are animating on other stacks; movement is never blocked by the
+  animation lock.
 - Immobile stacks (planet-defense buildings) cannot move.
-- The stack's grid position is committed when the animation starts (CSS tween plays the
-  move); the **animation lock** holds the turn until the tween finishes, so END TURN and all
-  input are blocked during movement.
 
 ## Combat
 
-- A stack may attack once per turn, costing `attackAp` AP.
+- A stack may attack freely — there is no per-stack or per-turn attack limit. The only gate is the
+  animation busy lock (no other animation in flight on that stack).
 - Target must be an enemy stack within `range` (Euclidean: `dx² + dy² ≤ range²`, matching the
   project-wide sensor-range convention documented in `docs/invariants.md`).
 - **Damage = whole-stack volley:** `totalAttack = Σ attack of alive ships in the firing
@@ -118,41 +111,48 @@ definition's `range` for attacks.
 - The planet visual is presentation-only and never part of `BattleStack` or combat state.
   It is rendered separately by the battle grid, using the planet's name and type color.
 
-## Turn Lifecycle
+## Real-Time Model
+
+Battles run on a real-time game loop (`BattleGameLoopService` — RAF with raw real delta time, not
+`GameTimeService`, since the star-map clock is paused during battle):
 
 ```
-deploy → ATTACKER TURN (50 AP) → END TURN → DEFENDER TURN (50 AP) → END TURN → round++ → ...
+RAF loop: updateStackPositions → AI tick (every 0.2s) → shield regen (every 1s) → checkVictory
 ```
 
-1. Attacker always acts first.
-2. The active side spends AP on Move / Attack until it presses END TURN (or, for a
-   non-player side, the tactical AI plays the turn automatically).
-3. END TURN is only enabled when `BattleAnimationService.isBusy === false` — i.e. no ship is
-   moving, no projectile is travelling, and no hit/explosion animation is playing.
-4. `endTurn()` flips the active side, refills AP to `AP_PER_TURN`, resets each stack's
-   `cellsMovedThisTurn` / `attackedThisTurn` for the new side, and increments the round when
-   control returns to the attacker.
-5. Victory is checked after every attack and at the end of every turn: the side with zero
-   alive stacks loses; the battle ends with a winner declared.
+1. **Stack positions** are updated every frame toward their `targetX`/`targetY` at `speed` vw/s.
+   When a stack arrives, its `col`/`row` snaps to the destination cell.
+2. **AI tick** fires one action every `AI_ACTION_INTERVAL_MS = 200` ms (configurable), gated by the
+   animation busy lock. The AI picks one action per tick: attack → carrier shield boost → move.
+3. **Shield regen** fires every `SHIELD_REGEN_INTERVAL_MS = 1000` ms for all living ships on both
+   sides, plus the shared planetary shield pool in planet battles. The `round` counter increments
+   per regen tick.
+4. **Victory** is checked after every attack and every game-loop tick: the side with zero alive
+   stacks loses; the battle ends with a winner declared.
 
 ## Non-Player Control
 
 - The side whose `factionId !== 'player'` is controlled by a deterministic, greedy
   [tactical AI](./architecture.md) (`BattleAiService`). It lives entirely inside the
   battle-screen module and has no knowledge of the strategic `enemy-*` AI layers.
-- AI plan per turn: (1) every in-range stack attacks its nearest enemy, (2) remaining stacks
-  move toward the nearest enemy up to their move range, (3) stacks that moved into range
-  attack again. Planet-defense buildings never move.
+- AI plan per action (one action per 0.2s tick):
+  1. Attack with the first stack that has an in-range enemy target.
+  2. If no attack available, perform a Carrier Shield Pulse if a carrier can boost a damaged ally.
+  3. If no attack or boost, move the nearest stack toward the nearest enemy (move-to-attack if
+     possible).
+  Planet-defense buildings never move.
 
 ## Animation / State Locking
 
 `BattleAnimationService` holds a single in-flight counter plus a `busy` signal:
 
-- Every move and every attack is wrapped in `anim.run(fn)`, which balances a `begin()`/`end()`
-  pair around the animation even if `fn` throws.
-- The END TURN button is `[disabled]` while busy.
-- The view, the input handlers, the movement/combat services, and the AI all re-check the busy
-  flag, so a race in any one layer cannot advance state mid-animation.
+- Every attack is wrapped in `anim.run(fn)`, which balances a `begin()`/`end()` pair around the
+  animation even if `fn` throws.
+- The **animation lock** gates attacks only — movement is never blocked by it. Two stacks can
+  attack simultaneously on different ticks, but only one attack animation can be in flight
+  globally.
+- The view, the input handlers, the combat services, and the AI all re-check the busy flag,
+  so a race in any one layer cannot advance state mid-animation.
 - `ticks$` emits after every mid-animation state change (projectile → impact → explosion) so
   the OnPush view re-renders effect phases without polling.
 

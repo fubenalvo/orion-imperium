@@ -1,5 +1,5 @@
-import type { BattleModelState, BattleStack, GridCell } from './battle.types';
-import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW } from './battle.types';
+import type { BattleModelState, BattleStack, GridCell, BattleShieldPool } from './battle.types';
+import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW, AI_ACTION_INTERVAL_MS, SHIELD_REGEN_INTERVAL_MS } from './battle.types';
 
 /*
  * =========================================================
@@ -8,7 +8,7 @@ import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW } from './ba
  *
  * Pure grid math: bounds, occupancy, distance, and cell↔vw conversion.
  * The coordinate system mirrors the System View grid concepts:
- * 1-indexed cells and 5vw cell size (floor(vw / 5) + 1).
+ * 1-indexed cells and 4vw cell size.
  */
 
 export function isInBounds(col: number, row: number): boolean {
@@ -196,6 +196,87 @@ export function stackCenterVw(stack: BattleStack): { x: number; y: number } {
   };
 }
 
+/* Convert vw coordinates to the anchor grid cell for a stack. */
+export function vwToStackCell(stack: BattleStack, x: number, y: number): GridCell {
+  const cellSize = BATTLE_CELL_SIZE_VW;
+  const visualCol = x / cellSize + 0.5;
+  const direction = stack.side === 'attacker' ? 1 : -1;
+  const offset = (stack.size - 1) / 2;
+  const anchorCol = Math.round(visualCol - direction * offset);
+  const row = Math.round(y / cellSize + 0.5);
+  return { col: anchorCol, row };
+}
+
+/*
+ * Victory check: returns true if battle is over (one side has no alive stacks).
+ * Sets state.winner and returns true if battle ended.
+ */
+export function checkVictory(state: BattleModelState): boolean {
+  if (state.winner) {
+    return true;
+  }
+  const attackerAlive = getAliveStackCount(state, 'attacker');
+  const defenderAlive = getAliveStackCount(state, 'defender');
+  if (attackerAlive === 0 || defenderAlive === 0) {
+    state.winner = attackerAlive > 0 ? 'attacker' : 'defender';
+    return true;
+  }
+  return false;
+}
+
+/*
+ * Regenerate shields for all living ships on both sides + shared planetary shield pool.
+ * Called periodically (every SHIELD_REGEN_INTERVAL_MS) by the game loop.
+ */
+export function regenerateAllShields(state: BattleModelState): void {
+  for (const stack of state.stacks) {
+    if (stack.destroyed) continue;
+    for (const ship of stack.ships) {
+      if (!ship.alive) continue;
+      const regen = ship.shieldRegen ?? 0;
+      if (regen <= 0) continue;
+      const current = ship.shield ?? 0;
+      const max = ship.maxShield ?? 0;
+      ship.shield = applyShieldRegen(current, max, regen);
+    }
+  }
+  // Shared planetary shield pool (planet battles only)
+  const pool = state.defenderShieldPool;
+  if (pool && pool.regen > 0) {
+    pool.current = applyShieldRegen(pool.current, pool.max, pool.regen);
+  }
+}
+
+/*
+ * Update all stacks' positions toward their targets.
+ * Called every frame by the game loop with real delta time (seconds).
+ * Moves stacks at speed vw/s toward targetX/targetY.
+ * When a stack reaches its target, snaps position and updates col/row.
+ */
+export function updateStackPositions(state: BattleModelState, deltaTime: number): void {
+  for (const stack of state.stacks) {
+    if (stack.destroyed || stack.targetX == null || stack.targetY == null) continue;
+    const dx = stack.targetX - stack.x;
+    const dy = stack.targetY - stack.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist <= 0.01) {
+      stack.x = stack.targetX;
+      stack.y = stack.targetY;
+      stack.targetX = null;
+      stack.targetY = null;
+      const cell = vwToStackCell(stack, stack.x, stack.y);
+      stack.col = cell.col;
+      stack.row = cell.row;
+      stack.moving = false;
+    } else {
+      const step = Math.min(stack.speed * deltaTime, dist);
+      stack.x += (dx / dist) * step;
+      stack.y += (dy / dist) * step;
+      stack.moving = true;
+    }
+  }
+}
+
 /*
  * Straight-line path from → to (orthogonal + diagonal steps). Returns
  * the list of intermediate cells (excluding the origin) or null when the
@@ -219,20 +300,12 @@ export function linePath(from: GridCell, to: GridCell): GridCell[] | null {
 }
 
 /*
- * Cells a stack may legally move to right now: within its remaining
- * moveRange (already reduced by cells moved this turn) and its remaining
- * AP budget, in bounds, unoccupied, and reachable on a clear straight
- * line. Purely geometric — the caller decides who may actually act.
+ * Cells a stack may legally move to right now: in bounds, unoccupied,
+ * and reachable on a clear straight line. No AP or moveRange limits.
+ * Purely geometric — the caller decides who may actually act.
  */
 export function getReachableCells(state: BattleModelState, stack: BattleStack): GridCell[] {
   if (stack.destroyed || stack.immobile) {
-    return [];
-  }
-  const maxSteps = Math.min(
-    stack.moveRange - stack.cellsMovedThisTurn,
-    Math.floor(state.ap / stack.moveApPerCell),
-  );
-  if (maxSteps <= 0) {
     return [];
   }
   const origin: GridCell = { col: stack.col, row: stack.row };
@@ -240,10 +313,6 @@ export function getReachableCells(state: BattleModelState, stack: BattleStack): 
   for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
     for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
       if (c === stack.col && r === stack.row) {
-        continue;
-      }
-      const steps = Math.max(Math.abs(c - stack.col), Math.abs(r - stack.row));
-      if (steps > maxSteps) {
         continue;
       }
       const destCols = occupiedCols(stack, c);
@@ -317,8 +386,8 @@ export function computeCarrierBoostTargets(
 
 /*
  * Cells from which a stack could attack a specific target stack.
- * Returns all unoccupied cells within the stack's moveRange that have
- * the target within attackRange and a clear straight-line path.
+ * Returns all unoccupied cells that have the target within attackRange
+ * and a clear straight-line path. No AP or moveRange limits.
  */
 export function getMoveToAttackCells(
   state: BattleModelState,
@@ -328,22 +397,11 @@ export function getMoveToAttackCells(
   if (stack.destroyed || stack.immobile || targetStack.destroyed) {
     return [];
   }
-  const maxSteps = Math.min(
-    stack.moveRange - stack.cellsMovedThisTurn,
-    Math.floor(state.ap / stack.moveApPerCell),
-  );
-  if (maxSteps <= 0) {
-    return [];
-  }
   const origin: GridCell = { col: stack.col, row: stack.row };
   const cells: GridCell[] = [];
   for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
     for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
       if (c === stack.col && r === stack.row) {
-        continue;
-      }
-      const steps = Math.max(Math.abs(c - stack.col), Math.abs(r - stack.row));
-      if (steps > maxSteps) {
         continue;
       }
       const destCols = occupiedCols(stack, c);
@@ -394,21 +452,15 @@ export function findBestMoveToAttackCell(
 }
 
 /*
- * Enemy stacks that are within (moveRange + attackRange) but outside direct attackRange.
- * These are valid move-to-attack targets.
+ * Enemy stacks that are outside direct attackRange but reachable
+ * via a clear path. These are valid move-to-attack targets.
+ * No AP or moveRange limits.
  */
 export function getMoveToAttackTargetIds(
   state: BattleModelState,
   stack: BattleStack,
 ): string[] {
   if (stack.destroyed || stack.immobile) {
-    return [];
-  }
-  const maxMoveSteps = Math.min(
-    stack.moveRange - stack.cellsMovedThisTurn,
-    Math.floor(state.ap / stack.moveApPerCell),
-  );
-  if (maxMoveSteps <= 0) {
     return [];
   }
   const origin: GridCell = { col: stack.col, row: stack.row };
@@ -419,10 +471,6 @@ export function getMoveToAttackTargetIds(
       if (directDist <= stack.attackRange) {
         return false; // Already in direct attack range
       }
-      const minDistToAttack = Math.max(Math.abs(s.col - origin.col), Math.abs(s.row - origin.row)) - stack.attackRange;
-      return minDistToAttack <= maxMoveSteps;
-    })
-    .filter((s) => {
       // Check if there's at least one valid move-to-attack cell
       return getMoveToAttackCells(state, stack, s).length > 0;
     })

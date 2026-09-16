@@ -24,29 +24,24 @@ function baseStack(): BattleStack {
     ships: [],
     size: 1,
     tier: 1,
-    moveApPerCell: 1,
-    attackAp: 1,
-    moveRange: 5,
+    speed: 3,
     attackRange: 2,
     immobile: false,
-    cellsMovedThisTurn: 0,
-    attackedThisTurn: false,
     moving: false,
     firing: false,
-    moveMs: 180,
     destroyed: false,
     role: 'Interceptor',
+    x: 0,
+    y: 0,
+    targetX: null,
+    targetY: null,
   };
 }
 
 function makeState(stacks: BattleStack[]): BattleModelState {
   return {
     round: 1,
-    activeSide: 'attacker',
-    ap: 10,
-    apPerTurn: 10,
     stacks,
-    phase: 'playerTurn',
     log: [],
     effect: null,
     winner: null,
@@ -113,8 +108,8 @@ describe('battle-grid', () => {
     expect(isOccupied(state, 9, 9, undefined)).toBe(false);
   });
 
-  it('getReachableCells stays within moveRange, AP budget, and clear paths', () => {
-    const stack = { ...baseStack(), col: 2, row: 4, moveRange: 2, moveApPerCell: 1 };
+  it('getReachableCells stays within movement range and clear paths', () => {
+    const stack = { ...baseStack(), col: 2, row: 4 };
     const state = makeState([
       stack,
       { ...baseStack(), stackId: 'blocker', side: 'defender', col: 4, row: 4 },
@@ -125,15 +120,8 @@ describe('battle-grid', () => {
     expect(blockedCell).toBeUndefined();
     // adjacent cells are reachable
     expect(cells.some((c) => c.col === 3 && c.row === 4)).toBe(true);
-    // beyond moveRange is not reachable
+    // cells beyond a blocker are blocked
     expect(cells.some((c) => c.col === 5 && c.row === 4)).toBe(false);
-  });
-
-  it('getReachableCells is empty when AP is exhausted', () => {
-    const stack = { ...baseStack(), col: 2, row: 4, moveRange: 5, moveApPerCell: 1 };
-    const state = makeState([stack]);
-    state.ap = 0;
-    expect(getReachableCells(state, stack)).toHaveLength(0);
   });
 
   it('getAttackTargetIds returns enemy stacks within attack range', () => {
@@ -172,7 +160,7 @@ describe('battle-grid', () => {
   });
 
   it('getReachableCells blocks wider stacks and path', () => {
-    const stack = { ...baseStack(), col: 2, row: 4, moveRange: 3, moveApPerCell: 1, size: 2 };
+    const stack = { ...baseStack(), col: 2, row: 4, size: 2 };
     const blocker = { ...baseStack(), stackId: 'blocker', side: 'defender' as const, col: 5, row: 4, size: 2 };
     const state = makeState([stack, blocker]);
     const cells = getReachableCells(state, stack);

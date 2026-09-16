@@ -26,12 +26,16 @@ import {
   BattleStack,
   GridCell,
 } from './battle/battle.types';
+import {
+  AI_ACTION_INTERVAL_MS,
+  SHIELD_REGEN_INTERVAL_MS,
+} from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
-import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds, computeCarrierBoostTargets } from './battle/battle-grid';
+import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds, computeCarrierBoostTargets, checkVictory, updateStackPositions, regenerateAllShields } from './battle/battle-grid';
 import { buildBattleOutcome } from './battle/battle-result';
 import { BattleMovementService } from './battle/battle-movement.service';
 import { BattleCombatService } from './battle/battle-combat.service';
-import { BattleTurnService } from './battle/battle-turn.service';
+import { BattleGameLoopService } from './battle/battle-game-loop.service';
 import { BattleAnimationService } from './battle/battle-animation.service';
 import { BattleAiService } from './battle/battle-ai.service';
 import { BattleGridComponent } from './battle-grid/battle-grid.component';
@@ -47,9 +51,14 @@ import { BattleGridComponent } from './battle-grid/battle-grid.component';
  * the battle services. All simulation state lives in this component's
  * BattleModelState — the minigame never touches StarMap state.
  *
- * Navigation flow (unchanged from the old placeholder):
+ * Real-time model: stacks move at speed-based rates via a RAF game loop.
+ * Both sides are active simultaneously. The AI takes one action per 0.2s
+ * tick (configurable via AI_ACTION_INTERVAL_MS). Animation lock gates
+ * attacks only — movement is continuous.
+ *
+ * Navigation flow:
  * 1. StarMap detects collision -> BattleService.setBattle() -> navigate to /battle
- * 2. The minigame runs turn-based, AP-driven combat
+ * 2. The minigame runs real-time combat
  * 3. "Back to Star Map" persists the BattleOutcome and navigates back
  * 4. StarMap applies the outcome via reloadAfterBattle()
  */
@@ -84,6 +93,9 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private motionPermissionRequested = false;
   private resultModalFocused = false;
 
+  private aiTickAccumulator = 0;
+  private shieldRegenAccumulator = 0;
+
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
   constructor(
@@ -93,16 +105,15 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     private planetBattleService: PlanetBattleService,
     private saveGameService: SaveGameService,
     private gameTimeService: GameTimeService,
+    private gameLoop: BattleGameLoopService,
     private movement: BattleMovementService,
     private combat: BattleCombatService,
-    private turn: BattleTurnService,
     private ai: BattleAiService,
     readonly anim: BattleAnimationService,
     private cdr: ChangeDetectorRef,
   ) {
     this.battle = this.battleService.getBattle();
     this.ticksSub = this.anim.ticks$.subscribe(() => this.cdr.detectChanges());
-    // Bind callbacks passed to child components to preserve `this` context
     this.onStackClick = this.onStackClick.bind(this);
     this.onCellClick = this.onCellClick.bind(this);
   }
@@ -169,106 +180,28 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     };
   }
 
-  get playerControlsActiveSide(): boolean {
+  get playerHasStacks(): boolean {
     if (!this.state || this.state.winner) {
       return false;
     }
-    return isSidePlayerControlled(this.state, this.state.activeSide);
+    return this.state.stacks.some((s) => !s.destroyed && isSidePlayerControlled(this.state!, s.side));
   }
 
   get canAct(): boolean {
-    return this.playerControlsActiveSide && !this.anim?.isBusy;
+    return this.playerHasStacks && !this.anim?.isBusy;
   }
 
-  get canEndTurn(): boolean {
-    return this.playerControlsActiveSide && !this.anim?.isBusy;
-  }
-
-  get shouldPulseEndTurn(): boolean {
-    if (!this.state || !this.playerControlsActiveSide || this.anim?.isBusy) {
+  get canPlayerAct(): boolean {
+    if (!this.state || !this.canAct) {
       return false;
     }
-    // Pulse when AP is depleted
-    if (this.state.ap <= 0) {
-      return true;
-    }
-    // Pulse when no player-controlled stacks have valid actions remaining
-    const playerStacks = this.state.stacks.filter(
-      (s) => s.side === this.state!.activeSide && !s.destroyed && !s.immobile
-    );
-    if (playerStacks.length === 0) {
-      return true;
-    }
-    const hasValidAction = playerStacks.some((stack) => {
-      // Can move at least one cell
-      const canMove =
-        stack.cellsMovedThisTurn < stack.moveRange &&
-        this.state!.ap >= stack.moveApPerCell;
-      // Can attack
-      const canAttack = !stack.attackedThisTurn && this.state!.ap >= stack.attackAp;
-      return canMove || canAttack;
-    });
-    return !hasValidAction;
-  }
-
-  get spentStackIds(): Set<string> {
-    const spent = new Set<string>();
-    if (!this.state || this.state.winner) {
-      return spent;
-    }
-    // Only active side's stacks can be spent
-    const activeSide = this.state.activeSide;
-    const ap = this.state.ap;
-
-    // If AP is fully depleted, all active side stacks are spent
-    const apDepleted = ap <= 0;
-
-    for (const stack of this.state.stacks) {
-      if (stack.side !== activeSide || stack.destroyed || stack.immobile) {
-        continue;
-      }
-      // Skip if currently animating
-      if (stack.moving || stack.firing) {
-        continue;
-      }
-
-      if (apDepleted) {
-        spent.add(stack.stackId);
-        continue;
-      }
-
-      // Check if can move
-      const reachableCells = getReachableCells(this.state, stack);
-      const canMove = reachableCells.length > 0 && ap >= stack.moveApPerCell;
-
-      // Check if can attack
-      const attackTargets = computeAttackTargetIds(this.state, stack);
-      const canAttack = attackTargets.length > 0 && !stack.attackedThisTurn && ap >= stack.attackAp;
-
-      // Check if can move-to-attack
-      const moveToAttackTargets = getMoveToAttackTargetIds(this.state, stack);
-      const canMoveToAttack = moveToAttackTargets.length > 0 && ap >= stack.moveApPerCell + stack.attackAp;
-
-      if (!canMove && !canAttack && !canMoveToAttack) {
-        spent.add(stack.stackId);
-      }
-    }
-    return spent;
-  }
-
-  get phaseLabel(): string {
-    if (!this.state) {
-      return '';
-    }
-    if (this.state.winner) {
-      return 'BATTLE OVER';
-    }
-    return this.state.activeSide === 'attacker' ? 'ATTACKER TURN' : 'DEFENDER TURN';
+    const stack = this.selectedStack();
+    return !!stack && !stack.moving && !stack.destroyed;
   }
 
   get moveCells(): GridCell[] {
     const stack = this.selectedStack();
-    if (!this.state || !stack || !this.playerControlsActiveSide) {
+    if (!this.state || !stack || !this.canPlayerAct) {
       return [];
     }
     return getReachableCells(this.state, stack);
@@ -276,7 +209,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   get attackTargetIds(): string[] {
     const stack = this.selectedStack();
-    if (!this.state || !stack || !this.playerControlsActiveSide) {
+    if (!this.state || !stack || !this.canPlayerAct) {
       return [];
     }
     return computeAttackTargetIds(this.state, stack);
@@ -284,7 +217,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   get moveToAttackTargetIds(): string[] {
     const stack = this.selectedStack();
-    if (!this.state || !stack || !this.playerControlsActiveSide) {
+    if (!this.state || !stack || !this.canPlayerAct) {
       return [];
     }
     return getMoveToAttackTargetIds(this.state, stack);
@@ -381,10 +314,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   ngOnInit(): void {
     if (this.battle) {
       this.state = createBattleState(this.battle, this.shipService, this.planetBattleService);
-      this.turn.checkVictory(this.state);
-      void this.runAiTurns();
+      checkVictory(this.state);
     }
     this.gameTimeService.pause();
+    this.startGameLoop();
   }
 
   ngAfterViewChecked(): void {
@@ -398,6 +331,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   ngOnDestroy(): void {
     this.ticksSub.unsubscribe();
+    this.gameLoop.stopGameLoop();
     this.anim.reset();
     this.gameTimeService.resume();
     window.removeEventListener('deviceorientation', this.onDeviceOrientation);
@@ -411,14 +345,17 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!stack || stack.destroyed) {
       return;
     }
-      if (stack.side === this.state.activeSide) {
-        // Own stack: select it to reveal movement / attack options.
+    // Player can only control stacks on their own side (determined per-stack).
+    if (isSidePlayerControlled(this.state, stack.side)) {
+      // Own stack: select it to reveal movement / attack options.
+      if (!stack.moving) {
         this.selectedStackId = stack.stackId;
-        return;
       }
+      return;
+    }
     // Enemy stack: attack it if the selected stack can.
     const selected = this.selectedStack();
-    if (!selected) {
+    if (!selected || selected.moving) {
       return;
     }
     // Direct attack
@@ -433,7 +370,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   onCellClick(col: number, row: number): void {
-    if (!this.state || !this.canAct) {
+    if (!this.state || !this.canPlayerAct) {
       return;
     }
     const selected = this.selectedStack();
@@ -505,8 +442,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   /* Carrier Shield Pulse: the selected stack is a Carrier that can act,
-   * has not yet acted this turn, and has enough AP. Pure read of existing
-   * state — no combat logic duplicated here. */
+   * is not moving, and has not yet been blocked by the busy lock.
+   * Pure read of existing state — no combat logic duplicated here. */
   get canCarrierBoost(): boolean {
     if (!this.state || !this.canAct) {
       return false;
@@ -515,7 +452,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!stack || stack.typeId !== 'carrier' || stack.destroyed) {
       return false;
     }
-    if (stack.attackedThisTurn || stack.attackAp > this.state.ap) {
+    if (stack.moving || stack.immobile) {
       return false;
     }
     return computeCarrierBoostTargets(this.state, stack).length > 0;
@@ -536,10 +473,19 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!stack) {
       return;
     }
-    const ok = await this.combat.carrierShieldBoost(this.state, stack.stackId);
-    if (!ok) {
+    this.combat.carrierShieldBoost(this.state, stack.stackId);
+  }
+
+  /*
+   * Move-to-attack: move to the best cell within attack range of the target.
+   * If already in range, attack directly. The attack (if any) is handled
+   * by the combat service which respects the animation busy lock.
+   */
+  private async doMoveToAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
+    if (!this.state) {
       return;
     }
+    await this.movement.moveToAttack(this.state, attacker.stackId, target.stackId);
     this.cdr.detectChanges();
   }
 
@@ -548,9 +494,6 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       return;
     }
     await this.movement.moveStack(this.state, stack.stackId, col, row);
-    if (!this.selectedStack()) {
-      this.selectedStackId = null;
-    }
     this.cdr.detectChanges();
   }
 
@@ -559,63 +502,46 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       return;
     }
     await this.combat.attackStack(this.state, attacker.stackId, target.stackId);
-    if (!this.selectedStack()) {
-      this.selectedStackId = null;
-    }
     this.cdr.detectChanges();
   }
 
-  private async doMoveToAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
+  private startGameLoop(): void {
     if (!this.state) {
       return;
     }
-    await this.movement.moveToAttack(this.state, attacker.stackId, target.stackId);
-    if (!this.selectedStack()) {
-      this.selectedStackId = null;
-    }
-    this.cdr.detectChanges();
+    this.gameLoop.startGameLoop((deltaTime: number) => {
+      this.gameLoopCallback(deltaTime);
+    });
   }
 
-  onEndTurn(): void {
-    if (!this.state || !this.canEndTurn) {
+  private gameLoopCallback(deltaTime: number): void {
+    if (!this.state || this.state.winner) {
       return;
     }
-    this.turn.endTurn(this.state);
-    this.selectedStackId = null;
-    void this.runAiTurns();
-    this.cdr.detectChanges();
-  }
 
-  /* Plays AI turns for however many consecutive AI-controlled sides
-   * remain active (AI-vs-AI collisions included). */
-  private async runAiTurns(): Promise<void> {
-    if (!this.state) {
-      return;
-    }
-    let safetyCounter = 0;
-    while (!this.state.winner && !isSidePlayerControlled(this.state, this.state.activeSide)) {
-      try {
-        await this.ai.playTurn(this.state);
-      } catch (e) {
-        break;
-      }
-      safetyCounter++;
-      if (safetyCounter > 10) {
-        break;
-      }
-    }
-    this.cdr.detectChanges();
-  }
+    // 1. Update stack positions (real-time movement).
+    updateStackPositions(this.state, deltaTime);
 
-  getActiveSideName(): string {
-    if (!this.state) {
-      return '';
+    // 2. AI tick: one action every AI_ACTION_INTERVAL_MS when not busy.
+    this.aiTickAccumulator += deltaTime * 1000;
+    if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS && !this.anim.isBusy) {
+      this.aiTickAccumulator = 0;
+      void this.ai.playAction(this.state);
     }
-    return this.state.activeSide === 'attacker' ? this.state.attackerName : this.state.defenderName;
-  }
 
-  isActiveSide(side: 'attacker' | 'defender'): boolean {
-    return this.state?.activeSide === side && !this.state.winner;
+    // 3. Shield regeneration: every SHIELD_REGEN_INTERVAL_MS for all sides.
+    this.shieldRegenAccumulator += deltaTime * 1000;
+    if (this.shieldRegenAccumulator >= SHIELD_REGEN_INTERVAL_MS) {
+      this.shieldRegenAccumulator = 0;
+      regenerateAllShields(this.state);
+      this.state.round++;
+    }
+
+    // 4. Victory check after movement and AI action.
+    checkVictory(this.state);
+
+    // 5. Trigger change detection for real-time position updates.
+    this.anim.tick();
   }
 
   getSideResult(side: 'attacker' | 'defender'): 'winner' | 'loser' | null {

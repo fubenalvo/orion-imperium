@@ -14,15 +14,17 @@
  */
 
 export type BattleSide = 'attacker' | 'defender';
-export type BattlePhase = 'playerTurn' | 'aiTurn' | 'over';
 
 /* Grid: full-width tactical grid (72vw x 28vw, 4vw cells). */
 export const BATTLE_GRID_COLUMNS = 18;
 export const BATTLE_GRID_ROWS = 7;
 export const BATTLE_CELL_SIZE_VW = 4;
 
-/* Shared per-side Action Point pool, refilled every turn. */
-export const AP_PER_TURN = 50;
+/* AI action interval (ms). Both sides act simultaneously; AI takes one action per tick. */
+export const AI_ACTION_INTERVAL_MS = 200;
+
+/* Shield regeneration interval (ms). All sides regenerate simultaneously. */
+export const SHIELD_REGEN_INTERVAL_MS = 1000;
 
 /*
  * A stack renders up to MAX_STACK_SIZE ship icons; larger fleets of a
@@ -88,6 +90,10 @@ export interface FleetShip {
  * BattleStack is the tactical unit: movement, attack, targeting, and
  * selection all operate on stacks. Individual BattleShip entries are
  * internal HP bookkeeping only.
+ *
+ * Real-time movement uses vw coordinates (x/y) and speed (vw/s).
+ * Grid cells (col/row) are updated when a stack reaches its target,
+ * and are used for combat range/pathing checks.
  */
 export interface BattleStack {
   stackId: string;
@@ -100,19 +106,17 @@ export interface BattleStack {
   ships: BattleShip[];
   size: number;
   tier: number;
-  moveApPerCell: number;
-  attackAp: number;
-  moveRange: number;
   attackRange: number;
   immobile: boolean;
-  cellsMovedThisTurn: number;
-  attackedThisTurn: boolean;
   moving: boolean;
   firing: boolean;
-  /* Transition duration (ms) of the current move tween; drives the CSS
-   * transition so the tween length always matches the busy lock. */
-  moveMs: number;
   destroyed: boolean;
+  /* Real-time movement: vw coordinates and speed (vw/s from ship-data.json). */
+  speed: number;
+  x: number;
+  y: number;
+  targetX: number | null;
+  targetY: number | null;
 }
 
 /* Visual effect active during an attack animation. Only one animation
@@ -154,11 +158,7 @@ export interface BattlePlanetVisual {
 
 export interface BattleModelState {
   round: number;
-  activeSide: BattleSide;
-  ap: number;
-  apPerTurn: number;
   stacks: BattleStack[];
-  phase: BattlePhase;
   log: BattleLogEntry[];
   effect: BattleAttackEffect | null;
   winner: BattleSide | null;

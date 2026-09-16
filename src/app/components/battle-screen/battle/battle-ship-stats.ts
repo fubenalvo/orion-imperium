@@ -10,18 +10,8 @@ import planetData from '../../star-map/planet-data.json';
  * Maps a ship type id (real ship or virtual planet-defense building)
  * to the combat stats the minigame uses. Pure and deterministic.
  *
- * AP tier model (derived from the ship-data.json cost column — an
- * explicit lookup because a pure formula mis-buckets carrier at 500):
- *
- *   tier 1 → move 1 AP/cell, attack 1 AP  (scout, fighter, colonizer, corvette)
- *   tier 2 → move 2 AP/cell, attack 2 AP  (frigate, destroyer)
- *   tier 3 → move 3 AP/cell, attack 3 AP  (cruiser, carrier)
- *   tier 4 → move 4 AP/cell, attack 4 AP  (battleship, battlecruiser)
- *   tier 5 → move 5 AP/cell, attack 5 AP  (dreadnought)
- *
- * Movement range per turn reuses the existing `speed` stat; attack
- * range reuses the existing `range` stat. No new movement stat is
- * invented.
+ * Real-time movement: speed from ship-data.json (1-5 vw/s).
+ * No AP costs, no moveRange limits — animation lock is the only gate.
  */
 
 export interface BattleShipStats {
@@ -31,9 +21,6 @@ export interface BattleShipStats {
   attack: number;
   defense: number;
   tier: number;
-  moveApPerCell: number;
-  attackAp: number;
-  moveRange: number;
   attackRange: number;
   immobile: boolean;
   shield: number;
@@ -41,6 +28,8 @@ export interface BattleShipStats {
   attackType: string;
   weakness: string;
   role: string;
+  /* Real-time movement speed in vw/s (from ship-data.json speed). */
+  speed: number;
 }
 
 const TIER_LOOKUP: Record<string, number> = {
@@ -84,9 +73,6 @@ export function getBattleShipStats(
       attack: shipType.attack,
       defense: shipType.defense,
       tier,
-      moveApPerCell: Math.ceil(tier * 1.5),
-      attackAp: Math.ceil(tier * 1.5),
-      moveRange: shipType.battleMoveRange ?? shipType.speed,
       attackRange: shipType.range,
       immobile: false,
       shield: shipType.shield ?? 0,
@@ -94,6 +80,7 @@ export function getBattleShipStats(
       attackType: shipType.attackType ?? 'kinetic',
       weakness: shipType.weakness ?? 'energy',
       role: shipType.role ?? 'Light Combat',
+      speed: shipType.speed,
     };
   }
 
@@ -106,9 +93,6 @@ export function getBattleShipStats(
       attack: virtual.attack,
       defense: virtual.defense,
       tier: 3,
-      moveApPerCell: Math.ceil(3 * 1.5),
-      attackAp: Math.ceil(2 * 1.5),
-      moveRange: 0,
       attackRange: VIRTUAL_RANGE_LOOKUP[typeId] ?? 2,
       immobile: true,
       // Virtual defense buildings (turrets) have no per-ship shield in
@@ -119,6 +103,7 @@ export function getBattleShipStats(
       attackType: virtual.attackType ?? 'kinetic',
       weakness: virtual.weakness ?? 'energy',
       role: virtual.role ?? 'defense',
+      speed: 0,
     };
   }
 
@@ -129,9 +114,6 @@ export function getBattleShipStats(
     attack: 0,
     defense: 0,
     tier: 3,
-    moveApPerCell: Math.ceil(3 * 1.5),
-    attackAp: Math.ceil(2 * 1.5),
-    moveRange: 0,
     attackRange: 0,
     immobile: true,
     shield: 0,
@@ -139,5 +121,6 @@ export function getBattleShipStats(
     attackType: 'kinetic',
     weakness: 'energy',
     role: 'Light Combat',
+    speed: 0,
   };
 }

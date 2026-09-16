@@ -1,0 +1,1996 @@
+import { __decorate } from "tslib";
+import { Component, HostListener, } from '@angular/core';
+import { NavigationEnd } from '@angular/router';
+import { Subscription } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import { SaveSlotId } from '../../services/save-game.service';
+import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
+import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
+import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
+import starMapData from './star-map-data.json';
+import shipData from './ship-data.json';
+import planetData from './planet-data.json';
+import { generateResourceTilesForPlanet as generateResourceTilesUtil, selectPlanetsForResources as selectPlanetsUtil, } from './star-map-resources.util';
+import { getFactionColor as getFactionColorUtil, getFactionName as getFactionNameUtil, getFactionCurrencies as getFactionCurrenciesUtil, getPlayerCurrencies as getPlayerCurrenciesUtil, getPlayerCredits as getPlayerCreditsUtil, getPlanetClassNames as getPlanetClassNamesUtil, getPlanetNumericSize as getPlanetNumericSizeUtil, getPlanetGridSize as getPlanetGridSizeUtil, getPlanetColor as getPlanetColorUtil, getFleetShipTypeSummary as getFleetShipTypeSummaryUtil, getFleetTotalAttack as getFleetTotalAttackUtil, getFleetTotalDefense as getFleetTotalDefenseUtil, getShipTypeById, } from './star-map-display.util';
+import { StarMapFleetInfoComponent } from './star-map-fleet-info/star-map-fleet-info.component';
+import { StarMapSystemInfoComponent } from './star-map-system-info/star-map-system-info.component';
+import { StarMapPlanetInfoComponent } from './star-map-planet-info/star-map-planet-info.component';
+import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-planet-screen.component';
+import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
+import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
+import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
+import { StarMapGalaxyViewComponent } from './star-map-galaxy-view/star-map-galaxy-view.component';
+import { StarMapSystemGridViewComponent } from './star-map-system-grid/star-map-system-grid.component';
+import { StarMapResearchTreeComponent } from './star-map-research-tree/star-map-research-tree.component';
+/*
+ * =========================================================
+ * STAR MAP COMPONENT
+ * =========================================================
+ *
+ * Central gameplay component for Orion Imperium.
+ * Now acts as an orchestrator, delegating logic to services
+ * and UI to child components.
+ *
+ * Manages:
+ * - Map view and system view switching
+ * - Fleet movement (delegated to StarMapMovementService)
+ * - Camera panning and clamping
+ * - Grid-based object selection and context menus
+ * - Collision-based battle detection (delegated to StarMapBattleDetectionService)
+ * - Sensor range & fog-of-war computation (delegated to StarMapSensorService)
+ * - Game loop with pause/resume (delegated to StarMapGameLoopService)
+ * - Auto-save on state changes
+ * - Save/load via SaveGameService
+ */
+const initialStarMapData = structuredClone(starMapData);
+let StarMap = class StarMap {
+    cdr;
+    ngZone;
+    router;
+    battleService;
+    saveGameService;
+    shipService;
+    economyService;
+    planetBattleService;
+    gameLoopService;
+    gameTimeService;
+    movementService;
+    battleDetectionService;
+    aiTickService;
+    sensorService;
+    shipStockService;
+    productionService;
+    spaceportService;
+    fleetAssemblyService;
+    researchService;
+    panelVmService;
+    arrivalService;
+    gameSettingsService;
+    currentView = 'map';
+    pauseMenuOpen = false;
+    loadError = '';
+    saveError = '';
+    // Map configuration
+    mapWidth = initialStarMapData.map.width;
+    mapHeight = initialStarMapData.map.height;
+    cellSizeVw = initialStarMapData.map.cellSizeVw;
+    cellSizeVh = initialStarMapData.map.cellSizeVh;
+    gridBreakpointPx = 1300;
+    // Game state
+    starSystems = initialStarMapData.starSystems;
+    fleets = initialStarMapData.fleets;
+    factions = initialStarMapData.factions;
+    shipStock = initialStarMapData.shipStock ?? [];
+    production = initialStarMapData.production ?? [];
+    defaultView = initialStarMapData.defaultView ?? undefined;
+    routerSubscription = new Subscription();
+    // Tracks the most recent router URL that was not /star-map, so that
+    // reloadAfterBattle() only runs when the player is actually returning
+    // from the battle screen — not on MainMenu -> StarMap or any other
+    // re-entry into the map view. The default '/' handles the very first
+    // navigation into the component (MainMenu -> /star-map).
+    lastNonStarMapUrl = '/';
+    // Selection state
+    selectedSystem = null;
+    selectedFleet = null;
+    selectedPlanetTile = null;
+    selectedFleetAction = null;
+    // Camera state
+    cameraX = 0;
+    cameraY = 0;
+    cameraSpeed = 2;
+    // Drag/pan state
+    isDragging = false;
+    dragStartX = 0;
+    dragStartY = 0;
+    dragCameraStartX = 0;
+    dragCameraStartY = 0;
+    dragMoved = false;
+    dragThreshold = 5;
+    // Parallax background: the background div must always be 200% of the actual
+    // map grid (not 200% of the viewport) so the parallax shift never causes it to
+    // "run out" when the camera is panned to the map edges.  All values are in vw
+    // to stay consistent with the camera / parallax transform units.
+    /** Background width in vw — 200% of the map grid width. */
+    get bgWidthVw() {
+        return this.movementService.gridColumns * this.cellSizeVw * 2;
+    }
+    /** Background height in vw — 200% of the map grid height. */
+    get bgHeightVw() {
+        return this.movementService.gridRows * this.cellSizeVh * 2;
+    }
+    /** Left offset in vw that centers the (2× map) background on the viewport. */
+    get bgLeftVw() {
+        return 50 - this.movementService.gridColumns * this.cellSizeVw;
+    }
+    /** Top offset in vw that centers the (2× map) background on the viewport. */
+    get bgTopVw() {
+        const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
+        return viewportHeightVw / 2 - this.movementService.gridRows * this.cellSizeVh;
+    }
+    // Movement targets
+    targetX = null;
+    targetY = null;
+    // UI state
+    contextMenu = null;
+    // Game time state
+    get isPaused() {
+        return this.gameTimeService.isPaused;
+    }
+    get gameSpeed() {
+        return this.gameTimeService.speed;
+    }
+    timeControlSubscription;
+    settingsSubscription;
+    // Production / spaceport panel state
+    showProductionPanel = false;
+    showBuildMenu = false;
+    productionBuildError = null;
+    showSpaceportPanel = false;
+    spaceportError = null;
+    spaceportFleetName = 'New Fleet';
+    spaceportMode = 'create';
+    spaceportTargetFleetId = null;
+    showResearchTree = false;
+    isLandscape = false;
+    // Event handlers for focus tracking
+    onWindowBlur = () => this.gameTimeService.pause();
+    onVisibilityChange = () => {
+        if (document.hidden)
+            this.gameTimeService.pause();
+    };
+    // Ship types
+    shipTypes = shipData.shipTypes;
+    economyAccumulator = 0;
+    economyTickInterval = 1;
+    cachedPlayerEconomyBreakdown = null;
+    // Throttled autosave for simulation-driven mutations (AI, economy,
+    // production) that do not each have their own save trigger.
+    autosaveAccumulator = 0;
+    autosaveIntervalSeconds = 3;
+    simStateDirty = false;
+    // Sensor range & fog-of-war state
+    exploredGridCells = new Set();
+    sensorRangeCells = new Map();
+    sensorPreviewCells = new Map();
+    sensorRangeEnabled = true;
+    visibilityDirty = true;
+    constructor(cdr, ngZone, router, battleService, saveGameService, shipService, economyService, planetBattleService, gameLoopService, gameTimeService, movementService, battleDetectionService, aiTickService, sensorService, shipStockService, productionService, spaceportService, fleetAssemblyService, researchService, panelVmService, arrivalService, gameSettingsService) {
+        this.cdr = cdr;
+        this.ngZone = ngZone;
+        this.router = router;
+        this.battleService = battleService;
+        this.saveGameService = saveGameService;
+        this.shipService = shipService;
+        this.economyService = economyService;
+        this.planetBattleService = planetBattleService;
+        this.gameLoopService = gameLoopService;
+        this.gameTimeService = gameTimeService;
+        this.movementService = movementService;
+        this.battleDetectionService = battleDetectionService;
+        this.aiTickService = aiTickService;
+        this.sensorService = sensorService;
+        this.shipStockService = shipStockService;
+        this.productionService = productionService;
+        this.spaceportService = spaceportService;
+        this.fleetAssemblyService = fleetAssemblyService;
+        this.researchService = researchService;
+        this.panelVmService = panelVmService;
+        this.arrivalService = arrivalService;
+        this.gameSettingsService = gameSettingsService;
+        this.movementService.initialize(this.cellSizeVw, this.cellSizeVh, this.mapWidth, this.mapHeight);
+        this.routerSubscription = this.router.events
+            .pipe(filter((event) => event instanceof NavigationEnd))
+            .subscribe((event) => {
+            const url = event.urlAfterRedirects || event.url;
+            const previousUrl = this.lastNonStarMapUrl;
+            this.lastNonStarMapUrl = url;
+            if (url === '/star-map' && previousUrl === '/battle') {
+                this.reloadAfterBattle();
+            }
+        });
+    }
+    get currentSlot() {
+        // Current save slot used by SaveGameService.
+        return this.saveGameService.currentSlot;
+    }
+    get visibleFleets() {
+        // Fleets that are not destroyed AND visible to the player (fog-of-war).
+        // Player fleets are always visible; enemy fleets must be in sensor range.
+        // In system view, all fleets in the current system are visible.
+        return this.fleets.filter((f) => !f.destroyed && this.isFleetVisible(f));
+    }
+    get minimapFleets() {
+        return this.visibleFleets.map((f) => ({
+            id: f.id,
+            x: f.x,
+            y: f.y,
+            color: this.getFactionColor(f.factionId),
+        }));
+    }
+    /** Star systems that have been explored (visible on the galaxy map). */
+    get exploredStarSystems() {
+        return this.starSystems.filter((s) => s.explored !== false);
+    }
+    /** Returns true if a fleet is visible to the player under fog-of-war rules. */
+    isFleetVisible(fleet) {
+        if (!this.sensorRangeEnabled) {
+            return true;
+        }
+        if (fleet.factionId === 'player') {
+            return true;
+        }
+        if (this.currentView === 'system' &&
+            this.selectedSystem &&
+            fleet.system?.id === this.selectedSystem.id) {
+            return true;
+        }
+        const col = Math.floor(fleet.x);
+        const row = Math.floor(fleet.y);
+        const key = `${col}-${row}`;
+        return this.sensorRangeCells.has(key) || this.sensorPreviewCells.has(key);
+    }
+    /**
+     * Returns true if a fleet is detected in the outer-ring preview band
+     * (R+1..R+2) but NOT in the fully-clear sensor range. Used to attach the
+     * faded `.fleet--preview` modifier so the player sees that the contact is
+     * low-confidence.
+     *
+     * Player fleets are never faded, even if they happen to land in another
+     * player source's preview band.
+     */
+    isEnemyInPreview(fleet) {
+        if (fleet.factionId === 'player') {
+            return false;
+        }
+        const col = Math.floor(fleet.x);
+        const row = Math.floor(fleet.y);
+        const key = `${col}-${row}`;
+        return this.sensorPreviewCells.has(key) && !this.sensorRangeCells.has(key);
+    }
+    /**
+     * Movement trails for the galaxy map view.
+     *
+     * A trail is rendered for every fleet that has an active target, i.e. is
+     * currently travelling. Visibility follows the same fog-of-war rules as
+     * fleets themselves:
+     * - Fog of war ON: only the player's own trails are shown.
+     * - Fog of war OFF: every faction's trails are shown, regardless of
+     *   sensor range.
+     *
+     * The returned coordinates are already in vw units so the presentational
+     * galaxy-view child component only binds style properties.
+     */
+    get galaxyTrails() {
+        const trails = [];
+        for (const fleet of this.fleets) {
+            if (fleet.destroyed) {
+                continue;
+            }
+            // Visibility: player trails always show; enemy trails only when
+            // fog of war is disabled OR the fleet itself is visible.
+            if (fleet.factionId !== 'player') {
+                if (this.sensorRangeEnabled && !this.isFleetVisible(fleet)) {
+                    continue;
+                }
+            }
+            const vw = this.movementService.getGalaxyTrailVw(fleet);
+            if (!vw) {
+                continue;
+            }
+            trails.push({
+                fleetId: fleet.id,
+                factionId: fleet.factionId,
+                color: this.getFactionColor(fleet.factionId),
+                x1: vw.x1,
+                y1: vw.y1,
+                x2: vw.x2,
+                y2: vw.y2,
+            });
+        }
+        return trails;
+    }
+    /**
+     * Movement trails for the currently open star system view.
+     *
+     * Only fleets that are inside the selected system AND have an active
+     * system-view target contribute a trail. Visibility follows the same
+     * fog-of-war rules as `galaxyTrails`.
+     */
+    get systemTrails() {
+        if (!this.selectedSystem) {
+            return [];
+        }
+        const trails = [];
+        for (const fleet of this.fleets) {
+            if (fleet.destroyed) {
+                continue;
+            }
+            if (fleet.factionId !== 'player') {
+                if (this.sensorRangeEnabled && !this.isFleetVisible(fleet)) {
+                    continue;
+                }
+            }
+            const vw = this.movementService.getSystemTrailVw(fleet, this.selectedSystem.id);
+            if (!vw) {
+                continue;
+            }
+            trails.push({
+                fleetId: fleet.id,
+                factionId: fleet.factionId,
+                color: this.getFactionColor(fleet.factionId),
+                x1: vw.x1,
+                y1: vw.y1,
+                x2: vw.x2,
+                y2: vw.y2,
+            });
+        }
+        return trails;
+    }
+    /** Returns the array of sensor range cell infos for template rendering. */
+    get sensorRangeCellsArray() {
+        return Array.from(this.sensorRangeCells.values());
+    }
+    /**
+     * Returns the array of outer-ring preview cell infos for template rendering.
+     * Preview cells render as a faint dashed halo just outside the fully-clear
+     * sensor radius and are NOT part of the explored set.
+     */
+    get sensorPreviewCellsArray() {
+        return Array.from(this.sensorPreviewCells.values());
+    }
+    /**
+     * Returns fog cells (unexplored cells within the viewport) for template rendering.
+     * Called only when the camera is stationary or the explored set changes.
+     */
+    get fogCells() {
+        if (!this.sensorRangeEnabled) {
+            return [];
+        }
+        const viewportWidthVw = 100;
+        const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
+        const cells = this.sensorService.getViewportCells(this.cameraX, this.cameraY, viewportWidthVw, viewportHeightVw, this.cellSizeVw, this.cellSizeVh, this.mapWidth, this.mapHeight);
+        const fog = [];
+        for (const cell of cells) {
+            const key = `${cell.col}-${cell.row}`;
+            if (!this.exploredGridCells.has(key)) {
+                fog.push({ col: cell.col, row: cell.row, explored: false });
+            }
+            else if (!this.sensorRangeCells.has(key) && this.sensorRangeEnabled) {
+                fog.push({ col: cell.col, row: cell.row, explored: true });
+            }
+        }
+        return fog;
+    }
+    /**
+     * Returns the sensor range cells for the selected fleet in system view,
+     * split into fully-clear cells and outer-ring preview cells.
+     */
+    get systemSensorCells() {
+        if (!this.sensorRangeEnabled || !this.selectedFleet || !this.selectedFleet.system?.id) {
+            return { cells: [], preview: [] };
+        }
+        return this.sensorService.computeSystemSensorCells(this.selectedFleet);
+    }
+    /** Toggles the visibility of sensor range grid highlights. */
+    toggleSensorRange() {
+        this.sensorRangeEnabled = !this.sensorRangeEnabled;
+        this.cdr.detectChanges();
+    }
+    // Pause menu handlers
+    /** Opens the pause menu and pauses the game loop. */
+    openPauseMenu() {
+        this.pauseMenuOpen = true;
+        this.gameTimeService.pause();
+    }
+    onOpenOptionsMenu() {
+        this.gameSettingsService.openOptionsMenu();
+    }
+    /** Closes the pause menu and resumes the game loop. */
+    closePauseMenu() {
+        this.pauseMenuOpen = false;
+        this.gameTimeService.resume();
+    }
+    /** Saves the current game state to the chosen manual slot. */
+    saveFromMenu(slotIndex) {
+        const data = this.serializeGameState();
+        this.saveGameService.saveToSlot(slotIndex, data);
+        this.saveError = this.saveGameService.getSlotsError() ?? '';
+    }
+    /** Loads a save game from the specified slot index. */
+    loadFromMenu(slotIndex) {
+        if (!this.saveGameService.activateSlot(slotIndex)) {
+            return;
+        }
+        // A manual load starts a fresh session; drop any transient battle
+        // residue that belongs to the session being replaced.
+        this.battleService.clearBattle();
+        this.loadGame();
+        this.closePauseMenu();
+    }
+    /** Saves the game and navigates back to the main menu. */
+    exitToMainMenu() {
+        this.saveGame();
+        this.router.navigate(['']);
+    }
+    /** Transitions from the map view into a star system view, syncing fleet positions. */
+    enterSystem() {
+        this.saveGame();
+        if (this.selectedSystem) {
+            this.currentView = 'system';
+            this.initFleetsInSystem(this.selectedSystem);
+            this.syncTargetFromSelectedFleet();
+        }
+    }
+    /*
+     * initFleetsInSystem: For every active fleet whose galaxy cell matches
+     * `system`, ensure `fleet.system` is set and re-derive `gridCol` /
+     * `gridRow` from `fleet.system.{x,y}`. This is what makes the system
+     * view actually render fleets after a save/restore round-trip and
+     * after `createFleet` spawns a new fleet on a planet cell.
+     */
+    initFleetsInSystem(system) {
+        for (const fleet of this.fleets) {
+            if (fleet.destroyed) {
+                continue;
+            }
+            if (this.movementService.isFleetInSystem(fleet, system)) {
+                if (!fleet.system) {
+                    fleet.system = {
+                        id: system.id,
+                        x: 2.5,
+                        y: 32.5,
+                        targetX: null,
+                        targetY: null,
+                    };
+                }
+                else {
+                    fleet.system.id = system.id;
+                }
+                const sysCell = this.movementService.calculateSystemGridCell(fleet.system.x, fleet.system.y);
+                fleet.gridCol = sysCell.col;
+                fleet.gridRow = sysCell.row;
+            }
+        }
+    }
+    /*
+     * syncTargetFromSelectedFleet: Copy the selected fleet's movement
+     * target to the visible target marker, depending on the current view.
+     * Centralised so both `enterSystem` and the create-success path can
+     * use it.
+     */
+    syncTargetFromSelectedFleet() {
+        if (this.selectedFleet && this.selectedFleet.system?.targetX != null) {
+            this.targetX = this.selectedFleet.system.targetX ?? null;
+            this.targetY = this.selectedFleet.system.targetY ?? null;
+        }
+        else {
+            this.targetX = null;
+            this.targetY = null;
+        }
+    }
+    /*
+     * applyDefaultView: Sets the initial view from the star-map-data.json
+     * defaultView config. Used only when starting a new game with no saved
+     * runtime view state. Falls back to 'map' if the referenced system or
+     * planet does not exist.
+     */
+    applyDefaultView(defaultView) {
+        if (!defaultView) {
+            this.currentView = 'map';
+            this.selectedSystem = null;
+            this.selectedPlanetTile = null;
+            this.cameraX = 0;
+            this.cameraY = 0;
+            this.targetX = null;
+            this.targetY = null;
+            this.selectedFleetAction = null;
+            return;
+        }
+        switch (defaultView.type) {
+            case 'map':
+                this.currentView = 'map';
+                this.cameraX = defaultView.cameraX ?? 0;
+                this.cameraY = defaultView.cameraY ?? 0;
+                this.selectedSystem = null;
+                this.selectedPlanetTile = null;
+                this.targetX = null;
+                this.targetY = null;
+                this.selectedFleetAction = null;
+                break;
+            case 'system': {
+                const system = this.starSystems.find((s) => s.id === defaultView.systemId);
+                if (!system) {
+                    this.currentView = 'map';
+                    this.selectedSystem = null;
+                    this.selectedPlanetTile = null;
+                    this.cameraX = 0;
+                    this.cameraY = 0;
+                    this.targetX = null;
+                    this.targetY = null;
+                    this.selectedFleetAction = null;
+                    break;
+                }
+                this.currentView = 'system';
+                this.selectedSystem = system;
+                this.selectedPlanetTile = null;
+                this.targetX = null;
+                this.targetY = null;
+                this.selectedFleetAction = null;
+                this.initFleetsInSystem(system);
+                this.syncTargetFromSelectedFleet();
+                break;
+            }
+            case 'planet': {
+                const system = this.starSystems.find((s) => s.id === defaultView.systemId);
+                const planet = system?.planetsTiles?.find((p) => p.id === defaultView.planetId);
+                if (!system || !planet) {
+                    this.currentView = 'map';
+                    this.selectedSystem = null;
+                    this.selectedPlanetTile = null;
+                    this.cameraX = 0;
+                    this.cameraY = 0;
+                    this.targetX = null;
+                    this.targetY = null;
+                    this.selectedFleetAction = null;
+                    break;
+                }
+                this.currentView = 'planet';
+                this.selectedSystem = system;
+                this.selectedPlanetTile = planet;
+                this.targetX = null;
+                this.targetY = null;
+                this.selectedFleetAction = null;
+                this.initFleetsInSystem(system);
+                this.syncTargetFromSelectedFleet();
+                break;
+            }
+            default:
+                this.currentView = 'map';
+                this.selectedSystem = null;
+                this.selectedPlanetTile = null;
+                this.cameraX = 0;
+                this.cameraY = 0;
+                this.targetX = null;
+                this.targetY = null;
+                this.selectedFleetAction = null;
+        }
+    }
+    /** Exits the current star system and returns to the galaxy map view. */
+    leaveSystem() {
+        this.saveGame();
+        this.currentView = 'map';
+        for (const fleet of this.fleets) {
+            if (fleet.destroyed) {
+                continue;
+            }
+            if (fleet.system?.id != null) {
+                const mapCell = this.movementService.calculateGridCell(fleet.x, fleet.y);
+                fleet.gridCol = mapCell.col;
+                fleet.gridRow = mapCell.row;
+            }
+        }
+        if (this.selectedFleet && this.selectedFleet.targetX != null) {
+            this.targetX = this.selectedFleet.targetX;
+            this.targetY = this.selectedFleet.targetY;
+        }
+        else {
+            this.targetX = null;
+            this.targetY = null;
+        }
+    }
+    // Faction helpers
+    /** Returns the color associated with a faction ID. */
+    getFactionColor(factionId) {
+        return getFactionColorUtil(this.factions, factionId);
+    }
+    /** Returns the display name of a faction by its ID. */
+    getFactionName(factionId) {
+        return getFactionNameUtil(this.factions, factionId);
+    }
+    /** Returns the player's currencies as key-value pairs. */
+    getPlayerCurrencies() {
+        return getPlayerCurrenciesUtil(this.factions);
+    }
+    /** Returns the player's current credit balance. */
+    getPlayerCredits() {
+        return getPlayerCreditsUtil(this.factions);
+    }
+    /** Handles confirmation of a building placement from the planet screen. */
+    onBuildingConfirmed(event) {
+        const planet = this.selectedPlanetTile;
+        if (!planet)
+            return;
+        const player = this.factions.find((f) => f.id === 'player');
+        if (!player?.currencies)
+            return;
+        if (!this.researchService.isBuildingUnlocked(player, event.buildingId)) {
+            return;
+        }
+        const buildingDef = planetData.buildings.find((b) => b.id === event.buildingId);
+        if (!buildingDef)
+            return;
+        const credits = player.currencies['credits'] ?? 0;
+        if (credits < buildingDef.price)
+            return;
+        player.currencies['credits'] = credits - buildingDef.price;
+        planet.buildings.push({
+            name: buildingDef.name,
+            size: buildingDef.size,
+            x: event.x,
+            y: event.y,
+        });
+        this.cdr.detectChanges();
+    }
+    /** Returns the player's economy breakdown for the currency overlay. */
+    getPlayerEconomyBreakdown() {
+        if (this.cachedPlayerEconomyBreakdown) {
+            return this.cachedPlayerEconomyBreakdown;
+        }
+        return this.economyService.calculateEconomy('player', this.factions, this.starSystems, this.fleets);
+    }
+    getPlayerShipStockEntries() {
+        const summary = this.shipStockService.getSummary(this, 'player');
+        return summary
+            .map((entry) => {
+            const type = this.shipService.getShipType(entry.typeId);
+            return { typeId: entry.typeId, typeName: type?.name ?? entry.typeId, count: entry.count };
+        })
+            .sort((a, b) => a.typeName.localeCompare(b.typeName));
+    }
+    getPlayerShipStockTotal() {
+        return this.shipStockService.getCount(this, 'player');
+    }
+    getProductionPanelVm() {
+        return this.panelVmService.getProductionPanelVm(this, this.selectedPlanetTile, this.selectedSystem, this.factions);
+    }
+    getSpaceportPanelVm() {
+        return this.panelVmService.getSpaceportPanelVm(this, this.selectedPlanetTile, this.selectedSystem, this.starSystems, this.factions, this.spaceportError);
+    }
+    openProductionPanel() {
+        this.showProductionPanel = true;
+        this.showBuildMenu = false;
+        this.productionBuildError = null;
+    }
+    closeProductionPanel() {
+        this.showProductionPanel = false;
+        this.showBuildMenu = false;
+    }
+    onOpenBuildMenu() {
+        this.showBuildMenu = true;
+        this.productionBuildError = null;
+    }
+    onCloseBuildMenu() {
+        this.showBuildMenu = false;
+    }
+    onQueueOrder(req) {
+        if (!this.selectedPlanetTile) {
+            return;
+        }
+        const result = this.productionService.queueOrder(this, 'player', this.selectedPlanetTile.id, req.shipTypeId, req.quantity, this.starSystems, this.factions);
+        if (!result.ok) {
+            this.productionBuildError = this.describeProductionError(result.reason);
+            return;
+        }
+        this.productionBuildError = null;
+        this.saveGame();
+    }
+    onCancelOrder(orderId) {
+        if (!this.selectedPlanetTile) {
+            return;
+        }
+        this.productionService.cancelOrder(this, 'player', this.selectedPlanetTile.id, orderId, this.factions);
+        this.saveGame();
+    }
+    describeProductionError(reason) {
+        return this.panelVmService.describeProductionError(reason);
+    }
+    openSpaceportPanel(mode = 'create', fleetId = null) {
+        if (!this.spaceportService.hasSpaceport('player', this.starSystems)) {
+            this.spaceportError = 'You need a Spaceport to assemble fleets.';
+            return;
+        }
+        this.spaceportMode = mode;
+        this.spaceportTargetFleetId = fleetId;
+        this.spaceportFleetName =
+            mode === 'create'
+                ? this.suggestFleetName()
+                : (this.fleets.find((f) => f.id === fleetId)?.name ?? 'New Fleet');
+        this.spaceportError = null;
+        this.showSpaceportPanel = true;
+    }
+    closeSpaceportPanel() {
+        this.showSpaceportPanel = false;
+        this.spaceportError = null;
+    }
+    openResearchTree() {
+        this.showResearchTree = true;
+    }
+    closeResearchTree() {
+        this.showResearchTree = false;
+    }
+    onTechnologyResearched() {
+        this.cdr.detectChanges();
+        this.saveGame();
+    }
+    getPlayerFaction() {
+        return this.factions.find((f) => f.id === 'player');
+    }
+    isBuildingUnlocked = (buildingId) => {
+        const player = this.getPlayerFaction();
+        if (!player)
+            return false;
+        return this.researchService.isBuildingUnlocked(player, buildingId);
+    };
+    onSpaceportConfirm(event) {
+        if (event.fleetId != null) {
+            const result = this.fleetAssemblyService.reinforceFleet(this, this.starSystems, {
+                factionId: 'player',
+                fleetId: event.fleetId,
+                composition: event.composition,
+            });
+            if (!result.ok) {
+                this.spaceportError = this.describeAssemblyError(result.reason);
+                return;
+            }
+        }
+        else {
+            const result = this.fleetAssemblyService.createFleet(this, this.starSystems, {
+                factionId: 'player',
+                fleetName: event.fleetName,
+                systemId: event.systemId,
+                planetId: event.planetId,
+                composition: event.composition,
+            });
+            if (!result.ok) {
+                this.spaceportError = this.describeAssemblyError(result.reason);
+                return;
+            }
+            if (result.fleet) {
+                // Place the new fleet on its host planet's system cell and
+                // transition into the system view. The view flip MUST happen
+                // before `selectFleet` because `selectFleet` clears
+                // `selectedSystem` whenever it is called from a non-system
+                // view (`star-map.ts:971-973`). If the order is wrong,
+                // `selectedSystem` is nulled and the system-view template
+                // renders as a blank grid.
+                const hostSystem = this.starSystems.find((s) => s.id === event.systemId);
+                if (hostSystem) {
+                    this.selectSystem(hostSystem);
+                }
+                this.currentView = 'system';
+                if (hostSystem) {
+                    this.initFleetsInSystem(hostSystem);
+                }
+                this.selectFleet(result.fleet);
+            }
+        }
+        this.spaceportError = null;
+        this.showSpaceportPanel = false;
+        this.saveGame();
+    }
+    onSpaceportDisband() {
+        const fleetId = this.spaceportTargetFleetId;
+        if (fleetId == null) {
+            return;
+        }
+        const fleet = this.fleets.find((f) => f.id === fleetId);
+        if (!fleet) {
+            return;
+        }
+        const ok = window.confirm(`Disband ${fleet.name}? Surviving ships return to the global stock.`);
+        if (!ok) {
+            return;
+        }
+        this.fleetAssemblyService.disbandFleet(this, 'player', fleetId);
+        if (this.selectedFleet?.id === fleetId) {
+            this.deselectFleet();
+        }
+        this.spaceportError = null;
+        this.showSpaceportPanel = false;
+        this.saveGame();
+    }
+    disbandSelectedFleet() {
+        if (!this.selectedFleet) {
+            return;
+        }
+        this.fleetAssemblyService.disbandFleet(this, 'player', this.selectedFleet.id);
+        this.deselectFleet();
+        this.saveGame();
+    }
+    onReinforceSelected() {
+        if (!this.selectedFleet) {
+            return;
+        }
+        this.openSpaceportPanel('reinforce', this.selectedFleet.id);
+    }
+    onDisbandSelected() {
+        if (!this.selectedFleet) {
+            return;
+        }
+        const ok = window.confirm(`Disband ${this.selectedFleet.name}? Surviving ships return to the global stock.`);
+        if (!ok) {
+            return;
+        }
+        this.disbandSelectedFleet();
+    }
+    hasSpaceport() {
+        return this.spaceportService.hasSpaceport('player', this.starSystems);
+    }
+    hasFactoryOnSelectedPlanet() {
+        if (!this.selectedPlanetTile) {
+            return false;
+        }
+        return this.productionService.getPlanetCapacity(this.selectedPlanetTile) > 0;
+    }
+    hasSpaceportOnSelectedPlanet() {
+        if (!this.selectedPlanetTile) {
+            return false;
+        }
+        return this.spaceportService.isSpaceportPlanet(this.selectedPlanetTile);
+    }
+    describeAssemblyError(reason) {
+        return this.panelVmService.describeAssemblyError(reason);
+    }
+    suggestFleetName() {
+        return this.panelVmService.suggestFleetName(this.fleets);
+    }
+    /** Returns a faction's currencies as key-value pairs. */
+    getFactionCurrencies(factionId) {
+        return getFactionCurrenciesUtil(this.factions, factionId);
+    }
+    // Bound versions for child component inputs to preserve `this` context
+    boundGetFactionColor = this.getFactionColor.bind(this);
+    boundGetFactionName = this.getFactionName.bind(this);
+    boundGetFactionCurrencies = this.getFactionCurrencies.bind(this);
+    boundGetPlayerEconomyBreakdown = this.getPlayerEconomyBreakdown.bind(this);
+    boundGetPlanetColor = this.getPlanetColor.bind(this);
+    boundGetPlayerCredits = this.getPlayerCredits.bind(this);
+    boundIsEnemyInPreview = this.isEnemyInPreview.bind(this);
+    boundOnConfirmBuild = (buildingId, x, y) => this.onBuildingConfirmed({ buildingId, x, y });
+    boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
+    boundGetEnergyForPlanet = this.getEnergyForPlanet.bind(this);
+    boundGetTaxForPlanet = this.getTaxForPlanet.bind(this);
+    boundGetPlayerShipStockEntries = this.getPlayerShipStockEntries.bind(this);
+    boundGetPlayerShipStockTotal = this.getPlayerShipStockTotal.bind(this);
+    boundGetProductionPanelVm = this.getProductionPanelVm.bind(this);
+    boundGetSpaceportPanelVm = this.getSpaceportPanelVm.bind(this);
+    boundHasFactory = this.hasFactoryOnSelectedPlanet.bind(this);
+    boundHasSpaceportOnSelectedPlanet = this.hasSpaceportOnSelectedPlanet.bind(this);
+    // Event handlers forwarded to the galaxy/system grid child components
+    boundOnMapClick = this.onMapClick.bind(this);
+    boundOnPointerDown = this.onPointerDown.bind(this);
+    boundOnPointerMove = this.onPointerMove.bind(this);
+    boundOnPointerUp = this.onPointerUp.bind(this);
+    boundOnSystemClick = this.onSystemClick.bind(this);
+    boundOnFleetClick = this.onFleetClick.bind(this);
+    boundOnSystemGridClick = this.onSystemGridClick.bind(this);
+    boundOnPlanetClick = this.onPlanetClick.bind(this);
+    boundOnSystemContextMenu = this.onSystemContextMenu.bind(this);
+    boundOnFleetContextMenu = this.onFleetContextMenu.bind(this);
+    boundOnPlanetContextMenu = this.onPlanetContextMenu.bind(this);
+    boundGetPlanetClassNames = this.getPlanetClassNames.bind(this);
+    // Ship type helpers
+    /** Looks up a ship type definition by its ID. */
+    getShipType(typeId) {
+        return getShipTypeById(typeId);
+    }
+    /** Builds a summary of ship types and counts present in a fleet. */
+    getFleetShipTypeSummary(fleet) {
+        return getFleetShipTypeSummaryUtil(fleet);
+    }
+    /** Calculates the total attack value of all ships in a fleet. */
+    getFleetTotalAttack(fleet) {
+        return getFleetTotalAttackUtil(fleet);
+    }
+    /** Calculates the total defense value of all ships in a fleet. */
+    getFleetTotalDefense(fleet) {
+        return getFleetTotalDefenseUtil(fleet);
+    }
+    /** Computes energy production for a planet based on its power-producing buildings. */
+    getEnergyForPlanet(planet) {
+        return this.economyService.getPlanetEnergy(planet);
+    }
+    /** Computes tax income for a planet based on population and industrial buildings. */
+    getTaxForPlanet(planet) {
+        return this.economyService.getPlanetTax(planet);
+    }
+    /** Returns the economy breakdown for a planet. */
+    getPlanetEconomy(planet) {
+        return this.economyService.getPlanetEconomyBreakdown(planet);
+    }
+    /** Returns the CSS class names to apply to a planet tile for styling. */
+    getPlanetClassNames(planet) {
+        return getPlanetClassNamesUtil(planet);
+    }
+    /** Maps a planet's string size to a numeric size (1-4) for grid calculations. */
+    getPlanetNumericSize(planet) {
+        return getPlanetNumericSizeUtil(planet);
+    }
+    /**
+     * Returns the grid dimension (side length) for a planet's surface grid.
+     * Formula: size * 2 + 3, so size 1 -> 5, size 2 -> 7, size 3 -> 9, size 4 -> 11.
+     */
+    getPlanetGridSize(planet) {
+        return getPlanetGridSizeUtil(planet);
+    }
+    /** Returns the representative color for a planet based on its type. */
+    getPlanetColor(planet) {
+        return getPlanetColorUtil(planet);
+    }
+    // Resource deposit generation helpers
+    generateResourceTilesForPlanet(planet) {
+        return generateResourceTilesUtil(planet, (p) => this.getPlanetGridSize(p));
+    }
+    selectPlanetsForResources(planets) {
+        return selectPlanetsUtil(planets);
+    }
+    /** Ensures every planet has a deterministic resourceTiles array. */
+    ensureResourceTiles() {
+        const allPlanets = this.starSystems.flatMap((s) => s.planetsTiles);
+        const selectedIds = this.selectPlanetsForResources(allPlanets);
+        for (const planet of allPlanets) {
+            if (selectedIds.has(planet.id)) {
+                if (!planet.resourceTiles || planet.resourceTiles.length === 0) {
+                    planet.resourceTiles = this.generateResourceTilesForPlanet(planet);
+                }
+            }
+            else {
+                planet.resourceTiles = [];
+            }
+        }
+    }
+    // Selection handlers
+    /** Selects a fleet, updates the camera, and tracks its movement target. */
+    selectFleet(fleet) {
+        this.selectedFleet = fleet;
+        if (this.currentView !== 'system') {
+            this.selectedSystem = null;
+        }
+        this.selectedPlanetTile = null;
+        if (this.currentView === 'map') {
+            this.cameraX = (fleet.x - 0.5) * this.cellSizeVw - 50;
+            this.cameraY = (fleet.y - 0.5) * this.cellSizeVh - 50;
+            this.clampCamera();
+        }
+        if (this.currentView === 'system') {
+            if (fleet.system?.targetX != null && fleet.system?.targetY != null) {
+                this.targetX = fleet.system.targetX ?? null;
+                this.targetY = fleet.system.targetY ?? null;
+            }
+            else {
+                this.targetX = null;
+                this.targetY = null;
+            }
+        }
+        else {
+            if (fleet.targetX !== null && fleet.targetY !== null) {
+                this.targetX = fleet.targetX;
+                this.targetY = fleet.targetY;
+            }
+            else {
+                this.targetX = null;
+                this.targetY = null;
+            }
+        }
+        this.cdr.detectChanges();
+    }
+    /** Clears the current fleet selection and its movement target. */
+    deselectFleet() {
+        this.selectedFleet = null;
+        this.selectedFleetAction = null;
+        this.targetX = null;
+        this.targetY = null;
+        this.cdr.detectChanges();
+    }
+    /** Sets the active action mode for the selected fleet ('move'). */
+    setFleetAction(action) {
+        this.selectedFleetAction = action;
+        this.cdr.detectChanges();
+    }
+    /** Clears the currently selected star system. */
+    deselectSystem() {
+        this.selectedSystem = null;
+        this.cdr.detectChanges();
+    }
+    /** Clears the currently selected planet tile. */
+    deselectPlanetTile() {
+        this.selectedPlanetTile = null;
+        this.cdr.detectChanges();
+    }
+    // Planet view helpers
+    /** Enters the planet surface view, saving game state first. */
+    openPlanetView() {
+        if (!this.selectedPlanetTile || !this.selectedPlanetTile.explored) {
+            return;
+        }
+        this.saveGame();
+        this.currentView = 'planet';
+    }
+    /** Exits the planet surface view back to the system view. */
+    leavePlanetView() {
+        this.saveGame();
+        this.currentView = 'system';
+    }
+    /** Selects a star system, or moves the selected fleet to it if in move mode. */
+    selectSystem(system) {
+        if (this.selectedFleet && this.currentView === 'map' && this.selectedFleetAction === 'move') {
+            this.moveSelectedFleet(system.x, system.y);
+        }
+        this.selectedSystem = system;
+        this.selectedFleet = null;
+        this.selectedFleetAction = null;
+        this.selectedPlanetTile = null;
+        this.cdr.detectChanges();
+    }
+    /**
+     * Selects a planet tile, clearing any fleet selection.
+     *
+     * If the planet-info window is already open and the clicked planet differs
+     * (by id), the window is closed first so the component is destroyed and
+     * re-created fresh with the new data rather than just receiving new inputs.
+     */
+    selectPlanetTile(tile) {
+        this.selectedFleet = null;
+        if (this.selectedPlanetTile && this.selectedPlanetTile.id !== tile.id) {
+            this.selectedPlanetTile = null;
+            this.cdr.detectChanges();
+        }
+        this.selectedPlanetTile = tile;
+        if (this.currentView !== 'system') {
+            this.selectedSystem = null;
+        }
+        this.cdr.detectChanges();
+    }
+    // Context menu
+    /** Displays a context menu at the given screen coordinates with the provided items. */
+    showContextMenu(x, y, items) {
+        this.contextMenu = { x, y, items };
+    }
+    /** Hides the currently open context menu. */
+    closeContextMenu() {
+        this.contextMenu = null;
+        this.cdr.detectChanges();
+    }
+    /** Handles a context menu item selection, dispatching to the appropriate handler. */
+    onContextMenuSelect(item) {
+        this.closeContextMenu();
+        switch (item.type) {
+            case 'fleet':
+                this.selectFleet(item.data);
+                break;
+            case 'system':
+                this.selectSystem(item.data);
+                break;
+            case 'planet':
+                this.selectPlanetTile(item.data);
+                break;
+        }
+        this.cdr.detectChanges();
+    }
+    /*
+     * Contextmenu handlers for the extracted galaxy/system grid child
+     * components. Preserve the original inline binding behavior exactly:
+     * deselect first, then suppress the native menu and stop propagation.
+     */
+    onSystemContextMenu(event) {
+        this.deselectSystem();
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    onFleetContextMenu(event) {
+        this.deselectFleet();
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    onPlanetContextMenu(event) {
+        this.deselectPlanetTile();
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    // Click handlers
+    /** Handles a click on a fleet icon, resolving overlapping objects via context menu if needed. */
+    onFleetClick(fleet, event) {
+        if (this.contextMenu) {
+            this.closeContextMenu();
+            event.stopPropagation();
+            return;
+        }
+        if (this.selectedFleetAction === 'move') {
+            return;
+        }
+        event.stopPropagation();
+        if (this.currentView === 'map') {
+            const cell = this.movementService.calculateGridCell(fleet.x, fleet.y);
+            const items = this.movementService.getObjectsAtMapCell(this.fleets, this.starSystems, cell.col, cell.row);
+            this.handleObjectClick(items, event);
+        }
+        else if (this.selectedSystem) {
+            const sysCell = this.movementService.calculateSystemGridCell(fleet.system?.x ?? 0, fleet.system?.y ?? 0);
+            const items = this.movementService.getObjectsAtSystemCell(this.fleets, this.selectedSystem, sysCell.col, sysCell.row);
+            this.handleObjectClick(items, event);
+        }
+        else {
+            this.selectFleet(fleet);
+        }
+    }
+    /** Handles a click on a star system, showing a context menu if objects overlap. */
+    onSystemClick(system, event) {
+        if (this.contextMenu) {
+            this.closeContextMenu();
+            event.stopPropagation();
+            return;
+        }
+        if (this.selectedFleetAction === 'move') {
+            return;
+        }
+        event.stopPropagation();
+        if (this.currentView === 'map') {
+            const cell = this.movementService.calculateGridCell(system.x, system.y);
+            const items = this.movementService.getObjectsAtMapCell(this.fleets, this.starSystems, cell.col, cell.row);
+            this.handleObjectClick(items, event);
+        }
+        else {
+            this.selectSystem(system);
+        }
+    }
+    /** Handles a click on a planet tile, showing a context menu if fleets are present. */
+    onPlanetClick(planet, event) {
+        if (this.contextMenu) {
+            this.closeContextMenu();
+            event.stopPropagation();
+            return;
+        }
+        if (this.selectedFleetAction === 'move') {
+            return;
+        }
+        event.stopPropagation();
+        if (this.currentView === 'system' && this.selectedSystem) {
+            const planetCell = this.movementService.getPlanetGridPosition(planet);
+            const items = this.movementService.getObjectsAtSystemCell(this.fleets, this.selectedSystem, planetCell.col, planetCell.row);
+            if (items.length > 1) {
+                this.showContextMenu(event.clientX, event.clientY, items);
+                return;
+            }
+            if (items.length === 1) {
+                this.onContextMenuSelect(items[0]);
+                return;
+            }
+        }
+        this.selectPlanetTile(planet);
+    }
+    /** Resolves a click by showing a context menu or selecting the single hit object. */
+    handleObjectClick(items, event) {
+        if (items.length > 1) {
+            this.showContextMenu(event.clientX, event.clientY, items);
+            return;
+        }
+        if (items.length === 1) {
+            this.onContextMenuSelect(items[0]);
+        }
+    }
+    // Movement
+    /** Validates whether the selected fleet can move to the given system grid coordinates. */
+    validateFleetMove(targetX, targetY) {
+        if (this.currentView !== 'system' || !this.selectedSystem || !this.selectedFleet) {
+            return 'allowed';
+        }
+        const targetTile = this.movementService.getSystemTileCenter(targetX, targetY);
+        const targetCell = this.movementService.calculateSystemGridCell(targetTile.x, targetTile.y);
+        for (const planet of this.selectedSystem.planetsTiles) {
+            const planetCell = this.movementService.getPlanetGridPosition(planet);
+            if (planetCell.col !== targetCell.col || planetCell.row !== targetCell.row) {
+                continue;
+            }
+            const planetFaction = this.factions.find((f) => f.id === planet.factionId);
+            const playerFaction = this.factions.find((f) => f.id === 'player');
+            if (!planetFaction || !playerFaction) {
+                continue;
+            }
+            if (planet.factionId === 'unhabited') {
+                return 'allowed';
+            }
+            if (planetFaction.team === playerFaction.team && planet.factionId !== 'player') {
+                return 'blocked-team';
+            }
+            if (planet.factionId === 'player') {
+                const fleetOnPlanet = this.arrivalService.getFleetOnPlanet(this.fleets, this.selectedSystem, planet);
+                if (fleetOnPlanet) {
+                    return 'blocked-ours';
+                }
+                return 'allowed';
+            }
+            return 'allowed';
+        }
+        return 'allowed';
+    }
+    /** Commands the selected fleet to move to the given world coordinates. */
+    moveSelectedFleet(x, y) {
+        if (!this.selectedFleet) {
+            return;
+        }
+        const validation = this.validateFleetMove(x, y);
+        if (validation === 'blocked-team') {
+            return;
+        }
+        if (validation === 'blocked-ours') {
+            return;
+        }
+        if (this.currentView === 'system') {
+            if (this.selectedSystem && this.selectedFleet.system?.id === this.selectedSystem.id) {
+                this.selectedFleet.system.targetX = x;
+                this.selectedFleet.system.targetY = y;
+                this.targetX = x;
+                this.targetY = y;
+            }
+        }
+        else {
+            this.selectedFleet.targetX = x;
+            this.selectedFleet.targetY = y;
+            this.targetX = x;
+            this.targetY = y;
+        }
+    }
+    /** Handles a click on the galaxy map, moving the selected fleet if an action is active. */
+    onMapClick(event) {
+        if (this.contextMenu) {
+            this.closeContextMenu();
+            return;
+        }
+        if (!this.selectedFleet || !this.selectedFleetAction) {
+            return;
+        }
+        const viewport = event.currentTarget;
+        const rect = viewport.getBoundingClientRect();
+        const screenX = event.clientX - rect.left;
+        const screenY = event.clientY - rect.top;
+        const viewportUnitInPixels = window.innerWidth / 100;
+        const worldX = this.cameraX + screenX / viewportUnitInPixels;
+        const worldY = this.cameraY + screenY / viewportUnitInPixels;
+        const targetTile = this.movementService.getTileCenter(worldX, worldY);
+        this.moveSelectedFleet(targetTile.x, targetTile.y);
+        if (this.selectedFleet && this.selectedFleetAction) {
+            this.selectedFleetAction = null;
+        }
+    }
+    /** Handles a click inside a star system grid, moving the selected fleet if an action is active. */
+    onSystemGridClick(event) {
+        if (this.contextMenu) {
+            this.closeContextMenu();
+            return;
+        }
+        if (!this.selectedFleet ||
+            !this.selectedSystem ||
+            this.selectedFleet.system?.id !== this.selectedSystem.id ||
+            !this.selectedFleetAction) {
+            return;
+        }
+        const viewport = event.currentTarget;
+        const rect = viewport.getBoundingClientRect();
+        const screenX = event.clientX - rect.left;
+        const screenY = event.clientY - rect.top;
+        const viewportUnitInPixels = window.innerWidth / 100;
+        const systemX = screenX / viewportUnitInPixels;
+        const systemY = screenY / viewportUnitInPixels;
+        const targetTile = this.movementService.getSystemTileCenter(systemX, systemY);
+        this.moveSelectedFleet(targetTile.x, targetTile.y);
+    }
+    // Camera
+    /** Viewport height in vw units, derived from the current window aspect ratio. */
+    get viewportHeightVw() {
+        return (window.innerHeight / window.innerWidth) * 100;
+    }
+    /** Sets the camera to an absolute position and clamps it within bounds. */
+    setCamera(pos) {
+        this.cameraX = pos.x;
+        this.cameraY = pos.y;
+        this.clampCamera();
+    }
+    /** Pans the camera in the specified direction and clamps it within bounds. */
+    moveCamera(direction) {
+        switch (direction) {
+            case 'up':
+                this.cameraY -= this.cameraSpeed;
+                break;
+            case 'down':
+                this.cameraY += this.cameraSpeed;
+                break;
+            case 'left':
+                this.cameraX -= this.cameraSpeed;
+                break;
+            case 'right':
+                this.cameraX += this.cameraSpeed;
+                break;
+        }
+        this.clampCamera();
+    }
+    /**
+     * Constrains the camera position so it cannot scroll past the map edges.
+     * The actual grid extent depends on the current cell size (which varies
+     * between desktop ~2 vw and mobile ~7 vw), so we compute it dynamically
+     * from gridColumns/gridRows × cellSize rather than using the fixed
+     * mapWidth/mapHeight constants.
+     */
+    clampCamera() {
+        const gridWidthVw = this.movementService.gridColumns * this.cellSizeVw;
+        const gridHeightVw = this.movementService.gridRows * this.cellSizeVh;
+        const viewportWidthVw = 100;
+        const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
+        const maxCameraX = Math.max(0, gridWidthVw - viewportWidthVw);
+        const maxCameraY = Math.max(0, gridHeightVw - viewportHeightVw);
+        this.cameraX = Math.max(0, Math.min(this.cameraX, maxCameraX));
+        this.cameraY = Math.max(0, Math.min(this.cameraY, maxCameraY));
+    }
+    /** Pointer down on the map viewport — begins drag tracking (empty areas only). */
+    onPointerDown(event) {
+        if (this.contextMenu) {
+            return;
+        }
+        if (this.isInteractiveElement(event.target)) {
+            return;
+        }
+        const vp = event.currentTarget;
+        vp.setPointerCapture(event.pointerId);
+        this.isDragging = true;
+        this.dragMoved = false;
+        this.dragStartX = event.clientX;
+        this.dragStartY = event.clientY;
+        this.dragCameraStartX = this.cameraX;
+        this.dragCameraStartY = this.cameraY;
+        vp.classList.add('dragging');
+    }
+    /** Returns true if the element is an interactive child (button, system, fleet, etc.). */
+    isInteractiveElement(element) {
+        let el = element;
+        while (el && el !== document.body) {
+            if (el.tagName === 'BUTTON' ||
+                el.classList.contains('star-system') ||
+                el.classList.contains('fleet')) {
+                return true;
+            }
+            el = el.parentElement;
+        }
+        return false;
+    }
+    /** Pointer move during drag — updates camera position with clamping. */
+    onPointerMove(event) {
+        if (!this.isDragging) {
+            return;
+        }
+        const deltaX = event.clientX - this.dragStartX;
+        const deltaY = event.clientY - this.dragStartY;
+        if (Math.abs(deltaX) + Math.abs(deltaY) > this.dragThreshold) {
+            this.dragMoved = true;
+        }
+        const viewportUnitInPixels = window.innerWidth / 100;
+        this.cameraX = this.dragCameraStartX - deltaX / viewportUnitInPixels;
+        this.cameraY = this.dragCameraStartY - deltaY / viewportUnitInPixels;
+        this.clampCamera();
+        this.cdr.detectChanges();
+    }
+    /** Pointer up — ends drag, dispatches click if no movement occurred. */
+    onPointerUp(event) {
+        if (!this.isDragging) {
+            return;
+        }
+        const vp = event.currentTarget;
+        vp.releasePointerCapture(event.pointerId);
+        vp.classList.remove('dragging');
+        this.isDragging = false;
+        if (!this.dragMoved) {
+            this.onMapClick(event);
+        }
+    }
+    // Game loop
+    /** Starts the game loop and registers focus-loss pause handlers after the view initializes. */
+    ngAfterViewInit() {
+        this.startGameLoop();
+        this.setupFocusHandlers();
+        window.addEventListener('orientationchange', this.onOrientationChange);
+        this.checkOrientation();
+    }
+    /** Registers the game loop tick callback with the game loop service. */
+    startGameLoop() {
+        this.gameLoopService.startGameLoop((deltaTime) => {
+            this.gameLoopCallback(deltaTime);
+        });
+    }
+    /**
+     * Single consolidated tick callback received from the game loop service.
+     * Receives the SCALED game delta time (0 when paused, realDelta * speed when running).
+     * All simulation systems use this value directly — none check pause or
+     * multiply speed themselves; that is centralized in GameTimeService.
+     */
+    gameLoopCallback(gameDeltaTime) {
+        const didMoveFleets = this.updateFleets(gameDeltaTime);
+        const aiChanged = this.aiTickService.tick(gameDeltaTime, {
+            fleets: this.fleets,
+            factions: this.factions,
+            starSystems: this.starSystems,
+            shipStock: this.shipStock,
+            production: this.production,
+        });
+        const visibilityChanged = this.updateSensorVisibility();
+        const productionResult = this.productionService.tick(gameDeltaTime, this, this.starSystems, this.fleets, this.factions);
+        const productionChanged = productionResult.stateChanged;
+        this.economyAccumulator += gameDeltaTime;
+        let economyUpdated = false;
+        if (this.economyAccumulator >= this.economyTickInterval) {
+            for (const faction of this.factions) {
+                this.economyService.applyEconomyDelta(faction.id, this.factions, this.starSystems, this.fleets, this.economyAccumulator);
+            }
+            this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy('player', this.factions, this.starSystems, this.fleets);
+            this.economyAccumulator = 0;
+            economyUpdated = true;
+        }
+        if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged) {
+            this.ngZone.run(() => this.cdr.detectChanges());
+            this.simStateDirty = true;
+        }
+        // Persist simulation mutations together with a bounded write cadence
+        // instead of writing on every frame.
+        this.autosaveAccumulator += gameDeltaTime;
+        if (this.simStateDirty && this.autosaveAccumulator >= this.autosaveIntervalSeconds) {
+            this.saveGame();
+            this.autosaveAccumulator = 0;
+            this.simStateDirty = false;
+        }
+    }
+    /** Advances fleet movement and checks for new battles each frame. */
+    updateFleets(deltaTime) {
+        const didMoveFleets = this.movementService.updateFleets(this.fleets, this.starSystems, this.selectedFleet?.id ?? null, this.currentView, deltaTime, (fleetId) => {
+            if (this.selectedFleet?.id === fleetId) {
+                this.targetX = null;
+                this.targetY = null;
+            }
+        }, (fleetId) => {
+            const fleet = this.fleets.find((f) => f.id === fleetId);
+            if (fleet) {
+                fleet.system = null;
+            }
+        });
+        this.updateExploredPlanets();
+        this.arrivalService.checkFleetPlanetArrivals({
+            fleets: this.fleets,
+            currentView: this.currentView,
+            selectedSystem: this.selectedSystem,
+            factions: this.factions,
+            saveGame: () => this.saveGame(),
+            enterBattleScreen: () => this.enterBattleScreen(),
+        });
+        this.battleDetectionService.checkForBattles(this.fleets, this.factions, (x, y) => this.movementService.calculateGridCell(x, y), (fleet, system) => this.movementService.isFleetInSystem(fleet, system), this.starSystems, this.enterBattleScreen.bind(this), this.arrivalService.triggeredBattles);
+        return didMoveFleets;
+    }
+    /**
+     * Computes the initial explored state after loading a save or starting a new game.
+     * Marks star systems as explored when within sensor range of player fleets
+     * or player-owned systems.
+     */
+    computeInitialSensorVisibility() {
+        // Recompute sensor cells to update exploredGridCells
+        this.updateSensorVisibility(/*force=*/ true);
+    }
+    /**
+     * Recomputes the current sensor range cells and updates explored state.
+     * Called every frame from the game loop. Returns true if visibility changed
+     * (so change detection can run).
+     */
+    updateSensorVisibility(force = false) {
+        if (this.currentView === 'planet') {
+            return false;
+        }
+        const oldCellCount = this.sensorRangeCells.size;
+        const oldPreviewCount = this.sensorPreviewCells.size;
+        const oldExploredCount = this.exploredGridCells.size;
+        // Recompute current sensor range cells for highlighting
+        const layer = this.sensorService.computeGalaxySensorCells(this.fleets, this.starSystems, this.factions, this.movementService.gridColumns, this.movementService.gridRows);
+        this.sensorRangeCells = layer.cells;
+        this.sensorPreviewCells = layer.preview;
+        // Expand explored cells (preview layer is never added to explored)
+        this.sensorService.updateExploredCells(this.exploredGridCells, this.sensorRangeCells);
+        // Mark star systems as explored when within sensor range
+        let systemsChanged = false;
+        for (const system of this.starSystems) {
+            if (system.explored) {
+                continue;
+            }
+            if (this.sensorService.isSystemExplored(system, this.sensorRangeCells)) {
+                system.explored = true;
+                systemsChanged = true;
+            }
+        }
+        const changed = force ||
+            this.sensorRangeCells.size !== oldCellCount ||
+            this.sensorPreviewCells.size !== oldPreviewCount ||
+            this.exploredGridCells.size !== oldExploredCount ||
+            systemsChanged;
+        this.visibilityDirty = changed;
+        return changed;
+    }
+    /** Updates planet exploration in system view based on fleet sensor range. */
+    updateExploredPlanets() {
+        if (this.currentView !== 'system' || !this.selectedSystem) {
+            return;
+        }
+        for (const fleet of this.fleets) {
+            if (fleet.destroyed || fleet.factionId !== 'player') {
+                continue;
+            }
+            if (fleet.system?.id !== this.selectedSystem.id) {
+                continue;
+            }
+            if (fleet.system?.targetX != null || fleet.system?.targetY != null) {
+                continue;
+            }
+            const range = this.sensorService.getFleetSensorRange(fleet);
+            for (const planet of this.selectedSystem.planetsTiles) {
+                if (planet.explored) {
+                    continue;
+                }
+                const planetCell = this.movementService.getPlanetGridPosition(planet);
+                const inFull = this.sensorService.isPlanetInRange(planetCell.col, planetCell.row, fleet.system.x, fleet.system.y, range);
+                const inPreview = this.sensorService.isPlanetInPreviewRange(planetCell.col, planetCell.row, fleet.system.x, fleet.system.y, range);
+                if (inFull || inPreview) {
+                    planet.explored = true;
+                }
+            }
+        }
+    }
+    /** Registers window blur and visibility-change listeners to auto-pause the game. */
+    setupFocusHandlers() {
+        window.addEventListener('blur', this.onWindowBlur);
+        document.addEventListener('visibilitychange', this.onVisibilityChange);
+    }
+    /** Detects whether the device is currently in landscape orientation. */
+    checkOrientation() {
+        if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.type) {
+            this.isLandscape = screen.orientation.type.includes('landscape');
+        }
+        else {
+            this.isLandscape = window.innerWidth > window.innerHeight;
+        }
+        this.cdr.detectChanges();
+    }
+    onOrientationChange = () => {
+        this.checkOrientation();
+    };
+    onResize() {
+        const oldCellSizeVw = this.cellSizeVw;
+        const oldCellSizeVh = this.cellSizeVh;
+        const isWide = window.innerWidth >= this.gridBreakpointPx;
+        this.cellSizeVw = isWide ? 2 : 3.5;
+        this.cellSizeVh = isWide ? 2 : 3.5;
+        this.movementService.initialize(this.cellSizeVw, this.cellSizeVh, this.mapWidth, this.mapHeight);
+        this.movementService.refreshGridPositions(this.fleets, this.starSystems);
+        // Scale camera proportionally so the same grid area stays in view
+        if (oldCellSizeVw > 0) {
+            this.cameraX *= this.cellSizeVw / oldCellSizeVw;
+            this.cameraY *= this.cellSizeVh / oldCellSizeVh;
+        }
+        this.clampCamera();
+        this.checkOrientation();
+    }
+    /** Resumes the game loop via GameTimeService. Kept as a thin wrapper for backward compat with StarMapPauseComponent's resumeGame output. */
+    resumeGame() {
+        this.gameTimeService.resume();
+    }
+    /** Header time control: set simulation speed (1x or 2x) and un-pause. */
+    onSetSpeed(speed) {
+        this.gameTimeService.setSpeed(speed);
+    }
+    /** Header time control: toggle pause/resume state. */
+    onTogglePause() {
+        this.gameTimeService.togglePause();
+    }
+    // Save/Load
+    /** Builds the current StarMapData snapshot without writing to any slot. */
+    serializeGameState() {
+        return {
+            saveVersion: SAVE_VERSION,
+            factions: this.factions,
+            map: {
+                width: this.mapWidth,
+                height: this.mapHeight,
+                cellSizeVw: this.cellSizeVw,
+                cellSizeVh: this.cellSizeVh,
+            },
+            starSystems: this.starSystems,
+            fleets: this.fleets,
+            currentView: this.currentView,
+            cameraX: this.cameraX,
+            cameraY: this.cameraY,
+            selectedSystemId: this.selectedSystem?.id ?? null,
+            selectedFleetId: this.selectedFleet?.id ?? null,
+            selectedPlanetTileId: this.selectedPlanetTile?.id ?? null,
+            selectedFleetAction: this.selectedFleetAction,
+            targetX: this.targetX,
+            targetY: this.targetY,
+            destroyedFleetId: this.battleService.getDestroyedFleetId(),
+            exploredGridCells: Array.from(this.exploredGridCells),
+            shipStock: this.shipStock,
+            production: this.production,
+            defaultView: this.defaultView,
+        };
+    }
+    /** Serializes the current game state into the autosave slot. */
+    saveGame() {
+        const data = this.serializeGameState();
+        this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
+    }
+    /**
+     * Writes the autosave and then navigates to the battle screen.
+     *
+     * Centralizes the "navigate to /battle" operation so that every
+     * path that enters the battle screen is guaranteed to persist a
+     * pre-battle snapshot first. Without this helper, future
+     * contributors could add a new battle trigger that forgets to
+     * save, which would re-introduce the post-battle "reset" bug.
+     */
+    enterBattleScreen() {
+        this.saveGame();
+        this.ngZone.run(() => this.router.navigate(['/battle']));
+    }
+    /** Restores game state from the active save slot and refreshes selection and grid data. */
+    loadGame() {
+        if (this.saveGameService.currentSlot === null) {
+            return;
+        }
+        this.arrivalService.reset();
+        const data = this.saveGameService.loadFromSlot(this.saveGameService.currentSlot);
+        if (!data || !data.fleets || !data.starSystems || !data.factions) {
+            this.loadError = 'save_unreadable';
+            return;
+        }
+        // Reject structurally invalid saves before replacing live state. This
+        // mirrors the gate used by activateSlot so manual loads and runtime
+        // autosaves agree on what is loadable.
+        const validation = validateSaveData(data);
+        if (!validation.ok) {
+            this.loadError = validation.errors[0]?.message ?? 'save_invalid';
+            console.warn('[save/load] rejecting invalid save:', validation.errors);
+            return;
+        }
+        this.loadError = '';
+        this.factions = data.factions;
+        this.starSystems = data.starSystems;
+        this.fleets = data.fleets ?? [];
+        this.shipStock = data.shipStock ?? [];
+        this.production = data.production ?? [];
+        this.productionService.rebaseFromSave(this.production);
+        // Backward compatibility: old saves have no exploredGridCells or
+        // StarSystem.explored. Default: all systems explored so old saves
+        // don't regress into a fully-fogged map.
+        const hasSensorData = data.exploredGridCells !== undefined;
+        if (hasSensorData) {
+            this.exploredGridCells = new Set(data.exploredGridCells ?? []);
+        }
+        else {
+            // Mark all systems explored + every cell in viewport as explored
+            this.exploredGridCells = new Set();
+            for (const system of this.starSystems) {
+                system.explored = true;
+            }
+        }
+        // Old saves may not carry the per-system explored flag. Treat the
+        // absence as explored (matches the no-fog-regression fallback above).
+        for (const system of this.starSystems) {
+            if (system.explored === undefined) {
+                system.explored = true;
+            }
+        }
+        // Ensure every fleet has a sensorRange floor (defaults to 3).
+        // sensorRange is the minimum floor; the effective range is computed
+        // dynamically from ship types via StarMapSensorService.getFleetSensorRange.
+        for (const fleet of this.fleets) {
+            if (!fleet.destroyed && fleet.sensorRange == null) {
+                fleet.sensorRange = 3;
+            }
+        }
+        // Legacy grid migration is performed by SaveGameService.migrateSave
+        // (versioned and idempotent). Here we only renormalize values that
+        // depend on the current building set.
+        this.planetBattleService.reconcilePlanetShields(this.starSystems);
+        if (data.destroyedFleetId != null) {
+            const fleet = this.fleets.find((f) => f.id === data.destroyedFleetId);
+            if (fleet) {
+                fleet.destroyed = true;
+            }
+        }
+        this.movementService.initializeCoordinates(this.fleets, this.starSystems);
+        // View state: saved runtime state takes precedence over defaultView config.
+        // defaultView is only applied when there is no saved view state (i.e., new game).
+        if (data.currentView) {
+            this.currentView = data.currentView;
+            this.cameraX = data.cameraX ?? 0;
+            this.cameraY = data.cameraY ?? 0;
+            this.targetX = data.targetX ?? null;
+            this.targetY = data.targetY ?? null;
+            this.selectedFleetAction = data.selectedFleetAction ?? null;
+        }
+        else if (data.defaultView) {
+            this.applyDefaultView(data.defaultView);
+        }
+        else {
+            this.currentView = 'map';
+            this.cameraX = 0;
+            this.cameraY = 0;
+            this.targetX = null;
+            this.targetY = null;
+            this.selectedFleetAction = null;
+        }
+        this.defaultView = data.defaultView;
+        // Selection state: saved IDs take precedence; stale/missing IDs are
+        // cleared instead of silently keeping the previous session's selection.
+        this.selectedSystem =
+            data.selectedSystemId != null
+                ? (this.starSystems.find((s) => s.id === data.selectedSystemId) ?? null)
+                : null;
+        this.selectedFleet =
+            data.selectedFleetId != null ? (this.fleets.find((f) => f.id === data.selectedFleetId) ?? null) : null;
+        this.selectedPlanetTile =
+            data.selectedPlanetTileId != null
+                ? (this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null)
+                : null;
+        this.movementService.refreshGridPositions(this.fleets, this.starSystems);
+        // Compute initial sensor visibility after loading
+        this.computeInitialSensorVisibility();
+        this.updateSensorVisibility();
+        // Ensure every planet has deterministic resource deposit tiles
+        this.ensureResourceTiles();
+        // Reset game time state (speed=1, not paused) on every load
+        this.gameTimeService.reset();
+        this.aiTickService.resetAiPipeline();
+        this.clampCamera();
+    }
+    /** Removes a fleet from the game state and clears it from the selection if needed. */
+    removeFleet(fleetId) {
+        this.fleets = this.fleets.filter((f) => f.id !== fleetId);
+        if (this.selectedFleet?.id === fleetId) {
+            this.selectedFleet = null;
+            this.selectedFleetAction = null;
+            this.targetX = null;
+            this.targetY = null;
+        }
+    }
+    /*
+     * ngOnInit: Initializes the map view and restores game state.
+     *
+     * Direct /star-map navigation bypasses MainMenu, so currentSlot may be null
+     * even when a save exists. In that case, auto-load the most recent save.
+     * If no save exists at all, redirect to the main menu instead of starting
+     * an unsaveable default game.
+     *
+     * Any non-autosave slot is normalized through activateSlot() so the active
+     * session is backed by the autosave slot; otherwise a stale manual
+     * snapshot could resurrect fleets destroyed in earlier battles.
+     */
+    ngOnInit() {
+        this.onResize();
+        if (this.saveGameService.currentSlot === null) {
+            const slotIndex = this.saveGameService.getMostRecentSlotIndex();
+            if (slotIndex !== null) {
+                this.saveGameService.currentSlot = slotIndex;
+            }
+            else {
+                this.router.navigate(['']);
+                return;
+            }
+        }
+        if (this.saveGameService.currentSlot !== SaveSlotId.AUTOSAVE) {
+            if (!this.saveGameService.activateSlot(this.saveGameService.currentSlot)) {
+                this.router.navigate(['']);
+                return;
+            }
+        }
+        this.loadGame();
+        this.removeDestroyedFleetFromService();
+        this.sensorRangeEnabled = this.gameSettingsService.fogOfWarEnabled;
+        // Subscribe to game time state changes (pause/resume/speed)
+        // so the header overlays update reactively on auto-pause (blur/visibility)
+        // and keyboard shortcuts.
+        this.timeControlSubscription = this.gameTimeService.state$.subscribe(() => {
+            this.cdr.detectChanges();
+        });
+        // Subscribe to game settings changes so fog-of-war toggles from the
+        // options menu are applied immediately while the star map is active.
+        this.settingsSubscription = this.gameSettingsService.state$.subscribe((settings) => {
+            if (this.sensorRangeEnabled !== settings.fogOfWarEnabled) {
+                this.sensorRangeEnabled = settings.fogOfWarEnabled;
+                this.cdr.detectChanges();
+            }
+        });
+    }
+    /*
+     * reloadAfterBattle: Reloads the game state from the active save slot
+     * after the player returns from the battle screen. The active session is
+     * always backed by the AUTOSAVE slot (slot 0): session start (new game,
+     * manual load, pause-menu load, direct /star-map navigation) normalizes
+     * currentSlot to autosave, and every runtime save plus battle result
+     * writes to the same slot. This method therefore reads the same snapshot
+     * that carries cumulative fleet destructions and planet ownership changes.
+     */
+    reloadAfterBattle() {
+        if (this.saveGameService.currentSlot === null)
+            return;
+        this.arrivalService.triggeredBattles.clear();
+        this.loadGame();
+        this.removeDestroyedFleetFromService();
+        this.cdr.detectChanges();
+    }
+    /**
+     * Applies a previously destroyed fleet from the battle service into the
+     * current save. The active session is backed by the AUTOSAVE slot, so the
+     * destroyed flag persists across sibling-route reloads even though the
+     * StarMap component instance is recreated on every /star-map navigation.
+     *
+     * Also applies the survivor rosters carried by the battle result: both
+     * real fleets get their per-ship final HP / destroyed flags written
+     * back, so a damaged winner returns damaged and a fleet can lose ships
+     * without being wiped out.
+     */
+    removeDestroyedFleetFromService() {
+        const destroyedFleetId = this.battleService.getDestroyedFleetId();
+        const battleResult = this.battleService.getBattleResult();
+        if (destroyedFleetId == null && battleResult == null) {
+            return;
+        }
+        if (battleResult) {
+            this.applyBattleResult(battleResult);
+        }
+        if (destroyedFleetId != null) {
+            const fleet = this.fleets.find((f) => f.id === destroyedFleetId);
+            if (fleet) {
+                fleet.destroyed = true;
+            }
+            if (this.selectedFleet?.id === destroyedFleetId) {
+                this.selectedFleet = null;
+                this.selectedFleetAction = null;
+                this.targetX = null;
+                this.targetY = null;
+            }
+        }
+        this.battleService.clearBattle();
+        this.saveGame();
+    }
+    /*
+     * Applies a battle outcome's per-fleet rosters onto the live fleets.
+     * Virtual planet-defense fleets (negative ids) never persist.
+     * Surviving fleets are snapped to their current grid cell and have
+     * movement targets cleared to prevent immediate re-triggering of
+     * the same encounter. Destroyed fleets are marked destroyed and
+     * left in place (they are filtered from rendering and movement).
+     */
+    applyBattleResult(result) {
+        for (const fleetOutcome of [result.attacker, result.defender]) {
+            if (fleetOutcome.fleetId < 0) {
+                continue;
+            }
+            const fleet = this.fleets.find((f) => f.id === fleetOutcome.fleetId);
+            if (!fleet) {
+                continue;
+            }
+            fleet.ships = fleetOutcome.ships.map((s) => ({
+                id: s.shipId,
+                name: s.name,
+                type: s.typeId,
+                currentHp: s.hp,
+                destroyed: s.destroyed,
+            }));
+            if (fleetOutcome.wipedOut) {
+                fleet.destroyed = true;
+            }
+            else {
+                // Winner stays at the battle location, snapped to the nearest
+                // grid cell. Movement targets are cleared so the fleet does not
+                // immediately re-enter the same encounter.
+                fleet.x = Math.floor(fleet.x);
+                fleet.y = Math.floor(fleet.y);
+                fleet.targetX = null;
+                fleet.targetY = null;
+            }
+        }
+    }
+    // Keyboard
+    /** Listens for arrow keys to pan the camera around the map, and time-control shortcuts. */
+    handleKeyboard(event) {
+        // Skip when typing in an input/textarea to avoid conflicts
+        const target = event.target;
+        const isInput = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
+        if (isInput)
+            return;
+        switch (event.key) {
+            case 'ArrowUp':
+                event.preventDefault();
+                this.moveCamera('up');
+                break;
+            case 'ArrowDown':
+                event.preventDefault();
+                this.moveCamera('down');
+                break;
+            case 'ArrowLeft':
+                event.preventDefault();
+                this.moveCamera('left');
+                break;
+            case 'ArrowRight':
+                event.preventDefault();
+                this.moveCamera('right');
+                break;
+            case ' ':
+                event.preventDefault();
+                this.gameTimeService.togglePause();
+                break;
+            case '1':
+                event.preventDefault();
+                this.gameTimeService.setSpeed(1);
+                break;
+            case '2':
+                event.preventDefault();
+                this.gameTimeService.setSpeed(2);
+                break;
+            case 'Escape':
+                event.preventDefault();
+                this.openPauseMenu();
+                break;
+        }
+    }
+    // Cleanup
+    /** Saves the game, removes event listeners, and stops the game loop when the component is destroyed. */
+    ngOnDestroy() {
+        this.saveGame();
+        this.routerSubscription.unsubscribe();
+        this.timeControlSubscription?.unsubscribe();
+        this.settingsSubscription?.unsubscribe();
+        window.removeEventListener('blur', this.onWindowBlur);
+        document.removeEventListener('visibilitychange', this.onVisibilityChange);
+        window.removeEventListener('orientationchange', this.onOrientationChange);
+        this.gameLoopService.stopGameLoop();
+    }
+};
+__decorate([
+    HostListener('window:resize')
+], StarMap.prototype, "onResize", null);
+__decorate([
+    HostListener('window:keydown', ['$event'])
+], StarMap.prototype, "handleKeyboard", null);
+StarMap = __decorate([
+    Component({
+        selector: 'app-star-map',
+        imports: [
+            StarMapPauseComponent,
+            StarMapNavigationComponent,
+            StarMapFleetInfoComponent,
+            StarMapSystemInfoComponent,
+            StarMapPlanetInfoComponent,
+            StarMapPlanetScreenComponent,
+            StarMapFleetButtonsComponent,
+            StarMapContextMenuComponent,
+            StarMapHeaderComponent,
+            StarMapGalaxyViewComponent,
+            StarMapSystemGridViewComponent,
+            StarMapResearchTreeComponent,
+        ],
+        templateUrl: './star-map.html',
+        styleUrl: './star-map.scss',
+    })
+], StarMap);
+export { StarMap };

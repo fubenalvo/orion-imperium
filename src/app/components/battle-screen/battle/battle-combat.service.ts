@@ -1,14 +1,14 @@
 import { Injectable } from '@angular/core';
 import { ANIMATION_MS, BattleModelState } from './battle.types';
 import {
-  applyShieldRegen,
+  checkVictory,
   computeCarrierBoostTargets,
   isInRange,
   stackCenterVw,
   weaponMultiplier,
+  applyShieldRegen,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
-import { BattleTurnService } from './battle-turn.service';
 
 /*
  * =========================================================
@@ -29,22 +29,20 @@ import { BattleTurnService } from './battle-turn.service';
  * Damage is applied to the target stack's ships in order; overkill
  * spills to the next ship. Each ship's shield absorbs damage first; only
  * overflow reaches hull HP. A ship is destroyed only when its hull HP
- * reaches zero. Shield regeneration is applied by the turn lifecycle,
- * not here.
+ * reaches zero. Shield regeneration is now timer-based (every 1s), not
+ * tied to turns.
  *
- * The Carrier has one special action: Shield Pulse. It spends its attack
- * action (attackAp + attackedThisTurn) to restore shieldRegen to every
- * friendly stack within its attack range, capped at each ship's
- * maxShield. Deterministic, non-damage, and entirely additive — it does
- * not alter the basic attack, movement, or turn systems.
+ * The Carrier has one special action: Shield Pulse. It restores
+ * shieldRegen to every friendly stack within its attack range, capped
+ * at each ship's maxShield. Deterministic, non-damage, and entirely
+ * additive — it does not alter the basic attack or movement systems.
+ * In the real-time model, Shield Pulse is gated only by the animation
+ * busy lock (no AP cost, no per-turn limit).
  */
 
 @Injectable({ providedIn: 'root' })
 export class BattleCombatService {
-  constructor(
-    private anim: BattleAnimationService,
-    private turn: BattleTurnService,
-  ) {}
+  constructor(private anim: BattleAnimationService) {}
 
   async attackStack(
     state: BattleModelState,
@@ -56,10 +54,10 @@ export class BattleCombatService {
     if (!attacker || !target || state.winner || this.anim.isBusy) {
       return false;
     }
-    if (state.activeSide !== attacker.side || attacker.side === target.side) {
+    if (attacker.side === target.side) {
       return false;
     }
-    if (attacker.attackedThisTurn || attacker.attackAp > state.ap) {
+    if (attacker.moving || attacker.immobile) {
       return false;
     }
 
@@ -68,9 +66,6 @@ export class BattleCombatService {
     if (!isInRange({ col: attacker.col, row: attacker.row }, { col: target.col, row: target.row }, attacker.attackRange)) {
       return false;
     }
-
-    state.ap -= attacker.attackAp;
-    attacker.attackedThisTurn = true;
 
     await this.anim.run(async () => {
       attacker.firing = true;
@@ -154,7 +149,7 @@ export class BattleCombatService {
 
       state.effect = null;
       attacker.firing = false;
-      this.turn.checkVictory(state);
+      checkVictory(state);
       this.anim.tick();
     });
     return true;
@@ -175,10 +170,7 @@ export class BattleCombatService {
     if (state.winner || this.anim.isBusy) {
       return false;
     }
-    if (state.activeSide !== carrier.side) {
-      return false;
-    }
-    if (carrier.attackedThisTurn || carrier.attackAp > state.ap) {
+    if (carrier.moving || carrier.immobile || carrier.firing) {
       return false;
     }
 
@@ -188,9 +180,6 @@ export class BattleCombatService {
     if (regen <= 0) {
       return false;
     }
-
-    state.ap -= carrier.attackAp;
-    carrier.attackedThisTurn = true;
 
     const targetIds = new Set(computeCarrierBoostTargets(state, carrier));
     for (const stack of state.stacks) {
@@ -209,7 +198,7 @@ export class BattleCombatService {
       }
     }
 
-    this.turn.checkVictory(state);
+    checkVictory(state);
     return true;
   }
 }

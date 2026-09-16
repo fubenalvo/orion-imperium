@@ -15,7 +15,7 @@ describe('battle-ship-stats', () => {
 
   const stats = (typeId: string) => getBattleShipStats(typeId, shipService, planetBattleService);
 
-  it('maps every real ship type to its AP tier', () => {
+  it('maps every real ship type to its combat tier', () => {
     expect(stats('scout').tier).toBe(1);
     expect(stats('fighter').tier).toBe(1);
     expect(stats('colonizer').tier).toBe(1);
@@ -29,22 +29,21 @@ describe('battle-ship-stats', () => {
     expect(stats('dreadnought').tier).toBe(5);
   });
 
-  it('uses the tier as both move AP per cell and attack AP', () => {
+  it('uses ShipType.speed for movement speed', () => {
     for (const typeId of ['fighter', 'frigate', 'cruiser', 'battleship', 'dreadnought']) {
       const s = stats(typeId);
-      expect(s.moveApPerCell).toBe(s.tier);
-      expect(s.attackAp).toBe(s.tier);
+      expect(s.speed).toBeGreaterThan(0);
     }
+    expect(stats('fighter').speed).toBe(5);
+    expect(stats('dreadnought').speed).toBe(1);
   });
 
-  it('uses battleMoveRange for movement and range for attack range', () => {
+  it('uses range for attack range', () => {
     const fighter = stats('fighter');
-    expect(fighter.moveRange).toBe(10); // battleMoveRange from ship-data.json
     expect(fighter.attackRange).toBe(2);
     expect(fighter.immobile).toBe(false);
 
     const dreadnought = stats('dreadnought');
-    expect(dreadnought.moveRange).toBe(2); // battleMoveRange from ship-data.json
     expect(dreadnought.attackRange).toBe(5);
   });
 
@@ -77,7 +76,7 @@ describe('battle-ship-stats', () => {
 
   it('carries shield and shieldRegen from the ship definition', () => {
     const fighter = stats('fighter');
-    expect(fighter.shield).toBe(30); // ship-data.json
+    expect(fighter.shield).toBe(30);
     expect(fighter.shieldRegen).toBe(2);
 
     const frigate = stats('frigate');
@@ -89,21 +88,20 @@ describe('battle-ship-stats', () => {
     expect(dreadnought.shieldRegen).toBe(6);
   });
 
-  it('marks virtual defense buildings immobile with fixed AP costs and data-driven range', () => {
+  it('marks virtual defense buildings immobile with data-driven range', () => {
     const laser = stats('laser_turret');
     expect(laser.immobile).toBe(true);
-    expect(laser.moveRange).toBe(0);
+    expect(laser.speed).toBe(0);
     expect(laser.tier).toBe(3);
-    expect(laser.moveApPerCell).toBe(3);
-    expect(laser.attackAp).toBe(2);
     expect(laser.attackRange).toBe(3);
     expect(laser.attack).toBe(20);
 
     const missile = stats('missile_turret');
     expect(missile.immobile).toBe(true);
+    expect(missile.speed).toBe(0);
     expect(missile.attackRange).toBe(5);
     expect(missile.attack).toBe(35);
-    expect(missile.shield).toBe(0); // turrets carry no shield
+    expect(missile.shield).toBe(0);
     expect(missile.shieldRegen).toBe(0);
     expect(missile.attackType).toBe('missile');
     expect(missile.weakness).toBe('energy');
@@ -117,6 +115,7 @@ describe('battle-ship-stats', () => {
   it('falls back safely for unknown type ids', () => {
     const unknown = stats('no_such_type');
     expect(unknown.immobile).toBe(true);
+    expect(unknown.speed).toBe(0);
     expect(unknown.maxHp).toBe(1);
     expect(unknown.attack).toBe(0);
     expect(unknown.attackRange).toBe(0);

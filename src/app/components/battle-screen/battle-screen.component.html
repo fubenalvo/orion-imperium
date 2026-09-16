@@ -8,18 +8,6 @@
   @if (battleState; as state) {
     <div class="battle-screen__header">
       <h1 class="battle-screen__title">TACTICAL BATTLE</h1>
-      <div class="battle-screen__phase">
-        ROUND {{ state.round }} — {{ phaseLabel }}
-        @if (!battleOver) {
-          <span class="battle-screen__active-fleet">{{ getActiveSideName() }}</span>
-        }
-      </div>
-      @if (!battleOver) {
-        <div class="battle-screen__ap-bar" [style.width.vw]="72">
-          <div class="battle-screen__ap-fill" [style.width.%]="(state.ap / state.apPerTurn) * 100"></div>
-          <span class="battle-screen__ap-text">AP: {{ state.ap }} / {{ state.apPerTurn }}</span>
-        </div>
-      }
       @if (planetShield; as shield) {
         <div class="battle-screen__planet-shield">
           <span class="battle-screen__planet-shield-label">PLANET SHIELD</span>
@@ -46,9 +34,6 @@
         [carrierBoostTargetIds]="carrierBoostTargetIds"
         [effect]="effect"
         [canSelect]="canAct"
-        [activeSide]="battleState?.activeSide ?? 'attacker'"
-        [ap]="battleState?.ap ?? 0"
-        [spentStackIds]="spentStackIds"
         [planet]="planetVisual"
         [planetShieldFraction]="planetShieldFraction"
         [attackerColor]="battleState?.attackerColor ?? '#ff5252'"
@@ -60,15 +45,6 @@
 
     <div class="battle-screen__controls">
       @if (!battleOver) {
-        <button
-          class="end-turn-btn"
-          type="button"
-          [disabled]="!canEndTurn"
-          [class.pulse]="shouldPulseEndTurn"
-          (click)="onEndTurn()"
-        >
-          END TURN
-        </button>
         @if (canCarrierBoost) {
           <button
             class="carrier-boost-btn"
@@ -90,9 +66,7 @@
     </div>
 
     <div class="battle-screen__hint">
-      @if (!battleOver && !playerControlsActiveSide) {
-        <span>ENEMY TURN — STAND BY</span>
-      } @else if (!battleOver) {
+      @if (!battleOver) {
         <span>SELECT A SHIP STACK, MOVE OR ATTACK</span>
       }
     </div>
@@ -105,19 +79,16 @@
           @if (stack.immobile) {
             <span class="selection-immobile">IMMOBILE</span>
           }
+          @if (stack.moving) {
+            <span class="selection-moving">MOVING</span>
+          }
         </div>
         <div class="selection-stats">
           <span>SHIPS {{ selectedShipCount }} / {{ stack.ships.length }}</span>
           <span>TIER {{ stack.tier }}</span>
           <span>ATK {{ selectedTotalAttack }}</span>
           <span>DEF {{ selectedTotalDefense }}</span>
-        </div>
-        <div class="selection-stats">
-          <span>MOVE {{ stack.moveRange }}</span>
-          <span>RANGE {{ stack.attackRange }}</span>
-          <span>MOVE AP {{ stack.moveApPerCell }}</span>
-          <span>ATTACK AP {{ stack.attackAp }}</span>
-          <span>MOVED {{ stack.cellsMovedThisTurn }}</span>
+          <span>SPEED {{ stack.speed }}</span>
         </div>
         <div class="selection-shield">
           <span class="selection-shield-label">SHIELD</span>

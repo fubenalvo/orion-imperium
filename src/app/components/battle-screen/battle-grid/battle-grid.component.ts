@@ -3,11 +3,10 @@ import { NgClass } from '@angular/common';
 import {
   BattleAttackEffect,
   BattlePlanetVisual,
-  BattleSide,
   BattleStack,
   GridCell,
 } from '../battle/battle.types';
-import { ANIMATION_MS, BATTLE_CELL_SIZE_VW } from '../battle/battle.types';
+import { BATTLE_CELL_SIZE_VW } from '../battle/battle.types';
 import { BattlePlanetComponent } from '../battle-planet/battle-planet.component';
 
 /*
@@ -20,9 +19,9 @@ import { BattlePlanetComponent } from '../battle-planet/battle-planet.component'
  * (projectile / impact / explosion). All rules live in the battle
  * services; this component only maps state to pixels and forwards clicks.
  *
- * Stack cells are absolutely positioned and CSS-transitioned, so moving
- * a stack (which commits the target cell when the animation starts)
- * produces the visual tween for free.
+ * Stack positions are driven by the real-time game loop (BattleGameLoopService),
+ * which sets x/y every frame. No CSS transitions — direct style binding
+ * to the current vw position.
  */
 
 @Component({
@@ -41,13 +40,10 @@ export class BattleGridComponent {
   @Input() carrierBoostTargetIds: string[] = [];
   @Input() effect: BattleAttackEffect | null = null;
   @Input() canSelect = true;
-  @Input() activeSide: BattleSide = 'attacker';
-  @Input() ap = 0;
-  @Input() spentStackIds: Set<string> = new Set();
   /* Faction colors per side, passed from the orchestrator. Used only for
    * subtle per-stack tinting (background wash, count text, hull bar) so each
    * stack reads as belonging to its faction without fighting the existing
-   * state-driven highlights (selected / attack-target / spent / etc.). */
+   * state-driven highlights (selected / attack-target / etc.). */
   @Input() attackerColor = '#ff5252';
   @Input() defenderColor = '#4caf50';
   /*
@@ -60,13 +56,15 @@ export class BattleGridComponent {
   @Input() onStackClick: (stackId: string) => void = () => {};
   @Input() onCellClick: (col: number, row: number) => void = () => {};
 
-  /* vw offset of a stack cell centre, relative to the grid container. */
+  /* vw offset of a stack cell centre, relative to the grid container.
+   * Uses real-time x/y set by the game loop, with col/row used only
+   * for initial side-offset alignment. */
   stackVw(stack: BattleStack): { x: number; y: number } {
     const offset = (stack.size - 1) / 2;
     const visualCol = stack.side === 'attacker' ? stack.col + offset : stack.col - offset;
     return {
-      x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW,
-      y: (stack.row - 0.5) * BATTLE_CELL_SIZE_VW,
+      x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW + (stack.x ?? 0),
+      y: (stack.row - 0.5) * BATTLE_CELL_SIZE_VW + (stack.y ?? 0),
     };
   }
 
@@ -79,12 +77,6 @@ export class BattleGridComponent {
 
   cellKey(cell: GridCell): string {
     return `${cell.col}-${cell.row}`;
-  }
-
-  /* Per-stack move tween duration, matched to the animation busy lock. */
-  stackTransition(stack: BattleStack): string {
-    const ms = Math.max(ANIMATION_MS.move, stack.moveMs);
-    return `left ${ms}ms linear, top ${ms}ms linear`;
   }
 
   /* Aggregate stack hull fraction for the HP bar. */
@@ -134,12 +126,10 @@ export class BattleGridComponent {
     return stack.size;
   }
 
-  /* Attack-available indicator: bottom-right corner, diagonally opposite
-   * the ship count so it never overlaps. Visible only while the stack still
-   * has its attack for the turn — hidden once it has fired. Only rendered
-   * for the active side, since only they can act this turn. */
+  /* Attack-available indicator: bottom-right corner of the stack sprite.
+   * Visible when the stack can attack — not currently moving or firing. */
   hasAttackDot(stack: BattleStack): boolean {
-    return stack.side === this.activeSide && !stack.attackedThisTurn;
+    return !stack.moving && !stack.firing;
   }
 
   /* Faction color for a stack — used to tint per-stack accents (count text,
@@ -165,10 +155,6 @@ export class BattleGridComponent {
     }
     if (this.isMoveToAttackTarget(stack.stackId)) {
       classes.push('move-to-attack-target');
-    }
-    // Spent: computed centrally in BattleScreenComponent and passed via input
-    if (this.spentStackIds.has(stack.stackId)) {
-      classes.push('spent');
     }
     return classes;
   }

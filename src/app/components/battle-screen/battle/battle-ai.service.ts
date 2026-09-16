@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
 import { BattleModelState, BattleStack, GridCell } from './battle.types';
-import { getStacks } from './battle-state';
+import { getStacks, isSidePlayerControlled } from './battle-state';
 import { cellDistance, computeTargetScore, findBestMoveToAttackCell, isInRange, linePath } from './battle-grid';
 import { BattleCombatService } from './battle-combat.service';
 import { BattleMovementService } from './battle-movement.service';
-import { BattleTurnService } from './battle-turn.service';
+import { BattleAnimationService } from './battle-animation.service';
 
 /*
  * =========================================================
@@ -16,11 +16,15 @@ import { BattleTurnService } from './battle-turn.service';
  * enemy-ai / strategy / goal / action layers, which is exactly why the
  * minigame stays self-contained.
  *
- * Turn plan:
- *   1. attack with every stack that already has an enemy in range
- *   2. move the remaining stacks toward the nearest enemy stack
- *   3. attack again with stacks that moved into range
- *   4. end the turn
+ * In the real-time model, the AI takes ONE action per tick (0.2s
+ * configurable via AI_ACTION_INTERVAL_MS), driven by the game loop:
+ *   1. attack with the first stack that has an enemy in range
+ *   2. carrier shield boost if no attack but a carrier can boost
+ *   3. move the nearest stack toward the nearest enemy
+ *
+ * The animation busy lock gates attacks — if a projectile is in flight,
+ * the AI skips its action on that tick. Movement is never gated by the
+ * lock; stacks move continuously in real-time.
  */
 
 @Injectable({ providedIn: 'root' })
@@ -28,69 +32,64 @@ export class BattleAiService {
   constructor(
     private combat: BattleCombatService,
     private movement: BattleMovementService,
-    private turn: BattleTurnService,
+    private anim: BattleAnimationService,
   ) {}
 
-  async playTurn(state: BattleModelState): Promise<void> {
-    if (state.winner || this.turn.checkVictory(state)) {
-      return;
+  /*
+   * One AI action per call. Returns true if an action was taken,
+   * false if no action was possible (all stacks moving, no targets, etc).
+   */
+  async playAction(state: BattleModelState): Promise<boolean> {
+    if (state.winner || this.anim.isBusy) {
+      return false;
     }
 
-    const stacks = getStacks(state, state.activeSide);
+    const aiStacks = this.getAiStacks(state);
 
-    for (const stack of stacks) {
-      if (state.winner) {
-        break;
-      }
-        const target = this.bestTarget(state, stack);
-        if (target) {
-          await this.combat.attackStack(state, stack.stackId, target.stackId);
-        }
-    }
-
-    for (const stack of stacks) {
-      if (state.winner || stack.attackedThisTurn) {
+    // 1. Attack with the first stack that has an in-range enemy target.
+    for (const stack of aiStacks) {
+      if (stack.moving || stack.destroyed || stack.immobile) {
         continue;
       }
-      await this.moveTowardNearestEnemy(state, stack);
+      const target = this.bestTarget(state, stack);
+      if (target) {
+        const result = await this.combat.attackStack(state, stack.stackId, target.stackId);
+        return result;
+      }
     }
 
-    for (const stack of stacks) {
-      if (state.winner || stack.attackedThisTurn) {
+    // 2. Carrier Shield Pulse fallback: only when a Carrier has nothing
+    //    better to do and at least one friendly ally in range needs shield.
+    for (const stack of aiStacks) {
+      if (stack.moving || stack.destroyed || stack.typeId !== 'carrier') {
         continue;
       }
-        const target = this.bestTarget(state, stack);
-        if (target) {
-          await this.combat.attackStack(state, stack.stackId, target.stackId);
-        }
+      if (this.combat.carrierShieldBoost(state, stack.stackId)) {
+        return true;
+      }
     }
 
-    // Carrier Shield Pulse fallback: only when a Carrier has nothing better
-    // to do and at least one friendly ally in range needs shield. This is a
-    // deterministic, greedy fallback — it never overrides a profitable
-    // attack, so no other AI behavior changes.
-    for (const stack of stacks) {
-      if (state.winner || stack.attackedThisTurn || stack.typeId !== 'carrier') {
+    // 3. Move the nearest AI stack toward the nearest enemy.
+    for (const stack of aiStacks) {
+      if (stack.moving || stack.destroyed || stack.immobile) {
         continue;
       }
-      const boosted = await this.combat.carrierShieldBoost(state, stack.stackId);
-      if (boosted) {
-        // Carrier shield boost applied
+      const moved = await this.moveTowardNearestEnemy(state, stack);
+      if (moved) {
+        return true;
       }
     }
 
-    if (!state.winner) {
-      const ended = this.turn.endTurn(state);
-      if (!ended) {
-        throw new Error('AI turn could not end: animation lock still active');
-      }
-    }
+    return false;
+  }
+
+  private getAiStacks(state: BattleModelState): BattleStack[] {
+    return state.stacks.filter(
+      (s) => !s.destroyed && !isSidePlayerControlled(state, s.side),
+    );
   }
 
   private bestTarget(state: BattleModelState, stack: BattleStack): BattleStack | null {
-    if (stack.attackedThisTurn || stack.attackAp > state.ap) {
-      return null;
-    }
     const origin: GridCell = { col: stack.col, row: stack.row };
     const candidates = state.stacks.filter(
       (s) => !s.destroyed && s.side !== stack.side && isInRange(origin, s, stack.attackRange),
@@ -98,8 +97,6 @@ export class BattleAiService {
     if (candidates.length === 0) {
       return null;
     }
-    // Role-aware scoring: prefer high-value / high-threat targets, then
-    // nearest, then stackId. Pure and deterministic — no randomness.
     return candidates.reduce((best, s) => {
       const bestScore = computeTargetScore(stack, best, cellDistance(origin, best));
       const score = computeTargetScore(stack, s, cellDistance(origin, s));
@@ -113,10 +110,7 @@ export class BattleAiService {
     });
   }
 
-  private async moveTowardNearestEnemy(state: BattleModelState, stack: BattleStack): Promise<void> {
-    if (stack.immobile || stack.moveRange <= 0 || stack.cellsMovedThisTurn >= stack.moveRange) {
-      return;
-    }
+  private async moveTowardNearestEnemy(state: BattleModelState, stack: BattleStack): Promise<boolean> {
     const origin: GridCell = { col: stack.col, row: stack.row };
 
     // Prefer move-to-attack: advance only as far as needed to bring a
@@ -134,13 +128,12 @@ export class BattleAiService {
     if (moveAttackTarget) {
       const bestCell = findBestMoveToAttackCell(state, stack, moveAttackTarget);
       if (bestCell) {
-        await this.movement.moveStack(state, stack.stackId, bestCell.col, bestCell.row);
-        return;
+        return this.movement.moveStack(state, stack.stackId, bestCell.col, bestCell.row);
       }
     }
 
-    // No target can be brought into range this turn — fall back to moving
-    // toward the nearest enemy (e.g. when range is 0 or AP is exhausted).
+    // No target can be brought into range — fall back to moving
+    // toward the nearest enemy.
     const enemy = state.stacks
       .filter((s) => !s.destroyed && s.side !== stack.side)
       .sort(
@@ -148,21 +141,23 @@ export class BattleAiService {
           cellDistance(origin, a) - cellDistance(origin, b) || a.stackId.localeCompare(b.stackId),
       )[0];
     if (!enemy) {
-      return;
+      return false;
     }
 
     const path = linePath(origin, { col: enemy.col, row: enemy.row });
     if (!path) {
-      return;
+      return false;
     }
-    const maxSteps = Math.min(stack.moveRange - stack.cellsMovedThisTurn, path.length);
-    // Try the longest legal approach first; shrink the step count when the
-    // straight line is blocked by an occupied cell.
-    for (let d = maxSteps; d >= 1; d--) {
+
+    // Try the longest legal approach first; shrink the step count when
+    // the straight line is blocked by an occupied cell.
+    for (let d = path.length; d >= 1; d--) {
       const dest = path[d - 1];
-      if (await this.movement.moveStack(state, stack.stackId, dest.col, dest.row)) {
-        break;
+      const result = await this.movement.moveStack(state, stack.stackId, dest.col, dest.row);
+      if (result) {
+        return true;
       }
     }
+    return false;
   }
 }

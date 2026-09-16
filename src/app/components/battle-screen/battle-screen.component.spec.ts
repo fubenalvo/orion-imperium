@@ -145,7 +145,7 @@ describe('BattleScreenComponent', () => {
     expect(saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)).toEqual(before);
   });
 
-  it('END TURN is disabled while an animation is in flight', async () => {
+  it('animation lock prevents concurrent attacks while an animation is in flight', async () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
       fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
@@ -161,18 +161,24 @@ describe('BattleScreenComponent', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
 
-    const state = component['state'];
-    const stack = state?.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    component.selectedStackId = stack.stackId;
+    const state = component['state']!;
+    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
+    const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
+    // Place attacker in range of defender
+    def.col = atk.col + 2;
+    def.row = atk.row;
 
-    // Kick off a move without awaiting — the lock should engage immediately.
-    const moveP = component['doMove'](stack, stack.col + 1, stack.row);
-    expect(component.canEndTurn).toBe(false);
+    component.selectedStackId = atk.stackId;
 
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.move + 1);
-    await moveP;
+    // Kick off an attack without awaiting — the lock engages immediately.
+    const attackP = component['doAttack'](atk, def);
+    expect(anim.isBusy).toBe(true);
 
-    expect(component.canEndTurn).toBe(true);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
+    await attackP;
+
+    expect(anim.isBusy).toBe(false);
     fixture.detectChanges();
   });
 

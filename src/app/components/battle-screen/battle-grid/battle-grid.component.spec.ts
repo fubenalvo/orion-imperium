@@ -14,18 +14,17 @@ function makeStack(size: number): BattleStack {
     ships: [],
     size,
     tier: size,
-    moveApPerCell: 1,
-    attackAp: 1,
-    moveRange: 5,
+    speed: 3,
     attackRange: 2,
     immobile: false,
-    cellsMovedThisTurn: 0,
-    attackedThisTurn: false,
     moving: false,
     firing: false,
-    moveMs: 180,
     destroyed: false,
     role: 'Interceptor',
+    x: 0,
+    y: 0,
+    targetX: null,
+    targetY: null,
   };
 }
 
