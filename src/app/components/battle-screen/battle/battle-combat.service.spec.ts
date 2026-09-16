@@ -363,6 +363,35 @@ describe('BattleCombatService', () => {
     expect(state.log[0].damage).toBe(5);
   });
 
+  it('projectile targets the target current visual position, not stale col/row', async () => {
+    const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
+    const atk = getStacks(state, 'attacker')[0];
+    const def = getStacks(state, 'defender')[0];
+    placeAdjacent(atk, def);
+
+    /*
+     * Simulate the defender being mid-movement: its x/y have moved
+     * away from its col/row grid cell center. The projectile should
+     * aim at the current visual position (def.x/def.y), not the
+     * stale cell center (stackCenterVw output).
+     */
+    const movedX = def.x + 2.5;
+    const movedY = def.y + 1.5;
+    def.x = movedX;
+    def.y = movedY;
+
+    const p = combat.attackStack(state, atk.stackId, def.stackId);
+    /* Advance past the projectile phase so the effect is active,
+     * but before the animation clears it. */
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile + 1);
+    expect(state.effect).not.toBeNull();
+    expect(state.effect!.phase).toBe('impact');
+    expect(state.effect!.to.x).toBe(movedX);
+    expect(state.effect!.to.y).toBe(movedY);
+    await vi.advanceTimersByTimeAsync(5000);
+    await p;
+  });
+
   it('still floors damage to at least 1 after applying the multiplier', async () => {
     const state = setup([fleetShip(0, 'colonizer')], [fleetShip(100, 'corvette')]);
     const atk = getStacks(state, 'attacker')[0];

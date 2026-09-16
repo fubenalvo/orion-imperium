@@ -4,7 +4,6 @@ import {
   checkVictory,
   computeCarrierBoostTargets,
   isInRange,
-  stackCenterVw,
   weaponMultiplier,
   applyShieldRegen,
 } from './battle-grid';
@@ -61,8 +60,8 @@ export class BattleCombatService {
       return false;
     }
 
-    const from = stackCenterVw(attacker);
-    const to = stackCenterVw(target);
+    const from = { x: attacker.x, y: attacker.y };
+    const to = { x: target.x, y: target.y };
     if (!isInRange({ col: attacker.col, row: attacker.row }, { col: target.col, row: target.row }, attacker.attackRange)) {
       return false;
     }
