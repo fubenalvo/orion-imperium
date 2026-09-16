@@ -56,15 +56,13 @@ export class BattleGridComponent {
   @Input() onStackClick: (stackId: string) => void = () => {};
   @Input() onCellClick: (col: number, row: number) => void = () => {};
 
-  /* vw offset of a stack cell centre, relative to the grid container.
-   * Uses real-time x/y set by the game loop, with col/row used only
-   * for initial side-offset alignment. */
+  /* vw position of a stack. stack.x/y are absolute VW coordinates maintained
+   * by the game loop (initialized from stackCenterVw). col/row are only used
+   * for click detection and combat range. */
   stackVw(stack: BattleStack): { x: number; y: number } {
-    const offset = (stack.size - 1) / 2;
-    const visualCol = stack.side === 'attacker' ? stack.col + offset : stack.col - offset;
     return {
-      x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW + (stack.x ?? 0),
-      y: (stack.row - 0.5) * BATTLE_CELL_SIZE_VW + (stack.y ?? 0),
+      x: stack.x ?? 0,
+      y: stack.y ?? 0,
     };
   }
 
