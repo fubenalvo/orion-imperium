@@ -117,6 +117,8 @@ export interface BattleStack {
   y: number;
   targetX: number | null;
   targetY: number | null;
+  /* Shots per second (from ship-data.json fireRate). */
+  fireRate: number;
 }
 
 /* Visual effect active during an attack animation. Only one animation

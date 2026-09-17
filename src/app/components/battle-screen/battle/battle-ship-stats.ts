@@ -30,6 +30,8 @@ export interface BattleShipStats {
   role: string;
   /* Real-time movement speed in vw/s (from ship-data.json speed). */
   speed: number;
+  /* Shots per second (from ship-data.json fireRate). */
+  fireRate: number;
 }
 
 const TIER_LOOKUP: Record<string, number> = {
@@ -81,6 +83,7 @@ export function getBattleShipStats(
       weakness: shipType.weakness ?? 'energy',
       role: shipType.role ?? 'Light Combat',
       speed: shipType.speed,
+      fireRate: shipType.fireRate ?? 1.5,
     };
   }
 
@@ -104,6 +107,7 @@ export function getBattleShipStats(
       weakness: virtual.weakness ?? 'energy',
       role: virtual.role ?? 'defense',
       speed: 0,
+      fireRate: 1.5,
     };
   }
 
@@ -122,5 +126,6 @@ export function getBattleShipStats(
     weakness: 'energy',
     role: 'Light Combat',
     speed: 0,
+    fireRate: 1.5,
   };
 }

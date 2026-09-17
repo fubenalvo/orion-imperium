@@ -134,9 +134,15 @@ export function isOccupied(
   row: number,
   excludeStackId?: string,
 ): boolean {
-  return state.stacks.some(
-    (s) => !s.destroyed && s.stackId !== excludeStackId && occupiesCell(s, col, row),
-  );
+  return state.stacks.some((s) => {
+    if (s.destroyed || s.stackId === excludeStackId) return false;
+    if (occupiesCell(s, col, row)) return true;
+    if (s.targetX != null && s.targetY != null) {
+      const targetCell = vwToStackCell(s, s.targetX, s.targetY);
+      return targetCell.col === col && targetCell.row === row;
+    }
+    return false;
+  });
 }
 
 export function occupiesCell(stack: BattleStack, col: number, row: number): boolean {

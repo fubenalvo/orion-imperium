@@ -26,6 +26,8 @@ export interface ShipType {
    */
   buildTime?: number;
   productionBuilding?: ProductionBuildingKind;
+  /* Shots per second (from ship-data.json fireRate). */
+  fireRate?: number;
 }
 
 const DEFAULT_BUILD_TIME_PER_COST = 0.1;

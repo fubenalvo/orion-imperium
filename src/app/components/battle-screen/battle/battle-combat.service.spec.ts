@@ -172,18 +172,47 @@ describe('BattleCombatService', () => {
     expect(state.log).toHaveLength(0);
   });
 
-  it('rejects a second attack by the same stack while the animation is busy', async () => {
+  it('allows a second attack after the first one completes', async () => {
     const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
     placeAdjacent(atk, def);
 
     const inFlight = combat.attackStack(state, atk.stackId, def.stackId);
-    const result = await combat.attackStack(state, atk.stackId, def.stackId);
-    expect(result).toBe(false);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
     await inFlight;
+
+    const result = combat.attackStack(state, atk.stackId, def.stackId);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
+    expect(await result).toBe(true);
+  });
+
+  it('allows concurrent attacks from different stacks', async () => {
+    const state = setup(
+      [fleetShip(0, 'fighter'), fleetShip(1, 'fighter')],
+      [fleetShip(100, 'frigate')],
+    );
+    const atk1 = getStacks(state, 'attacker')[0];
+    const atk2 = getStacks(state, 'attacker')[1];
+    const def = getStacks(state, 'defender')[0];
+    placeAdjacent(atk1, def);
+    placeAdjacent(atk2, def);
+
+    const hpBefore = def.ships[0].hp;
+    const shieldBefore = def.ships[0].shield ?? 0;
+
+    const attack1 = combat.attackStack(state, atk1.stackId, def.stackId);
+    const attack2 = combat.attackStack(state, atk2.stackId, def.stackId);
+
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
+    await attack1;
+    await attack2;
+
+    const totalDamage = (hpBefore - def.ships[0].hp) + (shieldBefore - (def.ships[0].shield ?? 0));
+    expect(totalDamage).toBeGreaterThan(0);
   });
 
   it('rejects attacks while the stack is moving', async () => {

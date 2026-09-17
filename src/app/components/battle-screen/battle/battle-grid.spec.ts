@@ -35,6 +35,7 @@ function baseStack(): BattleStack {
     y: 0,
     targetX: null,
     targetY: null,
+    fireRate: 1.5,
   };
 }
 

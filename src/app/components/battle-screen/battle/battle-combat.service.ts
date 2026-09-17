@@ -50,7 +50,7 @@ export class BattleCombatService {
   ): Promise<boolean> {
     const attacker = state.stacks.find((s) => s.stackId === attackerStackId && !s.destroyed);
     const target = state.stacks.find((s) => s.stackId === targetStackId && !s.destroyed);
-    if (!attacker || !target || state.winner || this.anim.isBusy) {
+    if (!attacker || !target || state.winner) {
       return false;
     }
     if (attacker.side === target.side) {
@@ -166,7 +166,7 @@ export class BattleCombatService {
     if (!carrier || carrier.typeId !== 'carrier') {
       return false;
     }
-    if (state.winner || this.anim.isBusy) {
+    if (state.winner) {
       return false;
     }
     if (carrier.moving || carrier.immobile || carrier.firing) {

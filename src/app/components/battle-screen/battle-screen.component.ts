@@ -29,6 +29,7 @@ import {
 import {
   AI_ACTION_INTERVAL_MS,
   SHIELD_REGEN_INTERVAL_MS,
+  ANIMATION_MS,
 } from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
 import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds, computeCarrierBoostTargets, checkVictory, updateStackPositions, regenerateAllShields } from './battle/battle-grid';
@@ -95,6 +96,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   private aiTickAccumulator = 0;
   private shieldRegenAccumulator = 0;
+  private autoAttackActive = false;
 
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
@@ -188,7 +190,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   get canAct(): boolean {
-    return this.playerHasStacks && !this.anim?.isBusy;
+    return this.playerHasStacks;
   }
 
   get canPlayerAct(): boolean {
@@ -474,6 +476,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       return;
     }
     this.combat.carrierShieldBoost(this.state, stack.stackId);
+    this.cdr.detectChanges();
   }
 
   /*
@@ -497,12 +500,59 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.cdr.detectChanges();
   }
 
-  private async doAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
+  private async autoAttack(attacker: BattleStack): Promise<void> {
     if (!this.state) {
       return;
     }
-    await this.combat.attackStack(this.state, attacker.stackId, target.stackId);
+    if (this.selectedStackId !== attacker.stackId) {
+      return;
+    }
+    if (this.state.winner) {
+      return;
+    }
+
+    const targets = computeAttackTargetIds(this.state, attacker);
+    if (targets.length === 0) {
+      return;
+    }
+
+    const targetStack = this.state.stacks.find((s) => s.stackId === targets[0]);
+    if (!targetStack) {
+      return;
+    }
+
+    const success = await this.combat.attackStack(this.state, attacker.stackId, targets[0]);
+    if (!success) {
+      return;
+    }
     this.cdr.detectChanges();
+
+    // Fire-rate cooldown: ensure minimum interval between volleys.
+    const fireRate = attacker.fireRate ?? 1.5;
+    const fireRateMs = (1 / fireRate) * 1000;
+    const animDuration = targetStack.destroyed
+      ? ANIMATION_MS.projectile + ANIMATION_MS.explosion
+      : ANIMATION_MS.projectile + ANIMATION_MS.hit;
+    const cooldownMs = Math.max(0, fireRateMs - animDuration);
+    if (cooldownMs > 0) {
+      await this.anim.wait(cooldownMs);
+    }
+
+    await this.autoAttack(attacker);
+  }
+
+  private async doAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
+    if (!this.state || this.autoAttackActive) {
+      return;
+    }
+    this.autoAttackActive = true;
+    try {
+      await this.combat.attackStack(this.state, attacker.stackId, target.stackId);
+      this.cdr.detectChanges();
+      await this.autoAttack(attacker);
+    } finally {
+      this.autoAttackActive = false;
+    }
   }
 
   private startGameLoop(): void {
@@ -515,32 +565,38 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   private gameLoopCallback(deltaTime: number): void {
-    if (!this.state || this.state.winner) {
+    if (!this.state) {
       return;
     }
 
     // 1. Update stack positions (real-time movement).
-    updateStackPositions(this.state, deltaTime);
+    if (!this.state.winner) {
+      updateStackPositions(this.state, deltaTime);
+    }
 
     // 2. AI tick: one action every AI_ACTION_INTERVAL_MS when not busy.
-    this.aiTickAccumulator += deltaTime * 1000;
-    if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS && !this.anim.isBusy) {
-      this.aiTickAccumulator = 0;
-      void this.ai.playAction(this.state);
+    if (!this.state.winner) {
+      this.aiTickAccumulator += deltaTime * 1000;
+      if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS && !this.anim.isBusy) {
+        this.aiTickAccumulator = 0;
+        void this.ai.playAction(this.state);
+      }
     }
 
     // 3. Shield regeneration: every SHIELD_REGEN_INTERVAL_MS for all sides.
-    this.shieldRegenAccumulator += deltaTime * 1000;
-    if (this.shieldRegenAccumulator >= SHIELD_REGEN_INTERVAL_MS) {
-      this.shieldRegenAccumulator = 0;
-      regenerateAllShields(this.state);
-      this.state.round++;
+    if (!this.state.winner) {
+      this.shieldRegenAccumulator += deltaTime * 1000;
+      if (this.shieldRegenAccumulator >= SHIELD_REGEN_INTERVAL_MS) {
+        this.shieldRegenAccumulator = 0;
+        regenerateAllShields(this.state);
+        this.state.round++;
+      }
     }
 
     // 4. Victory check after movement and AI action.
     checkVictory(this.state);
 
-    // 5. Trigger change detection for real-time position updates.
+    // 5. Trigger change detection for real-time position updates and result display.
     this.anim.tick();
   }
 
