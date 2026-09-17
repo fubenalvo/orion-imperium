@@ -67,7 +67,11 @@
 
     <div class="battle-screen__hint">
       @if (!battleOver) {
-        <span>SELECT A SHIP STACK, MOVE OR ATTACK</span>
+        @if (isMoveBlocked) {
+          <span class="battle-screen__hint--error">PATH BLOCKED</span>
+        } @else {
+          <span>SELECT A SHIP STACK, MOVE OR ATTACK</span>
+        }
       }
     </div>
 

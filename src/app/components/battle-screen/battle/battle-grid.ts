@@ -137,23 +137,20 @@ export function isOccupied(
   excludeStackId?: string,
 ): boolean {
   /*
-   * NOTE: During real-time movement, stacks have `targetX/targetY` set.
-   * `isOccupied` blocks movement TO a stack's destination cell but does
-   * NOT block intermediate cells along a moving stack's path. This means
-   * two stacks moving simultaneously through the same intermediate cell
-   * can briefly overlap. This is a known visual limitation of real-time
-   * movement; stacks moving at different speeds naturally separate.
-   * Path validation (`isPathClear`) uses the same logic — paths are
-   * validated at command time, not continuously during movement.
+   * Option B: Only static (physical) occupancy blocks movement.
+   * Stacks currently moving (targetX/targetY set) do NOT block
+   * destination cells — only their current physical position
+   * (col/row) counts. This makes real-time movement fluid: a
+   * stack vacating a cell immediately frees it for others.
+   * Two stacks heading to the same cell can temporarily coexist
+   * at that cell; they naturally separate as they move at
+   * different speeds. Visual overlap is a known trade-off.
+   * Path validation (`isPathClear`) uses the same logic — paths
+   * are validated at command time, not continuously.
    */
   return state.stacks.some((s) => {
     if (s.destroyed || s.stackId === excludeStackId) return false;
-    if (occupiesCell(s, col, row)) return true;
-    if (s.targetX != null && s.targetY != null) {
-      const targetCell = vwToStackCell(s, s.targetX, s.targetY);
-      return targetCell.col === col && targetCell.row === row;
-    }
-    return false;
+    return occupiesCell(s, col, row);
   });
 }
 

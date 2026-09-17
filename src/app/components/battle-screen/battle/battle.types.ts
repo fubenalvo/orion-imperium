@@ -66,21 +66,20 @@ export interface FleetShip {
 /* One real ship inside a stack. shipId === FleetShip.id, the key used to
    * map battle results back onto the overworld fleet roster.
    *
-   * Shield and weapon fields are optional (default 0 / '') so existing test
-   * fixtures that build BattleShip literals without them keep working.
-   * BattleShipStats carries the authoritative values; toBattleShip()
-   * copies them in. */
+   * Shield and weapon fields are always present (defaults from
+   * getBattleShipStats). BattleShipStats carries the authoritative
+   * values; toBattleShip() copies them in. */
   export interface BattleShip {
     shipId: number;
     name: string;
     typeId: string;
     hp: number;
     maxHp: number;
-    shield?: number;
-    maxShield?: number;
-    shieldRegen?: number;
-    attackType?: string;
-    weakness?: string;
+    shield: number;
+    maxShield: number;
+    shieldRegen: number;
+    attackType: string;
+    weakness: string;
     attack: number;
     defense: number;
     alive: boolean;

@@ -23,6 +23,7 @@
       [ngClass]="'stack-cell--size-' + stackSize(stack)"
       [style.left]="stackVw(stack).x + 'vw'"
       [style.top]="stackVw(stack).y + 'vw'"
+      [style.zIndex]="stack.row"
       [class.stack-cell--selected]="stack.stackId === selectedStackId"
     >
       <button

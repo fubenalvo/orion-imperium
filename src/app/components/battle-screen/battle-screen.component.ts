@@ -104,6 +104,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private motionEnabled = false;
   private motionPermissionRequested = false;
   private resultModalFocused = false;
+  private moveFailedUntil = 0;
+  private movementHintTimer: number | null = null;
 
   private aiTickAccumulator = 0;
   private shieldRegenAccumulator = 0;
@@ -216,7 +218,9 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!this.state || !stack || !this.canPlayerAct) {
       return [];
     }
-    // Return all empty cells in bounds (exclude cells occupied by this stack)
+    // Return all empty cells in bounds (exclude cells occupied by this stack).
+    // Also requires a clear straight-line path (isPathClear) — matches
+    // moveStack() validation exactly so UI shows only reachable cells.
     const cells: GridCell[] = [];
     for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
       for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
@@ -225,10 +229,18 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(this.state!, dc, r, stack.stackId))) {
           continue;
         }
+        const path = linePath({ col: stack.col, row: stack.row }, { col: c, row: r });
+        if (!path || !isPathClear(this.state, path, stack)) {
+          continue;
+        }
         cells.push({ col: c, row: r });
       }
     }
     return cells;
+  }
+
+  get isMoveBlocked(): boolean {
+    return performance.now() < this.moveFailedUntil;
   }
 
   get attackTargetIds(): string[] {
@@ -359,6 +371,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.anim.reset();
     this.gameTimeService.resume();
     window.removeEventListener('deviceorientation', this.onDeviceOrientation);
+    if (this.movementHintTimer !== null) {
+      clearTimeout(this.movementHintTimer);
+      this.movementHintTimer = null;
+    }
   }
 
   onStackClick(stackId: string): void {
@@ -599,7 +615,25 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
     // Move command clears explicit attack target
     stack.explicitAttackTargetId = null;
-    await this.movement.moveStack(this.state, stack.stackId, col, row);
+    const success = await this.movement.moveStack(this.state, stack.stackId, col, row);
+    if (!success) {
+      this.moveFailedUntil = performance.now() + 1500;
+      this.cdr.detectChanges();
+      if (this.movementHintTimer !== null) {
+        clearTimeout(this.movementHintTimer);
+      }
+      this.movementHintTimer = window.setTimeout(() => {
+        this.moveFailedUntil = 0;
+        this.movementHintTimer = null;
+        this.cdr.detectChanges();
+      }, 1500);
+    } else {
+      this.moveFailedUntil = 0;
+      if (this.movementHintTimer !== null) {
+        clearTimeout(this.movementHintTimer);
+        this.movementHintTimer = null;
+      }
+    }
     this.cdr.detectChanges();
   }
 
@@ -666,7 +700,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     // Set per-stack cooldown for next attack
     const fireRate = attacker.fireRate ?? 1.5;
     const fireRateMs = (1 / fireRate) * 1000;
-    attacker.attackCooldownUntil = now + fireRateMs;
+    const hullBonus = Math.floor(attacker.ships.reduce((sum, s) => sum + s.hp, 0) * 0.3);
+    attacker.attackCooldownUntil = now + fireRateMs + hullBonus;
 
     // If explicit target was destroyed, clear it
     if (explicitTargetId && targetStack.destroyed) {
