@@ -136,6 +136,16 @@ export function isOccupied(
   row: number,
   excludeStackId?: string,
 ): boolean {
+  /*
+   * NOTE: During real-time movement, stacks have `targetX/targetY` set.
+   * `isOccupied` blocks movement TO a stack's destination cell but does
+   * NOT block intermediate cells along a moving stack's path. This means
+   * two stacks moving simultaneously through the same intermediate cell
+   * can briefly overlap. This is a known visual limitation of real-time
+   * movement; stacks moving at different speeds naturally separate.
+   * Path validation (`isPathClear`) uses the same logic — paths are
+   * validated at command time, not continuously during movement.
+   */
   return state.stacks.some((s) => {
     if (s.destroyed || s.stackId === excludeStackId) return false;
     if (occupiesCell(s, col, row)) return true;
@@ -210,8 +220,8 @@ export function vwToStackCell(stack: BattleStack, x: number, y: number): GridCel
   const visualCol = x / cellSize + 0.5;
   const direction = stack.side === 'attacker' ? 1 : -1;
   const offset = (stack.size - 1) / 2;
-  const anchorCol = Math.round(visualCol - direction * offset);
-  const row = Math.round(y / cellSize + 0.5);
+  const anchorCol = Math.max(1, Math.min(BATTLE_GRID_COLUMNS, Math.round(visualCol - direction * offset)));
+  const row = Math.max(1, Math.min(BATTLE_GRID_ROWS, Math.round(y / cellSize + 0.5)));
   return { col: anchorCol, row };
 }
 

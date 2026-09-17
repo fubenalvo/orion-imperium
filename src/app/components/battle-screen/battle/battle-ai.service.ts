@@ -19,7 +19,8 @@ import { BattleAnimationService } from './battle-animation.service';
  * In the real-time model, the AI takes ONE action per tick (0.2s
  * configurable via AI_ACTION_INTERVAL_MS), driven by the game loop:
  *   1. attack with the first stack that has an enemy in range
- *   2. carrier shield boost if no attack but a carrier can boost
+ *   1b. carrier shield boost if a carrier has an ally below 50% shield (proactive)
+ *   2. carrier shield boost if no attack is available but a carrier can boost
  *   3. move the nearest stack toward the nearest enemy
  *
  * The animation busy lock gates attacks — if a projectile is in flight,
@@ -58,7 +59,20 @@ export class BattleAiService {
       }
     }
 
-    // 2. Carrier Shield Pulse fallback: only when a Carrier has nothing
+    // 2. Carrier Shield Pulse fallback: boost allies below 50% shield
+    //    proactively, not only when no attack is available.
+    for (const stack of aiStacks) {
+      if (stack.moving || stack.destroyed || stack.typeId !== 'carrier') {
+        continue;
+      }
+      if (this.hasLowShieldAlly(state, stack)) {
+        if (this.combat.carrierShieldBoost(state, stack.stackId)) {
+          return true;
+        }
+      }
+    }
+
+    // 2b. Carrier Shield Pulse fallback: only when a Carrier has nothing
     //    better to do and at least one friendly ally in range needs shield.
     for (const stack of aiStacks) {
       if (stack.moving || stack.destroyed || stack.typeId !== 'carrier') {
@@ -87,6 +101,25 @@ export class BattleAiService {
     return state.stacks.filter(
       (s) => !s.destroyed && !isSidePlayerControlled(state, s.side),
     );
+  }
+
+  /* Check if any friendly stack within the carrier's range has shield below 50%. */
+  private hasLowShieldAlly(state: BattleModelState, carrier: BattleStack): boolean {
+    const origin: GridCell = { col: carrier.col, row: carrier.row };
+    return state.stacks.some((s) => {
+      if (s.destroyed || s.side !== carrier.side || s.stackId === carrier.stackId) {
+        return false;
+      }
+      if (!isInRange(origin, s, carrier.attackRange)) {
+        return false;
+      }
+      const totalMaxShield = s.ships.reduce((sum, sh) => sum + (sh.maxShield ?? 0), 0);
+      if (totalMaxShield <= 0) {
+        return false;
+      }
+      const totalShield = s.ships.reduce((sum, sh) => sum + (sh.shield ?? 0), 0);
+      return totalShield / totalMaxShield < 0.5;
+    });
   }
 
   private bestTarget(state: BattleModelState, stack: BattleStack): BattleStack | null {

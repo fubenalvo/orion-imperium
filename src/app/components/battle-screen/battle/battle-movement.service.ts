@@ -42,7 +42,7 @@ export class BattleMovementService {
 
     const from: GridCell = { col: stack.col, row: stack.row };
     const target: GridCell = { col: targetCol, row: targetRow };
-    if (!isInBounds(target.col, target.row) || target.col === stack.col && target.row === stack.row) {
+    if (!isInBounds(target.col, target.row) || (target.col === stack.col && target.row === stack.row)) {
       return false;
     }
 

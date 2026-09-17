@@ -151,6 +151,13 @@ function buildStacks(
 ): BattleStack[] {
   const maxIndividual = 4 * ROW_ORDER.length;
 
+  /*
+   * Fleet size boundary: small fleets (<=28 ships) get one stack per ship
+   * for tactical clarity in the selection panel. Larger fleets are grouped
+   * by type into MAX_STACK_SIZE chunks for readability and performance.
+   * The boundary is arbitrary — it matches the max number of individually
+   * deployable stacks given ROW_ORDER has 7 rows and 4 deploy columns.
+   */
   if (roster.length <= maxIndividual) {
     const stacks: BattleStack[] = [];
     let index = 0;

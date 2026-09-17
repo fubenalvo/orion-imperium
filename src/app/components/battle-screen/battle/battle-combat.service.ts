@@ -162,6 +162,9 @@ export class BattleCombatService {
    * as a normal attack so the turn lifecycle needs no changes.
    */
   carrierShieldBoost(state: BattleModelState, carrierStackId: string): boolean {
+    if (this.anim.isBusy) {
+      return false;
+    }
     const carrier = state.stacks.find((s) => s.stackId === carrierStackId && !s.destroyed);
     if (!carrier || carrier.typeId !== 'carrier') {
       return false;

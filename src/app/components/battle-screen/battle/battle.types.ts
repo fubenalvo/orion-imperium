@@ -9,7 +9,7 @@
  * mutates StarMap / galaxy / economy / production / research state.
  *
  * The grid mirrors the System View grid concepts (1-indexed cells,
- * 5vw cell size) but keeps its own constants so the minigame has no
+ * 4vw cell size) but keeps its own constants so the minigame has no
  * dependency on StarMapMovementService (a stateful root singleton).
  */
 

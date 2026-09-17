@@ -93,12 +93,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   set selectedStackId(value: string | null) {
-    // Clear explicit attack target on the previously selected stack
-    if (this._selectedStackId && this.state) {
-      const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
-      if (oldStack) {
-        oldStack.explicitAttackTargetId = null;
-      }
+    if (value === this._selectedStackId) {
+      return;
     }
     this._selectedStackId = value;
   }
@@ -377,7 +373,14 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (isSidePlayerControlled(this.state, stack.side)) {
       // Own stack: select it to reveal movement / attack options.
       if (!stack.moving) {
-        this.selectedStackId = stack.stackId;
+        // Clear explicit attack target on the previously selected stack
+        if (this._selectedStackId && this.state) {
+          const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
+          if (oldStack) {
+            oldStack.explicitAttackTargetId = null;
+          }
+        }
+        this._selectedStackId = stack.stackId;
       }
       return;
     }
@@ -489,7 +492,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   async doCarrierBoost(): Promise<void> {
-    if (!this.state) {
+    if (!this.state || this.anim.isBusy) {
       return;
     }
     const stack = this.selectedStack();

@@ -15,6 +15,7 @@ import { Subject } from 'rxjs';
 export class BattleAnimationService {
   private activeCount = 0;
   private stackActiveCount = new Map<string, number>();
+  private timerIds = new Set<number>();
 
   readonly busy = signal(false);
   readonly ticks$ = new Subject<void>();
@@ -60,7 +61,18 @@ export class BattleAnimationService {
 
   /* Duration-matched wait. Deterministic under vi.useFakeTimers(). */
   wait(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise((resolve) => {
+      const id = window.setTimeout(resolve, ms);
+      this.timerIds.add(id);
+    });
+  }
+
+  /* Cancel all pending timer callbacks from wait(). */
+  cancelPendingTimers(): void {
+    for (const id of this.timerIds) {
+      clearTimeout(id);
+    }
+    this.timerIds.clear();
   }
 
   /* Notify the view that mid-animation state changed. */
@@ -70,6 +82,7 @@ export class BattleAnimationService {
 
   /* Hard reset for component destroy / battle end. */
   reset(): void {
+    this.cancelPendingTimers();
     this.activeCount = 0;
     this.stackActiveCount.clear();
     this.busy.set(false);
