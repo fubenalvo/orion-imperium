@@ -48,15 +48,9 @@ export class BattleAiService {
 
     // 1. Attack with the first stack that has an in-range enemy target and is not animating.
     for (const stack of aiStacks) {
-      const isBusy = this.anim.isStackBusy(stack.stackId);
-      console.log('AI playAction: stack', stack.stackId, 'isBusy:', isBusy, 'moving:', stack.moving, 'destroyed:', stack.destroyed, 'immobile:', stack.immobile);
-      const shouldContinue = stack.moving || stack.destroyed || stack.immobile || isBusy;
-      console.log('AI playAction: shouldContinue:', shouldContinue);
-      if (shouldContinue) {
-        console.log('AI playAction: CONTINUE');
+      if (stack.moving || stack.destroyed || stack.immobile || this.anim.isStackBusy(stack.stackId)) {
         continue;
       }
-      console.log('AI playAction: CHECKING TARGET');
       const target = this.bestTarget(state, stack);
       if (target) {
         const result = await this.combat.attackStack(state, stack.stackId, target.stackId);
@@ -77,7 +71,7 @@ export class BattleAiService {
 
     // 3. Move the nearest AI stack toward the nearest enemy.
     for (const stack of aiStacks) {
-      if (stack.moving || stack.destroyed || stack.immobile) {
+      if (stack.moving || stack.destroyed || stack.immobile || this.anim.isStackBusy(stack.stackId)) {
         continue;
       }
       const moved = await this.moveTowardNearestEnemy(state, stack);

@@ -335,7 +335,7 @@ export function getReachableCells(state: BattleModelState, stack: BattleStack): 
   return cells;
 }
 
-function occupiedCols(stack: BattleStack, anchorCol: number): number[] {
+export function occupiedCols(stack: BattleStack, anchorCol: number): number[] {
   const cols: number[] = [];
   const direction = stack.side === 'attacker' ? 1 : -1;
   for (let i = 0; i < stack.size; i++) {

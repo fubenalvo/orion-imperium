@@ -208,14 +208,8 @@ describe('BattleAiService', () => {
   it('returns false when the animation is busy', async () => {
     const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
     const atk = getStacks(state, 'attacker')[0];
-    const aiStacks = state.stacks.filter(s => !s.destroyed && s.side === 'attacker');
-    console.log('Test atk stackId:', atk.stackId);
-    console.log('AI stacks:', aiStacks.map(s => s.stackId));
     anim.begin(atk.stackId);
-    console.log('isStackBusy for atk:', anim.isStackBusy(atk.stackId));
-    console.log('isStackBusy for aiStacks[0]:', anim.isStackBusy(aiStacks[0]?.stackId));
     const result = await ai.playAction(state);
-    console.log('Result:', result);
     expect(result).toBe(false);
     anim.end(atk.stackId);
   });
