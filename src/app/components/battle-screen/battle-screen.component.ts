@@ -32,7 +32,7 @@ import {
   ANIMATION_MS,
 } from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
-import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds, computeCarrierBoostTargets, checkVictory, updateStackPositions, regenerateAllShields, findBestMoveToAttackCell, linePath, occupiedCols, isInBounds, isOccupied } from './battle/battle-grid';
+import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds, computeCarrierBoostTargets, checkVictory, updateStackPositions, regenerateAllShields, findBestMoveToAttackCell, linePath, occupiedCols, isInBounds, isOccupied, occupiesCell, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, vwToStackCell, isPathClear, isInRange } from './battle/battle-grid';
 import { buildBattleOutcome } from './battle/battle-result';
 import { BattleMovementService } from './battle/battle-movement.service';
 import { BattleCombatService } from './battle/battle-combat.service';
@@ -220,7 +220,19 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!this.state || !stack || !this.canPlayerAct) {
       return [];
     }
-    return getReachableCells(this.state, stack);
+    // Return all empty cells in bounds (exclude cells occupied by this stack)
+    const cells: GridCell[] = [];
+    for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
+      for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+        if (occupiesCell(stack, c, r)) continue;
+        const destCols = occupiedCols(stack, c);
+        if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(this.state!, dc, r, stack.stackId))) {
+          continue;
+        }
+        cells.push({ col: c, row: r });
+      }
+    }
+    return cells;
   }
 
   get attackTargetIds(): string[] {
@@ -510,13 +522,16 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     attacker.explicitAttackTargetId = target.stackId;
     attacker.attackCooldownUntil = 0;
 
-    // Find the best cell to move towards the target
-    const bestCell = findBestMoveToAttackCell(this.state, attacker, target);
+    // Get target's effective position: destination if moving, current if stationary
+    const targetPos = this.getEffectiveTargetPosition(target);
+
+    // Find the best cell to move towards the target's effective position
+    const bestCell = this.findBestMoveToAttackCellTowards(this.state, attacker, target, targetPos);
     if (bestCell) {
       await this.movement.moveStack(this.state!, attacker.stackId, bestCell.col, bestCell.row);
     } else {
-      // If no cell gets us in range, move one step towards target
-      const path = linePath({ col: attacker.col, row: attacker.row }, { col: target.col, row: target.row });
+      // If no cell gets us in range, move one step towards target's effective position
+      const path = linePath({ col: attacker.col, row: attacker.row }, targetPos);
       if (path && path.length > 0) {
         const step = path[0];
         const destCols = occupiedCols(attacker, step.col);
@@ -526,6 +541,53 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       }
     }
     this.cdr.detectChanges();
+  }
+
+  /** Get target's effective grid position: destination if moving, current if stationary. */
+  private getEffectiveTargetPosition(target: BattleStack): GridCell {
+    if (target.moving && target.targetX != null && target.targetY != null) {
+      return vwToStackCell(target, target.targetX, target.targetY);
+    }
+    return { col: target.col, row: target.row };
+  }
+
+  /** Find best move-to-attack cell towards a specific target position (not targetStack.col/row). */
+  private findBestMoveToAttackCellTowards(
+    state: BattleModelState,
+    stack: BattleStack,
+    targetStack: BattleStack,
+    targetPos: GridCell,
+  ): GridCell | null {
+    if (stack.destroyed || stack.immobile || targetStack.destroyed) {
+      return null;
+    }
+    const origin: GridCell = { col: stack.col, row: stack.row };
+    const cells: GridCell[] = [];
+    for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
+      for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+        if (c === stack.col && r === stack.row) continue;
+        const destCols = occupiedCols(stack, c);
+        if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) continue;
+        const path = linePath(origin, { col: c, row: r });
+        if (!path || !isPathClear(state, path, stack)) continue;
+        // Check if this cell is in range of the target's effective position
+        if (isInRange({ col: c, row: r }, { ...targetStack, col: targetPos.col, row: targetPos.row }, stack.attackRange)) {
+          cells.push({ col: c, row: r });
+        }
+      }
+    }
+    if (cells.length === 0) return null;
+    return cells.reduce((best, cell) => {
+      const bestDist = Math.max(Math.abs(best.col - origin.col), Math.abs(best.row - origin.row));
+      const cellDist = Math.max(Math.abs(cell.col - origin.col), Math.abs(cell.row - origin.row));
+      if (cellDist < bestDist) return cell;
+      if (cellDist === bestDist) {
+        const bestToTarget = Math.max(Math.abs(best.col - targetPos.col), Math.abs(best.row - targetPos.row));
+        const cellToTarget = Math.max(Math.abs(cell.col - targetPos.col), Math.abs(cell.row - targetPos.row));
+        if (cellToTarget < bestToTarget) return cell;
+      }
+      return best;
+    });
   }
 
   private async doMove(stack: BattleStack, col: number, row: number): Promise<void> {

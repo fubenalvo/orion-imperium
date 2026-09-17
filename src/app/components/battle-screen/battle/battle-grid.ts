@@ -11,6 +11,8 @@ import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW, AI_ACTION_I
  * 1-indexed cells and 4vw cell size.
  */
 
+export { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS };
+
 export function isInBounds(col: number, row: number): boolean {
   return col >= 1 && col <= BATTLE_GRID_COLUMNS && row >= 1 && row <= BATTLE_GRID_ROWS;
 }
