@@ -150,7 +150,7 @@ export class BattleCombatService {
       attacker.firing = false;
       checkVictory(state);
       this.anim.tick();
-    });
+    }, attacker.stackId);
     return true;
   }
 

@@ -86,7 +86,22 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private state: BattleModelState | null = null;
   private ticksSub: Subscription;
 
-  selectedStackId: string | null = null;
+  private _selectedStackId: string | null = null;
+
+  get selectedStackId(): string | null {
+    return this._selectedStackId;
+  }
+
+  set selectedStackId(value: string | null) {
+    // Clear explicit attack target on the previously selected stack
+    if (this._selectedStackId && this.state) {
+      const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
+      if (oldStack) {
+        oldStack.explicitAttackTargetId = null;
+      }
+    }
+    this._selectedStackId = value;
+  }
 
   private pointerX = 0.5;
   private pointerY = 0.5;
@@ -96,7 +111,6 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   private aiTickAccumulator = 0;
   private shieldRegenAccumulator = 0;
-  private autoAttackActive = false;
 
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
@@ -488,6 +502,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!this.state) {
       return;
     }
+    // Move-to-attack command clears explicit attack target
+    attacker.explicitAttackTargetId = null;
     await this.movement.moveToAttack(this.state, attacker.stackId, target.stackId);
     this.cdr.detectChanges();
   }
@@ -496,62 +512,103 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!this.state) {
       return;
     }
+    // Move command clears explicit attack target
+    stack.explicitAttackTargetId = null;
     await this.movement.moveStack(this.state, stack.stackId, col, row);
     this.cdr.detectChanges();
   }
 
-  private async autoAttack(attacker: BattleStack): Promise<void> {
-    if (!this.state) {
-      return;
+  /* Single auto-attack attempt for a player-controlled stack.
+   * Returns true if an attack was initiated, false otherwise.
+   * Called from game loop for all player stacks. */
+  private async tryAutoAttack(attacker: BattleStack): Promise<boolean> {
+    if (!this.state || this.state.winner) {
+      return false;
     }
-    if (this.selectedStackId !== attacker.stackId) {
-      return;
+    // Only player-controlled stacks auto-attack
+    if (!isSidePlayerControlled(this.state, attacker.side)) {
+      return false;
     }
-    if (this.state.winner) {
-      return;
+    if (attacker.destroyed || attacker.moving) {
+      return false;
+    }
+    // Per-stack fire-rate cooldown
+    const now = performance.now();
+    if (attacker.attackCooldownUntil && attacker.attackCooldownUntil > now) {
+      return false;
+    }
+    // Per-stack animation lock: don't start new attack if this stack is already animating
+    if (this.anim.isStackBusy(attacker.stackId)) {
+      return false;
     }
 
-    const targets = computeAttackTargetIds(this.state, attacker);
-    if (targets.length === 0) {
-      return;
+    // Check explicit attack target
+    let targetStack: BattleStack | undefined;
+    const explicitTargetId = attacker.explicitAttackTargetId;
+
+    if (explicitTargetId) {
+      targetStack = this.state.stacks.find((s) => s.stackId === explicitTargetId);
+      const inRange = targetStack
+        && !targetStack.destroyed
+        && targetStack.side !== attacker.side
+        && computeAttackTargetIds(this.state, attacker).includes(targetStack.stackId);
+
+      if (!inRange) {
+        attacker.explicitAttackTargetId = null;
+        targetStack = undefined;
+      }
     }
 
-    const targetStack = this.state.stacks.find((s) => s.stackId === targets[0]);
+    // Normal auto-attack target selection
     if (!targetStack) {
-      return;
+      const targets = computeAttackTargetIds(this.state, attacker);
+      if (targets.length === 0) {
+        return false;
+      }
+      targetStack = this.state.stacks.find((s) => s.stackId === targets[0]);
+      if (!targetStack) {
+        return false;
+      }
     }
 
-    const success = await this.combat.attackStack(this.state, attacker.stackId, targets[0]);
+    // Initiate attack
+    const success = await this.combat.attackStack(this.state, attacker.stackId, targetStack.stackId);
     if (!success) {
-      return;
+      return false;
     }
     this.cdr.detectChanges();
 
-    // Fire-rate cooldown: ensure minimum interval between volleys.
+    // Set per-stack cooldown for next attack
     const fireRate = attacker.fireRate ?? 1.5;
     const fireRateMs = (1 / fireRate) * 1000;
-    const animDuration = targetStack.destroyed
-      ? ANIMATION_MS.projectile + ANIMATION_MS.explosion
-      : ANIMATION_MS.projectile + ANIMATION_MS.hit;
-    const cooldownMs = Math.max(0, fireRateMs - animDuration);
-    if (cooldownMs > 0) {
-      await this.anim.wait(cooldownMs);
+    attacker.attackCooldownUntil = now + fireRateMs;
+
+    // If explicit target was destroyed, clear it
+    if (explicitTargetId && targetStack.destroyed) {
+      attacker.explicitAttackTargetId = null;
     }
 
-    await this.autoAttack(attacker);
+    return true;
   }
 
   private async doAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
-    if (!this.state || this.autoAttackActive) {
+    if (!this.state) {
       return;
     }
-    this.autoAttackActive = true;
-    try {
-      await this.combat.attackStack(this.state, attacker.stackId, target.stackId);
-      this.cdr.detectChanges();
-      await this.autoAttack(attacker);
-    } finally {
-      this.autoAttackActive = false;
+    // Set explicit attack target - overrides auto-attack until target destroyed or new command
+    attacker.explicitAttackTargetId = target.stackId;
+    // Clear cooldown so explicit attack fires immediately
+    attacker.attackCooldownUntil = 0;
+    // Fire explicit attack immediately (bypasses game loop cooldown)
+    await this.combat.attackStack(this.state, attacker.stackId, target.stackId);
+    this.cdr.detectChanges();
+
+    // Don't set cooldown here - let game loop auto-attack handle rate limiting
+    // The animation busy lock naturally prevents immediate re-attack
+
+    // If explicit target was destroyed, clear it
+    if (target.destroyed) {
+      attacker.explicitAttackTargetId = null;
     }
   }
 
@@ -574,12 +631,25 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       updateStackPositions(this.state, deltaTime);
     }
 
-    // 2. AI tick: one action every AI_ACTION_INTERVAL_MS when not busy.
+    // 2. AI tick: one action every AI_ACTION_INTERVAL_MS.
+    // AI service internally checks per-stack animation locks.
     if (!this.state.winner) {
       this.aiTickAccumulator += deltaTime * 1000;
-      if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS && !this.anim.isBusy) {
+      if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS) {
         this.aiTickAccumulator = 0;
         void this.ai.playAction(this.state);
+      }
+    }
+
+    // 2b. Player auto-attack: attempt attack for all player-controlled stacks.
+    // Runs every frame; per-stack cooldown prevents over-attacking.
+    if (!this.state.winner) {
+      const state = this.state!; // non-null after winner check
+      const playerStacks = state.stacks.filter(
+        (s) => !s.destroyed && !s.moving && isSidePlayerControlled(state, s.side)
+      );
+      for (const stack of playerStacks) {
+        void this.tryAutoAttack(stack);
       }
     }
 

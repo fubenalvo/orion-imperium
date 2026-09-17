@@ -40,17 +40,23 @@ export class BattleAiService {
    * false if no action was possible (all stacks moving, no targets, etc).
    */
   async playAction(state: BattleModelState): Promise<boolean> {
-    if (state.winner || this.anim.isBusy) {
+    if (state.winner) {
       return false;
     }
 
     const aiStacks = this.getAiStacks(state);
 
-    // 1. Attack with the first stack that has an in-range enemy target.
+    // 1. Attack with the first stack that has an in-range enemy target and is not animating.
     for (const stack of aiStacks) {
-      if (stack.moving || stack.destroyed || stack.immobile) {
+      const isBusy = this.anim.isStackBusy(stack.stackId);
+      console.log('AI playAction: stack', stack.stackId, 'isBusy:', isBusy, 'moving:', stack.moving, 'destroyed:', stack.destroyed, 'immobile:', stack.immobile);
+      const shouldContinue = stack.moving || stack.destroyed || stack.immobile || isBusy;
+      console.log('AI playAction: shouldContinue:', shouldContinue);
+      if (shouldContinue) {
+        console.log('AI playAction: CONTINUE');
         continue;
       }
+      console.log('AI playAction: CHECKING TARGET');
       const target = this.bestTarget(state, stack);
       if (target) {
         const result = await this.combat.attackStack(state, stack.stackId, target.stackId);

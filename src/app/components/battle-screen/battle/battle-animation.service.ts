@@ -6,20 +6,15 @@ import { Subject } from 'rxjs';
  * BATTLE MINIGAME — ANIMATION LOCK SERVICE
  * =========================================================
  *
- * Single source of truth for "is an animation in flight?". Every visual
- * sequence runs through run()/wait(), and the busy flag gates:
- *   - the END TURN button
- *   - all movement / attack / selection input
- *   - AI turn progression
- *
- * ticks$ emits after every state mutation that happens mid-animation
- * (effect phase changes, damage application) so the view can re-render
- * projectile / impact / explosion stages without polling.
+ * Tracks animation state per stack to allow concurrent animations
+ * for different stacks (e.g., AI and player can attack simultaneously).
+ * Global busy flag still exists for UI gating (END TURN button).
  */
 
 @Injectable({ providedIn: 'root' })
 export class BattleAnimationService {
   private activeCount = 0;
+  private stackActiveCount = new Map<string, number>();
 
   readonly busy = signal(false);
   readonly ticks$ = new Subject<void>();
@@ -28,22 +23,39 @@ export class BattleAnimationService {
     return this.activeCount > 0;
   }
 
-  begin(): void {
-    this.activeCount++;
-    this.busy.set(true);
+  /** Check if a specific stack has an active animation. */
+  isStackBusy(stackId: string): boolean {
+    return (this.stackActiveCount.get(stackId) ?? 0) > 0;
   }
 
-  end(): void {
+  begin(stackId?: string): void {
+    this.activeCount++;
+    this.busy.set(true);
+    if (stackId) {
+      const count = (this.stackActiveCount.get(stackId) ?? 0) + 1;
+      this.stackActiveCount.set(stackId, count);
+    }
+  }
+
+  end(stackId?: string): void {
     this.activeCount = Math.max(0, this.activeCount - 1);
     this.busy.set(this.activeCount > 0);
+    if (stackId) {
+      const count = Math.max(0, (this.stackActiveCount.get(stackId) ?? 1) - 1);
+      if (count === 0) {
+        this.stackActiveCount.delete(stackId);
+      } else {
+        this.stackActiveCount.set(stackId, count);
+      }
+    }
   }
 
   /* Wraps an animation sequence, guaranteeing begin/end balance even on failure. */
-  run<T>(fn: () => Promise<T>): Promise<T> {
-    this.begin();
+  run<T>(fn: () => Promise<T>, stackId?: string): Promise<T> {
+    this.begin(stackId);
     return Promise.resolve()
       .then(fn)
-      .finally(() => this.end());
+      .finally(() => this.end(stackId));
   }
 
   /* Duration-matched wait. Deterministic under vi.useFakeTimers(). */
@@ -59,6 +71,7 @@ export class BattleAnimationService {
   /* Hard reset for component destroy / battle end. */
   reset(): void {
     this.activeCount = 0;
+    this.stackActiveCount.clear();
     this.busy.set(false);
   }
 }

@@ -119,6 +119,14 @@ export interface BattleStack {
   targetY: number | null;
   /* Shots per second (from ship-data.json fireRate). */
   fireRate: number;
+
+  /* Explicit attack target set by player command. Overrides auto-attack target selection.
+   * When set, the stack will ONLY attack this target until it's destroyed or player gives new command. */
+  explicitAttackTargetId?: string | null;
+
+  /* Timestamp (ms, from performance.now()) when this stack can attack again.
+   * Used for fire-rate cooldown between volleys in auto-attack. */
+  attackCooldownUntil?: number;
 }
 
 /* Visual effect active during an attack animation. Only one animation
