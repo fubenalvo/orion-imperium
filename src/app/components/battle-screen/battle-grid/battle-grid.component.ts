@@ -41,6 +41,7 @@ export class BattleGridComponent {
   @Input() effect: BattleAttackEffect | null = null;
   @Input() canSelect = true;
   @Input() connectionLine: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
+  @Input() attackConnectionLine: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   /* Faction colors per side, passed from the orchestrator. Used only for
    * subtle per-stack tinting (background wash, count text, hull bar) so each
    * stack reads as belonging to its faction without fighting the existing
@@ -182,6 +183,23 @@ export class BattleGridComponent {
     }
     const from = this.connectionLine.from;
     const to = this.connectionLine.to;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.sqrt(dx * dx + dy * dy);
+    if (length < 0.01) {
+      return null;
+    }
+    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+    return { x: from.x, y: from.y, length, angleDeg };
+  }
+
+  /* Connection line from selected stack to its attack target. */
+  getAttackConnectionLine(): { x: number; y: number; length: number; angleDeg: number } | null {
+    if (!this.attackConnectionLine) {
+      return null;
+    }
+    const from = this.attackConnectionLine.from;
+    const to = this.attackConnectionLine.to;
     const dx = to.x - from.x;
     const dy = to.y - from.y;
     const length = Math.sqrt(dx * dx + dy * dy);

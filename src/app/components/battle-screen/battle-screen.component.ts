@@ -528,19 +528,38 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return stack && this.state ? computeCarrierBoostTargets(this.state, stack) : [];
   }
 
-  /* Connection line from selected stack to its move-to-attack target.
-   * Returns null when no stack is selected, not moving to a target,
-   * or the target is missing/destroyed. */
-  get connectionLine(): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+  /* Move line from selected stack to its move target.
+   * Returns null when no stack is selected or not moving. */
+  get moveConnectionLine(): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
     if (!this.state || !this.selectedStackId) {
       return null;
     }
     const stack = this.selectedStack();
-    if (!stack || !stack.moving || !stack.moveToAttackTargetId) {
+    if (!stack || !stack.moving || stack.targetX == null || stack.targetY == null) {
+      return null;
+    }
+    return {
+      from: { x: stack.x ?? 0, y: stack.y ?? 0 },
+      to: { x: stack.targetX, y: stack.targetY },
+    };
+  }
+
+  /* Attack line from selected stack to its attack target.
+   * Returns null when no stack is selected or no attack target. */
+  get attackConnectionLine(): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+    if (!this.state || !this.selectedStackId) {
+      return null;
+    }
+    const stack = this.selectedStack();
+    if (!stack) {
+      return null;
+    }
+    const targetId = stack.explicitAttackTargetId || stack.moveToAttackTargetId;
+    if (!targetId) {
       return null;
     }
     const target = this.state.stacks.find(
-      (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
+      (s) => !s.destroyed && s.stackId === targetId,
     );
     if (!target) {
       return null;

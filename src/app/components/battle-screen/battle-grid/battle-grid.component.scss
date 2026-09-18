@@ -342,6 +342,11 @@
   transform: rotate(var(--connection-angle, 0deg));
 }
 
+.connection-line.attack {
+  background-color: #d65757;
+  box-shadow: 0 0 4px rgba(214, 87, 87, 0.6);
+}
+
 /* =========================================================
     ATTACK EFFECTS
     ========================================================= */

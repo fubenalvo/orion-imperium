@@ -16,10 +16,21 @@
     ></div>
   }
 
-  <!-- CONNECTION LINE (selected stack → move-to-attack target) -->
+  <!-- CONNECTION LINE (selected stack → move target) -->
   @if (getConnectionLine(); as line) {
     <div
       class="connection-line"
+      [style.left]="line.x + 'vw'"
+      [style.top]="line.y + 'vw'"
+      [style.width]="line.length + 'vw'"
+      [style.--connection-angle]="line.angleDeg + 'deg'"
+    ></div>
+  }
+
+  <!-- ATTACK LINE (selected stack → attack target) -->
+  @if (getAttackConnectionLine(); as line) {
+    <div
+      class="connection-line attack"
       [style.left]="line.x + 'vw'"
       [style.top]="line.y + 'vw'"
       [style.width]="line.length + 'vw'"

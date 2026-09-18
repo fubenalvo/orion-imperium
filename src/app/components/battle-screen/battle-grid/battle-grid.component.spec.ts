@@ -125,4 +125,55 @@ describe('BattleGridComponent', () => {
 
     expect(fixture.nativeElement.querySelector('.connection-line')).toBeNull();
   });
+
+  it('getAttackConnectionLine returns null when no attackConnectionLine input', () => {
+    expect(component.getAttackConnectionLine()).toBeNull();
+  });
+
+  it('getAttackConnectionLine returns line geometry when attackConnectionLine is provided', () => {
+    fixture.componentRef.setInput('attackConnectionLine', {
+      from: { x: 4, y: 14 },
+      to: { x: 20, y: 14 },
+    });
+    fixture.detectChanges();
+
+    const line = component.getAttackConnectionLine();
+    expect(line).not.toBeNull();
+    expect(line!.x).toBe(4);
+    expect(line!.y).toBe(14);
+    expect(line!.length).toBe(16);
+    expect(line!.angleDeg).toBe(0);
+  });
+
+  it('getAttackConnectionLine returns null when attackConnectionLine length is too short', () => {
+    fixture.componentRef.setInput('attackConnectionLine', {
+      from: { x: 4, y: 14 },
+      to: { x: 4.001, y: 14 },
+    });
+    fixture.detectChanges();
+
+    expect(component.getAttackConnectionLine()).toBeNull();
+  });
+
+  it('renders attack connection-line div when attackConnectionLine input is set', () => {
+    fixture.componentRef.setInput('attackConnectionLine', {
+      from: { x: 4, y: 14 },
+      to: { x: 20, y: 14 },
+    });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement.querySelector('.connection-line.attack') as HTMLElement;
+    expect(el).toBeTruthy();
+    expect(el.style.left).toBe('4vw');
+    expect(el.style.top).toBe('14vw');
+    expect(el.style.width).toBe('16vw');
+    expect(el.style.getPropertyValue('--connection-angle')).toBe('0deg');
+  });
+
+  it('does not render attack connection-line div when attackConnectionLine is null', () => {
+    fixture.componentRef.setInput('attackConnectionLine', null);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.connection-line.attack')).toBeNull();
+  });
 });
