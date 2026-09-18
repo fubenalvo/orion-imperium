@@ -36,7 +36,7 @@ export class BattleMovementService {
     targetRow: number,
   ): Promise<boolean> {
     const stack = state.stacks.find((s) => s.stackId === stackId && !s.destroyed);
-    if (!stack || state.winner || stack.moving || stack.immobile) {
+    if (!stack || state.winner || stack.immobile) {
       return false;
     }
 
@@ -74,7 +74,7 @@ export class BattleMovementService {
   ): Promise<boolean> {
     const stack = state.stacks.find((s) => s.stackId === stackId && !s.destroyed);
     const target = state.stacks.find((s) => s.stackId === targetStackId && !s.destroyed);
-    if (!stack || !target || state.winner || stack.moving || stack.immobile) {
+    if (!stack || !target || state.winner || stack.immobile) {
       return false;
     }
     if (stack.side === target.side) {

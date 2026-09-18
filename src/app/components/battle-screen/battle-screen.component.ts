@@ -210,12 +210,12 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       return false;
     }
     const stack = this.selectedStack();
-    return !!stack && !stack.moving && !stack.destroyed;
+    return !!stack && !stack.destroyed;
   }
 
   get moveCells(): GridCell[] {
     const stack = this.selectedStack();
-    if (!this.state || !stack || !this.canPlayerAct) {
+    if (!this.state || !stack || !stack.destroyed) {
       return [];
     }
     // Return all empty cells in bounds (exclude cells occupied by this stack).
@@ -388,21 +388,25 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     // Player can only control stacks on their own side (determined per-stack).
     if (isSidePlayerControlled(this.state, stack.side)) {
       // Own stack: select it to reveal movement / attack options.
-      if (!stack.moving) {
-        // Clear explicit attack target on the previously selected stack
-        if (this._selectedStackId && this.state) {
-          const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
-          if (oldStack) {
-            oldStack.explicitAttackTargetId = null;
-          }
+      // Selection works even while moving — commands can be redirected at any time.
+      if (this._selectedStackId && this.state) {
+        const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
+        if (oldStack) {
+          oldStack.explicitAttackTargetId = null;
         }
-        this._selectedStackId = stack.stackId;
       }
+      this._selectedStackId = stack.stackId;
       return;
     }
     // Enemy stack: attack it if the selected stack can.
     const selected = this.selectedStack();
-    if (!selected || selected.moving) {
+    if (!selected) {
+      return;
+    }
+    // If currently moving, redirect movement towards the enemy instead of attacking directly
+    // (direct attacks require a stationary position per combat rules).
+    if (selected.moving) {
+      void this.moveTowardsAndAttack(selected, stack);
       return;
     }
     // Direct attack
