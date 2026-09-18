@@ -138,6 +138,21 @@ otherwise keep ticking in the background during the battle. That behaviour made
 fleets and resources appear to "reset" on return and could even cascade into
 additional battles firing while the player was still fighting the first one.
 
+## Battle-Local Time (`BattleTimeService`)
+
+The battle minigame has its own independent time control system (`BattleTimeService`)
+with pause/1x/2x buttons in the battle header. It is a separate instance from
+`GameTimeService` and does not affect the global simulation time.
+
+**Key Differences from `GameTimeService`:**
+- Frame-driven wait scheduler (`wait(ms)` resolved by `onTick()` calls) — no `setTimeout`
+- Root-provided singleton, reset between battles in `ngOnInit`/`ngOnDestroy`
+- Accumulates `battleElapsedTime` independently of global `gameElapsedTime`
+- Player commands queue FIFO when paused; invalid commands discarded
+- Selection remains available while paused
+
+See [Battle Screen](./battle-screen.md#battle-local-time-controls) for full details.
+
 ## Initialization and Reset
 
 - On game start (new game via MainMenu): `GameTimeService.reset()` is called.

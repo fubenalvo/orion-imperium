@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { Subject } from 'rxjs';
+import { BattleTimeService } from './battle-time.service';
 
 /*
  * =========================================================
@@ -8,17 +9,22 @@ import { Subject } from 'rxjs';
  *
  * Tracks animation state per stack to allow concurrent animations
  * for different stacks (e.g., AI and player can attack simultaneously).
- * Global busy flag still exists for UI gating (END TURN button).
+ * Global busy flag still exists for UI gating.
+ *
+ * Animation waits are driven by BattleTimeService's frame-driven scheduler,
+ * so they respect battle pause/speed controls.
  */
 
 @Injectable({ providedIn: 'root' })
 export class BattleAnimationService {
   private activeCount = 0;
   private stackActiveCount = new Map<string, number>();
-  private timerIds = new Set<number>();
+  private animationWaiters: Array<() => void> = [];
 
   readonly busy = signal(false);
   readonly ticks$ = new Subject<void>();
+
+  constructor(private time: BattleTimeService) {}
 
   get isBusy(): boolean {
     return this.activeCount > 0;
@@ -49,6 +55,9 @@ export class BattleAnimationService {
         this.stackActiveCount.set(stackId, count);
       }
     }
+    if (this.activeCount === 0) {
+      this.resolveAnimationWaiters();
+    }
   }
 
   /* Wraps an animation sequence, guaranteeing begin/end balance even on failure. */
@@ -59,20 +68,23 @@ export class BattleAnimationService {
       .finally(() => this.end(stackId));
   }
 
-  /* Duration-matched wait. Deterministic under vi.useFakeTimers(). */
+  /* Duration-matched wait using BattleTimeService's frame-driven scheduler. */
   wait(ms: number): Promise<void> {
+    return this.time.wait(ms);
+  }
+
+  waitForAnimation(): Promise<void> {
+    if (!this.isBusy) {
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
-      const id = window.setTimeout(resolve, ms);
-      this.timerIds.add(id);
+      this.animationWaiters.push(resolve);
     });
   }
 
-  /* Cancel all pending timer callbacks from wait(). */
-  cancelPendingTimers(): void {
-    for (const id of this.timerIds) {
-      clearTimeout(id);
-    }
-    this.timerIds.clear();
+  /* Cancel all pending frame-driven waits. */
+  cancelPendingWaits(): void {
+    this.time.cancelPendingWaits();
   }
 
   /* Notify the view that mid-animation state changed. */
@@ -82,9 +94,17 @@ export class BattleAnimationService {
 
   /* Hard reset for component destroy / battle end. */
   reset(): void {
-    this.cancelPendingTimers();
+    this.cancelPendingWaits();
     this.activeCount = 0;
     this.stackActiveCount.clear();
+    this.resolveAnimationWaiters();
     this.busy.set(false);
+  }
+
+  private resolveAnimationWaiters(): void {
+    const waiters = this.animationWaiters.splice(0, this.animationWaiters.length);
+    for (const resolve of waiters) {
+      resolve();
+    }
   }
 }

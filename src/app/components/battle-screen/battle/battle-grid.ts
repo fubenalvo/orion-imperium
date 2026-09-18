@@ -299,11 +299,11 @@ export function regenerateAllShields(state: BattleModelState): void {
 
 /*
  * Update all stacks' positions toward their targets.
- * Called every frame by the game loop with real delta time (seconds).
+ * Called every frame by the game loop with scaled delta time (seconds).
  * Moves stacks at speed vw/s toward targetX/targetY.
  * When a stack reaches its target, snaps position and updates col/row.
  */
-export function updateStackPositions(state: BattleModelState, deltaTime: number): void {
+export function updateStackPositions(state: BattleModelState, deltaTime: number, onComplete?: (stackId: string) => void): void {
   for (const stack of state.stacks) {
     if (stack.destroyed || stack.targetX == null || stack.targetY == null) continue;
     const dx = stack.targetX - stack.x;
@@ -317,7 +317,11 @@ export function updateStackPositions(state: BattleModelState, deltaTime: number)
       const cell = vwToStackCell(stack, stack.x, stack.y);
       stack.col = cell.col;
       stack.row = cell.row;
+      const wasMoving = stack.moving;
       stack.moving = false;
+      if (wasMoving && onComplete) {
+        onComplete(stack.stackId);
+      }
     } else {
       const step = Math.min(stack.speed * deltaTime, dist);
       stack.x += (dx / dist) * step;

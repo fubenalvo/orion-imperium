@@ -8,6 +8,34 @@
   @if (battleState; as state) {
     <div class="battle-screen__header">
       <h1 class="battle-screen__title">TACTICAL BATTLE</h1>
+      <div class="battle-screen__time-controls">
+        <button
+          class="battle-time-btn"
+          [class.battle-time-btn--active]="battlePaused"
+          (click)="toggleBattlePause()"
+          aria-label="Pause / Resume"
+        >
+          ⏸
+        </button>
+        <button
+          class="battle-time-btn"
+          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 1"
+          [class.battle-time-btn--dimmed]="battlePaused"
+          (click)="setBattleSpeed(1)"
+          aria-label="1x speed"
+        >
+          1x
+        </button>
+        <button
+          class="battle-time-btn"
+          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 2"
+          [class.battle-time-btn--dimmed]="battlePaused"
+          (click)="setBattleSpeed(2)"
+          aria-label="2x speed"
+        >
+          2x
+        </button>
+      </div>
       @if (planetShield; as shield) {
         <div class="battle-screen__planet-shield">
           <span class="battle-screen__planet-shield-label">PLANET SHIELD</span>

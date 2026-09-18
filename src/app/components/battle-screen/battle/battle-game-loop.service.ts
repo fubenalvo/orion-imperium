@@ -1,4 +1,5 @@
 import { Injectable, NgZone } from '@angular/core';
+import { BattleTimeService } from './battle-time.service';
 
 /*
  * =========================================================
@@ -8,12 +9,10 @@ import { Injectable, NgZone } from '@angular/core';
  * Manages the requestAnimationFrame game loop for the battle minigame.
  * Runs outside Angular zone to avoid unnecessary change detection.
  *
- * Unlike StarMapGameLoopService, this does NOT delegate to GameTimeService
- * for delta scaling — the battle minigame pauses GameTimeService entirely
- * (gameTimeService.pause()), so getScaledDeltaTime would return 0.
- * The battle loop always runs at real-time speed.
+ * Uses BattleTimeService for delta scaling and pause control.
+ * The update callback receives the scaled delta time (real delta * speed),
+ * which is 0 when paused.
  *
- * The update callback receives the raw real delta time (clamped to 0.1s).
  * Change detection is the responsibility of the caller — the battle screen
  * component triggers it via BattleAnimationService.ticks$ on each tick.
  */
@@ -23,7 +22,10 @@ export class BattleGameLoopService {
   private animationFrameId: number | null = null;
   private lastFrameTime = 0;
 
-  constructor(private ngZone: NgZone) {}
+  constructor(
+    private ngZone: NgZone,
+    private time: BattleTimeService,
+  ) {}
 
   /*
    * startGameLoop: Begins the game loop. Must be called after view init.
@@ -46,7 +48,8 @@ export class BattleGameLoopService {
     const realDeltaTime = Math.min((time - this.lastFrameTime) / 1000, 0.1);
     this.lastFrameTime = time;
 
-    updateCallback(realDeltaTime);
+    this.time.onTick(realDeltaTime);
+    updateCallback(this.time.getScaledDeltaTime(realDeltaTime));
 
     this.ngZone.runOutsideAngular(() => {
       this.animationFrameId = requestAnimationFrame((nextTime) =>

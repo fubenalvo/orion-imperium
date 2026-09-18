@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BattleModelState, GridCell, BATTLE_CELL_SIZE_VW } from './battle.types';
+import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_SIZE_VW } from './battle.types';
 import {
   isInBounds,
   isPathClear,
@@ -35,6 +35,8 @@ export class BattleMovementService {
     private combat: BattleCombatService,
   ) {}
 
+  private readonly movementWaiters = new Map<string, Array<() => void>>();
+
   async moveStack(
     state: BattleModelState,
     stackId: string,
@@ -61,6 +63,7 @@ export class BattleMovementService {
     }
 
     // Set target to the visual centre of the destination cell.
+    this.resolveMovementWaiters(stackId);
     const targetVw = cellCenterVw(target, stack);
     stack.targetX = targetVw.x;
     stack.targetY = targetVw.y;
@@ -103,6 +106,27 @@ export class BattleMovementService {
     return moved;
   }
 
+  waitForMovement(stack: BattleStack): Promise<void> {
+    if (!stack.moving || stack.targetX == null || stack.targetY == null) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const waiters = this.movementWaiters.get(stack.stackId) ?? [];
+      waiters.push(resolve);
+      this.movementWaiters.set(stack.stackId, waiters);
+    });
+  }
+
+  completeMovement(stackId: string): void {
+    this.resolveMovementWaiters(stackId);
+  }
+
+  cancelPendingMovementWaits(): void {
+    for (const stackId of this.movementWaiters.keys()) {
+      this.resolveMovementWaiters(stackId);
+    }
+  }
+
   /*
    * Periodic re-computation of move-to-attack destinations.
    * Called every MOVE_TO_ATTACK_UPDATE_INTERVAL_MS by the game loop.
@@ -124,6 +148,7 @@ export class BattleMovementService {
         stack.moving = false;
         stack.targetX = null;
         stack.targetY = null;
+        this.completeMovement(stack.stackId);
         continue;
       }
       // Target already in range — stop moving, let caller handle attack.
@@ -132,6 +157,7 @@ export class BattleMovementService {
         stack.moving = false;
         stack.targetX = null;
         stack.targetY = null;
+        this.completeMovement(stack.stackId);
         continue;
       }
       const bestCell = findBestMoveToAttackCell(state, stack, target);
@@ -140,11 +166,19 @@ export class BattleMovementService {
         stack.moving = false;
         stack.targetX = null;
         stack.targetY = null;
+        this.completeMovement(stack.stackId);
         continue;
       }
       const targetVw = cellCenterVw(bestCell, stack);
       stack.targetX = targetVw.x;
       stack.targetY = targetVw.y;
+    }
+  }
+  private resolveMovementWaiters(stackId: string): void {
+    const waiters = this.movementWaiters.get(stackId) ?? [];
+    this.movementWaiters.delete(stackId);
+    for (const resolve of waiters) {
+      resolve();
     }
   }
 }

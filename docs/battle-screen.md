@@ -460,6 +460,68 @@ saveGame();  // Persists to AUTOSAVE
 
 ---
 
+## Battle-Local Time Controls
+
+The battle minigame has its own independent time control system (`BattleTimeService`) with pause/1x/2x buttons in the battle header, mirroring the Star Map header. The global `GameTimeService` remains paused while on `/battle` and is not affected by battle controls.
+
+**API (`BattleTimeService`):**
+```typescript
+type BattleSpeed = 1 | 2;
+
+state$: BehaviorSubject<{ speed: BattleSpeed; isPaused: boolean; battleElapsedTime: number }>
+
+get speed(): BattleSpeed          // 1 or 2
+get isPaused(): boolean
+get battleElapsedTime(): number   // accumulated simulation seconds
+get battleElapsedMs(): number     // battleElapsedTime * 1000
+
+setSpeed(speed: BattleSpeed): void   // sets speed, un-pauses
+pause(): void                        // freezes simulation, preserves speed
+resume(): void                       // un-pauses, preserves speed
+togglePause(): void                  // flips pause state
+
+getScaledDeltaTime(realDeltaTime: number): number  // 0 if paused, else realDelta * speed
+onTick(realDeltaTime: number): void                // accumulates battleElapsedTime, advances frame-driven waits
+reset(): void                                      // speed=1, isPaused=false, elapsed=0, cancels pending waits
+```
+
+**Frame-Driven Wait Scheduler:**
+- `BattleTimeService.wait(durationMs)` returns a Promise resolved by the frame-driven scheduler
+- `onTick()` advances all pending waits by the scaled delta time
+- Works with pause/speed: waits don't advance when paused, advance 2× at 2× speed
+- No `setTimeout`/`setInterval` — deterministic under test by calling `onTick()`
+
+**What Is Affected by Battle Time:**
+| System | Affected? | Notes |
+|--------|-----------|-------|
+| Stack movement | Yes | `updateStackPositions` receives scaled delta |
+| AI action ticks | Yes | Accumulator uses scaled delta |
+| Shield regeneration | Yes | Accumulator uses scaled delta |
+| Move-to-attack re-evaluation | Yes | Accumulator uses scaled delta |
+| Attack cooldowns | Yes | Stored as battle-elapsed ms, frozen when paused |
+| Animation waits (`anim.wait()`) | Yes | Delegates to `BattleTimeService.wait()` |
+
+**What Is NOT Affected by Battle Time:**
+| System | Reason |
+|--------|--------|
+| Global `GameTimeService` | Remains paused; battle controls don't modify it |
+| `moveFailedUntil` hint | Wall-clock `performance.now()` for UI feedback |
+| CSS animations | Background starfield, sensor pulse — pure CSS |
+
+**Command Queue:**
+- Player commands (move, attack, move-to-attack, carrier boost) are queued FIFO when battle is paused or another command is running
+- Invalid commands (dead target, invalid move) are discarded without blocking the queue
+- On resume/speed change, queued commands drain sequentially
+- Selection remains available while paused
+
+**Header Controls:**
+Three buttons in battle header:
+- **⏸** — `battleTime.togglePause()`; active when paused
+- **1x** — `battleTime.setSpeed(1)`; active when `speed===1 && !paused`; dimmed when paused
+- **2x** — `battleTime.setSpeed(2)`; active when `speed===2 && !paused`; dimmed when paused
+
+---
+
 ## Control Summary (Player)
 
 | Action | How | Requirements |
