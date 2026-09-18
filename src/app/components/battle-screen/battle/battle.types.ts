@@ -92,7 +92,8 @@ export interface FleetShip {
  *
  * Real-time movement uses vw coordinates (x/y) and speed (vw/s).
  * Grid cells (col/row) are updated when a stack reaches its target,
- * and are used for combat range/pathing checks.
+ * and are used for movement, pathing, occupancy, and click cells.
+ * Combat range uses the stacks' current absolute x/y positions.
  */
 export interface BattleStack {
   stackId: string;

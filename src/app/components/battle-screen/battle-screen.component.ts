@@ -32,7 +32,23 @@ import {
   ANIMATION_MS,
 } from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
-import { getAttackTargetIds as computeAttackTargetIds, getReachableCells, getMoveToAttackTargetIds, computeCarrierBoostTargets, checkVictory, updateStackPositions, regenerateAllShields, findBestMoveToAttackCell, linePath, occupiedCols, isInBounds, isOccupied, occupiesCell, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, vwToStackCell, isPathClear, isInRange } from './battle/battle-grid';
+import {
+  getAttackTargetIds as computeAttackTargetIds,
+  getReachableCells,
+  getMoveToAttackTargetIds,
+  computeCarrierBoostTargets,
+  checkVictory,
+  updateStackPositions,
+  regenerateAllShields,
+  linePath,
+  occupiedCols,
+  isInBounds,
+  isOccupied,
+  occupiesCell,
+  BATTLE_GRID_COLUMNS,
+  BATTLE_GRID_ROWS,
+  isPathClear,
+} from './battle/battle-grid';
 import { buildBattleOutcome } from './battle/battle-result';
 import { BattleMovementService } from './battle/battle-movement.service';
 import { BattleCombatService } from './battle/battle-combat.service';
@@ -95,6 +111,12 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   set selectedStackId(value: string | null) {
     if (value === this._selectedStackId) {
       return;
+    }
+    if (value === null && this._selectedStackId && this.state) {
+      const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
+      if (oldStack) {
+        oldStack.explicitAttackTargetId = null;
+      }
     }
     this._selectedStackId = value;
   }
@@ -398,23 +420,16 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       this._selectedStackId = stack.stackId;
       return;
     }
-    // Enemy stack: attack it if the selected stack can.
+    // Enemy stack: attack it immediately when it is in absolute range.
     const selected = this.selectedStack();
     if (!selected) {
       return;
     }
-    // If currently moving, redirect movement towards the enemy instead of attacking directly
-    // (direct attacks require a stationary position per combat rules).
-    if (selected.moving) {
-      void this.moveTowardsAndAttack(selected, stack);
-      return;
-    }
-    // Direct attack
     if (computeAttackTargetIds(this.state, selected).includes(stack.stackId)) {
       void this.doAttack(selected, stack);
       return;
     }
-    // Move towards enemy and attack when in range (any distance)
+    // Otherwise move towards the enemy and attack when in range.
     void this.moveTowardsAndAttack(selected, stack);
   }
 
@@ -541,76 +556,11 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private async moveTowardsAndAttack(attacker: BattleStack, target: BattleStack): Promise<void> {
     if (!this.state) return;
 
-    // Set explicit attack target so auto-attack will prioritize this enemy
+    // Set explicit attack target so auto-attack will prioritize this enemy.
     attacker.explicitAttackTargetId = target.stackId;
     attacker.attackCooldownUntil = 0;
-
-    // Get target's effective position: destination if moving, current if stationary
-    const targetPos = this.getEffectiveTargetPosition(target);
-
-    // Find the best cell to move towards the target's effective position
-    const bestCell = this.findBestMoveToAttackCellTowards(this.state, attacker, target, targetPos);
-    if (bestCell) {
-      await this.movement.moveStack(this.state!, attacker.stackId, bestCell.col, bestCell.row);
-    } else {
-      // If no cell gets us in range, move one step towards target's effective position
-      const path = linePath({ col: attacker.col, row: attacker.row }, targetPos);
-      if (path && path.length > 0) {
-        const step = path[0];
-        const destCols = occupiedCols(attacker, step.col);
-        if (!destCols.some((dc: number) => !isInBounds(dc, step.row) || isOccupied(this.state!, dc, step.row, attacker.stackId))) {
-          await this.movement.moveStack(this.state!, attacker.stackId, step.col, step.row);
-        }
-      }
-    }
+    await this.movement.moveToAttack(this.state, attacker.stackId, target.stackId);
     this.cdr.detectChanges();
-  }
-
-  /** Get target's effective grid position: destination if moving, current if stationary. */
-  private getEffectiveTargetPosition(target: BattleStack): GridCell {
-    if (target.moving && target.targetX != null && target.targetY != null) {
-      return vwToStackCell(target, target.targetX, target.targetY);
-    }
-    return { col: target.col, row: target.row };
-  }
-
-  /** Find best move-to-attack cell towards a specific target position (not targetStack.col/row). */
-  private findBestMoveToAttackCellTowards(
-    state: BattleModelState,
-    stack: BattleStack,
-    targetStack: BattleStack,
-    targetPos: GridCell,
-  ): GridCell | null {
-    if (stack.destroyed || stack.immobile || targetStack.destroyed) {
-      return null;
-    }
-    const origin: GridCell = { col: stack.col, row: stack.row };
-    const cells: GridCell[] = [];
-    for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
-      for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
-        if (c === stack.col && r === stack.row) continue;
-        const destCols = occupiedCols(stack, c);
-        if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) continue;
-        const path = linePath(origin, { col: c, row: r });
-        if (!path || !isPathClear(state, path, stack)) continue;
-        // Check if this cell is in range of the target's effective position
-        if (isInRange({ col: c, row: r }, { ...targetStack, col: targetPos.col, row: targetPos.row }, stack.attackRange)) {
-          cells.push({ col: c, row: r });
-        }
-      }
-    }
-    if (cells.length === 0) return null;
-    return cells.reduce((best, cell) => {
-      const bestDist = Math.max(Math.abs(best.col - origin.col), Math.abs(best.row - origin.row));
-      const cellDist = Math.max(Math.abs(cell.col - origin.col), Math.abs(cell.row - origin.row));
-      if (cellDist < bestDist) return cell;
-      if (cellDist === bestDist) {
-        const bestToTarget = Math.max(Math.abs(best.col - targetPos.col), Math.abs(best.row - targetPos.row));
-        const cellToTarget = Math.max(Math.abs(cell.col - targetPos.col), Math.abs(cell.row - targetPos.row));
-        if (cellToTarget < bestToTarget) return cell;
-      }
-      return best;
-    });
   }
 
   private async doMove(stack: BattleStack, col: number, row: number): Promise<void> {
@@ -652,7 +602,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!isSidePlayerControlled(this.state, attacker.side)) {
       return false;
     }
-    if (attacker.destroyed || attacker.moving) {
+    if (attacker.destroyed) {
       return false;
     }
     // Per-stack fire-rate cooldown
@@ -770,7 +720,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!this.state.winner) {
       const state = this.state!; // non-null after winner check
       const playerStacks = state.stacks.filter(
-        (s) => !s.destroyed && !s.moving && isSidePlayerControlled(state, s.side)
+        (s) => !s.destroyed && isSidePlayerControlled(state, s.side)
       );
       for (const stack of playerStacks) {
         void this.tryAutoAttack(stack);

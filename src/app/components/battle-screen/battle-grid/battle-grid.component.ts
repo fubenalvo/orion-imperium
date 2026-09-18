@@ -57,8 +57,8 @@ export class BattleGridComponent {
   @Input() onCellClick: (col: number, row: number) => void = () => {};
 
   /* vw position of a stack. stack.x/y are absolute VW coordinates maintained
-   * by the game loop (initialized from stackCenterVw). col/row are only used
-   * for click detection and combat range. */
+   * by the game loop (initialized from stackCenterVw). col/row are used for
+   * movement, pathing, occupancy, and click cells; combat range uses x/y. */
   stackVw(stack: BattleStack): { x: number; y: number } {
     return {
       x: stack.x ?? 0,
@@ -125,9 +125,9 @@ export class BattleGridComponent {
   }
 
   /* Attack-available indicator: bottom-right corner of the stack sprite.
-   * Visible when the stack can attack — not currently moving or firing. */
+   * Visible when the stack can attack and is not currently firing. */
   hasAttackDot(stack: BattleStack): boolean {
-    return !stack.moving && !stack.firing;
+    return !stack.firing;
   }
 
   /* Faction color for a stack — used to tint per-stack accents (count text,

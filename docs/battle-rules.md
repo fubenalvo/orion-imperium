@@ -80,10 +80,15 @@ Virtual defense buildings (turrets) are immobile (speed 0) and use their buildin
 
 ## Combat
 
-- A stack may attack freely — there is no per-stack or per-turn attack limit. The only gate is the
-  animation busy lock (no other animation in flight on that stack).
-- Target must be an enemy stack within `range` (Euclidean: `dx² + dy² ≤ range²`, matching the
-  project-wide sensor-range convention documented in `docs/invariants.md`).
+- A stack may attack freely, including while it is moving — there is no per-stack or per-turn
+  attack limit. The only gate is the animation busy lock (no other animation in flight on that
+  stack).
+- Target must be an enemy stack within `range` at the moment the attack starts. Range is measured
+  from the stacks' current absolute `x/y` centers in VW, not from their `col/row` anchors:
+  `distanceVw <= attackRange * BATTLE_CELL_SIZE_VW`. The comparison is Euclidean and inclusive at
+  the exact boundary.
+- A projectile captures the attacker and target `x/y` positions when firing starts. It does not
+  track a target that moves during the animation.
 - **Damage = whole-stack volley:** `totalAttack = Σ attack of alive ships in the firing
   stack`; `raw = max(1, totalAttack − frontTargetShip.defense)`. Defense is per-ship (the
   front target ship's `defense`), not summed.

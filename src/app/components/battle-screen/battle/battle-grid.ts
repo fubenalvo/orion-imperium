@@ -30,6 +30,41 @@ export function isInRange(a: GridCell, b: GridCell, range: number): boolean {
   return dc * dc + dr * dr <= range * range;
 }
 
+export function absoluteDistanceVw(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+export function absoluteDistanceCells(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+): number {
+  return absoluteDistanceVw(a, b) / BATTLE_CELL_SIZE_VW;
+}
+
+export function isAbsolutePositionInRange(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  range: number,
+): boolean {
+  const rangeVw = range * BATTLE_CELL_SIZE_VW;
+  const dx = from.x - to.x;
+  const dy = from.y - to.y;
+  return dx * dx + dy * dy <= rangeVw * rangeVw;
+}
+
+export function isAbsoluteInRange(
+  attacker: BattleStack,
+  target: BattleStack,
+  range: number,
+): boolean {
+  return isAbsolutePositionInRange(attacker, target, range);
+}
+
 /*
  * =========================================================
  *  WEAPON EFFECTIVENESS
@@ -367,16 +402,15 @@ export function isPathClear(
   return true;
 }
 
-/* Enemy stacks within a stack's attack range (ids only). */
+/* Enemy stacks within a stack's current absolute attack range (ids only). */
 export function getAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
-  const origin: GridCell = { col: stack.col, row: stack.row };
   return state.stacks
-    .filter((s) => !s.destroyed && s.side !== stack.side && isInRange(origin, s, stack.attackRange))
+    .filter((s) => !s.destroyed && s.side !== stack.side && isAbsoluteInRange(stack, s, stack.attackRange))
     .map((s) => s.stackId);
 }
 
 /*
- * Friendly stacks within a Carrier's attack range (ids only). Used by the
+ * Friendly stacks within a Carrier's current absolute attack range (ids only). Used by the
  * Shield Pulse action to highlight which allies would be restored. Pure
  * read of existing state — no combat logic duplicated here.
  */
@@ -387,22 +421,21 @@ export function computeCarrierBoostTargets(
   if (carrier.typeId !== 'carrier' || carrier.destroyed) {
     return [];
   }
-  const origin: GridCell = { col: carrier.col, row: carrier.row };
   return state.stacks
     .filter(
       (s) =>
         !s.destroyed &&
         s.side === carrier.side &&
         s.stackId !== carrier.stackId &&
-        isInRange(origin, s, carrier.attackRange),
+        isAbsoluteInRange(carrier, s, carrier.attackRange),
     )
     .map((s) => s.stackId);
 }
 
 /*
  * Cells from which a stack could attack a specific target stack.
- * Returns all unoccupied cells that have the target within attackRange
- * and a clear straight-line path. No AP or moveRange limits.
+ * Returns all unoccupied cells whose visual center has the target's current
+ * absolute position within attackRange and that have a clear straight-line path.
  */
 export function getMoveToAttackCells(
   state: BattleModelState,
@@ -427,7 +460,8 @@ export function getMoveToAttackCells(
       if (!path || !isPathClear(state, path, stack)) {
         continue;
       }
-      if (isInRange({ col: c, row: r }, targetStack, stack.attackRange)) {
+      const candidateCenter = stackCenterVw({ ...stack, col: c, row: r });
+      if (isAbsolutePositionInRange(candidateCenter, targetStack, stack.attackRange)) {
         cells.push({ col: c, row: r });
       }
     }
@@ -456,8 +490,10 @@ export function findBestMoveToAttackCell(
       return cell;
     }
     if (cellDist === bestDist) {
-      const bestToTarget = Math.max(Math.abs(best.col - targetStack.col), Math.abs(best.row - targetStack.row));
-      const cellToTarget = Math.max(Math.abs(cell.col - targetStack.col), Math.abs(cell.row - targetStack.row));
+      const bestCenter = stackCenterVw({ ...stack, col: best.col, row: best.row });
+      const cellCenter = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
+      const bestToTarget = absoluteDistanceCells(bestCenter, targetStack);
+      const cellToTarget = absoluteDistanceCells(cellCenter, targetStack);
       if (cellToTarget < bestToTarget) {
         return cell;
       }
@@ -467,7 +503,7 @@ export function findBestMoveToAttackCell(
 }
 
 /*
- * Enemy stacks that are outside direct attackRange but reachable
+ * Enemy stacks that are outside the current absolute attackRange but reachable
  * via a clear path. These are valid move-to-attack targets.
  * No AP or moveRange limits.
  */
@@ -478,12 +514,10 @@ export function getMoveToAttackTargetIds(
   if (stack.destroyed || stack.immobile) {
     return [];
   }
-  const origin: GridCell = { col: stack.col, row: stack.row };
   return state.stacks
     .filter((s) => !s.destroyed && s.side !== stack.side)
     .filter((s) => {
-      const directDist = Math.max(Math.abs(s.col - origin.col), Math.abs(s.row - origin.row));
-      if (directDist <= stack.attackRange) {
+      if (isAbsoluteInRange(stack, s, stack.attackRange)) {
         return false; // Already in direct attack range
       }
       // Check if there's at least one valid move-to-attack cell

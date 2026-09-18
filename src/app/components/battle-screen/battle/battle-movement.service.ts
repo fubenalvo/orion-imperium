@@ -1,6 +1,12 @@
 import { Injectable } from '@angular/core';
 import { BattleModelState, GridCell, BATTLE_CELL_SIZE_VW } from './battle.types';
-import { isInBounds, isPathClear, linePath, findBestMoveToAttackCell, isInRange } from './battle-grid';
+import {
+  isInBounds,
+  isPathClear,
+  linePath,
+  findBestMoveToAttackCell,
+  isAbsoluteInRange,
+} from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 import { BattleCombatService } from './battle-combat.service';
 
@@ -81,9 +87,7 @@ export class BattleMovementService {
       return false;
     }
 
-    const from: GridCell = { col: stack.col, row: stack.row };
-    const to: GridCell = { col: target.col, row: target.row };
-    if (isInRange(from, to, stack.attackRange)) {
+    if (isAbsoluteInRange(stack, target, stack.attackRange)) {
       return this.combat.attackStack(state, stackId, targetStackId);
     }
 

@@ -1,7 +1,13 @@
 import { Injectable } from '@angular/core';
 import { BattleModelState, BattleStack, GridCell } from './battle.types';
 import { getStacks, isSidePlayerControlled } from './battle-state';
-import { cellDistance, computeTargetScore, findBestMoveToAttackCell, isInRange, linePath } from './battle-grid';
+import {
+  absoluteDistanceCells,
+  computeTargetScore,
+  findBestMoveToAttackCell,
+  isAbsoluteInRange,
+  linePath,
+} from './battle-grid';
 import { BattleCombatService } from './battle-combat.service';
 import { BattleMovementService } from './battle-movement.service';
 import { BattleAnimationService } from './battle-animation.service';
@@ -49,7 +55,7 @@ export class BattleAiService {
 
     // 1. Attack with the first stack that has an in-range enemy target and is not animating.
     for (const stack of aiStacks) {
-      if (stack.moving || stack.destroyed || stack.immobile || this.anim.isStackBusy(stack.stackId)) {
+      if (stack.destroyed || stack.immobile || this.anim.isStackBusy(stack.stackId)) {
         continue;
       }
       const target = this.bestTarget(state, stack);
@@ -103,14 +109,13 @@ export class BattleAiService {
     );
   }
 
-  /* Check if any friendly stack within the carrier's range has shield below 50%. */
+  /* Check if any friendly stack within the carrier's absolute range has shield below 50%. */
   private hasLowShieldAlly(state: BattleModelState, carrier: BattleStack): boolean {
-    const origin: GridCell = { col: carrier.col, row: carrier.row };
     return state.stacks.some((s) => {
       if (s.destroyed || s.side !== carrier.side || s.stackId === carrier.stackId) {
         return false;
       }
-      if (!isInRange(origin, s, carrier.attackRange)) {
+      if (!isAbsoluteInRange(carrier, s, carrier.attackRange)) {
         return false;
       }
       const totalMaxShield = s.ships.reduce((sum, sh) => sum + (sh.maxShield ?? 0), 0);
@@ -123,16 +128,15 @@ export class BattleAiService {
   }
 
   private bestTarget(state: BattleModelState, stack: BattleStack): BattleStack | null {
-    const origin: GridCell = { col: stack.col, row: stack.row };
     const candidates = state.stacks.filter(
-      (s) => !s.destroyed && s.side !== stack.side && isInRange(origin, s, stack.attackRange),
+      (s) => !s.destroyed && s.side !== stack.side && isAbsoluteInRange(stack, s, stack.attackRange),
     );
     if (candidates.length === 0) {
       return null;
     }
     return candidates.reduce((best, s) => {
-      const bestScore = computeTargetScore(stack, best, cellDistance(origin, best));
-      const score = computeTargetScore(stack, s, cellDistance(origin, s));
+      const bestScore = computeTargetScore(stack, best, absoluteDistanceCells(stack, best));
+      const score = computeTargetScore(stack, s, absoluteDistanceCells(stack, s));
       if (score > bestScore) {
         return s;
       }
@@ -147,14 +151,14 @@ export class BattleAiService {
     const origin: GridCell = { col: stack.col, row: stack.row };
 
     // Prefer move-to-attack: advance only as far as needed to bring a
-    // target within attackRange, then stop. This keeps the stack at its
+    // target within absolute attack range, then stop. This keeps the stack at its
     // weapon's effective range instead of charging into point-blank range.
     const moveAttackTarget = state.stacks
       .filter((s) => !s.destroyed && s.side !== stack.side)
-      .filter((s) => !isInRange(origin, s, stack.attackRange))
+      .filter((s) => !isAbsoluteInRange(stack, s, stack.attackRange))
       .sort(
         (a, b) =>
-          cellDistance(origin, a) - cellDistance(origin, b) ||
+          absoluteDistanceCells(stack, a) - absoluteDistanceCells(stack, b) ||
           a.stackId.localeCompare(b.stackId),
       )[0];
 
@@ -171,7 +175,7 @@ export class BattleAiService {
       .filter((s) => !s.destroyed && s.side !== stack.side)
       .sort(
         (a, b) =>
-          cellDistance(origin, a) - cellDistance(origin, b) || a.stackId.localeCompare(b.stackId),
+          absoluteDistanceCells(stack, a) - absoluteDistanceCells(stack, b) || a.stackId.localeCompare(b.stackId),
       )[0];
     if (!enemy) {
       return false;

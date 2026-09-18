@@ -90,7 +90,7 @@ src/app/components/battle-screen/
 ```typescript
 BATTLE_GRID_COLUMNS = 18          // Grid width (cells)
 BATTLE_GRID_ROWS = 7              // Grid height (cells)
-BATTLE_CELL_SIZE_VW = 2.5         // Cell size in viewport width units
+BATTLE_CELL_SIZE_VW = 4           // Cell size in viewport width units
 MAX_STACK_SIZE = 5                // Max ships per visual stack
 ATTACKER_DEPLOY_COLS = [1, 2, 3]  // Attacker deployment columns (left)
 DEFENDER_DEPLOY_COLS = [17, 18, 16] // Defender deployment columns (right)
@@ -292,8 +292,8 @@ async moveStack(state, stackId, targetCol, targetRow): Promise<boolean>
 
 ```typescript
 async attackStack(state, attackerStackId, targetStackId): Promise<boolean>
-1. Validate: both stacks exist, alive, correct side, attacker not already moving
-2. Range check: isInRange(attacker, target, attacker.attackRange)
+1. Validate: both stacks exist, alive, correct side, attacker is not immobile
+2. Range check: compare current absolute `x/y` centers using `distanceVw <= attackRange * BATTLE_CELL_SIZE_VW`
 3. Animation sequence via anim.run():
    a) PROJECTILE (320ms): state.effect = { phase: 'projectile', from, to, targetStackId }
       attacker.firing = true; tick(); wait(320ms);
@@ -349,9 +349,9 @@ tick(): void { ticks$.next(); }  // Notifies view of mid-animation state changes
 
 ```typescript
 async playAction(state):
-1. Find next non-moving, non-firing AI stack (not player-controlled side)
+1. Find next non-firing AI stack (not player-controlled side); moving stacks may attack
 2. If none: return (no action this tick)
-3. Try attack: if any enemy in range → attack nearest in-range target
+3. Try attack: if any enemy is within absolute `x/y` range → attack the best in-range target
 4. Else try move: if any reachable attack cell → move toward nearest enemy
 5. Each tick = one action only (no "end turn" call)
 ```
@@ -420,7 +420,10 @@ saveGame();  // Persists to AUTOSAVE
 |----------|---------|
 | `isInBounds(col, row)` | 1 ≤ col ≤ 18, 1 ≤ row ≤ 7 |
 | `cellDistance(a, b)` | Euclidean √(dc²+dr²) |
-| `isInRange(a, b, range)` | dc²+dr² ≤ range² (inclusive at exact range) |
+| `isInRange(a, b, range)` | Grid-only helper: `dc²+dr² ≤ range²` (inclusive at exact range) |
+| `absoluteDistanceVw(a, b)` | Euclidean distance between current absolute VW positions |
+| `absoluteDistanceCells(a, b)` | Absolute VW distance converted back to grid-cell units |
+| `isAbsoluteInRange(a, b, range)` | Current-position attack-range check using `range * BATTLE_CELL_SIZE_VW` |
 | `linePath(from, to)` | Straight-line cells (Bresenham-ish) excluding origin |
 | `isOccupied(state, col, row, excludeStackId?)` | Any alive stack at cell |
 | `getStackAt(state, col, row)` | Stack at cell or null |
@@ -463,7 +466,7 @@ saveGame();  // Persists to AUTOSAVE
 |--------|-----|--------------|
 | Select stack | Click own unit | Not busy |
 | Move | Click green dashed cell | Stack selected, clear path to target cell |
-| Attack | Click red pulsing enemy | Stack selected, in range, not moving |
+| Attack | Click red pulsing enemy | Stack selected, current absolute positions in range |
 | Cancel selection | Click own stack again / click empty | — |
 
 **Visual Feedback:**
@@ -551,7 +554,7 @@ console.log('[BattleAI] action type:', ...);
 | Nothing happens on click | `anim.isBusy` stuck — wait for animation to finish |
 | AI spam attacks | Animation lock not released properly |
 | Green cells don't appear | Stack not selected, or path blocked |
-| Red targets don't pulse | Selected stack out of range, or stack is moving |
+| Red targets don't pulse | Selected stack is outside current absolute `x/y` range |
 | Battle ends immediately | One side deployed with 0 stacks (empty fleet) |
 
 ---

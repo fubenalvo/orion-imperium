@@ -8,6 +8,7 @@ import { createBattleState, getStacks } from './battle-state';
 import { BattleCombatService } from './battle-combat.service';
 import { BattleAnimationService } from './battle-animation.service';
 import { ANIMATION_MS } from './battle.types';
+import { stackCenterVw } from './battle-grid';
 
 describe('BattleCombatService', () => {
   let combat: BattleCombatService;
@@ -51,6 +52,25 @@ describe('BattleCombatService', () => {
   const placeAdjacent = (atker: BattleStack, defender: BattleStack): void => {
     defender.col = atker.col + Math.min(atker.attackRange, 3);
     defender.row = atker.row;
+    const center = stackCenterVw({
+      side: defender.side,
+      size: defender.size,
+      col: defender.col,
+      row: defender.row,
+    } as BattleStack);
+    defender.x = center.x;
+    defender.y = center.y;
+  };
+
+  const syncPosition = (stack: BattleStack): void => {
+    const center = stackCenterVw({
+      side: stack.side,
+      size: stack.size,
+      col: stack.col,
+      row: stack.row,
+    } as BattleStack);
+    stack.x = center.x;
+    stack.y = center.y;
   };
 
   const mergeSameTypeStacks = (state: BattleModelState, side: 'attacker' | 'defender'): BattleStack => {
@@ -215,15 +235,24 @@ describe('BattleCombatService', () => {
     expect(totalDamage).toBeGreaterThan(0);
   });
 
-  it('rejects attacks while the stack is moving', async () => {
+  it('allows attacks while the stack is moving', async () => {
     const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
     placeAdjacent(atk, def);
     atk.moving = true;
 
-    const result = await combat.attackStack(state, atk.stackId, def.stackId);
-    expect(result).toBe(false);
+    const hpBefore = def.ships[0].hp;
+    const shieldBefore = def.ships[0].shield ?? 0;
+
+    const p = combat.attackStack(state, atk.stackId, def.stackId);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
+    const result = await p;
+
+    expect(result).toBe(true);
+    const totalAfter = def.ships[0].hp + (def.ships[0].shield ?? 0);
+    expect(totalAfter).toBeLessThan(hpBefore + shieldBefore);
   });
 
   it('absorbs damage completely with a full shield', async () => {
@@ -404,6 +433,9 @@ describe('BattleCombatService', () => {
      * aim at the current visual position (def.x/def.y), not the
      * stale cell center (stackCenterVw output).
      */
+    def.col = atk.col + 1;
+    def.row = atk.row;
+    syncPosition(def);
     const movedX = def.x + 2.5;
     const movedY = def.y + 1.5;
     def.x = movedX;
@@ -453,6 +485,7 @@ describe('BattleCombatService', () => {
     const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
     ally.col = carrier.col + 3;
     ally.row = carrier.row;
+    syncPosition(ally);
     ally.ships[0].shield = 10;
     ally.ships[0].maxShield = 30;
 
@@ -470,6 +503,7 @@ describe('BattleCombatService', () => {
     const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
     ally.col = carrier.col + 3;
     ally.row = carrier.row;
+    syncPosition(ally);
     ally.ships[0].shield = 28;
     ally.ships[0].maxShield = 30;
 
@@ -486,6 +520,7 @@ describe('BattleCombatService', () => {
     const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
     ally.col = carrier.col + 3;
     ally.row = carrier.row;
+    syncPosition(ally);
     carrier.ships[0].shield = 100;
     carrier.ships[0].maxShield = 220;
 
@@ -502,6 +537,7 @@ describe('BattleCombatService', () => {
     const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
     ally.col = carrier.col + 10;
     ally.row = carrier.row;
+    syncPosition(ally);
     ally.ships[0].shield = 10;
     ally.ships[0].maxShield = 30;
 
@@ -518,6 +554,7 @@ describe('BattleCombatService', () => {
     const enemy = getStacks(state, 'defender')[0];
     enemy.col = carrier.col + 3;
     enemy.row = carrier.row;
+    syncPosition(enemy);
     enemy.ships[0].shield = 50;
     enemy.ships[0].maxShield = 80;
 

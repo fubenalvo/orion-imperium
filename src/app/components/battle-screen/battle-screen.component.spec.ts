@@ -9,6 +9,7 @@ import { GameTimeService } from '../../services/game-time.service';
 import { FleetShip, BattleStack } from './battle/battle.types';
 import { ANIMATION_MS } from './battle/battle.types';
 import { BattleAnimationService } from './battle/battle-animation.service';
+import { stackCenterVw } from './battle/battle-grid';
 import { BattleScreenComponent } from './battle-screen.component';
 
 describe('BattleScreenComponent', () => {
@@ -46,6 +47,25 @@ describe('BattleScreenComponent', () => {
   const placeAdjacent = (atk: BattleStack, def: BattleStack): void => {
     def.col = atk.col + Math.min(atk.attackRange, 3);
     def.row = atk.row;
+    const center = stackCenterVw({
+      side: def.side,
+      size: def.size,
+      col: def.col,
+      row: def.row,
+    } as BattleStack);
+    def.x = center.x;
+    def.y = center.y;
+  };
+
+  const syncPosition = (stack: BattleStack): void => {
+    const center = stackCenterVw({
+      side: stack.side,
+      size: stack.size,
+      col: stack.col,
+      row: stack.row,
+    } as BattleStack);
+    stack.x = center.x;
+    stack.y = center.y;
   };
 
   const seedAutosave = (): void => {
@@ -173,6 +193,7 @@ describe('BattleScreenComponent', () => {
     // Place attacker in range of defender
     def.col = atk.col + 2;
     def.row = atk.row;
+    syncPosition(def);
     // Make defender killable so auto-attack chain terminates (1 volley)
     def.ships[0].hp = 1;
     def.ships[0].shield = 0;
@@ -221,6 +242,7 @@ describe('BattleScreenComponent', () => {
     placeAdjacent(atk, def1);
     def2.col = atk.col + 2;
     def2.row = atk.row;
+    syncPosition(def2);
     // Make both defenders killable so auto-attack terminates
     def1.ships[0].hp = 1;
     def1.ships[0].shield = 0;
@@ -287,6 +309,7 @@ describe('BattleScreenComponent', () => {
     // Place second target explicitly within range (2 cols away, range=3)
     def2.col = atk.col + 2;
     def2.row = atk.row;
+    syncPosition(def2);
 
     component.selectedStackId = atk.stackId;
     const totalHpBefore = def2.ships[0].hp + (def2.ships[0].shield ?? 0);
@@ -1169,6 +1192,7 @@ describe('BattleScreenComponent', () => {
     // Place second target explicitly within range
     def2.col = atk.col + 2;
     def2.row = atk.row;
+    syncPosition(def2);
 
     component.selectedStackId = atk.stackId;
     // Make both defenders killable
@@ -1224,6 +1248,7 @@ describe('BattleScreenComponent', () => {
     const state = component['state']!;
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
     const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
+    placeAdjacent(atk, def1);
 
     component.selectedStackId = atk.stackId;
     // Make defender survive first volley
@@ -1261,6 +1286,7 @@ describe('BattleScreenComponent', () => {
     const state = component['state']!;
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
     const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
+    placeAdjacent(atk, def1);
 
     component.selectedStackId = atk.stackId;
     // Make defender survive first volley

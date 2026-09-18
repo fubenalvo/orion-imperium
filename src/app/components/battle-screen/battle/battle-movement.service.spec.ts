@@ -101,13 +101,13 @@ describe('BattleMovementService', () => {
     expect(result).toBe(false);
   });
 
-  it('rejects a second move while already moving', async () => {
+  it('allows changing the move target while already moving', async () => {
     const state = setup([fleetShip(1, 'fighter')]);
     const stack = stackFrom(state, 0);
     const first = movement.moveStack(state, stack.stackId, stack.col + 1, stack.row);
     expect(stack.moving).toBe(true);
     const result = await movement.moveStack(state, stack.stackId, stack.col + 2, stack.row);
-    expect(result).toBe(false);
+    expect(result).toBe(true);
     await first;
   });
 });

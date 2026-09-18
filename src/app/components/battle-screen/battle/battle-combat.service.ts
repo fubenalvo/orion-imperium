@@ -3,7 +3,7 @@ import { ANIMATION_MS, BattleModelState } from './battle.types';
 import {
   checkVictory,
   computeCarrierBoostTargets,
-  isInRange,
+  isAbsoluteInRange,
   weaponMultiplier,
   applyShieldRegen,
 } from './battle-grid';
@@ -35,8 +35,8 @@ import { BattleAnimationService } from './battle-animation.service';
  * shieldRegen to every friendly stack within its attack range, capped
  * at each ship's maxShield. Deterministic, non-damage, and entirely
  * additive — it does not alter the basic attack or movement systems.
- * In the real-time model, Shield Pulse is gated only by the animation
- * busy lock (no AP cost, no per-turn limit).
+ * Shield Pulse is gated by the animation busy lock and the Carrier's stationary
+ * action rule (no AP cost, no per-turn limit).
  */
 
 @Injectable({ providedIn: 'root' })
@@ -56,13 +56,13 @@ export class BattleCombatService {
     if (attacker.side === target.side) {
       return false;
     }
-    if (attacker.moving || attacker.immobile) {
+    if (attacker.immobile) {
       return false;
     }
 
     const from = { x: attacker.x, y: attacker.y };
     const to = { x: target.x, y: target.y };
-    if (!isInRange({ col: attacker.col, row: attacker.row }, { col: target.col, row: target.row }, attacker.attackRange)) {
+    if (!isAbsoluteInRange(attacker, target, attacker.attackRange)) {
       return false;
     }
 

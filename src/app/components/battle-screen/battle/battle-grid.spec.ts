@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BattleModelState, BattleStack, GridCell } from './battle.types';
-import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS } from './battle.types';
+import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW } from './battle.types';
 import {
   cellDistance,
   getAttackTargetIds,
@@ -11,10 +11,19 @@ import {
   isOccupied,
   isPathClear,
   linePath,
+  stackCenterVw,
+  absoluteDistanceVw,
+  isAbsoluteInRange,
+  isAbsolutePositionInRange,
+  getMoveToAttackCells,
+  findBestMoveToAttackCell,
+  getMoveToAttackTargetIds,
+  computeCarrierBoostTargets,
+  vwToStackCell,
 } from './battle-grid';
 
 function baseStack(): BattleStack {
-  return {
+  const stack: BattleStack = {
     stackId: 'attacker:fighter:0',
     side: 'attacker',
     typeId: 'fighter',
@@ -37,6 +46,24 @@ function baseStack(): BattleStack {
     targetY: null,
     fireRate: 1.5,
   };
+  placeStack(stack, 2, 4);
+  return stack;
+}
+
+function placeStack(stack: BattleStack, col: number, row: number): void {
+  stack.col = col;
+  stack.row = row;
+  const center = stackCenterVw(stack);
+  stack.x = center.x;
+  stack.y = center.y;
+}
+
+function placeStackAt(stack: BattleStack, x: number, y: number): void {
+  stack.x = x;
+  stack.y = y;
+  const cell = vwToStackCell(stack, x, y);
+  stack.col = cell.col;
+  stack.row = cell.row;
 }
 
 function makeState(stacks: BattleStack[]): BattleModelState {
@@ -126,16 +153,103 @@ describe('battle-grid', () => {
   });
 
   it('getAttackTargetIds returns enemy stacks within attack range', () => {
-    const attacker = { ...baseStack(), attackRange: 2, col: 4, row: 4 };
-    const state = makeState([
-      attacker,
-      { ...baseStack(), stackId: 'd1', side: 'defender', col: 5, row: 4 },
-      { ...baseStack(), stackId: 'd2', side: 'defender', col: 9, row: 4 },
-    ]);
+    const attacker = { ...baseStack(), attackRange: 2 };
+    placeStack(attacker, 4, 4);
+    const d1 = { ...baseStack(), stackId: 'd1', side: 'defender' as const };
+    placeStack(d1, 5, 4);
+    const d2 = { ...baseStack(), stackId: 'd2', side: 'defender' as const };
+    placeStack(d2, 9, 4);
+    const state = makeState([attacker, d1, d2]);
     const targets = getAttackTargetIds(state, attacker);
     expect(targets).toContain('d1');
     expect(targets).not.toContain('d2');
     expect(targets).toHaveLength(1);
+  });
+
+  it('getAttackTargetIds uses absolute position — grid-far but visually close', () => {
+    const attacker = { ...baseStack(), attackRange: 2 };
+    placeStack(attacker, 2, 4); // x=6, y=14
+    const far = { ...baseStack(), stackId: 'far', side: 'defender' as const };
+    placeStack(far, 10, 4); // x=38, y=14 → visually far (32vw > 8vw range)
+    far.x = 9; // override: now visually close to attacker (3vw < 8vw range)
+    far.y = 14;
+    const state = makeState([attacker, far]);
+    const targets = getAttackTargetIds(state, attacker);
+    expect(targets).toContain('far');
+  });
+
+  it('getAttackTargetIds uses absolute position — visually far but grid-close', () => {
+    const attacker = { ...baseStack(), attackRange: 2 };
+    placeStack(attacker, 2, 4); // x=6, y=14
+    const near = { ...baseStack(), stackId: 'near', side: 'defender' as const };
+    placeStack(near, 3, 4); // grid 1 cell away, but override x/y far
+    near.x = 50;
+    near.y = 50;
+    const state = makeState([attacker, near]);
+    const targets = getAttackTargetIds(state, attacker);
+    expect(targets).not.toContain('near');
+    expect(targets).toHaveLength(0);
+  });
+
+  it('getAttackTargetIds includes targets of moving stacks', () => {
+    const attacker = { ...baseStack(), attackRange: 2, moving: true };
+    placeStack(attacker, 2, 4);
+    const target = { ...baseStack(), stackId: 'd1', side: 'defender' as const, moving: true };
+    placeStack(target, 3, 4); // x=10, distance=4vw ≤ 8vw range
+    const state = makeState([attacker, target]);
+    expect(getAttackTargetIds(state, attacker)).toContain('d1');
+  });
+
+  it('isAbsolutePositionInRange is inclusive at exactly the range boundary', () => {
+    const a = { x: 6, y: 14 };
+    const rangeCells = 2; // 8vw
+    const boundary = { x: 14, y: 14 }; // distance = 8vw exactly
+    expect(isAbsolutePositionInRange(a, boundary, rangeCells)).toBe(true);
+    const justOutside = { x: 14.01, y: 14 };
+    expect(isAbsolutePositionInRange(a, justOutside, rangeCells)).toBe(false);
+  });
+
+  it('computeCarrierBoostTargets uses absolute range and ignores non-carrier type', () => {
+    const carrier = { ...baseStack(), stackId: 'carrier:0', typeId: 'carrier', attackRange: 4 };
+    placeStack(carrier, 2, 4); // x=6, y=14; range 4 cells = 16vw
+    const allyNear = { ...baseStack(), stackId: 'ally:near', side: 'attacker' as const };
+    placeStack(allyNear, 4, 4); // x=14, distance=8vw ≤ 16vw
+    const allyFar = { ...baseStack(), stackId: 'ally:far', side: 'attacker' as const };
+    placeStack(allyFar, 10, 4); // x=38, distance=32vw > 16vw
+    const enemy = { ...baseStack(), stackId: 'enemy:0', side: 'defender' as const };
+    placeStack(enemy, 3, 4); // x=10, distance=4vw ≤ 16vw, but enemy side
+    const state = makeState([carrier, allyNear, allyFar, enemy]);
+    const targets = computeCarrierBoostTargets(state, carrier);
+    expect(targets).toContain('ally:near');
+    expect(targets).not.toContain('ally:far');
+    expect(targets).not.toContain('enemy:0');
+  });
+
+  it('getMoveToAttackCells finds cells within absolute range of the target position', () => {
+    const attacker = { ...baseStack(), attackRange: 2 };
+    placeStack(attacker, 2, 4); // x=6, y=14
+    const target = { ...baseStack(), stackId: 'd1', side: 'defender' as const };
+    placeStack(target, 5, 4); // x=18, y=14
+    const state = makeState([attacker, target]);
+    const cells = getMoveToAttackCells(state, attacker, target);
+    expect(cells.length).toBeGreaterThan(0);
+    for (const cell of cells) {
+      const cellCenter = stackCenterVw({ ...attacker, col: cell.col, row: cell.row });
+      expect(isAbsolutePositionInRange(cellCenter, target, attacker.attackRange)).toBe(true);
+    }
+  });
+
+  it('getMoveToAttackTargetIds uses absolute range', () => {
+    const attacker = { ...baseStack(), attackRange: 2 };
+    placeStack(attacker, 2, 4); // x=6, y=14
+    const inRange = { ...baseStack(), stackId: 'd1', side: 'defender' as const };
+    placeStack(inRange, 3, 3); // different row — in range but does not block path
+    const outOfRange = { ...baseStack(), stackId: 'd2', side: 'defender' as const };
+    placeStack(outOfRange, 7, 4); // x=26, distance=20vw > 8vw → not in range
+    const state = makeState([attacker, inRange, outOfRange]);
+    const movableTargets = getMoveToAttackTargetIds(state, attacker);
+    expect(movableTargets).not.toContain('d1');
+    expect(movableTargets).toContain('d2');
   });
 
   it('getOccupiedCells respects size and side direction', () => {

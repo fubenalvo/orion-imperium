@@ -9,6 +9,7 @@ import { BattleAiService } from './battle-ai.service';
 import { BattleMovementService } from './battle-movement.service';
 import { BattleCombatService } from './battle-combat.service';
 import { BattleAnimationService } from './battle-animation.service';
+import { stackCenterVw } from './battle-grid';
 
 describe('BattleAiService', () => {
   let ai: BattleAiService;
@@ -56,6 +57,17 @@ describe('BattleAiService', () => {
     return state;
   };
 
+  const syncPosition = (stack: BattleStack): void => {
+    const center = stackCenterVw({
+      side: stack.side,
+      size: stack.size,
+      col: stack.col,
+      row: stack.row,
+    } as BattleStack);
+    stack.x = center.x;
+    stack.y = center.y;
+  };
+
   // Advance time to drain any animation timers (projectile + hit/explosion chain).
   // A single large advance covers all chained setTimeouts.
   const flush = async (): Promise<void> => {
@@ -67,6 +79,7 @@ describe('BattleAiService', () => {
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
     def.col = atk.col + 2; // within range 2
+    syncPosition(def);
 
     const p = ai.playAction(state);
     await flush();
@@ -82,6 +95,7 @@ describe('BattleAiService', () => {
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
     def.col = atk.col + 7;
+    syncPosition(def);
 
     const originalCol = atk.col;
     const p = ai.playAction(state);
@@ -136,6 +150,7 @@ describe('BattleAiService', () => {
       const s = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
       const def = getStacks(s, 'defender')[0];
       def.col = s.stacks[0].col + 2;
+      syncPosition(def);
       return s;
     };
 
@@ -169,7 +184,9 @@ describe('BattleAiService', () => {
     const dread = getStacks(state, 'defender').find((s) => s.typeId === 'dreadnought')!;
     const colonizer = getStacks(state, 'defender').find((s) => s.typeId === 'colonizer')!;
     colonizer.col = atk.col + 1;
+    syncPosition(colonizer);
     dread.col = atk.col + 2;
+    syncPosition(dread);
 
     const p = ai.playAction(state);
     await flush();
@@ -187,7 +204,9 @@ describe('BattleAiService', () => {
     const near = getStacks(state, 'defender').find((s) => s.stackId < getStacks(state, 'defender')[1].stackId)!;
     const far = getStacks(state, 'defender').find((s) => s.stackId !== near.stackId)!;
     near.col = atk.col + 1;
+    syncPosition(near);
     far.col = atk.col + 2;
+    syncPosition(far);
 
     const p = ai.playAction(state);
     await flush();
