@@ -16,6 +16,17 @@
     ></div>
   }
 
+  <!-- CONNECTION LINE (selected stack → move-to-attack target) -->
+  @if (getConnectionLine(); as line) {
+    <div
+      class="connection-line"
+      [style.left]="line.x + 'vw'"
+      [style.top]="line.y + 'vw'"
+      [style.width]="line.length + 'vw'"
+      [style.--connection-angle]="line.angleDeg + 'deg'"
+    ></div>
+  }
+
   <!-- STACKS -->
   @for (stack of stacks; track stack.stackId) {
     <div

@@ -1301,4 +1301,87 @@ describe('BattleScreenComponent', () => {
     component.selectedStackId = null;
     expect(atk.explicitAttackTargetId).toBeNull();
   });
+
+  it('connectionLine returns null when no stack is selected', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    expect(component.connectionLine).toBeNull();
+  });
+
+  it('connectionLine returns line when selected stack is moving to attack target', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
+    const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
+
+    atk.x = 4; atk.y = 14;
+    def.x = 20; def.y = 14;
+    atk.moving = true;
+    atk.moveToAttackTargetId = def.stackId;
+    component.selectedStackId = atk.stackId;
+
+    const line = component.connectionLine;
+    expect(line).not.toBeNull();
+    expect(line!.from.x).toBe(4);
+    expect(line!.from.y).toBe(14);
+    expect(line!.to.x).toBe(20);
+    expect(line!.to.y).toBe(14);
+  });
+
+  it('connectionLine returns null when selected stack is not moving to target', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
+    const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
+
+    atk.x = 4; atk.y = 14;
+    def.x = 20; def.y = 14;
+    // Not moving
+    atk.moving = false;
+    atk.moveToAttackTargetId = def.stackId;
+    component.selectedStackId = atk.stackId;
+
+    expect(component.connectionLine).toBeNull();
+  });
 });

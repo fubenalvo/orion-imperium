@@ -74,4 +74,55 @@ describe('BattleGridComponent', () => {
       fixture.nativeElement.querySelector('.battle-planet__name')?.textContent,
     ).toContain('Mars');
   });
+
+  it('getConnectionLine returns null when no connectionLine input', () => {
+    expect(component.getConnectionLine()).toBeNull();
+  });
+
+  it('getConnectionLine returns line geometry when connectionLine is provided', () => {
+    fixture.componentRef.setInput('connectionLine', {
+      from: { x: 4, y: 14 },
+      to: { x: 20, y: 14 },
+    });
+    fixture.detectChanges();
+
+    const line = component.getConnectionLine();
+    expect(line).not.toBeNull();
+    expect(line!.x).toBe(4);
+    expect(line!.y).toBe(14);
+    expect(line!.length).toBe(16);
+    expect(line!.angleDeg).toBe(0);
+  });
+
+  it('getConnectionLine returns null when connectionLine length is too short', () => {
+    fixture.componentRef.setInput('connectionLine', {
+      from: { x: 4, y: 14 },
+      to: { x: 4.001, y: 14 },
+    });
+    fixture.detectChanges();
+
+    expect(component.getConnectionLine()).toBeNull();
+  });
+
+  it('renders connection-line div when connectionLine input is set', () => {
+    fixture.componentRef.setInput('connectionLine', {
+      from: { x: 4, y: 14 },
+      to: { x: 20, y: 14 },
+    });
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement.querySelector('.connection-line') as HTMLElement;
+    expect(el).toBeTruthy();
+    expect(el.style.left).toBe('4vw');
+    expect(el.style.top).toBe('14vw');
+    expect(el.style.width).toBe('16vw');
+    expect(el.style.getPropertyValue('--connection-angle')).toBe('0deg');
+  });
+
+  it('does not render connection-line div when connectionLine is null', () => {
+    fixture.componentRef.setInput('connectionLine', null);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.connection-line')).toBeNull();
+  });
 });

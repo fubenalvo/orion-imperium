@@ -528,6 +528,29 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return stack && this.state ? computeCarrierBoostTargets(this.state, stack) : [];
   }
 
+  /* Connection line from selected stack to its move-to-attack target.
+   * Returns null when no stack is selected, not moving to a target,
+   * or the target is missing/destroyed. */
+  get connectionLine(): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+    if (!this.state || !this.selectedStackId) {
+      return null;
+    }
+    const stack = this.selectedStack();
+    if (!stack || !stack.moving || !stack.moveToAttackTargetId) {
+      return null;
+    }
+    const target = this.state.stacks.find(
+      (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
+    );
+    if (!target) {
+      return null;
+    }
+    return {
+      from: { x: stack.x ?? 0, y: stack.y ?? 0 },
+      to: { x: target.x ?? 0, y: target.y ?? 0 },
+    };
+  }
+
   async doCarrierBoost(): Promise<void> {
     if (!this.state || this.anim.isBusy) {
       return;

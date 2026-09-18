@@ -329,8 +329,22 @@
 }
 
 /* =========================================================
-   ATTACK EFFECTS
-   ========================================================= */
+    CONNECTION LINE (selected stack → target/destination)
+    ========================================================= */
+
+.connection-line {
+  position: absolute;
+  height: 2px;
+  transform-origin: 0 0;
+  background-color: #8cc4ff;
+  box-shadow: 0 0 4px rgba(140, 196, 255, 0.6);
+  z-index: 15;
+  transform: rotate(var(--connection-angle, 0deg));
+}
+
+/* =========================================================
+    ATTACK EFFECTS
+    ========================================================= */
 
 .projectile {
   position: absolute;
