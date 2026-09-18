@@ -72,6 +72,16 @@
       }
     }
   ],
+  "specialObjects": [
+    {
+      "x": 100,
+      "y": 90,
+      "type": "blackhole",
+      "width": 4,
+      "height": 5,
+      "component": "blackhole"
+    }
+  ],
   "map": {
     "width": 300,
     "height": 180,

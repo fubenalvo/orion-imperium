@@ -12,3 +12,13 @@
 :host {
   display: contents;
 }
+
+/* =========================================================
+   SPECIAL OBJECTS
+   ========================================================= */
+
+.special-object-cell {
+  position: relative;
+  z-index: 8;
+  pointer-events: none;
+}

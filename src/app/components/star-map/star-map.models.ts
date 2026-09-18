@@ -188,6 +188,15 @@ export interface FleetShipTypeSummary {
   defense: number;
 }
 
+export interface SpecialObject {
+  x: number;
+  y: number;
+  type: string;
+  width: number;
+  height: number;
+  component?: string;
+}
+
 export interface StarMapData {
   /*
    * Save format version. Missing (older saves) is treated as 0 and
@@ -195,6 +204,7 @@ export interface StarMapData {
    */
   saveVersion?: number;
   factions: Faction[];
+  specialObjects?: SpecialObject[];
   /*
    * map: Grid layout configuration.
    * - width/height: Grid dimensions in cells (columns × rows)

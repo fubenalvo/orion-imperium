@@ -95,6 +95,21 @@
       </div>
     }
 
+    <!-- SPECIAL OBJECTS -->
+    @for (obj of specialObjects; track obj.x + '-' + obj.y + '-' + obj.type) {
+      <div
+        class="special-object-cell {{ obj.type }}"
+        [style.gridColumn]="obj.x"
+        [style.gridRow]="obj.y"
+        [style.gridColumnEnd]="obj.x + obj.width"
+        [style.gridRowEnd]="obj.y + obj.height"
+      >
+        @if (obj.component === 'blackhole') {
+          <app-star-map-blackhole></app-star-map-blackhole>
+        }
+      </div>
+    }
+
     <!-- MOVEMENT TRAILS -->
     @for (trail of trails; track trail.fleetId) {
       @if (getTrailLength(trail) > 0) {

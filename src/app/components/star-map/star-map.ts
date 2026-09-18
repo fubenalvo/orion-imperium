@@ -51,6 +51,7 @@ import {
   PlanetEconomyEntry,
   ResourceDeposit,
   Faction,
+  SpecialObject,
 } from './star-map.models';
 import {
   createMulberry32,
@@ -92,6 +93,7 @@ import {
   QueueOrderRequest,
 } from './star-map-production-panel/star-map-production-panel.component';
 import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
+import { StarMapBlackholeComponent } from './blackhole/blackhole.component';
 import { StarMapResearchTreeComponent } from './star-map-research-tree/star-map-research-tree.component';
 
 /*
@@ -154,6 +156,7 @@ loadError = '';
   starSystems: StarSystem[] = initialStarMapData.starSystems;
   fleets: Fleet[] = initialStarMapData.fleets;
   factions: StarMapData['factions'] = initialStarMapData.factions;
+  specialObjects: SpecialObject[] = initialStarMapData.specialObjects ?? [];
   shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
   production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
   defaultView: import('./star-map.models').StarMapData['defaultView'] = initialStarMapData.defaultView ?? undefined;

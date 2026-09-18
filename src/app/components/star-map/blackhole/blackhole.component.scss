@@ -1,0 +1,214 @@
+/* =========================================================
+   BLACKHOLE COMPONENT — Pure CSS Singularity Visual
+   ========================================================= */
+
+:host {
+  --blackhole-size: 260px;
+  --disk-size: 680px;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  width: var(--disk-size);
+  height: var(--disk-size);
+}
+
+/* Starfield background rendered using pure CSS radial gradients */
+.starfield {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255, 235, 180, 0.8) 100%, transparent),
+    radial-gradient(2px 2px at 24% 72%, rgba(255, 255, 255, 0.9) 100%, transparent),
+    radial-gradient(1px 1px at 38% 28%, rgba(255, 200, 120, 0.6) 100%, transparent),
+    radial-gradient(2.5px 2.5px at 52% 88%, rgba(255, 240, 200, 0.85) 100%, transparent),
+    radial-gradient(1.5px 1.5px at 68% 22%, rgba(255, 255, 255, 0.7) 100%, transparent),
+    radial-gradient(2px 2px at 82% 64%, rgba(255, 215, 140, 0.8) 100%, transparent),
+    radial-gradient(1px 1px at 92% 14%, rgba(255, 255, 255, 0.9) 100%, transparent),
+    radial-gradient(2px 2px at 96% 92%, rgba(255, 180, 80, 0.5) 100%, transparent),
+    radial-gradient(1.5px 1.5px at 44% 54%, rgba(255, 235, 190, 0.75) 100%, transparent),
+    radial-gradient(2px 2px at 74% 38%, rgba(255, 255, 255, 0.65) 100%, transparent);
+  background-size: 100% 100%;
+  animation: starTwinkle 7s ease-in-out infinite alternate;
+}
+
+@keyframes starTwinkle {
+  0% { opacity: 0.4; transform: scale(1); }
+  100% { opacity: 0.9; transform: scale(1.015); }
+}
+
+.black-hole-container {
+  position: relative;
+  width: var(--disk-size);
+  height: var(--disk-size);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transform-style: preserve-3d;
+}
+
+/* Ambient Gravitational Lens Halo in Amber/Gold */
+.gravitational-lens {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent 30%,
+    rgba(255, 183, 3, 0.08) 52%,
+    rgba(251, 133, 0, 0.04) 68%,
+    transparent 82%
+  );
+  filter: blur(25px);
+  animation: pulseLens 6s ease-in-out infinite alternate;
+}
+
+@keyframes pulseLens {
+  0% { transform: scale(0.96); opacity: 0.7; }
+  100% { transform: scale(1.05); opacity: 1; }
+}
+
+/* Outer Rotating Accretion Disk with 3D Perspective */
+.accretion-disk-outer {
+  position: absolute;
+  width: var(--disk-size);
+  height: var(--disk-size);
+  border-radius: 50%;
+  transform: rotateX(75deg) rotateY(-12deg);
+  transform-style: preserve-3d;
+  animation: rotateDisk 14s linear infinite;
+}
+
+@keyframes rotateDisk {
+  from { transform: rotateX(75deg) rotateY(-12deg) rotateZ(0deg); }
+  to { transform: rotateX(75deg) rotateY(-12deg) rotateZ(360deg); }
+}
+
+/* Primary Plasma Swirl Gradient */
+.accretion-disk-outer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    #ffea00 0deg,
+    #ffb703 35deg,
+    #fb8500 75deg,
+    #e05600 110deg,
+    transparent 160deg,
+    rgba(15, 6, 0, 0.95) 210deg,
+    #fb8500 270deg,
+    #ffb703 320deg,
+    #ffea00 360deg
+  );
+  filter: blur(14px);
+  mask-image: radial-gradient(circle, transparent 22%, black 34%, black 62%, transparent 72%);
+  -webkit-mask-image: radial-gradient(circle, transparent 22%, black 34%, black 62%, transparent 72%);
+}
+
+/* Secondary Counter-Rotating Disk Layer for Swirling Texture */
+.accretion-disk-inner {
+  position: absolute;
+  width: calc(var(--disk-size) * 0.85);
+  height: calc(var(--disk-size) * 0.85);
+  border-radius: 50%;
+  transform: rotateX(75deg) rotateY(-12deg);
+  animation: rotateDiskCounter 9s linear infinite;
+}
+
+@keyframes rotateDiskCounter {
+  from { transform: rotateX(75deg) rotateY(-12deg) rotateZ(360deg); }
+  to { transform: rotateX(75deg) rotateY(-12deg) rotateZ(0deg); }
+}
+
+.accretion-disk-inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 180deg,
+    #ffffff 0deg,
+    #ffea00 45deg,
+    #ffb703 90deg,
+    #e05600 140deg,
+    transparent 200deg,
+    #fb8500 280deg,
+    #ffffff 360deg
+  );
+  filter: blur(8px);
+  opacity: 0.9;
+  mask-image: radial-gradient(circle, transparent 26%, black 40%, black 58%, transparent 68%);
+  -webkit-mask-image: radial-gradient(circle, transparent 26%, black 40%, black 58%, transparent 68%);
+}
+
+/* Relativistic Thin Photon Ring Outer Light Boundary */
+.photon-ring {
+  position: absolute;
+  width: calc(var(--blackhole-size) * 1.25);
+  height: calc(var(--blackhole-size) * 1.25);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    transparent 48%,
+    rgba(255, 255, 255, 0.95) 52%,
+    #ffea00 58%,
+    #ffb703 66%,
+    #e05600 74%,
+    transparent 85%
+  );
+  filter: blur(4px);
+  box-shadow:
+    0 0 25px #ffea00,
+    0 0 50px #ffb703,
+    0 0 90px #e05600;
+  animation: photonPulsate 4s ease-in-out infinite alternate;
+}
+
+@keyframes photonPulsate {
+  0% { transform: scale(0.99); opacity: 0.85; }
+  100% { transform: scale(1.02); opacity: 1; filter: blur(3px); }
+}
+
+/* Event Horizon: PURE PITCH BLACK CENTER */
+.event-horizon {
+  position: absolute;
+  width: var(--blackhole-size);
+  height: var(--blackhole-size);
+  background-color: #000000;
+  border-radius: 50%;
+  box-shadow:
+    0 0 15px 4px #000000,
+    0 0 35px rgba(255, 234, 0, 0.35),
+    0 0 70px rgba(255, 183, 3, 0.25);
+  z-index: 10;
+}
+
+/* Swirling Dust & Particles Layer */
+.particle-ring {
+  position: absolute;
+  width: calc(var(--disk-size) * 0.92);
+  height: calc(var(--disk-size) * 0.92);
+  border-radius: 50%;
+  transform: rotateX(75deg) rotateY(-12deg);
+  border: 2px dashed rgba(255, 234, 0, 0.35);
+  filter: drop-shadow(0 0 8px #ffb703);
+  mask-image: radial-gradient(circle, transparent 42%, black 52%);
+  -webkit-mask-image: radial-gradient(circle, transparent 42%, black 52%);
+  animation: rotateDisk 6s linear infinite;
+}
+
+/* Minimal Minimalist Label */
+.title-badge {
+  position: absolute;
+  bottom: 30px;
+  color: rgba(255, 235, 180, 0.35);
+  font-size: 11px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  user-select: none;
+  pointer-events: none;
+}

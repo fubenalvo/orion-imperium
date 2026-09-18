@@ -1,6 +1,8 @@
 import { Component, Input } from '@angular/core';
-import { Fleet, FleetTrail, StarSystem } from '../star-map.models';
+import { NgClass } from '@angular/common';
+import { Fleet, FleetTrail, StarSystem, SpecialObject } from '../star-map.models';
 import { StarMapMovementService } from '../star-map-movement.service';
+import { StarMapBlackholeComponent } from '../blackhole/blackhole.component';
 import { SensorCellInfo, SensorPreviewCellInfo } from '../star-map-sensor.service';
 
 /*
@@ -21,6 +23,7 @@ import { SensorCellInfo, SensorPreviewCellInfo } from '../star-map-sensor.servic
 @Component({
   selector: 'app-star-map-galaxy-view',
   standalone: true,
+  imports: [StarMapBlackholeComponent],
   templateUrl: './star-map-galaxy-view.component.html',
   styleUrl: './star-map-galaxy-view.component.scss',
 })
@@ -37,6 +40,7 @@ export class StarMapGalaxyViewComponent {
   @Input() sensorPreviewCells: SensorPreviewCellInfo[] = [];
   @Input() systems: StarSystem[] = [];
   @Input() fleets: Fleet[] = [];
+  @Input() specialObjects: SpecialObject[] = [];
   @Input() selectedSystem: StarSystem | null = null;
   @Input() selectedFleet: Fleet | null = null;
   @Input() targetX: number | null = null;
