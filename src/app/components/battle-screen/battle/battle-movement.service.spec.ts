@@ -7,7 +7,7 @@ import { BattleModelState, BattleStack } from './battle.types';
 import { createBattleState } from './battle-state';
 import { BattleMovementService } from './battle-movement.service';
 import { BattleAnimationService } from './battle-animation.service';
-import { updateStackPositions, stackCenterVw } from './battle-grid';
+import { updateStackPositions, stackCenterVw, isAbsoluteInRange } from './battle-grid';
 
 describe('BattleMovementService', () => {
   let movement: BattleMovementService;
@@ -110,4 +110,134 @@ describe('BattleMovementService', () => {
     expect(result).toBe(true);
     await first;
   });
+
+  it('updateMoveToAttackTargets re-computes destination when target moves', () => {
+    const state = setup([fleetShip(1, 'fighter')]);
+    const attacker = stackFrom(state, 0);
+    const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
+    state.stacks.push(defender);
+
+    // Place attacker at x=6, defender far at x=42.
+    attacker.x = 6; attacker.y = 14; attacker.col = 2; attacker.row = 4;
+    defender.x = 42; defender.y = 14; defender.col = 11; defender.row = 4;
+    attacker.moving = true;
+    attacker.targetX = 6;
+    attacker.targetY = 14;
+    attacker.moveToAttackTargetId = defender.stackId;
+
+    const oldTargetX = attacker.targetX;
+    const oldTargetY = attacker.targetY;
+
+    // Move defender further away.
+    defender.x = 50;
+    defender.y = 14;
+
+    movement.updateMoveToAttackTargets(state);
+
+    expect(attacker.targetX).not.toBe(oldTargetX);
+    expect(attacker.targetY).not.toBe(oldTargetY);
+    expect(attacker.moveToAttackTargetId).toBe(defender.stackId);
+  });
+
+  it('updateMoveToAttackTargets clears target when destroyed', () => {
+    const state = setup([fleetShip(1, 'fighter')]);
+    const attacker = stackFrom(state, 0);
+    const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
+    state.stacks.push(defender);
+
+    attacker.x = 6; attacker.y = 14; attacker.col = 2; attacker.row = 4;
+    defender.x = 14; defender.y = 14; defender.col = 4; defender.row = 4;
+    attacker.moving = true;
+    attacker.targetX = 14;
+    attacker.targetY = 14;
+    attacker.moveToAttackTargetId = defender.stackId;
+
+    defender.destroyed = true;
+
+    movement.updateMoveToAttackTargets(state);
+
+    expect(attacker.moveToAttackTargetId).toBeNull();
+    expect(attacker.moving).toBe(false);
+    expect(attacker.targetX).toBeNull();
+    expect(attacker.targetY).toBeNull();
+  });
+
+  it('updateMoveToAttackTargets clears target when target is in range', () => {
+    const state = setup([fleetShip(1, 'fighter')]);
+    const attacker = stackFrom(state, 0);
+    const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
+    state.stacks.push(defender);
+
+    // Place them within attack range (distance 8vw, range=12vw).
+    attacker.x = 6; attacker.y = 14; attacker.col = 2; attacker.row = 4;
+    defender.x = 14; defender.y = 14; defender.col = 4; defender.row = 4;
+    attacker.moving = true;
+    attacker.targetX = 14;
+    attacker.targetY = 14;
+    attacker.moveToAttackTargetId = defender.stackId;
+
+    movement.updateMoveToAttackTargets(state);
+
+    expect(attacker.moveToAttackTargetId).toBeNull();
+    expect(attacker.moving).toBe(false);
+    expect(attacker.targetX).toBeNull();
+    expect(attacker.targetY).toBeNull();
+  });
+
+  it('updateMoveToAttackTargets does nothing for non-moving stacks', () => {
+    const state = setup([fleetShip(1, 'fighter')]);
+    const attacker = stackFrom(state, 0);
+    const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
+    state.stacks.push(defender);
+
+    attacker.x = 6; attacker.y = 14; attacker.col = 2; attacker.row = 4;
+    defender.x = 14; defender.y = 14; defender.col = 4; defender.row = 4;
+    // Not moving, but has targetId set.
+    attacker.moveToAttackTargetId = defender.stackId;
+
+    movement.updateMoveToAttackTargets(state);
+
+    expect(attacker.moveToAttackTargetId).toBe(defender.stackId);
+    expect(attacker.moving).toBe(false);
+  });
 });
+
+function baseFleetStack(stackId: string): BattleStack {
+  return {
+    stackId,
+    side: 'attacker',
+    typeId: 'frigate',
+    typeName: 'Frigate',
+    role: 'Line Ship',
+    col: 1,
+    row: 4,
+    ships: [{
+      shipId: 1,
+      name: 'F1',
+      typeId: 'frigate',
+      hp: 40,
+      maxHp: 40,
+      shield: 0,
+      maxShield: 0,
+      shieldRegen: 0,
+      attackType: 'kinetic',
+      weakness: 'energy',
+      attack: 8,
+      defense: 3,
+      alive: true,
+    }],
+    size: 1,
+    tier: 2,
+    attackRange: 3,
+    immobile: false,
+    moving: false,
+    firing: false,
+    destroyed: false,
+    speed: 3,
+    x: 0,
+    y: 0,
+    targetX: null,
+    targetY: null,
+    fireRate: 1.5,
+  };
+}

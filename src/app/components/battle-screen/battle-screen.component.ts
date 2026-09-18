@@ -28,6 +28,7 @@ import {
 } from './battle/battle.types';
 import {
   AI_ACTION_INTERVAL_MS,
+  MOVE_TO_ATTACK_UPDATE_INTERVAL_MS,
   SHIELD_REGEN_INTERVAL_MS,
   ANIMATION_MS,
 } from './battle/battle.types';
@@ -131,6 +132,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   private aiTickAccumulator = 0;
   private shieldRegenAccumulator = 0;
+  private moveToAttackUpdateAccumulator = 0;
 
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
@@ -734,6 +736,16 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         this.shieldRegenAccumulator = 0;
         regenerateAllShields(this.state);
         this.state.round++;
+      }
+    }
+
+    // 3b. Move-to-attack re-computation: every MOVE_TO_ATTACK_UPDATE_INTERVAL_MS.
+    // Re-evaluates destination cells for stacks chasing moving targets.
+    if (!this.state.winner) {
+      this.moveToAttackUpdateAccumulator += deltaTime * 1000;
+      if (this.moveToAttackUpdateAccumulator >= MOVE_TO_ATTACK_UPDATE_INTERVAL_MS) {
+        this.moveToAttackUpdateAccumulator = 0;
+        this.movement.updateMoveToAttackTargets(this.state);
       }
     }
 

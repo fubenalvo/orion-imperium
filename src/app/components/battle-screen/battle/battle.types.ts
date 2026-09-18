@@ -26,6 +26,10 @@ export const AI_ACTION_INTERVAL_MS = 200;
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
 export const SHIELD_REGEN_INTERVAL_MS = 1000;
 
+/* How often move-to-attack stacks re-evaluate their destination cell
+ * based on the target's current absolute position. */
+export const MOVE_TO_ATTACK_UPDATE_INTERVAL_MS = 1000;
+
 /*
  * A stack renders up to MAX_STACK_SIZE ship icons; larger fleets of a
  * single ship type are split across multiple stacks of this size.
@@ -123,6 +127,10 @@ export interface BattleStack {
   /* Explicit attack target set by player command. Overrides auto-attack target selection.
    * When set, the stack will ONLY attack this target until it's destroyed or player gives new command. */
   explicitAttackTargetId?: string | null;
+
+  /* Target stack for move-to-attack commands. Used by updateMoveToAttackTargets() to
+   * periodically re-compute the destination cell based on the target's current position. */
+  moveToAttackTargetId?: string | null;
 
   /* Timestamp (ms, from performance.now()) when this stack can attack again.
    * Used for fire-rate cooldown between volleys in auto-attack. */

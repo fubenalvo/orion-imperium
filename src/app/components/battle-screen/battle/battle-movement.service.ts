@@ -96,7 +96,56 @@ export class BattleMovementService {
       return false;
     }
 
-    return this.moveStack(state, stackId, bestCell.col, bestCell.row);
+    const moved = await this.moveStack(state, stackId, bestCell.col, bestCell.row);
+    if (moved) {
+      stack.moveToAttackTargetId = targetStackId;
+    }
+    return moved;
+  }
+
+  /*
+   * Periodic re-computation of move-to-attack destinations.
+   * Called every MOVE_TO_ATTACK_UPDATE_INTERVAL_MS by the game loop.
+   * For each stack moving toward a target, re-evaluates the destination cell
+   * using the target's current absolute position. If the target is destroyed
+   * or no valid cell exists (e.g., target now in range), the stack stops
+   * and the caller handles the attack.
+   */
+  updateMoveToAttackTargets(state: BattleModelState): void {
+    for (const stack of state.stacks) {
+      if (!stack.moving || !stack.moveToAttackTargetId) {
+        continue;
+      }
+      const target = state.stacks.find(
+        (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
+      );
+      if (!target) {
+        stack.moveToAttackTargetId = null;
+        stack.moving = false;
+        stack.targetX = null;
+        stack.targetY = null;
+        continue;
+      }
+      // Target already in range — stop moving, let caller handle attack.
+      if (isAbsoluteInRange(stack, target, stack.attackRange)) {
+        stack.moveToAttackTargetId = null;
+        stack.moving = false;
+        stack.targetX = null;
+        stack.targetY = null;
+        continue;
+      }
+      const bestCell = findBestMoveToAttackCell(state, stack, target);
+      if (!bestCell) {
+        stack.moveToAttackTargetId = null;
+        stack.moving = false;
+        stack.targetX = null;
+        stack.targetY = null;
+        continue;
+      }
+      const targetVw = cellCenterVw(bestCell, stack);
+      stack.targetX = targetVw.x;
+      stack.targetY = targetVw.y;
+    }
   }
 }
 
