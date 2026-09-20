@@ -291,7 +291,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.commandQueue.push({ command, stackId });
   }
 
-  private async executeCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
+private async executeCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
     if (this.commandRunning) {
       this.replaceOrEnqueueCommand(command, stackId);
       return false;
@@ -299,11 +299,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
     this.commandRunning = true;
     try {
-if (stackId && this.anim.isStackBusy(stackId)) {
-          await this.waitForStackAnimationWithTimeout(stackId, 1500);
-        } else if (!stackId && this.anim.isBusy) {
-        await this.anim.waitForAnimation();
-      }
+      // User commands execute immediately - they can interrupt/redirect current actions
+      // No need to wait for existing stack animations (auto-attacks, etc.)
       return await command();
     } catch {
       return false;
@@ -311,14 +308,6 @@ if (stackId && this.anim.isStackBusy(stackId)) {
       this.commandRunning = false;
       void this.drainCommandQueue();
     }
-  }
-
-  /** Wait for stack animation with timeout to prevent indefinite blocking. */
-  private async waitForStackAnimationWithTimeout(stackId: string, timeoutMs: number): Promise<void> {
-    const waitPromise = this.anim.waitForStackAnimation(stackId);
-    const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
-    await Promise.race([waitPromise, timeoutPromise]);
-    // If timeout, animation is still running but we proceed anyway
   }
 
   private async drainCommandQueue(): Promise<void> {
@@ -330,11 +319,6 @@ if (stackId && this.anim.isStackBusy(stackId)) {
       const { command, stackId } = this.commandQueue.shift()!;
       this.commandRunning = true;
       try {
-        if (stackId && this.anim.isStackBusy(stackId)) {
-          await this.waitForStackAnimationWithTimeout(stackId, 1500);
-        } else if (!stackId && this.anim.isBusy) {
-          await this.anim.waitForAnimation();
-        }
         await command();
       } catch {
         // Invalid or interrupted commands are discarded without blocking the queue.
