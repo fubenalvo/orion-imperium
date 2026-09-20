@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 
-export type BattleSpeed = 1 | 2;
+export type BattleSpeed = 0.5 | 1;
 
 export interface BattleTimeState {
   speed: BattleSpeed;
@@ -16,13 +16,13 @@ interface BattleWait {
 
 @Injectable({ providedIn: 'root' })
 export class BattleTimeService {
-  private _speed: BattleSpeed = 1;
+  private _speed: BattleSpeed = 0.5;
   private _isPaused = false;
   private _battleElapsedTime = 0;
   private readonly waits: BattleWait[] = [];
 
   readonly state$ = new BehaviorSubject<BattleTimeState>({
-    speed: 1,
+    speed: 0.5,
     isPaused: false,
     battleElapsedTime: 0,
   });
@@ -100,7 +100,7 @@ export class BattleTimeService {
   }
 
   reset(): void {
-    this._speed = 1;
+    this._speed = 0.5;
     this._isPaused = false;
     this._battleElapsedTime = 0;
     this.cancelPendingWaits();
