@@ -1,157 +1,72 @@
-# Battle Screen Auto-Attack Blocking User Commands Fix Plan
+# Battle Screen Command System Issues - Investigation & Fix Plan
 
-## Problem
-After initial fix for destroyed-stack movement hang, user can give multiple commands initially. But once auto-attack starts firing (combat begins), user commands stop working - they queue but never execute.
+## User Reported Issues
+1. **Inconsistent command execution**: After giving one command to a stack, second command doesn't always work - works "ad-hoc" randomly
+2. **Can't switch attack targets**: Click enemy A to attack, then click enemy B to attack B instead - doesn't reliably work
+3. **Commands stop working once combat starts**: "ahogy elkezdődik a harc utána nem tudok több parancsot adni"
+4. **Suspects pause/speed controls broke runtime command execution**
+5. **First few commands work, then it breaks**: "egy darabig tökjól tudok adni parancsokat a stack-eknek, utána vagy nem veszi be, vagy törli"
+6. **NEW: Stack switching broken**: "az első kijelölt stack-et tudnám tökjól irányítani ameddig nem váltok el róla. de ha más stackre kattintok, azt már nem tudom irányítani rendesen"
 
-## Root Cause
-1. **User commands** go through `enqueueCommand` → `executeCommand` which waits for **global** `anim.isBusy` (line 283-284)
-2. **Auto-attacks** (`tryAutoAttack`) bypass the command queue and directly call `combat.attackStack()` which uses `anim.run()` - this increments global `activeCount`
-3. When auto-attacks fire continuously (every ~500-1000ms per stack), they keep the global animation lock busy
-4. User commands wait forever on `anim.waitForAnimation()` because global busy never clears
+## Root Cause Analysis
 
-## Design Intent (from code comments)
-- **Global `isBusy`**: For UI gating (pause buttons, etc.) - "Global busy flag still exists for UI gating"
-- **Per-stack `isStackBusy`**: For combat logic - "Tracks animation state per stack to allow concurrent animations for different stacks"
+### Issue 1: Animation Service Generation Bug (FIXED)
+**File**: `src/app/components/battle-screen/battle/battle-animation.service.ts`
+**Fix Applied**: Generation only increments when starting NEW animation cycle (count 0→1)
 
-But command queue incorrectly uses global lock instead of per-stack lock.
+### Issue 2: Command Queue Not Cleared on Stack Switch (NEW - HIGH PRIORITY)
+**File**: `src/app/components/battle-screen/battle-screen.component.ts`
 
-## Solution
-Modify command queue to wait for **per-stack animation** instead of global animation.
+**Problem**: 
+- User selects stack A, gives commands → queued for stack A
+- User selects stack B, gives commands → queued for stack B  
+- Queue processes in FIFO order: stack A's commands execute BEFORE stack B's
+- Old stack's pending commands can interfere with new stack's control
+- `replaceOrEnqueueCommand` only replaces for SAME stackId, doesn't clear other stacks' commands
 
-### Changes Required
+**Evidence**: 
+- `onStackClick` (line 520-552) switches selection but doesn't clear queue
+- `selectedStackId` setter (line 117-128) only clears `explicitAttackTargetId` when setting to `null`, not when switching stacks
+- `clearCommandQueue()` exists (line 346-349) but only called on destroy
 
-1. **BattleAnimationService** (`battle-animation.service.ts`):
-   - Add `stackAnimationWaiters = new Map<string, Array<() => void>>()` field
-   - Add `waitForStackAnimation(stackId: string): Promise<void>` method
-   - In `end(stackId)`, call `resolveStackAnimationWaiters(stackId)` when count reaches 0
-   - In `reset()`, clear `stackAnimationWaiters`
-   - Add `resolveStackAnimationWaiters(stackId)` private method
+### Issue 3: Setter vs Direct Assignment Inconsistency
+**File**: `src/app/components/battle-screen/battle-screen.component.ts`
+**Lines**: 538 (direct assignment `this._selectedStackId = stack.stackId`) vs setter (line 117-128)
 
-2. **BattleScreenComponent** (`battle-screen.component.ts`):
-   - Modify `enqueueCommand(command, stackId?)` to accept optional stackId
-   - Modify `executeCommand(command, stackId?)` to wait for that stack's animation using `anim.waitForStackAnimation(stackId)` instead of global `anim.waitForAnimation()`
-   - Update all call sites to pass the relevant stackId:
-     - `doCarrierBoost()` → selected stack
-     - `doMoveToAttack(attacker, target)` → attacker stack
-     - `moveTowardsAndAttack(attacker, target)` → attacker stack
-     - `doMove(stack, col, row)` → stack
-     - `doAttack(attacker, target)` → attacker stack
+The setter has logic to clear old stack's `explicitAttackTargetId`, but `onStackClick` bypasses the setter by directly assigning `this._selectedStackId`.
 
-3. **Auto-attacks** (`tryAutoAttack`): Already use per-stack check (`anim.isStackBusy`), no change needed.
+### Issue 4: Animation Wait Timeout (PARTIALLY FIXED)
+**File**: `src/app/components/battle-screen/battle-screen.component.ts`
+**Fix Applied**: Reduced timeout from 3000ms → 1500ms
+**Remaining**: Uses real `setTimeout` instead of battle time
+
+## Implementation Plan
+
+### Phase 1: Clear Command Queue on Stack Switch (HIGHEST PRIORITY)
+**File**: `src/app/components/battle-screen/battle-screen.component.ts`
+**Changes**:
+1. In `onStackClick`, when switching to a different player-owned stack, call `clearCommandQueue()` before setting new selection
+2. Or add a method `switchSelection(stackId)` that clears queue and uses the setter
+3. Make `onStackClick` use the setter (`this.selectedStackId = stack.stackId`) instead of direct assignment
+
+### Phase 2: Fix Setter to Clear on Any Change
+**File**: `src/app/components/battle-screen/battle-screen.component.ts`
+**Change**: Modify `selectedStackId` setter to clear old stack's `explicitAttackTargetId` whenever value changes (not just when setting to null)
+
+### Phase 3: Clear Old Stack's Commands from Queue
+**File**: `src/app/components/battle-screen/battle-screen.component.ts`
+**Change**: In `replaceOrEnqueueCommand` or new method, remove commands for the previously selected stack when switching
+
+### Phase 4: Test Stack Switching Scenario
+Verify: Select stack A → give commands → select stack B → give commands → both work correctly
 
 ## Files to Modify
-- `src/app/components/battle-screen/battle/battle-animation.service.ts`
-- `src/app/components/battle-screen/battle-screen.component.ts`
+1. `src/app/components/battle-screen/battle-screen.component.ts` - Clear queue on stack switch, fix setter, use setter in onStackClick
 
-## Implementation Details
-
-### battle-animation.service.ts changes:
-```typescript
-// Add field
-private stackAnimationWaiters = new Map<string, Array<() => void>>();
-
-// Add method
-waitForStackAnimation(stackId: string): Promise<void> {
-  if (!this.isStackBusy(stackId)) {
-    return Promise.resolve();
-  }
-  return new Promise((resolve) => {
-    const waiters = this.stackAnimationWaiters.get(stackId) ?? [];
-    waiters.push(resolve);
-    this.stackAnimationWaiters.set(stackId, waiters);
-  });
-}
-
-// In end() method, add:
-if (count === 0) {
-  this.stackActiveCount.delete(stackId);
-  this.resolveStackAnimationWaiters(stackId); // ADD THIS
-}
-
-// In reset(), add:
-this.stackAnimationWaiters.clear();
-
-// Add private method:
-private resolveStackAnimationWaiters(stackId: string): void {
-  const waiters = this.stackAnimationWaiters.get(stackId) ?? [];
-  this.stackAnimationWaiters.delete(stackId);
-  for (const resolve of waiters) {
-    resolve();
-  }
-}
-```
-
-### battle-screen.component.ts changes:
-```typescript
-// enqueueCommand - add stackId parameter
-private enqueueCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
-  if (this.battleTime.isPaused || this.commandRunning) {
-    this.commandQueue.push({ command, stackId });
-    return Promise.resolve(false);
-  }
-  return this.executeCommand(command, stackId);
-}
-
-// executeCommand - add stackId parameter and use per-stack wait
-private async executeCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
-  if (this.commandRunning) {
-    this.commandQueue.push({ command, stackId });
-    return false;
-  }
-
-  this.commandRunning = true;
-  try {
-    if (stackId && this.anim.isStackBusy(stackId)) {
-      await this.anim.waitForStackAnimation(stackId);
-    } else if (!stackId && this.anim.isBusy) {
-      await this.anim.waitForAnimation(); // fallback for commands without stackId
-    }
-    return await command();
-  } catch {
-    return false;
-  } finally {
-    this.commandRunning = false;
-    void this.drainCommandQueue();
-  }
-}
-
-// drainCommandQueue - update to pass stackId
-private async drainCommandQueue(): Promise<void> {
-  if (this.commandRunning || this.battleTime.isPaused) {
-    return;
-  }
-
-  while (this.commandQueue.length > 0 && !this.battleTime.isPaused) {
-    const { command, stackId } = this.commandQueue.shift()!;
-    this.commandRunning = true;
-    try {
-      if (stackId && this.anim.isStackBusy(stackId)) {
-        await this.anim.waitForStackAnimation(stackId);
-      } else if (!stackId && this.anim.isBusy) {
-        await this.anim.waitForAnimation();
-      }
-      await command();
-    } catch {
-      // Invalid or interrupted commands are discarded without blocking the queue.
-    } finally {
-      this.commandRunning = false;
-    }
-  }
-}
-
-// Update commandQueue type
-private commandQueue: Array<{ command: () => Promise<boolean>; stackId?: string }> = [];
-
-// Update all call sites:
-doCarrierBoost() - pass this.selectedStackId
-doMoveToAttack(attacker, target) - pass attacker.stackId
-moveTowardsAndAttack(attacker, target) - pass attacker.stackId
-doMove(stack, col, row) - pass stack.stackId
-doAttack(attacker, target) - pass attacker.stackId
-```
-
-## Validation
-- Give multiple move/attack commands rapidly before combat starts - should work
-- Let auto-attacks fire, then try to give new commands - should work (not queue forever)
-- Verify multiple stacks can animate concurrently (AI + player)
-- Run existing tests: battle-grid, battle-movement, battle-state, star-map
+## Validation Criteria
+- [ ] Can select stack A, give multiple commands, works reliably
+- [ ] Can switch to stack B, give commands, works reliably
+- [ ] Can switch back to stack A, give commands, works reliably
+- [ ] Old stack's pending commands don't interfere with new stack
+- [ ] Auto-attacks don't block user commands after switch
+- [ ] All existing tests pass

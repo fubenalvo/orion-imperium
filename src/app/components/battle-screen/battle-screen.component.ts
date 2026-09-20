@@ -118,7 +118,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (value === this._selectedStackId) {
       return;
     }
-    if (value === null && this._selectedStackId && this.state) {
+    // Clear old stack's explicit attack target whenever selection changes
+    if (this._selectedStackId && this.state) {
       const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
       if (oldStack) {
         oldStack.explicitAttackTargetId = null;
@@ -265,24 +266,42 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   private enqueueCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
-    if (this.battleTime.isPaused || this.commandRunning) {
-      this.commandQueue.push({ command, stackId });
+    if (this.battleTime.isPaused) {
+      // When paused, always queue (replace if same stack)
+      this.replaceOrEnqueueCommand(command, stackId);
+      return Promise.resolve(false);
+    }
+    if (this.commandRunning) {
+      // Replace if same stack, otherwise append
+      this.replaceOrEnqueueCommand(command, stackId);
       return Promise.resolve(false);
     }
     return this.executeCommand(command, stackId);
   }
 
+  /** Replace existing queued command for same stackId, or append if different stack. */
+  private replaceOrEnqueueCommand(command: () => Promise<boolean>, stackId?: string): void {
+    if (stackId) {
+      const index = this.commandQueue.findIndex((item) => item.stackId === stackId);
+      if (index >= 0) {
+        this.commandQueue[index] = { command, stackId };
+        return;
+      }
+    }
+    this.commandQueue.push({ command, stackId });
+  }
+
   private async executeCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
     if (this.commandRunning) {
-      this.commandQueue.push({ command, stackId });
+      this.replaceOrEnqueueCommand(command, stackId);
       return false;
     }
 
     this.commandRunning = true;
     try {
-      if (stackId && this.anim.isStackBusy(stackId)) {
-        await this.anim.waitForStackAnimation(stackId);
-      } else if (!stackId && this.anim.isBusy) {
+if (stackId && this.anim.isStackBusy(stackId)) {
+          await this.waitForStackAnimationWithTimeout(stackId, 1500);
+        } else if (!stackId && this.anim.isBusy) {
         await this.anim.waitForAnimation();
       }
       return await command();
@@ -292,6 +311,14 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       this.commandRunning = false;
       void this.drainCommandQueue();
     }
+  }
+
+  /** Wait for stack animation with timeout to prevent indefinite blocking. */
+  private async waitForStackAnimationWithTimeout(stackId: string, timeoutMs: number): Promise<void> {
+    const waitPromise = this.anim.waitForStackAnimation(stackId);
+    const timeoutPromise = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+    await Promise.race([waitPromise, timeoutPromise]);
+    // If timeout, animation is still running but we proceed anyway
   }
 
   private async drainCommandQueue(): Promise<void> {
@@ -304,7 +331,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       this.commandRunning = true;
       try {
         if (stackId && this.anim.isStackBusy(stackId)) {
-          await this.anim.waitForStackAnimation(stackId);
+          await this.waitForStackAnimationWithTimeout(stackId, 1500);
         } else if (!stackId && this.anim.isBusy) {
           await this.anim.waitForAnimation();
         }
@@ -503,13 +530,11 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (isSidePlayerControlled(this.state, stack.side)) {
       // Own stack: select it to reveal movement / attack options.
       // Selection works even while moving — commands can be redirected at any time.
-      if (this._selectedStackId && this.state) {
-        const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
-        if (oldStack) {
-          oldStack.explicitAttackTargetId = null;
-        }
+      // Clear any pending commands for the old stack when switching
+      if (this._selectedStackId !== stack.stackId) {
+        this.clearCommandQueue();
       }
-      this._selectedStackId = stack.stackId;
+      this.selectedStackId = stack.stackId;
       return;
     }
     // Enemy stack: attack it immediately when it is in absolute range.
@@ -904,14 +929,24 @@ return this.enqueueCommand(async () => {
       return;
     }
 
+    // Skip all updates when paused (deltaTime === 0 when paused)
+    const isPaused = this.battleTime.isPaused || deltaTime <= 0;
+
     // 1. Update stack positions (real-time movement).
-    if (!this.state.winner) {
+    if (!this.state.winner && !isPaused) {
       updateStackPositions(this.state, deltaTime, (stackId) => this.movement.completeMovement(stackId));
+    } else if (!this.state.winner && isPaused) {
+      // When paused, don't keep stacks in moving state - they'll resume on unpause
+      for (const stack of this.state.stacks) {
+        if (stack.moving && stack.targetX != null && stack.targetY != null) {
+          // Keep target but don't animate
+        }
+      }
     }
 
     // 2. AI tick: one action every AI_ACTION_INTERVAL_MS.
     // AI service internally checks per-stack animation locks.
-    if (!this.state.winner) {
+    if (!this.state.winner && !isPaused) {
       this.aiTickAccumulator += deltaTime * 1000;
       if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS) {
         this.aiTickAccumulator = 0;
@@ -921,7 +956,7 @@ return this.enqueueCommand(async () => {
 
     // 2b. Player auto-attack: attempt attack for all player-controlled stacks.
     // Runs every frame; per-stack cooldown prevents over-attacking.
-    if (!this.state.winner) {
+    if (!this.state.winner && !isPaused) {
       const state = this.state!; // non-null after winner check
       const playerStacks = state.stacks.filter(
         (s) => !s.destroyed && isSidePlayerControlled(state, s.side)
@@ -932,7 +967,7 @@ return this.enqueueCommand(async () => {
     }
 
     // 3. Shield regeneration: every SHIELD_REGEN_INTERVAL_MS for all sides.
-    if (!this.state.winner) {
+    if (!this.state.winner && !isPaused) {
       this.shieldRegenAccumulator += deltaTime * 1000;
       if (this.shieldRegenAccumulator >= SHIELD_REGEN_INTERVAL_MS) {
         this.shieldRegenAccumulator = 0;
@@ -943,7 +978,7 @@ return this.enqueueCommand(async () => {
 
     // 3b. Move-to-attack re-computation: every MOVE_TO_ATTACK_UPDATE_INTERVAL_MS.
     // Re-evaluates destination cells for stacks chasing moving targets.
-    if (!this.state.winner) {
+    if (!this.state.winner && !isPaused) {
       this.moveToAttackUpdateAccumulator += deltaTime * 1000;
       if (this.moveToAttackUpdateAccumulator >= MOVE_TO_ATTACK_UPDATE_INTERVAL_MS) {
         this.moveToAttackUpdateAccumulator = 0;

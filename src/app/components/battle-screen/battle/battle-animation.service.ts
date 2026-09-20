@@ -13,14 +13,21 @@ import { BattleTimeService } from './battle-time.service';
  *
  * Animation waits are driven by BattleTimeService's frame-driven scheduler,
  * so they respect battle pause/speed controls.
+ *
+ * Per-stack animation generations prevent waiter race conditions:
+ * - Each begin() increments a generation counter for that stack
+ * - Waiters wait for a specific generation to complete
+ * - This prevents a new animation from making old waiters wait for it
  */
 
 @Injectable({ providedIn: 'root' })
 export class BattleAnimationService {
   private activeCount = 0;
   private stackActiveCount = new Map<string, number>();
+  private stackGeneration = new Map<string, number>();
+  private stackCompletedGenerations = new Map<string, number>();
   private animationWaiters: Array<() => void> = [];
-  private stackAnimationWaiters = new Map<string, Array<() => void>>();
+  private stackAnimationWaiters = new Map<string, Map<number, Array<() => void>>>();
 
   readonly busy = signal(false);
   readonly ticks$ = new Subject<void>();
@@ -36,12 +43,27 @@ export class BattleAnimationService {
     return (this.stackActiveCount.get(stackId) ?? 0) > 0;
   }
 
+  /** Get current animation generation for a stack. */
+  getStackGeneration(stackId: string): number {
+    return this.stackGeneration.get(stackId) ?? 0;
+  }
+
   begin(stackId?: string): void {
     this.activeCount++;
     this.busy.set(true);
     if (stackId) {
-      const count = (this.stackActiveCount.get(stackId) ?? 0) + 1;
+      const prevCount = this.stackActiveCount.get(stackId) ?? 0;
+      const count = prevCount + 1;
       this.stackActiveCount.set(stackId, count);
+      // Only increment generation when starting a NEW animation cycle (0→1)
+      if (prevCount === 0) {
+        const gen = (this.stackGeneration.get(stackId) ?? 0) + 1;
+        this.stackGeneration.set(stackId, gen);
+      }
+      // Ensure waiters map exists for this stack
+      if (!this.stackAnimationWaiters.has(stackId)) {
+        this.stackAnimationWaiters.set(stackId, new Map());
+      }
     }
   }
 
@@ -52,7 +74,12 @@ export class BattleAnimationService {
       const count = Math.max(0, (this.stackActiveCount.get(stackId) ?? 1) - 1);
       if (count === 0) {
         this.stackActiveCount.delete(stackId);
-        this.resolveStackAnimationWaiters(stackId);
+        // Mark this generation as completed
+        const gen = this.stackGeneration.get(stackId) ?? 0;
+        if (gen > 0) {
+          this.stackCompletedGenerations.set(stackId, gen);
+          this.resolveStackAnimationWaiters(stackId, gen);
+        }
       } else {
         this.stackActiveCount.set(stackId, count);
       }
@@ -84,15 +111,27 @@ export class BattleAnimationService {
     });
   }
 
-  /** Wait for a specific stack's animation to complete. */
+  /** Wait for a specific stack's CURRENT animation to complete.
+   * Uses generation tracking so waiters don't get stuck waiting for
+   * future animations that start after they begin waiting. */
   waitForStackAnimation(stackId: string): Promise<void> {
     if (!this.isStackBusy(stackId)) {
       return Promise.resolve();
     }
+    const targetGen = this.stackGeneration.get(stackId) ?? 0;
+    if (targetGen === 0) {
+      return Promise.resolve();
+    }
+    // Check if this generation is already completed
+    const completedGen = this.stackCompletedGenerations.get(stackId) ?? 0;
+    if (completedGen >= targetGen) {
+      return Promise.resolve();
+    }
     return new Promise((resolve) => {
-      const waiters = this.stackAnimationWaiters.get(stackId) ?? [];
-      waiters.push(resolve);
-      this.stackAnimationWaiters.set(stackId, waiters);
+      const stackWaiters = this.stackAnimationWaiters.get(stackId)!;
+      const genWaiters = stackWaiters.get(targetGen) ?? [];
+      genWaiters.push(resolve);
+      stackWaiters.set(targetGen, genWaiters);
     });
   }
 
@@ -111,6 +150,8 @@ export class BattleAnimationService {
     this.cancelPendingWaits();
     this.activeCount = 0;
     this.stackActiveCount.clear();
+    this.stackGeneration.clear();
+    this.stackCompletedGenerations.clear();
     this.stackAnimationWaiters.clear();
     this.resolveAnimationWaiters();
     this.busy.set(false);
@@ -123,11 +164,23 @@ export class BattleAnimationService {
     }
   }
 
-  private resolveStackAnimationWaiters(stackId: string): void {
-    const waiters = this.stackAnimationWaiters.get(stackId) ?? [];
-    this.stackAnimationWaiters.delete(stackId);
-    for (const resolve of waiters) {
-      resolve();
+  private resolveStackAnimationWaiters(stackId: string, completedGen: number): void {
+    const stackWaiters = this.stackAnimationWaiters.get(stackId);
+    if (!stackWaiters) return;
+
+    // Resolve all waiters for generations <= completedGen
+    for (const [gen, waiters] of stackWaiters.entries()) {
+      if (gen <= completedGen) {
+        for (const resolve of waiters) {
+          resolve();
+        }
+        stackWaiters.delete(gen);
+      }
+    }
+
+    // Clean up empty maps
+    if (stackWaiters.size === 0) {
+      this.stackAnimationWaiters.delete(stackId);
     }
   }
 }
