@@ -5,7 +5,7 @@
  */
 :host {
   position: absolute;
-  left: 70vw;
+  left: calc(72vw - (72vw / 19) / 2);
   top: 14vw;
   width: 20vw;
   height: 20vw;

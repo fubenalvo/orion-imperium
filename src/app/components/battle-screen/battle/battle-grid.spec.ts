@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BattleModelState, BattleStack, GridCell } from './battle.types';
-import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW } from './battle.types';
+import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW } from './battle.types';
 import {
   cellDistance,
   getAttackTargetIds,
@@ -88,14 +88,14 @@ function makeState(stacks: BattleStack[]): BattleModelState {
 }
 
 describe('battle-grid', () => {
-  it('bounds match the System View grid (18 x 7 cells)', () => {
-    expect(BATTLE_GRID_COLUMNS).toBe(18);
-    expect(BATTLE_GRID_ROWS).toBe(7);
+  it('bounds match the System View grid (19 x 8 cells)', () => {
+    expect(BATTLE_GRID_COLUMNS).toBe(19);
+    expect(BATTLE_GRID_ROWS).toBe(8);
     expect(isInBounds(1, 1)).toBe(true);
-    expect(isInBounds(18, 7)).toBe(true);
+    expect(isInBounds(19, 8)).toBe(true);
     expect(isInBounds(0, 4)).toBe(false);
-    expect(isInBounds(19, 4)).toBe(false);
-    expect(isInBounds(1, 8)).toBe(false);
+    expect(isInBounds(20, 4)).toBe(false);
+    expect(isInBounds(1, 9)).toBe(false);
   });
 
   it('cellDistance is Euclidean', () => {
@@ -201,11 +201,13 @@ describe('battle-grid', () => {
   });
 
   it('isAbsolutePositionInRange is inclusive at exactly the range boundary', () => {
-    const a = { x: 6, y: 14 };
-    const rangeCells = 2; // 8vw
-    const boundary = { x: 14, y: 14 }; // distance = 8vw exactly
+    // BATTLE_CELL_SIZE_VW = 3.5 (min of 72/19≈3.789 and 28/8=3.5)
+    // range 2 cells = 7vw
+    const a = { x: 5.25, y: 12.25 }; // cell (2,4) center with new dimensions
+    const rangeCells = 2; // 7vw
+    const boundary = { x: 12.25, y: 12.25 }; // distance = 7vw exactly
     expect(isAbsolutePositionInRange(a, boundary, rangeCells)).toBe(true);
-    const justOutside = { x: 14.01, y: 14 };
+    const justOutside = { x: 12.26, y: 12.25 };
     expect(isAbsolutePositionInRange(a, justOutside, rangeCells)).toBe(false);
   });
 

@@ -6,7 +6,10 @@ import {
   BattleStack,
   GridCell,
 } from '../battle/battle.types';
-import { BATTLE_CELL_SIZE_VW } from '../battle/battle.types';
+import {
+  BATTLE_CELL_WIDTH_VW,
+  BATTLE_CELL_HEIGHT_VW,
+} from '../battle/battle.types';
 import { BattlePlanetComponent } from '../battle-planet/battle-planet.component';
 
 /*
@@ -70,8 +73,8 @@ export class BattleGridComponent {
 
   cellVw(cell: GridCell): { x: number; y: number } {
     return {
-      x: (cell.col - 0.5) * BATTLE_CELL_SIZE_VW,
-      y: (cell.row - 0.5) * BATTLE_CELL_SIZE_VW,
+      x: (cell.col - 0.5) * BATTLE_CELL_WIDTH_VW,
+      y: (cell.row - 0.5) * BATTLE_CELL_HEIGHT_VW,
     };
   }
 
@@ -226,8 +229,8 @@ export class BattleGridComponent {
     const vwUnit = window.innerWidth / 100;
     const vwX = (event.clientX - rect.left) / vwUnit;
     const vwY = (event.clientY - rect.top) / vwUnit;
-    const col = Math.floor(vwX / BATTLE_CELL_SIZE_VW) + 1;
-    const row = Math.floor(vwY / BATTLE_CELL_SIZE_VW) + 1;
+    const col = Math.floor(vwX / BATTLE_CELL_WIDTH_VW) + 1;
+    const row = Math.floor(vwY / BATTLE_CELL_HEIGHT_VW) + 1;
     this.onCellClick(col, row);
   }
 }

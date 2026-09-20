@@ -105,7 +105,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private state: BattleModelState | null = null;
   private ticksSub: Subscription;
   private battleTimeSub: Subscription;
-  private commandQueue: Array<() => Promise<boolean>> = [];
+  private commandQueue: Array<{ command: () => Promise<boolean>; stackId?: string }> = [];
   private commandRunning = false;
 
   private _selectedStackId: string | null = null;
@@ -264,23 +264,25 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     void this.drainCommandQueue();
   }
 
-  private enqueueCommand(command: () => Promise<boolean>): Promise<boolean> {
+  private enqueueCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
     if (this.battleTime.isPaused || this.commandRunning) {
-      this.commandQueue.push(command);
+      this.commandQueue.push({ command, stackId });
       return Promise.resolve(false);
     }
-    return this.executeCommand(command);
+    return this.executeCommand(command, stackId);
   }
 
-  private async executeCommand(command: () => Promise<boolean>): Promise<boolean> {
+  private async executeCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
     if (this.commandRunning) {
-      this.commandQueue.push(command);
+      this.commandQueue.push({ command, stackId });
       return false;
     }
 
     this.commandRunning = true;
     try {
-      if (this.anim.isBusy) {
+      if (stackId && this.anim.isStackBusy(stackId)) {
+        await this.anim.waitForStackAnimation(stackId);
+      } else if (!stackId && this.anim.isBusy) {
         await this.anim.waitForAnimation();
       }
       return await command();
@@ -298,13 +300,12 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
 
     while (this.commandQueue.length > 0 && !this.battleTime.isPaused) {
-      const command = this.commandQueue.shift();
-      if (!command) {
-        continue;
-      }
+      const { command, stackId } = this.commandQueue.shift()!;
       this.commandRunning = true;
       try {
-        if (this.anim.isBusy) {
+        if (stackId && this.anim.isStackBusy(stackId)) {
+          await this.anim.waitForStackAnimation(stackId);
+        } else if (!stackId && this.anim.isBusy) {
           await this.anim.waitForAnimation();
         }
         await command();
@@ -660,9 +661,12 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   async doCarrierBoost(): Promise<boolean> {
+    const stack = this.selectedStack();
+    if (!stack) {
+      return Promise.resolve(false);
+    }
     return this.enqueueCommand(async () => {
-      const stack = this.selectedStack();
-      if (!this.state || !stack) {
+      if (!this.state) {
         return false;
       }
       const success = this.combat.carrierShieldBoost(this.state, stack.stackId);
@@ -670,7 +674,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         this.cdr.detectChanges();
       }
       return success;
-    });
+    }, stack.stackId);
   }
 
   private async doMoveToAttack(attacker: BattleStack, target: BattleStack): Promise<boolean> {
@@ -697,7 +701,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         await this.movement.waitForMovement(currentAttacker);
       }
       return true;
-    });
+    }, attacker.stackId);
   }
 
   private async moveTowardsAndAttack(attacker: BattleStack, target: BattleStack): Promise<boolean> {
@@ -738,7 +742,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         return this.tryAutoAttack(currentAttacker);
       }
       return true;
-    });
+    }, attacker.stackId);
   }
 
   private async doMove(
@@ -748,7 +752,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     waitForCompletion = false,
   ): Promise<boolean> {
     waitForCompletion = waitForCompletion || this.battleTime.isPaused || this.commandRunning;
-    return this.enqueueCommand(async () => {
+return this.enqueueCommand(async () => {
       const currentStack = this.state?.stacks.find(
         (candidate) => candidate.stackId === stack.stackId && !candidate.destroyed,
       );
@@ -780,11 +784,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       this.moveFailedUntil = 0;
       if (this.movementHintTimer !== null) {
         clearTimeout(this.movementHintTimer);
-        this.movementHintTimer = null;
       }
       this.cdr.detectChanges();
       return true;
-    });
+    }, stack.stackId);
   }
 
   /* Single auto-attack attempt for a player-controlled stack.
@@ -884,7 +887,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         currentAttacker.explicitAttackTargetId = null;
       }
       return success;
-    });
+    }, attacker.stackId);
   }
 
   private startGameLoop(): void {

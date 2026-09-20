@@ -75,12 +75,28 @@ describe('BattleScreenComponent', () => {
       starSystems: [],
       fleets: [
         {
-          id: 1, name: 'ORION', factionId: 'player', x: 0, y: 0,
-          targetX: null, targetY: null, speed: 5, system: null, ships: [],
+          id: 1,
+          name: 'ORION',
+          factionId: 'player',
+          x: 0,
+          y: 0,
+          targetX: null,
+          targetY: null,
+          speed: 5,
+          system: null,
+          ships: [],
         },
         {
-          id: 2, name: 'RAIDER', factionId: 'enemy1', x: 0, y: 0,
-          targetX: null, targetY: null, speed: 5, system: null, ships: [],
+          id: 2,
+          name: 'RAIDER',
+          factionId: 'enemy1',
+          x: 0,
+          y: 0,
+          targetX: null,
+          targetY: null,
+          speed: 5,
+          system: null,
+          ships: [],
         },
       ],
       currentView: 'map',
@@ -218,7 +234,9 @@ describe('BattleScreenComponent', () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
       fleet2: {
-        id: 2, name: 'RAIDER', factionId: 'enemy1',
+        id: 2,
+        name: 'RAIDER',
+        factionId: 'enemy1',
         ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
       },
       faction1Name: 'Player',
@@ -268,7 +286,7 @@ describe('BattleScreenComponent', () => {
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
     await autoAttackP;
     // Trigger game loop again - no more targets
-    component['gameLoopCallback'](1/60);
+    component['gameLoopCallback'](1 / 60);
     // Extra time for any pending cooldowns
     await vi.advanceTimersByTimeAsync(100);
     await attackP;
@@ -284,7 +302,9 @@ describe('BattleScreenComponent', () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
       fleet2: {
-        id: 2, name: 'RAIDER', factionId: 'enemy1',
+        id: 2,
+        name: 'RAIDER',
+        factionId: 'enemy1',
         ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
       },
       faction1Name: 'Player',
@@ -380,7 +400,9 @@ describe('BattleScreenComponent', () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
       fleet2: {
-        id: 2, name: 'RAIDER', factionId: 'enemy1',
+        id: 2,
+        name: 'RAIDER',
+        factionId: 'enemy1',
         ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
       },
       faction1Name: 'Player',
@@ -557,7 +579,12 @@ describe('BattleScreenComponent', () => {
    */
   it('exposes aggregate stats for the selected stack', () => {
     battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')] },
+      fleet1: {
+        id: 1,
+        name: 'ORION',
+        factionId: 'player',
+        ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')],
+      },
       fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(3, 'frigate')] },
       faction1Name: 'Player',
       faction1Color: '#8cc4ff',
@@ -590,7 +617,12 @@ describe('BattleScreenComponent', () => {
 
   it('reflects damaged ships in the aggregate HP and fraction', () => {
     battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')] },
+      fleet1: {
+        id: 1,
+        name: 'ORION',
+        factionId: 'player',
+        ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')],
+      },
       fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(3, 'frigate')] },
       faction1Name: 'Player',
       faction1Color: '#8cc4ff',
@@ -621,7 +653,12 @@ describe('BattleScreenComponent', () => {
 
   it('does not count destroyed ships in alive aggregates', () => {
     battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')] },
+      fleet1: {
+        id: 1,
+        name: 'ORION',
+        factionId: 'player',
+        ships: [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')],
+      },
       fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(3, 'frigate')] },
       faction1Name: 'Player',
       faction1Color: '#8cc4ff',
@@ -1025,7 +1062,10 @@ describe('BattleScreenComponent', () => {
         id: -7,
         name: 'DEFENSE',
         factionId: 'enemy1',
-        ships: [fleetShip(2, 'laser_turret'), { id: 1002, name: 'G1', type: 'frigate', currentHp: 40 }],
+        ships: [
+          fleetShip(2, 'laser_turret'),
+          { id: 1002, name: 'G1', type: 'frigate', currentHp: 40 },
+        ],
         shieldPool: 300,
         shieldPoolRegen: 15,
         shieldPoolMax: 300,
@@ -1124,7 +1164,10 @@ describe('BattleScreenComponent', () => {
         id: -7,
         name: 'DEFENSE',
         factionId: 'enemy1',
-        ships: [fleetShip(2, 'laser_turret'), { id: 1003, name: 'G1', type: 'frigate', currentHp: 50 }],
+        ships: [
+          fleetShip(2, 'laser_turret'),
+          { id: 1003, name: 'G1', type: 'frigate', currentHp: 50 },
+        ],
         shieldPool: 300,
         shieldPoolRegen: 15,
         shieldPoolMax: 300,
@@ -1167,7 +1210,9 @@ describe('BattleScreenComponent', () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
       fleet2: {
-        id: 2, name: 'RAIDER', factionId: 'enemy1',
+        id: 2,
+        name: 'RAIDER',
+        factionId: 'enemy1',
         ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
       },
       faction1Name: 'Player',
@@ -1230,7 +1275,9 @@ describe('BattleScreenComponent', () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
       fleet2: {
-        id: 2, name: 'RAIDER', factionId: 'enemy1',
+        id: 2,
+        name: 'RAIDER',
+        factionId: 'enemy1',
         ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
       },
       faction1Name: 'Player',
@@ -1268,7 +1315,9 @@ describe('BattleScreenComponent', () => {
     battleService.setBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
       fleet2: {
-        id: 2, name: 'RAIDER', factionId: 'enemy1',
+        id: 2,
+        name: 'RAIDER',
+        factionId: 'enemy1',
         ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
       },
       faction1Name: 'Player',
@@ -1340,8 +1389,10 @@ describe('BattleScreenComponent', () => {
     const state = component['state']!;
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
 
-    atk.x = 4; atk.y = 14;
-    atk.targetX = 20; atk.targetY = 14;
+    atk.x = 4;
+    atk.y = 14;
+    atk.targetX = 20;
+    atk.targetY = 14;
     atk.moving = true;
     component.selectedStackId = atk.stackId;
 
@@ -1372,8 +1423,10 @@ describe('BattleScreenComponent', () => {
     const state = component['state']!;
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
 
-    atk.x = 4; atk.y = 14;
-    atk.targetX = 20; atk.targetY = 14;
+    atk.x = 4;
+    atk.y = 14;
+    atk.targetX = 20;
+    atk.targetY = 14;
     // Not moving
     atk.moving = false;
     component.selectedStackId = atk.stackId;
@@ -1420,8 +1473,10 @@ describe('BattleScreenComponent', () => {
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
     const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
 
-    atk.x = 4; atk.y = 14;
-    def.x = 20; def.y = 14;
+    atk.x = 4;
+    atk.y = 14;
+    def.x = 20;
+    def.y = 14;
     atk.explicitAttackTargetId = def.stackId;
     component.selectedStackId = atk.stackId;
 
@@ -1453,8 +1508,10 @@ describe('BattleScreenComponent', () => {
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
     const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
 
-    atk.x = 4; atk.y = 14;
-    def.x = 20; def.y = 14;
+    atk.x = 4;
+    atk.y = 14;
+    def.x = 20;
+    def.y = 14;
     atk.moving = true;
     atk.moveToAttackTargetId = def.stackId;
     component.selectedStackId = atk.stackId;
@@ -1487,8 +1544,10 @@ describe('BattleScreenComponent', () => {
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
     const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
 
-    atk.x = 4; atk.y = 14;
-    def.x = 20; def.y = 14;
+    atk.x = 4;
+    atk.y = 14;
+    def.x = 20;
+    def.y = 14;
     atk.explicitAttackTargetId = def.stackId;
     def.destroyed = true;
     component.selectedStackId = atk.stackId;
@@ -1514,9 +1573,206 @@ describe('BattleScreenComponent', () => {
 
     const state = component['state']!;
     const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    atk.x = 4; atk.y = 14;
+    atk.x = 4;
+    atk.y = 14;
     component.selectedStackId = atk.stackId;
 
     expect(component.attackConnectionLine).toBeNull();
+  });
+
+  /*
+   * =========================================================
+   * CONNECTION LINES DURING PAUSE
+   * =========================================================
+   *
+   * When the battle is paused, connection lines (move and attack)
+   * must remain visible and their CSS animations must continue.
+   * The fix in battle-grid.ts ensures updateStackPositions does not
+   * complete movement when deltaTime === 0 (paused), keeping
+   * stack.moving = true so moveConnectionLine stays visible.
+   */
+
+  it('moveConnectionLine remains visible when battle is paused', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
+
+    // Set up a moving stack
+    atk.x = 4;
+    atk.y = 14;
+    atk.targetX = 20;
+    atk.targetY = 14;
+    atk.moving = true;
+    component.selectedStackId = atk.stackId;
+
+    // Initially visible (unpaused)
+    expect(component.moveConnectionLine).not.toBeNull();
+
+    // Pause the battle
+    component.toggleBattlePause();
+    expect(component.battlePaused).toBe(true);
+    fixture.detectChanges();
+
+    // Connection line should still be visible when paused
+    expect(component.moveConnectionLine).not.toBeNull();
+    expect(component.moveConnectionLine!.from.x).toBe(4);
+    expect(component.moveConnectionLine!.from.y).toBe(14);
+    expect(component.moveConnectionLine!.to.x).toBe(20);
+    expect(component.moveConnectionLine!.to.y).toBe(14);
+  });
+
+  it('moveConnectionLine stays visible after gameLoopCallback with paused deltaTime', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
+
+    // Set up a moving stack not yet at target
+    atk.x = 4;
+    atk.y = 14;
+    atk.targetX = 20;
+    atk.targetY = 14;
+    atk.moving = true;
+    component.selectedStackId = atk.stackId;
+
+    // Pause the battle
+    component.toggleBattlePause();
+    expect(component.battlePaused).toBe(true);
+
+    // Simulate a game loop tick with deltaTime = 0 (paused)
+    component['gameLoopCallback'](0);
+    fixture.detectChanges();
+
+    // Stack should still be moving (not completed) and line visible
+    expect(atk.moving).toBe(true);
+    expect(atk.targetX).not.toBeNull();
+    expect(atk.targetY).not.toBeNull();
+    expect(component.moveConnectionLine).not.toBeNull();
+  });
+
+  it('attackConnectionLine remains visible when battle is paused', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
+    const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
+
+    atk.x = 4;
+    atk.y = 14;
+    def.x = 20;
+    def.y = 14;
+    atk.explicitAttackTargetId = def.stackId;
+    component.selectedStackId = atk.stackId;
+
+    // Initially visible (unpaused)
+    expect(component.attackConnectionLine).not.toBeNull();
+
+    // Pause the battle
+    component.toggleBattlePause();
+    expect(component.battlePaused).toBe(true);
+    fixture.detectChanges();
+
+    // Attack connection line should still be visible when paused
+    // (doesn't depend on stack.moving)
+    expect(component.attackConnectionLine).not.toBeNull();
+    expect(component.attackConnectionLine!.from.x).toBe(4);
+    expect(component.attackConnectionLine!.from.y).toBe(14);
+    expect(component.attackConnectionLine!.to.x).toBe(20);
+    expect(component.attackConnectionLine!.to.y).toBe(14);
+  });
+
+  it('moveConnectionLine works correctly when unpausing and movement completes', () => {
+    battleService.setBattle({
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      faction1Name: 'Player',
+      faction1Color: '#8cc4ff',
+      faction2Name: 'Enemy 1',
+      faction2Color: '#d65757',
+      attackerId: 1,
+      defenderId: 2,
+    });
+
+    fixture = TestBed.createComponent(BattleScreenComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const state = component['state']!;
+    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
+
+    // Set up a moving stack very close to target (within 0.01 so it completes in one frame)
+    atk.x = 19.995;
+    atk.y = 14;
+    atk.targetX = 20;
+    atk.targetY = 14;
+    atk.moving = true;
+    atk.speed = 10;
+    component.selectedStackId = atk.stackId;
+
+    // Pause the battle
+    component.toggleBattlePause();
+    expect(component.battlePaused).toBe(true);
+
+    // Simulate paused game loop tick
+    component['gameLoopCallback'](0);
+    fixture.detectChanges();
+
+    // Should still be moving during pause
+    expect(atk.moving).toBe(true);
+    expect(component.moveConnectionLine).not.toBeNull();
+
+    // Unpause
+    component.toggleBattlePause();
+    expect(component.battlePaused).toBe(false);
+
+    // Simulate unpaused game loop tick - movement should complete
+    component['gameLoopCallback'](1 / 60);
+    fixture.detectChanges();
+
+    // Movement should complete, target cleared, line hidden
+    expect(atk.moving).toBe(false);
+    expect(atk.targetX).toBeNull();
+    expect(atk.targetY).toBeNull();
+    expect(component.moveConnectionLine).toBeNull();
   });
 });

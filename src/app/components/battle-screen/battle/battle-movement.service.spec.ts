@@ -168,9 +168,9 @@ describe('BattleMovementService', () => {
     const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
     state.stacks.push(defender);
 
-    // Place them within attack range (distance 8vw, range=12vw).
+    // Fighter has range=2 cells = 7vw (2 * 3.5). Place them within attack range (distance 6vw).
     attacker.x = 6; attacker.y = 14; attacker.col = 2; attacker.row = 4;
-    defender.x = 14; defender.y = 14; defender.col = 4; defender.row = 4;
+    defender.x = 12; defender.y = 14; defender.col = 4; defender.row = 4;
     attacker.moving = true;
     attacker.targetX = 14;
     attacker.targetY = 14;

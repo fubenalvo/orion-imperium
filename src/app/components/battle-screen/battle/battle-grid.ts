@@ -1,5 +1,13 @@
 import type { BattleModelState, BattleStack, GridCell, BattleShieldPool } from './battle.types';
-import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW, AI_ACTION_INTERVAL_MS, SHIELD_REGEN_INTERVAL_MS } from './battle.types';
+import {
+  BATTLE_GRID_COLUMNS,
+  BATTLE_GRID_ROWS,
+  BATTLE_CELL_WIDTH_VW,
+  BATTLE_CELL_HEIGHT_VW,
+  BATTLE_CELL_SIZE_VW,
+  AI_ACTION_INTERVAL_MS,
+  SHIELD_REGEN_INTERVAL_MS,
+} from './battle.types';
 
 /*
  * =========================================================
@@ -11,7 +19,7 @@ import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW, AI_ACTION_I
  * 1-indexed cells and 4vw cell size.
  */
 
-export { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS };
+export { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_CELL_SIZE_VW };
 
 export function isInBounds(col: number, row: number): boolean {
   return col >= 1 && col <= BATTLE_GRID_COLUMNS && row >= 1 && row <= BATTLE_GRID_ROWS;
@@ -132,12 +140,12 @@ const TARGET_ROLE_PRIORITY: Record<string, number> = {
   'Fleet Support': 5,
   'Anti-Ship': 4,
   'Line Ship': 4,
-  'Escort': 3,
+  Escort: 3,
   'Light Combat': 3,
-  'Interceptor': 2,
-  'Recon': 2,
-  'Colonizer': 1,
-  'defense': 1,
+  Interceptor: 2,
+  Recon: 2,
+  Colonizer: 1,
+  defense: 1,
 };
 
 /* Threat weight derived from the target's existing combat stats. Pure
@@ -219,9 +227,7 @@ export function getOccupiedCells(stack: BattleStack): GridCell[] {
 
 /* Stack at a cell, or null. */
 export function getStackAt(state: BattleModelState, col: number, row: number): BattleStack | null {
-  return (
-    state.stacks.find((s) => !s.destroyed && occupiesCell(s, col, row)) ?? null
-  );
+  return state.stacks.find((s) => !s.destroyed && occupiesCell(s, col, row)) ?? null;
 }
 
 export function getAliveStackCount(state: BattleModelState, side: 'attacker' | 'defender'): number {
@@ -231,8 +237,8 @@ export function getAliveStackCount(state: BattleModelState, side: 'attacker' | '
 /* vw position of a cell centre, relative to the battle grid container. */
 export function cellToVw(cell: GridCell): { x: number; y: number } {
   return {
-    x: (cell.col - 0.5) * BATTLE_CELL_SIZE_VW,
-    y: (cell.row - 0.5) * BATTLE_CELL_SIZE_VW,
+    x: (cell.col - 0.5) * BATTLE_CELL_WIDTH_VW,
+    y: (cell.row - 0.5) * BATTLE_CELL_HEIGHT_VW,
   };
 }
 
@@ -241,19 +247,21 @@ export function stackCenterVw(stack: BattleStack): { x: number; y: number } {
   const offset = (stack.size - 1) / 2;
   const visualCol = stack.side === 'attacker' ? stack.col + offset : stack.col - offset;
   return {
-    x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW,
-    y: (stack.row - 0.5) * BATTLE_CELL_SIZE_VW,
+    x: (visualCol - 0.5) * BATTLE_CELL_WIDTH_VW,
+    y: (stack.row - 0.5) * BATTLE_CELL_HEIGHT_VW,
   };
 }
 
 /* Convert vw coordinates to the anchor grid cell for a stack. */
 export function vwToStackCell(stack: BattleStack, x: number, y: number): GridCell {
-  const cellSize = BATTLE_CELL_SIZE_VW;
-  const visualCol = x / cellSize + 0.5;
+  const visualCol = x / BATTLE_CELL_WIDTH_VW + 0.5;
   const direction = stack.side === 'attacker' ? 1 : -1;
   const offset = (stack.size - 1) / 2;
-  const anchorCol = Math.max(1, Math.min(BATTLE_GRID_COLUMNS, Math.round(visualCol - direction * offset)));
-  const row = Math.max(1, Math.min(BATTLE_GRID_ROWS, Math.round(y / cellSize + 0.5)));
+  const anchorCol = Math.max(
+    1,
+    Math.min(BATTLE_GRID_COLUMNS, Math.round(visualCol - direction * offset)),
+  );
+  const row = Math.max(1, Math.min(BATTLE_GRID_ROWS, Math.round(y / BATTLE_CELL_HEIGHT_VW + 0.5)));
   return { col: anchorCol, row };
 }
 
@@ -302,16 +310,52 @@ export function regenerateAllShields(state: BattleModelState): void {
  * Called every frame by the game loop with scaled delta time (seconds).
  * Moves stacks at speed vw/s toward targetX/targetY.
  * When a stack reaches its target, snaps position and updates col/row.
+ *
+ * When deltaTime === 0 (battle paused), positions don't change and
+ * stacks remain in 'moving' state so connection lines stay visible.
  */
-export function updateStackPositions(state: BattleModelState, deltaTime: number, onComplete?: (stackId: string) => void): void {
+export function updateStackPositions(
+  state: BattleModelState,
+  deltaTime: number,
+  onComplete?: (stackId: string) => void,
+): void {
   for (const stack of state.stacks) {
-    if (stack.destroyed || stack.targetX == null || stack.targetY == null) continue;
-    const dx = stack.targetX - stack.x;
-    const dy = stack.targetY - stack.y;
+    const hasTarget = stack.targetX != null && stack.targetY != null;
+
+    if (stack.destroyed) {
+      if (hasTarget && onComplete) {
+        onComplete(stack.stackId);
+      }
+      stack.targetX = null;
+      stack.targetY = null;
+      stack.moving = false;
+      continue;
+    }
+
+    if (!hasTarget) {
+      continue;
+    }
+
+    // At this point, targetX and targetY are guaranteed to be non-null
+    const targetX = stack.targetX!;
+    const targetY = stack.targetY!;
+
+    const dx = targetX - stack.x;
+    const dy = targetY - stack.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // When paused (deltaTime === 0), don't complete movement —
+    // keep stack.moving = true so connection lines remain visible and animated.
+    if (deltaTime <= 0) {
+      if (dist > 0.01) {
+        stack.moving = true;
+      }
+      continue;
+    }
+
     if (dist <= 0.01) {
-      stack.x = stack.targetX;
-      stack.y = stack.targetY;
+      stack.x = targetX;
+      stack.y = targetY;
       stack.targetX = null;
       stack.targetY = null;
       const cell = vwToStackCell(stack, stack.x, stack.y);
@@ -399,7 +443,9 @@ export function isPathClear(
 ): boolean {
   for (const cell of path) {
     const cols = occupiedCols(stack, cell.col);
-    if (cols.some((c) => !isInBounds(c, cell.row) || isOccupied(state, c, cell.row, stack.stackId))) {
+    if (
+      cols.some((c) => !isInBounds(c, cell.row) || isOccupied(state, c, cell.row, stack.stackId))
+    ) {
       return false;
     }
   }
@@ -409,7 +455,10 @@ export function isPathClear(
 /* Enemy stacks within a stack's current absolute attack range (ids only). */
 export function getAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
   return state.stacks
-    .filter((s) => !s.destroyed && s.side !== stack.side && isAbsoluteInRange(stack, s, stack.attackRange))
+    .filter(
+      (s) =>
+        !s.destroyed && s.side !== stack.side && isAbsoluteInRange(stack, s, stack.attackRange),
+    )
     .map((s) => s.stackId);
 }
 
@@ -511,10 +560,7 @@ export function findBestMoveToAttackCell(
  * via a clear path. These are valid move-to-attack targets.
  * No AP or moveRange limits.
  */
-export function getMoveToAttackTargetIds(
-  state: BattleModelState,
-  stack: BattleStack,
-): string[] {
+export function getMoveToAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
   if (stack.destroyed || stack.immobile) {
     return [];
   }

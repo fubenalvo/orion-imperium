@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_SIZE_VW } from './battle.types';
+import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW } from './battle.types';
 import {
   isInBounds,
   isPathClear,
@@ -188,7 +188,7 @@ function cellCenterVw(cell: GridCell, stack: { side: 'attacker' | 'defender'; si
   const offset = (stack.size - 1) / 2;
   const visualCol = stack.side === 'attacker' ? cell.col + offset : cell.col - offset;
   return {
-    x: (visualCol - 0.5) * BATTLE_CELL_SIZE_VW,
-    y: (cell.row - 0.5) * BATTLE_CELL_SIZE_VW,
+    x: (visualCol - 0.5) * BATTLE_CELL_WIDTH_VW,
+    y: (cell.row - 0.5) * BATTLE_CELL_HEIGHT_VW,
   };
 }

@@ -15,10 +15,15 @@
 
 export type BattleSide = 'attacker' | 'defender';
 
-/* Grid: full-width tactical grid (72vw x 28vw, 4vw cells). */
-export const BATTLE_GRID_COLUMNS = 18;
-export const BATTLE_GRID_ROWS = 7;
-export const BATTLE_CELL_SIZE_VW = 4;
+/* Grid: full-width tactical grid (72vw x 28vw). 19x8 cells = rectangular cells. */
+export const BATTLE_GRID_COLUMNS = 19;
+export const BATTLE_GRID_ROWS = 8;
+export const BATTLE_CELL_WIDTH_VW = 72 / 19;
+export const BATTLE_CELL_HEIGHT_VW = 28 / 8;
+
+/* Backward compatibility for code still using square-cell assumption.
+ * Range calculations use the smaller dimension (3.5vw) to keep "range in cells" circular. */
+export const BATTLE_CELL_SIZE_VW = Math.min(BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW);
 
 /* AI action interval (ms). Both sides act simultaneously; AI takes one action per tick. */
 export const AI_ACTION_INTERVAL_MS = 200;
@@ -39,7 +44,7 @@ export const MAX_STACK_SIZE = 5;
 /* Deployment columns: attacker left, defender right. A third column is
  * used only when the number of stacks exceeds the two standard columns. */
 export const ATTACKER_DEPLOY_COLS = [1, 2, 3, 4];
-export const DEFENDER_DEPLOY_COLS = [18, 17, 16, 15];
+export const DEFENDER_DEPLOY_COLS = [19, 18, 17, 16];
 
 /* Animation durations in ms. State commits after the animation resolves,
  * so the visible grid never shows a half-resolved action. */

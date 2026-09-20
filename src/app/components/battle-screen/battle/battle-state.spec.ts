@@ -137,9 +137,9 @@ describe('battle-state', () => {
     const garrison = defenders.filter((s) => !s.immobile);
 
     expect(turrets).toHaveLength(3);
-    expect(turrets.every((s) => s.col === 18)).toBe(true);
+    expect(turrets.every((s) => s.col === 19)).toBe(true);
     expect(garrison).toHaveLength(2);
-    expect(garrison.every((s) => s.col < 18)).toBe(true);
+    expect(garrison.every((s) => s.col < 19)).toBe(true);
 
     const occupied = new Set<string>();
     for (const stack of defenders) {
@@ -188,12 +188,12 @@ describe('battle-state', () => {
     const defender = getStacks(state, 'defender')[0];
     expect(attacker.col).toBeLessThanOrEqual(4);
     expect(attacker.col).toBeGreaterThanOrEqual(1);
-    expect(defender.col).toBeGreaterThanOrEqual(15);
-    expect(defender.col).toBeLessThanOrEqual(18);
+    expect(defender.col).toBeGreaterThanOrEqual(16);
+    expect(defender.col).toBeLessThanOrEqual(19);
 
     for (const stack of state.stacks) {
       expect(stack.row).toBeGreaterThanOrEqual(1);
-      expect(stack.row).toBeLessThanOrEqual(7);
+      expect(stack.row).toBeLessThanOrEqual(8);
     }
   });
 

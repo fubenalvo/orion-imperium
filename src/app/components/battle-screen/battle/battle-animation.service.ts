@@ -20,6 +20,7 @@ export class BattleAnimationService {
   private activeCount = 0;
   private stackActiveCount = new Map<string, number>();
   private animationWaiters: Array<() => void> = [];
+  private stackAnimationWaiters = new Map<string, Array<() => void>>();
 
   readonly busy = signal(false);
   readonly ticks$ = new Subject<void>();
@@ -51,6 +52,7 @@ export class BattleAnimationService {
       const count = Math.max(0, (this.stackActiveCount.get(stackId) ?? 1) - 1);
       if (count === 0) {
         this.stackActiveCount.delete(stackId);
+        this.resolveStackAnimationWaiters(stackId);
       } else {
         this.stackActiveCount.set(stackId, count);
       }
@@ -82,6 +84,18 @@ export class BattleAnimationService {
     });
   }
 
+  /** Wait for a specific stack's animation to complete. */
+  waitForStackAnimation(stackId: string): Promise<void> {
+    if (!this.isStackBusy(stackId)) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      const waiters = this.stackAnimationWaiters.get(stackId) ?? [];
+      waiters.push(resolve);
+      this.stackAnimationWaiters.set(stackId, waiters);
+    });
+  }
+
   /* Cancel all pending frame-driven waits. */
   cancelPendingWaits(): void {
     this.time.cancelPendingWaits();
@@ -97,12 +111,21 @@ export class BattleAnimationService {
     this.cancelPendingWaits();
     this.activeCount = 0;
     this.stackActiveCount.clear();
+    this.stackAnimationWaiters.clear();
     this.resolveAnimationWaiters();
     this.busy.set(false);
   }
 
   private resolveAnimationWaiters(): void {
     const waiters = this.animationWaiters.splice(0, this.animationWaiters.length);
+    for (const resolve of waiters) {
+      resolve();
+    }
+  }
+
+  private resolveStackAnimationWaiters(stackId: string): void {
+    const waiters = this.stackAnimationWaiters.get(stackId) ?? [];
+    this.stackAnimationWaiters.delete(stackId);
     for (const resolve of waiters) {
       resolve();
     }

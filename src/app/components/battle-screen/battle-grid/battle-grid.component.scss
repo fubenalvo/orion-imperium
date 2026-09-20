@@ -10,7 +10,7 @@
   background-image:
     linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
     linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
-  background-size: 4vw 4vw;
+  background-size: calc(72vw/19) calc(28vw/8);
   border-bottom: rgba(53, 134, 229, 0.1) 2px solid;
   cursor: crosshair;
   box-shadow: 0px 58vw 0px 30vw rgba(0, 0, 0, 1);
@@ -22,8 +22,8 @@
 
 .move-cell {
   position: absolute;
-  width: 3.2vw;
-  height: 3.2vw;
+  width: calc(0.8 * 72vw / 19);
+  height: calc(0.8 * 28vw / 8);
   transform: translate(-50%, -50%);
   border: 1px dashed rgba(140, 196, 255, 0.45);
   border-radius: 2px;
@@ -37,8 +37,8 @@
 
 .stack-cell {
   position: absolute;
-  width: 3.7vw;
-  height: 3.7vw;
+  width: calc(0.925 * 72vw / 19);
+  height: calc(0.925 * 28vw / 8);
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
@@ -52,15 +52,15 @@
 }
 
 .stack-cell--size-1 {
-  width: 3.7vw;
+  width: calc(0.925 * 72vw / 19);
 }
 
 .stack-cell--size-2 {
-  width: 7.7vw;
+  width: calc(2 * 0.925 * 72vw / 19 + 0.2vw);
 }
 
 .stack-cell--size-3 {
-  width: 11.7vw;
+  width: calc(3 * 0.925 * 72vw / 19 + 2 * 0.2vw);
 }
 
 .stack {
@@ -402,8 +402,8 @@
 
 .impact {
   position: absolute;
-  width: 2.4vw;
-  height: 2.4vw;
+  width: calc(0.6 * 72vw / 19);
+  height: calc(0.6 * 28vw / 8);
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: radial-gradient(
