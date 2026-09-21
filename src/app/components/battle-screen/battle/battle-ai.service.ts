@@ -4,7 +4,6 @@ import { getStacks, isSidePlayerControlled } from './battle-state';
 import {
   absoluteDistanceCells,
   computeTargetScore,
-  findBestMoveToAttackCell,
   isAbsoluteInRange,
   linePath,
 } from './battle-grid';
@@ -163,9 +162,13 @@ export class BattleAiService {
       )[0];
 
     if (moveAttackTarget) {
-      const bestCell = findBestMoveToAttackCell(state, stack, moveAttackTarget);
-      if (bestCell) {
-        return this.movement.moveStack(state, stack.stackId, bestCell.col, bestCell.row);
+      const success = await this.movement.moveToAttack(
+        state,
+        stack.stackId,
+        moveAttackTarget.stackId,
+      );
+      if (success) {
+        return true;
       }
     }
 
@@ -192,6 +195,9 @@ export class BattleAiService {
       const dest = path[d - 1];
       const result = await this.movement.moveStack(state, stack.stackId, dest.col, dest.row);
       if (result) {
+        // Set moveToAttackTargetId so updateMoveToAttackTargets re-evaluates
+        // this stack's destination every frame as the enemy moves.
+        stack.moveToAttackTargetId = enemy.stackId;
         return true;
       }
     }

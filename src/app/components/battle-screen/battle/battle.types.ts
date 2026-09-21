@@ -31,10 +31,6 @@ export const AI_ACTION_INTERVAL_MS = 200;
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
 export const SHIELD_REGEN_INTERVAL_MS = 1000;
 
-/* How often move-to-attack stacks re-evaluate their destination cell
- * based on the target's current absolute position. */
-export const MOVE_TO_ATTACK_UPDATE_INTERVAL_MS = 1000;
-
 /*
  * A stack renders up to MAX_STACK_SIZE ship icons; larger fleets of a
  * single ship type are split across multiple stacks of this size.

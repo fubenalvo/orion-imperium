@@ -131,7 +131,7 @@ export class BattleMovementService {
 
   /*
    * Periodic re-computation of move-to-attack destinations.
-   * Called every MOVE_TO_ATTACK_UPDATE_INTERVAL_MS by the game loop.
+   * Called every frame by the game loop.
    * For each stack moving toward a target, re-evaluates the destination cell
    * using the target's current absolute position. If the target is destroyed
    * or no valid cell exists (e.g., target now in range), the stack stops
@@ -166,12 +166,37 @@ export class BattleMovementService {
       }
       const bestCell = findBestMoveToAttackCell(state, stack, target);
       if (!bestCell) {
-        this.snapToGrid(stack);
-        stack.moveToAttackTargetId = null;
-        stack.moving = false;
-        stack.targetX = null;
-        stack.targetY = null;
-        this.completeMovement(stack.stackId);
+        // No cell brings the stack into attack range. Instead of stopping,
+        // redirect toward the enemy's current grid position so the stack
+        // keeps closing distance. updateMoveToAttackTargets re-runs every
+        // frame, so this path stays current as the enemy moves.
+        const interceptPath = linePath(
+          { col: stack.col, row: stack.row },
+          { col: target.col, row: target.row },
+        );
+        let redirected = false;
+        if (interceptPath) {
+          for (let d = interceptPath.length; d >= 1; d--) {
+            const dest = interceptPath[d - 1];
+            const destPath = linePath({ col: stack.col, row: stack.row }, dest);
+            if (destPath && isPathClear(state, destPath, stack)) {
+              const targetVw = cellCenterVw(dest, stack);
+              stack.targetX = targetVw.x;
+              stack.targetY = targetVw.y;
+              redirected = true;
+              break;
+            }
+          }
+        }
+        if (!redirected) {
+          // No valid path — stop and wait for the AI to re-plan on its next tick.
+          this.snapToGrid(stack);
+          stack.moveToAttackTargetId = null;
+          stack.moving = false;
+          stack.targetX = null;
+          stack.targetY = null;
+          this.completeMovement(stack.stackId);
+        }
         continue;
       }
       const targetVw = cellCenterVw(bestCell, stack);
