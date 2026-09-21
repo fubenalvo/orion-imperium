@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BattleModelState, BattleStack, GridCell } from './battle.types';
+import { BattleModelState, BattleStack, GridCell, AI_MOVE_COOLDOWN_MS } from './battle.types';
 import { getStacks, isSidePlayerControlled } from './battle-state';
 import {
   absoluteDistanceCells,
@@ -10,6 +10,7 @@ import {
 import { BattleCombatService } from './battle-combat.service';
 import { BattleMovementService } from './battle-movement.service';
 import { BattleAnimationService } from './battle-animation.service';
+import { BattleTimeService } from './battle-time.service';
 
 /*
  * =========================================================
@@ -39,6 +40,7 @@ export class BattleAiService {
     private combat: BattleCombatService,
     private movement: BattleMovementService,
     private anim: BattleAnimationService,
+    private time: BattleTimeService,
   ) {}
 
   /*
@@ -57,6 +59,9 @@ export class BattleAiService {
       if (stack.destroyed || stack.immobile || this.anim.isStackBusy(stack.stackId)) {
         continue;
       }
+      if (this.onMoveCooldown(stack)) {
+        continue;
+      }
       const target = this.bestTarget(state, stack);
       if (target) {
         const result = await this.combat.attackStack(state, stack.stackId, target.stackId);
@@ -68,6 +73,9 @@ export class BattleAiService {
     //    proactively, not only when no attack is available.
     for (const stack of aiStacks) {
       if (stack.moving || stack.destroyed || stack.typeId !== 'carrier') {
+        continue;
+      }
+      if (this.onMoveCooldown(stack)) {
         continue;
       }
       if (this.hasLowShieldAlly(state, stack)) {
@@ -83,6 +91,9 @@ export class BattleAiService {
       if (stack.moving || stack.destroyed || stack.typeId !== 'carrier') {
         continue;
       }
+      if (this.onMoveCooldown(stack)) {
+        continue;
+      }
       if (this.combat.carrierShieldBoost(state, stack.stackId)) {
         return true;
       }
@@ -93,6 +104,9 @@ export class BattleAiService {
       if (stack.moving || stack.destroyed || stack.immobile || this.anim.isStackBusy(stack.stackId)) {
         continue;
       }
+      if (this.onMoveCooldown(stack)) {
+        continue;
+      }
       const moved = await this.moveTowardNearestEnemy(state, stack);
       if (moved) {
         return true;
@@ -100,6 +114,18 @@ export class BattleAiService {
     }
 
     return false;
+  }
+
+  /* Returns true if the AI has commanded this stack to move within the last
+   * AI_MOVE_COOLDOWN_MS. Skips the stack so the AI doesn't micro-manage. */
+  private onMoveCooldown(stack: BattleStack): boolean {
+    return !!(stack.moveCooldownUntil && stack.moveCooldownUntil > this.time.battleElapsedMs);
+  }
+
+  /* Sets the stack's move cooldown so the AI leaves it alone for
+   * AI_MOVE_COOLDOWN_MS after initiating a move. */
+  private applyMoveCooldown(stack: BattleStack): void {
+    stack.moveCooldownUntil = this.time.battleElapsedMs + AI_MOVE_COOLDOWN_MS;
   }
 
   private getAiStacks(state: BattleModelState, includePlayerSides = false): BattleStack[] {
@@ -171,6 +197,8 @@ export class BattleAiService {
         moveAttackTarget.stackId,
       );
       if (success) {
+        // Lock the stack so the AI doesn't micro-manage for 3s.
+        this.applyMoveCooldown(stack);
         return true;
       }
     }
@@ -201,6 +229,8 @@ export class BattleAiService {
         // Set moveToAttackTargetId so updateMoveToAttackTargets re-evaluates
         // this stack's destination every frame as the enemy moves.
         stack.moveToAttackTargetId = enemy.stackId;
+        // Lock the stack so the AI doesn't micro-manage for 3s.
+        this.applyMoveCooldown(stack);
         return true;
       }
     }

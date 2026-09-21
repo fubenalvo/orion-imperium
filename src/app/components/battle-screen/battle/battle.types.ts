@@ -28,6 +28,11 @@ export const BATTLE_CELL_SIZE_VW = Math.min(BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HE
 /* AI action interval (ms). Both sides act simultaneously; AI takes one action per tick. */
 export const AI_ACTION_INTERVAL_MS = 200;
 
+/* AI move cooldown (ms). When the AI moves a stack, that stack cannot be given
+ * another AI command (move, attack, or boost) for this duration. Uses battle-local
+ * time so it scales with game speed and pauses with the battle. */
+export const AI_MOVE_COOLDOWN_MS = 3000;
+
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
 export const SHIELD_REGEN_INTERVAL_MS = 1000;
 
@@ -136,6 +141,11 @@ export interface BattleStack {
   /* Timestamp (ms, from performance.now()) when this stack can attack again.
    * Used for fire-rate cooldown between volleys in auto-attack. */
   attackCooldownUntil?: number;
+
+  /* Timestamp (ms, from performance.now()) when the AI can command this stack
+   * again after its last movement. Prevents AI micro-management — once the AI
+   * moves a stack, it leaves it alone for AI_MOVE_COOLDOWN_MS. */
+  moveCooldownUntil?: number;
 }
 
 /* Visual effect active during an attack animation. Only one animation
