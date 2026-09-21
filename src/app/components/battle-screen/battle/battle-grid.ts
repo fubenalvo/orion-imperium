@@ -7,6 +7,7 @@ import {
   BATTLE_CELL_SIZE_VW,
   AI_ACTION_INTERVAL_MS,
   SHIELD_REGEN_INTERVAL_MS,
+  AI_MOVE_TO_ATTACK_RATIO,
 } from './battle.types';
 
 /*
@@ -509,74 +510,88 @@ export function computeCarrierBoostTargets(
 }
 
 /*
- * Cells from which a stack could attack a specific target stack.
- * Returns all unoccupied cells whose visual center has the target's current
- * absolute position within attackRange and that have a clear straight-line path.
- */
-export function getMoveToAttackCells(
-  state: BattleModelState,
-  stack: BattleStack,
-  targetStack: BattleStack,
-): GridCell[] {
-  if (stack.destroyed || stack.immobile || targetStack.destroyed) {
-    return [];
-  }
-  const origin: GridCell = { col: stack.col, row: stack.row };
-  const cells: GridCell[] = [];
-  for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
-    for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
-      if (c === stack.col && r === stack.row) {
-        continue;
-      }
-      const destCols = occupiedCols(stack, c);
-      if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) {
-        continue;
-      }
-      const path = linePath(origin, { col: c, row: r });
-      if (!path || !isPathClear(state, path, stack)) {
-        continue;
-      }
-      const candidateCenter = stackCenterVw({ ...stack, col: c, row: r });
-      if (isAbsolutePositionInRange(candidateCenter, targetStack, stack.attackRange)) {
-        cells.push({ col: c, row: r });
+   * Cells from which a stack could attack a specific target stack.
+   * Returns all unoccupied cells whose visual center has the target's current
+   * absolute position within `effectiveRange` and that have a clear
+   * straight-line path. Defaults to the stack's full attackRange so UI
+   * highlights stay at full range; the AI passes a shrunk value to close
+   * only to AI_MOVE_TO_ATTACK_RATIO of its range before stopping.
+   */
+  export function getMoveToAttackCells(
+    state: BattleModelState,
+    stack: BattleStack,
+    targetStack: BattleStack,
+    effectiveRange: number = stack.attackRange,
+  ): GridCell[] {
+    if (stack.destroyed || stack.immobile || targetStack.destroyed) {
+      return [];
+    }
+    const origin: GridCell = { col: stack.col, row: stack.row };
+    const cells: GridCell[] = [];
+    for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
+      for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+        if (c === stack.col && r === stack.row) {
+          continue;
+        }
+        const destCols = occupiedCols(stack, c);
+        if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) {
+          continue;
+        }
+        const path = linePath(origin, { col: c, row: r });
+        if (!path || !isPathClear(state, path, stack)) {
+          continue;
+        }
+        const candidateCenter = stackCenterVw({ ...stack, col: c, row: r });
+        if (isAbsolutePositionInRange(candidateCenter, targetStack, effectiveRange)) {
+          cells.push({ col: c, row: r });
+        }
       }
     }
+    return cells;
   }
-  return cells;
-}
 
 /*
- * Returns the single best cell for move-to-attack: closest to attacker
- * (minimizes move cost), breaking ties by closest to target.
- */
-export function findBestMoveToAttackCell(
-  state: BattleModelState,
-  stack: BattleStack,
-  targetStack: BattleStack,
-): GridCell | null {
-  const candidates = getMoveToAttackCells(state, stack, targetStack);
-  if (candidates.length === 0) {
-    return null;
-  }
-  const origin: GridCell = { col: stack.col, row: stack.row };
-  return candidates.reduce((best, cell) => {
-    const bestDist = Math.max(Math.abs(best.col - origin.col), Math.abs(best.row - origin.row));
-    const cellDist = Math.max(Math.abs(cell.col - origin.col), Math.abs(cell.row - origin.row));
-    if (cellDist < bestDist) {
-      return cell;
+   * Returns the single best cell for move-to-attack: closest to attacker
+   * (minimizes move cost), breaking ties by closest to target.
+   *
+   * The candidate zone is shrunk to AI_MOVE_TO_ATTACK_RATIO of the
+   * attacker's attack range, so the AI stops at ~75% of its range instead
+   * of closing to point-blank. Attack resolution itself still uses the
+   * full attackRange — this only decides WHERE the stack moves to.
+   */
+  export function findBestMoveToAttackCell(
+    state: BattleModelState,
+    stack: BattleStack,
+    targetStack: BattleStack,
+  ): GridCell | null {
+    const candidates = getMoveToAttackCells(
+      state,
+      stack,
+      targetStack,
+      stack.attackRange * AI_MOVE_TO_ATTACK_RATIO,
+    );
+    if (candidates.length === 0) {
+      return null;
     }
-    if (cellDist === bestDist) {
-      const bestCenter = stackCenterVw({ ...stack, col: best.col, row: best.row });
-      const cellCenter = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
-      const bestToTarget = absoluteDistanceCells(bestCenter, targetStack);
-      const cellToTarget = absoluteDistanceCells(cellCenter, targetStack);
-      if (cellToTarget < bestToTarget) {
+    const origin: GridCell = { col: stack.col, row: stack.row };
+    return candidates.reduce((best, cell) => {
+      const bestDist = Math.max(Math.abs(best.col - origin.col), Math.abs(best.row - origin.row));
+      const cellDist = Math.max(Math.abs(cell.col - origin.col), Math.abs(cell.row - origin.row));
+      if (cellDist < bestDist) {
         return cell;
       }
-    }
-    return best;
-  });
-}
+      if (cellDist === bestDist) {
+        const bestCenter = stackCenterVw({ ...stack, col: best.col, row: best.row });
+        const cellCenter = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
+        const bestToTarget = absoluteDistanceCells(bestCenter, targetStack);
+        const cellToTarget = absoluteDistanceCells(cellCenter, targetStack);
+        if (cellToTarget < bestToTarget) {
+          return cell;
+        }
+      }
+      return best;
+    });
+  }
 
 /*
  * Enemy stacks that are outside the current absolute attackRange but reachable

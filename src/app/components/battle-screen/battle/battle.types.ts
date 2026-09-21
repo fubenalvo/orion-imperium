@@ -28,10 +28,16 @@ export const BATTLE_CELL_SIZE_VW = Math.min(BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HE
 /* AI action interval (ms). Both sides act simultaneously; AI takes one action per tick. */
 export const AI_ACTION_INTERVAL_MS = 200;
 
-/* AI move cooldown (ms). When the AI moves a stack, that stack cannot be given
- * another AI command (move, attack, or boost) for this duration. Uses battle-local
- * time so it scales with game speed and pauses with the battle. */
-export const AI_MOVE_COOLDOWN_MS = 3000;
+/* AI action cooldown (ms). After the AI commands a stack (move, attack, or
+ * boost), that stack is locked for this duration and cannot be given another
+ * AI command. Uses battle-local time so it scales with game speed and pauses
+ * with the battle. */
+export const AI_ACTION_COOLDOWN_MS = 3000;
+
+/* Fraction of the attacker's attack range the AI closes to before stopping.
+ * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
+ * attack resolution and range checks are untouched. Tune freely. */
+export const AI_MOVE_TO_ATTACK_RATIO = 0.95;
 
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
 export const SHIELD_REGEN_INTERVAL_MS = 1000;
@@ -74,26 +80,26 @@ export interface FleetShip {
 }
 
 /* One real ship inside a stack. shipId === FleetShip.id, the key used to
-   * map battle results back onto the overworld fleet roster.
-   *
-   * Shield and weapon fields are always present (defaults from
-   * getBattleShipStats). BattleShipStats carries the authoritative
-   * values; toBattleShip() copies them in. */
-  export interface BattleShip {
-    shipId: number;
-    name: string;
-    typeId: string;
-    hp: number;
-    maxHp: number;
-    shield: number;
-    maxShield: number;
-    shieldRegen: number;
-    attackType: string;
-    weakness: string;
-    attack: number;
-    defense: number;
-    alive: boolean;
-  }
+ * map battle results back onto the overworld fleet roster.
+ *
+ * Shield and weapon fields are always present (defaults from
+ * getBattleShipStats). BattleShipStats carries the authoritative
+ * values; toBattleShip() copies them in. */
+export interface BattleShip {
+  shipId: number;
+  name: string;
+  typeId: string;
+  hp: number;
+  maxHp: number;
+  shield: number;
+  maxShield: number;
+  shieldRegen: number;
+  attackType: string;
+  weakness: string;
+  attack: number;
+  defense: number;
+  alive: boolean;
+}
 
 /*
  * BattleStack is the tactical unit: movement, attack, targeting, and
@@ -143,9 +149,10 @@ export interface BattleStack {
   attackCooldownUntil?: number;
 
   /* Timestamp (ms, from performance.now()) when the AI can command this stack
-   * again after its last movement. Prevents AI micro-management — once the AI
-   * moves a stack, it leaves it alone for AI_MOVE_COOLDOWN_MS. */
-  moveCooldownUntil?: number;
+   * again after its last command (move, attack, or boost). Prevents AI
+   * micro-management — once the AI commands a stack, it leaves it alone for
+   * AI_ACTION_COOLDOWN_MS. */
+  actionCooldownUntil?: number;
 }
 
 /* Visual effect active during an attack animation. Only one animation
