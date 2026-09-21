@@ -139,7 +139,7 @@ describe('BattleMovementService', () => {
     expect(attacker.moveToAttackTargetId).toBe(defender.stackId);
   });
 
-  it('updateMoveToAttackTargets clears target when destroyed and snaps to grid', () => {
+  it('updateMoveToAttackTargets clears target when destroyed and aligns to nearest cell', () => {
     const state = setup([fleetShip(1, 'fighter')]);
     const attacker = stackFrom(state, 0);
     const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
@@ -157,20 +157,20 @@ describe('BattleMovementService', () => {
     movement.updateMoveToAttackTargets(state);
 
     expect(attacker.moveToAttackTargetId).toBeNull();
-    expect(attacker.moving).toBe(false);
-    expect(attacker.targetX).toBeNull();
-    expect(attacker.targetY).toBeNull();
-    // Position should be snapped to the nearest grid cell centre
-    const expectedCenter = stackCenterVw(attacker);
-    expect(attacker.x).toBeCloseTo(expectedCenter.x, 5);
-    expect(attacker.y).toBeCloseTo(expectedCenter.y, 5);
-    // col/row should be consistent with the snapped position
+    // Ship should be redirecting to the nearest cell centre (not teleported)
+    expect(attacker.moving).toBe(true);
+    expect(attacker.targetX).not.toBeNull();
+    expect(attacker.targetY).not.toBeNull();
+    // x/y must NOT be teleported — the snap jump is eliminated
+    expect(attacker.x).toBe(7);
+    expect(attacker.y).toBe(13);
+    // col/row should be the nearest cell to the current visual position
     const expectedCell = vwToStackCell(attacker, attacker.x, attacker.y);
     expect(attacker.col).toBe(expectedCell.col);
     expect(attacker.row).toBe(expectedCell.row);
   });
 
-  it('updateMoveToAttackTargets clears target when target is in range and snaps to grid', () => {
+  it('updateMoveToAttackTargets clears target when target is in range and aligns to nearest cell', () => {
     const state = setup([fleetShip(1, 'fighter')]);
     const attacker = stackFrom(state, 0);
     const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
@@ -187,14 +187,14 @@ describe('BattleMovementService', () => {
     movement.updateMoveToAttackTargets(state);
 
     expect(attacker.moveToAttackTargetId).toBeNull();
-    expect(attacker.moving).toBe(false);
-    expect(attacker.targetX).toBeNull();
-    expect(attacker.targetY).toBeNull();
-    // Position should be snapped to the nearest grid cell centre
-    const expectedCenter = stackCenterVw(attacker);
-    expect(attacker.x).toBeCloseTo(expectedCenter.x, 5);
-    expect(attacker.y).toBeCloseTo(expectedCenter.y, 5);
-    // col/row should be consistent with the snapped position
+    // Ship should be redirecting to the nearest cell centre (not teleported)
+    expect(attacker.moving).toBe(true);
+    expect(attacker.targetX).not.toBeNull();
+    expect(attacker.targetY).not.toBeNull();
+    // x/y must NOT be teleported — the snap jump is eliminated
+    expect(attacker.x).toBe(7);
+    expect(attacker.y).toBe(13);
+    // col/row should be the nearest cell to the current visual position
     const expectedCell = vwToStackCell(attacker, attacker.x, attacker.y);
     expect(attacker.col).toBe(expectedCell.col);
     expect(attacker.row).toBe(expectedCell.row);
@@ -217,7 +217,7 @@ describe('BattleMovementService', () => {
     expect(attacker.moving).toBe(false);
   });
 
-  it('updateMoveToAttackTargets snaps to nearest grid cell when target is brought into range', () => {
+  it('updateMoveToAttackTargets syncs col/row and smoothly redirects to nearest cell', () => {
     const state = setup([fleetShip(1, 'fighter')]);
     const attacker = stackFrom(state, 0);
     const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
@@ -237,19 +237,21 @@ describe('BattleMovementService', () => {
 
     movement.updateMoveToAttackTargets(state);
 
-    expect(attacker.moving).toBe(false);
-    expect(attacker.targetX).toBeNull();
-    expect(attacker.targetY).toBeNull();
-
-    // The position must now be exactly at a cell centre
-    const snapCenter = stackCenterVw(attacker);
-    expect(attacker.x).toBeCloseTo(snapCenter.x, 5);
-    expect(attacker.y).toBeCloseTo(snapCenter.y, 5);
-
-    // And it must be the nearest cell to the original off-grid position
+    // Ship should be redirecting to nearest cell (moving=true, target set)
+    expect(attacker.moving).toBe(true);
+    expect(attacker.targetX).not.toBeNull();
+    expect(attacker.targetY).not.toBeNull();
+    // x/y must NOT be teleported — the snap jump is eliminated
+    expect(attacker.x).toBe(offGridX);
+    expect(attacker.y).toBe(offGridY);
+    // col/row should be synced to the nearest cell to the off-grid position
     const expectedCell = vwToStackCell({ ...attacker, x: offGridX, y: offGridY } as BattleStack, offGridX, offGridY);
     expect(attacker.col).toBe(expectedCell.col);
     expect(attacker.row).toBe(expectedCell.row);
+    // Target should be the center of the nearest cell
+    const expectedTarget = stackCenterVw({ ...attacker, col: expectedCell.col, row: expectedCell.row } as BattleStack);
+    expect(attacker.targetX).toBeCloseTo(expectedTarget.x, 5);
+    expect(attacker.targetY).toBeCloseTo(expectedTarget.y, 5);
   });
 });
 

@@ -6,7 +6,6 @@ import {
   linePath,
   findBestMoveToAttackCell,
   isAbsoluteInRange,
-  stackCenterVw,
   vwToStackCell,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
@@ -148,20 +147,12 @@ export class BattleMovementService {
       if (!target) {
         this.snapToGrid(stack);
         stack.moveToAttackTargetId = null;
-        stack.moving = false;
-        stack.targetX = null;
-        stack.targetY = null;
-        this.completeMovement(stack.stackId);
         continue;
       }
-      // Target already in range — stop moving, let caller handle attack.
+      // Target already in range — smoothly align to nearest grid cell.
       if (isAbsoluteInRange(stack, target, stack.attackRange)) {
         this.snapToGrid(stack);
         stack.moveToAttackTargetId = null;
-        stack.moving = false;
-        stack.targetX = null;
-        stack.targetY = null;
-        this.completeMovement(stack.stackId);
         continue;
       }
       const bestCell = findBestMoveToAttackCell(state, stack, target);
@@ -181,6 +172,16 @@ export class BattleMovementService {
             const destPath = linePath({ col: stack.col, row: stack.row }, dest);
             if (destPath && isPathClear(state, destPath, stack)) {
               const targetVw = cellCenterVw(dest, stack);
+              // Skip redirect if already close to this destination — prevents
+              // micro-jitter when the enemy drifts near a cell boundary.
+              if (stack.targetX != null && stack.targetY != null) {
+                const ddx = targetVw.x - stack.targetX;
+                const ddy = targetVw.y - stack.targetY;
+                if (Math.sqrt(ddx * ddx + ddy * ddy) < 0.1) {
+                  redirected = true;
+                  break;
+                }
+              }
               stack.targetX = targetVw.x;
               stack.targetY = targetVw.y;
               redirected = true;
@@ -189,37 +190,47 @@ export class BattleMovementService {
           }
         }
         if (!redirected) {
-          // No valid path — stop and wait for the AI to re-plan on its next tick.
+          // No valid path — smoothly align to nearest cell and wait for the
+          // AI to re-plan on its next tick.
           this.snapToGrid(stack);
           stack.moveToAttackTargetId = null;
-          stack.moving = false;
-          stack.targetX = null;
-          stack.targetY = null;
-          this.completeMovement(stack.stackId);
         }
         continue;
       }
       const targetVw = cellCenterVw(bestCell, stack);
+      // Only redirect if the best cell actually changed — prevents micro-jitter
+      // when the enemy is near a cell boundary and the optimal cell flips
+      // back and forth between adjacent cells.
+      if (stack.targetX != null && stack.targetY != null) {
+        const ddx = targetVw.x - stack.targetX;
+        const ddy = targetVw.y - stack.targetY;
+        if (Math.sqrt(ddx * ddx + ddy * ddy) < 0.1) {
+          continue;
+        }
+      }
       stack.targetX = targetVw.x;
       stack.targetY = targetVw.y;
     }
   }
 
   /*
-   * Snaps a stack's current vw position to the nearest grid cell centre.
-   * Called when movement is interrupted mid-flight (e.g. move-to-attack
-   * target destroyed or brought into range) so the stack settles on a
-   * grid-aligned position rather than stopping mid-cell. Without this,
-   * AI ships chasing moving targets end up between cells and col/row
-   * drift out of sync with visual position.
+   * Smoothly aligns a stack to the nearest grid cell. Sets the cell center as
+   * the stack's movement target and keeps moving = true, so updateStackPositions
+   * interpolates the ship to the cell centre over time instead of teleporting.
+   * col/row is updated immediately for path-finding. Called when movement is
+   * interrupted mid-flight (e.g. move-to-attack target destroyed or brought
+   * into range) so the stack settles on a grid-aligned position without a
+   * visible snap. The caller is responsible for clearing moveToAttackTargetId;
+   * completeMovement is deferred to updateStackPositions when the ship arrives.
    */
   private snapToGrid(stack: BattleStack): void {
     const cell = vwToStackCell(stack, stack.x, stack.y);
-    const center = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
     stack.col = cell.col;
     stack.row = cell.row;
-    stack.x = center.x;
-    stack.y = center.y;
+    const center = cellCenterVw(cell, stack);
+    stack.targetX = center.x;
+    stack.targetY = center.y;
+    stack.moving = true;
   }
 
   private resolveMovementWaiters(stackId: string): void {
