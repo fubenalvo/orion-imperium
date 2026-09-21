@@ -19,21 +19,30 @@
         </button>
         <button
           class="battle-time-btn"
-          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 0.5"
+          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 0.625"
           [class.battle-time-btn--dimmed]="battlePaused"
-          (click)="setBattleSpeed(0.5)"
+          (click)="setBattleSpeed(0.625)"
           aria-label="1x speed"
         >
           1x
         </button>
         <button
           class="battle-time-btn"
-          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 1"
+          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 1.25"
           [class.battle-time-btn--dimmed]="battlePaused"
-          (click)="setBattleSpeed(1)"
+          (click)="setBattleSpeed(1.25)"
           aria-label="2x speed"
         >
           2x
+        </button>
+        <button
+          class="battle-time-btn"
+          [class.battle-time-btn--active]="autoBattleEnabled"
+          [class.battle-time-btn--dimmed]="battlePaused"
+          (click)="toggleAutoBattle()"
+          aria-label="Auto battle toggle"
+        >
+          AUTO
         </button>
       </div>
       @if (planetShield; as shield) {

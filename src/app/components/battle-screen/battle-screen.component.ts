@@ -15,6 +15,7 @@ import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { GameTimeService } from '../../services/game-time.service';
+import { BattleSettingsService } from '../../services/battle-settings.service';
 import { BattleTimeService, BattleSpeed } from './battle/battle-time.service';
 import {
   Battle,
@@ -137,6 +138,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   private aiTickAccumulator = 0;
   private shieldRegenAccumulator = 0;
+  private autoBattleTickAccumulator = 0;
 
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
@@ -147,6 +149,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     private planetBattleService: PlanetBattleService,
     private saveGameService: SaveGameService,
     private gameTimeService: GameTimeService,
+    private battleSettings: BattleSettingsService,
     readonly battleTime: BattleTimeService,
     private gameLoop: BattleGameLoopService,
     private movement: BattleMovementService,
@@ -160,6 +163,15 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.battleTimeSub = this.battleTime.state$.subscribe(() => this.cdr.detectChanges());
     this.onStackClick = this.onStackClick.bind(this);
     this.onCellClick = this.onCellClick.bind(this);
+  }
+
+  get autoBattleEnabled(): boolean {
+    return this.battleSettings.autoBattleEnabled();
+  }
+
+  toggleAutoBattle(): void {
+    this.battleSettings.toggleAutoBattle();
+    this.cdr.detectChanges();
   }
 
   get battleState(): BattleModelState | null {
@@ -940,9 +952,20 @@ return this.enqueueCommand(async () => {
       }
     }
 
-    // 2b. Player auto-attack: attempt attack for all player-controlled stacks.
+    // 2b. Auto-battle AI tick: when auto battle is enabled, AI also controls player stacks.
+    // Runs at the same interval as regular AI.
+    if (!this.state.winner && !isPaused && this.autoBattleEnabled) {
+      this.autoBattleTickAccumulator += deltaTime * 1000;
+      if (this.autoBattleTickAccumulator >= AI_ACTION_INTERVAL_MS) {
+        this.autoBattleTickAccumulator = 0;
+        void this.ai.playAction(this.state, true); // true = include player-controlled sides
+      }
+    }
+
+    // 2c. Player auto-attack: attempt attack for all player-controlled stacks.
     // Runs every frame; per-stack cooldown prevents over-attacking.
-    if (!this.state.winner && !isPaused) {
+    // Only runs when auto-battle is OFF (otherwise AI handles it)
+    if (!this.state.winner && !isPaused && !this.autoBattleEnabled) {
       const state = this.state!; // non-null after winner check
       const playerStacks = state.stacks.filter(
         (s) => !s.destroyed && isSidePlayerControlled(state, s.side)

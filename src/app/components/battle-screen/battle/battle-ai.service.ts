@@ -45,12 +45,12 @@ export class BattleAiService {
    * One AI action per call. Returns true if an action was taken,
    * false if no action was possible (all stacks moving, no targets, etc).
    */
-  async playAction(state: BattleModelState): Promise<boolean> {
+  async playAction(state: BattleModelState, includePlayerSides = false): Promise<boolean> {
     if (state.winner) {
       return false;
     }
 
-    const aiStacks = this.getAiStacks(state);
+    const aiStacks = this.getAiStacks(state, includePlayerSides);
 
     // 1. Attack with the first stack that has an in-range enemy target and is not animating.
     for (const stack of aiStacks) {
@@ -102,7 +102,10 @@ export class BattleAiService {
     return false;
   }
 
-  private getAiStacks(state: BattleModelState): BattleStack[] {
+  private getAiStacks(state: BattleModelState, includePlayerSides = false): BattleStack[] {
+    if (includePlayerSides) {
+      return state.stacks.filter((s) => !s.destroyed);
+    }
     return state.stacks.filter(
       (s) => !s.destroyed && !isSidePlayerControlled(state, s.side),
     );
