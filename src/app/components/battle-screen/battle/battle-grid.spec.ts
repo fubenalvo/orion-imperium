@@ -9,6 +9,7 @@ import {
   isInRange,
   isInBounds,
   isOccupied,
+  isCellReserved,
   isPathClear,
   linePath,
   stackCenterVw,
@@ -136,6 +137,69 @@ describe('battle-grid', () => {
     expect(isOccupied(state, 9, 9, undefined)).toBe(false);
   });
 
+  it('isCellReserved blocks destination cells of in-flight stacks', () => {
+    const inflight = { ...baseStack(), stackId: 'moving', col: 2, row: 4, moving: true };
+    placeStack(inflight, 2, 4);
+    // Set an in-flight target to cell (5, 4)
+    const targetCenter = stackCenterVw({ ...inflight, col: 5, row: 4 });
+    inflight.targetX = targetCenter.x;
+    inflight.targetY = targetCenter.y;
+    const state = makeState([inflight]);
+
+    // isOccupied checks only static position — does NOT see the in-flight target
+    expect(isOccupied(state, 5, 4, undefined)).toBe(false);
+    // isCellReserved sees the in-flight target
+    expect(isCellReserved(state, 5, 4, undefined)).toBe(true);
+    // Excluding the in-flight stack frees the target cell
+    expect(isCellReserved(state, 5, 4, 'moving')).toBe(false);
+    // The current cell is occupied (static) but not a "reservation" check
+    expect(isOccupied(state, 2, 4, undefined)).toBe(true);
+    // A different cell is free
+    expect(isCellReserved(state, 3, 4, undefined)).toBe(false);
+  });
+
+  it('isCellReserved does not block target cells of non-moving stacks', () => {
+    // A stack with targetX/targetY set but moving=false should not reserve its target
+    const idle = { ...baseStack(), stackId: 'idle', col: 2, row: 4, moving: false };
+    placeStack(idle, 2, 4);
+    const targetCenter = stackCenterVw({ ...idle, col: 5, row: 4 });
+    idle.targetX = targetCenter.x;
+    idle.targetY = targetCenter.y;
+    const state = makeState([idle]);
+
+    expect(isCellReserved(state, 5, 4, undefined)).toBe(false);
+  });
+
+  it('isPathClear blocks the destination cell if reserved by an in-flight stack', () => {
+    const mover = { ...baseStack(), stackId: 'mover', col: 2, row: 4 };
+    const inFlight = {
+      ...baseStack(),
+      stackId: 'inflight',
+      col: 1,
+      row: 4,
+      moving: true,
+    };
+    placeStack(inFlight, 1, 4);
+    // In-flight stack reserves cell (5, 4) as its destination
+    const targetCenter = stackCenterVw({ ...inFlight, col: 5, row: 4 });
+    inFlight.targetX = targetCenter.x;
+    inFlight.targetY = targetCenter.y;
+    const state = makeState([mover, inFlight]);
+
+    // Path that ends at (5, 4) — the reserved cell — should be blocked
+    const blockedPath = linePath({ col: 2, row: 4 }, { col: 5, row: 4 })!;
+    expect(isPathClear(state, blockedPath, mover)).toBe(false);
+
+    // Path that ends at (4, 4) — NOT the reserved cell — should be clear
+    const clearPath = linePath({ col: 2, row: 4 }, { col: 4, row: 4 })!;
+    expect(isPathClear(state, clearPath, mover)).toBe(true);
+
+    // Path that passes THROUGH (5, 4) but ends at (6, 4) should be clear
+    // (intermediate cells are not checked for reservations)
+    const throughPath = linePath({ col: 2, row: 4 }, { col: 6, row: 4 })!;
+    expect(isPathClear(state, throughPath, mover)).toBe(true);
+  });
+
   it('getReachableCells stays within movement range and clear paths', () => {
     const stack = { ...baseStack(), col: 2, row: 4 };
     const state = makeState([
@@ -150,6 +214,29 @@ describe('battle-grid', () => {
     expect(cells.some((c) => c.col === 3 && c.row === 4)).toBe(true);
     // cells beyond a blocker are blocked
     expect(cells.some((c) => c.col === 5 && c.row === 4)).toBe(false);
+  });
+
+  it('getReachableCells excludes cells already targeted by an in-flight stack', () => {
+    const mover = { ...baseStack(), stackId: 'mover', col: 2, row: 4 };
+    const inFlight = {
+      ...baseStack(),
+      stackId: 'inflight',
+      col: 1,
+      row: 4,
+      moving: true,
+    };
+    placeStack(inFlight, 1, 4);
+    // In-flight stack is heading to cell (6, 4)
+    const targetCenter = stackCenterVw({ ...inFlight, col: 6, row: 4 });
+    inFlight.targetX = targetCenter.x;
+    inFlight.targetY = targetCenter.y;
+    const state = makeState([mover, inFlight]);
+
+    const cells = getReachableCells(state, mover);
+    // (6,4) should be excluded — it's the destination of the in-flight stack
+    expect(cells.some((c) => c.col === 6 && c.row === 4)).toBe(false);
+    // (5,4) is still reachable (in-flight target blocks only (6,4))
+    expect(cells.some((c) => c.col === 5 && c.row === 4)).toBe(true);
   });
 
   it('getAttackTargetIds returns enemy stacks within attack range', () => {

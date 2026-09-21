@@ -813,6 +813,10 @@ return this.enqueueCommand(async () => {
     if (attacker.destroyed) {
       return false;
     }
+    // Don't auto-attack if player manually commanded this stack to move
+    if (attacker.moving) {
+      return false;
+    }
     // Per-stack fire-rate cooldown using battle-local time
     const now = this.battleTime.battleElapsedMs;
     if (attacker.attackCooldownUntil && attacker.attackCooldownUntil > now) {

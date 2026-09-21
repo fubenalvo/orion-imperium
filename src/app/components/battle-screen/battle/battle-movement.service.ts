@@ -6,6 +6,8 @@ import {
   linePath,
   findBestMoveToAttackCell,
   isAbsoluteInRange,
+  stackCenterVw,
+  vwToStackCell,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 import { BattleCombatService } from './battle-combat.service';
@@ -144,6 +146,7 @@ export class BattleMovementService {
         (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
       );
       if (!target) {
+        this.snapToGrid(stack);
         stack.moveToAttackTargetId = null;
         stack.moving = false;
         stack.targetX = null;
@@ -153,6 +156,7 @@ export class BattleMovementService {
       }
       // Target already in range — stop moving, let caller handle attack.
       if (isAbsoluteInRange(stack, target, stack.attackRange)) {
+        this.snapToGrid(stack);
         stack.moveToAttackTargetId = null;
         stack.moving = false;
         stack.targetX = null;
@@ -162,6 +166,7 @@ export class BattleMovementService {
       }
       const bestCell = findBestMoveToAttackCell(state, stack, target);
       if (!bestCell) {
+        this.snapToGrid(stack);
         stack.moveToAttackTargetId = null;
         stack.moving = false;
         stack.targetX = null;
@@ -174,6 +179,24 @@ export class BattleMovementService {
       stack.targetY = targetVw.y;
     }
   }
+
+  /*
+   * Snaps a stack's current vw position to the nearest grid cell centre.
+   * Called when movement is interrupted mid-flight (e.g. move-to-attack
+   * target destroyed or brought into range) so the stack settles on a
+   * grid-aligned position rather than stopping mid-cell. Without this,
+   * AI ships chasing moving targets end up between cells and col/row
+   * drift out of sync with visual position.
+   */
+  private snapToGrid(stack: BattleStack): void {
+    const cell = vwToStackCell(stack, stack.x, stack.y);
+    const center = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
+    stack.col = cell.col;
+    stack.row = cell.row;
+    stack.x = center.x;
+    stack.y = center.y;
+  }
+
   private resolveMovementWaiters(stackId: string): void {
     const waiters = this.movementWaiters.get(stackId) ?? [];
     this.movementWaiters.delete(stackId);

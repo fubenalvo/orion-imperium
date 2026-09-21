@@ -180,20 +180,35 @@ export function isOccupied(
   excludeStackId?: string,
 ): boolean {
   /*
-   * Option B: Only static (physical) occupancy blocks movement.
-   * Stacks currently moving (targetX/targetY set) do NOT block
-   * destination cells — only their current physical position
-   * (col/row) counts. This makes real-time movement fluid: a
-   * stack vacating a cell immediately frees it for others.
-   * Two stacks heading to the same cell can temporarily coexist
-   * at that cell; they naturally separate as they move at
-   * different speeds. Visual overlap is a known trade-off.
-   * Path validation (`isPathClear`) uses the same logic — paths
-   * are validated at command time, not continuously.
+   * Checks static physical occupancy — whether any living stack's
+   * current grid position (col/row) covers the queried cell.
+   * In-flight stacks (targetX/targetY set) are NOT checked here;
+   * their destination reservation is handled by `isCellReserved`,
+   * which `isPathClear` applies to destination cells only.
    */
   return state.stacks.some((s) => {
     if (s.destroyed || s.stackId === excludeStackId) return false;
     return occupiesCell(s, col, row);
+  });
+}
+
+/*
+ * Checks whether a cell is the reserved destination of an in-flight stack.
+ * An in-flight stack (moving = true, targetX/targetY set) claims its
+ * destination cell so that no other stack is sent to the same cell.
+ * The excludeStackId guard lets a stack check without blocking itself.
+ */
+export function isCellReserved(
+  state: BattleModelState,
+  col: number,
+  row: number,
+  excludeStackId?: string,
+): boolean {
+  return state.stacks.some((s) => {
+    if (s.destroyed || s.stackId === excludeStackId || !s.moving) return false;
+    if (s.targetX == null || s.targetY == null) return false;
+    const targetCell = vwToStackCell(s, s.targetX, s.targetY);
+    return occupiesCell({ ...s, col: targetCell.col, row: targetCell.row }, col, row);
   });
 }
 
@@ -441,11 +456,19 @@ export function isPathClear(
   path: GridCell[],
   stack: BattleStack,
 ): boolean {
-  for (const cell of path) {
+  for (let i = 0; i < path.length; i++) {
+    const cell = path[i];
     const cols = occupiedCols(stack, cell.col);
     if (
       cols.some((c) => !isInBounds(c, cell.row) || isOccupied(state, c, cell.row, stack.stackId))
     ) {
+      return false;
+    }
+    // Destination cell: also reject if reserved by another in-flight stack
+    // (prevents two stacks from being sent to the same cell). Intermediate
+    // path cells are NOT checked for reservations — stacks may pass through
+    // cells that are another stack's destination.
+    if (i === path.length - 1 && cols.some((c) => isCellReserved(state, c, cell.row, stack.stackId))) {
       return false;
     }
   }
