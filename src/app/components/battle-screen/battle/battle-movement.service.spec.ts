@@ -253,6 +253,47 @@ describe('BattleMovementService', () => {
     expect(attacker.targetX).toBeCloseTo(expectedTarget.x, 5);
     expect(attacker.targetY).toBeCloseTo(expectedTarget.y, 5);
   });
+
+  it('updateMoveToAttackTargets prevents two stacks from aligning to the same cell', () => {
+    const state = setup([fleetShip(1, 'fighter'), fleetShip(2, 'fighter')]);
+    const attackerA = stackFrom(state, 0);
+    const attackerB = stackFrom(state, 1);
+    const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
+    state.stacks.push(defender);
+
+    // Both attackers at similar x positions that round to the same nearest cell (col=2)
+    attackerA.x = 6; attackerA.y = 13; attackerA.col = 2; attackerA.row = 4;
+    attackerB.x = 7; attackerB.y = 13; attackerB.col = 3; attackerB.row = 4;
+
+    // Defender within attack range of both (3 cells = ~10.5vw)
+    defender.x = 12; defender.y = 14; defender.col = 4; defender.row = 4;
+
+    // Both in move-to-attack mode
+    for (const s of [attackerA, attackerB]) {
+      s.moving = true;
+      s.targetX = 14;
+      s.targetY = 14;
+      s.moveToAttackTargetId = defender.stackId;
+    }
+
+    movement.updateMoveToAttackTargets(state);
+
+    // Both should have smooth transition targets (not teleported, not stopped)
+    expect(attackerA.moving).toBe(true);
+    expect(attackerB.moving).toBe(true);
+    expect(attackerA.targetX).not.toBeNull();
+    expect(attackerB.targetX).not.toBeNull();
+
+    // x/y must NOT be teleported
+    expect(attackerA.x).toBe(6);
+    expect(attackerB.x).toBe(7);
+
+    // Both should have targets on different cells (collision avoidance)
+    const cellA = vwToStackCell(attackerA, attackerA.targetX!, attackerA.targetY!);
+    const cellB = vwToStackCell(attackerB, attackerB.targetX!, attackerB.targetY!);
+    expect(cellA.col).not.toBe(cellB.col);
+    expect(cellA.row).toBe(cellB.row); // same row, different col
+  });
 });
 
 function baseFleetStack(stackId: string): BattleStack {

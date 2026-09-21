@@ -1,11 +1,14 @@
 import { Injectable } from '@angular/core';
-import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW } from './battle.types';
+import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS } from './battle.types';
 import {
   isInBounds,
   isPathClear,
   linePath,
   findBestMoveToAttackCell,
   isAbsoluteInRange,
+  isCellReserved,
+  isOccupied,
+  occupiedCols,
   vwToStackCell,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
@@ -145,13 +148,13 @@ export class BattleMovementService {
         (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
       );
       if (!target) {
-        this.snapToGrid(stack);
+        this.snapToGrid(stack, state);
         stack.moveToAttackTargetId = null;
         continue;
       }
       // Target already in range — smoothly align to nearest grid cell.
       if (isAbsoluteInRange(stack, target, stack.attackRange)) {
-        this.snapToGrid(stack);
+        this.snapToGrid(stack, state);
         stack.moveToAttackTargetId = null;
         continue;
       }
@@ -192,7 +195,7 @@ export class BattleMovementService {
         if (!redirected) {
           // No valid path — smoothly align to nearest cell and wait for the
           // AI to re-plan on its next tick.
-          this.snapToGrid(stack);
+          this.snapToGrid(stack, state);
           stack.moveToAttackTargetId = null;
         }
         continue;
@@ -222,15 +225,64 @@ export class BattleMovementService {
    * into range) so the stack settles on a grid-aligned position without a
    * visible snap. The caller is responsible for clearing moveToAttackTargetId;
    * completeMovement is deferred to updateStackPositions when the ship arrives.
+   * If the nearest cell is already reserved by another in-flight stack, searches
+   * in a diamond pattern for the nearest free cell — preventing two AI stacks
+   * from being sent to the same cell simultaneously.
    */
-  private snapToGrid(stack: BattleStack): void {
+  private snapToGrid(stack: BattleStack, state: BattleModelState): void {
     const cell = vwToStackCell(stack, stack.x, stack.y);
     stack.col = cell.col;
     stack.row = cell.row;
-    const center = cellCenterVw(cell, stack);
-    stack.targetX = center.x;
-    stack.targetY = center.y;
-    stack.moving = true;
+
+    const target = this.findNearestFreeCell(state, stack, cell);
+    if (target) {
+      const center = cellCenterVw(target, stack);
+      stack.targetX = center.x;
+      stack.targetY = center.y;
+      stack.moving = true;
+    } else {
+      // No free cell found — stop at current position
+      stack.moving = false;
+      stack.targetX = null;
+      stack.targetY = null;
+      this.completeMovement(stack.stackId);
+    }
+  }
+
+  /*
+   * Diamond search (increasing Manhattan distance) for the nearest unreserved
+   * cell to the origin. Checks static occupancy via isOccupied and in-flight
+   * reservations via isCellReserved. Returns null if none found.
+   */
+  private findNearestFreeCell(
+    state: BattleModelState,
+    stack: BattleStack,
+    origin: GridCell,
+  ): GridCell | null {
+    const maxRadius = BATTLE_GRID_COLUMNS + BATTLE_GRID_ROWS;
+    for (let radius = 0; radius <= maxRadius; radius++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        for (let dr = -radius; dr <= radius; dr++) {
+          if (Math.abs(dc) + Math.abs(dr) !== radius) {
+            continue;
+          }
+          const col = origin.col + dc;
+          const row = origin.row + dr;
+          if (!isInBounds(col, row)) {
+            continue;
+          }
+          const destCols = occupiedCols(stack, col);
+          if (!destCols.some((c) =>
+            !isInBounds(c, row) ||
+            isOccupied(state, c, row, stack.stackId) ||
+            isCellReserved(state, c, row, stack.stackId)
+          )) {
+            return { col, row };
+          }
+        }
+      }
+    }
+    return null;
   }
 
   private resolveMovementWaiters(stackId: string): void {

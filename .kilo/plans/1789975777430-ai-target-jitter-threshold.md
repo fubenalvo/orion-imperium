@@ -1,117 +1,151 @@
-# Fix AI Ship Position Jumps on Target Acquisition
+# Fix AI Ship Position Jumps + Same-Cell Collisions
 
 ## Problem
 
-User reports AI ships still jump **10-20 pixels** on a 1080p monitor when the
-enemy enters attack range, despite the 0.1 vw threshold already applied in
-`updateMoveToAttackTargets`.
+Two issues remain in the AI battle movement:
 
-## Root Cause
+1. **10-20px position jumps** — Already addressed: `snapToGrid` now smoothly
+   interpolates the ship to the nearest cell center via `updateStackPositions`
+   instead of teleporting `x`/`y`. The 0.1 vw threshold guard also prevents
+   redundant target re-sets in the fallback redirect path.
 
-The 0.1 vw threshold is a **no-op** for the best-cell path: `findBestMoveToAttackCell`
-returns discrete grid cells whose centers are ~3.7 vw (~71px) apart. The threshold
-never triggers because a different cell always means a target ~3.7 vw away.
+2. **Multiple AI stacks sent to the same cell** — Root cause: `snapToGrid`
+   unconditionally sets the target to the nearest cell center **without checking
+   `isCellReserved`**. When two AI stacks are near each other and their enemies
+   enter attack range simultaneously (same frame), both round to the same nearest
+   cell and receive the same target.
 
-The actual 10-20px jump comes from **`snapToGrid`** (line 236-243), called at
-three sites in `updateMoveToAttackTargets`:
+## Root Cause: Missing Reservation Check in snapToGrid
 
-| Line | Trigger | x/y snap? |
-|------|---------|-----------|
-| 149  | Target destroyed | Yes — **jump** |
-| 159  | Target brought into range | Yes — **jump** (main complaint) |
-| 203  | No redirect path found (fallback) | Yes — **jump** |
+The game loop order is:
+1. `updateStackPositions` — smooth interpolation
+2. AI tick (async, `void playAction`) — moves ONE stack per 200ms tick
+3. `updateMoveToAttackTargets` — re-evaluates every frame
 
-`snapToGrid` computes the nearest cell via `vwToStackCell` and then **teleports
-`x`/`y` to that cell's center** (lines 241-242). When the ship is mid-flight
-(between cells), this can move the ship by up to ~0.5 vw (~10px on 1080p),
-exactly matching the user's report.
+When the enemy enters range, `updateMoveToAttackTargets` calls `snapToGrid` for
+a stack. `snapToGrid` calls `vwToStackCell(stack.x, stack.y)` to find the nearest
+cell and sets `targetX/Y` to that cell's center — **no reservation check**.
 
-`updateStackPositions` interpolates `x`/`y` smoothly every frame (line 384-388),
-so the jump is **not** from the game loop's interpolation — it's from
-`snapToGrid`'s instant teleport.
+If two stacks are within the same cell-width band (e.g., both at x≈7.0 and x≈7.5,
+which both round to `col=2`), their nearest cell is identical. Both get the same
+target. `updateMoveToAttackTargets` processes all stacks in a single loop, so
+both targets are set in the same frame — no `isCellReserved` guard between them.
 
-## Why the Threshold Didn't Help
+## Fix: Add Reservation Check to snapToGrid
 
-The threshold guards `targetX`/`targetY` updates in `updateMoveToAttackTargets`.
-But the jump is in `snapToGrid`, which runs **after** the threshold check and
-overrides `x`/`y` regardless. The two code paths are independent.
+### 1. Pass `state` to `snapToGrid`
 
-## Fix
+Change the signature to `snapToGrid(stack, state)` so it can check
+`isCellReserved` and `isOccupied`.
 
-### 1. Stop `snapToGrid` from teleporting x/y
-
-Modify `snapToGrid` (line 236-243) to **only update `col`/`row`**, leaving
-`x`/`y` at their current smooth-interpolated position:
+### 2. Search for nearest unreserved cell
 
 ```typescript
-private snapToGrid(stack: BattleStack): void {
+private snapToGrid(stack: BattleStack, state: BattleModelState): void {
   const cell = vwToStackCell(stack, stack.x, stack.y);
   stack.col = cell.col;
   stack.row = cell.row;
-  // x/y left untouched — prevents visual jump when ship is mid-flight.
-  // col/row stays in sync with visual position (nearest cell).
+
+  // Find nearest unreserved cell (diamond search from origin outward)
+  const target = this.findNearestFreeCell(state, stack, cell);
+  if (target) {
+    const center = cellCenterVw(target, stack);
+    stack.targetX = center.x;
+    stack.targetY = center.y;
+    stack.moving = true;
+  } else {
+    // No free cell found — stop at current position
+    stack.targetX = null;
+    stack.targetY = null;
+    stack.moving = false;
+    this.completeMovement(stack.stackId);
+  }
+}
+
+private findNearestFreeCell(
+  state: BattleModelState,
+  stack: BattleStack,
+  origin: GridCell,
+): GridCell | null {
+  for (let radius = 0; radius < BATTLE_GRID_COLUMNS + BATTLE_GRID_ROWS; radius++) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      for (let dr = -radius; dr <= radius; dr++) {
+        if (Math.abs(dc) + Math.abs(dr) !== radius) continue;
+        const col = origin.col + dc;
+        const row = origin.row + dr;
+        if (!isInBounds(col, row)) continue;
+        const destCols = occupiedCols(stack, col);
+        if (!destCols.some((c) =>
+          !isInBounds(c, row) ||
+          isOccupied(state, c, row, stack.stackId) ||
+          isCellReserved(state, c, row, stack.stackId)
+        )) {
+          return { col, row };
+        }
+      }
+    }
+  }
+  return null;
 }
 ```
 
-**Why this is safe:**
-- Combat targeting uses `x`/`y` (visual position), not `stackCenterVw` — confirmed
-  by `battle-combat.service.spec.ts:425-453` ("projectile should aim at the current
-  visual position, not the stale cell center").
-- Pathfinding uses `col`/`row` as origin — `vwToStackCell` already rounds to
-  the nearest cell, so col/row is the best discrete approximation of the
-  continuous position.
-- `updateStackPositions` already updates `col`/`row` when the ship naturally
-  arrives at a target (line 376-378) without teleporting — no change needed there.
-- `isOccupied`/`isOccupied` use `col`/`row` for collision checks — the nearest
-  cell is a conservative approximation that prevents other ships from colliding.
+### 3. Import `isCellReserved` and `occupiedCols`
 
-### 2. Keep the 0.1 vw threshold (already implemented)
+Add to the imports from `./battle-grid`:
+```typescript
+import {
+  ...,
+  isCellReserved,
+  occupiedCols,
+} from './battle-grid';
+```
 
-It is a harmless no-op for the best-cell path but **does** prevent redundant
-target re-sets in the fallback redirect path (lines 183-193) when the enemy
-drifts sub-cell. No change needed.
+### 4. Update callers
 
-### 3. Update affected tests
+Pass `state` to all three `snapToGrid` call sites.
 
-Three tests in `battle-movement.service.spec.ts` assert that `snapToGrid`
-teleports `x`/`y` to a cell center. These must be updated to verify **col/row
-sync without x/y teleport**:
+### 5. Update tests
 
-| Test (line) | Current assertion | New assertion |
-|-------------|-------------------|---------------|
-| L142 `…destroyed and snaps to grid` | `attacker.x ≈ expectedCenter.x` | `attacker.x` unchanged (stays at 7); `attacker.col/row` = nearest cell |
-| L173 `…in range and snaps to grid` | `attacker.x ≈ expectedCenter.x` | Same pattern |
-| L220 `…snaps to nearest grid cell when target is brought into range` | `attacker.x ≈ snapCenter.x` | `attacker.x` unchanged (stays at `offGridX`); `attacker.col/row` = nearest cell |
+The 3 existing tests verify `snapToGrid` behavior. With the reservation check,
+`snapToGrid` now searches for the nearest unreserved cell. The tests set up
+a single AI stack (no other in-flight stacks), so `isCellReserved` should return
+false for the nearest cell. The tests should still pass with updated expectations:
 
-Each test should also add a new assertion verifying `attacker.x` and `attacker.y`
-**did not change** — this is the regression guard for the jump.
+- `moving = true` (smooth transition target set)
+- `targetX/Y` set to nearest cell center (not null)
+- `x/y` unchanged (no teleport)
+- `col/row` = nearest cell
 
-## Why Not Just Increase the Threshold?
+Add a new test: two stacks near each other with enemies in range → verify they
+get DIFFERENT target cells (collision avoidance).
 
-A larger threshold (e.g., 3.5 vw = one cell) would prevent all re-targeting,
-which means ships would never adjust to enemy movement — they'd chase stale
-positions. The `snapToGrid` fix directly addresses the visual jump while
-preserving all targeting logic.
+## Why Diamond Search?
+
+`vwToStackCell` rounds to the nearest cell. Two stacks at x=7.0 and x=7.5 might
+round to the same cell. A diamond search (increasing Manhattan distance from the
+origin) finds the nearest *available* cell, which is still close to the ship's
+position — minimizing visual displacement while preventing collisions.
 
 ## Affected Files
 
 | File | Change |
 |------|--------|
-| `src/app/components/battle-screen/battle/battle-movement.service.ts` | Remove `x`/`y` teleport from `snapToGrid` (lines 241-242); keep 0.1 vw threshold already applied |
-| `src/app/components/battle-screen/battle/battle-movement.service.spec.ts` | Update 3 tests: assert x/y unchanged, col/row synced to nearest cell |
+| `src/app/components/battle-screen/battle/battle-movement.service.ts` | Modify `snapToGrid` to accept `state`, check `isCellReserved`, search nearest free cell; add `findNearestFreeCell` helper; update 3 callers |
+| `src/app/components/battle-screen/battle/battle-movement.service.spec.ts` | Update 3 tests; add collision avoidance test |
 
 ## Risks
 
-- **col/row approximate**: After `snapToGrid`, `col`/`row` is the nearest cell to
-  the visual position, not necessarily the cell the ship was heading to. If the
-  next AI tick paths from this approximate cell, the path might be slightly
-  different. This is a minor inefficiency, not a correctness issue — the ship
-  still moves toward the best cell center via smooth interpolation.
-- **No backward compat break**: No schema or API changes. `snapToGrid` remains
-  internal.
+- **Search overhead**: Diamond search iterates up to ~30 cells in worst case.
+  This is negligible (O(1) for an 8×19 grid).
+- **Fallback stop**: If no free cell is found (all nearby cells occupied), the
+  ship stops at its current position. This is an edge case that only occurs
+  with many stacks in a dense formation.
+- **No behavior change for single-stack scenarios**: With only one stack,
+  `isCellReserved` returns false for the nearest cell, so the smooth transition
+  works as before.
 
 ## Validation
 
-1. `npx ng test --watch=false --include='**/battle-movement.service.spec.ts'` — 33 tests pass after test updates
-2. `npx ng test --watch=false --include='**/battle-grid.spec.ts'` — regression check
-3. `npx tsc --noEmit --project tsconfig.app.json` — type check clean
+1. `npx ng test --watch=false --include='**/battle-movement.service.spec.ts'`
+2. `npx ng test --watch=false --include='**/battle-grid.spec.ts'`
+3. `npx tsc --noEmit --project tsconfig.app.json`
