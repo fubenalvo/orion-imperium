@@ -8,6 +8,7 @@ import {
   AI_ACTION_INTERVAL_MS,
   SHIELD_REGEN_INTERVAL_MS,
   AI_MOVE_TO_ATTACK_RATIO,
+  AI_DISPERSION_WEIGHT,
 } from './battle.types';
 
 /*
@@ -551,13 +552,23 @@ export function computeCarrierBoostTargets(
   }
 
 /*
-   * Returns the single best cell for move-to-attack: closest to attacker
-   * (minimizes move cost), breaking ties by closest to target.
+   * Returns the single best cell for move-to-attack.
    *
    * The candidate zone is shrunk to AI_MOVE_TO_ATTACK_RATIO of the
    * attacker's attack range, so the AI stops at ~75% of its range instead
    * of closing to point-blank. Attack resolution itself still uses the
    * full attackRange — this only decides WHERE the stack moves to.
+   *
+   * Scoring: moveCost − AI_DISPERSION_WEIGHT × minDistanceToAllies.
+   * Move cost is the soft primary (a stack still closes efficiently), but
+   * dispersion is a scored term rather than a pure tie-break: a tie-break
+   * never fires because candidate cells rarely share an exact move cost,
+   * so every stack would independently pick the same nearest cell and pile
+   * up on one flank. With dispersion scored, a stack willingly takes a
+   * slightly farther cell if it lands it far from its nearest ally, so the
+   * fleet fans around the target. The candidate zone bounds how far a
+   * stack can stray from the target, so it never abandons the attack
+   * position. Tune AI_DISPERSION_WEIGHT freely.
    */
   export function findBestMoveToAttackCell(
     state: BattleModelState,
@@ -574,23 +585,69 @@ export function computeCarrierBoostTargets(
       return null;
     }
     const origin: GridCell = { col: stack.col, row: stack.row };
+    const allies = state.stacks.filter(
+      (s) => !s.destroyed && s.stackId !== stack.stackId && s.side === stack.side,
+    );
     return candidates.reduce((best, cell) => {
-      const bestDist = Math.max(Math.abs(best.col - origin.col), Math.abs(best.row - origin.row));
-      const cellDist = Math.max(Math.abs(cell.col - origin.col), Math.abs(cell.row - origin.row));
-      if (cellDist < bestDist) {
+      // Scored: moveCost − AI_DISPERSION_WEIGHT × minDistanceToAllies.
+      // Dispersion is scored, not a tie-break, because candidate cells
+      // rarely share an exact move cost — a tie-break would never fire
+      // and every stack would independently pick the same nearest cell,
+      // piling up on one flank. Scored, a stack willingly takes a slightly
+      // farther cell if it lands it far from its nearest ally, so the
+      // fleet fans around the target. The candidate zone bounds how far
+      // a stack can stray from the target, so it never abandons the
+      // attack position. Move cost remains the soft primary.
+      const cellScore =
+        chebyshev(origin, cell) - AI_DISPERSION_WEIGHT * minDistanceToAllies(cell, allies);
+      const bestScore =
+        chebyshev(origin, best) - AI_DISPERSION_WEIGHT * minDistanceToAllies(best, allies);
+      if (cellScore < bestScore) {
         return cell;
       }
-      if (cellDist === bestDist) {
-        const bestCenter = stackCenterVw({ ...stack, col: best.col, row: best.row });
-        const cellCenter = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
-        const bestToTarget = absoluteDistanceCells(bestCenter, targetStack);
-        const cellToTarget = absoluteDistanceCells(cellCenter, targetStack);
-        if (cellToTarget < bestToTarget) {
-          return cell;
-        }
+      if (cellScore > bestScore) {
+        return best;
       }
-      return best;
+      // Tie-break: closest to the target.
+      const bestCenter = stackCenterVw({ ...stack, col: best.col, row: best.row });
+      const cellCenter = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
+      const bestToTarget = absoluteDistanceCells(bestCenter, targetStack);
+      const cellToTarget = absoluteDistanceCells(cellCenter, targetStack);
+      if (cellToTarget < bestToTarget) {
+        return cell;
+      }
+      if (cellToTarget > bestToTarget) {
+        return best;
+      }
+      // Final tie-break: stable ordering on the cell itself.
+      return cell.col < best.col || (cell.col === best.col && cell.row < best.row)
+        ? cell
+        : best;
     });
+  }
+
+  /* Chebyshev (king-move) distance between two grid cells — matches the
+   * straight-line path step count used by linePath. */
+  function chebyshev(a: GridCell, b: GridCell): number {
+    return Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
+  }
+
+  /* Minimum Chebyshev distance from a candidate cell to any friendly
+   * stack. Mid-flight allies use their reserved destination (targetX/Y)
+   * so the crowding picture is accurate; settled allies use col/row. */
+  function minDistanceToAllies(cell: GridCell, allies: BattleStack[]): number {
+    let min = Infinity;
+    for (const a of allies) {
+      const anchor: GridCell =
+        a.moving && a.targetX != null && a.targetY != null
+          ? vwToStackCell(a, a.targetX, a.targetY)
+          : { col: a.col, row: a.row };
+      const d = chebyshev(cell, anchor);
+      if (d < min) {
+        min = d;
+      }
+    }
+    return min === Infinity ? 0 : min;
   }
 
 /*

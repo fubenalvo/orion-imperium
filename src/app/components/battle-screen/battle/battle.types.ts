@@ -32,12 +32,18 @@ export const AI_ACTION_INTERVAL_MS = 200;
  * boost), that stack is locked for this duration and cannot be given another
  * AI command. Uses battle-local time so it scales with game speed and pauses
  * with the battle. */
-export const AI_ACTION_COOLDOWN_MS = 3000;
+export const AI_ACTION_COOLDOWN_MS = 1500;
 
 /* Fraction of the attacker's attack range the AI closes to before stopping.
  * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
  * attack resolution and range checks are untouched. Tune freely. */
-export const AI_MOVE_TO_ATTACK_RATIO = 0.95;
+export const AI_MOVE_TO_ATTACK_RATIO = 0.8;
+
+/* How strongly the AI spreads its stacks around a target. 0 = pure
+ * closest-cell (clumps on one side), higher = fans out around the target.
+ * Applied as a tie-break among equal-move-cost cells; never overrides
+ * move cost. Tune freely. */
+export const AI_DISPERSION_WEIGHT = 2.5;
 
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
 export const SHIELD_REGEN_INTERVAL_MS = 1000;
