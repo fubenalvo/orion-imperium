@@ -8,8 +8,8 @@ import {
   AI_ACTION_INTERVAL_MS,
   SHIELD_REGEN_INTERVAL_MS,
   AI_MOVE_TO_ATTACK_RATIO,
-  AI_DISPERSION_WEIGHT,
-  AI_PERSONAL_SPACE_CELLS,
+  SNAP_DEADBAND_VW,
+  ATTACK_GRID_TOLERANCE_CELLS,
 } from './battle.types';
 
 /*
@@ -74,6 +74,24 @@ export function isAbsoluteInRange(
   range: number,
 ): boolean {
   return isAbsolutePositionInRange(attacker, target, range);
+}
+
+/*
+ * Authoritative attack gate. A stack may attack if its absolute x/y is
+ * within attackRange + ATTACK_GRID_TOLERANCE_CELLS. The tolerance lets a
+ * stack that settled on a grid cell just outside its nominal range still
+ * fire — snap-to-grid can push a stack slightly outside range, which
+ * otherwise leaves stacks standing at attack distance unable to attack.
+ * Bounded: the tolerance is small (1 cell), so a stack can never attack
+ * from 2+ cells beyond range. Using the absolute check (not a separate
+ * grid-cell check) keeps this safe even if col/row ever desyncs from x/y.
+ */
+export function canAttack(attacker: BattleStack, target: BattleStack): boolean {
+  return isAbsolutePositionInRange(
+    attacker,
+    target,
+    attacker.attackRange + ATTACK_GRID_TOLERANCE_CELLS,
+  );
 }
 
 /*
@@ -377,10 +395,15 @@ export function updateStackPositions(
       stack.targetX = null;
       stack.targetY = null;
       const cell = vwToStackCell(stack, stack.x, stack.y);
+      const oldCol = stack.col;
+      const oldRow = stack.row;
       stack.col = cell.col;
       stack.row = cell.row;
       const wasMoving = stack.moving;
       stack.moving = false;
+      if (wasMoving) {
+        console.log(`[MOVE-COMPLETE] ${stack.stackId} (${stack.side}) arrived at (${cell.col},${cell.row}) from (${oldCol},${oldRow}) | moveToAttackTargetId=${stack.moveToAttackTargetId ?? 'none'}`);
+      }
       if (wasMoving && onComplete) {
         onComplete(stack.stackId);
       }
@@ -478,38 +501,40 @@ export function isPathClear(
   return true;
 }
 
-/* Enemy stacks within a stack's current absolute attack range (ids only). */
-export function getAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
-  return state.stacks
-    .filter(
-      (s) =>
-        !s.destroyed && s.side !== stack.side && isAbsoluteInRange(stack, s, stack.attackRange),
-    )
-    .map((s) => s.stackId);
-}
-
-/*
- * Friendly stacks within a Carrier's current absolute attack range (ids only). Used by the
- * Shield Pulse action to highlight which allies would be restored. Pure
- * read of existing state — no combat logic duplicated here.
- */
-export function computeCarrierBoostTargets(
-  state: BattleModelState,
-  carrier: BattleStack,
-): string[] {
-  if (carrier.typeId !== 'carrier' || carrier.destroyed) {
-    return [];
+/* Enemy stacks within a stack's current attack range (ids only).
+   * Uses canAttack so a stack that settled just outside absolute range
+   * (within ATTACK_GRID_TOLERANCE_CELLS by grid steps) is still listed. */
+  export function getAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
+    return state.stacks
+      .filter(
+        (s) =>
+          !s.destroyed && s.side !== stack.side && canAttack(stack, s),
+      )
+      .map((s) => s.stackId);
   }
-  return state.stacks
-    .filter(
-      (s) =>
-        !s.destroyed &&
-        s.side === carrier.side &&
-        s.stackId !== carrier.stackId &&
-        isAbsoluteInRange(carrier, s, carrier.attackRange),
-    )
-    .map((s) => s.stackId);
-}
+
+  /*
+   * Friendly stacks within a Carrier's current attack range (ids only). Used by the
+   * Shield Pulse action to highlight which allies would be restored. Pure
+   * read of existing state — no combat logic duplicated here.
+   */
+  export function computeCarrierBoostTargets(
+    state: BattleModelState,
+    carrier: BattleStack,
+  ): string[] {
+    if (carrier.typeId !== 'carrier' || carrier.destroyed) {
+      return [];
+    }
+    return state.stacks
+      .filter(
+        (s) =>
+          !s.destroyed &&
+          s.side === carrier.side &&
+          s.stackId !== carrier.stackId &&
+          canAttack(carrier, s),
+      )
+      .map((s) => s.stackId);
+  }
 
 /*
    * Cells from which a stack could attack a specific target stack.
@@ -533,7 +558,15 @@ export function computeCarrierBoostTargets(
     for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
       for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
         if (c === stack.col && r === stack.row) {
-          continue;
+          // Include the current cell as a valid candidate ONLY if it is already
+          // within the effective attack range. This allows a stack that has
+          // reached a valid firing position to "stay put" instead of being
+          // forced to pick a different cell (which often causes oscillation
+          // when both attacker and target move simultaneously).
+          const currentCenter = stackCenterVw(stack);
+          if (!isAbsolutePositionInRange(currentCenter, targetStack, effectiveRange)) {
+            continue;
+          }
         }
         const destCols = occupiedCols(stack, c);
         if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) {
@@ -560,14 +593,15 @@ export function computeCarrierBoostTargets(
    * of closing to point-blank. Attack resolution itself still uses the
    * full attackRange — this only decides WHERE the stack moves to.
    *
-   * Scoring: moveCost + AI_DISPERSION_WEIGHT × crowdingPenalty, where
-   * crowdingPenalty = max(0, AI_PERSONAL_SPACE_CELLS − distanceToNearestAlly).
-   * The penalty is capped and additive, so a stack avoids crowding without
-   * being pushed to the far edge of the zone (which a linear dispersion
-   * term would do). The first stack (no allies) pays no penalty and picks
-   * the cheapest cell; later stacks keep personal space and fan around the
-   * target. The candidate zone still bounds how far a stack can stray
-   * from the target, so it never abandons the attack position.
+   * Selection order (each step only breaks ties):
+   *   1. Closest cell to the attacker (minimum move cost). The stack closes
+   *      on the nearest free firing position; it only retreats when no free
+   *      cell exists at all.
+   *   2. Closest cell to the target (so the stack stops at its weapon's
+   *      effective range instead of charging point-blank).
+   *   3. Cell farthest from the nearest friendly ally (fan out so stacks
+   *      don't pile up on the same firing position).
+   *   4. Stable ordering on the cell itself.
    */
   export function findBestMoveToAttackCell(
     state: BattleModelState,
@@ -588,22 +622,27 @@ export function computeCarrierBoostTargets(
       (s) => !s.destroyed && s.stackId !== stack.stackId && s.side === stack.side,
     );
     return candidates.reduce((best, cell) => {
-      // Nonlinear crowding penalty: moveCost + WEIGHT × max(0, PERSONAL_SPACE
-      // − distanceToNearestAlly). Capped and additive, so a stack avoids
-      // crowding without being pushed to the far edge of the zone (which a
-      // linear dispersion term would do). The candidate zone still bounds
-      // how far a stack can stray from the target.
-      const cellScore =
-        chebyshev(origin, cell) + AI_DISPERSION_WEIGHT * crowdingPenalty(cell, allies);
-      const bestScore =
-        chebyshev(origin, best) + AI_DISPERSION_WEIGHT * crowdingPenalty(best, allies);
-      if (cellScore < bestScore) {
+      // Primary: fan out by preferring the cell farthest from the nearest ally.
+      // This naturally spreads attackers around the target instead of piling
+      // up on the closest approach cell.
+      const cellAlly = minDistanceToAllies(cell, allies);
+      const bestAlly = minDistanceToAllies(best, allies);
+      if (cellAlly > bestAlly) {
         return cell;
       }
-      if (cellScore > bestScore) {
+      if (cellAlly < bestAlly) {
         return best;
       }
-      // Tie-break: closest to the target.
+      // Secondary: closest cell to the attacker (minimum move cost).
+      const cellDist = chebyshev(origin, cell);
+      const bestDist = chebyshev(origin, best);
+      if (cellDist < bestDist) {
+        return cell;
+      }
+      if (cellDist > bestDist) {
+        return best;
+      }
+      // Tertiary: prefer the cell closest to the target.
       const bestCenter = stackCenterVw({ ...stack, col: best.col, row: best.row });
       const cellCenter = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
       const bestToTarget = absoluteDistanceCells(bestCenter, targetStack);
@@ -619,15 +658,6 @@ export function computeCarrierBoostTargets(
         ? cell
         : best;
     });
-  }
-
-  /* Crowding penalty for a candidate cell: zero when no friendly allies,
-   * otherwise max(0, PERSONAL_SPACE − distance to the nearest ally). */
-  function crowdingPenalty(cell: GridCell, allies: BattleStack[]): number {
-    if (allies.length === 0) {
-      return 0;
-    }
-    return Math.max(0, AI_PERSONAL_SPACE_CELLS - minDistanceToAllies(cell, allies));
   }
 
   /* Chebyshev (king-move) distance between two grid cells — matches the
@@ -660,17 +690,19 @@ export function computeCarrierBoostTargets(
  * No AP or moveRange limits.
  */
 export function getMoveToAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
-  if (stack.destroyed || stack.immobile) {
-    return [];
+    if (stack.destroyed || stack.immobile) {
+      return [];
+    }
+    return state.stacks
+      .filter((s) => !s.destroyed && s.side !== stack.side)
+      .filter((s) => {
+        // Already attackable — no need to move to attack. canAttack
+        // tolerates a stack that settled just outside absolute range.
+        if (canAttack(stack, s)) {
+          return false;
+        }
+        // Check if there's at least one valid move-to-attack cell
+        return getMoveToAttackCells(state, stack, s).length > 0;
+      })
+      .map((s) => s.stackId);
   }
-  return state.stacks
-    .filter((s) => !s.destroyed && s.side !== stack.side)
-    .filter((s) => {
-      if (isAbsoluteInRange(stack, s, stack.attackRange)) {
-        return false; // Already in direct attack range
-      }
-      // Check if there's at least one valid move-to-attack cell
-      return getMoveToAttackCells(state, stack, s).length > 0;
-    })
-    .map((s) => s.stackId);
-}

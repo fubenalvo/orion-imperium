@@ -4,7 +4,7 @@ import { getStacks, isSidePlayerControlled } from './battle-state';
 import {
   absoluteDistanceCells,
   computeTargetScore,
-  isAbsoluteInRange,
+  canAttack,
   linePath,
 } from './battle-grid';
 import { BattleCombatService } from './battle-combat.service';
@@ -64,6 +64,7 @@ export class BattleAiService {
       }
       const target = this.bestTarget(state, stack);
       if (target) {
+        console.log(`[AI-ATTACK] ${stack.stackId} (${stack.side}) @(${stack.col},${stack.row}) -> ${target.stackId} (${target.side}) @(${target.col},${target.row})`);
         const result = await this.combat.attackStack(state, stack.stackId, target.stackId);
         if (result) {
           // Lock the stack so the AI doesn't micro-manage for 3s.
@@ -115,6 +116,7 @@ export class BattleAiService {
       }
       const moved = await this.moveTowardNearestEnemy(state, stack);
       if (moved) {
+        console.log(`[AI-MOVE] ${stack.stackId} (${stack.side}) @(${stack.col},${stack.row}) initiated move-to-attack`);
         return true;
       }
     }
@@ -149,7 +151,7 @@ export class BattleAiService {
       if (s.destroyed || s.side !== carrier.side || s.stackId === carrier.stackId) {
         return false;
       }
-      if (!isAbsoluteInRange(carrier, s, carrier.attackRange)) {
+      if (!canAttack(carrier, s)) {
         return false;
       }
       const totalMaxShield = s.ships.reduce((sum, sh) => sum + (sh.maxShield ?? 0), 0);
@@ -163,7 +165,7 @@ export class BattleAiService {
 
   private bestTarget(state: BattleModelState, stack: BattleStack): BattleStack | null {
     const candidates = state.stacks.filter(
-      (s) => !s.destroyed && s.side !== stack.side && isAbsoluteInRange(stack, s, stack.attackRange),
+      (s) => !s.destroyed && s.side !== stack.side && canAttack(stack, s),
     );
     if (candidates.length === 0) {
       return null;
@@ -185,11 +187,14 @@ export class BattleAiService {
     const origin: GridCell = { col: stack.col, row: stack.row };
 
     // Prefer move-to-attack: advance only as far as needed to bring a
-    // target within absolute attack range, then stop. This keeps the stack at its
+    // target within attack range, then stop. This keeps the stack at its
     // weapon's effective range instead of charging into point-blank range.
+    // Targets already attackable (canAttack, which tolerates a stack that
+    // settled just outside absolute range) are excluded so the stack
+    // doesn't re-plan a move for something it can already hit.
     const moveAttackTarget = state.stacks
       .filter((s) => !s.destroyed && s.side !== stack.side)
-      .filter((s) => !isAbsoluteInRange(stack, s, stack.attackRange))
+      .filter((s) => !canAttack(stack, s))
       .sort(
         (a, b) =>
           absoluteDistanceCells(stack, a) - absoluteDistanceCells(stack, b) ||
@@ -197,6 +202,7 @@ export class BattleAiService {
       )[0];
 
     if (moveAttackTarget) {
+      console.log(`[AI-MOVE-TARGET] ${stack.stackId} -> ${moveAttackTarget.stackId} (dist=${absoluteDistanceCells(stack, moveAttackTarget).toFixed(2)})`);
       const success = await this.movement.moveToAttack(
         state,
         stack.stackId,
@@ -209,37 +215,40 @@ export class BattleAiService {
       }
     }
 
-    // No target can be brought into range — fall back to moving
-    // toward the nearest enemy. If the nearest enemy is already in
-    // absolute attack range, do NOT move: step 1 (attack) will fire
-    // as soon as the animation clears. Moving toward an in-range
-    // enemy triggers updateMoveToAttackTargets to snap the stack back
-    // every frame, producing jitter instead of combat.
+    // No free cell brings the target into range — RETREAT. The stack
+    // steps away from the enemy along the straight line until it finds
+    // a legal cell. If the nearest enemy is already attackable (canAttack,
+    // which tolerates a stack that settled just outside absolute range),
+    // do NOT move: step 1 (attack) will fire as soon as the animation
+    // clears. Moving toward an attackable enemy triggers
+    // updateMoveToAttackTargets to snap the stack back every frame,
+    // producing jitter instead of combat.
     const enemy = state.stacks
       .filter((s) => !s.destroyed && s.side !== stack.side)
       .sort(
         (a, b) =>
           absoluteDistanceCells(stack, a) - absoluteDistanceCells(stack, b) || a.stackId.localeCompare(b.stackId),
       )[0];
-    if (!enemy || isAbsoluteInRange(stack, enemy, stack.attackRange)) {
+    if (!enemy || canAttack(stack, enemy)) {
       return false;
     }
 
-    const path = linePath(origin, { col: enemy.col, row: enemy.row });
-    if (!path) {
+    console.log(`[AI-RETREAT] ${stack.stackId} from ${enemy.stackId} (no valid attack cell)`);
+    // No free cell brings the target into range — RETREAT. The stack
+    // steps away from the enemy along the straight line until it finds
+    // a legal cell. It never charges forward into a blocked position.
+    const dx = origin.col - enemy.col;
+    const dy = origin.row - enemy.row;
+    const retreatTarget: GridCell = { col: origin.col + dx, row: origin.row + dy };
+    const retreatPath = linePath(origin, retreatTarget);
+    if (!retreatPath) {
       return false;
     }
-
-    // Try the longest legal approach first; shrink the step count when
-    // the straight line is blocked by an occupied cell.
-    for (let d = path.length; d >= 1; d--) {
-      const dest = path[d - 1];
+    for (let d = retreatPath.length; d >= 1; d--) {
+      const dest = retreatPath[d - 1];
       const result = await this.movement.moveStack(state, stack.stackId, dest.col, dest.row);
       if (result) {
-        // Set moveToAttackTargetId so updateMoveToAttackTargets re-evaluates
-        // this stack's destination every frame as the enemy moves.
         stack.moveToAttackTargetId = enemy.stackId;
-        // Lock the stack so the AI doesn't micro-manage for 3s.
         this.applyActionCooldown(stack);
         return true;
       }

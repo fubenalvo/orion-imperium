@@ -26,7 +26,7 @@ export const BATTLE_CELL_HEIGHT_VW = 28 / 8;
 export const BATTLE_CELL_SIZE_VW = Math.min(BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW);
 
 /* AI action interval (ms). Both sides act simultaneously; AI takes one action per tick. */
-export const AI_ACTION_INTERVAL_MS = 200;
+export const AI_ACTION_INTERVAL_MS = 800;
 
 /* AI action cooldown (ms). After the AI commands a stack (move, attack, or
  * boost), that stack is locked for this duration and cannot be given another
@@ -37,28 +37,22 @@ export const AI_ACTION_COOLDOWN_MS = 1500;
 /* Fraction of the attacker's attack range the AI closes to before stopping.
  * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
  * attack resolution and range checks are untouched. Tune freely. */
-export const AI_MOVE_TO_ATTACK_RATIO = 0.8;
+export const AI_MOVE_TO_ATTACK_RATIO = 0.9;
 
-/* How strongly the AI spreads its stacks around a target. 0 = pure
-   * closest-cell (clumps on one side), higher = fans out around the target.
-   * Multiplies the crowding penalty, which is max(0, PERSONAL_SPACE −
-   * distanceToNearestAlly). Tune freely. */
-  export const AI_DISPERSION_WEIGHT = 2.5;
+/* Deadband (vw units) before snapToGrid re-aligns a stack to a cell
+ * centre. Prevents the out-and-back jitter that occurs when a stack's
+ * interpolated x/y drifts a fraction of a cell off-centre every frame:
+ * snapToGrid snaps it to the exact centre, the next frame it drifts
+ * again, and the cycle repeats. Below this distance the stack is
+ * considered settled and left alone. 0 disables the deadband. */
+export const SNAP_DEADBAND_VW = 0;
 
-  /* Desired minimum Chebyshev distance (cells) between any two AI stacks
-   * closing on the same target. The crowding penalty is max(0, PERSONAL_SPACE
-   * − distanceToNearestAlly), so it only discourages piling up and drops to
-   * zero beyond this distance — stacks never race to the far edge of the
-   * attack zone just to avoid each other. */
-  export const AI_PERSONAL_SPACE_CELLS = 3;
-
-  /* Deadband (vw units) before snapToGrid re-aligns a stack to a cell
-   * centre. Prevents the out-and-back jitter that occurs when a stack's
-   * interpolated x/y drifts a fraction of a cell off-centre every frame:
-   * snapToGrid snaps it to the exact centre, the next frame it drifts
-   * again, and the cycle repeats. Below this distance the stack is
-   * considered settled and left alone. 0 disables the deadband. */
-  export const SNAP_DEADBAND_VW = 0.35;
+/* Extra grid-cell tolerance on top of attackRange for the canAttack gate.
+ * A stack that settled on a grid cell just outside absolute range (within
+ * this many cells by grid steps) can still attack. Accounts for snap-to-grid
+ * pushing a stack slightly outside its nominal range. Bounded — never lets
+ * a stack attack from 2+ cells beyond range. 0 disables the tolerance. */
+export const ATTACK_GRID_TOLERANCE_CELLS = 1;
 
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
 export const SHIELD_REGEN_INTERVAL_MS = 1000;

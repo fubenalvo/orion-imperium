@@ -170,7 +170,7 @@ describe('BattleMovementService', () => {
     expect(attacker.row).toBe(expectedCell.row);
   });
 
-  it('updateMoveToAttackTargets clears target when target is in range and aligns to nearest cell', () => {
+it('updateMoveToAttackTargets does NOT clear target when target is in range during movement', () => {
     const state = setup([fleetShip(1, 'fighter')]);
     const attacker = stackFrom(state, 0);
     const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
@@ -186,18 +186,15 @@ describe('BattleMovementService', () => {
 
     movement.updateMoveToAttackTargets(state);
 
-    expect(attacker.moveToAttackTargetId).toBeNull();
-    // Ship should be redirecting to the nearest cell centre (not teleported)
+    // moveToAttackTargetId should NOT be cleared mid-movement
+    // The ship continues to its planned destination
+    expect(attacker.moveToAttackTargetId).toBe(defender.stackId);
     expect(attacker.moving).toBe(true);
     expect(attacker.targetX).not.toBeNull();
     expect(attacker.targetY).not.toBeNull();
-    // x/y must NOT be teleported — the snap jump is eliminated
+    // x/y must NOT be teleported
     expect(attacker.x).toBe(7);
     expect(attacker.y).toBe(13);
-    // col/row should be the nearest cell to the current visual position
-    const expectedCell = vwToStackCell(attacker, attacker.x, attacker.y);
-    expect(attacker.col).toBe(expectedCell.col);
-    expect(attacker.row).toBe(expectedCell.row);
   });
 
   it('updateMoveToAttackTargets does nothing for non-moving stacks', () => {
@@ -217,7 +214,7 @@ describe('BattleMovementService', () => {
     expect(attacker.moving).toBe(false);
   });
 
-  it('updateMoveToAttackTargets syncs col/row and smoothly redirects to nearest cell', () => {
+  it('updateMoveToAttackTargets continues movement to planned destination', () => {
     const state = setup([fleetShip(1, 'fighter')]);
     const attacker = stackFrom(state, 0);
     const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
@@ -237,38 +234,35 @@ describe('BattleMovementService', () => {
 
     movement.updateMoveToAttackTargets(state);
 
-    // Ship should be redirecting to nearest cell (moving=true, target set)
+    // Ship should continue moving to its planned destination (not snap to nearest cell)
     expect(attacker.moving).toBe(true);
     expect(attacker.targetX).not.toBeNull();
     expect(attacker.targetY).not.toBeNull();
-    // x/y must NOT be teleported — the snap jump is eliminated
+    // x/y must NOT be teleported
     expect(attacker.x).toBe(offGridX);
     expect(attacker.y).toBe(offGridY);
-    // col/row should be synced to the nearest cell to the off-grid position
-    const expectedCell = vwToStackCell({ ...attacker, x: offGridX, y: offGridY } as BattleStack, offGridX, offGridY);
-    expect(attacker.col).toBe(expectedCell.col);
-    expect(attacker.row).toBe(expectedCell.row);
-    // Target should be the center of the nearest cell
-    const expectedTarget = stackCenterVw({ ...attacker, col: expectedCell.col, row: expectedCell.row } as BattleStack);
-    expect(attacker.targetX).toBeCloseTo(expectedTarget.x, 5);
-    expect(attacker.targetY).toBeCloseTo(expectedTarget.y, 5);
+    // col/row should remain at original logical position
+    expect(attacker.col).toBe(2);
+    expect(attacker.row).toBe(4);
+    // moveToAttackTargetId should NOT be cleared
+    expect(attacker.moveToAttackTargetId).toBe(defender.stackId);
   });
 
-  it('updateMoveToAttackTargets prevents two stacks from aligning to the same cell', () => {
+  it('updateMoveToAttackTargets redirects stacks to different attack cells (collision avoidance)', () => {
     const state = setup([fleetShip(1, 'fighter'), fleetShip(2, 'fighter')]);
     const attackerA = stackFrom(state, 0);
     const attackerB = stackFrom(state, 1);
     const defender = { ...baseFleetStack('defender:frigate:0'), side: 'defender' as const };
     state.stacks.push(defender);
 
-    // Both attackers at similar x positions that round to the same nearest cell (col=2)
+    // Both attackers at different positions
     attackerA.x = 6; attackerA.y = 13; attackerA.col = 2; attackerA.row = 4;
     attackerB.x = 7; attackerB.y = 13; attackerB.col = 3; attackerB.row = 4;
 
-    // Defender within attack range of both (3 cells = ~10.5vw)
+    // Defender at col 4, row 4
     defender.x = 12; defender.y = 14; defender.col = 4; defender.row = 4;
 
-    // Both in move-to-attack mode
+    // Both in move-to-attack mode, heading toward defender's cell center
     for (const s of [attackerA, attackerB]) {
       s.moving = true;
       s.targetX = 14;
@@ -278,7 +272,7 @@ describe('BattleMovementService', () => {
 
     movement.updateMoveToAttackTargets(state);
 
-    // Both should have smooth transition targets (not teleported, not stopped)
+    // Both should continue moving (not stopped)
     expect(attackerA.moving).toBe(true);
     expect(attackerB.moving).toBe(true);
     expect(attackerA.targetX).not.toBeNull();
@@ -288,11 +282,11 @@ describe('BattleMovementService', () => {
     expect(attackerA.x).toBe(6);
     expect(attackerB.x).toBe(7);
 
-    // Both should have targets on different cells (collision avoidance)
+    // Both should have targets on different cells (collision avoidance via findBestMoveToAttackCell)
     const cellA = vwToStackCell(attackerA, attackerA.targetX!, attackerA.targetY!);
     const cellB = vwToStackCell(attackerB, attackerB.targetX!, attackerB.targetY!);
+    // They should be redirected to different cells
     expect(cellA.col).not.toBe(cellB.col);
-    expect(cellA.row).toBe(cellB.row); // same row, different col
   });
 });
 

@@ -3,9 +3,10 @@ import { ANIMATION_MS, BattleModelState } from './battle.types';
 import {
   checkVictory,
   computeCarrierBoostTargets,
-  isAbsoluteInRange,
+  canAttack,
   weaponMultiplier,
   applyShieldRegen,
+  absoluteDistanceCells,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 
@@ -62,10 +63,15 @@ export class BattleCombatService {
 
     const from = { x: attacker.x, y: attacker.y };
     const to = { x: target.x, y: target.y };
-    if (!isAbsoluteInRange(attacker, target, attacker.attackRange)) {
+    const canAttackNow = canAttack(attacker, target);
+    console.log(`[ATTACK] ${attackerStackId} (${attacker.side}) @(${attacker.col},${attacker.row}) -> ${targetStackId} (${target.side}) @(${target.col},${target.row}) | canAttack=${canAttackNow} | dist=${absoluteDistanceCells(attacker, target).toFixed(2)} | range=${attacker.attackRange}`);
+
+    if (!canAttackNow) {
+      console.log(`[ATTACK] -> FAILED: not in range`);
       return false;
     }
 
+    console.log(`[ATTACK] -> EXECUTING`);
     await this.anim.run(async () => {
       attacker.firing = true;
       state.effect = { phase: 'projectile', from, to, targetStackId: target.stackId };

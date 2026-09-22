@@ -5,11 +5,12 @@ import {
   isPathClear,
   linePath,
   findBestMoveToAttackCell,
-  isAbsoluteInRange,
+  canAttack,
   isCellReserved,
   isOccupied,
   occupiedCols,
   vwToStackCell,
+  absoluteDistanceCells,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 import { BattleCombatService } from './battle-combat.service';
@@ -72,6 +73,7 @@ export class BattleMovementService {
     stack.targetX = targetVw.x;
     stack.targetY = targetVw.y;
     stack.moving = true;
+    console.log(`[MOVE-START] ${stackId} (${stack.side}) from (${from.col},${from.row}) -> (${target.col},${target.row})`);
     return true;
   }
 
@@ -94,14 +96,21 @@ export class BattleMovementService {
       return false;
     }
 
-    if (isAbsoluteInRange(stack, target, stack.attackRange)) {
+    const canAttackNow = canAttack(stack, target);
+    console.log(`[MOVE-TO-ATTACK] ${stackId} (${stack.side}) @(${stack.col},${stack.row}) -> ${targetStackId} (${target.side}) @(${target.col},${target.row}) | canAttack=${canAttackNow} | dist=${absoluteDistanceCells(stack, target).toFixed(2)} | range=${stack.attackRange}`);
+
+    if (canAttackNow) {
+      console.log(`[MOVE-TO-ATTACK] -> DIRECT ATTACK (in range)`);
       return this.combat.attackStack(state, stackId, targetStackId);
     }
 
     const bestCell = findBestMoveToAttackCell(state, stack, target);
     if (!bestCell) {
+      console.log(`[MOVE-TO-ATTACK] -> NO VALID CELL`);
       return false;
     }
+
+    console.log(`[MOVE-TO-ATTACK] -> MOVE TO CELL (${bestCell.col},${bestCell.row})`);
 
     const moved = await this.moveStack(state, stackId, bestCell.col, bestCell.row);
     if (moved) {
@@ -148,25 +157,25 @@ export class BattleMovementService {
         (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
       );
       if (!target) {
-        this.snapToGrid(stack, state);
-        stack.moveToAttackTargetId = null;
-        continue;
-      }
-      // Target already in range — smoothly align to nearest grid cell.
-      if (isAbsoluteInRange(stack, target, stack.attackRange)) {
+        console.log(`[MOVE-REEVAL] ${stack.stackId} target destroyed -> snapToGrid`);
         this.snapToGrid(stack, state);
         stack.moveToAttackTargetId = null;
         continue;
       }
       const bestCell = findBestMoveToAttackCell(state, stack, target);
       if (!bestCell) {
-        // No cell brings the stack into attack range. Instead of stopping,
-        // redirect toward the enemy's current grid position so the stack
-        // keeps closing distance. updateMoveToAttackTargets re-runs every
-        // frame, so this path stays current as the enemy moves.
+        // No free cell brings the stack into attack range — RETREAT.
+        // Step away from the enemy along the straight line until a legal
+        // cell is found. The stack never charges forward into a blocked
+        // position; if it reaches the grid edge it stops and waits for
+        // the AI to re-plan on its next tick.
+        console.log(`[MOVE-REEVAL] ${stack.stackId} NO CELL IN RANGE of ${target.stackId} -> RETREAT`);
+        const dx = stack.col - target.col;
+        const dy = stack.row - target.row;
+        const retreatTarget = { col: stack.col + dx, row: stack.row + dy };
         const interceptPath = linePath(
           { col: stack.col, row: stack.row },
-          { col: target.col, row: target.row },
+          retreatTarget,
         );
         let redirected = false;
         if (interceptPath) {
@@ -193,8 +202,8 @@ export class BattleMovementService {
           }
         }
         if (!redirected) {
-          // No valid path — smoothly align to nearest cell and wait for the
-          // AI to re-plan on its next tick.
+          // No valid retreat path — smoothly align to nearest cell and wait
+          // for the AI to re-plan on its next tick.
           this.snapToGrid(stack, state);
           stack.moveToAttackTargetId = null;
         }
@@ -211,6 +220,7 @@ export class BattleMovementService {
           continue;
         }
       }
+      console.log(`[MOVE-REEVAL] ${stack.stackId} redirect to (${bestCell.col},${bestCell.row}) target=${target.stackId}@(${target.col},${target.row})`);
       stack.targetX = targetVw.x;
       stack.targetY = targetVw.y;
     }

@@ -812,7 +812,7 @@ return this.enqueueCommand(async () => {
   /* Single auto-attack attempt for a player-controlled stack.
    * Returns true if an attack was initiated, false otherwise.
    * Called from game loop for all player stacks. */
-  private async tryAutoAttack(attacker: BattleStack): Promise<boolean> {
+  private async tryAutoAttack(attacker: BattleStack, attackedTargetsThisFrame?: Set<string>): Promise<boolean> {
     if (!this.state || this.state.winner || this.battleTime.isPaused) {
       return false;
     }
@@ -866,12 +866,22 @@ return this.enqueueCommand(async () => {
       }
     }
 
+    // Skip if this target was already attacked by another friendly stack this frame
+    if (attackedTargetsThisFrame && attackedTargetsThisFrame.has(targetStack.stackId)) {
+      return false;
+    }
+
     // Initiate attack
     const success = await this.combat.attackStack(this.state, attacker.stackId, targetStack.stackId);
     if (!success) {
       return false;
     }
     this.cdr.detectChanges();
+
+    // Mark target as attacked this frame
+    if (attackedTargetsThisFrame) {
+      attackedTargetsThisFrame.add(targetStack.stackId);
+    }
 
     // Set per-stack cooldown for next attack using battle-local time
     const fireRate = attacker.fireRate ?? 1.5;
@@ -970,8 +980,9 @@ return this.enqueueCommand(async () => {
       const playerStacks = state.stacks.filter(
         (s) => !s.destroyed && isSidePlayerControlled(state, s.side)
       );
+      const attackedTargetsThisFrame = new Set<string>();
       for (const stack of playerStacks) {
-        void this.tryAutoAttack(stack);
+        void this.tryAutoAttack(stack, attackedTargetsThisFrame);
       }
     }
 
