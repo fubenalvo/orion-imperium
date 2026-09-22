@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS } from './battle.types';
+import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, SNAP_DEADBAND_VW } from './battle.types';
 import {
   isInBounds,
   isPathClear,
@@ -237,6 +237,19 @@ export class BattleMovementService {
     const target = this.findNearestFreeCell(state, stack, cell);
     if (target) {
       const center = cellCenterVw(target, stack);
+      // Deadband: if the stack is already close enough to this cell's
+      // centre, don't re-target. Without this, a stack whose interpolated
+      // x/y drifts a fraction of a cell off-centre every frame gets
+      // re-snapped to the exact centre, then drifts again — an out-and-
+      // back jitter that's most visible while the stack is firing.
+      if (
+        stack.targetX != null &&
+        stack.targetY != null &&
+        Math.abs(center.x - stack.targetX) < SNAP_DEADBAND_VW &&
+        Math.abs(center.y - stack.targetY) < SNAP_DEADBAND_VW
+      ) {
+        return;
+      }
       stack.targetX = center.x;
       stack.targetY = center.y;
       stack.moving = true;

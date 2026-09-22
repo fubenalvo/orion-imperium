@@ -9,6 +9,7 @@ import {
   SHIELD_REGEN_INTERVAL_MS,
   AI_MOVE_TO_ATTACK_RATIO,
   AI_DISPERSION_WEIGHT,
+  AI_PERSONAL_SPACE_CELLS,
 } from './battle.types';
 
 /*
@@ -559,16 +560,14 @@ export function computeCarrierBoostTargets(
    * of closing to point-blank. Attack resolution itself still uses the
    * full attackRange — this only decides WHERE the stack moves to.
    *
-   * Scoring: moveCost − AI_DISPERSION_WEIGHT × minDistanceToAllies.
-   * Move cost is the soft primary (a stack still closes efficiently), but
-   * dispersion is a scored term rather than a pure tie-break: a tie-break
-   * never fires because candidate cells rarely share an exact move cost,
-   * so every stack would independently pick the same nearest cell and pile
-   * up on one flank. With dispersion scored, a stack willingly takes a
-   * slightly farther cell if it lands it far from its nearest ally, so the
-   * fleet fans around the target. The candidate zone bounds how far a
-   * stack can stray from the target, so it never abandons the attack
-   * position. Tune AI_DISPERSION_WEIGHT freely.
+   * Scoring: moveCost + AI_DISPERSION_WEIGHT × crowdingPenalty, where
+   * crowdingPenalty = max(0, AI_PERSONAL_SPACE_CELLS − distanceToNearestAlly).
+   * The penalty is capped and additive, so a stack avoids crowding without
+   * being pushed to the far edge of the zone (which a linear dispersion
+   * term would do). The first stack (no allies) pays no penalty and picks
+   * the cheapest cell; later stacks keep personal space and fan around the
+   * target. The candidate zone still bounds how far a stack can stray
+   * from the target, so it never abandons the attack position.
    */
   export function findBestMoveToAttackCell(
     state: BattleModelState,
@@ -589,19 +588,15 @@ export function computeCarrierBoostTargets(
       (s) => !s.destroyed && s.stackId !== stack.stackId && s.side === stack.side,
     );
     return candidates.reduce((best, cell) => {
-      // Scored: moveCost − AI_DISPERSION_WEIGHT × minDistanceToAllies.
-      // Dispersion is scored, not a tie-break, because candidate cells
-      // rarely share an exact move cost — a tie-break would never fire
-      // and every stack would independently pick the same nearest cell,
-      // piling up on one flank. Scored, a stack willingly takes a slightly
-      // farther cell if it lands it far from its nearest ally, so the
-      // fleet fans around the target. The candidate zone bounds how far
-      // a stack can stray from the target, so it never abandons the
-      // attack position. Move cost remains the soft primary.
+      // Nonlinear crowding penalty: moveCost + WEIGHT × max(0, PERSONAL_SPACE
+      // − distanceToNearestAlly). Capped and additive, so a stack avoids
+      // crowding without being pushed to the far edge of the zone (which a
+      // linear dispersion term would do). The candidate zone still bounds
+      // how far a stack can stray from the target.
       const cellScore =
-        chebyshev(origin, cell) - AI_DISPERSION_WEIGHT * minDistanceToAllies(cell, allies);
+        chebyshev(origin, cell) + AI_DISPERSION_WEIGHT * crowdingPenalty(cell, allies);
       const bestScore =
-        chebyshev(origin, best) - AI_DISPERSION_WEIGHT * minDistanceToAllies(best, allies);
+        chebyshev(origin, best) + AI_DISPERSION_WEIGHT * crowdingPenalty(best, allies);
       if (cellScore < bestScore) {
         return cell;
       }
@@ -624,6 +619,15 @@ export function computeCarrierBoostTargets(
         ? cell
         : best;
     });
+  }
+
+  /* Crowding penalty for a candidate cell: zero when no friendly allies,
+   * otherwise max(0, PERSONAL_SPACE − distance to the nearest ally). */
+  function crowdingPenalty(cell: GridCell, allies: BattleStack[]): number {
+    if (allies.length === 0) {
+      return 0;
+    }
+    return Math.max(0, AI_PERSONAL_SPACE_CELLS - minDistanceToAllies(cell, allies));
   }
 
   /* Chebyshev (king-move) distance between two grid cells — matches the

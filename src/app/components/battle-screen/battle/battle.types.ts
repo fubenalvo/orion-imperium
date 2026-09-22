@@ -40,10 +40,25 @@ export const AI_ACTION_COOLDOWN_MS = 1500;
 export const AI_MOVE_TO_ATTACK_RATIO = 0.8;
 
 /* How strongly the AI spreads its stacks around a target. 0 = pure
- * closest-cell (clumps on one side), higher = fans out around the target.
- * Applied as a tie-break among equal-move-cost cells; never overrides
- * move cost. Tune freely. */
-export const AI_DISPERSION_WEIGHT = 2.5;
+   * closest-cell (clumps on one side), higher = fans out around the target.
+   * Multiplies the crowding penalty, which is max(0, PERSONAL_SPACE −
+   * distanceToNearestAlly). Tune freely. */
+  export const AI_DISPERSION_WEIGHT = 2.5;
+
+  /* Desired minimum Chebyshev distance (cells) between any two AI stacks
+   * closing on the same target. The crowding penalty is max(0, PERSONAL_SPACE
+   * − distanceToNearestAlly), so it only discourages piling up and drops to
+   * zero beyond this distance — stacks never race to the far edge of the
+   * attack zone just to avoid each other. */
+  export const AI_PERSONAL_SPACE_CELLS = 3;
+
+  /* Deadband (vw units) before snapToGrid re-aligns a stack to a cell
+   * centre. Prevents the out-and-back jitter that occurs when a stack's
+   * interpolated x/y drifts a fraction of a cell off-centre every frame:
+   * snapToGrid snaps it to the exact centre, the next frame it drifts
+   * again, and the cycle repeats. Below this distance the stack is
+   * considered settled and left alone. 0 disables the deadband. */
+  export const SNAP_DEADBAND_VW = 0.35;
 
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
 export const SHIELD_REGEN_INTERVAL_MS = 1000;
