@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BattleModelState, BattleStack, GridCell, AI_ACTION_COOLDOWN_MS } from './battle.types';
+import { BattleModelState, BattleStack, GridCell, AI_ACTION_COOLDOWN_MS, FIRE_RATE_MULTIPLIER } from './battle.types';
 import { getStacks, isSidePlayerControlled } from './battle-state';
 import {
   absoluteDistanceCells,
@@ -135,9 +135,10 @@ export class BattleAiService {
   }
 
   /* Sets the stack's action cooldown so the AI leaves it alone for
-   * AI_ACTION_COOLDOWN_MS after any command (move, attack, or boost). */
+   * AI_ACTION_COOLDOWN_MS (scaled by FIRE_RATE_MULTIPLIER) after any
+   * command (move, attack, or boost). */
   private applyActionCooldown(stack: BattleStack): void {
-    stack.actionCooldownUntil = this.time.battleElapsedMs + AI_ACTION_COOLDOWN_MS;
+    stack.actionCooldownUntil = this.time.battleElapsedMs + AI_ACTION_COOLDOWN_MS * FIRE_RATE_MULTIPLIER;
   }
 
   private getAiStacks(state: BattleModelState, includePlayerSides = false): BattleStack[] {

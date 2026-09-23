@@ -33,6 +33,7 @@ import {
   AI_ACTION_INTERVAL_MS,
   SHIELD_REGEN_INTERVAL_MS,
   ANIMATION_MS,
+  FIRE_RATE_MULTIPLIER,
 } from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
 import {
@@ -890,12 +891,12 @@ return this.enqueueCommand(async () => {
       attackedTargetsThisFrame.add(targetStack.stackId);
     }
 
-    // Set per-stack cooldown for next attack using battle-local time
-    const fireRate = attacker.fireRate ?? 1.5;
-    const fireRateMs = (1 / fireRate) * 1000;
-    const hullBonus = Math.floor(attacker.ships.reduce((sum, s) => sum + s.hp, 0) * 0.3);
-    attacker.attackCooldownUntil = now + fireRateMs + hullBonus;
-    console.log(`[PLAYER-AUTO-COOLDOWN] ${attacker.stackId} set until=${attacker.attackCooldownUntil.toFixed(0)} (fireRateMs=${fireRateMs.toFixed(0)} hullBonus=${hullBonus})`);
+      // Set per-stack cooldown for next attack using battle-local time
+      const fireRate = attacker.fireRate ?? 1.5;
+      const fireRateMs = (1 / fireRate) * 1000 * FIRE_RATE_MULTIPLIER;
+      const hullBonus = Math.floor(attacker.ships.reduce((sum, s) => sum + s.hp, 0) * 0.3);
+      attacker.attackCooldownUntil = now + fireRateMs + hullBonus;
+      console.log(`[PLAYER-AUTO-COOLDOWN] ${attacker.stackId} set until=${attacker.attackCooldownUntil.toFixed(0)} (fireRateMs=${fireRateMs.toFixed(0)} hullBonus=${hullBonus})`);
 
     // If explicit target was destroyed, clear it
     if (explicitTargetId && targetStack.destroyed) {

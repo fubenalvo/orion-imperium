@@ -32,7 +32,12 @@ export const AI_ACTION_INTERVAL_MS = 800;
  * boost), that stack is locked for this duration and cannot be given another
  * AI command. Uses battle-local time so it scales with game speed and pauses
  * with the battle. */
-export const AI_ACTION_COOLDOWN_MS = 1000;
+export const AI_ACTION_COOLDOWN_MS = 100;
+
+/* Global fire-rate / action cooldown multiplier. Scales all attack
+ * timing in the battle minigame. <1 = faster, >1 = slower.
+ * No UI — purely a background tuning constant. */
+export const FIRE_RATE_MULTIPLIER = 1.0;
 
 /* Fraction of the attacker's attack range the AI closes to before stopping.
  * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
@@ -71,10 +76,10 @@ export const DEFENDER_DEPLOY_COLS = [19, 18, 17, 16];
 /* Animation durations in ms. State commits after the animation resolves,
  * so the visible grid never shows a half-resolved action. */
 export const ANIMATION_MS = {
-  move: 180,
-  projectile: 320,
-  hit: 200,
-  explosion: 420,
+  move: 90,
+  projectile: 160,
+  hit: 100,
+  explosion: 210,
 } as const;
 
 export interface GridCell {

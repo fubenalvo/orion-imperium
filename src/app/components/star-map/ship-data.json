@@ -16,7 +16,7 @@
       "battleMoveRange": 8,
       "cost": 50,
       "maintenanceCost": 2,
-      "fireRate": 1.5
+      "fireRate": 0.5
     },
     {
       "id": "fighter",
@@ -34,7 +34,7 @@
       "battleMoveRange": 6,
       "cost": 75,
       "maintenanceCost": 3,
-      "fireRate": 1.5
+      "fireRate": 0.75
     },
     {
       "id": "corvette",
@@ -52,7 +52,7 @@
       "battleMoveRange": 6,
       "cost": 120,
       "maintenanceCost": 5,
-      "fireRate": 1.5
+      "fireRate": 0.8
     },
     {
       "id": "frigate",
@@ -70,7 +70,7 @@
       "battleMoveRange": 5,
       "cost": 180,
       "maintenanceCost": 8,
-      "fireRate": 1.5
+      "fireRate": 1.0
     },
     {
       "id": "destroyer",
@@ -88,7 +88,7 @@
       "battleMoveRange": 4,
       "cost": 260,
       "maintenanceCost": 12,
-      "fireRate": 1.5
+      "fireRate": 1.3
     },
     {
       "id": "cruiser",
@@ -106,7 +106,7 @@
       "battleMoveRange": 3,
       "cost": 400,
       "maintenanceCost": 18,
-      "fireRate": 1.5
+      "fireRate": 1.4
     },
     {
       "id": "carrier",
@@ -142,7 +142,7 @@
       "battleMoveRange": 2,
       "cost": 700,
       "maintenanceCost": 32,
-      "fireRate": 1.5
+      "fireRate": 1.8
     },
     {
       "id": "battlecruiser",
@@ -160,7 +160,7 @@
       "battleMoveRange": 3,
       "cost": 750,
       "maintenanceCost": 35,
-      "fireRate": 1.5
+      "fireRate": 2.0
     },
     {
       "id": "dreadnought",
@@ -178,7 +178,7 @@
       "battleMoveRange": 2,
       "cost": 1200,
       "maintenanceCost": 55,
-      "fireRate": 1.5
+      "fireRate": 2.1
     },
     {
       "id": "colonizer",
