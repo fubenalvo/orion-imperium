@@ -26,7 +26,7 @@ export const BATTLE_CELL_HEIGHT_VW = 28 / 8;
 export const BATTLE_CELL_SIZE_VW = Math.min(BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW);
 
 /* AI action interval (ms). Both sides act simultaneously; AI takes one action per tick. */
-export const AI_ACTION_INTERVAL_MS = 800;
+export const AI_ACTION_INTERVAL_MS = 400;
 
 /* AI action cooldown (ms). After the AI commands a stack (move, attack, or
  * boost), that stack is locked for this duration and cannot be given another
@@ -38,6 +38,11 @@ export const AI_ACTION_COOLDOWN_MS = 100;
  * timing in the battle minigame. <1 = faster, >1 = slower.
  * No UI — purely a background tuning constant. */
 export const FIRE_RATE_MULTIPLIER = 1.0;
+
+/* Battle speed multipliers for the time control buttons.
+ * 1x is the default; 2x doubles the game-time flow rate. */
+export const BATTLE_SPEED_1X = 1.0;
+export const BATTLE_SPEED_2X = 2.0;
 
 /* Fraction of the attacker's attack range the AI closes to before stopping.
  * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
