@@ -1,4 +1,4 @@
-import {
+﻿import {
   AfterViewChecked,
   ChangeDetectorRef,
   Component,
@@ -71,12 +71,12 @@ import { BattleGridComponent } from './battle-grid/battle-grid.component';
  * It receives the Battle transport object from BattleService, builds
  * battle-local state (deep-cloned ships), and forwards player input to
  * the battle services. All simulation state lives in this component's
- * BattleModelState — the minigame never touches StarMap state.
+ * BattleModelState â€” the minigame never touches StarMap state.
  *
  * Real-time model: stacks move at speed-based rates via a RAF game loop.
  * Both sides are active simultaneously. The AI takes one action per 0.2s
  * tick (configurable via AI_ACTION_INTERVAL_MS). Animation lock gates
- * attacks only — movement is continuous.
+ * attacks only â€” movement is continuous.
  *
  * Navigation flow:
  * 1. StarMap detects collision -> BattleService.setBattle() -> navigate to /battle
@@ -351,7 +351,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
       return [];
     }
     // Return all empty cells in bounds (exclude cells occupied by this stack).
-    // Also requires a clear straight-line path (isPathClear) — matches
+    // Also requires a clear straight-line path (isPathClear) â€” matches
     // moveStack() validation exactly so UI shows only reachable cells.
     const cells: GridCell[] = [];
     for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
@@ -467,7 +467,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
           this.enableMotion();
         }
       } catch {
-        // Permission denied or unavailable — background remains centered.
+        // Permission denied or unavailable â€” background remains centered.
       }
     } else if ('DeviceOrientationEvent' in window) {
       this.enableMotion();
@@ -525,7 +525,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     // Player can only control stacks on their own side (determined per-stack).
     if (isSidePlayerControlled(this.state, stack.side)) {
       // Own stack: select it to reveal movement / attack options.
-      // Selection works even while moving — commands can be redirected at any time.
+      // Selection works even while moving â€” commands can be redirected at any time.
       // Clear any pending commands for the old stack when switching
       if (this._selectedStackId !== stack.stackId) {
         this.clearCommandQueue();
@@ -565,7 +565,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
   }
 
   /* Aggregate stats for the selected stack's info panel. Pure reads of
-   * BattleStack/BattleShip state; no combat logic is duplicated here —
+   * BattleStack/BattleShip state; no combat logic is duplicated here â€”
    * the sums mirror the values used by BattleCombatService (totalAttack)
    * and BattleGridComponent.hullFraction (HP fraction). */
   get selectedShipCount(): number {
@@ -594,7 +594,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
   }
 
   /* Aggregate shield for the selected stack's info panel. Pure reads of
-   * BattleShip.shield/maxShield — no combat logic duplicated here. */
+   * BattleShip.shield/maxShield â€” no combat logic duplicated here. */
   get selectedTotalShield(): number {
     const stack = this.selectedStack();
     return stack ? stack.ships.reduce((sum, s) => (s.alive ? sum + (s.shield ?? 0) : sum), 0) : 0;
@@ -617,7 +617,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
 
   /* Carrier Shield Pulse: the selected stack is a Carrier that can act,
    * is not moving, and has not yet been blocked by the busy lock.
-   * Pure read of existing state — no combat logic duplicated here. */
+   * Pure read of existing state â€” no combat logic duplicated here. */
   get canCarrierBoost(): boolean {
     if (!this.state || !this.canAct) {
       return false;
@@ -633,7 +633,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
   }
 
   /* Friendly stacks that would be restored by a Shield Pulse. Pure read
-   * of existing state — used only to highlight them in the grid. */
+   * of existing state â€” used only to highlight them in the grid. */
   get carrierBoostTargetIds(): string[] {
     const stack = this.selectedStack();
     return stack && this.state ? computeCarrierBoostTargets(this.state, stack) : [];
@@ -738,7 +738,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
       }
 
       currentAttacker.explicitAttackTargetId = currentTarget.stackId;
-      currentAttacker.attackCooldownUntil = 0;
+      currentAttacker.actionCooldownUntil = 0;
       const success = await this.movement.moveToAttack(
         this.state,
         currentAttacker.stackId,
@@ -832,8 +832,8 @@ return this.enqueueCommand(async () => {
     }
     // Per-stack fire-rate cooldown using battle-local time
     const now = this.battleTime.battleElapsedMs;
-    if (attacker.attackCooldownUntil && attacker.attackCooldownUntil > now) {
-      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: fireRateCD (until=${attacker.attackCooldownUntil.toFixed(0)}, now=${now.toFixed(0)})`);
+    if (attacker.actionCooldownUntil && attacker.actionCooldownUntil > now) {
+      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: fireRateCD (until=${attacker.actionCooldownUntil.toFixed(0)}, now=${now.toFixed(0)})`);
       return false;
     }
     // Per-stack animation lock: don't start new attack if this stack is already animating
@@ -895,8 +895,8 @@ return this.enqueueCommand(async () => {
       const fireRate = attacker.fireRate ?? 1.5;
       const fireRateMs = (1 / fireRate) * 1000 * FIRE_RATE_MULTIPLIER;
       const hullBonus = Math.floor(attacker.ships.reduce((sum, s) => sum + s.hp, 0) * 0.3);
-      attacker.attackCooldownUntil = now + fireRateMs + hullBonus;
-      console.log(`[PLAYER-AUTO-COOLDOWN] ${attacker.stackId} set until=${attacker.attackCooldownUntil.toFixed(0)} (fireRateMs=${fireRateMs.toFixed(0)} hullBonus=${hullBonus})`);
+      attacker.actionCooldownUntil = now + fireRateMs + hullBonus;
+      console.log(`[PLAYER-AUTO-COOLDOWN] ${attacker.stackId} set until=${attacker.actionCooldownUntil.toFixed(0)} (fireRateMs=${fireRateMs.toFixed(0)} hullBonus=${hullBonus})`);
 
     // If explicit target was destroyed, clear it
     if (explicitTargetId && targetStack.destroyed) {
@@ -919,7 +919,7 @@ return this.enqueueCommand(async () => {
       // Set explicit attack target - overrides auto-attack until target destroyed or new command
       currentAttacker.explicitAttackTargetId = currentTarget.stackId;
       // Clear cooldown so explicit attack fires immediately
-      currentAttacker.attackCooldownUntil = 0;
+      currentAttacker.actionCooldownUntil = 0;
       // Fire explicit attack immediately (bypasses game loop cooldown)
       const success = await this.combat.attackStack(this.state, currentAttacker.stackId, currentTarget.stackId);
       this.cdr.detectChanges();
@@ -1185,3 +1185,6 @@ function shipsToSave(
     destroyed: s.destroyed,
   }));
 }
+
+
+

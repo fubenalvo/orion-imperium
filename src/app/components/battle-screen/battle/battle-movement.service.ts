@@ -1,5 +1,5 @@
-import { Injectable } from '@angular/core';
-import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, SNAP_DEADBAND_VW } from './battle.types';
+﻿import { Injectable } from '@angular/core';
+import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, SNAP_DEADBAND_VW, AI_MOVE_TO_ATTACK_RATIO } from './battle.types';
 import {
   isInBounds,
   isPathClear,
@@ -18,7 +18,7 @@ import { BattleCombatService } from './battle-combat.service';
 
 /*
  * =========================================================
- * BATTLE MINIGAME — MOVEMENT SERVICE
+ * BATTLE MINIGAME â€” MOVEMENT SERVICE
  * =========================================================
  *
  * Real-time, speed-based movement. One command sets a stack's vw target;
@@ -26,12 +26,12 @@ import { BattleCombatService } from './battle-combat.service';
  * frame to interpolate the stack toward its target at `speed` vw/s.
  *
  * No AP costs, no moveRange limits. The only gate is the animation busy
- * lock during attacks — stacks can move while attacks are animating on
+ * lock during attacks â€” stacks can move while attacks are animating on
  * other stacks.
  *
  * Movement direction uses straight-line paths (orthogonal + diagonal),
  * matching the star-map fleet movement pattern. Each intermediate cell
- * must be in bounds and unoccupied — no pathfinding through obstacles.
+ * must be in bounds and unoccupied â€” no pathfinding through obstacles.
  */
 
 @Injectable({ providedIn: 'root' })
@@ -169,14 +169,14 @@ export class BattleMovementService {
         // This can happen transiently when the target moves. Instead of
         // retreating or snapping (which cancels in-progress movement), keep
         // the current destination and let the ship arrive. The AI will
-        // re-evaluate on its next tick (every 800ms) and pick a new cell
+        // re-evaluate on its next tick (every 400ms) and pick a new cell
         // if needed. This prevents the "move-attack loop" where a ship
         // repeatedly starts moving, gets snapped back, and starts again.
         console.log(`[MOVE-REEVAL] ${stack.stackId} NO CELL IN RANGE of ${target.stackId} -> KEEP CURRENT TARGET | stack: col=${stack.col}, row=${stack.row} x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} target: col=${target.col}, row=${target.row} x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} distCells=${absoluteDistanceCells({x:stack.x,y:stack.y}, {x:target.x,y:target.y}).toFixed(2)} attackRange=${stack.attackRange}`);
         continue;
       }
       const targetVw = cellCenterVw(bestCell, stack);
-      // Only redirect if the best cell actually changed — prevents micro-jitter
+      // Only redirect if the best cell actually changed â€” prevents micro-jitter
       // when the enemy is near a cell boundary and the optimal cell flips
       // back and forth between adjacent cells.
       if (stack.targetX != null && stack.targetY != null) {
@@ -189,7 +189,7 @@ export class BattleMovementService {
       const currentCenter = { x: stack.x, y: stack.y };
       const distToTarget = absoluteDistanceCells(currentCenter, target);
       const logicalDist = absoluteDistanceCells(stackCenterVw(stack), stackCenterVw(target));
-      console.log(`[MOVE-REEVAL] ${stack.stackId} redirect to (${bestCell.col},${bestCell.row}) target=${target.stackId}@(${target.col},${target.row}) | stack logical: col=${stack.col}, row=${stack.row} | stack visual: x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} | target visual: x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} | distCells(logical)=${logicalDist.toFixed(2)} | distCells(visual)=${distToTarget.toFixed(2)} | attackRange=${stack.attackRange} | effectiveRange=${(stack.attackRange * 0.8).toFixed(2)}`);
+      console.log(`[MOVE-REEVAL] ${stack.stackId} redirect to (${bestCell.col},${bestCell.row}) target=${target.stackId}@(${target.col},${target.row}) | stack logical: col=${stack.col}, row=${stack.row} | stack visual: x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} | target visual: x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} | distCells(logical)=${logicalDist.toFixed(2)} | distCells(visual)=${distToTarget.toFixed(2)} | attackRange=${stack.attackRange} | effectiveRange=${(stack.attackRange * AI_MOVE_TO_ATTACK_RATIO).toFixed(2)}`);
       stack.targetX = targetVw.x;
       stack.targetY = targetVw.y;
     }
@@ -205,7 +205,7 @@ export class BattleMovementService {
    * visible snap. The caller is responsible for clearing moveToAttackTargetId;
    * completeMovement is deferred to updateStackPositions when the ship arrives.
    * If the nearest cell is already reserved by another in-flight stack, searches
-   * in a diamond pattern for the nearest free cell — preventing two AI stacks
+   * in a diamond pattern for the nearest free cell â€” preventing two AI stacks
    * from being sent to the same cell simultaneously.
    */
   private snapToGrid(stack: BattleStack, state: BattleModelState): void {
@@ -220,7 +220,7 @@ export class BattleMovementService {
       // Deadband: if the stack is already close enough to this cell's
       // centre, don't re-target. Without this, a stack whose interpolated
       // x/y drifts a fraction of a cell off-centre every frame gets
-      // re-snapped to the exact centre, then drifts again — an out-and-
+      // re-snapped to the exact centre, then drifts again â€” an out-and-
       // back jitter that's most visible while the stack is firing.
       if (
         stack.targetX != null &&
@@ -236,7 +236,7 @@ export class BattleMovementService {
       stack.moving = true;
       console.log(`[SNAP-TO-GRID] ${stack.stackId} re-targeted to (${target.col},${target.row}) center=(${center.x.toFixed(2)},${center.y.toFixed(2)})`);
     } else {
-      // No free cell found — stop at current position
+      // No free cell found â€” stop at current position
       stack.moving = false;
       stack.targetX = null;
       stack.targetY = null;
@@ -299,3 +299,6 @@ function cellCenterVw(cell: GridCell, stack: { side: 'attacker' | 'defender'; si
     y: (cell.row - 0.5) * BATTLE_CELL_HEIGHT_VW,
   };
 }
+
+
+

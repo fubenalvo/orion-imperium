@@ -1,10 +1,10 @@
-/*
+﻿/*
  * =========================================================
- * BATTLE MINIGAME — CORE TYPES & CONSTANTS
+ * BATTLE MINIGAME â€” CORE TYPES & CONSTANTS
  * =========================================================
  *
  * Everything in this folder is battle-local. The minigame is a pure
- * INPUT → BATTLE → RESULT box: it receives two fleets (via the Battle
+ * INPUT â†’ BATTLE â†’ RESULT box: it receives two fleets (via the Battle
  * transport object) and returns a BattleOutcome. It never reads or
  * mutates StarMap / galaxy / economy / production / research state.
  *
@@ -32,11 +32,11 @@ export const AI_ACTION_INTERVAL_MS = 400;
  * boost), that stack is locked for this duration and cannot be given another
  * AI command. Uses battle-local time so it scales with game speed and pauses
  * with the battle. */
-export const AI_ACTION_COOLDOWN_MS = 100;
+export const AI_ACTION_COOLDOWN_MS = 1000;
 
 /* Global fire-rate / action cooldown multiplier. Scales all attack
  * timing in the battle minigame. <1 = faster, >1 = slower.
- * No UI — purely a background tuning constant. */
+ * No UI â€” purely a background tuning constant. */
 export const FIRE_RATE_MULTIPLIER = 1.0;
 
 /* Battle speed multipliers for the time control buttons.
@@ -45,7 +45,7 @@ export const BATTLE_SPEED_1X = 1.0;
 export const BATTLE_SPEED_2X = 2.0;
 
 /* Fraction of the attacker's attack range the AI closes to before stopping.
- * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
+ * E.g. range 4 â†’ stops at distance 3. Only affects WHERE the AI moves;
  * attack resolution and range checks are untouched. Tune freely. */
 export const AI_MOVE_TO_ATTACK_RATIO = 0.9;
 
@@ -60,7 +60,7 @@ export const SNAP_DEADBAND_VW = 0;
 /* Extra grid-cell tolerance on top of attackRange for the canAttack gate.
  * A stack that settled on a grid cell just outside absolute range (within
  * this many cells by grid steps) can still attack. Accounts for snap-to-grid
- * pushing a stack slightly outside its nominal range. Bounded — never lets
+ * pushing a stack slightly outside its nominal range. Bounded â€” never lets
  * a stack attack from 2+ cells beyond range. 0 disables the tolerance. */
 export const ATTACK_GRID_TOLERANCE_CELLS = 1;
 
@@ -175,7 +175,7 @@ export interface BattleStack {
 
   /* Timestamp (ms, from performance.now()) when the AI can command this stack
    * again after its last command (move, attack, or boost). Prevents AI
-   * micro-management — once the AI commands a stack, it leaves it alone for
+   * micro-management â€” once the AI commands a stack, it leaves it alone for
    * AI_ACTION_COOLDOWN_MS. */
   actionCooldownUntil?: number;
 }
@@ -292,7 +292,7 @@ export interface BattleOutcome {
  * kept structurally permissive: StarMap passes full overworld Fleet
  * objects (which satisfy BattleFleet via excess-property compatibility),
  * and the minigame only reads the fields below. It must NEVER mutate
- * fleet1/fleet2 — battle-state deep-clones the ships.
+ * fleet1/fleet2 â€” battle-state deep-clones the ships.
  */
 export interface BattleFleet {
   id: number;
@@ -335,3 +335,4 @@ export interface Battle {
   planetName?: string;
   planetColor?: string;
 }
+
