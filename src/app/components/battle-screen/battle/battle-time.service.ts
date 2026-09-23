@@ -81,6 +81,11 @@ export class BattleTimeService {
     const scaledDeltaTime = this.getScaledDeltaTime(Math.max(0, realDeltaTime));
     this._battleElapsedTime += scaledDeltaTime;
     this.advanceWaits(scaledDeltaTime * 1000);
+
+    // Diagnostic: log time advancement every ~1 second of battle time
+    if (this._battleElapsedTime % 1 < scaledDeltaTime) {
+      console.log(`[TIME] battleElapsedMs=${this.battleElapsedMs.toFixed(0)} delta=${(scaledDeltaTime * 1000).toFixed(1)}ms speed=${this._speed}`);
+    }
   }
 
   wait(durationMs: number): Promise<void> {

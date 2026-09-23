@@ -45,7 +45,7 @@
       [ngClass]="'stack-cell--size-' + stackSize(stack)"
       [style.left]="stackVw(stack).x + 'vw'"
       [style.top]="stackVw(stack).y + 'vw'"
-      [style.zIndex]="stack.row"
+      [style.zIndex]="stack.moving ? 100 + stack.row : stack.row"
       [class.stack-cell--selected]="stack.stackId === selectedStackId"
     >
       <button
@@ -75,7 +75,7 @@
   }
 
   <!-- ATTACK EFFECTS -->
-  @if (getProjectileLine(); as line) {
+  @for (line of getProjectileLines(); track line.x + '-' + line.y + '-' + line.angleDeg) {
     <div
       class="projectile"
       [style.left]="line.x + 'vw'"
@@ -84,12 +84,12 @@
       [style.--projectile-angle]="line.angleDeg + 'deg'"
     ></div>
   }
-  @if (effect?.phase === 'impact' || effect?.phase === 'explosion') {
+  @for (impact of getImpacts(); track impact.x + '-' + impact.y + '-' + impact.isExplosion) {
     <div
       class="impact"
-      [class.impact--explosion]="effect?.phase === 'explosion'"
-      [style.left]="effect.to.x + 'vw'"
-      [style.top]="effect.to.y + 'vw'"
+      [class.impact--explosion]="impact.isExplosion"
+      [style.left]="impact.x + 'vw'"
+      [style.top]="impact.y + 'vw'"
     ></div>
   }
 </div>

@@ -160,9 +160,10 @@ describe('BattleCombatService', () => {
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    expect(state.effect?.phase).toBe('impact');
+    expect(state.effects.length).toBe(1);
+    expect(state.effects[0].phase).toBe('impact');
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
-    expect(state.effect).toBeNull();
+    expect(state.effects.length).toBe(0);
     await p;
 
     expect(tickCount).toBeGreaterThan(0);
@@ -445,10 +446,10 @@ describe('BattleCombatService', () => {
     /* Advance past the projectile phase so the effect is active,
      * but before the animation clears it. */
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile + 1);
-    expect(state.effect).not.toBeNull();
-    expect(state.effect!.phase).toBe('impact');
-    expect(state.effect!.to.x).toBe(movedX);
-    expect(state.effect!.to.y).toBe(movedY);
+    expect(state.effects.length).toBe(1);
+    expect(state.effects[0].phase).toBe('impact');
+    expect(state.effects[0].to.x).toBe(movedX);
+    expect(state.effects[0].to.y).toBe(movedY);
     await vi.advanceTimersByTimeAsync(5000);
     await p;
   });

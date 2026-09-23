@@ -60,7 +60,7 @@ export function createBattleState(
     round: 1,
     stacks: [...attackerStacks, ...defenderStacks],
     log: [],
-    effect: null,
+    effects: [],
     winner: null,
     attackerFleetId: attackerFleet.id,
     defenderFleetId: defenderFleet.id,

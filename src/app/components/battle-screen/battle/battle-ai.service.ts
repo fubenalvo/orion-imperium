@@ -53,19 +53,23 @@ export class BattleAiService {
     }
 
     const aiStacks = this.getAiStacks(state, includePlayerSides);
+    const now = this.time.battleElapsedMs;
 
     // 1. Attack with the first stack that has an in-range enemy target and is not animating.
     for (const stack of aiStacks) {
       if (stack.destroyed || stack.immobile || this.anim.isStackBusy(stack.stackId)) {
         continue;
       }
-      if (this.onActionCooldown(stack)) {
+      const onCooldown = this.onActionCooldown(stack);
+      console.log(`[AI-COOLDOWN] ${stack.stackId} (${stack.side}) cooldownUntil=${stack.actionCooldownUntil?.toFixed(0) ?? 'none'} now=${now.toFixed(0)} onCooldown=${onCooldown} animBusy=${this.anim.isStackBusy(stack.stackId)}`);
+      if (onCooldown) {
         continue;
       }
       const target = this.bestTarget(state, stack);
       if (target) {
         console.log(`[AI-ATTACK] ${stack.stackId} (${stack.side}) @(${stack.col},${stack.row}) -> ${target.stackId} (${target.side}) @(${target.col},${target.row})`);
         const result = await this.combat.attackStack(state, stack.stackId, target.stackId);
+        console.log(`[AI-ATTACK-RESULT] ${stack.stackId} -> ${target.stackId}: result=${result} cooldownSet=${result}`);
         if (result) {
           // Lock the stack so the AI doesn't micro-manage for 3s.
           this.applyActionCooldown(stack);

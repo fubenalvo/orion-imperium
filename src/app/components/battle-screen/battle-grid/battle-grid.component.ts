@@ -41,7 +41,7 @@ export class BattleGridComponent {
   @Input() attackTargetIds: string[] = [];
   @Input() moveToAttackTargetIds: string[] = [];
   @Input() carrierBoostTargetIds: string[] = [];
-  @Input() effect: BattleAttackEffect | null = null;
+  @Input() effects: BattleAttackEffect[] = [];
   @Input() canSelect = true;
   @Input() connectionLine: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   @Input() attackConnectionLine: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
@@ -104,9 +104,10 @@ export class BattleGridComponent {
   /* True while an attack is landing on this stack — used to flash the
    * shield bar so shield absorption is visibly distinct from hull HP. */
   isShieldHit(stackId: string): boolean {
-    return !!this.effect &&
-      (this.effect.phase === 'impact' || this.effect.phase === 'explosion') &&
-      this.effect.targetStackId === stackId;
+    return this.effects.some(e =>
+      (e.phase === 'impact' || e.phase === 'explosion') &&
+      e.targetStackId === stackId
+    );
   }
 
   isMoveCell(col: number, row: number): boolean {
@@ -163,20 +164,31 @@ export class BattleGridComponent {
   }
 
   /* Projectile line geometry (same pattern as the fleet movement trails). */
-  getProjectileLine(): { x: number; y: number; length: number; angleDeg: number } | null {
-    if (!this.effect || this.effect.phase !== 'projectile') {
-      return null;
+  getProjectileLines(): { x: number; y: number; length: number; angleDeg: number }[] {
+    const lines: { x: number; y: number; length: number; angleDeg: number }[] = [];
+    for (const effect of this.effects) {
+      if (effect.phase !== 'projectile') continue;
+      const from = effect.from;
+      const to = effect.to;
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const length = Math.sqrt(dx * dx + dy * dy);
+      if (length < 0.0001) continue;
+      const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
+      lines.push({ x: from.x, y: from.y, length, angleDeg });
     }
-    const from = this.effect.from;
-    const to = this.effect.to;
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    const length = Math.sqrt(dx * dx + dy * dy);
-    if (length < 0.0001) {
-      return null;
+    return lines;
+  }
+
+  /* Impact/explosion effects for rendering. */
+  getImpacts(): { x: number; y: number; isExplosion: boolean }[] {
+    const impacts: { x: number; y: number; isExplosion: boolean }[] = [];
+    for (const effect of this.effects) {
+      if (effect.phase === 'impact' || effect.phase === 'explosion') {
+        impacts.push({ x: effect.to.x, y: effect.to.y, isExplosion: effect.phase === 'explosion' });
+      }
     }
-    const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    return { x: from.x, y: from.y, length, angleDeg };
+    return impacts;
   }
 
   /* Connection line from selected stack to its target/destination. */

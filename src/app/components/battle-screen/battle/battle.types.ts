@@ -32,7 +32,7 @@ export const AI_ACTION_INTERVAL_MS = 800;
  * boost), that stack is locked for this duration and cannot be given another
  * AI command. Uses battle-local time so it scales with game speed and pauses
  * with the battle. */
-export const AI_ACTION_COOLDOWN_MS = 1500;
+export const AI_ACTION_COOLDOWN_MS = 1000;
 
 /* Fraction of the attacker's attack range the AI closes to before stopping.
  * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
@@ -55,7 +55,7 @@ export const SNAP_DEADBAND_VW = 0;
 export const ATTACK_GRID_TOLERANCE_CELLS = 1;
 
 /* Shield regeneration interval (ms). All sides regenerate simultaneously. */
-export const SHIELD_REGEN_INTERVAL_MS = 1000;
+export const SHIELD_REGEN_INTERVAL_MS = 2000;
 
 /*
  * A stack renders up to MAX_STACK_SIZE ship icons; larger fleets of a
@@ -170,14 +170,14 @@ export interface BattleStack {
   actionCooldownUntil?: number;
 }
 
-/* Visual effect active during an attack animation. Only one animation
- * runs at a time (BattleAnimationService busy lock), so a single effect
- * slot on the state is sufficient. */
+/* Visual effect active during an attack animation. Multiple effects can run
+ * concurrently (different stacks attacking simultaneously). */
 export interface BattleAttackEffect {
   phase: 'projectile' | 'impact' | 'explosion';
   from: { x: number; y: number };
   to: { x: number; y: number };
   targetStackId: string;
+  attackerStackId: string;
 }
 
 export interface BattleLogEntry {
@@ -211,7 +211,7 @@ export interface BattleModelState {
   round: number;
   stacks: BattleStack[];
   log: BattleLogEntry[];
-  effect: BattleAttackEffect | null;
+  effects: BattleAttackEffect[];
   winner: BattleSide | null;
   attackerFleetId: number;
   defenderFleetId: number;

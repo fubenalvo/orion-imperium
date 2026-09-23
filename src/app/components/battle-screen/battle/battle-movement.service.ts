@@ -11,6 +11,7 @@ import {
   occupiedCols,
   vwToStackCell,
   absoluteDistanceCells,
+  stackCenterVw,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
 import { BattleCombatService } from './battle-combat.service';
@@ -157,56 +158,21 @@ export class BattleMovementService {
         (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
       );
       if (!target) {
-        console.log(`[MOVE-REEVAL] ${stack.stackId} target destroyed -> snapToGrid`);
+        console.log(`[MOVE-REEVAL] ${stack.stackId} target destroyed -> snapToGrid | stack: col=${stack.col}, row=${stack.row} x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} targetX=${stack.targetX?.toFixed(2)}, targetY=${stack.targetY?.toFixed(2)}`);
         this.snapToGrid(stack, state);
         stack.moveToAttackTargetId = null;
         continue;
       }
       const bestCell = findBestMoveToAttackCell(state, stack, target);
       if (!bestCell) {
-        // No free cell brings the stack into attack range — RETREAT.
-        // Step away from the enemy along the straight line until a legal
-        // cell is found. The stack never charges forward into a blocked
-        // position; if it reaches the grid edge it stops and waits for
-        // the AI to re-plan on its next tick.
-        console.log(`[MOVE-REEVAL] ${stack.stackId} NO CELL IN RANGE of ${target.stackId} -> RETREAT`);
-        const dx = stack.col - target.col;
-        const dy = stack.row - target.row;
-        const retreatTarget = { col: stack.col + dx, row: stack.row + dy };
-        const interceptPath = linePath(
-          { col: stack.col, row: stack.row },
-          retreatTarget,
-        );
-        let redirected = false;
-        if (interceptPath) {
-          for (let d = interceptPath.length; d >= 1; d--) {
-            const dest = interceptPath[d - 1];
-            const destPath = linePath({ col: stack.col, row: stack.row }, dest);
-            if (destPath && isPathClear(state, destPath, stack)) {
-              const targetVw = cellCenterVw(dest, stack);
-              // Skip redirect if already close to this destination — prevents
-              // micro-jitter when the enemy drifts near a cell boundary.
-              if (stack.targetX != null && stack.targetY != null) {
-                const ddx = targetVw.x - stack.targetX;
-                const ddy = targetVw.y - stack.targetY;
-                if (Math.sqrt(ddx * ddx + ddy * ddy) < 0.1) {
-                  redirected = true;
-                  break;
-                }
-              }
-              stack.targetX = targetVw.x;
-              stack.targetY = targetVw.y;
-              redirected = true;
-              break;
-            }
-          }
-        }
-        if (!redirected) {
-          // No valid retreat path — smoothly align to nearest cell and wait
-          // for the AI to re-plan on its next tick.
-          this.snapToGrid(stack, state);
-          stack.moveToAttackTargetId = null;
-        }
+        // No free cell brings the stack into attack range at this moment.
+        // This can happen transiently when the target moves. Instead of
+        // retreating or snapping (which cancels in-progress movement), keep
+        // the current destination and let the ship arrive. The AI will
+        // re-evaluate on its next tick (every 800ms) and pick a new cell
+        // if needed. This prevents the "move-attack loop" where a ship
+        // repeatedly starts moving, gets snapped back, and starts again.
+        console.log(`[MOVE-REEVAL] ${stack.stackId} NO CELL IN RANGE of ${target.stackId} -> KEEP CURRENT TARGET | stack: col=${stack.col}, row=${stack.row} x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} target: col=${target.col}, row=${target.row} x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} distCells=${absoluteDistanceCells({x:stack.x,y:stack.y}, {x:target.x,y:target.y}).toFixed(2)} attackRange=${stack.attackRange}`);
         continue;
       }
       const targetVw = cellCenterVw(bestCell, stack);
@@ -220,7 +186,10 @@ export class BattleMovementService {
           continue;
         }
       }
-      console.log(`[MOVE-REEVAL] ${stack.stackId} redirect to (${bestCell.col},${bestCell.row}) target=${target.stackId}@(${target.col},${target.row})`);
+      const currentCenter = { x: stack.x, y: stack.y };
+      const distToTarget = absoluteDistanceCells(currentCenter, target);
+      const logicalDist = absoluteDistanceCells(stackCenterVw(stack), stackCenterVw(target));
+      console.log(`[MOVE-REEVAL] ${stack.stackId} redirect to (${bestCell.col},${bestCell.row}) target=${target.stackId}@(${target.col},${target.row}) | stack logical: col=${stack.col}, row=${stack.row} | stack visual: x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} | target visual: x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} | distCells(logical)=${logicalDist.toFixed(2)} | distCells(visual)=${distToTarget.toFixed(2)} | attackRange=${stack.attackRange} | effectiveRange=${(stack.attackRange * 0.8).toFixed(2)}`);
       stack.targetX = targetVw.x;
       stack.targetY = targetVw.y;
     }
@@ -241,6 +210,7 @@ export class BattleMovementService {
    */
   private snapToGrid(stack: BattleStack, state: BattleModelState): void {
     const cell = vwToStackCell(stack, stack.x, stack.y);
+    console.log(`[SNAP-TO-GRID] ${stack.stackId} from visual (${stack.x.toFixed(2)},${stack.y.toFixed(2)}) -> cell (${cell.col},${cell.row}) | was moving=${stack.moving} | moveToAttackTargetId=${stack.moveToAttackTargetId ?? 'none'} | targetX=${stack.targetX?.toFixed(2)}, targetY=${stack.targetY?.toFixed(2)}`);
     stack.col = cell.col;
     stack.row = cell.row;
 
@@ -258,17 +228,20 @@ export class BattleMovementService {
         Math.abs(center.x - stack.targetX) < SNAP_DEADBAND_VW &&
         Math.abs(center.y - stack.targetY) < SNAP_DEADBAND_VW
       ) {
+        console.log(`[SNAP-TO-GRID] ${stack.stackId} deadband hit, skipping re-target`);
         return;
       }
       stack.targetX = center.x;
       stack.targetY = center.y;
       stack.moving = true;
+      console.log(`[SNAP-TO-GRID] ${stack.stackId} re-targeted to (${target.col},${target.row}) center=(${center.x.toFixed(2)},${center.y.toFixed(2)})`);
     } else {
       // No free cell found — stop at current position
       stack.moving = false;
       stack.targetX = null;
       stack.targetY = null;
       this.completeMovement(stack.stackId);
+      console.log(`[SNAP-TO-GRID] ${stack.stackId} no free cell, stopped`);
     }
   }
 

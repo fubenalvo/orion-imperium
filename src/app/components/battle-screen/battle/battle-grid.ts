@@ -402,7 +402,7 @@ export function updateStackPositions(
       const wasMoving = stack.moving;
       stack.moving = false;
       if (wasMoving) {
-        console.log(`[MOVE-COMPLETE] ${stack.stackId} (${stack.side}) arrived at (${cell.col},${cell.row}) from (${oldCol},${oldRow}) | moveToAttackTargetId=${stack.moveToAttackTargetId ?? 'none'}`);
+        console.log(`[MOVE-COMPLETE] ${stack.stackId} (${stack.side}) arrived at (${cell.col},${cell.row}) from (${oldCol},${oldRow}) | moveToAttackTargetId=${stack.moveToAttackTargetId ?? 'none'} | visual x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)}`);
       }
       if (wasMoving && onComplete) {
         onComplete(stack.stackId);

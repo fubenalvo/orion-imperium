@@ -19,6 +19,7 @@ import { BattleSettingsService } from '../../services/battle-settings.service';
 import { BattleTimeService, BattleSpeed } from './battle/battle-time.service';
 import {
   Battle,
+  BattleAttackEffect,
   BattleFleetOutcome,
   BattleModelState,
   BattleOutcome,
@@ -389,8 +390,8 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     return getMoveToAttackTargetIds(this.state, stack);
   }
 
-  get effect(): BattleModelState['effect'] {
-    return this.state?.effect ?? null;
+  get effects(): BattleAttackEffect[] {
+    return this.state?.effects ?? [];
   }
 
   /*
@@ -825,15 +826,18 @@ return this.enqueueCommand(async () => {
     }
     // Don't auto-attack if player manually commanded this stack to move
     if (attacker.moving) {
+      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: moving=true`);
       return false;
     }
     // Per-stack fire-rate cooldown using battle-local time
     const now = this.battleTime.battleElapsedMs;
     if (attacker.attackCooldownUntil && attacker.attackCooldownUntil > now) {
+      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: fireRateCD (until=${attacker.attackCooldownUntil.toFixed(0)}, now=${now.toFixed(0)})`);
       return false;
     }
     // Per-stack animation lock: don't start new attack if this stack is already animating
     if (this.anim.isStackBusy(attacker.stackId)) {
+      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: animBusy=true`);
       return false;
     }
 
@@ -858,6 +862,7 @@ return this.enqueueCommand(async () => {
     if (!targetStack) {
       const targets = computeAttackTargetIds(this.state, attacker);
       if (targets.length === 0) {
+        console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: noTargets`);
         return false;
       }
       targetStack = this.state.stacks.find((s) => s.stackId === targets[0]);
@@ -868,10 +873,12 @@ return this.enqueueCommand(async () => {
 
     // Skip if this target was already attacked by another friendly stack this frame
     if (attackedTargetsThisFrame && attackedTargetsThisFrame.has(targetStack.stackId)) {
+      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: targetInFrameSet=true (${targetStack.stackId})`);
       return false;
     }
 
     // Initiate attack
+    console.log(`[PLAYER-AUTO-ATTACK] ${attacker.stackId} -> ${targetStack.stackId}`);
     const success = await this.combat.attackStack(this.state, attacker.stackId, targetStack.stackId);
     if (!success) {
       return false;
@@ -888,6 +895,7 @@ return this.enqueueCommand(async () => {
     const fireRateMs = (1 / fireRate) * 1000;
     const hullBonus = Math.floor(attacker.ships.reduce((sum, s) => sum + s.hp, 0) * 0.3);
     attacker.attackCooldownUntil = now + fireRateMs + hullBonus;
+    console.log(`[PLAYER-AUTO-COOLDOWN] ${attacker.stackId} set until=${attacker.attackCooldownUntil.toFixed(0)} (fireRateMs=${fireRateMs.toFixed(0)} hullBonus=${hullBonus})`);
 
     // If explicit target was destroyed, clear it
     if (explicitTargetId && targetStack.destroyed) {

@@ -110,7 +110,7 @@
 }
 
 .stack.firing {
-  animation: firing-recoil 180ms ease-out;
+  animation: firing-recoil 500ms ease-out infinite;
 }
 
 @keyframes firing-recoil {

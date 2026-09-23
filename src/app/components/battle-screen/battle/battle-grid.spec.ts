@@ -72,7 +72,7 @@ function makeState(stacks: BattleStack[]): BattleModelState {
     round: 1,
     stacks,
     log: [],
-    effect: null,
+    effects: [],
     winner: null,
     attackerFleetId: 1,
     defenderFleetId: 2,

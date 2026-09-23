@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { ANIMATION_MS, BattleModelState } from './battle.types';
+import { ANIMATION_MS, BattleModelState, BattleAttackEffect } from './battle.types';
 import {
   checkVictory,
   computeCarrierBoostTargets,
@@ -74,7 +74,9 @@ export class BattleCombatService {
     console.log(`[ATTACK] -> EXECUTING`);
     await this.anim.run(async () => {
       attacker.firing = true;
-      state.effect = { phase: 'projectile', from, to, targetStackId: target.stackId };
+      console.log(`[ATTACK-ANIM-START] ${attackerStackId} firing=true`);
+      const effect: BattleAttackEffect = { phase: 'projectile', from, to, targetStackId: target.stackId, attackerStackId: attacker.stackId };
+      state.effects.push(effect);
       this.anim.tick();
       await this.anim.wait(ANIMATION_MS.projectile);
 
@@ -142,18 +144,25 @@ export class BattleCombatService {
           kills,
         });
 
-        state.effect = {
-          phase: targetDestroyed ? 'explosion' : 'impact',
-          from,
-          to,
-          targetStackId: target.stackId,
-        };
+        // Update the effect to impact/explosion phase
+        const effectIdx = state.effects.findIndex(e => e.attackerStackId === attacker.stackId);
+        if (effectIdx >= 0) {
+          state.effects[effectIdx] = {
+            ...state.effects[effectIdx],
+            phase: targetDestroyed ? 'explosion' : 'impact',
+          };
+        }
         this.anim.tick();
         await this.anim.wait(targetDestroyed ? ANIMATION_MS.explosion : ANIMATION_MS.hit);
       }
 
-      state.effect = null;
+      // Remove the effect
+      const effectIdx = state.effects.findIndex(e => e.attackerStackId === attacker.stackId);
+      if (effectIdx >= 0) {
+        state.effects.splice(effectIdx, 1);
+      }
       attacker.firing = false;
+      console.log(`[ATTACK-ANIM-END] ${attackerStackId} firing=false`);
       checkVictory(state);
       this.anim.tick();
     }, attacker.stackId);
