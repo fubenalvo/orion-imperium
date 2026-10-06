@@ -21,6 +21,14 @@
       width: 70vw;
       min-width: 0;
     }
+
+    @include landscape-view {
+      width: 42vw;
+      min-width: 0;
+      font-size: 0.6em;
+      padding: 0.4em 0.6em;
+      min-height: 1.2em;
+    }
   }
 
   /* Fullscreen dark background mimicking classic NC theme */
@@ -155,6 +163,16 @@
       gap: 1.5vh;
       padding: 2.5vh 3vw;
     }
+
+    /* Landscape phones are wide but short; the width-based mobile-view
+       breakpoint often misses them, so we shrink the vertical stack here. */
+    @include landscape-view {
+      gap: 0.8vh;
+      padding: 2vh 3vw;
+      max-width: 60vw;
+      max-height: 88vh;
+      overflow-y: auto;
+    }
   }
 
   /* Button group container */
@@ -172,6 +190,14 @@
       @include mobile-view {
         width: 70vw;
         min-width: 0;
+      }
+
+      @include landscape-view {
+        width: 42vw;
+        min-width: 0;
+        font-size: 0.6em;
+        padding: 0.4em 0.6em;
+        min-height: 1.2em;
       }
     }
   }
@@ -214,6 +240,14 @@
     gap: 1.5vh;
     padding: 2.5vh 3vw;
   }
+
+  @include landscape-view {
+    min-width: 0;
+    width: 50vw;
+    max-width: 320px;
+    gap: 1vh;
+    padding: 2vh 2.5vw;
+  }
 }
 
 .ios-guide__title {
@@ -229,6 +263,11 @@
   @include mobile-view {
     font-size: 0.7em;
     letter-spacing: 0.2em;
+  }
+
+  @include landscape-view {
+    font-size: 0.6em;
+    letter-spacing: 0.15em;
   }
 }
 
@@ -252,6 +291,11 @@
   @include mobile-view {
     font-size: 0.9em;
   }
+
+  @include landscape-view {
+    font-size: 0.75em;
+    gap: 0.8vh;
+  }
 }
 
 .game-logo {
@@ -260,6 +304,12 @@
   height: auto;
   margin-bottom: 0vh;
   filter: drop-shadow(0 0 12px rgba(92, 168, 255, 0.25));
+
+  @include landscape-view {
+    width: 30vw;
+    max-width: 240px;
+    margin-bottom: -0.5vh;
+  }
 }
 
 .game-subtitle {
@@ -276,6 +326,12 @@
   @include mobile-view {
     font-size: 0.6em;
     letter-spacing: 0.2em;
+  }
+
+  @include landscape-view {
+    font-size: 0.45em;
+    letter-spacing: 0.15em;
+    margin-bottom: 0.5vh;
   }
 }
 
@@ -297,6 +353,10 @@
   align-items: center;
   gap: 1vh;
   width: 100%;
+
+  @include landscape-view {
+    gap: 0.5vh;
+  }
 }
 
 .save-slot {
@@ -324,6 +384,14 @@
   @include mobile-view {
     width: 70vw;
     min-width: 0;
+  }
+
+  @include landscape-view {
+    width: 42vw;
+    min-width: 0;
+    font-size: 0.7em;
+    padding: 0.5em 0.8em;
+    gap: 0.15em;
   }
 
   &:hover:not(:disabled) {
@@ -357,11 +425,19 @@
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
+
+    @include landscape-view {
+      font-size: 0.85em;
+    }
   }
 
   &__date {
     font-size: 0.85em;
     color: var(--color-text-dim);
+
+    @include landscape-view {
+      font-size: 0.7em;
+    }
   }
 
   &--close {
@@ -369,6 +445,10 @@
     border-color: var(--color-blue-dark);
     background: color-mix(in srgb, var(--panel-background-dark) 85%, transparent);
     color: var(--color-text-dim);
+
+    @include landscape-view {
+      margin-top: 0.5vh;
+    }
 
     &:hover:not(:disabled) {
       color: var(--color-text-bright);

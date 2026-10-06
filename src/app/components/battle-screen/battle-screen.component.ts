@@ -428,6 +428,12 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     return `translate(${offsetX * 5}vw, ${offsetY * 5}vh)`;
   }
 
+  get bgNebulaTransform(): string {
+    const offsetX = (this.pointerX - 0.5) * 2;
+    const offsetY = (this.pointerY - 0.5) * 2;
+    return `translate(${offsetX * 3.75}vw, ${offsetY * 3.75}vh)`;
+  }
+
   get bgForegroundTransform(): string {
     const offsetX = (this.pointerX - 0.5) * 2;
     const offsetY = (this.pointerY - 0.5) * 2;

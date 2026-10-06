@@ -2210,18 +2210,20 @@ loadError = '';
 
     this.defaultView = data.defaultView;
 
-    // Selection state: saved IDs take precedence; stale/missing IDs are
-    // cleared instead of silently keeping the previous session's selection.
-    this.selectedSystem =
-      data.selectedSystemId != null
-        ? (this.starSystems.find((s) => s.id === data.selectedSystemId) ?? null)
-        : null;
-    this.selectedFleet =
-      data.selectedFleetId != null ? (this.fleets.find((f) => f.id === data.selectedFleetId) ?? null) : null;
-    this.selectedPlanetTile =
-      data.selectedPlanetTileId != null
-        ? (this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null)
-        : null;
+    // Selection state: only restore when the save data explicitly contains the IDs.
+    // For new games, applyDefaultView() already set the correct selection;
+    // we must not overwrite it with null just because the default data lacks
+    // selected*Id fields (those only exist in saved games).
+    if (data.selectedSystemId != null) {
+      this.selectedSystem = this.starSystems.find((s) => s.id === data.selectedSystemId) ?? null;
+    }
+    if (data.selectedFleetId != null) {
+      this.selectedFleet = this.fleets.find((f) => f.id === data.selectedFleetId) ?? null;
+    }
+    if (data.selectedPlanetTileId != null) {
+      this.selectedPlanetTile =
+        this.selectedSystem?.planetsTiles?.find((p) => p.id === data.selectedPlanetTileId) ?? null;
+    }
 
     this.movementService.refreshGridPositions(this.fleets, this.starSystems);
 

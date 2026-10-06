@@ -8,3 +8,21 @@
     @content;
   }
 }
+
+/* Short viewports (landscape phones, foldables): height is the binding
+   constraint, so we trigger on height rather than width. Landscape phones
+   are often wider than 900px, so mobile-view alone misses them. */
+@mixin landscape-view {
+  @media (max-height: 600px) {
+    @content;
+  }
+}
+
+/* Short viewports (landscape phones, foldables): height is the binding
+   constraint, so we trigger on height rather than width. Landscape phones
+   are often wider than 900px, so mobile-view alone misses them. */
+@mixin landscape-view {
+  @media (max-height: 600px) {
+    @content;
+  }
+}

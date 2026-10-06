@@ -10,7 +10,7 @@
   background-image:
     linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
     linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
-  background-size: calc(72vw/19) calc(28vw/8);
+  background-size: calc(72vw / 19) calc(28vw / 8);
   border-bottom: rgba(53, 134, 229, 0.1) 2px solid;
   cursor: crosshair;
   box-shadow: 0px 58vw 0px 30vw rgba(0, 0, 0, 1);
@@ -72,14 +72,10 @@
   width: 100%;
   height: 100%;
   padding: 0.2em;
-  //border: 1px solid var(--color-blue);
-  //background: rgba(0, 0, 0, 0.75) url('ship.svg') no-repeat center / 60% 60%;
   border: 1px solid transparent;
-  background: url('ship.svg') no-repeat center / 60% 60%;
   color: var(--color-text);
   font-family: var(--font-primary);
   cursor: pointer;
-  //box-shadow: 0 0 8px rgba(53, 134, 229, 0.5);
   box-shadow: none;
   pointer-events: auto;
   transition:
@@ -89,7 +85,8 @@
    * belonging to its faction. Low opacity keeps the black ship silhouette
    * legible; state-driven highlights (selected / attack-target / spent)
    * still take visual priority via their stronger borders + shadows. */
-  background-color: color-mix(in srgb, var(--faction-color, var(--color-blue)) 18%, rgba(0, 0, 0, 0.75));
+  //background-color: color-mix(in srgb, var(--faction-color, var(--color-blue)) 18%, rgba(0, 0, 0, 0.75));
+  background: transparent;
 }
 
 .stack:hover {
@@ -105,8 +102,8 @@
 }
 
 .stack.moving {
-  border-color: var(--color-blue-bright);
-  box-shadow: 0 0 12px rgba(140, 196, 255, 0.7);
+  //border-color: var(--color-blue-bright);
+  //box-shadow: 0 0 12px rgba(140, 196, 255, 0.7);
 }
 
 .stack.firing {
@@ -137,11 +134,13 @@
 }
 
 .stack.move-to-attack-target {
+  /*
   border-color: #ffaa00;
   box-shadow:
     0 0 8px rgba(255, 170, 0, 0.7),
     0 0 18px rgba(255, 170, 0, 0.4);
   animation: target-pulse 0.9s ease-in-out infinite;
+  */
 }
 
 /* Highlight friendly stacks a selected Carrier could restore with Shield
@@ -168,7 +167,7 @@
   }
 }
 
-.stack--defender {
+.stack--defender .stack__ship {
   transform: scaleX(-1);
 }
 
@@ -206,15 +205,17 @@
 /* Attack-available indicator: crosshair.png in the top-right corner.
  * Visible while the stack can act (not moving or firing). */
 .stack__attack-dot {
+  display: none;
   position: absolute;
-  top: 0.15em;
-  right: 0.15em;
-  width: 0.7em;
-  height: 0.7em;
-  background: url('crosshair.png') no-repeat center / contain;
+  top: 0.1em;
+  right: 0.1em;
+  width: 0.2em;
+  height: 0.2em;
+  background-color: rgba(255, 0, 0, 1);
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
   animation: attack-dot-pulse 1.2s ease-in-out infinite;
   image-rendering: auto;
+  border-radius: 50%;
 }
 
 .stack__attack-dot--hidden {
@@ -340,8 +341,15 @@
   --stack-scale: 1.6;
 }
 
-.stack {
+.stack__ship {
+  position: absolute;
+  inset: 0;
+  background: url('ship.svg') no-repeat center;
   background-size: calc(60% * var(--stack-scale, 1)) calc(60% * var(--stack-scale, 1));
+  pointer-events: none;
+}
+
+.stack {
   width: 100%;
   height: 100%;
   min-height: 0;

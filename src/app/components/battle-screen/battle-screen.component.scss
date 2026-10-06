@@ -31,6 +31,21 @@
   will-change: transform;
 }
 
+.battle-bg-nebula {
+  position: absolute;
+  width: 120vw;
+  height: 120vh;
+  left: -10vw;
+  top: -10vh;
+  background-image: url('/nebula.png');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 1;
+  will-change: transform;
+}
+
 .battle-bg-foreground {
   position: absolute;
   inset: 0;
