@@ -7,3 +7,76 @@
 @use './_star-map-planet-screen';
 @use './_star-map-sensor';
 @use './_star-map-utilities';
+
+.game-end-overlay {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.98) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  pointer-events: all;
+}
+
+.game-end-modal {
+  width: min(520px, 90vw);
+  border: 2px solid #8cc4ff;
+  background: rgba(10, 20, 40, 0.9);
+  box-shadow: 0 0 40px rgba(140, 196, 255, 0.25);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+}
+
+.game-end-title {
+  font-size: 2.4rem;
+  letter-spacing: 0.6rem;
+  text-transform: uppercase;
+}
+
+.game-end-title--victory {
+  color: #8dffb3;
+  text-shadow: 0 0 20px rgba(141, 255, 179, 0.4);
+}
+
+.game-end-title--defeat {
+  color: #ff8c8c;
+  text-shadow: 0 0 20px rgba(255, 140, 140, 0.4);
+}
+
+.game-end-message {
+  color: #d0d8ff;
+  line-height: 1.6;
+}
+
+.game-end-stats {
+  color: #8cc4ff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.game-end-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.game-end-btn {
+  background: transparent;
+  border: 1px solid #8cc4ff;
+  color: #d0d8ff;
+  padding: 0.6rem 1rem;
+  letter-spacing: 0.2rem;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.game-end-btn:hover {
+  background: rgba(140, 196, 255, 0.15);
+}

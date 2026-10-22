@@ -207,6 +207,9 @@ export class SaveGameService {
     if (!data.production) {
       data.production = [];
     }
+    if (data.gameOutcome === undefined || data.gameOutcome === null) {
+      data.gameOutcome = 'inProgress';
+    }
 
     const systems = Array.isArray(data.starSystems) ? data.starSystems : [];
     for (const system of systems) {

@@ -20,6 +20,7 @@ import { PlanetBattleService } from '../../services/planet-battle.service';
 import { ShipStockService } from '../../services/ship-stock.service';
 import { ProductionService } from '../../services/production.service';
 import { SpaceportService } from '../../services/spaceport.service';
+import { GameOutcomeService, GameOutcome } from '../../services/game-outcome.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { ResearchService } from '../../services/research.service';
 
@@ -145,7 +146,8 @@ pauseMenuOpen = false;
 loadError = '';
   saveError = '';
 
-  // Map configuration
+  // Game outcome
+  gameOutcome: GameOutcome = 'inProgress';
   readonly mapWidth = initialStarMapData.map.width;
   readonly mapHeight = initialStarMapData.map.height;
   cellSizeVw = initialStarMapData.map.cellSizeVw;
@@ -294,6 +296,7 @@ loadError = '';
     private panelVmService: StarMapPanelVmService,
     private arrivalService: StarMapPlanetArrivalService,
     private gameSettingsService: GameSettingsService,
+    private gameOutcomeService: GameOutcomeService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -1787,6 +1790,10 @@ loadError = '';
    * multiply speed themselves; that is centralized in GameTimeService.
    */
   private gameLoopCallback(gameDeltaTime: number): void {
+    if (this.gameOutcome !== 'inProgress') {
+      this.cdr.detectChanges();
+      return;
+    }
     const didMoveFleets = this.updateFleets(gameDeltaTime);
     const aiChanged = this.aiTickService.tick(gameDeltaTime, {
       fleets: this.fleets,
@@ -2088,6 +2095,7 @@ loadError = '';
       shipStock: this.shipStock,
       production: this.production,
       defaultView: this.defaultView,
+      gameOutcome: this.gameOutcome,
     };
   }
 
@@ -2123,6 +2131,11 @@ loadError = '';
     if (!data || !data.fleets || !data.starSystems || !data.factions) {
       this.loadError = 'save_unreadable';
       return;
+    }
+
+    this.gameOutcome = data.gameOutcome ?? 'inProgress';
+    if (this.gameOutcome !== 'inProgress') {
+      this.gameTimeService.pause();
     }
 
     // Reject structurally invalid saves before replacing live state. This
@@ -2287,6 +2300,7 @@ loadError = '';
 
     this.loadGame();
     this.removeDestroyedFleetFromService();
+    this.checkGameOutcome();
 
     this.sensorRangeEnabled = this.gameSettingsService.fogOfWarEnabled;
 
@@ -2316,13 +2330,14 @@ loadError = '';
    * writes to the same slot. This method therefore reads the same snapshot
    * that carries cumulative fleet destructions and planet ownership changes.
    */
-  private reloadAfterBattle(): void {
-    if (this.saveGameService.currentSlot === null) return;
-    this.arrivalService.triggeredBattles.clear();
-    this.loadGame();
-    this.removeDestroyedFleetFromService();
-    this.cdr.detectChanges();
-  }
+    private reloadAfterBattle(): void {
+      if (this.saveGameService.currentSlot === null) return;
+      this.arrivalService.triggeredBattles.clear();
+      this.loadGame();
+      this.removeDestroyedFleetFromService();
+      this.checkGameOutcome();
+      this.cdr.detectChanges();
+    }
 
   /**
    * Applies a previously destroyed fleet from the battle service into the
@@ -2361,6 +2376,7 @@ loadError = '';
 
     this.battleService.clearBattle();
     this.saveGame();
+    this.checkGameOutcome();
   }
 
   /*
@@ -2371,6 +2387,44 @@ loadError = '';
    * the same encounter. Destroyed fleets are marked destroyed and
    * left in place (they are filtered from rendering and movement).
    */
+  private checkGameOutcome(): void {
+    if (this.gameOutcome !== 'inProgress') return;
+    const data: StarMapData = {
+      saveVersion: SAVE_VERSION,
+      factions: this.factions,
+      map: {
+        width: this.mapWidth,
+        height: this.mapHeight,
+        cellSizeVw: this.cellSizeVw,
+        cellSizeVh: this.cellSizeVh,
+      },
+      starSystems: this.starSystems,
+      fleets: this.fleets,
+      currentView: this.currentView,
+      cameraX: this.cameraX,
+      cameraY: this.cameraY,
+      selectedSystemId: this.selectedSystem?.id ?? null,
+      selectedFleetId: this.selectedFleet?.id ?? null,
+      selectedPlanetTileId: this.selectedPlanetTile?.id ?? null,
+      selectedFleetAction: this.selectedFleetAction,
+      targetX: this.targetX,
+      targetY: this.targetY,
+      destroyedFleetId: this.battleService.getDestroyedFleetId(),
+      exploredGridCells: Array.from(this.exploredGridCells),
+      shipStock: this.shipStock,
+      production: this.production,
+      defaultView: this.defaultView,
+      gameOutcome: this.gameOutcome,
+    };
+    const outcome = this.gameOutcomeService.evaluate(data);
+    if (outcome !== 'inProgress') {
+      this.gameOutcome = outcome;
+      data.gameOutcome = outcome;
+      this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
+      this.gameTimeService.pause();
+      this.cdr.detectChanges();
+    }
+  }
   private applyBattleResult(result: BattleOutcome): void {
     for (const fleetOutcome of [result.attacker, result.defender]) {
       if (fleetOutcome.fleetId < 0) {
@@ -2399,6 +2453,7 @@ loadError = '';
         fleet.targetY = null;
       }
     }
+    this.checkGameOutcome();
   }
 
   // Keyboard
@@ -2463,5 +2518,50 @@ loadError = '';
     window.removeEventListener('orientationchange', this.onOrientationChange);
 
     this.gameLoopService.stopGameLoop();
+  }
+
+  getTotalInhabitedPlanetCount(): number {
+    let count = 0;
+    for (const system of this.starSystems) {
+      for (const planet of system.planetsTiles ?? []) {
+        if (planet.factionId === 'unhabited') continue;
+        if ((planet.population ?? 0) <= 0 && !(planet.buildings ?? []).length) continue;
+        count++;
+      }
+    }
+    return count;
+  }
+
+  getAlliedInhabitedPlanetCount(): number {
+    const playerFaction = this.factions.find((f) => f.id === 'player');
+    const allied = new Set<string>();
+    allied.add('player');
+    if (playerFaction) {
+      for (const faction of this.factions) {
+        if (faction.id === 'player') continue;
+        if (faction.ai === false && faction.team !== 0 && faction.team === playerFaction.team) {
+          allied.add(faction.id);
+        }
+      }
+    }
+    let count = 0;
+    for (const system of this.starSystems) {
+      for (const planet of system.planetsTiles ?? []) {
+        if (planet.factionId === 'unhabited') continue;
+        if ((planet.population ?? 0) <= 0 && !(planet.buildings ?? []).length) continue;
+        if (allied.has(planet.factionId)) count++;
+      }
+    }
+    return count;
+  }
+
+  returnToMainMenu(): void {
+    this.saveGame();
+    this.router.navigate(['']);
+  }
+
+  startNewGameFromEnd(): void {
+    this.saveGame();
+    this.router.navigate(['']);
   }
 }

@@ -238,6 +238,7 @@ export interface StarMapData {
     cameraX?: number;
     cameraY?: number;
   };
+  gameOutcome?: GameOutcome;
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';
@@ -246,6 +247,8 @@ export type ResourceRates = Partial<Record<ResourceType, number>>;
 export type AiStrategy = 'expand' | 'attack' | 'defend' | 'develop';
 
 export type GoalType = 'colonize' | 'attack' | 'defend' | 'develop';
+
+export type GameOutcome = 'inProgress' | 'victory' | 'defeat';
 
 export interface ColonizeGoal {
   type: 'colonize';

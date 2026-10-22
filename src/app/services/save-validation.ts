@@ -20,7 +20,7 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
   (shipData as ShipDataFile).shipTypes.map((shipType) => shipType.id),
 );
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export const CURRENT_MAP_GRID = { width: 300, height: 180 } as const;
 
@@ -379,6 +379,12 @@ export function validateSaveData(
           }
         }
       }
+    }
+  }
+
+  if (save.gameOutcome !== undefined) {
+    if (save.gameOutcome !== 'inProgress' && save.gameOutcome !== 'victory' && save.gameOutcome !== 'defeat') {
+      errors.push(error('game_outcome_invalid', 'gameOutcome', 'gameOutcome must be inProgress, victory, or defeat'));
     }
   }
 
