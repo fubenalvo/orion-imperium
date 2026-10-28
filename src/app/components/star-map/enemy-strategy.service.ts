@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Fleet, Faction, StarSystem, AiStrategy, getAiFactionIds } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
 import { getEnemyFleets, getPlayerFleets, getEnemyPlanets, getUnhabitedPlanets } from './ai-queries';
+import { getAiDifficultyProfile } from './ai-difficulty';
 
 /*
  * =========================================================
@@ -26,7 +27,8 @@ export class EnemyStrategyService {
   private readonly THREAT_DISTANCE = 5;
   private readonly ENGAGEMENT_DISTANCE = 15;
   private readonly EXPANSION_DISTANCE = 20;
-  private readonly STRENGTH_ADVANTAGE = 1.2;
+  // The ATTACK strength advantage is per faction and comes from its AI
+  // difficulty profile (1.2 for 'normal', the historical constant).
 
   private accumulator = 0;
   private readonly currentStrategies = new Map<string, AiStrategy>();
@@ -94,7 +96,10 @@ export class EnemyStrategyService {
       return 'defend';
     }
 
-    if (this.hasFavorableEngagement(enemyFleets, playerFleets)) {
+    const strengthAdvantage = getAiDifficultyProfile(
+      factions.find((f) => f.id === factionId),
+    ).attackStrengthAdvantage;
+    if (this.hasFavorableEngagement(enemyFleets, playerFleets, strengthAdvantage)) {
       return 'attack';
     }
 
@@ -124,7 +129,11 @@ export class EnemyStrategyService {
     return false;
   }
 
-  private hasFavorableEngagement(enemyFleets: Fleet[], playerFleets: Fleet[]): boolean {
+  private hasFavorableEngagement(
+    enemyFleets: Fleet[],
+    playerFleets: Fleet[],
+    strengthAdvantage: number,
+  ): boolean {
     for (const enemyFleet of enemyFleets) {
       const enemyStrength = this.shipService.calculateFleetStrength(enemyFleet.ships);
 
@@ -138,7 +147,7 @@ export class EnemyStrategyService {
         }
 
         const playerStrength = this.shipService.calculateFleetStrength(playerFleet.ships);
-        if (enemyStrength >= playerStrength * this.STRENGTH_ADVANTAGE) {
+        if (enemyStrength >= playerStrength * strengthAdvantage) {
           return true;
         }
       }

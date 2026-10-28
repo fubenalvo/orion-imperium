@@ -177,7 +177,13 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 - Every runtime save (`StarMap.saveGame`), autosave trigger, and battle result therefore writes to the same slot that `loadGame()` and `reloadAfterBattle()` read back. Without this, a stale manual snapshot can resurrect fleets destroyed in earlier battles once the player returns from a later battle.
 - Manual slots remain explicit snapshots: they are not mutated by activation and are only written to when the player explicitly saves to one.
 - `currentSlot` is the only piece of state kept on the service itself; it is set by `MainMenu` (new game / load) and by `StarMap` when loading via the pause menu.
+- New games are procedurally generated (see [New Game Generation](./new-game-generation.md)): `NewGameService` writes the validated galaxy to the chosen manual slot and activates it. From then on it is an ordinary save — loading never regenerates the galaxy.
 - `StarMap.saveGame()` is called on: entering a system, leaving a system, opening the planet view, leaving the planet view, opening the pause menu, exiting to the main menu, battle trigger (both fleet and planet), planet colonization, planet capture, and on `ngOnDestroy`.
 - Loading happens in `loadGame()` from the pause menu or on `ngOnInit` when the user reaches `/star-map` without going through the main menu. If `currentSlot` is null but a save exists, the most recent slot is auto-selected; if no save exists, the user is redirected to the main menu.
 - Legacy saves (where `map.width > 150`, i.e. the old 200vw grid) are migrated: every system and fleet `x`/`y` is converted from vw to 1-indexed grid cells using a 2vw reference cell size.
 - `destroyedFleetId` is stored as part of the save so that the destruction persists across reloads.
+
+## New Game Setup & AI Difficulty
+
+- The New Game screen configures galaxy size (Small / Medium / Large), 2–6 participants (name, color, Human/AI, AI difficulty), an optional seed, and the target save slot. Exactly one participant is human.
+- AI difficulty is per faction and feeds the existing pipeline: `EnemyStrategyService` uses the faction's attack strength advantage, `EconomyService` scales the faction's positive income, and the generator scales starting resources, fleets and colonies. Full table and rules: [New Game Generation](./new-game-generation.md).

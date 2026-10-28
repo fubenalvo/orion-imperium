@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { ShipService } from './ship.service';
 import planetData from '../components/star-map/planet-data.json';
+import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
 import {
   Faction,
   StarSystem,
@@ -371,6 +372,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     const breakdown = this.calculateEconomy(factionId, factions, starSystems, fleets);
     const faction = factions.find((f) => f.id === factionId);
     if (!faction) return breakdown;
+    const difficultyIncomeMultiplier = getAiDifficultyProfile(faction).incomeMultiplier;
 
     for (const planetEntry of breakdown.planets) {
       const planet = this.findPlanetByName(planetEntry.planetName, starSystems);
@@ -404,11 +406,16 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
       // 3) Apply resource deltas. Credits are scaled by the current
       //    satisfaction multiplier (read straight from the planet after
       //    any updates above). Raw materials and research are not scaled.
+      //    AI difficulty scales positive income only (never losses); the
+      //    multiplier is 1 for humans, neutrals and 'normal' AI.
       const effectiveMultiplier = (planet.satisfaction ?? 0) / 100;
       for (const resource of STOCK_RESOURCES) {
         const netRate = planetEntry.netRates[resource] ?? 0;
         const multiplier = resource === 'credits' ? effectiveMultiplier : 1;
-        const effectiveRate = netRate * planetEntry.efficiency * multiplier;
+        let effectiveRate = netRate * planetEntry.efficiency * multiplier;
+        if (effectiveRate > 0) {
+          effectiveRate *= difficultyIncomeMultiplier;
+        }
         const current = faction.currencies[resource] ?? 0;
         const newValue = current + effectiveRate * deltaTime;
         faction.currencies[resource] = resource === 'credits' ? Math.floor(newValue) : newValue;

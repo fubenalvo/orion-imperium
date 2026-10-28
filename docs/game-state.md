@@ -137,7 +137,7 @@ src/app/
 - Camera: arrow keys, drag-to-pan, minimap, d-pad
 - Selection mutual exclusion: fleet / system / planet
 - Auto-save on state changes
-- Default view: planet screen of SOL/Earth (planet id=1) on new game
+- Default view: planet screen of the human homeworld on new game (camera centered on the home system)
 - Fleets are placed on galaxy grid cells matching their system position on load
 
 ### 4.2 Star System view
@@ -577,6 +577,8 @@ src/app/
 ---
 
 ## 7. Kezdeti adatok
+
+> New games are procedurally generated since save version 3 (see [New Game Generation](./new-game-generation.md)). The data below describes the legacy `star-map-data.json` map, which is now only the Large-size reference and the migration source for older saves.
 
   ### Factions
   - Player (team 1, blue, 1000 credits/rawmaterials/research, 4 researched techs, ai=false)

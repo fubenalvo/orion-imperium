@@ -7,8 +7,10 @@ import {
   MANUAL_SLOT_START,
 } from '../services/save-game.service';
 import { GameSettingsService } from '../services/game-settings.service';
-import { StarMapData } from '../components/star-map/star-map.models';
-import starMapData from '../components/star-map/star-map-data.json';
+import { NewGameService } from '../services/new-game.service';
+import { NewGameConfig } from '../services/new-game.models';
+import { createDefaultNewGameConfig } from '../services/new-game-config';
+import { NewGameSetupComponent, NewGameStartRequest } from './new-game-setup/new-game-setup.component';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): void;
@@ -17,11 +19,14 @@ interface BeforeInstallPromptEvent extends Event {
 
 @Component({
   selector: 'app-main-menu',
+  imports: [NewGameSetupComponent],
   styleUrl: './main-menu.scss',
   templateUrl: './main-menu.html',
 })
 export class MainMenu implements OnInit, OnDestroy {
-  showNewGameSlots = false;
+  showNewGameSetup = false;
+  newGameErrors: string[] = [];
+  startingNewGame = false;
   showLoadGameSlots = false;
   showInstallButton = false;
   showIOSGuide = false;
@@ -32,6 +37,7 @@ export class MainMenu implements OnInit, OnDestroy {
     private saveGameService: SaveGameService,
     private router: Router,
     private gameSettingsService: GameSettingsService,
+    private newGameService: NewGameService,
   ) {}
 
   ngOnInit(): void {
@@ -98,17 +104,41 @@ export class MainMenu implements OnInit, OnDestroy {
     this.showIOSGuide = false;
   }
 
-  newGame(slotIndex: number): void {
+  openNewGameSetup(): void {
+    this.newGameErrors = [];
+    this.showNewGameSetup = true;
+  }
+
+  closeNewGameSetup(): void {
+    this.showNewGameSetup = false;
+    this.newGameErrors = [];
+  }
+
+  onStartNewGame(request: NewGameStartRequest): void {
+    this.newGame(request.slotIndex, request.config);
+  }
+
+  /*
+   * Generates a galaxy from `config`, stores it in the manual slot and
+   * activates it (autosave becomes the live session). Navigation happens
+   * only after the whole pipeline succeeded; otherwise the errors are shown
+   * on the setup screen and the current saves stay untouched.
+   */
+  newGame(slotIndex: number, config: NewGameConfig = createDefaultNewGameConfig()): boolean {
     if (slotIndex < MANUAL_SLOT_START) {
-      return;
+      return false;
     }
 
-    const defaultData = structuredClone(starMapData) as StarMapData;
-    this.saveGameService.saveToSlot(slotIndex, defaultData);
-    if (!this.saveGameService.activateSlot(slotIndex)) {
-      return;
+    this.startingNewGame = true;
+    const result = this.newGameService.startNewGame(config, slotIndex);
+    this.startingNewGame = false;
+    if (!result.ok) {
+      this.newGameErrors = result.errors;
+      return false;
     }
+    this.newGameErrors = [];
     this.router.navigate(['/star-map']);
+    return true;
   }
 
   loadGame(slotIndex: number): void {

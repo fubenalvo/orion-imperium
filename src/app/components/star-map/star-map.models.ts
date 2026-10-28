@@ -64,14 +64,45 @@ export interface Technology {
   bonuses?: { type: 'sensorRange'; value: number }[];
 }
 
+/*
+ * AI difficulty levels. The tuning values behind each level live in
+ * `ai-difficulty.ts`; 'normal' reproduces the AI behavior that existed
+ * before difficulty was introduced, so factions without the field behave
+ * exactly as before.
+ */
+export type AiDifficulty = 'easy' | 'normal' | 'hard';
+
 export interface Faction {
   id: string;
   name: string;
   color: string;
   team: number;
   ai?: boolean;
+  /*
+   * Only meaningful when `ai === true`. Missing on older saves and on the
+   * legacy star-map-data.json map; treated as 'normal'.
+   */
+  aiDifficulty?: AiDifficulty;
   currencies: Record<string, number>;
   researchedTechnologies?: string[];
+}
+
+export type GalaxySize = 'small' | 'medium' | 'large';
+
+/*
+ * Metadata describing how a procedurally generated galaxy was created.
+ * Persisted with the save so a game can be identified and its starting
+ * galaxy reproduced from `seed`. The galaxy itself (systems, planets,
+ * fleets) is always stored in full — loading NEVER regenerates it.
+ * Absent on saves started from the legacy star-map-data.json map.
+ */
+export interface GalaxyInfo {
+  size: GalaxySize;
+  /* Seed that actually produced this galaxy (after any validation retries). */
+  seed: number;
+  /* Seed requested by the player/config, if any. */
+  requestedSeed?: number | null;
+  generatorVersion: number;
 }
 
 // Derives the IDs of AI-controlled factions from the live factions array.
@@ -203,7 +234,13 @@ export interface StarMapData {
    * migrated on first load; additional future fields must bump this.
    */
   saveVersion?: number;
+  galaxy?: GalaxyInfo;
   factions: Faction[];
+  /*
+   * Map entities with no gameplay ownership (currently the central black
+   * hole). Persisted since save version 3; older saves are backfilled from
+   * the legacy star-map-data.json by SaveGameService.migrateSave.
+   */
   specialObjects?: SpecialObject[];
   /*
    * map: Grid layout configuration.

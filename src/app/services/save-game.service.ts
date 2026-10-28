@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { StarMapData } from '../components/star-map/star-map.models';
 import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
+import legacyStarMapData from '../components/star-map/star-map-data.json';
 
 /*
  * =========================================================
@@ -227,6 +228,10 @@ export class SaveGameService {
         // Old saves lack the ai flag; derive it from team (team 2+ = AI-controlled).
         faction.ai = faction.team >= 2;
       }
+      if (faction.ai === true && faction.aiDifficulty === undefined) {
+        // Pre-difficulty saves: 'normal' reproduces the original AI tuning.
+        faction.aiDifficulty = 'normal';
+      }
       if (!faction.researchedTechnologies) {
         faction.researchedTechnologies = [
           'basic_engineering',
@@ -239,6 +244,18 @@ export class SaveGameService {
 
     if (data.map && data.map.width === 200) {
       this.migrateLegacyGrid(data);
+    }
+
+    // Before v3 the black hole was not saved; StarMap always rendered it
+    // from star-map-data.json. Every such save came from that legacy map,
+    // so restore its special objects (only when they fit the save's grid).
+    if (data.specialObjects === undefined && !data.galaxy) {
+      const legacyObjects = (legacyStarMapData as StarMapData).specialObjects ?? [];
+      const width = data.map?.width ?? 0;
+      const height = data.map?.height ?? 0;
+      data.specialObjects = legacyObjects
+        .filter((o) => o.x + o.width - 1 <= width && o.y + o.height - 1 <= height)
+        .map((o) => ({ ...o }));
     }
 
     if (version < SAVE_VERSION) {

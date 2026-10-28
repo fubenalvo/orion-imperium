@@ -20,8 +20,20 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
   (shipData as ShipDataFile).shipTypes.map((shipType) => shipType.id),
 );
 
-export const SAVE_VERSION = 2;
+/*
+ * Version history:
+ * - 0/1: legacy saves (pre-versioning, vw→grid migration).
+ * - 2: grid coordinates, gameOutcome.
+ * - 3: map dimensions vary per galaxy (procedural generation), plus the
+ *      persisted `specialObjects`, `galaxy` metadata and `Faction.aiDifficulty`.
+ */
+export const SAVE_VERSION = 3;
 
+/*
+ * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
+ * (map.width === 200) saves, which all came from that map. Generated
+ * galaxies carry their own dimensions in `map`.
+ */
 export const CURRENT_MAP_GRID = { width: 300, height: 180 } as const;
 
 export interface SaveValidationIssue {
@@ -385,6 +397,46 @@ export function validateSaveData(
   if (save.gameOutcome !== undefined) {
     if (save.gameOutcome !== 'inProgress' && save.gameOutcome !== 'victory' && save.gameOutcome !== 'defeat') {
       errors.push(error('game_outcome_invalid', 'gameOutcome', 'gameOutcome must be inProgress, victory, or defeat'));
+    }
+  }
+
+  if (save.specialObjects !== undefined) {
+    if (!Array.isArray(save.specialObjects)) {
+      errors.push(error('special_objects_not_array', 'specialObjects', 'specialObjects must be an array'));
+    } else {
+      for (const [i, obj] of save.specialObjects.entries()) {
+        const path = `specialObjects[${i}]`;
+        if (
+          !obj ||
+          typeof obj !== 'object' ||
+          typeof obj.type !== 'string' ||
+          ![obj.x, obj.y, obj.width, obj.height].every((v) => typeof v === 'number' && Number.isFinite(v))
+        ) {
+          errors.push(error('special_object_invalid', path, 'special object needs a type and finite x/y/width/height'));
+        }
+      }
+    }
+  }
+
+  if (save.galaxy !== undefined) {
+    const galaxy = save.galaxy as unknown as Record<string, unknown> | null;
+    if (
+      !galaxy ||
+      typeof galaxy !== 'object' ||
+      (galaxy['size'] !== 'small' && galaxy['size'] !== 'medium' && galaxy['size'] !== 'large') ||
+      typeof galaxy['seed'] !== 'number' ||
+      !Number.isFinite(galaxy['seed'])
+    ) {
+      errors.push(error('galaxy_invalid', 'galaxy', 'galaxy metadata needs a known size and a numeric seed'));
+    }
+  }
+
+  if (Array.isArray(save.factions)) {
+    for (const [i, faction] of save.factions.entries()) {
+      const difficulty = (faction as { aiDifficulty?: unknown } | null)?.aiDifficulty;
+      if (difficulty !== undefined && difficulty !== 'easy' && difficulty !== 'normal' && difficulty !== 'hard') {
+        errors.push(error('ai_difficulty_invalid', `factions[${i}].aiDifficulty`, 'aiDifficulty must be easy, normal, or hard'));
+      }
     }
   }
 

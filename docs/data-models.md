@@ -6,8 +6,11 @@ All gameplay types live in `src/app/components/star-map/star-map.models.ts`. The
 
 The root save format. Contains everything needed to reconstruct a game session:
 
+- `saveVersion`: format version (currently 3); see `SAVE_VERSION` in `save-validation.ts`
+- `galaxy?`: `{ size: 'small' | 'medium' | 'large', seed, requestedSeed, generatorVersion }` – generation metadata of a procedurally generated galaxy (absent for the legacy map). Informational only: loading never regenerates. See [New Game Generation](./new-game-generation.md)
 - `factions`: `Faction[]`
-- `map`: `{ width, height, cellSizeVw, cellSizeVh }` – the grid dimensions and per-cell render size
+- `specialObjects?`: `SpecialObject[]` – map entities without ownership, currently the central black hole (`{ x, y, width, height, type: 'blackhole', component: 'blackhole' }`, x/y = top-left grid cell). Persisted since v3; pre-v3 saves are backfilled from `star-map-data.json`
+- `map`: `{ width, height, cellSizeVw, cellSizeVh }` – the grid dimensions and per-cell render size. Width/height vary per galaxy (180×108, 240×144, 300×180) and are read from the save by `StarMap.loadGame`
 - `starSystems`: `StarSystem[]`
 - `fleets`: `Fleet[]`
 - `currentView`: `'map' | 'system' | 'planet'` (optional)
@@ -20,11 +23,12 @@ The root save format. Contains everything needed to reconstruct a game session:
 
 ## Faction
 
-- `id`: unique string (`'player'`, `'enemy1'`, `'enemy2'`, `'unhabited'`)
-- `name`: display name
-- `color`: hex color used for the UI accent
+- `id`: unique string. `'player'` is always the single local human faction; AI factions are `'enemy1'…'enemyN'`; `'independent'` and `'unhabited'` are neutral
+- `name`: display name (player-configurable on the New Game screen)
+- `color`: hex color used for the UI accent (player-configurable)
 - `team`: `0` neutral, `1` player, `2+` enemies. Same-team factions never fight; team 0 is never attacked and never attacks
 - `ai?: boolean`: `true` when the AI pipeline should tick this faction. Replaces the previous hardcoded `enemy1`/`enemy2` ID sets — any faction with `ai: true` is managed by the AI layers (V3 target selection → V4.1 strategy → V4.2 goal → V4.3 capability → V5 action → V5.1/V5.2 execution). `false` for player and neutral factions. Backfilled from `team === 2` by `SaveGameService.migrateSave` for older saves.
+- `aiDifficulty?`: `'easy' | 'normal' | 'hard'` – only for `ai: true`. Tuning lives in `ai-difficulty.ts`; missing is treated as `'normal'` (the original AI behavior) and backfilled by `migrateSave`
 - `currencies`: `Record<string, number>` containing at least `credits`, `rawmaterials`, `research`
 
 ## Ship Stock & Production

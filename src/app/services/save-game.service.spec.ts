@@ -418,3 +418,57 @@ describe('SaveGameService — versioned migration and resilience', () => {
     expect(service.lastError).toContain('save_invalid');
   });
 });
+
+describe('SaveGameService — v3 generated-galaxy fields', () => {
+  let service: SaveGameService;
+
+  beforeEach(() => {
+    localStorage.clear();
+    service = new SaveGameService();
+  });
+
+  afterEach(() => localStorage.clear());
+
+  it('backfills the legacy black hole for pre-v3 saves of the legacy map', () => {
+    const data = makeData({ map: { width: 300, height: 180, cellSizeVw: 2, cellSizeVh: 2 }, saveVersion: 2 });
+    const migrated = service.migrateSave(data);
+    expect(migrated.specialObjects).toEqual([
+      { x: 100, y: 90, type: 'blackhole', width: 4, height: 5, component: 'blackhole' },
+    ]);
+    expect(migrated.saveVersion).toBe(SAVE_VERSION);
+  });
+
+  it('does not backfill objects that fall outside a small legacy grid', () => {
+    const migrated = service.migrateSave(makeData());
+    expect(migrated.specialObjects).toEqual([]);
+  });
+
+  it('never touches special objects of generated galaxies', () => {
+    const hole = { x: 119, y: 71, type: 'blackhole', width: 4, height: 4, component: 'blackhole' };
+    const data = makeData({
+      map: { width: 240, height: 144, cellSizeVw: 2, cellSizeVh: 2 },
+      galaxy: { size: 'medium', seed: 9, requestedSeed: null, generatorVersion: 1 },
+      specialObjects: [hole],
+    });
+    service.saveToSlot(1, data);
+    const loaded = service.loadFromSlot(1)!;
+    expect(loaded.specialObjects).toEqual([hole]);
+    expect(loaded.map.width).toBe(240);
+    expect(loaded.galaxy).toEqual({ size: 'medium', seed: 9, requestedSeed: null, generatorVersion: 1 });
+  });
+
+  it("defaults missing AI difficulty to 'normal' and keeps explicit difficulty", () => {
+    const hardAi = { ...ENEMY1_FACTION, id: 'enemy2', aiDifficulty: 'hard' as const };
+    const migrated = service.migrateSave(makeData({}, [{ ...PLAYER_FACTION }, { ...ENEMY1_FACTION }, hardAi]));
+    expect(migrated.factions[0].aiDifficulty).toBeUndefined();
+    expect(migrated.factions[1].aiDifficulty).toBe('normal');
+    expect(migrated.factions[2].aiDifficulty).toBe('hard');
+  });
+
+  it('rejects malformed v3 fields', () => {
+    expect(validateSaveData(makeData({ specialObjects: 'nope' as never })).ok).toBe(false);
+    expect(validateSaveData(makeData({ galaxy: { size: 'huge', seed: 1 } as never })).ok).toBe(false);
+    const badAi = { ...ENEMY1_FACTION, aiDifficulty: 'insane' as never };
+    expect(validateSaveData(makeData({}, [PLAYER_FACTION, badAi])).ok).toBe(false);
+  });
+});

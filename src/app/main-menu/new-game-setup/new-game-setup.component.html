@@ -1,0 +1,139 @@
+<div class="new-game-setup">
+  <div class="new-game-setup__title">NEW GAME</div>
+
+  <section class="setup-section">
+    <div class="setup-section__label">GALAXY SIZE</div>
+    <div class="galaxy-sizes">
+      @for (size of galaxySizes; track size.id) {
+        <button
+          type="button"
+          class="galaxy-size"
+          [class.galaxy-size--active]="config.galaxySize === size.id"
+          [attr.aria-pressed]="config.galaxySize === size.id"
+          (click)="selectGalaxySize(size.id)"
+        >
+          <span class="galaxy-size__name">{{ size.label }}</span>
+          <span class="galaxy-size__meta">{{ size.systemCount }} systems · {{ size.width }}×{{ size.height }}</span>
+          <span class="galaxy-size__meta">up to {{ size.maxPlayers }} players</span>
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="setup-section">
+    <div class="setup-section__label">PLAYERS ({{ config.players.length }}/{{ maxPlayers }})</div>
+    <div class="player-list">
+      @for (player of config.players; track $index; let i = $index) {
+        <div
+          class="player-row"
+          [class.player-row--human]="player.controller === 'human'"
+          [style.--player-color]="player.color"
+        >
+          <span class="player-row__badge" [title]="player.controller === 'human' ? 'Local human player' : 'AI-controlled'">
+            {{ player.controller === 'human' ? 'YOU' : 'AI' }}
+          </span>
+
+          <input
+            type="text"
+            class="player-row__name"
+            [value]="player.name"
+            [attr.maxlength]="maxNameLength"
+            [attr.aria-label]="'Player ' + (i + 1) + ' name'"
+            (input)="setName(i, $event)"
+          />
+
+          <div class="player-row__colors" role="radiogroup" [attr.aria-label]="'Player ' + (i + 1) + ' color'">
+            @for (color of palette; track color.value) {
+              <button
+                type="button"
+                class="swatch"
+                [class.swatch--selected]="player.color === color.value"
+                [style.background]="color.value"
+                [disabled]="isColorTaken(color.value, i)"
+                [attr.aria-label]="color.label"
+                [attr.aria-checked]="player.color === color.value"
+                role="radio"
+                [title]="color.label"
+                (click)="setColor(i, color.value)"
+              ></button>
+            }
+          </div>
+
+          <select
+            class="player-row__controller"
+            [value]="player.controller"
+            [attr.aria-label]="'Player ' + (i + 1) + ' controller'"
+            (change)="setController(i, $event)"
+          >
+            <option value="human" [selected]="player.controller === 'human'">Human</option>
+            <option value="ai" [selected]="player.controller === 'ai'" [disabled]="player.controller === 'human'">AI</option>
+          </select>
+
+          @if (player.controller === 'ai') {
+            <select
+              class="player-row__difficulty"
+              [attr.aria-label]="'Player ' + (i + 1) + ' AI difficulty'"
+              (change)="setDifficulty(i, $event)"
+            >
+              @for (d of difficulties; track d.id) {
+                <option [value]="d.id" [selected]="player.difficulty === d.id">{{ d.label }}</option>
+              }
+            </select>
+          } @else {
+            <span class="player-row__difficulty player-row__difficulty--none">—</span>
+          }
+
+          <button
+            type="button"
+            class="player-row__remove"
+            [disabled]="!canRemove(i)"
+            [attr.aria-label]="'Remove player ' + (i + 1)"
+            (click)="removePlayer(i)"
+          >
+            ✕
+          </button>
+        </div>
+      }
+    </div>
+    <button type="button" class="setup-add" [disabled]="!canAdd" (click)="addPlayer()">+ ADD AI PLAYER</button>
+  </section>
+
+  <section class="setup-section setup-section--row">
+    <label class="setup-field">
+      <span class="setup-section__label">SAVE SLOT</span>
+      <select (change)="setSlot($event)" aria-label="Save slot">
+        @for (entry of manualSlots; track entry.index) {
+          <option [value]="entry.index" [selected]="entry.index === slotIndex">
+            Slot {{ entry.index + 1 }} — {{ formatSlotDate(entry.slot.date) }}
+          </option>
+        }
+      </select>
+    </label>
+    <label class="setup-field">
+      <span class="setup-section__label">SEED (OPTIONAL)</span>
+      <input type="text" inputmode="numeric" placeholder="Random" [value]="seedText" (input)="setSeed($event)" />
+    </label>
+  </section>
+
+  @if (selectedSlotHasSave) {
+    <p class="setup-warning">The selected slot already contains a save and will be overwritten.</p>
+  }
+
+  @if (validationErrors.length > 0 || startError.length > 0) {
+    <ul class="setup-errors" role="alert">
+      @for (error of startError; track $index) {
+        <li>{{ error }}</li>
+      }
+      @for (error of validationErrors; track $index) {
+        <li>{{ error }}</li>
+      }
+    </ul>
+  }
+
+  <div class="setup-actions">
+    <button type="button" (click)="cancel.emit()">BACK</button>
+    <button type="button" class="setup-actions__start" [disabled]="starting || validationErrors.length > 0" (click)="onStart()">
+      {{ starting ? 'GENERATING…' : 'START GAME' }}
+    </button>
+  </div>
+</div>

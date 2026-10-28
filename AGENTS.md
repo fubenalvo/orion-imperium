@@ -118,6 +118,7 @@ The project currently contains the following documentation files:
 - `docs/invariants.md` — rules and conditions that must always remain true
 - `docs/ship-production.md` — ship production, global stock, and fleet assembly pipeline
 - `docs/game-time.md` — centralized game time, pause/speed controls, and scaled delta flow
+- `docs/new-game-generation.md` — New Game setup, procedural galaxy generation, AI difficulty, and generated-save persistence
 
 These files are the current documentation sources of truth for their respective topics.
 

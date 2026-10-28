@@ -3,6 +3,8 @@ import { Router } from '@angular/router';
 import { vi } from 'vitest';
 import { MainMenu } from './main-menu';
 import { SaveGameService, SaveSlotId } from '../services/save-game.service';
+import { NewGameService } from '../services/new-game.service';
+import { createDefaultNewGameConfig } from '../services/new-game-config';
 
 interface MockBeforeInstallPromptEvent extends Event {
   prompt: () => void;
@@ -106,6 +108,52 @@ describe('MainMenu', () => {
 
     const active = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
     expect(active!.fleets[0].name).toBe('Saved Fleet');
+  });
+
+  it('opens the new game setup screen instead of starting immediately', () => {
+    const newGameButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find((b) => b.textContent?.trim() === 'NEW GAME')!;
+    newGameButton.click();
+    fixture.detectChanges();
+
+    expect(component.showNewGameSetup).toBe(true);
+    expect(fixture.nativeElement.querySelector('app-new-game-setup')).not.toBeNull();
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('starts a generated game from the setup screen with the configured players', () => {
+    const config = createDefaultNewGameConfig('small');
+    config.players[0].name = 'Commander';
+    config.players[1].difficulty = 'hard';
+
+    component.onStartNewGame({ config, slotIndex: 3 });
+
+    expect(navigateSpy).toHaveBeenCalledWith(['/star-map']);
+    const active = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)!;
+    expect(active.galaxy?.size).toBe('small');
+    expect(active.factions.find((f) => f.id === 'player')?.name).toBe('Commander');
+    expect(active.factions.find((f) => f.id === 'enemy1')?.aiDifficulty).toBe('hard');
+    expect(saveGameService.loadFromSlot(3)!.starSystems).toEqual(active.starSystems);
+  });
+
+  it('shows the error and stays on the menu when game initialization fails', () => {
+    vi.spyOn(TestBed.inject(NewGameService), 'startNewGame').mockReturnValue({
+      ok: false,
+      errors: ['Could not generate a valid galaxy.'],
+    });
+    Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+      .find((b) => b.textContent?.trim() === 'NEW GAME')!
+      .click();
+    fixture.detectChanges();
+
+    // Start through the setup screen's real output binding.
+    fixture.nativeElement.querySelector('.setup-actions__start').click();
+    fixture.detectChanges();
+
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(component.newGameErrors).toEqual(['Could not generate a valid galaxy.']);
+    expect(fixture.nativeElement.textContent).toContain('Could not generate a valid galaxy.');
+    expect(saveGameService.currentSlot).toBeNull();
   });
 
   it('should not navigate when loading an empty slot', () => {

@@ -53,6 +53,7 @@ import {
   ResourceDeposit,
   Faction,
   SpecialObject,
+  GalaxyInfo,
 } from './star-map.models';
 import {
   createMulberry32,
@@ -148,8 +149,10 @@ loadError = '';
 
   // Game outcome
   gameOutcome: GameOutcome = 'inProgress';
-  readonly mapWidth = initialStarMapData.map.width;
-  readonly mapHeight = initialStarMapData.map.height;
+  // Grid dimensions come from the loaded save (generated galaxies vary in
+  // size); the legacy map's values are only the pre-load defaults.
+  mapWidth = initialStarMapData.map.width;
+  mapHeight = initialStarMapData.map.height;
   cellSizeVw = initialStarMapData.map.cellSizeVw;
   cellSizeVh = initialStarMapData.map.cellSizeVh;
   private readonly gridBreakpointPx = 1300;
@@ -162,6 +165,8 @@ loadError = '';
   shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
   production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
   defaultView: import('./star-map.models').StarMapData['defaultView'] = initialStarMapData.defaultView ?? undefined;
+  // Generation metadata of the current galaxy; carried through every save unchanged.
+  galaxy: GalaxyInfo | undefined = undefined;
 
   private routerSubscription = new Subscription();
   // Tracks the most recent router URL that was not /star-map, so that
@@ -683,6 +688,7 @@ loadError = '';
         this.currentView = 'system';
         this.selectedSystem = system;
         this.selectedPlanetTile = null;
+        this.centerCameraOnDefaultView(defaultView, system);
         this.targetX = null;
         this.targetY = null;
         this.selectedFleetAction = null;
@@ -708,6 +714,7 @@ loadError = '';
         this.currentView = 'planet';
         this.selectedSystem = system;
         this.selectedPlanetTile = planet;
+        this.centerCameraOnDefaultView(defaultView, system);
         this.targetX = null;
         this.targetY = null;
         this.selectedFleetAction = null;
@@ -726,6 +733,26 @@ loadError = '';
         this.targetY = null;
         this.selectedFleetAction = null;
     }
+  }
+
+  /*
+   * Positions the galaxy camera for a system/planet default view so that
+   * leaving the start view lands on the home system. Generated galaxies can
+   * put the home anywhere, so the camera cannot simply stay at (0, 0).
+   * Explicit cameraX/cameraY in the defaultView still win.
+   */
+  private centerCameraOnDefaultView(
+    defaultView: NonNullable<StarMapData['defaultView']>,
+    system: StarSystem,
+  ): void {
+    if (defaultView.cameraX !== undefined || defaultView.cameraY !== undefined) {
+      this.cameraX = defaultView.cameraX ?? 0;
+      this.cameraY = defaultView.cameraY ?? 0;
+      return;
+    }
+    this.cameraX = (system.x - 0.5) * this.cellSizeVw - 50;
+    this.cameraY = (system.y - 0.5) * this.cellSizeVh - this.viewportHeightVw / 2;
+    this.clampCamera();
   }
 
   /** Exits the current star system and returns to the galaxy map view. */
@@ -2072,7 +2099,9 @@ loadError = '';
   private serializeGameState(): StarMapData {
     return {
       saveVersion: SAVE_VERSION,
+      galaxy: this.galaxy,
       factions: this.factions,
+      specialObjects: this.specialObjects,
       map: {
         width: this.mapWidth,
         height: this.mapHeight,
@@ -2152,6 +2181,15 @@ loadError = '';
     this.factions = data.factions;
     this.starSystems = data.starSystems;
     this.fleets = data.fleets ?? [];
+    this.galaxy = data.galaxy;
+    this.specialObjects = data.specialObjects ?? [];
+    // Map size is per save. Re-initialize the movement grid before any
+    // coordinate math below runs against the new dimensions.
+    if (data.map && data.map.width > 0 && data.map.height > 0) {
+      this.mapWidth = data.map.width;
+      this.mapHeight = data.map.height;
+    }
+    this.movementService.initialize(this.cellSizeVw, this.cellSizeVh, this.mapWidth, this.mapHeight);
     this.shipStock = data.shipStock ?? [];
     this.production = data.production ?? [];
     this.productionService.rebaseFromSave(this.production);
@@ -2389,33 +2427,7 @@ loadError = '';
    */
   private checkGameOutcome(): void {
     if (this.gameOutcome !== 'inProgress') return;
-    const data: StarMapData = {
-      saveVersion: SAVE_VERSION,
-      factions: this.factions,
-      map: {
-        width: this.mapWidth,
-        height: this.mapHeight,
-        cellSizeVw: this.cellSizeVw,
-        cellSizeVh: this.cellSizeVh,
-      },
-      starSystems: this.starSystems,
-      fleets: this.fleets,
-      currentView: this.currentView,
-      cameraX: this.cameraX,
-      cameraY: this.cameraY,
-      selectedSystemId: this.selectedSystem?.id ?? null,
-      selectedFleetId: this.selectedFleet?.id ?? null,
-      selectedPlanetTileId: this.selectedPlanetTile?.id ?? null,
-      selectedFleetAction: this.selectedFleetAction,
-      targetX: this.targetX,
-      targetY: this.targetY,
-      destroyedFleetId: this.battleService.getDestroyedFleetId(),
-      exploredGridCells: Array.from(this.exploredGridCells),
-      shipStock: this.shipStock,
-      production: this.production,
-      defaultView: this.defaultView,
-      gameOutcome: this.gameOutcome,
-    };
+    const data = this.serializeGameState();
     const outcome = this.gameOutcomeService.evaluate(data);
     if (outcome !== 'inProgress') {
       this.gameOutcome = outcome;

@@ -50,6 +50,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 - **Active session slot invariant:** during gameplay `SaveGameService.currentSlot` is always `SaveSlotId.AUTOSAVE` (slot 0). Session start — `MainMenu.newGame`, `MainMenu.loadGame`, `StarMap.loadFromMenu`, and the `currentSlot === null` fallback in `StarMap.ngOnInit` — normalizes any non-autosave slot through `activateSlot()`, which copies the selected snapshot into autosave before switching `currentSlot` to 0. This keeps every runtime save, autosave trigger, and battle result on the same slot that `loadGame()` and `reloadAfterBattle()` read back, so fleets destroyed in earlier battles cannot be resurrected by a stale manual snapshot.
 - **Manual slot snapshot invariant:** `activateSlot()` never mutates the selected manual snapshot; manual slots are only written to when the player explicitly saves to one. Activating a manual slot intentionally replaces the previous autosave, matching "load game" semantics.
 - **Failed activation is non-destructive:** `activateSlot()` returns `false` for an empty or invalid slot without changing `currentSlot` or overwriting autosave.
+- **Generated galaxies are persistent worlds:** after `NewGameService` stores a galaxy, every load reads the stored snapshot; nothing calls `GalaxyGeneratorService` outside the New Game flow. `StarMap` must keep serializing `galaxy`, `specialObjects` and the save's own `map.width/height` (both `saveGame` and the game-outcome save go through `serializeGameState`).
 - `triggeredBattles` is a `Set<string>` of `"minId-maxId"` pair keys. It is not serialized and is re-created on every `StarMap` instance; pairs of destroyed fleets are filtered out, so a survivor is never re-matched against a destroyed opponent even after reload.
 
 ## Pause/Resume Guarantees
@@ -171,3 +172,14 @@ Conditions that must remain true across the codebase. When changing any code tha
 - Reinforcement uses the same `stock -> fleet` path as creation; no fleet state outside `fleet.ships` is touched.
 - `SaveGameService.migrateSave` backfills `shipStock: []` and `production: []` so older saves load unchanged. Production `progress` and per-fleet composition both persist via the existing `StarMapData` root snapshot.
 
+## New Game & Galaxy Generation Invariants
+
+See [New Game Generation](./new-game-generation.md) for the rules behind these.
+
+- Exactly one human faction exists and its id is `'player'` (team 1, `ai: false`); gameplay systems hardcode this id as the local player.
+- Planet names are unique across the galaxy (`EconomyService` looks planets up by name); planet, fleet and ship ids are globally unique.
+- The black hole's cell span is centered exactly on the map midpoint, and no star system or starting fleet lies within the preset's `blackHoleClearance`.
+- A new game is activated (and `/star-map` navigated to) only after `validateGeneratedGalaxy` passes.
+- The same config + seed always produces the same galaxy; the generator must use only its seeded RNG.
+- `aiDifficulty: 'normal'` (or missing) must reproduce the pre-difficulty AI behavior: income multiplier 1, attack advantage 1.2.
+- Map widths of exactly 200 are reserved for the legacy pre-grid save format.

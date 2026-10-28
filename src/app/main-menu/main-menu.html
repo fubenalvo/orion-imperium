@@ -7,13 +7,13 @@
       <div class="layer layer-4"></div>
     </div>
     <div class="main-menu__content">
-      @if (!showNewGameSlots && !showLoadGameSlots) {
+      @if (!showNewGameSetup && !showLoadGameSlots) {
         <img src="logo.png" title="Orion Imperium" alt="Orion Imperium Logo" class="game-logo" />
 
         <p class="game-subtitle">A GALACTIC STRATEGY GAME</p>
 
         <nav class="main-menu__buttons">
-          <button type="button" (click)="showNewGameSlots = true">NEW GAME</button>
+          <button type="button" (click)="openNewGameSetup()">NEW GAME</button>
 
           <button type="button" (click)="showLoadGameSlots = true" [disabled]="!hasAnySave">
             LOAD GAME
@@ -31,29 +31,14 @@
         </nav>
       }
 
-      @if (showNewGameSlots) {
-        <div class="save-slots">
-          @for (slot of slots; track $index) {
-            @if ($index >= 1) {
-              <button
-                type="button"
-                class="save-slot"
-                [class.save-slot--empty]="!slot.data"
-                (click)="newGame($index)"
-              >
-                <span class="save-slot__index">Slot {{ $index + 1 }}</span>
-                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
-              </button>
-            }
-          }
-          <button
-            type="button"
-            class="save-slot save-slot--close"
-            (click)="showNewGameSlots = false"
-          >
-            CLOSE
-          </button>
-        </div>
+      @if (showNewGameSetup) {
+        <app-new-game-setup
+          [slots]="slots"
+          [startError]="newGameErrors"
+          [starting]="startingNewGame"
+          (start)="onStartNewGame($event)"
+          (cancel)="closeNewGameSetup()"
+        ></app-new-game-setup>
       }
 
       @if (showLoadGameSlots) {

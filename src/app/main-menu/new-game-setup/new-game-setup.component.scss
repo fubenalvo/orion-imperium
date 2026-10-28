@@ -1,0 +1,233 @@
+@use 'mixins' as *;
+
+/* New Game setup screen. Reuses the main-menu panel look (dark panel,
+   blue border, VT323 text, turquoise headings) from main-menu.scss. */
+
+:host {
+  display: block;
+  width: min(92vw, 1100px);
+}
+
+.new-game-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 2vh;
+  max-height: 82vh;
+  overflow-y: auto;
+  padding-right: 0.5em;
+  text-align: left;
+
+  @include landscape-view {
+    gap: 1vh;
+    max-height: 80vh;
+    font-size: 0.75em;
+  }
+
+  &__title {
+    color: var(--color-turquoise-bright);
+    font-size: 1.6em;
+    letter-spacing: 0.35em;
+    text-align: center;
+    text-shadow:
+      0 0 8px rgba(109, 229, 211, 0.35),
+      0 0 20px rgba(109, 229, 211, 0.12);
+  }
+}
+
+.setup-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+
+  &__label {
+    color: var(--color-turquoise-light);
+    font-size: 0.95em;
+    letter-spacing: 0.2em;
+  }
+
+  &--row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 2vw;
+
+    .setup-field {
+      flex: 1 1 14em;
+    }
+  }
+}
+
+.setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5vh;
+}
+
+.galaxy-sizes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1vw;
+
+  @include mobile-view {
+    grid-template-columns: 1fr;
+  }
+}
+
+.galaxy-size {
+  flex-direction: column;
+  gap: 0.3em;
+  min-height: 0;
+  padding: 0.8em 0.6em;
+  background: color-mix(in srgb, var(--panel-background) 90%, transparent);
+  border: 2px solid var(--color-blue-dark);
+  color: var(--color-text);
+  text-transform: none;
+  box-shadow:
+    inset 2px 2px 0 rgba(53, 134, 229, 0.08),
+    inset -2px -2px 0 rgba(0, 0, 0, 0.8);
+
+  &__name {
+    font-size: 1.2em;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  &__meta {
+    color: var(--color-text-dim);
+    font-size: 0.85em;
+    font-weight: 400;
+  }
+
+  &--active {
+    border-color: var(--color-turquoise-bright);
+    color: var(--color-turquoise-bright);
+    box-shadow:
+      inset 2px 2px 0 rgba(109, 229, 211, 0.12),
+      0 0 10px rgba(109, 229, 211, 0.25);
+
+    .galaxy-size__meta {
+      color: var(--color-turquoise-light);
+    }
+  }
+}
+
+.player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8vh;
+}
+
+.player-row {
+  display: grid;
+  grid-template-columns: 3.2em minmax(8em, 1.4fr) auto 6.5em 6.5em 2.6em;
+  align-items: center;
+  gap: 0.8vw;
+  padding: 0.4em 0.6em;
+  border: 2px solid var(--color-blue-dark);
+  border-left: 6px solid var(--player-color, var(--color-blue));
+  background: color-mix(in srgb, var(--panel-background) 92%, transparent);
+
+  @include mobile-view {
+    grid-template-columns: 3.2em 1fr 2.6em;
+
+    .player-row__colors {
+      grid-column: 1 / -1;
+      order: 5;
+    }
+
+    .player-row__controller,
+    .player-row__difficulty {
+      grid-column: span 1;
+    }
+  }
+
+  &--human {
+    border-color: var(--color-turquoise);
+    border-left-color: var(--player-color, var(--color-turquoise-bright));
+    box-shadow: 0 0 8px rgba(109, 229, 211, 0.15);
+  }
+
+  &__badge {
+    text-align: center;
+    padding: 0.2em 0;
+    border: 1px solid var(--player-color, var(--color-blue));
+    color: var(--player-color, var(--color-text));
+    letter-spacing: 0.15em;
+  }
+
+  &--human &__badge {
+    background: color-mix(in srgb, var(--player-color, var(--color-turquoise)) 25%, transparent);
+  }
+
+  input,
+  select {
+    min-height: 2.2em;
+  }
+
+  &__colors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em;
+  }
+
+  &__difficulty--none {
+    text-align: center;
+    color: var(--color-text-dim);
+  }
+
+  &__remove {
+    min-height: 2.2em;
+    padding: 0;
+  }
+}
+
+/* Color swatches override the global button chrome. */
+.swatch {
+  width: 1.6em;
+  height: 1.6em;
+  min-height: 0;
+  padding: 0;
+  border: 2px solid var(--color-black);
+  box-shadow: none;
+
+  &:hover:not(:disabled) {
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+  }
+
+  &--selected {
+    outline: 2px solid var(--color-text-bright);
+    outline-offset: 1px;
+  }
+
+  &:disabled {
+    filter: none;
+    opacity: 0.18;
+    box-shadow: none;
+  }
+}
+
+.setup-add {
+  align-self: flex-start;
+  min-height: 2.4em;
+}
+
+.setup-warning {
+  margin: 0;
+  color: #ffcc00;
+}
+
+.setup-errors {
+  margin: 0;
+  padding-left: 1.2em;
+  color: #ff7b7b;
+  font-size: 0.95em;
+}
+
+.setup-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 2vw;
+
+  button {
+    flex: 0 1 16em;
+  }
+}

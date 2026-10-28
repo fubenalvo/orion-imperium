@@ -25,7 +25,9 @@ src/app/
 
   main-menu/
     main-menu.ts / .html / .scss
-    → Slot-based new-game / load-game UI
+    → New-game setup host / slot-based load-game UI
+    new-game-setup/
+    → New Game configuration screen (galaxy size, players, seed, slot)
 
   components/
     star-map/
@@ -57,7 +59,10 @@ src/app/
         → Presentational system view grid (sun, system sensor highlights,
           planets, fleets in system, movement target)
       star-map-data.json
-        → Initial galaxy (factions, systems, planets, fleets, map config)
+        → Legacy hand-made galaxy: reference scale for the Large preset and
+          source for migrating pre-v3 saves (no longer used to start games)
+      ai-difficulty.ts
+        → Per-faction AI difficulty profiles read by strategy/economy/generator
       ship-data.json
         → Ship type stats (HP, attack, defense, cost, etc.)
       planet-data.json
@@ -103,14 +108,26 @@ src/app/
     production.service.ts
       → Per-planet production queue and per-tick progress
     save-game.service.ts
-      → localStorage persistence, 4 save slots, "most recent" lookup
+      → localStorage persistence, 5 save slots, "most recent" lookup, migration
+    save-validation.ts
+      → SAVE_VERSION and the structural save gate
+    new-game.models.ts / new-game-config.ts
+      → New Game config types, galaxy size presets, config validation helpers
+    galaxy-generator.service.ts
+      → Seeded procedural galaxy generation (StarMapData in the legacy schema)
+    galaxy-validation.ts
+      → Strict validation of freshly generated galaxies
+    new-game.service.ts
+      → Start Game workflow: validate → generate → validate → save → activate
 ```
+
+See [New Game Generation](./new-game-generation.md) for the generation and setup rules.
 
 The empty legacy directories `src/app/components/ship`, `src/app/components/ships`, and `src/app/components/star-map-grid` are placeholders for components that were consolidated into `star-map` and are kept for now to avoid breaking references.
 
 ## Component Communication
 
-- `MainMenu` writes a fresh `StarMapData` snapshot into a save slot, activates it (which copies the snapshot into the autosave slot and switches `currentSlot` to 0), then navigates to `/star-map`.
+- `MainMenu` shows `NewGameSetupComponent`; on Start it calls `NewGameService.startNewGame`, which generates and validates a galaxy, writes it into the chosen manual slot and activates it (copying the snapshot into the autosave slot and switching `currentSlot` to 0). Only on success does `MainMenu` navigate to `/star-map`; otherwise the errors are shown on the setup screen.
 - `StarMap` is the runtime source of truth: it holds the live `factions`, `starSystems`, and `fleets` arrays and is the only component that mutates them during gameplay.
 - `StarMap` delegates pure logic to injected services (`StarMapGameLoopService`, `StarMapMovementService`, `StarMapBattleDetectionService`, `StarMapPlanetArrivalService`, `StarMapAiTickService`, `StarMapPanelVmService`) and delegates UI to its child components (`StarMapGalaxyViewComponent`, `StarMapSystemGridViewComponent`, and the panel components).
 - When two fleets collide, or when a fleet arrives at an enemy planet with defenses, `StarMap` calls `BattleService.setBattle()` (or `setPlanetBattle()`) and navigates to `/battle`.
