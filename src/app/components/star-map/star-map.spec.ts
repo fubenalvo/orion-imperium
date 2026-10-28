@@ -718,4 +718,186 @@ describe('StarMap', () => {
       expect(() => component['removeDestroyedFleetFromService']()).not.toThrow();
     });
   });
+
+  describe('Galaxy camera focus and zoom', () => {
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+
+    function setWindowSize(width: number, height: number): void {
+      Object.defineProperty(window, 'innerWidth', { value: width, configurable: true });
+      Object.defineProperty(window, 'innerHeight', { value: height, configurable: true });
+    }
+
+    /** Screen position (in vw, relative to the viewport) of a grid position. */
+    function screenPosOf(gridX: number, gridY: number): { x: number; y: number } {
+      return {
+        x: ((gridX - 0.5) * component.cellSizeVw - component.cameraX) * component.zoom,
+        y: ((gridY - 0.5) * component.cellSizeVh - component.cameraY) * component.zoom,
+      };
+    }
+
+    function wheel(deltaY: number, clientX = 0, clientY = 0): WheelEvent {
+      const target = document.createElement('div');
+      target.getBoundingClientRect = () => ({ left: 0, top: 0 }) as DOMRect;
+      const event = new WheelEvent('wheel', { deltaY, clientX, clientY, cancelable: true });
+      Object.defineProperty(event, 'currentTarget', { value: target });
+      return event;
+    }
+
+    function stepZoom(deltaY: number, clientX = 0, clientY = 0): WheelEvent {
+      // Bypass the burst cooldown so each call is treated as a new gesture.
+      component['lastZoomStepAt'] = -Infinity;
+      const event = wheel(deltaY, clientX, clientY);
+      component.onMapWheel(event);
+      return event;
+    }
+
+    beforeEach(() => {
+      component.currentView = 'map';
+      // Large-galaxy size, so the map is wider than the viewport at every
+      // zoom level and focusing is not limited by edge clamping.
+      component.mapWidth = 300;
+      component.mapHeight = 180;
+      component.onResize();
+    });
+
+    afterEach(() => {
+      setWindowSize(originalWidth, originalHeight);
+    });
+
+    // 21:9, 16:9 and a landscape phone; the fleet must land on the exact
+    // viewport center for every aspect ratio and zoom level.
+    for (const [label, width, height] of [
+      ['21:9', 3440, 1440],
+      ['16:9', 1920, 1080],
+      ['mobile landscape', 844, 390],
+    ] as const) {
+      it(`centers the selected fleet on the viewport center (${label})`, () => {
+        setWindowSize(width, height);
+        component.onResize();
+        const fleet = component.fleets[0];
+        fleet.x = Math.round(component.movementService.gridColumns / 2);
+        fleet.y = Math.round(component.movementService.gridRows / 2);
+
+        for (let i = 0; i < component.zoomLevels.length; i++) {
+          component.setZoomIndex(i);
+          component.selectFleet(fleet);
+          const pos = screenPosOf(fleet.x, fleet.y);
+          expect(pos.x).toBeCloseTo(50, 6);
+          expect(pos.y).toBeCloseTo(component.viewportHeightVw / 2, 6);
+        }
+      });
+    }
+
+    it('centers a map smaller than the visible area instead of pinning it to a corner', () => {
+      setWindowSize(1920, 1080);
+      component.mapWidth = 100;
+      component.mapHeight = 60;
+      component.onResize();
+      component.setZoomIndex(component.zoomLevels.length - 1);
+      component.setCamera({ x: 0, y: 0 });
+      const gridW = component.movementService.gridColumns * component.cellSizeVw;
+      expect(gridW).toBeLessThan(component.visibleWidthVw);
+      expect(component.cameraX).toBeCloseTo((gridW - component.visibleWidthVw) / 2, 6);
+    });
+
+    it('does not change the zoom level when focusing a fleet', () => {
+      component.setZoomIndex(2);
+      component.selectFleet(component.fleets[0]);
+      expect(component.zoomIndex).toBe(2);
+    });
+
+    it('zooms out exactly three steps with the wheel and stops at the limit', () => {
+      expect(component.zoom).toBe(1);
+      const zooms: number[] = [];
+      for (let i = 0; i < 5; i++) {
+        stepZoom(100);
+        zooms.push(component.zoom);
+      }
+      expect(component.zoomLevels).toHaveLength(4);
+      expect(zooms).toEqual([0.75, 0.5, 0.35, 0.35, 0.35]);
+    });
+
+    it('zooms back in and never past the original level', () => {
+      component.setZoomIndex(3);
+      for (let i = 0; i < 5; i++) {
+        stepZoom(-100);
+      }
+      expect(component.zoom).toBe(1);
+    });
+
+    it('prevents the page from scrolling on wheel', () => {
+      const event = stepZoom(100);
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('applies at most one zoom step per wheel burst', () => {
+      component['lastZoomStepAt'] = -Infinity;
+      component.onMapWheel(wheel(100));
+      component.onMapWheel(wheel(100));
+      component.onMapWheel(wheel(100));
+      expect(component.zoomIndex).toBe(1);
+    });
+
+    it('keeps the world point under the cursor fixed while zooming', () => {
+      setWindowSize(1920, 1080);
+      component.onResize();
+      component.setCamera({ x: 200, y: 120 });
+      const cursorPx = { x: 700, y: 400 };
+      const vwPx = window.innerWidth / 100;
+      const worldBefore = {
+        x: component.cameraX + cursorPx.x / vwPx / component.zoom,
+        y: component.cameraY + cursorPx.y / vwPx / component.zoom,
+      };
+
+      stepZoom(100, cursorPx.x, cursorPx.y);
+
+      expect(component.zoom).toBe(0.75);
+      expect(component.cameraX + cursorPx.x / vwPx / component.zoom).toBeCloseTo(worldBefore.x, 6);
+      expect(component.cameraY + cursorPx.y / vwPx / component.zoom).toBeCloseTo(worldBefore.y, 6);
+    });
+
+    it('keeps the camera inside the map at every zoom level', () => {
+      setWindowSize(1920, 1080);
+      component.onResize();
+      const gridW = component.movementService.gridColumns * component.cellSizeVw;
+      const gridH = component.movementService.gridRows * component.cellSizeVh;
+
+      for (let i = 0; i < component.zoomLevels.length; i++) {
+        component.setZoomIndex(i);
+        component.setCamera({ x: 1e6, y: 1e6 });
+        if (gridW > component.visibleWidthVw) {
+          expect(component.cameraX + component.visibleWidthVw).toBeCloseTo(gridW, 6);
+        }
+        if (gridH > component.visibleHeightVw) {
+          expect(component.cameraY + component.visibleHeightVw).toBeCloseTo(gridH, 6);
+        }
+        component.setCamera({ x: -1e6, y: -1e6 });
+        expect(component.cameraX).toBeLessThanOrEqual(0.000001);
+        expect(component.cameraY).toBeLessThanOrEqual(0.000001);
+      }
+    });
+
+    it('converts map clicks to world coordinates using the zoom', () => {
+      setWindowSize(1920, 1080);
+      component.onResize();
+      component.setZoomIndex(2);
+      component.setCamera({ x: 100, y: 60 });
+      const fleet = component.fleets.find((f) => f.factionId === 'player') ?? component.fleets[0];
+      component.selectedFleet = fleet;
+      component.selectedFleetAction = 'move';
+      const moveSpy = vi.spyOn(component, 'moveSelectedFleet' as any).mockImplementation(() => {});
+
+      const vwPx = window.innerWidth / 100;
+      const target = document.createElement('div');
+      target.getBoundingClientRect = () => ({ left: 0, top: 0 }) as DOMRect;
+      const event = new MouseEvent('click', { clientX: 10 * vwPx, clientY: 5 * vwPx });
+      Object.defineProperty(event, 'currentTarget', { value: target });
+      component.onMapClick(event);
+
+      // Screen (10vw, 5vw) at zoom 0.5 is world (100 + 20, 60 + 10).
+      const expected = component.movementService.getTileCenter(120, 70);
+      expect(moveSpy).toHaveBeenCalledWith(expected.x, expected.y);
+    });
+  });
 });

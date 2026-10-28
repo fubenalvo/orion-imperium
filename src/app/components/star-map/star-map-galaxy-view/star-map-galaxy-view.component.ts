@@ -30,6 +30,7 @@ import { SensorCellInfo, SensorPreviewCellInfo } from '../star-map-sensor.servic
 export class StarMapGalaxyViewComponent {
   @Input() cameraX = 0;
   @Input() cameraY = 0;
+  @Input() zoom = 1;
   @Input() cellSizeVw = 2;
   @Input() cellSizeVh = 2;
   @Input() gridColumns = 0;
@@ -53,12 +54,23 @@ export class StarMapGalaxyViewComponent {
   @Input() onPointerDown: (event: PointerEvent) => void = () => {};
   @Input() onPointerMove: (event: PointerEvent) => void = () => {};
   @Input() onPointerUp: (event: PointerEvent) => void = () => {};
+  @Input() onWheel: (event: WheelEvent) => void = () => {};
   @Input() onSystemClick: (system: StarSystem, event: MouseEvent) => void = () => {};
   @Input() onFleetClick: (fleet: Fleet, event: MouseEvent) => void = () => {};
   @Input() onSystemContextMenu: (event: MouseEvent) => void = () => {};
   @Input() onFleetContextMenu: (event: MouseEvent) => void = () => {};
 
   constructor(public movementService: StarMapMovementService) {}
+
+  /*
+   * The camera is in world (unscaled) vw, so the translation is multiplied
+   * by zoom to convert it to screen vw before scale() is applied. This
+   * relies on .map-world having transform-origin: 0 0; with any other
+   * origin the scale would shift the world and break screen->world math.
+   */
+  get worldTransform(): string {
+    return `translate(${-this.cameraX * this.zoom}vw, ${-this.cameraY * this.zoom}vw) scale(${this.zoom})`;
+  }
 
   /*
    * getTrailTransform: Computes the CSS transform for a movement-trail div

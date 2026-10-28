@@ -65,6 +65,7 @@
     <app-star-map-galaxy-view
       [cameraX]="cameraX"
       [cameraY]="cameraY"
+      [zoom]="zoom"
       [cellSizeVw]="cellSizeVw"
       [cellSizeVh]="cellSizeVh"
       [gridColumns]="movementService.gridColumns"
@@ -87,6 +88,7 @@
       [onPointerDown]="boundOnPointerDown"
       [onPointerMove]="boundOnPointerMove"
       [onPointerUp]="boundOnPointerUp"
+      [onWheel]="boundOnMapWheel"
       [onSystemClick]="boundOnSystemClick"
       [onFleetClick]="boundOnFleetClick"
       [onSystemContextMenu]="boundOnSystemContextMenu"
@@ -158,10 +160,11 @@
       [cellSizeVh]="cellSizeVh"
       [gridColumns]="movementService.gridColumns"
       [gridRows]="movementService.gridRows"
-      [viewportHeightVw]="viewportHeightVw"
+      [viewportWidthVw]="visibleWidthVw"
+      [viewportHeightVw]="visibleHeightVw"
       (cameraMove)="moveCamera($event)"
       (cameraSet)="setCamera($event)"
-      (centerCamera)="cameraX = 0; cameraY = 0"
+      (centerCamera)="setCamera({ x: 0, y: 0 })"
     >
     </app-star-map-navigation>
   } @else if (currentView === 'system') {

@@ -105,7 +105,19 @@ responsive. `stopGameLoop()` is used on component destroy.
 - `cameraSpeed = 2` vw per arrow-key press.
 - Arrow keys (`window:keydown`), the navigation component, and pointer drag all pan the camera.
 - The map viewport uses pointer capture for drag-to-pan. A small movement threshold (`dragThreshold = 5` px) distinguishes drag from click. If the pointer didn't move, the up-event dispatches a normal `onMapClick`.
-- Camera is clamped to the map bounds after every move (`clampCamera`) using the current cell size and viewport aspect ratio.
+- `cameraX`/`cameraY` are world-space (unscaled) vw coordinates of the viewport's top-left corner. The visible world extent is `visibleWidthVw = 100 / zoom` by `visibleHeightVw = viewportHeightVw / zoom`; the viewport height in vw depends on the aspect ratio, so horizontal and vertical centering must never share a constant.
+- Camera is clamped to the map bounds after every move (`clampCamera`) using the current cell size, viewport aspect ratio, and zoom. If the whole grid fits on an axis (small galaxy at a far zoom), the grid is centered on that axis instead.
+- Selecting a fleet (map view) and the system/planet default view center the camera through `centerCameraOnGridPosition`, which puts the grid position's render point (`(x - 0.5) * cellSize`) on the viewport center at any aspect ratio and zoom. Near the map edges the clamp wins, so the target can be off-center there. Focusing never changes the zoom level.
+
+### Galaxy Map Zoom
+
+- Discrete levels in `StarMap.zoomLevels` = `[1, 0.75, 0.5, 0.35]`; `1` is the original (closest) view, the other three are zoom-out steps. There is no zoom-in beyond `1`.
+- Mouse wheel over the map viewport (`onMapWheel`) moves one level per gesture (wheel down = out), clamped to the ends of the list. A 150 ms cooldown stops trackpad/free-spin bursts from skipping levels. The wheel event is always `preventDefault`ed so the page does not scroll.
+- Zooming keeps the world point under the cursor fixed (`setZoomIndex` with a screen anchor).
+- Rendering: `StarMapGalaxyViewComponent.worldTransform` = `translate(-camera * zoom vw) scale(zoom)` with `transform-origin: 0 0` on `.map-world`. All world content (systems, fleets, trails, fog, target marker) is inside `.map-world`, so it scales together; the grid coordinate system and cell sizes are unchanged.
+- Every screen→world conversion (map click, drag, arrow/d-pad pan step, fog culling, minimap viewport rectangle and click-to-center) divides screen vw by `zoom`. The minimap receives the visible extent through `viewportWidthVw`/`viewportHeightVw`.
+- Zoom is a view preference and is not saved; the saved camera is in world units, so it is valid at any zoom. Parallax background layers stay in screen space and are not scaled.
+- More visible area means more viewport-culled fog cells are rendered at far zoom levels.
 - Background is rendered at 200% of the grid extent and translated at `0.3 * cameraX/Y` for parallax. The `bgWidthVw`, `bgHeightVw`, `bgLeftVw`, `bgTopVw` getters on `StarMap` keep the background centered on the viewport at all times.
 
 ### Selection

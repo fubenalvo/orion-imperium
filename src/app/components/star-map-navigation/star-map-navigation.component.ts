@@ -32,6 +32,8 @@ export class StarMapNavigationComponent implements OnDestroy {
   @Input() cellSizeVh = 2;
   @Input() gridColumns = 100;
   @Input() gridRows = 60;
+  // Visible galaxy extent in world vw (already divided by the map zoom).
+  @Input() viewportWidthVw = 100;
   @Input() viewportHeightVw = 56.25;
 
   @Output() cameraMove = new EventEmitter<'up' | 'down' | 'left' | 'right'>();

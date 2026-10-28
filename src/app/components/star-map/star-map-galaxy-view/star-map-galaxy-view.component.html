@@ -7,11 +7,12 @@
   (pointermove)="onPointerMove($event)"
   (pointerup)="onPointerUp($event)"
   (pointercancel)="onPointerUp($event)"
+  (wheel)="onWheel($event)"
 >
   <!-- WORLD GRID -->
   <div
     class="map-world"
-    [style.transform]="'translate(' + -cameraX + 'vw, ' + -cameraY + 'vw)'"
+    [style.transform]="worldTransform"
     [style.gridTemplateColumns]="'repeat(' + gridColumns + ', ' + cellSizeVw + 'vw)'"
     [style.gridTemplateRows]="'repeat(' + gridRows + ', ' + cellSizeVh + 'vw)'"
   >

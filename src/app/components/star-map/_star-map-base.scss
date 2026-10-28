@@ -210,6 +210,9 @@
 
   background-size: var(--cell-size-vw, 5vw) var(--cell-size-vw, 5vw);
 
+  /* Required by the zoom transform in StarMapGalaxyViewComponent.worldTransform. */
+  transform-origin: 0 0;
+
   transition: transform 100ms linear;
 }
 

@@ -181,10 +181,31 @@ loadError = '';
   selectedPlanetTile: PlanetTile | null = null;
   selectedFleetAction: 'move' | null = null;
 
-  // Camera state
+  // Camera state.
+  // cameraX/cameraY are the world-space (unscaled vw) coordinates of the
+  // viewport's top-left corner. Zoom never changes this coordinate system:
+  // it only scales how much world fits on screen (visibleWidthVw/HeightVw)
+  // and is applied as a CSS scale() on the world grid. Every screen→world
+  // conversion must therefore divide screen vw by `zoom`.
   cameraX = 0;
   cameraY = 0;
   readonly cameraSpeed = 2;
+
+  // Discrete galaxy-map zoom levels, closest first. 1 is the original
+  // (and closest) view; the remaining entries are the zoom-out steps
+  // reachable with the mouse wheel. Zoom is a view preference and is not
+  // persisted in saves (the camera position is stored in world units, so a
+  // loaded camera is valid at any zoom).
+  readonly zoomLevels: readonly number[] = [1, 0.75, 0.5, 0.35];
+  zoomIndex = 0;
+  // Trackpads and free-spinning wheels emit bursts of wheel events; without
+  // a cooldown a single gesture would skip straight across every level.
+  private readonly zoomStepCooldownMs = 150;
+  private lastZoomStepAt = 0;
+
+  get zoom(): number {
+    return this.zoomLevels[this.zoomIndex];
+  }
 
   // Drag/pan state
   private isDragging = false;
@@ -492,13 +513,11 @@ loadError = '';
       return [];
     }
 
-    const viewportWidthVw = 100;
-    const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
     const cells = this.sensorService.getViewportCells(
       this.cameraX,
       this.cameraY,
-      viewportWidthVw,
-      viewportHeightVw,
+      this.visibleWidthVw,
+      this.visibleHeightVw,
       this.cellSizeVw,
       this.cellSizeVh,
       this.mapWidth,
@@ -750,9 +769,7 @@ loadError = '';
       this.cameraY = defaultView.cameraY ?? 0;
       return;
     }
-    this.cameraX = (system.x - 0.5) * this.cellSizeVw - 50;
-    this.cameraY = (system.y - 0.5) * this.cellSizeVh - this.viewportHeightVw / 2;
-    this.clampCamera();
+    this.centerCameraOnGridPosition(system.x, system.y);
   }
 
   /** Exits the current star system and returns to the galaxy map view. */
@@ -1143,6 +1160,7 @@ loadError = '';
   readonly boundOnPointerDown = this.onPointerDown.bind(this);
   readonly boundOnPointerMove = this.onPointerMove.bind(this);
   readonly boundOnPointerUp = this.onPointerUp.bind(this);
+  readonly boundOnMapWheel = this.onMapWheel.bind(this);
   readonly boundOnSystemClick = this.onSystemClick.bind(this);
   readonly boundOnFleetClick = this.onFleetClick.bind(this);
   readonly boundOnSystemGridClick = this.onSystemGridClick.bind(this);
@@ -1249,9 +1267,7 @@ loadError = '';
     this.selectedPlanetTile = null;
 
     if (this.currentView === 'map') {
-      this.cameraX = (fleet.x - 0.5) * this.cellSizeVw - 50;
-      this.cameraY = (fleet.y - 0.5) * this.cellSizeVh - 50;
-      this.clampCamera();
+      this.centerCameraOnGridPosition(fleet.x, fleet.y);
     }
 
     if (this.currentView === 'system') {
@@ -1625,8 +1641,8 @@ loadError = '';
     const screenY = event.clientY - rect.top;
 
     const viewportUnitInPixels = window.innerWidth / 100;
-    const worldX = this.cameraX + screenX / viewportUnitInPixels;
-    const worldY = this.cameraY + screenY / viewportUnitInPixels;
+    const worldX = this.cameraX + screenX / viewportUnitInPixels / this.zoom;
+    const worldY = this.cameraY + screenY / viewportUnitInPixels / this.zoom;
 
     const targetTile = this.movementService.getTileCenter(worldX, worldY);
     this.moveSelectedFleet(targetTile.x, targetTile.y);
@@ -1672,6 +1688,99 @@ loadError = '';
     return (window.innerHeight / window.innerWidth) * 100;
   }
 
+  /** Width of the galaxy area visible on screen, in world (unscaled) vw. */
+  get visibleWidthVw(): number {
+    return 100 / this.zoom;
+  }
+
+  /** Height of the galaxy area visible on screen, in world (unscaled) vw. */
+  get visibleHeightVw(): number {
+    return this.viewportHeightVw / this.zoom;
+  }
+
+  /**
+   * Centers the galaxy camera on a 1-indexed grid position (fleet/system
+   * coordinates). Fleets and systems are drawn at ((x - 0.5) * cellSize,
+   * (y - 0.5) * cellSize) world vw, so that point is placed at the middle of
+   * the visible area. Horizontal and vertical halves must be computed
+   * separately: the viewport is 100 vw wide but its height in vw depends on
+   * the aspect ratio. Near the map edges clampCamera() wins, so the target
+   * can end up off-center there by design.
+   */
+  centerCameraOnGridPosition(gridX: number, gridY: number): void {
+    this.cameraX = (gridX - 0.5) * this.cellSizeVw - this.visibleWidthVw / 2;
+    this.cameraY = (gridY - 0.5) * this.cellSizeVh - this.visibleHeightVw / 2;
+    this.clampCamera();
+  }
+
+  /**
+   * Mouse wheel on the galaxy map: steps one discrete zoom level per
+   * gesture (see zoomStepCooldownMs) and keeps the world point under the
+   * cursor fixed on screen.
+   */
+  onMapWheel(event: WheelEvent): void {
+    // Always swallow the wheel so the page itself never scrolls/zooms.
+    event.preventDefault();
+    if (this.contextMenu || event.deltaY === 0) {
+      return;
+    }
+
+    const now = performance.now();
+    if (now - this.lastZoomStepAt < this.zoomStepCooldownMs) {
+      return;
+    }
+
+    const direction = event.deltaY > 0 ? 1 : -1; // wheel down = zoom out
+    const nextIndex = Math.max(
+      0,
+      Math.min(this.zoomLevels.length - 1, this.zoomIndex + direction),
+    );
+    if (nextIndex === this.zoomIndex) {
+      return;
+    }
+    this.lastZoomStepAt = now;
+
+    const viewport = event.currentTarget as HTMLElement;
+    const rect = viewport.getBoundingClientRect();
+    const viewportUnitInPixels = window.innerWidth / 100;
+    const anchorScreenX = (event.clientX - rect.left) / viewportUnitInPixels;
+    const anchorScreenY = (event.clientY - rect.top) / viewportUnitInPixels;
+
+    this.setZoomIndex(nextIndex, anchorScreenX, anchorScreenY);
+
+    // A wheel step during a drag would otherwise make the drag jump, because
+    // the drag math converts pixel deltas with the zoom that is now stale.
+    if (this.isDragging) {
+      this.dragStartX = event.clientX;
+      this.dragStartY = event.clientY;
+      this.dragCameraStartX = this.cameraX;
+      this.dragCameraStartY = this.cameraY;
+    }
+
+    this.cdr.detectChanges();
+  }
+
+  /**
+   * Changes the zoom level while keeping the world point at the given
+   * screen anchor (in screen vw, relative to the viewport's top-left)
+   * stationary. Defaults to the viewport center.
+   */
+  setZoomIndex(
+    index: number,
+    anchorScreenX = 50,
+    anchorScreenY = this.viewportHeightVw / 2,
+  ): void {
+    const clamped = Math.max(0, Math.min(this.zoomLevels.length - 1, index));
+    const oldZoom = this.zoom;
+    const anchorWorldX = this.cameraX + anchorScreenX / oldZoom;
+    const anchorWorldY = this.cameraY + anchorScreenY / oldZoom;
+
+    this.zoomIndex = clamped;
+    this.cameraX = anchorWorldX - anchorScreenX / this.zoom;
+    this.cameraY = anchorWorldY - anchorScreenY / this.zoom;
+    this.clampCamera();
+  }
+
   /** Sets the camera to an absolute position and clamps it within bounds. */
   setCamera(pos: { x: number; y: number }): void {
     this.cameraX = pos.x;
@@ -1681,18 +1790,21 @@ loadError = '';
 
   /** Pans the camera in the specified direction and clamps it within bounds. */
   moveCamera(direction: 'up' | 'down' | 'left' | 'right'): void {
+    // cameraSpeed is defined in screen vw; dividing by zoom keeps the
+    // on-screen pan speed constant at every zoom level.
+    const step = this.cameraSpeed / this.zoom;
     switch (direction) {
       case 'up':
-        this.cameraY -= this.cameraSpeed;
+        this.cameraY -= step;
         break;
       case 'down':
-        this.cameraY += this.cameraSpeed;
+        this.cameraY += step;
         break;
       case 'left':
-        this.cameraX -= this.cameraSpeed;
+        this.cameraX -= step;
         break;
       case 'right':
-        this.cameraX += this.cameraSpeed;
+        this.cameraX += step;
         break;
     }
     this.clampCamera();
@@ -1704,18 +1816,29 @@ loadError = '';
    * between desktop ~2 vw and mobile ~7 vw), so we compute it dynamically
    * from gridColumns/gridRows × cellSize rather than using the fixed
    * mapWidth/mapHeight constants.
+   *
+   * The visible extent shrinks/grows with zoom. If the whole grid fits on
+   * one axis (possible on small galaxies at the farthest zoom), the grid is
+   * centered on that axis instead of being pinned to the top-left corner.
    */
   private clampCamera(): void {
-    const gridWidthVw = this.movementService.gridColumns * this.cellSizeVw;
-    const gridHeightVw = this.movementService.gridRows * this.cellSizeVh;
-    const viewportWidthVw = 100;
-    const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
+    this.cameraX = this.clampCameraAxis(
+      this.cameraX,
+      this.movementService.gridColumns * this.cellSizeVw,
+      this.visibleWidthVw,
+    );
+    this.cameraY = this.clampCameraAxis(
+      this.cameraY,
+      this.movementService.gridRows * this.cellSizeVh,
+      this.visibleHeightVw,
+    );
+  }
 
-    const maxCameraX = Math.max(0, gridWidthVw - viewportWidthVw);
-    const maxCameraY = Math.max(0, gridHeightVw - viewportHeightVw);
-
-    this.cameraX = Math.max(0, Math.min(this.cameraX, maxCameraX));
-    this.cameraY = Math.max(0, Math.min(this.cameraY, maxCameraY));
+  private clampCameraAxis(camera: number, gridSizeVw: number, visibleSizeVw: number): number {
+    if (gridSizeVw <= visibleSizeVw) {
+      return (gridSizeVw - visibleSizeVw) / 2;
+    }
+    return Math.max(0, Math.min(camera, gridSizeVw - visibleSizeVw));
   }
 
   /** Pointer down on the map viewport — begins drag tracking (empty areas only). */
@@ -1770,8 +1893,8 @@ loadError = '';
     }
 
     const viewportUnitInPixels = window.innerWidth / 100;
-    this.cameraX = this.dragCameraStartX - deltaX / viewportUnitInPixels;
-    this.cameraY = this.dragCameraStartY - deltaY / viewportUnitInPixels;
+    this.cameraX = this.dragCameraStartX - deltaX / viewportUnitInPixels / this.zoom;
+    this.cameraY = this.dragCameraStartY - deltaY / viewportUnitInPixels / this.zoom;
     this.clampCamera();
     this.cdr.detectChanges();
   }

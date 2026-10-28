@@ -19,6 +19,9 @@ export class StarMapMinimapComponent {
   @Input() cellSizeVh = 2;
   @Input() gridColumns = 100;
   @Input() gridRows = 60;
+  // Visible galaxy extent in world vw (already divided by the map zoom),
+  // used both for the viewport rectangle and for centering on click.
+  @Input() viewportWidthVw = 100;
   @Input() viewportHeightVw = 56.25;
 
   @Output() cameraChange = new EventEmitter<{ x: number; y: number }>();
@@ -72,7 +75,7 @@ export class StarMapMinimapComponent {
   }
 
   get viewportW(): number {
-    return (100 / this.totalMapVw) * this.MINIMAP_W;
+    return (this.viewportWidthVw / this.totalMapVw) * this.MINIMAP_W;
   }
 
   get viewportH(): number {
@@ -108,7 +111,7 @@ export class StarMapMinimapComponent {
     const rect = (e.currentTarget as Element).getBoundingClientRect();
     const pxX = e.clientX - rect.left;
     const pxY = e.clientY - rect.top;
-    const cameraX = (pxX / rect.width) * this.totalMapVw - 50;
+    const cameraX = (pxX / rect.width) * this.totalMapVw - this.viewportWidthVw / 2;
     const cameraY = (pxY / rect.height) * this.totalMapVh - this.viewportHeightVw / 2;
     this.zone.run(() => {
       this.cameraChange.emit({ x: cameraX, y: cameraY });

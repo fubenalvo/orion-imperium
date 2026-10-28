@@ -14,7 +14,7 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `starSystems`: `StarSystem[]`
 - `fleets`: `Fleet[]`
 - `currentView`: `'map' | 'system' | 'planet'` (optional)
-- `cameraX`, `cameraY`: viewport offset in vw
+- `cameraX`, `cameraY`: world-space (unscaled) vw position of the galaxy viewport's top-left corner; independent of the galaxy map zoom, which is not persisted
 - `selectedSystemId`, `selectedFleetId`, `selectedPlanetTileId`: persisted selection
 - `selectedFleetAction`: `'move' | null`
   - `targetX`, `targetY`: visible target marker (companion to the selected fleet's actual target)
