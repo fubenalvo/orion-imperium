@@ -57,7 +57,7 @@ Every ship type now also carries:
 - `color`: star color for rendering
 - `planetsTiles`: `PlanetTile[]`
 - `gridCol`, `gridRow`: derived integer cell (`Math.floor(x)`, `Math.floor(y)`); recomputed by `refreshGridPositions`
-- `explored`: `true` once the system has come within any player sensor range on the galaxy map; controls whether the system is rendered and selectable
+- `explored`: controls whether the system is rendered and selectable. Set `true` once the system comes within any player sensor range on the galaxy map; generated galaxies (and all legacy-map games) start with every system `true`, so star positions are always known — see [New Game Generation](./new-game-generation.md)
 
 ## Sensor Range
 

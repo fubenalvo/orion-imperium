@@ -72,7 +72,7 @@ describe('StarMap with a generated galaxy', () => {
     map['updateSensorVisibility'](true);
     expect(map.exploredGridCells.size).toBeGreaterThan(0);
     expect(map.exploredGridCells.size).toBeLessThan(map.mapWidth * map.mapHeight / 4);
-    expect(map.starSystems.some((s) => !s.explored)).toBe(true);
+    expect(map.starSystems.flatMap((s) => s.planetsTiles).some((p) => !p.explored)).toBe(true);
     expect(map.factions.filter((f) => f.ai).map((f) => f.id)).toEqual(['enemy1', 'enemy2']);
   });
 

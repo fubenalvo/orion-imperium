@@ -146,7 +146,7 @@ describe('GalaxyGeneratorService', () => {
     const c = generator.generate(config, 43);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(JSON.stringify(a.starSystems)).not.toBe(JSON.stringify(c.starSystems));
-    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: 1 });
+    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: 2 });
   });
 
   it('generates unique ids and names with valid references', () => {
@@ -204,10 +204,12 @@ describe('GalaxyGeneratorService', () => {
     const homeworld = home.planetsTiles.find((p) => p.id === data.defaultView!.planetId)!;
     expect(data.defaultView!.type).toBe('planet');
     expect(homeworld.factionId).toBe('player');
-    expect(home.explored).toBe(true);
     expect(homeworld.explored).toBe(true);
+    // Star positions are known; cell fog and planet details are not.
     expect(data.exploredGridCells).toEqual([]);
-    expect(data.starSystems.filter((s) => s.explored)).toHaveLength(1);
+    expect(data.starSystems.every((s) => s.explored)).toBe(true);
+    const explored = data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.explored);
+    expect(explored.map((p) => p.id)).toEqual([homeworld.id]);
   });
 
   it('starts every homeworld energy-positive so no faction rebels immediately', () => {

@@ -82,11 +82,18 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
 - **Starting assets:** 1000 credits / raw materials / research (scaled for AI by difficulty), the
   four basic technologies, and fleets placed 3–6 cells from the home system on free cells. The
   human always gets the legacy roster (ORION: 2 frigates, PEGASUS: 3 cruisers).
-- **Visibility:** only the human home system and homeworld start explored; `exploredGridCells` is
-  `[]` (an empty array opts into fog of war — a *missing* field means a legacy all-explored save).
+- **Visibility:** every star system starts `explored: true` — star positions and names are known
+  and drawn on the galaxy view and minimap, as on every legacy-map game. Fog of war still covers
+  grid cells (`exploredGridCells` starts `[]`; a *missing* field means a legacy all-explored save),
+  enemy fleets (sensor range) and planet details (only the human homeworld starts
+  `PlanetTile.explored`). `StarSystem.explored` decides whether a system is rendered at all, and
+  sensor ranges (3–5 cells) are far shorter than system spacing (≥ 22 cells), so hiding systems
+  made the rest of the galaxy undiscoverable (generator v1 bug). `migrateSave` reveals star
+  positions in saves with `galaxy.generatorVersion < 2`.
 - **Start view:** `defaultView` opens the human homeworld; the camera is centered on the home
   system so leaving the planet view lands there.
-- **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }`. `seed` is the
+- **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }` (current
+  generator version: 2). `seed` is the
   seed that actually produced the galaxy (after retries).
 
 ## AI difficulty (`components/star-map/ai-difficulty.ts`)

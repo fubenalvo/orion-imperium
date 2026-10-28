@@ -180,6 +180,7 @@ See [New Game Generation](./new-game-generation.md) for the rules behind these.
 - Planet names are unique across the galaxy (`EconomyService` looks planets up by name); planet, fleet and ship ids are globally unique.
 - The black hole's cell span is centered exactly on the map midpoint, and no star system or starting fleet lies within the preset's `blackHoleClearance`.
 - A new game is activated (and `/star-map` navigated to) only after `validateGeneratedGalaxy` passes.
+- Every star system of a generated galaxy is `explored` (rendered) from the start; fog of war applies to cells, enemy fleets and planet details only. Hiding systems makes them undiscoverable because sensor ranges are much shorter than system spacing.
 - The same config + seed always produces the same galaxy; the generator must use only its seeded RNG.
 - `aiDifficulty: 'normal'` (or missing) must reproduce the pre-difficulty AI behavior: income multiplier 1, attack advantage 1.2.
 - Map widths of exactly 200 are reserved for the legacy pre-grid save format.

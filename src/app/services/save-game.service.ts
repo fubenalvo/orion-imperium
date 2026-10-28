@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { StarMapData } from '../components/star-map/star-map.models';
 import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
 import legacyStarMapData from '../components/star-map/star-map-data.json';
+import { markStarPositionsKnown } from './galaxy-generator.service';
 
 /*
  * =========================================================
@@ -249,6 +250,13 @@ export class SaveGameService {
     // Before v3 the black hole was not saved; StarMap always rendered it
     // from star-map-data.json. Every such save came from that legacy map,
     // so restore its special objects (only when they fit the save's grid).
+    // Galaxies from generator v1 hid every star system except the human's
+    // home, so no other system could be found. Reveal star positions
+    // (planet details and cell fog are untouched). Idempotent.
+    if (data.galaxy && typeof data.galaxy.generatorVersion === 'number' && data.galaxy.generatorVersion < 2) {
+      markStarPositionsKnown(systems);
+    }
+
     if (data.specialObjects === undefined && !data.galaxy) {
       const legacyObjects = (legacyStarMapData as StarMapData).specialObjects ?? [];
       const width = data.map?.width ?? 0;

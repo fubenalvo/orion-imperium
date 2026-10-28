@@ -51,7 +51,12 @@ import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } fro
  * retry with a derived seed rather than starting a broken game.
  */
 
-export const GALAXY_GENERATOR_VERSION = 1;
+/*
+ * 1: initial version (only the human home system started `explored`, which
+ *    hid every other star — see markStarPositionsKnown).
+ * 2: every star system starts `explored` (positions known); planets stay unexplored.
+ */
+export const GALAXY_GENERATOR_VERSION = 2;
 export const BLACK_HOLE_SIZE = { width: 4, height: 4 } as const;
 export const PLAYER_FACTION_ID = 'player';
 
@@ -269,7 +274,8 @@ export class GalaxyGeneratorService {
         y: pos.y,
         planets: planetsTiles.length,
         color: pick(rng, STAR_COLORS),
-        explored: false,
+        // Star positions are known from the start; see markStarPositionsKnown.
+        explored: true,
         planetsTiles,
       };
       starSystems.push(system);
@@ -364,7 +370,6 @@ export class GalaxyGeneratorService {
     }
 
     if (faction.id === PLAYER_FACTION_ID) {
-      system.explored = true;
       homeworld.explored = true;
     }
   }
@@ -536,6 +541,25 @@ class PlanetNameGenerator {
     const name = `${base} ${suffix}`;
     this.used.add(name);
     return name;
+  }
+}
+
+/*
+ * Visibility rule for generated galaxies: every star SYSTEM is `explored`
+ * (its position and name are rendered and selectable), while fog of war
+ * still applies to grid cells (`exploredGridCells` starts empty), enemy
+ * fleets (sensor range) and planet details (`PlanetTile.explored`).
+ *
+ * Why: StarSystem.explored gates whether a system is drawn at all, on the
+ * galaxy view and the minimap. Every game on the legacy map ran with all
+ * systems revealed (its JSON has no exploredGridCells, so StarMap.loadGame
+ * marks them all explored). Generator v1 hid all but the home system; with
+ * sensor ranges of 3–5 cells and systems 20+ cells apart, the player could
+ * not find any other system. Also used by SaveGameService to repair v1 saves.
+ */
+export function markStarPositionsKnown(starSystems: StarSystem[]): void {
+  for (const system of starSystems) {
+    system.explored = true;
   }
 }
 
