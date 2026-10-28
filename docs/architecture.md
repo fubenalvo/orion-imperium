@@ -131,7 +131,7 @@ The empty legacy directories `src/app/components/ship`, `src/app/components/ship
 - `StarMap` is the runtime source of truth: it holds the live `factions`, `starSystems`, and `fleets` arrays and is the only component that mutates them during gameplay.
 - `StarMap` delegates pure logic to injected services (`StarMapGameLoopService`, `StarMapMovementService`, `StarMapBattleDetectionService`, `StarMapPlanetArrivalService`, `StarMapAiTickService`, `StarMapPanelVmService`) and delegates UI to its child components (`StarMapGalaxyViewComponent`, `StarMapSystemGridViewComponent`, and the panel components).
 - When two fleets collide, or when a fleet arrives at an enemy planet with defenses, `StarMap` calls `BattleService.setBattle()` (or `setPlanetBattle()`) and navigates to `/battle`.
-- `BattleScreenComponent` drives a `setInterval` that calls `BattleService.processStep()`; the service advances one ship attack per tick. When the battle ends, the screen reveals a "Back to Star Map" button.
+- `BattleScreenComponent` runs the self-contained real-time tactical minigame (RAF game loop, battle-local clock, tactical AI, shared fire control); `BattleService` is only the transport boundary. When the battle ends, a result overlay with "Back to Star Map" appears. See [Battle Screen](./battle-screen.md) and [Battle Rules](./battle-rules.md).
 - On "Back to Star Map":
   - For a fleet battle, the loser is marked `destroyed = true` and the destroyed fleet id is stored in `BattleService` so `StarMap` can pick it up.
   - For a planet battle, the saved data is reloaded and the planet is either transferred to the attacker's faction (attacker wins) or the attacker is destroyed.

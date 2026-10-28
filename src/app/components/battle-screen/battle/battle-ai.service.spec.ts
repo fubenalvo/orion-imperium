@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { BattleTimeService } from './battle-time.service';
+import { startBattleTestClock } from './battle-test-clock';
 import { vi } from 'vitest';
 import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
@@ -12,6 +14,7 @@ import { BattleAnimationService } from './battle-animation.service';
 import { stackCenterVw } from './battle-grid';
 
 describe('BattleAiService', () => {
+  let stopClock: () => void = () => {};
   let ai: BattleAiService;
   let movement: BattleMovementService;
   let combat: BattleCombatService;
@@ -28,10 +31,12 @@ describe('BattleAiService', () => {
     shipService = TestBed.inject(ShipService);
     planetBattleService = TestBed.inject(PlanetBattleService);
     vi.useFakeTimers();
+    stopClock = startBattleTestClock(TestBed.inject(BattleTimeService));
   });
 
   afterEach(() => {
     anim.reset();
+    stopClock();
     vi.useRealTimers();
   });
 
@@ -74,37 +79,42 @@ describe('BattleAiService', () => {
     await vi.advanceTimersByTimeAsync(10000);
   };
 
-  it('attacks an in-range enemy', async () => {
+  /*
+   * The AI only decides movement and Carrier Shield Pulse. Firing belongs
+   * to BattleCombatService.runFireControl (see battle-combat.service.spec)
+   * and target scoring to battle-targeting (see battle-targeting.spec).
+   */
+  it('holds position and never fires itself when an enemy is already in reach', async () => {
     const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
-    def.col = atk.col + 2; // within range 2
+    def.col = atk.col + 2;
     syncPosition(def);
 
     const p = ai.playAction(state);
     await flush();
     const result = await p;
 
-    expect(result).toBe(true);
-    expect(state.log.length).toBe(1);
-    expect(state.log[0].defenderStack).toBe(def.stackId);
+    expect(result).toBe(false);
+    expect(state.log).toHaveLength(0);
+    expect(atk.targetX).toBeNull();
   });
 
-  it('moves toward the nearest enemy when out of range', async () => {
+  it('moves toward the nearest enemy when out of reach', async () => {
     const state = setup([fleetShip(1, 'destroyer')], [fleetShip(100, 'fighter')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
-    def.col = atk.col + 7;
+    def.col = atk.col + 16;
     syncPosition(def);
 
-    const originalCol = atk.col;
     const p = ai.playAction(state);
     await flush();
     const result = await p;
 
     expect(result).toBe(true);
-    // After moving, the stack's target col should have changed.
     expect(atk.targetX).not.toBeNull();
+    expect(atk.targetX!).toBeGreaterThan(atk.x);
+    expect(atk.moveToAttackTargetId).toBe(def.stackId);
   });
 
   it('does not move immobile planet-defense stacks', async () => {
@@ -137,82 +147,48 @@ describe('BattleAiService', () => {
     await flush();
     const result = await p;
 
-    // Immobile turrets can't move; no player-side stacks to attack either
-    // (attacker is player, defender is immobile) — so no action.
     expect(result).toBe(false);
     expect(turret.immobile).toBe(true);
     expect(turret.col).toBe(before.col);
     expect(turret.row).toBe(before.row);
   });
 
-  it('is deterministic: same state yields the same log entry', async () => {
+  it('commands every idle stack in one tick, not just the first', async () => {
+    const state = setup(
+      [fleetShip(1, 'destroyer'), fleetShip(2, 'destroyer'), fleetShip(3, 'destroyer')],
+      [fleetShip(100, 'fighter')],
+    );
+    const def = getStacks(state, 'defender')[0];
+    def.col = 38;
+    def.row = 8;
+    syncPosition(def);
+
+    const p = ai.playAction(state);
+    await flush();
+    await p;
+
+    for (const stack of getStacks(state, 'attacker')) {
+      expect(stack.moveToAttackTargetId).toBe(def.stackId);
+      expect(stack.actionCooldownUntil).toBeGreaterThan(0);
+    }
+  });
+
+  it('is deterministic: the same state yields the same destination', async () => {
     const make = (): BattleModelState => {
-      const s = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
+      const s = setup([fleetShip(1, 'destroyer')], [fleetShip(100, 'fighter')]);
       const def = getStacks(s, 'defender')[0];
-      def.col = s.stacks[0].col + 2;
+      def.col = s.stacks[0].col + 16;
       syncPosition(def);
       return s;
     };
 
     const s1 = make();
-    const p1 = ai.playAction(s1);
-    await flush();
-    await p1;
-
+    await ai.playAction(s1);
     const s2 = make();
-    const p2 = ai.playAction(s2);
-    await flush();
-    await p2;
+    await ai.playAction(s2);
 
-    expect(s2.log.length).toBe(s1.log.length);
-    if (s1.log.length > 0) {
-      expect(s2.log[0].defenderStack).toBe(s1.log[0].defenderStack);
-    }
-  });
-
-  /*
-   * Role-aware target selection. bestTarget() scores in-range candidates by
-   * target role priority + threat weight + distance, then stackId. It is
-   * pure and deterministic — no randomness, no lookahead.
-   */
-  it('prefers a high-value target over a nearer low-value one', async () => {
-    const state = setup([fleetShip(1, 'destroyer')], [
-      fleetShip(100, 'dreadnought'),
-      fleetShip(101, 'colonizer'),
-    ]);
-    const atk = getStacks(state, 'attacker')[0];
-    const dread = getStacks(state, 'defender').find((s) => s.typeId === 'dreadnought')!;
-    const colonizer = getStacks(state, 'defender').find((s) => s.typeId === 'colonizer')!;
-    colonizer.col = atk.col + 1;
-    syncPosition(colonizer);
-    dread.col = atk.col + 2;
-    syncPosition(dread);
-
-    const p = ai.playAction(state);
-    await flush();
-    await p;
-
-    expect(state.log[0].defenderStack).toBe(dread.stackId);
-  });
-
-  it('prefers the nearest when threat scores are equal', async () => {
-    const state = setup([fleetShip(1, 'fighter')], [
-      fleetShip(100, 'frigate'),
-      fleetShip(101, 'frigate'),
-    ]);
-    const atk = getStacks(state, 'attacker')[0];
-    const near = getStacks(state, 'defender').find((s) => s.stackId < getStacks(state, 'defender')[1].stackId)!;
-    const far = getStacks(state, 'defender').find((s) => s.stackId !== near.stackId)!;
-    near.col = atk.col + 1;
-    syncPosition(near);
-    far.col = atk.col + 2;
-    syncPosition(far);
-
-    const p = ai.playAction(state);
-    await flush();
-    await p;
-
-    expect(state.log[0].defenderStack).toBe(near.stackId);
+    expect(s2.stacks[0].targetX).toBe(s1.stacks[0].targetX);
+    expect(s2.stacks[0].targetY).toBe(s1.stacks[0].targetY);
   });
 
   it('returns false when no action is possible', async () => {
@@ -224,12 +200,37 @@ describe('BattleAiService', () => {
     expect(result).toBe(false);
   });
 
-  it('returns false when the animation is busy', async () => {
-    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'frigate')]);
-    const atk = getStacks(state, 'attacker')[0];
-    anim.begin(atk.stackId);
-    const result = await ai.playAction(state);
+  /*
+   * AUTO battle: playAction(state, true) drives ONLY the player side, and
+   * never a player stack that holds a manual order.
+   */
+  it('AUTO pass drives only player stacks and never ones with a manual order', async () => {
+    // In this setup the defender is the player side.
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'destroyer'), fleetShip(101, 'destroyer')]);
+    const enemy = getStacks(state, 'attacker')[0];
+    const [free, ordered] = getStacks(state, 'defender');
+    enemy.col = 2;
+    enemy.row = 8;
+    syncPosition(enemy);
+    ordered.explicitAttackTargetId = enemy.stackId;
+
+    await ai.playAction(state, true);
+
+    expect(free.moveToAttackTargetId).toBe(enemy.stackId);
+    expect(ordered.actionCooldownUntil).toBeUndefined();
+    expect(ordered.targetX).toBeNull();
+    // The enemy (non-player) stack was not commanded by the AUTO pass.
+    expect(enemy.actionCooldownUntil).toBeUndefined();
+  });
+
+  it('AUTO pass leaves a stack with an in-flight manual move alone', async () => {
+    const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'destroyer')]);
+    const mine = getStacks(state, 'defender')[0];
+    mine.manualMoveOrder = true;
+
+    const result = await ai.playAction(state, true);
+
     expect(result).toBe(false);
-    anim.end(atk.stackId);
+    expect(mine.actionCooldownUntil).toBeUndefined();
   });
 });

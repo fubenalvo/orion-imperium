@@ -16,6 +16,17 @@
     ></div>
   }
 
+  <!-- RANGE RING (selected stack's effective reach) -->
+  @if (rangeRing; as ring) {
+    <div
+      class="range-ring"
+      [style.left]="ring.x + 'vw'"
+      [style.top]="ring.y + 'vw'"
+      [style.width]="ring.radiusVw * 2 + 'vw'"
+      [style.height]="ring.radiusVw * 2 + 'vw'"
+    ></div>
+  }
+
   <!-- CONNECTION LINE (selected stack → move target) -->
   @if (getConnectionLine(); as line) {
     <div
@@ -55,8 +66,12 @@
            [class.carrier-boost-target]="isCarrierBoostTarget(stack.stackId)"
            [style.--faction-color]="factionColor(stack)"
            type="button"
+           [attr.aria-label]="stackAriaLabel(stack)"
            (click)="onStackClickHandler($event, stack.stackId)"
          >
+           <!-- Friend/foe marker: corner brackets on own stacks, red chevron
+                above enemies. Shape-based so it also works without color. -->
+           <span class="stack__marker" aria-hidden="true"></span>
            <span class="stack__ship" aria-hidden="true"></span>
            <span class="stack__count" [style.color]="factionColor(stack)">{{ stack.ships.length }}</span>
         <span class="stack__hp">

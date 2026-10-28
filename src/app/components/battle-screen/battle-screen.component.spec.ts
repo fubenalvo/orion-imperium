@@ -6,9 +6,11 @@ import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { GameTimeService } from '../../services/game-time.service';
-import { FleetShip, BattleStack } from './battle/battle.types';
-import { ANIMATION_MS } from './battle/battle.types';
+import { FleetShip, BattleStack, BattleModelState } from './battle/battle.types';
 import { BattleAnimationService } from './battle/battle-animation.service';
+import { BattleTimeService } from './battle/battle-time.service';
+import { BattleGameLoopService } from './battle/battle-game-loop.service';
+import { BattleSettingsService } from '../../services/battle-settings.service';
 import { stackCenterVw } from './battle/battle-grid';
 import { BattleScreenComponent } from './battle-screen.component';
 
@@ -44,18 +46,6 @@ describe('BattleScreenComponent', () => {
     anim.reset();
   });
 
-  const placeAdjacent = (atk: BattleStack, def: BattleStack): void => {
-    def.col = atk.col + Math.min(atk.attackRange, 3);
-    def.row = atk.row;
-    const center = stackCenterVw({
-      side: def.side,
-      size: def.size,
-      col: def.col,
-      row: def.row,
-    } as BattleStack);
-    def.x = center.x;
-    def.y = center.y;
-  };
 
   const syncPosition = (stack: BattleStack): void => {
     const center = stackCenterVw({
@@ -187,10 +177,25 @@ describe('BattleScreenComponent', () => {
     expect(saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)).toEqual(before);
   });
 
-  it('animation lock engages during attack and releases after', async () => {
+  /*
+   * Drives the simulation exactly like BattleGameLoopService.tick: advance
+   * battle time, run one frame, then let promise continuations run. The
+   * real RAF loop is stopped in createBattle() so frames only happen here.
+   */
+  const runFrames = async (ms: number, frameMs = 16): Promise<void> => {
+    const time = TestBed.inject(BattleTimeService);
+    for (let t = 0; t < ms; t += frameMs) {
+      const real = frameMs / 1000 / time.speed;
+      time.onTick(real);
+      component['gameLoopCallback'](time.getScaledDeltaTime(real));
+      await vi.advanceTimersByTimeAsync(0);
+    }
+  };
+
+  const createBattle = (playerShips: FleetShip[], enemyShips: FleetShip[]): BattleModelState => {
     battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
+      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: playerShips },
+      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: enemyShips },
       faction1Name: 'Player',
       faction1Color: '#8cc4ff',
       faction2Name: 'Enemy 1',
@@ -198,254 +203,220 @@ describe('BattleScreenComponent', () => {
       attackerId: 1,
       defenderId: 2,
     });
-
     fixture = TestBed.createComponent(BattleScreenComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+    TestBed.inject(BattleGameLoopService).stopGameLoop();
+    return component['state']!;
+  };
 
-    const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    // Place attacker in range of defender
-    def.col = atk.col + 2;
-    def.row = atk.row;
-    syncPosition(def);
-    // Make defender killable so auto-attack chain terminates (1 volley)
-    def.ships[0].hp = 1;
-    def.ships[0].shield = 0;
+  const place = (stack: BattleStack, col: number, row: number): void => {
+    stack.col = col;
+    stack.row = row;
+    syncPosition(stack);
+  };
 
-    component.selectedStackId = atk.stackId;
+  /* Makes a stack effectively unkillable so long-running scenarios are not
+   * cut short by return fire. */
+  const tank = (stack: BattleStack): void => {
+    for (const ship of stack.ships) {
+      ship.hp = ship.maxHp = 100000;
+    }
+  };
 
-    // Kick off an attack without awaiting — the lock engages immediately.
-    const attackP = component['doAttack'](atk, def);
+  const volleys = (state: BattleModelState, attackerId: string, targetId: string): number =>
+    state.log.filter((e) => e.attackerStack === attackerId && e.defenderStack === targetId).length;
+
+  /* Player fighters A (front) and B (far back); enemy frigates E1 (near A)
+   * and E2 (in reach of A but farther than E1, so E1 is A's automatic pick). */
+  const standardSetup = () => {
+    const state = createBattle(
+      [fleetShip(1, 'fighter'), fleetShip(2, 'fighter')],
+      [fleetShip(10, 'frigate'), fleetShip(11, 'frigate')],
+    );
+    const [a, b] = state.stacks.filter((s) => s.side === 'attacker');
+    const [e1, e2] = state.stacks.filter((s) => s.side === 'defender');
+    place(a, 5, 8);
+    place(b, 2, 15);
+    place(e1, 8, 8);
+    place(e2, 10, 8);
+    [a, b, e1, e2].forEach(tank);
+    return { state, a, b, e1, e2 };
+  };
+
+  it('fires every stack of both sides at the same fire-rate cadence', async () => {
+    const { state, a, e1 } = standardSetup();
+    await runFrames(16);
     expect(anim.isBusy).toBe(true);
 
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    await vi.advanceTimersByTimeAsync(1);
-    await attackP;
-
-    expect(anim.isBusy).toBe(false);
-    fixture.detectChanges();
+    // fireRate 1.5 → one volley per ~667 battle-ms: t≈0 and t≈667.
+    await runFrames(1000);
+    expect(volleys(state, a.stackId, e1.stackId)).toBe(2);
+    const enemyVolleysAtA = state.log.filter((e) => e.defenderStack === a.stackId).length;
+    // Two enemy frigates in reach of A, each on its own cadence.
+    expect(enemyVolleysAtA).toBe(4);
   });
 
-  it('canAct remains true during an attack animation', async () => {
-    battleService.setBattle({
+  it('keeps a manual attack order when another stack is selected and ignores automatic picks', async () => {
+    const { state, a, b, e1, e2 } = standardSetup();
+    component.onStackClick(a.stackId);
+    component.onStackClick(e2.stackId);
+    component.onStackClick(b.stackId);
+
+    expect(component.selectedStackId).toBe(b.stackId);
+    expect(a.explicitAttackTargetId).toBe(e2.stackId);
+
+    await runFrames(1500);
+    expect(a.explicitAttackTargetId).toBe(e2.stackId);
+    expect(volleys(state, a.stackId, e2.stackId)).toBeGreaterThanOrEqual(2);
+    expect(volleys(state, a.stackId, e1.stackId)).toBe(0);
+  });
+
+  it('chases an out-of-reach manual target, keeps the order, and fires opportunistically', async () => {
+    const { state, a, e1, e2 } = standardSetup();
+    place(e2, 34, 3);
+    const startDistance = Math.hypot(a.x - e2.x, a.y - e2.y);
+
+    component.onStackClick(a.stackId);
+    component.onStackClick(e2.stackId);
+    await runFrames(800);
+
+    expect(a.explicitAttackTargetId).toBe(e2.stackId);
+    expect(a.moveToAttackTargetId).toBe(e2.stackId);
+    expect(Math.hypot(a.x - e2.x, a.y - e2.y)).toBeLessThan(startDistance);
+    // E1 was in reach while A was setting off: opportunistic fire.
+    expect(volleys(state, a.stackId, e1.stackId)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clears the order when the target dies and returns to automatic targeting', async () => {
+    const { state, a, e1, e2 } = standardSetup();
+    e2.ships[0].hp = 1;
+    e2.ships[0].shield = 0;
+
+    component.onStackClick(a.stackId);
+    component.onStackClick(e2.stackId);
+    await runFrames(1500);
+
+    expect(e2.destroyed).toBe(true);
+    expect(a.explicitAttackTargetId).toBeNull();
+    expect(volleys(state, a.stackId, e1.stackId)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('replaces the previous order with a new one; a blocked move keeps the old order', async () => {
+    const { a, e1, e2 } = standardSetup();
+    component.onStackClick(a.stackId);
+    component.onStackClick(e1.stackId);
+    component.onStackClick(e2.stackId);
+    expect(a.explicitAttackTargetId).toBe(e2.stackId);
+
+    // Moving onto an occupied cell fails and must not cancel the order.
+    component.onCellClick(e1.col, e1.row);
+    await runFrames(16);
+    expect(a.explicitAttackTargetId).toBe(e2.stackId);
+    expect(component.isMoveBlocked).toBe(true);
+
+    component.onCellClick(a.col, a.row + 3);
+    await runFrames(16);
+    expect(a.explicitAttackTargetId).toBeNull();
+    expect(a.manualMoveOrder).toBe(true);
+    expect(a.moving).toBe(true);
+  });
+
+  it('AUTO battle never overrides a manual order', async () => {
+    const { a, e2 } = standardSetup();
+    expect(component.autoBattleEnabled).toBe(true);
+    place(e2, 34, 3);
+
+    component.onStackClick(a.stackId);
+    component.onStackClick(e2.stackId);
+    await runFrames(2000);
+
+    expect(a.explicitAttackTargetId).toBe(e2.stackId);
+    // The AI never commanded this stack.
+    expect(a.actionCooldownUntil).toBeUndefined();
+  });
+
+  it('pausing freezes firing and movement; orders given while paused apply on resume', async () => {
+    const { state, a, e2 } = standardSetup();
+    place(e2, 34, 3);
+    component.toggleBattlePause();
+    const x = a.x;
+
+    component.onStackClick(a.stackId);
+    component.onStackClick(e2.stackId);
+    await runFrames(500);
+
+    expect(state.log).toHaveLength(0);
+    expect(a.x).toBe(x);
+    expect(a.explicitAttackTargetId).toBe(e2.stackId);
+
+    component.toggleBattlePause();
+    await runFrames(500);
+    expect(a.x).not.toBe(x);
+    expect(state.log.length).toBeGreaterThan(0);
+  });
+
+  it('changes the selected stack targeting mode and drops the sticky target', () => {
+    const { a, e1 } = standardSetup();
+    component.onStackClick(a.stackId);
+    a.autoTargetId = e1.stackId;
+
+    expect(component.selectedTargetingMode).toBe('balanced');
+    component.setSelectedTargetingMode('weakest');
+
+    expect(a.targetingMode).toBe('weakest');
+    expect(a.autoTargetId).toBeNull();
+    expect(component.selectedTargetingMode).toBe('weakest');
+  });
+
+  /*
+   * Regression guard against stuck battles: with AUTO on, both sides close
+   * in and fight; with AUTO off, the passive player side still fires at
+   * enemies that come into reach. Either way a winner must emerge.
+   */
+  for (const auto of [true, false]) {
+    it(`runs a mixed-fleet battle to completion (AUTO ${auto ? 'on' : 'off'})`, async () => {
+      const types = ['fighter', 'frigate', 'destroyer', 'cruiser', 'carrier', 'battleship', 'dreadnought'];
+      const fleet = (base: number) => types.map((type, i) => fleetShip(base + i, type));
+      TestBed.inject(BattleSettingsService).setAutoBattle(auto);
+      const state = createBattle(fleet(100), fleet(200));
+
+      for (let elapsed = 0; elapsed < 180000 && !state.winner; elapsed += 1000) {
+        await runFrames(1000, 50);
+      }
+
+      expect(state.winner).not.toBeNull();
+      expect(state.stacks.filter((s) => !s.destroyed).every((s) => s.side === state.winner)).toBe(true);
+      expect(state.effects.every((e) => state.stacks.some((s) => s.stackId === e.attackerStackId))).toBe(true);
+    }, 30000);
+  }
+
+  it('lets immobile planet turrets fire at attackers in reach', async () => {
+    battleService.setPlanetBattle({
       fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: {
-        id: 2,
-        name: 'RAIDER',
-        factionId: 'enemy1',
-        ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
-      },
+      fleet2: { id: -5, name: 'PLANET', factionId: 'enemy1', ships: [fleetShip(100, 'laser_turret')] },
       faction1Name: 'Player',
       faction1Color: '#8cc4ff',
-      faction2Name: 'Enemy 1',
+      faction2Name: 'Defense',
       faction2Color: '#d65757',
       attackerId: 1,
-      defenderId: 2,
+      defenderId: -5,
+      type: 'planet',
+      planetId: 5,
     });
-
     fixture = TestBed.createComponent(BattleScreenComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
-
+    TestBed.inject(BattleGameLoopService).stopGameLoop();
     const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    const def2 = state.stacks.find(
-      (s) => !s.destroyed && s.side === 'defender' && s.stackId !== def1.stackId,
-    )!;
-    placeAdjacent(atk, def1);
-    def2.col = atk.col + 2;
-    def2.row = atk.row;
-    syncPosition(def2);
-    // Make both defenders killable so auto-attack terminates
-    def1.ships[0].hp = 1;
-    def1.ships[0].shield = 0;
-    def2.ships[0].hp = 1;
-    def2.ships[0].shield = 0;
+    const fighter = state.stacks.find((s) => s.side === 'attacker')!;
+    const turret = state.stacks.find((s) => s.side === 'defender')!;
+    expect(turret.immobile).toBe(true);
+    tank(fighter);
+    place(fighter, turret.col - 6, turret.row);
 
-    component.selectedStackId = atk.stackId;
-
-    expect(component.canAct).toBe(true);
-
-    const attackP = component['doAttack'](atk, def1);
-    // canAct should remain true during animation (animation doesn't block input)
-    expect(component.canAct).toBe(true);
-    expect(anim.isBusy).toBe(true);
-
-    // First attack on def1 (destroyed): projectile + explosion = 720ms
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    // Trigger game loop - explicit target destroyed, should auto-attack def2
-    const autoAttackP = component['tryAutoAttack'](atk);
-    // Second attack on def2 (destroyed): projectile + explosion = 720ms
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    await autoAttackP;
-    // Trigger game loop again - no more targets
-    component['gameLoopCallback'](1 / 60);
-    // Extra time for any pending cooldowns
-    await vi.advanceTimersByTimeAsync(100);
-    await attackP;
-
-    // Flush any remaining microtasks (e.g., animation finally blocks)
-    await vi.advanceTimersByTimeAsync(0);
-
-    // After chain completes and battle ends, canAct is false
-    expect(anim.isBusy).toBe(false);
-  });
-
-  it('auto-attack chains to next target when first is destroyed', async () => {
-    battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: {
-        id: 2,
-        name: 'RAIDER',
-        factionId: 'enemy1',
-        ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
-      },
-      faction1Name: 'Player',
-      faction1Color: '#8cc4ff',
-      faction2Name: 'Enemy 1',
-      faction2Color: '#d65757',
-      attackerId: 1,
-      defenderId: 2,
-    });
-
-    fixture = TestBed.createComponent(BattleScreenComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    const def2 = state.stacks.find(
-      (s) => !s.destroyed && s.side === 'defender' && s.stackId !== def1.stackId,
-    )!;
-    placeAdjacent(atk, def1);
-    // Place second target explicitly within range (2 cols away, range=3)
-    def2.col = atk.col + 2;
-    def2.row = atk.row;
-    syncPosition(def2);
-
-    component.selectedStackId = atk.stackId;
-    const totalHpBefore = def2.ships[0].hp + (def2.ships[0].shield ?? 0);
-    def1.ships[0].hp = 1;
-    def1.ships[0].shield = 0;
-    def2.ships[0].hp = 1;
-    def2.ships[0].shield = 0;
-
-    const attackP = component['doAttack'](atk, def1);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    await vi.advanceTimersByTimeAsync(1);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
-    await vi.advanceTimersByTimeAsync(147);
-    await attackP;
-
-    expect(def1.destroyed).toBe(true);
-    const def2Ship = def2.ships[0]!;
-    expect((def2Ship.shield ?? 0) + def2Ship.hp).toBeLessThan(totalHpBefore);
-  });
-
-  it('auto-attack stops when no targets remain', async () => {
-    battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: { id: 2, name: 'RAIDER', factionId: 'enemy1', ships: [fleetShip(2, 'frigate')] },
-      faction1Name: 'Player',
-      faction1Color: '#8cc4ff',
-      faction2Name: 'Enemy 1',
-      faction2Color: '#d65757',
-      attackerId: 1,
-      defenderId: 2,
-    });
-
-    fixture = TestBed.createComponent(BattleScreenComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    placeAdjacent(atk, def);
-    component.selectedStackId = atk.stackId;
-
-    /*
-     * Make defender killable in one volley so auto-attack chain triggers
-     * and then stops (no other targets in range).
-     */
-    def.ships[0].hp = 1;
-    def.ships[0].shield = 0;
-
-    const attackP = component['doAttack'](atk, def);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    /* Cooldown after destroyed target: 0ms but wait(0) needs 1ms */
-    await vi.advanceTimersByTimeAsync(1);
-    await attackP;
-
-    expect(def.destroyed).toBe(true);
-    // autoAttackActive no longer exists; auto-attack is now handled by game loop
-    // Expect animation to be complete
-    expect(anim.isBusy).toBe(false);
-  });
-
-  it('auto-attack stops when player selects different stack during chain', async () => {
-    battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: {
-        id: 2,
-        name: 'RAIDER',
-        factionId: 'enemy1',
-        ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
-      },
-      faction1Name: 'Player',
-      faction1Color: '#8cc4ff',
-      faction2Name: 'Enemy 1',
-      faction2Color: '#d65757',
-      attackerId: 1,
-      defenderId: 2,
-    });
-
-    fixture = TestBed.createComponent(BattleScreenComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    const def2 = state.stacks.find(
-      (s) => !s.destroyed && s.side === 'defender' && s.stackId !== def1.stackId,
-    )!;
-    placeAdjacent(atk, def1);
-    def1.ships[0].hp = 1;
-    def1.ships[0].shield = 0;
-
-    component.selectedStackId = atk.stackId;
-    const hpBefore = def2.ships[0].hp;
-
-    const attackP = component['doAttack'](atk, def1);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    /*
-     * Deselect during animation — auto-attack should stop when it checks
-     * selectedStackId after the first volley kills the target.
-     */
-    component.selectedStackId = null;
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    await attackP;
-
-    expect(def1.destroyed).toBe(true);
-    expect(component.selectedStackId).toBeNull();
-    // autoAttackActive no longer exists; auto-attack is now handled by game loop
-    expect(anim.isBusy).toBe(false);
-    expect(def2.ships[0].hp).toBe(hpBefore);
+    await runFrames(800);
+    expect(volleys(state, turret.stackId, fighter.stackId)).toBeGreaterThanOrEqual(1);
   });
 
   it('gameLoopCallback keeps calling anim.tick() after checkVictory sets winner', () => {
@@ -512,6 +483,8 @@ describe('BattleScreenComponent', () => {
     enemy.row = carrier.row;
     ally.col = carrier.col - 2;
     ally.row = carrier.row;
+    // Shield Pulse only fires when an ally in reach is missing shield.
+    ally.ships[0].shield = 0;
     // Destroy enemy ships so carrierShieldBoost sets winner after boosting ally shields.
     // Actually carrierShieldBoost only checks range — it will set winner if enemy is wiped.
     // Since enemy still has alive ships, winner won't be set. Instead we just verify
@@ -1204,151 +1177,6 @@ describe('BattleScreenComponent', () => {
       .fleets.find((f) => f.id === 98)!;
     expect(captured.destroyed).toBe(true);
     expect(captured.ships.every((s) => s.destroyed === true)).toBe(true);
-  });
-
-  it('explicit attack target overrides auto-attack and resumes after target destroyed', async () => {
-    battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: {
-        id: 2,
-        name: 'RAIDER',
-        factionId: 'enemy1',
-        ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
-      },
-      faction1Name: 'Player',
-      faction1Color: '#8cc4ff',
-      faction2Name: 'Enemy 1',
-      faction2Color: '#d65757',
-      attackerId: 1,
-      defenderId: 2,
-    });
-
-    fixture = TestBed.createComponent(BattleScreenComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    const def2 = state.stacks.find(
-      (s) => !s.destroyed && s.side === 'defender' && s.stackId !== def1.stackId,
-    )!;
-    placeAdjacent(atk, def1);
-    // Place second target explicitly within range
-    def2.col = atk.col + 2;
-    def2.row = atk.row;
-    syncPosition(def2);
-
-    component.selectedStackId = atk.stackId;
-    // Make both defenders killable
-    def1.ships[0].hp = 1;
-    def1.ships[0].shield = 0;
-    def2.ships[0].hp = 1;
-    def2.ships[0].shield = 0;
-
-    const initialDef2Hp = def2.ships[0].hp + (def2.ships[0].shield ?? 0);
-
-    // Explicit attack on def1 - should ONLY attack def1, not def2
-    const attackP = component['doAttack'](atk, def1);
-    // First attack on def1 (destroyed)
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    // Explicit target should now be cleared (def1 destroyed)
-    expect(atk.explicitAttackTargetId).toBeNull();
-    // Manually trigger auto-attack on attacker (simulating game loop)
-    const autoAttackP = component['tryAutoAttack'](atk);
-    // Second attack on def2 - advance timers for its animation
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
-    await autoAttackP;
-    await vi.advanceTimersByTimeAsync(100);
-    await attackP;
-
-    // def1 destroyed (explicit target)
-    expect(def1.destroyed).toBe(true);
-    // After explicit target destroyed, auto-attack resumes and attacks def2
-    const def2Ship = def2.ships[0]!;
-    expect((def2Ship.shield ?? 0) + def2Ship.hp).toBeLessThan(initialDef2Hp);
-  });
-
-  it('move command clears explicit attack target', async () => {
-    battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: {
-        id: 2,
-        name: 'RAIDER',
-        factionId: 'enemy1',
-        ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
-      },
-      faction1Name: 'Player',
-      faction1Color: '#8cc4ff',
-      faction2Name: 'Enemy 1',
-      faction2Color: '#d65757',
-      attackerId: 1,
-      defenderId: 2,
-    });
-
-    fixture = TestBed.createComponent(BattleScreenComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    placeAdjacent(atk, def1);
-
-    component.selectedStackId = atk.stackId;
-    // Make defender survive first volley
-    def1.ships[0].hp = 50;
-    def1.ships[0].shield = 0;
-
-    // Explicit attack sets target (synchronously in doAttack)
-    component['doAttack'](atk, def1);
-    expect(atk.explicitAttackTargetId).toBe(def1.stackId);
-
-    // Move command clears explicit target
-    await component['doMove'](atk, atk.col + 1, atk.row);
-    expect(atk.explicitAttackTargetId).toBeNull();
-  });
-
-  it('deselecting stack clears explicit attack target', async () => {
-    battleService.setBattle({
-      fleet1: { id: 1, name: 'ORION', factionId: 'player', ships: [fleetShip(1, 'fighter')] },
-      fleet2: {
-        id: 2,
-        name: 'RAIDER',
-        factionId: 'enemy1',
-        ships: [fleetShip(2, 'frigate'), fleetShip(3, 'frigate')],
-      },
-      faction1Name: 'Player',
-      faction1Color: '#8cc4ff',
-      faction2Name: 'Enemy 1',
-      faction2Color: '#d65757',
-      attackerId: 1,
-      defenderId: 2,
-    });
-
-    fixture = TestBed.createComponent(BattleScreenComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-
-    const state = component['state']!;
-    const atk = state.stacks.find((s) => !s.destroyed && s.side === 'attacker')!;
-    const def1 = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    placeAdjacent(atk, def1);
-
-    component.selectedStackId = atk.stackId;
-    // Make defender survive first volley
-    def1.ships[0].hp = 50;
-    def1.ships[0].shield = 0;
-
-    // Explicit attack sets target (synchronously in doAttack)
-    component['doAttack'](atk, def1);
-    expect(atk.explicitAttackTargetId).toBe(def1.stackId);
-
-    // Deselect (select null) clears explicit target
-    component.selectedStackId = null;
-    expect(atk.explicitAttackTargetId).toBeNull();
   });
 
   it('moveConnectionLine returns null when no stack is selected', () => {

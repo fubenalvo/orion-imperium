@@ -8,7 +8,7 @@
   ViewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { Subscription, skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { BattleService } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
@@ -27,33 +27,30 @@ import {
   BattleShieldPool,
   BattleSide,
   BattleStack,
-  GridCell,
 } from './battle/battle.types';
 import {
   AI_ACTION_INTERVAL_MS,
   SHIELD_REGEN_INTERVAL_MS,
-  ANIMATION_MS,
-  FIRE_RATE_MULTIPLIER,
+  MOVE_REPLAN_INTERVAL_MS,
+  BATTLE_RANGE_UNIT_VW,
+  BattleTargetingMode,
+  DEFAULT_TARGETING_MODE,
 } from './battle/battle.types';
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
 import {
   getAttackTargetIds as computeAttackTargetIds,
-  getReachableCells,
-  getMoveToAttackTargetIds,
   computeCarrierBoostTargets,
   checkVictory,
   updateStackPositions,
   regenerateAllShields,
-  linePath,
-  occupiedCols,
-  isInBounds,
-  isOccupied,
-  occupiesCell,
-  BATTLE_GRID_COLUMNS,
-  BATTLE_GRID_ROWS,
-  isPathClear,
-  isAbsoluteInRange,
+  canAttack,
+  effectiveAttackRange,
 } from './battle/battle-grid';
+import {
+  TARGETING_MODES,
+  TARGETING_MODE_LABELS,
+  setTargetingMode,
+} from './battle/battle-targeting';
 import { buildBattleOutcome } from './battle/battle-result';
 import { BattleMovementService } from './battle/battle-movement.service';
 import { BattleCombatService } from './battle/battle-combat.service';
@@ -71,12 +68,22 @@ import { BattleGridComponent } from './battle-grid/battle-grid.component';
  * It receives the Battle transport object from BattleService, builds
  * battle-local state (deep-cloned ships), and forwards player input to
  * the battle services. All simulation state lives in this component's
- * BattleModelState â€” the minigame never touches StarMap state.
+ * BattleModelState — the minigame never touches StarMap state.
  *
  * Real-time model: stacks move at speed-based rates via a RAF game loop.
- * Both sides are active simultaneously. The AI takes one action per 0.2s
- * tick (configurable via AI_ACTION_INTERVAL_MS). Animation lock gates
- * attacks only â€” movement is continuous.
+ * Both sides are active simultaneously. Every frame the shared fire control
+ * lets each stack (both sides) fire at its own cadence; the tactical AI
+ * re-plans movement every AI_ACTION_INTERVAL_MS.
+ *
+ * Player orders are plain state changes on the stack (no command queue),
+ * so they apply instantly — also while paused — and several stacks can be
+ * given orders during a pause:
+ *   - click enemy  → manual attack order (explicitAttackTargetId), chased
+ *                    while out of reach, cleared only when the target dies
+ *                    or the stack gets a new order;
+ *   - click cell   → manual move order (replaces any attack order).
+ * Selecting other stacks never changes existing orders. AUTO only drives
+ * stacks without a manual order.
  *
  * Navigation flow:
  * 1. StarMap detects collision -> BattleService.setBattle() -> navigate to /battle
@@ -107,28 +114,16 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private state: BattleModelState | null = null;
   private ticksSub: Subscription;
   private battleTimeSub: Subscription;
-  private commandQueue: Array<{ command: () => Promise<boolean>; stackId?: string }> = [];
-  private commandRunning = false;
 
-  private _selectedStackId: string | null = null;
+  /* Purely a UI focus. Changing it must never touch any stack's orders. */
+  selectedStackId: string | null = null;
 
-  get selectedStackId(): string | null {
-    return this._selectedStackId;
-  }
+  /* Sides the player controls; fixed for the whole battle, so computed once
+   * in ngOnInit instead of a getter (keeps the grid input stable per frame). */
+  playerSides: BattleSide[] = [];
 
-  set selectedStackId(value: string | null) {
-    if (value === this._selectedStackId) {
-      return;
-    }
-    // Clear old stack's explicit attack target whenever selection changes
-    if (this._selectedStackId && this.state) {
-      const oldStack = this.state.stacks.find((s) => s.stackId === this._selectedStackId);
-      if (oldStack) {
-        oldStack.explicitAttackTargetId = null;
-      }
-    }
-    this._selectedStackId = value;
-  }
+  readonly targetingModes = TARGETING_MODES;
+  readonly targetingModeLabels = TARGETING_MODE_LABELS;
 
   private pointerX = 0.5;
   private pointerY = 0.5;
@@ -141,6 +136,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private aiTickAccumulator = 0;
   private shieldRegenAccumulator = 0;
   private autoBattleTickAccumulator = 0;
+  private replanAccumulator = 0;
 
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
@@ -162,7 +158,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   ) {
     this.battle = this.battleService.getBattle();
     this.ticksSub = this.anim.ticks$.subscribe(() => this.cdr.detectChanges());
-    this.battleTimeSub = this.battleTime.state$.subscribe(() => this.cdr.detectChanges());
+    // state$ is a BehaviorSubject: skip its synchronous replay, which would
+    // run detectChanges() before the view exists (Angular asserts, and rxjs
+    // rethrows the error asynchronously as an uncaught console error).
+    this.battleTimeSub = this.battleTime.state$.pipe(skip(1)).subscribe(() => this.cdr.detectChanges());
     this.onStackClick = this.onStackClick.bind(this);
     this.onCellClick = this.onCellClick.bind(this);
   }
@@ -267,108 +266,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   toggleBattlePause(): void {
     this.battleTime.togglePause();
-    if (!this.battleTime.isPaused) {
-      void this.drainCommandQueue();
-    }
   }
 
   setBattleSpeed(speed: BattleSpeed): void {
     this.battleTime.setSpeed(speed);
-    void this.drainCommandQueue();
-  }
-
-  private enqueueCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
-    if (this.battleTime.isPaused) {
-      // When paused, always queue (replace if same stack)
-      this.replaceOrEnqueueCommand(command, stackId);
-      return Promise.resolve(false);
-    }
-    if (this.commandRunning) {
-      // Replace if same stack, otherwise append
-      this.replaceOrEnqueueCommand(command, stackId);
-      return Promise.resolve(false);
-    }
-    return this.executeCommand(command, stackId);
-  }
-
-  /** Replace existing queued command for same stackId, or append if different stack. */
-  private replaceOrEnqueueCommand(command: () => Promise<boolean>, stackId?: string): void {
-    if (stackId) {
-      const index = this.commandQueue.findIndex((item) => item.stackId === stackId);
-      if (index >= 0) {
-        this.commandQueue[index] = { command, stackId };
-        return;
-      }
-    }
-    this.commandQueue.push({ command, stackId });
-  }
-
-private async executeCommand(command: () => Promise<boolean>, stackId?: string): Promise<boolean> {
-    if (this.commandRunning) {
-      this.replaceOrEnqueueCommand(command, stackId);
-      return false;
-    }
-
-    this.commandRunning = true;
-    try {
-      // User commands execute immediately - they can interrupt/redirect current actions
-      // No need to wait for existing stack animations (auto-attacks, etc.)
-      return await command();
-    } catch {
-      return false;
-    } finally {
-      this.commandRunning = false;
-      void this.drainCommandQueue();
-    }
-  }
-
-  private async drainCommandQueue(): Promise<void> {
-    if (this.commandRunning || this.battleTime.isPaused) {
-      return;
-    }
-
-    while (this.commandQueue.length > 0 && !this.battleTime.isPaused) {
-      const { command, stackId } = this.commandQueue.shift()!;
-      this.commandRunning = true;
-      try {
-        await command();
-      } catch {
-        // Invalid or interrupted commands are discarded without blocking the queue.
-      } finally {
-        this.commandRunning = false;
-      }
-    }
-  }
-
-  private clearCommandQueue(): void {
-    this.commandQueue = [];
-    this.commandRunning = false;
-  }
-
-  get moveCells(): GridCell[] {
-    const stack = this.selectedStack();
-    if (!this.state || !stack || !stack.destroyed) {
-      return [];
-    }
-    // Return all empty cells in bounds (exclude cells occupied by this stack).
-    // Also requires a clear straight-line path (isPathClear) â€” matches
-    // moveStack() validation exactly so UI shows only reachable cells.
-    const cells: GridCell[] = [];
-    for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
-      for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
-        if (occupiesCell(stack, c, r)) continue;
-        const destCols = occupiedCols(stack, c);
-        if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(this.state!, dc, r, stack.stackId))) {
-          continue;
-        }
-        const path = linePath({ col: stack.col, row: stack.row }, { col: c, row: r });
-        if (!path || !isPathClear(this.state, path, stack)) {
-          continue;
-        }
-        cells.push({ col: c, row: r });
-      }
-    }
-    return cells;
   }
 
   get isMoveBlocked(): boolean {
@@ -383,12 +284,57 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     return computeAttackTargetIds(this.state, stack);
   }
 
-  get moveToAttackTargetIds(): string[] {
+  /* The selected stack's manual attack target, highlighted on the grid so
+   * the player can see which order is active. */
+  get orderTargetId(): string | null {
     const stack = this.selectedStack();
-    if (!this.state || !stack || !this.canPlayerAct) {
-      return [];
+    return stack?.explicitAttackTargetId ?? null;
+  }
+
+  /* Effective reach of the selected stack (range + tolerance) in vw, for
+   * the range ring. Uses the same value as the canAttack gate. */
+  get selectedRangeRing(): { x: number; y: number; radiusVw: number } | null {
+    const stack = this.selectedStack();
+    if (!stack) {
+      return null;
     }
-    return getMoveToAttackTargetIds(this.state, stack);
+    return { x: stack.x, y: stack.y, radiusVw: effectiveAttackRange(stack) * BATTLE_RANGE_UNIT_VW };
+  }
+
+  get selectedTargetingMode(): BattleTargetingMode {
+    return this.selectedStack()?.targetingMode ?? DEFAULT_TARGETING_MODE;
+  }
+
+  setSelectedTargetingMode(mode: BattleTargetingMode): void {
+    const stack = this.selectedStack();
+    if (!stack || !this.state || !isSidePlayerControlled(this.state, stack.side)) {
+      return;
+    }
+    setTargetingMode(stack, mode);
+    this.cdr.detectChanges();
+  }
+
+  /* Short status of the selected stack's current order for the panel. */
+  get selectedOrderLabel(): string {
+    const stack = this.selectedStack();
+    if (!stack || !this.state) {
+      return '';
+    }
+    const target = stack.explicitAttackTargetId
+      ? this.state.stacks.find((s) => s.stackId === stack.explicitAttackTargetId && !s.destroyed)
+      : null;
+    if (target) {
+      return canAttack(stack, target) ? `ATTACKING ${target.typeName}` : `CHASING ${target.typeName}`;
+    }
+    if (stack.manualMoveOrder && stack.moving) {
+      return 'MOVING';
+    }
+    return 'AUTO TARGET';
+  }
+
+  get isSelectedPlayerStack(): boolean {
+    const stack = this.selectedStack();
+    return !!stack && !!this.state && isSidePlayerControlled(this.state, stack.side);
   }
 
   get effects(): BattleAttackEffect[] {
@@ -473,7 +419,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
           this.enableMotion();
         }
       } catch {
-        // Permission denied or unavailable â€” background remains centered.
+        // Permission denied or unavailable — background remains centered.
       }
     } else if ('DeviceOrientationEvent' in window) {
       this.enableMotion();
@@ -488,6 +434,10 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
   ngOnInit(): void {
     if (this.battle) {
       this.state = createBattleState(this.battle, this.shipService, this.planetBattleService);
+      const state = this.state;
+      this.playerSides = (['attacker', 'defender'] as const).filter((side) =>
+        isSidePlayerControlled(state, side),
+      );
       checkVictory(this.state);
     }
     this.gameTimeService.pause();
@@ -507,7 +457,6 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
   ngOnDestroy(): void {
     this.ticksSub.unsubscribe();
     this.battleTimeSub.unsubscribe();
-    this.clearCommandQueue();
     this.movement.cancelPendingMovementWaits();
     this.gameLoop.stopGameLoop();
     this.anim.reset();
@@ -530,26 +479,16 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     }
     // Player can only control stacks on their own side (determined per-stack).
     if (isSidePlayerControlled(this.state, stack.side)) {
-      // Own stack: select it to reveal movement / attack options.
-      // Selection works even while moving â€” commands can be redirected at any time.
-      // Clear any pending commands for the old stack when switching
-      if (this._selectedStackId !== stack.stackId) {
-        this.clearCommandQueue();
-      }
+      // Own stack: select it. Selection is UI-only; orders of the previously
+      // selected stack stay in force.
       this.selectedStackId = stack.stackId;
       return;
     }
-    // Enemy stack: attack it immediately when it is in absolute range.
     const selected = this.selectedStack();
     if (!selected) {
       return;
     }
-    if (computeAttackTargetIds(this.state, selected).includes(stack.stackId)) {
-      void this.doAttack(selected, stack);
-      return;
-    }
-    // Otherwise move towards the enemy and attack when in range.
-    void this.moveTowardsAndAttack(selected, stack);
+    this.orderAttack(selected, stack);
   }
 
   onCellClick(col: number, row: number): void {
@@ -560,7 +499,64 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     if (!selected) {
       return;
     }
-    void this.doMove(selected, col, row);
+    void this.orderMove(selected, col, row);
+  }
+
+  /*
+   * Manual attack order. Replaces any previous order of this stack. Fire
+   * control shoots the target whenever it is in reach (respecting the fire
+   * cooldown — re-clicking does not fire faster); while it is out of reach
+   * the stack chases it and maintainAttackOrders() keeps re-issuing the
+   * chase until the target dies or a new order is given.
+   */
+  orderAttack(attacker: BattleStack, target: BattleStack): void {
+    if (!this.state || attacker.destroyed || target.destroyed || attacker.side === target.side) {
+      return;
+    }
+    attacker.explicitAttackTargetId = target.stackId;
+    attacker.manualMoveOrder = false;
+    attacker.moveToAttackTargetId = null;
+    if (canAttack(attacker, target)) {
+      // Cancel a previous move so the stack does not drift out of reach.
+      if (attacker.moving) {
+        this.movement.stopStack(this.state, attacker.stackId);
+      }
+    } else {
+      void this.movement.moveToAttack(this.state, attacker.stackId, target.stackId);
+    }
+    this.cdr.detectChanges();
+  }
+
+  /* Manual move order. Replaces any attack order only when the move is
+   * legal; a blocked path leaves the previous order untouched. */
+  async orderMove(stack: BattleStack, col: number, row: number): Promise<boolean> {
+    if (!this.state || stack.destroyed) {
+      return false;
+    }
+    const success = await this.movement.moveStack(this.state, stack.stackId, col, row);
+    if (!success) {
+      this.showMoveBlockedHint();
+      return false;
+    }
+    stack.explicitAttackTargetId = null;
+    stack.moveToAttackTargetId = null;
+    stack.manualMoveOrder = true;
+    this.moveFailedUntil = 0;
+    this.cdr.detectChanges();
+    return true;
+  }
+
+  private showMoveBlockedHint(): void {
+    this.moveFailedUntil = performance.now() + 1500;
+    this.cdr.detectChanges();
+    if (this.movementHintTimer !== null) {
+      clearTimeout(this.movementHintTimer);
+    }
+    this.movementHintTimer = window.setTimeout(() => {
+      this.moveFailedUntil = 0;
+      this.movementHintTimer = null;
+      this.cdr.detectChanges();
+    }, 1500);
   }
 
   selectedStack(): BattleStack | null {
@@ -571,7 +567,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
   }
 
   /* Aggregate stats for the selected stack's info panel. Pure reads of
-   * BattleStack/BattleShip state; no combat logic is duplicated here â€”
+   * BattleStack/BattleShip state; no combat logic is duplicated here —
    * the sums mirror the values used by BattleCombatService (totalAttack)
    * and BattleGridComponent.hullFraction (HP fraction). */
   get selectedShipCount(): number {
@@ -600,7 +596,7 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
   }
 
   /* Aggregate shield for the selected stack's info panel. Pure reads of
-   * BattleShip.shield/maxShield â€” no combat logic duplicated here. */
+   * BattleShip.shield/maxShield — no combat logic duplicated here. */
   get selectedTotalShield(): number {
     const stack = this.selectedStack();
     return stack ? stack.ships.reduce((sum, s) => (s.alive ? sum + (s.shield ?? 0) : sum), 0) : 0;
@@ -621,25 +617,22 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     return max > 0 ? Math.max(0, this.selectedTotalHp / max) : 0;
   }
 
-  /* Carrier Shield Pulse: the selected stack is a Carrier that can act,
-   * is not moving, and has not yet been blocked by the busy lock.
-   * Pure read of existing state â€” no combat logic duplicated here. */
+  /* Carrier Shield Pulse availability for the selected player Carrier.
+   * Delegates to BattleCombatService so the button and the action share
+   * the same rules (stationary, off fire cooldown, an ally needs shield). */
   get canCarrierBoost(): boolean {
     if (!this.state || !this.canAct) {
       return false;
     }
     const stack = this.selectedStack();
-    if (!stack || stack.typeId !== 'carrier' || stack.destroyed) {
+    if (!stack || !isSidePlayerControlled(this.state, stack.side)) {
       return false;
     }
-    if (stack.moving || stack.immobile) {
-      return false;
-    }
-    return computeCarrierBoostTargets(this.state, stack).length > 0;
+    return this.combat.canCarrierBoost(this.state, stack.stackId);
   }
 
   /* Friendly stacks that would be restored by a Shield Pulse. Pure read
-   * of existing state â€” used only to highlight them in the grid. */
+   * of existing state — used only to highlight them in the grid. */
   get carrierBoostTargetIds(): string[] {
     const stack = this.selectedStack();
     return stack && this.state ? computeCarrierBoostTargets(this.state, stack) : [];
@@ -687,255 +680,16 @@ private async executeCommand(command: () => Promise<boolean>, stackId?: string):
     };
   }
 
-  async doCarrierBoost(): Promise<boolean> {
+  doCarrierBoost(): boolean {
     const stack = this.selectedStack();
-    if (!stack) {
-      return Promise.resolve(false);
+    if (!stack || !this.state) {
+      return false;
     }
-    return this.enqueueCommand(async () => {
-      if (!this.state) {
-        return false;
-      }
-      const success = this.combat.carrierShieldBoost(this.state, stack.stackId);
-      if (success) {
-        this.cdr.detectChanges();
-      }
-      return success;
-    }, stack.stackId);
-  }
-
-  private async doMoveToAttack(attacker: BattleStack, target: BattleStack): Promise<boolean> {
-    return this.enqueueCommand(async () => {
-      const currentAttacker = this.state?.stacks.find(
-        (stack) => stack.stackId === attacker.stackId && !stack.destroyed,
-      );
-      const currentTarget = this.state?.stacks.find(
-        (stack) => stack.stackId === target.stackId && !stack.destroyed,
-      );
-      if (!this.state || !currentAttacker || !currentTarget) {
-        return false;
-      }
-      currentAttacker.explicitAttackTargetId = null;
-      const success = await this.movement.moveToAttack(
-        this.state,
-        currentAttacker.stackId,
-        currentTarget.stackId,
-      );
-      if (!success) {
-        return false;
-      }
-      if (currentAttacker.moving) {
-        await this.movement.waitForMovement(currentAttacker);
-      }
-      return true;
-    }, attacker.stackId);
-  }
-
-  private async moveTowardsAndAttack(attacker: BattleStack, target: BattleStack): Promise<boolean> {
-    return this.enqueueCommand(async () => {
-      const currentAttacker = this.state?.stacks.find(
-        (stack) => stack.stackId === attacker.stackId && !stack.destroyed,
-      );
-      const currentTarget = this.state?.stacks.find(
-        (stack) => stack.stackId === target.stackId && !stack.destroyed,
-      );
-      if (!this.state || !currentAttacker || !currentTarget) {
-        return false;
-      }
-
-      currentAttacker.explicitAttackTargetId = currentTarget.stackId;
-      currentAttacker.actionCooldownUntil = 0;
-      const success = await this.movement.moveToAttack(
-        this.state,
-        currentAttacker.stackId,
-        currentTarget.stackId,
-      );
-      if (!success) {
-        return false;
-      }
-      if (currentAttacker.moving) {
-        await this.movement.waitForMovement(currentAttacker);
-      }
-
-      const latestTarget = this.state.stacks.find(
-        (stack) => stack.stackId === currentTarget.stackId && !stack.destroyed,
-      );
-      if (
-        latestTarget &&
-        !latestTarget.destroyed &&
-        latestTarget.side !== currentAttacker.side &&
-        isAbsoluteInRange(currentAttacker, latestTarget, currentAttacker.attackRange)
-      ) {
-        return this.tryAutoAttack(currentAttacker);
-      }
-      return true;
-    }, attacker.stackId);
-  }
-
-  private async doMove(
-    stack: BattleStack,
-    col: number,
-    row: number,
-    waitForCompletion = false,
-  ): Promise<boolean> {
-    waitForCompletion = waitForCompletion || this.battleTime.isPaused || this.commandRunning;
-return this.enqueueCommand(async () => {
-      const currentStack = this.state?.stacks.find(
-        (candidate) => candidate.stackId === stack.stackId && !candidate.destroyed,
-      );
-      if (!this.state || !currentStack) {
-        return false;
-      }
-
-      currentStack.explicitAttackTargetId = null;
-      const success = await this.movement.moveStack(this.state, currentStack.stackId, col, row);
-      if (!success) {
-        if (!waitForCompletion) {
-          this.moveFailedUntil = performance.now() + 1500;
-          this.cdr.detectChanges();
-          if (this.movementHintTimer !== null) {
-            clearTimeout(this.movementHintTimer);
-          }
-          this.movementHintTimer = window.setTimeout(() => {
-            this.moveFailedUntil = 0;
-            this.movementHintTimer = null;
-            this.cdr.detectChanges();
-          }, 1500);
-        }
-        return false;
-      }
-
-      if (waitForCompletion && currentStack.moving) {
-        await this.movement.waitForMovement(currentStack);
-      }
-      this.moveFailedUntil = 0;
-      if (this.movementHintTimer !== null) {
-        clearTimeout(this.movementHintTimer);
-      }
+    const success = this.combat.carrierShieldBoost(this.state, stack.stackId);
+    if (success) {
       this.cdr.detectChanges();
-      return true;
-    }, stack.stackId);
-  }
-
-  /* Single auto-attack attempt for a player-controlled stack.
-   * Returns true if an attack was initiated, false otherwise.
-   * Called from game loop for all player stacks. */
-  private async tryAutoAttack(attacker: BattleStack, attackedTargetsThisFrame?: Set<string>): Promise<boolean> {
-    if (!this.state || this.state.winner || this.battleTime.isPaused) {
-      return false;
     }
-    // Only player-controlled stacks auto-attack
-    if (!isSidePlayerControlled(this.state, attacker.side)) {
-      return false;
-    }
-    if (attacker.destroyed) {
-      return false;
-    }
-    // Don't auto-attack if player manually commanded this stack to move
-    if (attacker.moving) {
-      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: moving=true`);
-      return false;
-    }
-    // Per-stack fire-rate cooldown using battle-local time
-    const now = this.battleTime.battleElapsedMs;
-    if (attacker.actionCooldownUntil && attacker.actionCooldownUntil > now) {
-      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: fireRateCD (until=${attacker.actionCooldownUntil.toFixed(0)}, now=${now.toFixed(0)})`);
-      return false;
-    }
-    // Per-stack animation lock: don't start new attack if this stack is already animating
-    if (this.anim.isStackBusy(attacker.stackId)) {
-      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: animBusy=true`);
-      return false;
-    }
-
-    // Check explicit attack target
-    let targetStack: BattleStack | undefined;
-    const explicitTargetId = attacker.explicitAttackTargetId;
-
-    if (explicitTargetId) {
-      targetStack = this.state.stacks.find((s) => s.stackId === explicitTargetId);
-      const inRange = targetStack
-        && !targetStack.destroyed
-        && targetStack.side !== attacker.side
-        && computeAttackTargetIds(this.state, attacker).includes(targetStack.stackId);
-
-      if (!inRange) {
-        attacker.explicitAttackTargetId = null;
-        targetStack = undefined;
-      }
-    }
-
-    // Normal auto-attack target selection
-    if (!targetStack) {
-      const targets = computeAttackTargetIds(this.state, attacker);
-      if (targets.length === 0) {
-        console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: noTargets`);
-        return false;
-      }
-      targetStack = this.state.stacks.find((s) => s.stackId === targets[0]);
-      if (!targetStack) {
-        return false;
-      }
-    }
-
-    // Skip if this target was already attacked by another friendly stack this frame
-    if (attackedTargetsThisFrame && attackedTargetsThisFrame.has(targetStack.stackId)) {
-      console.log(`[PLAYER-AUTO-SKIP] ${attacker.stackId}: targetInFrameSet=true (${targetStack.stackId})`);
-      return false;
-    }
-
-    // Initiate attack
-    console.log(`[PLAYER-AUTO-ATTACK] ${attacker.stackId} -> ${targetStack.stackId}`);
-    const success = await this.combat.attackStack(this.state, attacker.stackId, targetStack.stackId);
-    if (!success) {
-      return false;
-    }
-    this.cdr.detectChanges();
-
-    // Mark target as attacked this frame
-    if (attackedTargetsThisFrame) {
-      attackedTargetsThisFrame.add(targetStack.stackId);
-    }
-
-      // Set per-stack cooldown for next attack using battle-local time
-      const fireRate = attacker.fireRate ?? 1.5;
-      const fireRateMs = (1 / fireRate) * 1000 * FIRE_RATE_MULTIPLIER;
-      const hullBonus = Math.floor(attacker.ships.reduce((sum, s) => sum + s.hp, 0) * 0.3);
-      attacker.actionCooldownUntil = now + fireRateMs + hullBonus;
-      console.log(`[PLAYER-AUTO-COOLDOWN] ${attacker.stackId} set until=${attacker.actionCooldownUntil.toFixed(0)} (fireRateMs=${fireRateMs.toFixed(0)} hullBonus=${hullBonus})`);
-
-    // If explicit target was destroyed, clear it
-    if (explicitTargetId && targetStack.destroyed) {
-      attacker.explicitAttackTargetId = null;
-    }
-
-    return true;
-  }
-
-  private async doAttack(attacker: BattleStack, target: BattleStack): Promise<boolean> {
-    return this.enqueueCommand(async () => {
-      if (!this.state) {
-        return false;
-      }
-      const currentAttacker = this.state.stacks.find((s) => s.stackId === attacker.stackId && !s.destroyed);
-      const currentTarget = this.state.stacks.find((s) => s.stackId === target.stackId && !s.destroyed);
-      if (!currentAttacker || !currentTarget) {
-        return false;
-      }
-      // Set explicit attack target - overrides auto-attack until target destroyed or new command
-      currentAttacker.explicitAttackTargetId = currentTarget.stackId;
-      // Clear cooldown so explicit attack fires immediately
-      currentAttacker.actionCooldownUntil = 0;
-      // Fire explicit attack immediately (bypasses game loop cooldown)
-      const success = await this.combat.attackStack(this.state, currentAttacker.stackId, currentTarget.stackId);
-      this.cdr.detectChanges();
-
-      // If explicit target was destroyed, clear it
-      if (currentTarget.destroyed) {
-        currentAttacker.explicitAttackTargetId = null;
-      }
-      return success;
-    }, attacker.stackId);
+    return success;
   }
 
   private startGameLoop(): void {
@@ -947,81 +701,63 @@ return this.enqueueCommand(async () => {
     });
   }
 
+  /*
+   * One simulation frame. deltaTime is already scaled by battle speed and
+   * is 0 while paused, in which case nothing advances (orders given while
+   * paused are stored and take effect on resume).
+   *
+   * Order matters:
+   *   1. positions         — movement interpolation
+   *   2. AI / AUTO ticks   — movement decisions (never firing)
+   *   3. re-planning       — chase destinations + manual order upkeep
+   *   4. fire control      — every stack, both sides, own cadence
+   *   5. shield regen
+   *   6. victory check + view tick (always, so the result modal appears)
+   */
   private gameLoopCallback(deltaTime: number): void {
     if (!this.state) {
       return;
     }
+    const state = this.state;
+    const running = !state.winner && !this.battleTime.isPaused && deltaTime > 0;
 
-    // Skip all updates when paused (deltaTime === 0 when paused)
-    const isPaused = this.battleTime.isPaused || deltaTime <= 0;
+    if (running) {
+      const deltaMs = deltaTime * 1000;
+      updateStackPositions(state, deltaTime, (stackId) => this.movement.completeMovement(stackId));
 
-    // 1. Update stack positions (real-time movement).
-    if (!this.state.winner && !isPaused) {
-      updateStackPositions(this.state, deltaTime, (stackId) => this.movement.completeMovement(stackId));
-    } else if (!this.state.winner && isPaused) {
-      // When paused, don't keep stacks in moving state - they'll resume on unpause
-      for (const stack of this.state.stacks) {
-        if (stack.moving && stack.targetX != null && stack.targetY != null) {
-          // Keep target but don't animate
-        }
-      }
-    }
-
-    // 2. AI tick: one action every AI_ACTION_INTERVAL_MS.
-    // AI service internally checks per-stack animation locks.
-    if (!this.state.winner && !isPaused) {
-      this.aiTickAccumulator += deltaTime * 1000;
+      this.aiTickAccumulator += deltaMs;
       if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS) {
         this.aiTickAccumulator = 0;
-        void this.ai.playAction(this.state);
+        void this.ai.playAction(state);
       }
-    }
 
-    // 2b. Auto-battle AI tick: when auto battle is enabled, AI also controls player stacks.
-    // Runs at the same interval as regular AI.
-    if (!this.state.winner && !isPaused && this.autoBattleEnabled) {
-      this.autoBattleTickAccumulator += deltaTime * 1000;
-      if (this.autoBattleTickAccumulator >= AI_ACTION_INTERVAL_MS) {
-        this.autoBattleTickAccumulator = 0;
-        void this.ai.playAction(this.state, true); // true = include player-controlled sides
+      // AUTO drives only player stacks without a manual order.
+      if (this.autoBattleEnabled) {
+        this.autoBattleTickAccumulator += deltaMs;
+        if (this.autoBattleTickAccumulator >= AI_ACTION_INTERVAL_MS) {
+          this.autoBattleTickAccumulator = 0;
+          void this.ai.playAction(state, true);
+        }
       }
-    }
 
-    // 2c. Player auto-attack: attempt attack for all player-controlled stacks.
-    // Runs every frame; per-stack cooldown prevents over-attacking.
-    // Only runs when auto-battle is OFF (otherwise AI handles it)
-    if (!this.state.winner && !isPaused && !this.autoBattleEnabled) {
-      const state = this.state!; // non-null after winner check
-      const playerStacks = state.stacks.filter(
-        (s) => !s.destroyed && isSidePlayerControlled(state, s.side)
-      );
-      const attackedTargetsThisFrame = new Set<string>();
-      for (const stack of playerStacks) {
-        void this.tryAutoAttack(stack, attackedTargetsThisFrame);
+      this.replanAccumulator += deltaMs;
+      if (this.replanAccumulator >= MOVE_REPLAN_INTERVAL_MS) {
+        this.replanAccumulator = 0;
+        this.movement.maintainAttackOrders(state);
+        this.movement.updateMoveToAttackTargets(state);
       }
-    }
 
-    // 3. Shield regeneration: every SHIELD_REGEN_INTERVAL_MS for all sides.
-    if (!this.state.winner && !isPaused) {
-      this.shieldRegenAccumulator += deltaTime * 1000;
+      this.combat.runFireControl(state);
+
+      this.shieldRegenAccumulator += deltaMs;
       if (this.shieldRegenAccumulator >= SHIELD_REGEN_INTERVAL_MS) {
         this.shieldRegenAccumulator = 0;
-        regenerateAllShields(this.state);
-        this.state.round++;
+        regenerateAllShields(state);
+        state.round++;
       }
     }
 
-    // 3b. Move-to-attack re-computation: every frame.
-    // Re-evaluates destination cells for stacks chasing moving targets so
-    // AI ships don't overshoot or lag behind targets that change direction.
-    if (!this.state.winner && !isPaused) {
-      this.movement.updateMoveToAttackTargets(this.state);
-    }
-
-    // 4. Victory check after movement and AI action.
-    checkVictory(this.state);
-
-    // 5. Trigger change detection for real-time position updates and result display.
+    checkVictory(state);
     this.anim.tick();
   }
 

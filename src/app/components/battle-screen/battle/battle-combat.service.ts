@@ -1,49 +1,121 @@
 import { Injectable } from '@angular/core';
-import { ANIMATION_MS, BattleModelState, BattleAttackEffect } from './battle.types';
+import {
+  ANIMATION_MS,
+  BattleModelState,
+  BattleAttackEffect,
+  BattleStack,
+  FIRE_RATE_MULTIPLIER,
+  battleDebug,
+} from './battle.types';
 import {
   checkVictory,
   computeCarrierBoostTargets,
   canAttack,
   weaponMultiplier,
   applyShieldRegen,
-  absoluteDistanceCells,
+  absoluteDistanceRangeUnits,
 } from './battle-grid';
+import { rememberAutoTarget, selectFireTarget } from './battle-targeting';
 import { BattleAnimationService } from './battle-animation.service';
+import { BattleTimeService } from './battle-time.service';
 
 /*
  * =========================================================
  *  BATTLE MINIGAME — COMBAT SERVICE
  * =========================================================
  *
- * One attack command = the whole stack fires one volley. Total damage is
- * the sum of the firing stack's alive-ship attack values, reduced by the
- * target front ship's defense (per-ship semantics, not summed), floored
- * at 1 — the same max(1, attack - defense) rule the old auto-resolver
- * used, just aggregated over the stack.
+ * One attack = the whole stack fires one volley. Total damage is the sum
+ * of the firing stack's alive-ship attack values, reduced by the target
+ * front ship's defense (per-ship semantics, not summed), scaled by weapon
+ * effectiveness (attacker attackType vs front target weakness: 1.5x /
+ * 1.0x / 0.5x), floored at 1. Damage is applied ship by ship in order;
+ * each ship's shield absorbs first, overkill spills to the next ship.
  *
- * The raw (attack - defense) value is then scaled by weapon
- * effectiveness: the attacker's attackType vs the front target ship's
- * weakness. Same-type vs weakness = 1.5x, neutral = 1.0x, resistant =
- * 0.5x. Pure and deterministic.
+ * Fire control (runFireControl) is the ONLY place that decides when a
+ * stack fires. It runs every frame for every living stack of both sides —
+ * player, AUTO and enemy AI alike — so all stacks fire at the same cadence
+ * of (1 / fireRate) s * FIRE_RATE_MULTIPLIER. Whom to shoot comes from
+ * battle-targeting.ts. Player commands and the AI only set orders/movement.
  *
- * Damage is applied to the target stack's ships in order; overkill
- * spills to the next ship. Each ship's shield absorbs damage first; only
- * overflow reaches hull HP. A ship is destroyed only when its hull HP
- * reaches zero. Shield regeneration is now timer-based (every 1s), not
- * tied to turns.
+ * Planet-defense turrets are immobile but DO fire.
  *
- * The Carrier has one special action: Shield Pulse. It restores
- * shieldRegen to every friendly stack within its attack range, capped
- * at each ship's maxShield. Deterministic, non-damage, and entirely
- * additive — it does not alter the basic attack or movement systems.
- * Shield Pulse is gated by the animation busy lock and the Carrier's stationary
- * action rule (no AP cost, no per-turn limit).
+ * The Carrier has one special action: Shield Pulse. It restores the
+ * Carrier's shieldRegen to every friendly stack within its reach (capped at
+ * each ship's maxShield) and consumes the Carrier's fire cooldown, so it
+ * replaces one volley rather than being free.
  */
 
 @Injectable({ providedIn: 'root' })
 export class BattleCombatService {
-  constructor(private anim: BattleAnimationService) {}
+  constructor(
+    private anim: BattleAnimationService,
+    private time: BattleTimeService,
+  ) {}
 
+  /* Milliseconds (battle time) between two volleys of a stack. */
+  fireIntervalMs(stack: BattleStack): number {
+    const fireRate = stack.fireRate > 0 ? stack.fireRate : 1.5;
+    return (1000 / fireRate) * FIRE_RATE_MULTIPLIER;
+  }
+
+  /* True when the stack's fire cooldown has elapsed. */
+  isFireReady(stack: BattleStack): boolean {
+    return (stack.attackCooldownUntil ?? 0) <= this.time.battleElapsedMs;
+  }
+
+  /*
+   * Per-frame fire control for every living stack on both sides. Also the
+   * single place where orders pointing at destroyed stacks are cleaned up,
+   * so no stack is ever left holding a dead target (which would block AUTO
+   * from taking over again).
+   */
+  runFireControl(state: BattleModelState): void {
+    if (state.winner) {
+      return;
+    }
+    const now = this.time.battleElapsedMs;
+    for (const stack of state.stacks) {
+      if (stack.destroyed) {
+        continue;
+      }
+      this.clearDeadOrders(state, stack);
+      if ((stack.attackCooldownUntil ?? 0) > now || this.anim.isStackBusy(stack.stackId)) {
+        continue;
+      }
+      if (!stack.ships.some((s) => s.alive && s.attack > 0)) {
+        continue;
+      }
+      const target = selectFireTarget(state, stack);
+      if (!target) {
+        continue;
+      }
+      stack.attackCooldownUntil = now + this.fireIntervalMs(stack);
+      rememberAutoTarget(stack, target);
+      void this.attackStack(state, stack.stackId, target.stackId);
+    }
+  }
+
+  private clearDeadOrders(state: BattleModelState, stack: BattleStack): void {
+    const isDead = (id: string | null | undefined): boolean =>
+      !!id && !state.stacks.some((s) => s.stackId === id && !s.destroyed);
+    if (isDead(stack.explicitAttackTargetId)) {
+      // Order completed: the stack returns to its automatic targeting mode.
+      if (stack.moveToAttackTargetId === stack.explicitAttackTargetId) {
+        stack.moveToAttackTargetId = null;
+      }
+      stack.explicitAttackTargetId = null;
+    }
+    if (isDead(stack.autoTargetId)) {
+      stack.autoTargetId = null;
+    }
+  }
+
+  /*
+   * Resolves one volley with its projectile → impact/explosion animation.
+   * Validates range at fire time only; the projectile does not track a
+   * target that moves during the animation. Callers are responsible for
+   * the fire cooldown (runFireControl sets it).
+   */
   async attackStack(
     state: BattleModelState,
     attackerStackId: string,
@@ -57,24 +129,18 @@ export class BattleCombatService {
     if (attacker.side === target.side) {
       return false;
     }
-    if (attacker.immobile) {
-      return false;
-    }
 
     const from = { x: attacker.x, y: attacker.y };
     const to = { x: target.x, y: target.y };
     const canAttackNow = canAttack(attacker, target);
-    console.log(`[ATTACK] ${attackerStackId} (${attacker.side}) @(${attacker.col},${attacker.row}) -> ${targetStackId} (${target.side}) @(${target.col},${target.row}) | canAttack=${canAttackNow} | dist=${absoluteDistanceCells(attacker, target).toFixed(2)} | range=${attacker.attackRange}`);
+    battleDebug(`[ATTACK] ${attackerStackId} -> ${targetStackId} | canAttack=${canAttackNow} | dist=${absoluteDistanceRangeUnits(attacker, target).toFixed(2)} | range=${attacker.attackRange}`);
 
     if (!canAttackNow) {
-      console.log(`[ATTACK] -> FAILED: not in range`);
       return false;
     }
 
-    console.log(`[ATTACK] -> EXECUTING`);
     await this.anim.run(async () => {
       attacker.firing = true;
-      console.log(`[ATTACK-ANIM-START] ${attackerStackId} firing=true`);
       const effect: BattleAttackEffect = { phase: 'projectile', from, to, targetStackId: target.stackId, attackerStackId: attacker.stackId };
       state.effects.push(effect);
       this.anim.tick();
@@ -83,14 +149,15 @@ export class BattleCombatService {
       const totalAttack = attacker.ships
         .filter((s) => s.alive)
         .reduce((sum, s) => sum + s.attack, 0);
+      // The target may have been destroyed by another stack while this
+      // projectile was in flight; then there is no front ship and the
+      // volley is wasted (no damage, no log entry).
       const front = target.ships.find((s) => s.alive);
 
       if (front) {
         const raw = totalAttack - front.defense;
-        // Weapon effectiveness scales the raw (attack - defense) volley by
-        // the attacker's weapon type vs the front target ship's weakness.
-        // The attacker's type is taken from its front ship (stacks are
-        // homogeneous by type per buildStacks).
+        // The attacker's weapon type is taken from its front ship (stacks
+        // are homogeneous by type per buildStacks).
         const attackerFront = attacker.ships.find((s) => s.alive);
         const multiplier = weaponMultiplier(
           attackerFront?.attackType ?? 'kinetic',
@@ -114,7 +181,6 @@ export class BattleCombatService {
           if (!ship.alive || remaining <= 0) {
             continue;
           }
-          // Shield absorbs damage first; only overflow reaches hull HP.
           const shieldHp = ship.shield ?? 0;
           const shieldDamage = Math.min(shieldHp, remaining);
           ship.shield = shieldHp - shieldDamage;
@@ -144,7 +210,6 @@ export class BattleCombatService {
           kills,
         });
 
-        // Update the effect to impact/explosion phase
         const effectIdx = state.effects.findIndex(e => e.attackerStackId === attacker.stackId);
         if (effectIdx >= 0) {
           state.effects[effectIdx] = {
@@ -156,13 +221,11 @@ export class BattleCombatService {
         await this.anim.wait(targetDestroyed ? ANIMATION_MS.explosion : ANIMATION_MS.hit);
       }
 
-      // Remove the effect
       const effectIdx = state.effects.findIndex(e => e.attackerStackId === attacker.stackId);
       if (effectIdx >= 0) {
         state.effects.splice(effectIdx, 1);
       }
       attacker.firing = false;
-      console.log(`[ATTACK-ANIM-END] ${attackerStackId} firing=false`);
       checkVictory(state);
       this.anim.tick();
     }, attacker.stackId);
@@ -170,33 +233,45 @@ export class BattleCombatService {
   }
 
   /*
-   * Carrier Shield Pulse. The Carrier spends its attack action to restore
-   * its shieldRegen to every friendly stack within its attack range,
-   * capped at each ship's maxShield. Deterministic, non-damage, and
-   * additive — it reuses the same action gates (attackedThisTurn + attackAp)
-   * as a normal attack so the turn lifecycle needs no changes.
+   * Whether a Shield Pulse would do anything right now: the Carrier is
+   * alive, stationary, not animating, off cooldown, and at least one ally in
+   * reach has missing shield. Pure read — used by the UI button and the AI.
    */
-  carrierShieldBoost(state: BattleModelState, carrierStackId: string): boolean {
-    if (this.anim.isBusy) {
-      return false;
-    }
+  canCarrierBoost(state: BattleModelState, carrierStackId: string): boolean {
     const carrier = state.stacks.find((s) => s.stackId === carrierStackId && !s.destroyed);
-    if (!carrier || carrier.typeId !== 'carrier') {
+    if (!carrier || carrier.typeId !== 'carrier' || state.winner) {
       return false;
     }
-    if (state.winner) {
+    if (carrier.moving || carrier.immobile || carrier.firing || this.anim.isStackBusy(carrier.stackId)) {
       return false;
     }
-    if (carrier.moving || carrier.immobile || carrier.firing) {
+    if (!this.isFireReady(carrier)) {
       return false;
     }
-
-    // The regen amount comes from the Carrier's own front alive ship.
-    const carrierFront = carrier.ships.find((s) => s.alive);
-    const regen = carrierFront?.shieldRegen ?? 0;
+    const regen = carrier.ships.find((s) => s.alive)?.shieldRegen ?? 0;
     if (regen <= 0) {
       return false;
     }
+    const targetIds = new Set(computeCarrierBoostTargets(state, carrier));
+    return state.stacks.some(
+      (s) =>
+        targetIds.has(s.stackId) &&
+        s.ships.some((ship) => ship.alive && (ship.maxShield ?? 0) > (ship.shield ?? 0)),
+    );
+  }
+
+  /*
+   * Carrier Shield Pulse. Restores the Carrier's front-ship shieldRegen to
+   * every friendly ship within reach, capped at maxShield, and consumes the
+   * Carrier's fire cooldown. Returns false (and costs nothing) when the
+   * pulse would not restore any shield.
+   */
+  carrierShieldBoost(state: BattleModelState, carrierStackId: string): boolean {
+    if (!this.canCarrierBoost(state, carrierStackId)) {
+      return false;
+    }
+    const carrier = state.stacks.find((s) => s.stackId === carrierStackId)!;
+    const regen = carrier.ships.find((s) => s.alive)?.shieldRegen ?? 0;
 
     const targetIds = new Set(computeCarrierBoostTargets(state, carrier));
     for (const stack of state.stacks) {
@@ -214,8 +289,7 @@ export class BattleCombatService {
         ship.shield = applyShieldRegen(ship.shield ?? 0, max, regen);
       }
     }
-
-    checkVictory(state);
+    carrier.attackCooldownUntil = this.time.battleElapsedMs + this.fireIntervalMs(carrier);
     return true;
   }
 }

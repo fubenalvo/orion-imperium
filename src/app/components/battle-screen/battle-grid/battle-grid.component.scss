@@ -3,6 +3,10 @@
 }
 
 .battle-grid {
+  /* Must match BATTLE_FIELD_*_VW / BATTLE_GRID_COLUMNS|ROWS in battle.types.ts.
+   * Children (stack cells, effects, planet marker) size themselves from these. */
+  --cell-w: calc(72vw / 38);
+  --cell-h: calc(28vw / 16);
   position: relative;
   width: 72vw;
   height: 28vw;
@@ -10,7 +14,7 @@
   background-image:
     linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
     linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
-  background-size: calc(72vw / 19) calc(28vw / 8);
+  background-size: var(--cell-w) var(--cell-h);
   border-bottom: rgba(53, 134, 229, 0.1) 2px solid;
   cursor: crosshair;
   box-shadow: 0px 58vw 0px 30vw rgba(0, 0, 0, 1);
@@ -22,8 +26,8 @@
 
 .move-cell {
   position: absolute;
-  width: calc(0.8 * 72vw / 19);
-  height: calc(0.8 * 28vw / 8);
+  width: calc(0.8 * var(--cell-w));
+  height: calc(0.8 * var(--cell-h));
   transform: translate(-50%, -50%);
   border: 1px dashed rgba(140, 196, 255, 0.45);
   border-radius: 2px;
@@ -37,8 +41,8 @@
 
 .stack-cell {
   position: absolute;
-  width: calc(0.925 * 72vw / 19);
-  height: calc(0.925 * 28vw / 8);
+  width: calc(0.925 * var(--cell-w));
+  height: calc(0.925 * var(--cell-h));
   transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
@@ -52,15 +56,15 @@
 }
 
 .stack-cell--size-1 {
-  width: calc(0.925 * 72vw / 19);
+  width: calc(0.925 * var(--cell-w));
 }
 
 .stack-cell--size-2 {
-  width: calc(2 * 0.925 * 72vw / 19 + 0.2vw);
+  width: calc(2 * 0.925 * var(--cell-w) + 0.2vw);
 }
 
 .stack-cell--size-3 {
-  width: calc(3 * 0.925 * 72vw / 19 + 2 * 0.2vw);
+  width: calc(3 * 0.925 * var(--cell-w) + 2 * 0.2vw);
 }
 
 .stack {
@@ -92,6 +96,55 @@
 .stack:hover {
   border-color: var(--color-blue-bright);
   box-shadow: 0 0 12px rgba(140, 196, 255, 0.6);
+}
+
+/* =========================================================
+   FRIEND / FOE
+   Fixed blue-vs-red scheme, independent of faction colors, plus a
+   distinct shape per side so the cue survives color blindness.
+   ========================================================= */
+
+.stack--enemy {
+  cursor: crosshair;
+}
+
+.stack--enemy:hover {
+  border-color: #ff6b6b;
+  box-shadow: 0 0 12px rgba(255, 82, 82, 0.6);
+}
+
+.stack__marker {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* Own stacks: four corner brackets framing the cell. */
+.stack--friendly .stack__marker {
+  --bracket: 28%;
+  --bracket-color: rgba(140, 196, 255, 0.85);
+  inset: 0;
+  background:
+    linear-gradient(var(--bracket-color), var(--bracket-color)) top left / var(--bracket) 1px,
+    linear-gradient(var(--bracket-color), var(--bracket-color)) top left / 1px var(--bracket),
+    linear-gradient(var(--bracket-color), var(--bracket-color)) top right / var(--bracket) 1px,
+    linear-gradient(var(--bracket-color), var(--bracket-color)) top right / 1px var(--bracket),
+    linear-gradient(var(--bracket-color), var(--bracket-color)) bottom left / var(--bracket) 1px,
+    linear-gradient(var(--bracket-color), var(--bracket-color)) bottom left / 1px var(--bracket),
+    linear-gradient(var(--bracket-color), var(--bracket-color)) bottom right / var(--bracket) 1px,
+    linear-gradient(var(--bracket-color), var(--bracket-color)) bottom right / 1px var(--bracket);
+  background-repeat: no-repeat;
+}
+
+/* Enemy stacks: small downward red chevron centred above the sprite. */
+.stack--enemy .stack__marker {
+  top: -0.35vw;
+  left: 50%;
+  width: 0.7vw;
+  height: 0.4vw;
+  transform: translateX(-50%);
+  background: #ff5252;
+  clip-path: polygon(0 0, 50% 100%, 100% 0, 80% 0, 50% 60%, 20% 0);
+  filter: drop-shadow(0 0 2px rgba(255, 82, 82, 0.8));
 }
 
 .stack.selected {
@@ -133,14 +186,24 @@
   animation: target-pulse 0.9s ease-in-out infinite;
 }
 
-.stack.move-to-attack-target {
-  /*
-  border-color: #ffaa00;
-  box-shadow:
-    0 0 8px rgba(255, 170, 0, 0.7),
-    0 0 18px rgba(255, 170, 0, 0.4);
-  animation: target-pulse 0.9s ease-in-out infinite;
-  */
+/* Target of the selected stack's manual attack order. Outline only (no
+ * pulse) so it reads differently from the red "in reach" pulse; both can
+ * apply at once. */
+.stack.order-target {
+  outline: 1px solid #ffcc66;
+  outline-offset: 2px;
+}
+
+/* Selected stack's effective reach (range + tolerance), centred on the
+ * stack. Non-interactive. */
+.range-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 1px dashed rgba(140, 196, 255, 0.35);
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 60%, rgba(53, 134, 229, 0.06));
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Highlight friendly stacks a selected Carrier could restore with Shield
@@ -429,8 +492,8 @@
 
 .impact {
   position: absolute;
-  width: calc(0.6 * 72vw / 19);
-  height: calc(0.6 * 28vw / 8);
+  width: calc(0.6 * var(--cell-w));
+  height: calc(0.6 * var(--cell-h));
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: radial-gradient(

@@ -10,9 +10,16 @@ import {
   FleetShip,
   MAX_STACK_SIZE,
 } from './battle.types';
-import { ATTACKER_DEPLOY_COLS, DEFENDER_DEPLOY_COLS, BATTLE_CELL_SIZE_VW, BATTLE_GRID_COLUMNS } from './battle.types';
+import {
+  ATTACKER_DEPLOY_COLS,
+  DEFENDER_DEPLOY_COLS,
+  DEPLOY_ROW_ORDER,
+  BATTLE_GRID_COLUMNS,
+  BATTLE_GRID_ROWS,
+  DEFAULT_TARGETING_MODE,
+} from './battle.types';
 import { getBattleShipStats } from './battle-ship-stats';
-import { isInBounds, cellToVw, stackCenterVw } from './battle-grid';
+import { isInBounds, occupiedCols, stackCenterVw } from './battle-grid';
 
 /*
  * =========================================================
@@ -25,8 +32,13 @@ import { isInBounds, cellToVw, stackCenterVw } from './battle-grid';
  * side + ship type with a MAX_STACK_SIZE cap and deployed on the grid.
  */
 
-/* Rows filled centre-out from row 4 so stacks cluster around the middle. */
-const ROW_ORDER = [4, 3, 5, 2, 6, 1, 7];
+/*
+ * Fleets up to this many ships deploy one stack per ship; larger fleets
+ * are grouped by type into MAX_STACK_SIZE stacks. 28 = the 4 x 7 deployment
+ * slots of the original grid; kept as a fixed number when the grid was
+ * doubled so the stacking behaviour (and thus balance) did not change.
+ */
+const INDIVIDUAL_STACK_LIMIT = 28;
 
 export function createBattleState(
   battle: Battle,
@@ -42,8 +54,8 @@ export function createBattleState(
 
   const attackerStacks = buildStacks('attacker', attackerShips, shipService, planetBattleService);
   const defenderStacks = buildStacks('defender', defenderShips, shipService, planetBattleService);
-  deployStacks(attackerStacks, ATTACKER_DEPLOY_COLS);
-  deployDefenderStacks(defenderStacks);
+  deploySide(attackerStacks, ATTACKER_DEPLOY_COLS);
+  deploySide(defenderStacks, DEFENDER_DEPLOY_COLS);
   initializeStackPositions([...attackerStacks, ...defenderStacks]);
 
   /*
@@ -149,16 +161,12 @@ function buildStacks(
   shipService: ShipService,
   planetBattleService: PlanetBattleService,
 ): BattleStack[] {
-  const maxIndividual = 4 * ROW_ORDER.length;
-
   /*
-   * Fleet size boundary: small fleets (<=28 ships) get one stack per ship
-   * for tactical clarity in the selection panel. Larger fleets are grouped
-   * by type into MAX_STACK_SIZE chunks for readability and performance.
-   * The boundary is arbitrary — it matches the max number of individually
-   * deployable stacks given ROW_ORDER has 7 rows and 4 deploy columns.
+   * Fleet size boundary: small fleets get one stack per ship for tactical
+   * clarity. Larger fleets are grouped by type into MAX_STACK_SIZE chunks
+   * for readability and performance.
    */
-  if (roster.length <= maxIndividual) {
+  if (roster.length <= INDIVIDUAL_STACK_LIMIT) {
     const stacks: BattleStack[] = [];
     let index = 0;
     for (const ship of roster) {
@@ -185,6 +193,7 @@ function buildStacks(
         destroyed: false,
         speed: stats.speed,
         fireRate: stats.fireRate,
+        targetingMode: DEFAULT_TARGETING_MODE,
         x: 0,
         y: 0,
         targetX: null,
@@ -234,6 +243,7 @@ function buildStacks(
         destroyed: false,
         speed: stats.speed,
         fireRate: stats.fireRate,
+        targetingMode: DEFAULT_TARGETING_MODE,
         x: 0,
         y: 0,
         targetX: null,
@@ -244,118 +254,83 @@ function buildStacks(
   return stacks;
 }
 
-function deployStacks(stacks: BattleStack[], columns: number[]): void {
-  stacks.forEach((stack, i) => {
-    const colIndex = Math.floor(i / ROW_ORDER.length);
-    stack.col = columns[Math.min(colIndex, columns.length - 1)];
-    stack.row = ROW_ORDER[i % ROW_ORDER.length];
-  });
-}
-
 /*
- * Planet-defender deployment: immobile defense stacks claim the outer
- * defender columns first, then garrison stacks fill the remaining defender
- * cells behind them. Fleet-vs-fleet defenders have no immobile stacks, so
- * they keep the original deployStacks() behavior exactly.
+ * Deploys one side. Placement is occupancy-aware for both sides so wide
+ * stacks (size 2-3) never overlap at battle start.
+ *
+ * Order of slots:
+ *   1. Immobile planet defenses first, so they claim the outermost columns
+ *      (the defense line sits in front of the planet visual).
+ *   2. Mobile stacks next. In planet battles they start one slot column
+ *      inward from the last column used by defenses (garrison behind/beside
+ *      the turrets); in fleet battles they start at the outermost column.
+ *   3. Within a column, rows fill centre-out (DEPLOY_ROW_ORDER).
+ *   4. If all slots are taken, any free cell is used, scanning from the
+ *      side's own edge inward, so a stack is never left off-grid.
  */
-function deployDefenderStacks(stacks: BattleStack[]): void {
-  const defenseStacks = stacks.filter((s) => s.immobile);
-  const garrisonStacks = stacks.filter((s) => !s.immobile);
-
-  if (defenseStacks.length === 0) {
-    deployStacks(stacks, DEFENDER_DEPLOY_COLS);
-    return;
-  }
-
+function deploySide(stacks: BattleStack[], columns: number[]): void {
   const occupied = new Set<string>();
-  let defenseColumnIndex = 0;
-  let lastDefenseColumnIndex = -1;
+  const immobile = stacks.filter((s) => s.immobile);
+  const mobile = stacks.filter((s) => !s.immobile);
 
-  for (const stack of defenseStacks) {
-    let placed = false;
-    while (!placed && defenseColumnIndex < DEFENDER_DEPLOY_COLS.length) {
-      const col = DEFENDER_DEPLOY_COLS[defenseColumnIndex];
-      for (const row of ROW_ORDER) {
-        if (canPlaceDefenderStack(stack, col, row, occupied)) {
-          placeDefenderStack(stack, col, row, occupied);
-          lastDefenseColumnIndex = defenseColumnIndex;
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        defenseColumnIndex++;
-      }
-    }
-    if (!placed) {
-      placeDefenderStackAnywhere(stack, occupied);
-    }
+  let lastImmobileColumn = -1;
+  for (const stack of immobile) {
+    const used = placeInSlots(stack, columns, 0, occupied);
+    lastImmobileColumn = Math.max(lastImmobileColumn, used);
   }
-
-  const garrisonStartIndex = Math.min(
-    lastDefenseColumnIndex + 1,
-    DEFENDER_DEPLOY_COLS.length,
-  );
-
-  for (const stack of garrisonStacks) {
-    let placed = false;
-    for (let i = garrisonStartIndex; i < DEFENDER_DEPLOY_COLS.length && !placed; i++) {
-      const col = DEFENDER_DEPLOY_COLS[i];
-      for (const row of ROW_ORDER) {
-        if (canPlaceDefenderStack(stack, col, row, occupied)) {
-          placeDefenderStack(stack, col, row, occupied);
-          placed = true;
-          break;
-        }
-      }
-    }
-    if (!placed) {
-      placeDefenderStackAnywhere(stack, occupied);
-    }
+  const mobileStart = Math.min(lastImmobileColumn + 1, columns.length - 1);
+  for (const stack of mobile) {
+    placeInSlots(stack, columns, Math.max(0, mobileStart), occupied);
   }
 }
 
-/* Defender stacks grow left from their anchor column. */
-function canPlaceDefenderStack(
+/* Places the stack in the first free slot from columns[startIndex] onward.
+ * Returns the index of the column used, or -1 when the fallback scan had
+ * to be used. */
+function placeInSlots(
   stack: BattleStack,
-  col: number,
-  row: number,
+  columns: number[],
+  startIndex: number,
   occupied: Set<string>,
-): boolean {
-  for (let offset = 0; offset < stack.size; offset++) {
-    const cellCol = col - offset;
-    if (!isInBounds(cellCol, row) || occupied.has(cellKey(cellCol, row))) {
-      return false;
+): number {
+  for (let i = startIndex; i < columns.length; i++) {
+    for (const row of DEPLOY_ROW_ORDER) {
+      if (canPlace(stack, columns[i], row, occupied)) {
+        place(stack, columns[i], row, occupied);
+        return i;
+      }
     }
   }
-  return true;
+  placeAnywhere(stack, occupied);
+  return -1;
 }
 
-function placeDefenderStack(
-  stack: BattleStack,
-  col: number,
-  row: number,
-  occupied: Set<string>,
-): void {
+function canPlace(stack: BattleStack, col: number, row: number, occupied: Set<string>): boolean {
+  return occupiedCols(stack, col).every((c) => isInBounds(c, row) && !occupied.has(cellKey(c, row)));
+}
+
+function place(stack: BattleStack, col: number, row: number, occupied: Set<string>): void {
   stack.col = col;
   stack.row = row;
-  for (let offset = 0; offset < stack.size; offset++) {
-    occupied.add(cellKey(col - offset, row));
+  for (const c of occupiedCols(stack, col)) {
+    occupied.add(cellKey(c, row));
   }
 }
 
-function placeDefenderStackAnywhere(stack: BattleStack, occupied: Set<string>): void {
-  for (let col = BATTLE_GRID_COLUMNS; col >= 1; col--) {
-    for (const row of ROW_ORDER) {
-      if (canPlaceDefenderStack(stack, col, row, occupied)) {
-        placeDefenderStack(stack, col, row, occupied);
+function placeAnywhere(stack: BattleStack, occupied: Set<string>): void {
+  const fromEdge = stack.side === 'attacker';
+  for (let k = 0; k < BATTLE_GRID_COLUMNS; k++) {
+    const col = fromEdge ? 1 + k : BATTLE_GRID_COLUMNS - k;
+    for (let row = 1; row <= BATTLE_GRID_ROWS; row++) {
+      if (canPlace(stack, col, row, occupied)) {
+        place(stack, col, row, occupied);
         return;
       }
     }
   }
-  /* Last resort: keep a defender stack in bounds even if the grid is full. */
-  stack.col = BATTLE_GRID_COLUMNS;
-  stack.row = ROW_ORDER[0];
+  /* Last resort: keep the stack in bounds even if the grid is full. */
+  stack.col = fromEdge ? 1 : BATTLE_GRID_COLUMNS;
+  stack.row = DEPLOY_ROW_ORDER[0];
 }
 
 function cellKey(col: number, row: number): string {

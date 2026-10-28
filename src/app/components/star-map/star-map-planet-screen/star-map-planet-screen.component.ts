@@ -60,6 +60,23 @@ export interface BuildingType {
 
 export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production';
 
+/** Predefined camera distances for the planet surface view. */
+export type PlanetSurfaceZoomLevel = 'close' | 'medium' | 'far';
+
+/**
+ * Screen-space scale applied to the surface grid per zoom level. `close` must
+ * stay exactly 1 so it reproduces the original (pre-zoom-levels) framing,
+ * which is defined purely by `PLANET_SURFACE_CELL_VW` and the SCSS gap.
+ */
+export const PLANET_SURFACE_ZOOM_SCALES: Record<PlanetSurfaceZoomLevel, number> = {
+  close: 1,
+  medium: 0.75,
+  far: 0.55,
+};
+
+/** Zoom level active whenever a planet surface is opened. */
+export const DEFAULT_PLANET_SURFACE_ZOOM: PlanetSurfaceZoomLevel = 'medium';
+
 /*
  * =========================================================
  * PLANET SCREEN COMPONENT
@@ -82,6 +99,15 @@ export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production';
  *
  * Grid dimension formula: gridSize = planetNumericSize * 2 + 3
  *   size 1 -> 5x5, size 2 -> 7x7, size 3 -> 9x9, size 4 -> 11x11
+ *
+ * Zoom levels (CLOSE / MEDIUM / FAR):
+ * - Purely presentational camera state; never written to the planet, the
+ *   game state, or the save. The grid's layout size never changes — the zoom
+ *   is a `scale()` inside `gridTransform`, so cell/building/vw-based sizes
+ *   all scale together and build placement logic is unaffected.
+ * - Not persisted: the component is destroyed when the planet view closes
+ *   (`@if` in star-map.html), and a change of the `planet` input id also
+ *   resets it, so every planet opening starts at DEFAULT_PLANET_SURFACE_ZOOM.
  *
  * Build mode:
  * - After selecting a building type (from the BUILD tab list), the
@@ -167,6 +193,13 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   private maxScrollX = 0;
   private maxScrollY = 0;
 
+  readonly zoomLevels: readonly PlanetSurfaceZoomLevel[] = ['close', 'medium', 'far'];
+  zoomLevel: PlanetSurfaceZoomLevel = DEFAULT_PLANET_SURFACE_ZOOM;
+
+  get zoomScale(): number {
+    return PLANET_SURFACE_ZOOM_SCALES[this.zoomLevel];
+  }
+
   @ViewChild('surfaceViewport') surfaceViewport: ElementRef<HTMLElement> | null = null;
 
   /** Gap between surface cells, must match the `gap` in the SCSS grid. */
@@ -209,12 +242,16 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   /**
    * Combined transform for the surface grid: centers the grid on the
-   * viewport, pans it by the current scroll offset, then applies the
-   * optional isometric tilt. The pan must be outermost so scrolling moves
-   * the grid in screen space regardless of the rotation.
+   * viewport, pans it by the current scroll offset, applies the zoom scale,
+   * then the optional isometric tilt. The pan must come before the scale and
+   * rotation so scrolling moves the grid in screen space (unscaled vw)
+   * regardless of zoom or rotation. Scaling around the grid center keeps the
+   * planet centered when switching zoom levels.
    */
   get gridTransform(): string {
-    const translate = `translate(-50%, -50%) translate(${-this.scrollX}vw, ${-this.scrollY}vw)`;
+    const translate =
+      `translate(-50%, -50%) translate(${-this.scrollX}vw, ${-this.scrollY}vw)` +
+      ` scale(${this.zoomScale})`;
     if (this.isometric) {
       return `${translate} rotateX(45deg) rotateZ(45deg)`;
     }
@@ -437,9 +474,35 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['gridSize']) {
+    // Compare by id: the parent may hand over a new object for the same
+    // planet, which must not reset the player's chosen zoom.
+    const planetChange = changes['planet'];
+    if (
+      planetChange &&
+      planetChange.previousValue?.id !== planetChange.currentValue?.id
+    ) {
+      this.zoomLevel = DEFAULT_PLANET_SURFACE_ZOOM;
+      this.centerScroll();
+    }
+    if (changes['gridSize'] || planetChange) {
       this.updateClamp();
     }
+  }
+
+  /**
+   * Switches the camera zoom. The scroll offset is rescaled so the surface
+   * point under the viewport center stays put instead of jumping, then it is
+   * re-clamped against the new (scaled) bounds.
+   */
+  setZoomLevel(level: PlanetSurfaceZoomLevel): void {
+    if (level === this.zoomLevel) {
+      return;
+    }
+    const ratio = PLANET_SURFACE_ZOOM_SCALES[level] / this.zoomScale;
+    this.zoomLevel = level;
+    this.scrollX *= ratio;
+    this.scrollY *= ratio;
+    this.updateClamp();
   }
 
   @HostListener('window:resize')
@@ -457,7 +520,8 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
    * wider than its layout box (layout * sqrt(2)), so the clamp must be based
    * on the visual size — otherwise a 45°-rotated grid that is wider than the
    * viewport would report maxScrollX = 0 and the edge tiles could never be
-   * panned into view.
+   * panned into view. Bounds use the zoom-scaled size because scroll is
+   * measured in screen space.
    */
   private updateClamp(): void {
     if (!this.surfaceViewport) {
@@ -467,14 +531,16 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     const viewport = this.surfaceViewport.nativeElement;
     const viewportWidthVw = viewport.offsetWidth / vwUnit;
     const viewportHeightVw = viewport.offsetHeight / vwUnit;
-    const gridSizeVw = this.gridSize * this.cellVw + (this.gridSize - 1) * this.gridGapVw;
+    const gridSizeVw =
+      (this.gridSize * this.cellVw + (this.gridSize - 1) * this.gridGapVw) * this.zoomScale;
+    const paddingVw = this.surfacePaddingVw * this.zoomScale;
     const visualWidthVw = this.isometric ? gridSizeVw * Math.SQRT2 : gridSizeVw;
     const visualHeightVw = this.isometric ? gridSizeVw : gridSizeVw;
 
     // Add two cells of padding on each side so the camera can be panned a
     // little beyond the grid edges.
-    this.maxScrollX = Math.max(0, (visualWidthVw + this.surfacePaddingVw - viewportWidthVw) / 2);
-    this.maxScrollY = Math.max(0, (visualHeightVw + this.surfacePaddingVw - viewportHeightVw) / 2);
+    this.maxScrollX = Math.max(0, (visualWidthVw + paddingVw - viewportWidthVw) / 2);
+    this.maxScrollY = Math.max(0, (visualHeightVw + paddingVw - viewportHeightVw) / 2);
     this.clampScroll();
   }
 

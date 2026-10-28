@@ -1,5 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { StarMapPlanetScreenComponent } from './star-map-planet-screen.component';
+import {
+  PLANET_SURFACE_ZOOM_SCALES,
+  StarMapPlanetScreenComponent,
+} from './star-map-planet-screen.component';
 import { PlanetTile, ResourceDeposit } from '../star-map.models';
 import { CommonModule } from '@angular/common';
 
@@ -147,6 +150,88 @@ describe('StarMapPlanetScreenComponent', () => {
       component.onCellClick(0, 0);
       expect(component.isPreviewValid).toBe(true);
       expect(component.buildError).toBe('');
+    });
+  });
+
+  describe('surface zoom levels', () => {
+    const zoomButtons = (): HTMLButtonElement[] =>
+      Array.from(fixture.nativeElement.querySelectorAll('.planet-surface__zoom-btn'));
+
+    it('opens at the MEDIUM zoom level', () => {
+      expect(component.zoomLevel).toBe('medium');
+      const active = fixture.nativeElement.querySelector('.planet-surface__zoom-btn--active');
+      expect(active.textContent.trim()).toBe('MEDIUM');
+      expect(component.gridTransform).toContain(`scale(${PLANET_SURFACE_ZOOM_SCALES.medium})`);
+    });
+
+    it('keeps CLOSE at the original, unscaled framing', () => {
+      expect(PLANET_SURFACE_ZOOM_SCALES.close).toBe(1);
+      component.setZoomLevel('close');
+      expect(component.gridTransform).toBe(
+        'translate(-50%, -50%) translate(0vw, 0vw) scale(1) rotateX(45deg) rotateZ(45deg)',
+      );
+    });
+
+    it('orders the levels CLOSE > MEDIUM > FAR in scale', () => {
+      expect(PLANET_SURFACE_ZOOM_SCALES.close).toBeGreaterThan(PLANET_SURFACE_ZOOM_SCALES.medium);
+      expect(PLANET_SURFACE_ZOOM_SCALES.medium).toBeGreaterThan(PLANET_SURFACE_ZOOM_SCALES.far);
+    });
+
+    it('switches level through the buttons, repeatedly, marking exactly one active', () => {
+      const labels = ['CLOSE', 'MEDIUM', 'FAR'];
+      for (let round = 0; round < 3; round++) {
+        for (const label of [...labels, ...[...labels].reverse()]) {
+          zoomButtons().find((b) => b.textContent!.trim() === label)!.click();
+          fixture.detectChanges();
+          const active = fixture.nativeElement.querySelectorAll('.planet-surface__zoom-btn--active');
+          expect(active.length).toBe(1);
+          expect(active[0].textContent.trim()).toBe(label);
+          expect(component.zoomLevel).toBe(label.toLowerCase());
+        }
+      }
+    });
+
+    it('does not touch planet data when zooming', () => {
+      const before = JSON.stringify(mockPlanet);
+      component.setZoomLevel('far');
+      component.setZoomLevel('close');
+      expect(JSON.stringify(mockPlanet)).toBe(before);
+    });
+
+    it('rescales the pan offset so the viewed point stays centered', () => {
+      component.setZoomLevel('close');
+      component.scrollX = 4;
+      component.scrollY = -2;
+      // jsdom has no layout, so disable clamping to observe the raw rescale.
+      (component as any).updateClamp = () => {};
+      component.setZoomLevel('far');
+      expect(component.scrollX).toBeCloseTo(4 * PLANET_SURFACE_ZOOM_SCALES.far);
+      expect(component.scrollY).toBeCloseTo(-2 * PLANET_SURFACE_ZOOM_SCALES.far);
+    });
+
+    it('resets to MEDIUM when a different planet is shown', () => {
+      component.setZoomLevel('far');
+      fixture.componentRef.setInput('planet', { ...mockPlanet, id: 2, name: 'Other' });
+      fixture.detectChanges();
+      expect(component.zoomLevel).toBe('medium');
+    });
+
+    it('keeps the chosen zoom when the same planet object is refreshed', () => {
+      fixture.componentRef.setInput('planet', mockPlanet);
+      fixture.detectChanges();
+      component.setZoomLevel('far');
+      fixture.componentRef.setInput('planet', { ...mockPlanet });
+      fixture.detectChanges();
+      expect(component.zoomLevel).toBe('far');
+    });
+
+    it('starts at MEDIUM again on a fresh component (planet view reopened)', () => {
+      component.setZoomLevel('close');
+      fixture.destroy();
+      const reopened = TestBed.createComponent(StarMapPlanetScreenComponent);
+      reopened.componentInstance.planet = mockPlanet;
+      reopened.detectChanges();
+      expect(reopened.componentInstance.zoomLevel).toBe('medium');
     });
   });
 

@@ -122,6 +122,21 @@
           ▼
         </button>
       </div>
+
+      <!-- SURFACE ZOOM LEVELS -->
+      <div class="planet-surface__zoom" role="group" aria-label="Surface zoom">
+        @for (level of zoomLevels; track level) {
+          <button
+            class="planet-surface__zoom-btn"
+            [class.planet-surface__zoom-btn--active]="zoomLevel === level"
+            [attr.aria-pressed]="zoomLevel === level"
+            type="button"
+            (click)="setZoomLevel(level); $event.stopPropagation()"
+          >
+            {{ level | uppercase }}
+          </button>
+        }
+      </div>
     </div>
 
     <!-- DETAILS / BUILD / ASSEMBLY / PRODUCTION SIDEBAR -->

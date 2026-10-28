@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { BattleModelState, BattleStack, GridCell } from './battle.types';
-import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_SIZE_VW, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW } from './battle.types';
+import { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_RANGE_UNIT_VW, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, ATTACK_RANGE_TOLERANCE } from './battle.types';
 import {
   cellDistance,
   getAttackTargetIds,
@@ -21,6 +21,9 @@ import {
   getMoveToAttackTargetIds,
   computeCarrierBoostTargets,
   vwToStackCell,
+  findApproachCell,
+  canAttack,
+  absoluteDistanceRangeUnits,
 } from './battle-grid';
 
 function baseStack(): BattleStack {
@@ -89,14 +92,31 @@ function makeState(stacks: BattleStack[]): BattleModelState {
 }
 
 describe('battle-grid', () => {
-  it('bounds match the System View grid (19 x 8 cells)', () => {
-    expect(BATTLE_GRID_COLUMNS).toBe(19);
-    expect(BATTLE_GRID_ROWS).toBe(8);
+  it('bounds match the doubled 38 x 16 grid over the same 72 x 28 vw field', () => {
+    expect(BATTLE_GRID_COLUMNS).toBe(38);
+    expect(BATTLE_GRID_ROWS).toBe(16);
+    expect(BATTLE_CELL_WIDTH_VW * BATTLE_GRID_COLUMNS).toBeCloseTo(72);
+    expect(BATTLE_CELL_HEIGHT_VW * BATTLE_GRID_ROWS).toBeCloseTo(28);
     expect(isInBounds(1, 1)).toBe(true);
-    expect(isInBounds(19, 8)).toBe(true);
+    expect(isInBounds(38, 16)).toBe(true);
     expect(isInBounds(0, 4)).toBe(false);
-    expect(isInBounds(20, 4)).toBe(false);
-    expect(isInBounds(1, 9)).toBe(false);
+    expect(isInBounds(39, 4)).toBe(false);
+    expect(isInBounds(1, 17)).toBe(false);
+  });
+
+  it('measures range in physical units independent of grid density', () => {
+    // One range unit is the cell height of the original 19x8 grid, so
+    // doubling the grid did not change weapon reach.
+    expect(BATTLE_RANGE_UNIT_VW).toBe(3.5);
+    expect(BATTLE_CELL_HEIGHT_VW).toBeCloseTo(BATTLE_RANGE_UNIT_VW / 2);
+    const attacker = { ...baseStack(), attackRange: 2 };
+    placeStack(attacker, 2, 4);
+    const reachVw = (attacker.attackRange + ATTACK_RANGE_TOLERANCE) * BATTLE_RANGE_UNIT_VW;
+    const inside = { ...baseStack(), stackId: 'in', side: 'defender' as const, x: attacker.x + reachVw, y: attacker.y };
+    const outside = { ...baseStack(), stackId: 'out', side: 'defender' as const, x: attacker.x + reachVw + 0.01, y: attacker.y };
+    expect(canAttack(attacker, inside)).toBe(true);
+    expect(canAttack(attacker, outside)).toBe(false);
+    expect(absoluteDistanceRangeUnits(attacker, inside)).toBeCloseTo(3);
   });
 
   it('cellDistance is Euclidean', () => {
@@ -245,7 +265,7 @@ describe('battle-grid', () => {
     const d1 = { ...baseStack(), stackId: 'd1', side: 'defender' as const };
     placeStack(d1, 5, 4);
     const d2 = { ...baseStack(), stackId: 'd2', side: 'defender' as const };
-    placeStack(d2, 9, 4);
+    placeStack(d2, 12, 4); // 8 cells ≈ 15.2vw > reach (2 + 1) * 3.5 = 10.5vw
     const state = makeState([attacker, d1, d2]);
     const targets = getAttackTargetIds(state, attacker);
     expect(targets).toContain('d1');
@@ -288,9 +308,8 @@ describe('battle-grid', () => {
   });
 
   it('isAbsolutePositionInRange is inclusive at exactly the range boundary', () => {
-    // BATTLE_CELL_SIZE_VW = 3.5 (min of 72/19≈3.789 and 28/8=3.5)
-    // range 2 cells = 7vw
-    const a = { x: 5.25, y: 12.25 }; // cell (2,4) center with new dimensions
+    // BATTLE_RANGE_UNIT_VW = 3.5, so range 2 = 7vw regardless of grid density.
+    const a = { x: 5.25, y: 12.25 };
     const rangeCells = 2; // 7vw
     const boundary = { x: 12.25, y: 12.25 }; // distance = 7vw exactly
     expect(isAbsolutePositionInRange(a, boundary, rangeCells)).toBe(true);
@@ -300,13 +319,13 @@ describe('battle-grid', () => {
 
   it('computeCarrierBoostTargets uses absolute range and ignores non-carrier type', () => {
     const carrier = { ...baseStack(), stackId: 'carrier:0', typeId: 'carrier', attackRange: 4 };
-    placeStack(carrier, 2, 4); // x=6, y=14; range 4 cells = 16vw
+    placeStack(carrier, 2, 4); // reach (4 + 1) * 3.5 = 17.5vw
     const allyNear = { ...baseStack(), stackId: 'ally:near', side: 'attacker' as const };
-    placeStack(allyNear, 4, 4); // x=14, distance=8vw ≤ 16vw
+    placeStack(allyNear, 4, 4); // 2 cells ≈ 3.8vw
     const allyFar = { ...baseStack(), stackId: 'ally:far', side: 'attacker' as const };
-    placeStack(allyFar, 10, 4); // x=38, distance=32vw > 16vw
+    placeStack(allyFar, 14, 4); // 12 cells ≈ 22.7vw > 17.5vw
     const enemy = { ...baseStack(), stackId: 'enemy:0', side: 'defender' as const };
-    placeStack(enemy, 3, 4); // x=10, distance=4vw ≤ 16vw, but enemy side
+    placeStack(enemy, 3, 4); // in reach, but enemy side
     const state = makeState([carrier, allyNear, allyFar, enemy]);
     const targets = computeCarrierBoostTargets(state, carrier);
     expect(targets).toContain('ally:near');
@@ -334,7 +353,7 @@ describe('battle-grid', () => {
     const inRange = { ...baseStack(), stackId: 'd1', side: 'defender' as const };
     placeStack(inRange, 3, 3); // different row — in range but does not block path
     const outOfRange = { ...baseStack(), stackId: 'd2', side: 'defender' as const };
-    placeStack(outOfRange, 7, 4); // x=26, distance=20vw > 8vw → not in range
+    placeStack(outOfRange, 12, 4); // ≈ 15.2vw > 10.5vw reach
     const state = makeState([attacker, inRange, outOfRange]);
     const movableTargets = getMoveToAttackTargetIds(state, attacker);
     expect(movableTargets).not.toContain('d1');
@@ -378,5 +397,43 @@ describe('battle-grid', () => {
     const state = makeState([stack, blocker]);
     const path = linePath({ col: 2, row: 4 }, { col: 5, row: 4 })!;
     expect(isPathClear(state, path, stack)).toBe(false);
+  });
+
+  it('findApproachCell moves a blocked stack closer instead of away', () => {
+    const attacker = { ...baseStack(), attackRange: 1, stackId: 'a' };
+    placeStack(attacker, 2, 8);
+    const target = { ...baseStack(), stackId: 't', side: 'defender' as const };
+    placeStack(target, 30, 8);
+    // Wall of blockers across every row just in front of the target, so no
+    // firing cell (range 1 * 0.9) is reachable.
+    const wall: BattleStack[] = [];
+    for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+      const b = { ...baseStack(), stackId: `w${r}`, side: 'defender' as const };
+      placeStack(b, 28, r);
+      wall.push(b);
+    }
+    const state = makeState([attacker, target, ...wall]);
+    expect(findBestMoveToAttackCell(state, attacker, target)).toBeNull();
+    const cell = findApproachCell(state, attacker, target)!;
+    expect(cell).not.toBeNull();
+    const before = absoluteDistanceVw(attacker, target);
+    const after = absoluteDistanceVw(stackCenterVw({ ...attacker, col: cell.col, row: cell.row }), target);
+    expect(after).toBeLessThan(before);
+    expect(cell.col).toBeLessThan(28);
+  });
+
+  it('findApproachCell returns null when the stack cannot get any closer', () => {
+    const attacker = { ...baseStack(), attackRange: 1, stackId: 'a' };
+    placeStack(attacker, 27, 8);
+    const target = { ...baseStack(), stackId: 't', side: 'defender' as const };
+    placeStack(target, 30, 8);
+    const blockers: BattleStack[] = [];
+    for (const [c, r] of [[28, 7], [28, 8], [28, 9], [27, 7], [27, 9], [26, 7], [26, 8], [26, 9]]) {
+      const b = { ...baseStack(), stackId: `b${c}-${r}`, side: 'defender' as const };
+      placeStack(b, c, r);
+      blockers.push(b);
+    }
+    const state = makeState([attacker, target, ...blockers]);
+    expect(findApproachCell(state, attacker, target)).toBeNull();
   });
 });

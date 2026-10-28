@@ -79,13 +79,22 @@ Conditions that must remain true across the codebase. When changing any code tha
 ## Battle State Machine
 
 1. `StarMap` detects a collision (fleet) or planet arrival (planet) → `BattleService.setBattle()` / `setPlanetBattle()` → save → navigate to `/battle`.
-2. `BattleScreenComponent.ngOnInit()` calls `BattleService.startBattle()`, which initialises per-ship HP and `BattleState`.
-3. A `setInterval(tickRateMs)` (default 1000 ms) calls `BattleService.processStep()` once per tick. `BattleScreenComponent` re-reads the battle and runs change detection.
-4. When the battle ends, the timer is stopped and the result appears as a modal overlay above the `/battle` tactical interface after the final animation completes. The overlay dims the background, blocks further battle input, and can only be dismissed with `BACK TO STAR MAP`.
+2. `BattleScreenComponent.ngOnInit()` builds battle-local state with `createBattleState()` (deep-cloned ships), pauses `GameTimeService`, resets `BattleTimeService`, and starts the RAF game loop.
+3. The game loop advances the real-time simulation on battle time (see [Battle Rules](./battle-rules.md#real-time-model)) and runs change detection every frame.
+4. When a side has no living stacks, `state.winner` is set and the simulation stops advancing; the result appears as a modal overlay above the `/battle` tactical interface after the final animation completes. The overlay dims the background, blocks further battle input, and can only be dismissed with `BACK TO STAR MAP`.
 5. On "Back to Star Map":
    - Fleet battle: `loser.destroyed = true`; `setDestroyedFleetId(loser.id)`; `clearBattle()`.
    - Planet battle: `applyPlanetBattleResult()` reloads the save, sets `planet.factionId` to the attacker's faction (if attacker won) or marks the attacker destroyed (otherwise), and writes the save back. `clearBattle()` is also called.
 6. `StarMap.reloadAfterBattle()` (subscribed to `Router.events`) reloads the save and calls `removeDestroyedFleetFromService()`, which applies the destroyed fleet id (if any), clears the selection if it matched, and saves again.
+
+### Tactical battle invariants
+
+- **Only fire control fires.** `BattleCombatService.runFireControl()` is the single caller that starts volleys during play; player commands and the AI never call `attackStack()` directly. This is what keeps the fire cadence identical for both sides and prevents click-spam from bypassing cooldowns.
+- **Manual attack orders end only on target death or a new order** for that stack. Selection changes, range loss, AUTO and the AI must never clear `explicitAttackTargetId`.
+- **AUTO never commands a stack holding a manual order** (`explicitAttackTargetId` or `manualMoveOrder`), and the AUTO pass never commands non-player stacks.
+- **Range is physical.** Reach is `(attackRange + ATTACK_RANGE_TOLERANCE) × BATTLE_RANGE_UNIT_VW`, independent of grid density; never derive range from cell size.
+- **No overlapping footprints at deployment.** Every stack's `size` cells are in bounds and unique when the battle starts.
+- **All battle timing uses battle time** (`BattleTimeService`): cooldowns, AI ticks, re-planning, shield regen and animation waits freeze while paused.
 
 ## Selection Mutual Exclusion
 

@@ -339,6 +339,57 @@
   white-space: nowrap;
 }
 
+.selection-order {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #ffcc66;
+}
+
+/* Automatic targeting mode selector (player stacks only). Wraps on narrow
+ * screens instead of overflowing the panel. */
+.selection-targeting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.selection-targeting__label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--color-text-dim);
+  margin-right: 0.2rem;
+}
+
+.selection-targeting__btn {
+  font-family: var(--font-primary);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--color-blue-light);
+  background: rgba(53, 134, 229, 0.15);
+  border: 1px solid var(--color-blue);
+  border-radius: 2px;
+  padding: 0.2rem 0.45rem;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    background: rgba(53, 134, 229, 0.3);
+    box-shadow: 0 0 10px rgba(53, 134, 229, 0.4);
+  }
+}
+
+.selection-targeting__btn--active {
+  background: var(--color-blue);
+  color: var(--color-black);
+  box-shadow: 0 0 12px rgba(53, 134, 229, 0.6);
+}
+
 .selection-hp {
   display: flex;
   align-items: center;

@@ -3,6 +3,7 @@ import { NgClass } from '@angular/common';
 import {
   BattleAttackEffect,
   BattlePlanetVisual,
+  BattleSide,
   BattleStack,
   GridCell,
 } from '../battle/battle.types';
@@ -17,8 +18,9 @@ import { BattlePlanetComponent } from '../battle-planet/battle-planet.component'
  * BATTLE GRID VIEW COMPONENT
  * =========================================================
  *
- * Presentational child of the battle screen: renders the 18x7 tactical
- * grid, the stacked ship units, movement highlights, and attack effects
+ * Presentational child of the battle screen: renders the tactical grid
+ * (BATTLE_GRID_COLUMNS x BATTLE_GRID_ROWS), the stacked ship units, the
+ * selected stack's range ring and order marker, and attack effects
  * (projectile / impact / explosion). All rules live in the battle
  * services; this component only maps state to pixels and forwards clicks.
  *
@@ -39,8 +41,15 @@ export class BattleGridComponent {
   @Input() selectedStackId: string | null = null;
   @Input() moveCells: GridCell[] = [];
   @Input() attackTargetIds: string[] = [];
-  @Input() moveToAttackTargetIds: string[] = [];
+  /* The selected stack's manual attack target (crosshair marker). */
+  @Input() orderTargetId: string | null = null;
+  /* Effective reach of the selected stack, drawn as a circle. */
+  @Input() rangeRing: { x: number; y: number; radiusVw: number } | null = null;
   @Input() carrierBoostTargetIds: string[] = [];
+  /* Sides the player controls. Drives the friend/foe markers, which are
+   * deliberately independent of faction colors (two factions can have
+   * near-identical colors, and the player may be attacker or defender). */
+  @Input() playerSides: BattleSide[] = [];
   @Input() effects: BattleAttackEffect[] = [];
   @Input() canSelect = true;
   @Input() connectionLine: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
@@ -118,10 +127,6 @@ export class BattleGridComponent {
     return this.attackTargetIds.includes(stackId);
   }
 
-  isMoveToAttackTarget(stackId: string): boolean {
-    return this.moveToAttackTargetIds.includes(stackId);
-  }
-
   isCarrierBoostTarget(stackId: string): boolean {
     return this.carrierBoostTargetIds.includes(stackId);
   }
@@ -143,8 +148,17 @@ export class BattleGridComponent {
     return stack.side === 'attacker' ? this.attackerColor : this.defenderColor;
   }
 
+  isFriendly(stack: BattleStack): boolean {
+    return this.playerSides.includes(stack.side);
+  }
+
+  stackAriaLabel(stack: BattleStack): string {
+    return `${this.isFriendly(stack) ? 'Friendly' : 'Enemy'} ${stack.typeName}`;
+  }
+
   stackClasses(stack: BattleStack): string[] {
     const classes = ['stack', stack.typeId, 'stack-' + stack.ships.length];
+    classes.push(this.isFriendly(stack) ? 'stack--friendly' : 'stack--enemy');
     if (stack.stackId === this.selectedStackId) {
       classes.push('selected');
     }
@@ -157,8 +171,8 @@ export class BattleGridComponent {
     if (this.isAttackTarget(stack.stackId)) {
       classes.push('attack-target');
     }
-    if (this.isMoveToAttackTarget(stack.stackId)) {
-      classes.push('move-to-attack-target');
+    if (stack.stackId === this.orderTargetId) {
+      classes.push('order-target');
     }
     return classes;
   }

@@ -62,6 +62,32 @@ describe('BattleGridComponent', () => {
     expect(onCellClick).not.toHaveBeenCalled();
   });
 
+  it('marks player-controlled stacks as friendly and the others as enemy', () => {
+    const own = makeStack(1);
+    const enemy: BattleStack = { ...makeStack(1), stackId: 'defender:fighter:0', side: 'defender' };
+    fixture.componentRef.setInput('stacks', [own, enemy]);
+    fixture.componentRef.setInput('playerSides', ['attacker']);
+    fixture.detectChanges();
+
+    const buttons = fixture.nativeElement.querySelectorAll('.stack') as NodeListOf<HTMLButtonElement>;
+    expect(buttons[0].classList).toContain('stack--friendly');
+    expect(buttons[0].getAttribute('aria-label')).toBe('Friendly Fighter');
+    expect(buttons[1].classList).toContain('stack--enemy');
+    expect(buttons[1].getAttribute('aria-label')).toBe('Enemy Fighter');
+    expect(buttons[0].querySelector('.stack__marker')).toBeTruthy();
+    expect(buttons[1].querySelector('.stack__marker')).toBeTruthy();
+  });
+
+  it('follows the player side when the player defends', () => {
+    const attacker = makeStack(1);
+    fixture.componentRef.setInput('stacks', [attacker]);
+    fixture.componentRef.setInput('playerSides', ['defender']);
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector('.stack') as HTMLButtonElement;
+    expect(button.classList).toContain('stack--enemy');
+  });
+
   it('renders the separate planet marker only when a planet is provided', () => {
     expect(fixture.nativeElement.querySelector('app-battle-planet')).toBeNull();
 

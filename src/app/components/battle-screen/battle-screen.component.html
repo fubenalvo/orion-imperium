@@ -66,10 +66,11 @@
       <app-battle-grid
         [stacks]="liveStacks"
         [selectedStackId]="selectedStackId"
-        [moveCells]="moveCells"
         [attackTargetIds]="attackTargetIds"
-        [moveToAttackTargetIds]="moveToAttackTargetIds"
+        [orderTargetId]="orderTargetId"
+        [rangeRing]="selectedRangeRing"
         [carrierBoostTargetIds]="carrierBoostTargetIds"
+        [playerSides]="playerSides"
         [effects]="effects"
         [canSelect]="canAct"
         [planet]="planetVisual"
@@ -133,7 +134,26 @@
           <span>ATK {{ selectedTotalAttack }}</span>
           <span>DEF {{ selectedTotalDefense }}</span>
           <span>SPEED {{ stack.speed }}</span>
+          <span>RANGE {{ stack.attackRange }}</span>
         </div>
+        @if (isSelectedPlayerStack) {
+          <div class="selection-order">
+            <span class="selection-order__status">{{ selectedOrderLabel }}</span>
+          </div>
+          <div class="selection-targeting" role="radiogroup" aria-label="Automatic targeting">
+            <span class="selection-targeting__label">TARGET</span>
+            @for (mode of targetingModes; track mode) {
+              <button
+                type="button"
+                role="radio"
+                class="selection-targeting__btn"
+                [class.selection-targeting__btn--active]="selectedTargetingMode === mode"
+                [attr.aria-checked]="selectedTargetingMode === mode"
+                (click)="setSelectedTargetingMode(mode)"
+              >{{ targetingModeLabels[mode] }}</button>
+            }
+          </div>
+        }
         <div class="selection-shield">
           <span class="selection-shield-label">SHIELD</span>
           <span class="selection-shield-bar">

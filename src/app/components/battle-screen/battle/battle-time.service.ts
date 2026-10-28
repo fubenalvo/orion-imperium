@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
+import { battleDebug } from './battle.types';
 
 export type BattleSpeed = 0.625 | 1.25;
 
@@ -84,7 +85,7 @@ export class BattleTimeService {
 
     // Diagnostic: log time advancement every ~1 second of battle time
     if (this._battleElapsedTime % 1 < scaledDeltaTime) {
-      console.log(`[TIME] battleElapsedMs=${this.battleElapsedMs.toFixed(0)} delta=${(scaledDeltaTime * 1000).toFixed(1)}ms speed=${this._speed}`);
+      battleDebug(`[TIME] battleElapsedMs=${this.battleElapsedMs.toFixed(0)} delta=${(scaledDeltaTime * 1000).toFixed(1)}ms speed=${this._speed}`);
     }
   }
 

@@ -112,7 +112,8 @@ Documentation should describe systems, rules, relationships, constraints, and de
 The project currently contains the following documentation files:
 
 - `docs/architecture.md` — overall project architecture and major system relationships
-- `docs/battle-rules.md` — battle and combat rules
+- `docs/battle-rules.md` — battle and combat rules (grid, reach, fire cadence, orders, targeting modes, tactical AI)
+- `docs/battle-screen.md` — battle minigame implementation: file structure, game loop, services, time controls, testing approach
 - `docs/data-models.md` — important data structures and domain models
 - `docs/game-systems.md` — major gameplay systems and their responsibilities
 - `docs/invariants.md` — rules and conditions that must always remain true

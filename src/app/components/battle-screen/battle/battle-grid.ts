@@ -1,15 +1,12 @@
-import type { BattleModelState, BattleStack, GridCell, BattleShieldPool } from './battle.types';
+import type { BattleModelState, BattleStack, GridCell } from './battle.types';
 import {
   BATTLE_GRID_COLUMNS,
   BATTLE_GRID_ROWS,
   BATTLE_CELL_WIDTH_VW,
   BATTLE_CELL_HEIGHT_VW,
-  BATTLE_CELL_SIZE_VW,
-  AI_ACTION_INTERVAL_MS,
-  SHIELD_REGEN_INTERVAL_MS,
+  BATTLE_RANGE_UNIT_VW,
   AI_MOVE_TO_ATTACK_RATIO,
-  SNAP_DEADBAND_VW,
-  ATTACK_GRID_TOLERANCE_CELLS,
+  ATTACK_RANGE_TOLERANCE,
 } from './battle.types';
 
 /*
@@ -18,11 +15,20 @@ import {
  * =========================================================
  *
  * Pure grid math: bounds, occupancy, distance, and cell↔vw conversion.
- * The coordinate system mirrors the System View grid concepts:
- * 1-indexed cells and 4vw cell size.
+ *
+ * Two coordinate systems coexist:
+ *   - Grid cells (col/row, 1-indexed) drive movement, pathing, occupancy
+ *     and click targets. Their size depends on the grid density.
+ *   - Absolute vw positions (stack.x/y) drive rendering and combat range.
+ *     Range is measured in BATTLE_RANGE_UNIT_VW, which is independent of
+ *     the grid density, so changing the grid never changes weapon reach.
+ *
+ * Grid searches (reachable cells, move-to-attack cells) go through an
+ * OccupancyMap built once per search. On the 38x16 grid a naive search is
+ * O(cells × path length × stacks) and ran several times per frame.
  */
 
-export { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_CELL_SIZE_VW };
+export { BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW };
 
 export function isInBounds(col: number, row: number): boolean {
   return col >= 1 && col <= BATTLE_GRID_COLUMNS && row >= 1 && row <= BATTLE_GRID_ROWS;
@@ -50,11 +56,13 @@ export function absoluteDistanceVw(
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-export function absoluteDistanceCells(
+/* Absolute distance expressed in range units — directly comparable to the
+ * attackRange stat. */
+export function absoluteDistanceRangeUnits(
   a: { x: number; y: number },
   b: { x: number; y: number },
 ): number {
-  return absoluteDistanceVw(a, b) / BATTLE_CELL_SIZE_VW;
+  return absoluteDistanceVw(a, b) / BATTLE_RANGE_UNIT_VW;
 }
 
 export function isAbsolutePositionInRange(
@@ -62,7 +70,7 @@ export function isAbsolutePositionInRange(
   to: { x: number; y: number },
   range: number,
 ): boolean {
-  const rangeVw = range * BATTLE_CELL_SIZE_VW;
+  const rangeVw = range * BATTLE_RANGE_UNIT_VW;
   const dx = from.x - to.x;
   const dy = from.y - to.y;
   return dx * dx + dy * dy <= rangeVw * rangeVw;
@@ -76,22 +84,20 @@ export function isAbsoluteInRange(
   return isAbsolutePositionInRange(attacker, target, range);
 }
 
+/* Effective reach (range units) used by the canAttack gate. The UI range
+ * indicator must use this value too, so it shows what the stack can
+ * actually hit. */
+export function effectiveAttackRange(stack: BattleStack): number {
+  return stack.attackRange + ATTACK_RANGE_TOLERANCE;
+}
+
 /*
- * Authoritative attack gate. A stack may attack if its absolute x/y is
- * within attackRange + ATTACK_GRID_TOLERANCE_CELLS. The tolerance lets a
- * stack that settled on a grid cell just outside its nominal range still
- * fire — snap-to-grid can push a stack slightly outside range, which
- * otherwise leaves stacks standing at attack distance unable to attack.
- * Bounded: the tolerance is small (1 cell), so a stack can never attack
- * from 2+ cells beyond range. Using the absolute check (not a separate
- * grid-cell check) keeps this safe even if col/row ever desyncs from x/y.
+ * Authoritative attack gate: absolute x/y distance within
+ * attackRange + ATTACK_RANGE_TOLERANCE. Using absolute positions (not
+ * col/row) keeps this safe even if col/row desyncs from x/y mid-flight.
  */
 export function canAttack(attacker: BattleStack, target: BattleStack): boolean {
-  return isAbsolutePositionInRange(
-    attacker,
-    target,
-    attacker.attackRange + ATTACK_GRID_TOLERANCE_CELLS,
-  );
+  return isAbsolutePositionInRange(attacker, target, effectiveAttackRange(attacker));
 }
 
 /*
@@ -137,18 +143,16 @@ export function applyShieldRegen(current: number, max: number, regen: number): n
 
 /*
  * =========================================================
- *  ROLE-AWARE TARGET SCORING
+ *  ROLE-AWARE TARGET SCORING ('balanced' targeting mode)
  *  =========================================================
  *
- * The tactical AI scores in-range enemy candidates before attacking. The
- * score is a pure, deterministic function of the attacker's role, the
- * target's role, and the target's existing combat stats — no new data,
- * no randomness, no lookahead.
+ * Pure, deterministic function of the attacker's role, the target's role,
+ * and the target's existing combat stats — no new data, no randomness.
  *
- *   score = rolePriority * 1000 + threatWeight * 10 + (maxRange - distance)
+ *   score = rolePriority * 1000 + threatWeight * 10 + roleBonus + (range - distance)
  *
- * Higher is better. Ties fall through to distance (nearest first) and
- * finally to stackId, so the choice is always unique.
+ * Higher is better. battle-targeting.ts breaks remaining ties by distance
+ * and stackId so the choice is always unique.
  */
 
 /* Coarse priority of target roles. Capital ships and fleet-support ships
@@ -169,8 +173,7 @@ const TARGET_ROLE_PRIORITY: Record<string, number> = {
   defense: 1,
 };
 
-/* Threat weight derived from the target's existing combat stats. Pure
- * read — no combat logic duplicated. */
+/* Threat weight derived from the target's existing combat stats. */
 function threatWeight(stack: BattleStack): number {
   const totalAttack = stack.ships.reduce((sum, s) => (s.alive ? sum + s.attack : sum), 0);
   const totalHp = stack.ships.reduce((sum, s) => (s.alive ? sum + s.hp : sum), 0);
@@ -180,6 +183,7 @@ function threatWeight(stack: BattleStack): number {
   return Math.round(attackPart + hpPart);
 }
 
+/* distance is in range units (absoluteDistanceRangeUnits). */
 export function computeTargetScore(
   attacker: BattleStack,
   target: BattleStack,
@@ -194,31 +198,40 @@ export function computeTargetScore(
   return rolePriority * 1000 + threat * 10 + roleBonus + (attacker.attackRange - distance);
 }
 
+/*
+ * =========================================================
+ *  OCCUPANCY
+ *  =========================================================
+ *
+ * A stack occupies `size` consecutive cells in its row, growing right from
+ * the anchor for attackers and left for defenders (ships face the enemy).
+ *
+ * Static occupancy uses each living stack's current col/row. In-flight
+ * stacks additionally reserve their destination footprint (isCellReserved)
+ * so two stacks are never sent to the same cell; reservations only block
+ * destination cells, not cells a path passes through.
+ */
+
 export function isOccupied(
   state: BattleModelState,
   col: number,
   row: number,
   excludeStackId?: string,
 ): boolean {
-  /*
-   * Checks static physical occupancy — whether any living stack's
-   * current grid position (col/row) covers the queried cell.
-   * In-flight stacks (targetX/targetY set) are NOT checked here;
-   * their destination reservation is handled by `isCellReserved`,
-   * which `isPathClear` applies to destination cells only.
-   */
   return state.stacks.some((s) => {
     if (s.destroyed || s.stackId === excludeStackId) return false;
     return occupiesCell(s, col, row);
   });
 }
 
-/*
- * Checks whether a cell is the reserved destination of an in-flight stack.
- * An in-flight stack (moving = true, targetX/targetY set) claims its
- * destination cell so that no other stack is sent to the same cell.
- * The excludeStackId guard lets a stack check without blocking itself.
- */
+/* Anchor cell of an in-flight stack's destination, or null if it is not moving. */
+function reservedAnchor(s: BattleStack): GridCell | null {
+  if (!s.moving || s.targetX == null || s.targetY == null) {
+    return null;
+  }
+  return vwToStackCell(s, s.targetX, s.targetY);
+}
+
 export function isCellReserved(
   state: BattleModelState,
   col: number,
@@ -226,10 +239,10 @@ export function isCellReserved(
   excludeStackId?: string,
 ): boolean {
   return state.stacks.some((s) => {
-    if (s.destroyed || s.stackId === excludeStackId || !s.moving) return false;
-    if (s.targetX == null || s.targetY == null) return false;
-    const targetCell = vwToStackCell(s, s.targetX, s.targetY);
-    return occupiesCell({ ...s, col: targetCell.col, row: targetCell.row }, col, row);
+    if (s.destroyed || s.stackId === excludeStackId) return false;
+    const anchor = reservedAnchor(s);
+    if (!anchor) return false;
+    return occupiesCell({ ...s, col: anchor.col, row: anchor.row }, col, row);
   });
 }
 
@@ -261,6 +274,90 @@ export function getOccupiedCells(stack: BattleStack): GridCell[] {
   return cells;
 }
 
+export function occupiedCols(stack: BattleStack, anchorCol: number): number[] {
+  const cols: number[] = [];
+  const direction = stack.side === 'attacker' ? 1 : -1;
+  for (let i = 0; i < stack.size; i++) {
+    cols.push(anchorCol + i * direction);
+  }
+  return cols;
+}
+
+/*
+ * Snapshot of static occupancy and destination reservations, excluding one
+ * stack (the one being planned). Indexed by (row - 1) * COLUMNS + (col - 1).
+ * Only valid until any stack moves — build a fresh one per search.
+ */
+export interface OccupancyMap {
+  occupied: Uint8Array;
+  reserved: Uint8Array;
+}
+
+function cellIndex(col: number, row: number): number {
+  return (row - 1) * BATTLE_GRID_COLUMNS + (col - 1);
+}
+
+function markFootprint(map: Uint8Array, stack: BattleStack, anchor: GridCell): void {
+  for (const c of occupiedCols(stack, anchor.col)) {
+    if (isInBounds(c, anchor.row)) {
+      map[cellIndex(c, anchor.row)] = 1;
+    }
+  }
+}
+
+export function buildOccupancyMap(state: BattleModelState, excludeStackId?: string): OccupancyMap {
+  const size = BATTLE_GRID_COLUMNS * BATTLE_GRID_ROWS;
+  const occupied = new Uint8Array(size);
+  const reserved = new Uint8Array(size);
+  for (const s of state.stacks) {
+    if (s.destroyed || s.stackId === excludeStackId) continue;
+    markFootprint(occupied, s, { col: s.col, row: s.row });
+    const anchor = reservedAnchor(s);
+    if (anchor) {
+      markFootprint(reserved, s, anchor);
+    }
+  }
+  return { occupied, reserved };
+}
+
+/* True when the stack's footprint anchored at (col,row) is in bounds and
+ * not statically occupied (and, if requested, not reserved). */
+function footprintFree(
+  map: OccupancyMap,
+  stack: BattleStack,
+  col: number,
+  row: number,
+  checkReserved: boolean,
+): boolean {
+  for (const c of occupiedCols(stack, col)) {
+    if (!isInBounds(c, row)) return false;
+    const idx = cellIndex(c, row);
+    if (map.occupied[idx]) return false;
+    if (checkReserved && map.reserved[idx]) return false;
+  }
+  return true;
+}
+
+function isPathClearOnMap(map: OccupancyMap, path: GridCell[], stack: BattleStack): boolean {
+  for (let i = 0; i < path.length; i++) {
+    const cell = path[i];
+    // Destination cell: also reject if reserved by another in-flight stack.
+    // Intermediate cells may pass through other stacks' destinations.
+    if (!footprintFree(map, stack, cell.col, cell.row, i === path.length - 1)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function isPathClear(
+  state: BattleModelState,
+  path: GridCell[],
+  stack: BattleStack,
+): boolean {
+  return isPathClearOnMap(buildOccupancyMap(state, stack.stackId), path, stack);
+}
+
 /* Stack at a cell, or null. */
 export function getStackAt(state: BattleModelState, col: number, row: number): BattleStack | null {
   return state.stacks.find((s) => !s.destroyed && occupiesCell(s, col, row)) ?? null;
@@ -279,7 +376,7 @@ export function cellToVw(cell: GridCell): { x: number; y: number } {
 }
 
 /* Visual centre of a sized stack, accounting for side direction. */
-export function stackCenterVw(stack: BattleStack): { x: number; y: number } {
+export function stackCenterVw(stack: Pick<BattleStack, 'side' | 'size' | 'col' | 'row'>): { x: number; y: number } {
   const offset = (stack.size - 1) / 2;
   const visualCol = stack.side === 'attacker' ? stack.col + offset : stack.col - offset;
   return {
@@ -372,7 +469,6 @@ export function updateStackPositions(
       continue;
     }
 
-    // At this point, targetX and targetY are guaranteed to be non-null
     const targetX = stack.targetX!;
     const targetY = stack.targetY!;
 
@@ -395,15 +491,12 @@ export function updateStackPositions(
       stack.targetX = null;
       stack.targetY = null;
       const cell = vwToStackCell(stack, stack.x, stack.y);
-      const oldCol = stack.col;
-      const oldRow = stack.row;
       stack.col = cell.col;
       stack.row = cell.row;
       const wasMoving = stack.moving;
       stack.moving = false;
-      if (wasMoving) {
-        console.log(`[MOVE-COMPLETE] ${stack.stackId} (${stack.side}) arrived at (${cell.col},${cell.row}) from (${oldCol},${oldRow}) | moveToAttackTargetId=${stack.moveToAttackTargetId ?? 'none'} | visual x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)}`);
-      }
+      // A completed player move order hands the stack back to AUTO.
+      stack.manualMoveOrder = false;
       if (wasMoving && onComplete) {
         onComplete(stack.stackId);
       }
@@ -438,6 +531,16 @@ export function linePath(from: GridCell, to: GridCell): GridCell[] | null {
   return cells;
 }
 
+/* True when the stack can legally move from its anchor to (col,row) on the
+ * given map: destination footprint free and straight-line path clear. */
+function canReachOnMap(map: OccupancyMap, stack: BattleStack, col: number, row: number): boolean {
+  if (!footprintFree(map, stack, col, row, false)) {
+    return false;
+  }
+  const path = linePath({ col: stack.col, row: stack.row }, { col, row });
+  return !!path && isPathClearOnMap(map, path, stack);
+}
+
 /*
  * Cells a stack may legally move to right now: in bounds, unoccupied,
  * and reachable on a clear straight line. No AP or moveRange limits.
@@ -447,262 +550,241 @@ export function getReachableCells(state: BattleModelState, stack: BattleStack): 
   if (stack.destroyed || stack.immobile) {
     return [];
   }
-  const origin: GridCell = { col: stack.col, row: stack.row };
+  const map = buildOccupancyMap(state, stack.stackId);
   const cells: GridCell[] = [];
   for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
     for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
       if (c === stack.col && r === stack.row) {
         continue;
       }
-      const destCols = occupiedCols(stack, c);
-      if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) {
-        continue;
+      if (canReachOnMap(map, stack, c, r)) {
+        cells.push({ col: c, row: r });
       }
-      const path = linePath(origin, { col: c, row: r });
-      if (!path || !isPathClear(state, path, stack)) {
-        continue;
-      }
-      cells.push({ col: c, row: r });
     }
   }
   return cells;
 }
 
-export function occupiedCols(stack: BattleStack, anchorCol: number): number[] {
-  const cols: number[] = [];
-  const direction = stack.side === 'attacker' ? 1 : -1;
-  for (let i = 0; i < stack.size; i++) {
-    cols.push(anchorCol + i * direction);
-  }
-  return cols;
+/* Enemy stacks within a stack's current attack reach (ids only). */
+export function getAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
+  return state.stacks
+    .filter((s) => !s.destroyed && s.side !== stack.side && canAttack(stack, s))
+    .map((s) => s.stackId);
 }
 
-export function isPathClear(
+/*
+ * Friendly stacks within a Carrier's current attack reach (ids only). Used by
+ * the Shield Pulse action and to highlight which allies would be restored.
+ */
+export function computeCarrierBoostTargets(
   state: BattleModelState,
-  path: GridCell[],
-  stack: BattleStack,
-): boolean {
-  for (let i = 0; i < path.length; i++) {
-    const cell = path[i];
-    const cols = occupiedCols(stack, cell.col);
-    if (
-      cols.some((c) => !isInBounds(c, cell.row) || isOccupied(state, c, cell.row, stack.stackId))
-    ) {
-      return false;
-    }
-    // Destination cell: also reject if reserved by another in-flight stack
-    // (prevents two stacks from being sent to the same cell). Intermediate
-    // path cells are NOT checked for reservations — stacks may pass through
-    // cells that are another stack's destination.
-    if (i === path.length - 1 && cols.some((c) => isCellReserved(state, c, cell.row, stack.stackId))) {
-      return false;
-    }
+  carrier: BattleStack,
+): string[] {
+  if (carrier.typeId !== 'carrier' || carrier.destroyed) {
+    return [];
   }
-  return true;
+  return state.stacks
+    .filter(
+      (s) =>
+        !s.destroyed &&
+        s.side === carrier.side &&
+        s.stackId !== carrier.stackId &&
+        canAttack(carrier, s),
+    )
+    .map((s) => s.stackId);
 }
 
-/* Enemy stacks within a stack's current attack range (ids only).
-   * Uses canAttack so a stack that settled just outside absolute range
-   * (within ATTACK_GRID_TOLERANCE_CELLS by grid steps) is still listed. */
-  export function getAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
-    return state.stacks
-      .filter(
-        (s) =>
-          !s.destroyed && s.side !== stack.side && canAttack(stack, s),
-      )
-      .map((s) => s.stackId);
+/*
+ * Cells from which a stack could attack a specific target stack.
+ * Returns all unoccupied cells whose visual center has the target's current
+ * absolute position within `effectiveRange` and that have a clear
+ * straight-line path. Defaults to the stack's full attackRange; the AI
+ * passes a shrunk value to close only to AI_MOVE_TO_ATTACK_RATIO of its
+ * range before stopping.
+ *
+ * The cheap range test runs before the occupancy/path test, which prunes
+ * most of the grid before any path is traced.
+ */
+export function getMoveToAttackCells(
+  state: BattleModelState,
+  stack: BattleStack,
+  targetStack: BattleStack,
+  effectiveRange: number = stack.attackRange,
+): GridCell[] {
+  if (stack.destroyed || stack.immobile || targetStack.destroyed) {
+    return [];
   }
-
-  /*
-   * Friendly stacks within a Carrier's current attack range (ids only). Used by the
-   * Shield Pulse action to highlight which allies would be restored. Pure
-   * read of existing state — no combat logic duplicated here.
-   */
-  export function computeCarrierBoostTargets(
-    state: BattleModelState,
-    carrier: BattleStack,
-  ): string[] {
-    if (carrier.typeId !== 'carrier' || carrier.destroyed) {
-      return [];
+  const map = buildOccupancyMap(state, stack.stackId);
+  const cells: GridCell[] = [];
+  for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
+    for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+      const candidateCenter = stackCenterVw({ side: stack.side, size: stack.size, col: c, row: r });
+      if (!isAbsolutePositionInRange(candidateCenter, targetStack, effectiveRange)) {
+        continue;
+      }
+      if (c === stack.col && r === stack.row) {
+        // The current cell is a valid candidate when it is already in range:
+        // a stack that reached a firing position may "stay put" instead of
+        // being forced elsewhere (which caused oscillation when both the
+        // attacker and the target were moving).
+        cells.push({ col: c, row: r });
+        continue;
+      }
+      if (canReachOnMap(map, stack, c, r)) {
+        cells.push({ col: c, row: r });
+      }
     }
-    return state.stacks
-      .filter(
-        (s) =>
-          !s.destroyed &&
-          s.side === carrier.side &&
-          s.stackId !== carrier.stackId &&
-          canAttack(carrier, s),
-      )
-      .map((s) => s.stackId);
   }
+  return cells;
+}
 
 /*
-   * Cells from which a stack could attack a specific target stack.
-   * Returns all unoccupied cells whose visual center has the target's current
-   * absolute position within `effectiveRange` and that have a clear
-   * straight-line path. Defaults to the stack's full attackRange so UI
-   * highlights stay at full range; the AI passes a shrunk value to close
-   * only to AI_MOVE_TO_ATTACK_RATIO of its range before stopping.
-   */
-  export function getMoveToAttackCells(
-    state: BattleModelState,
-    stack: BattleStack,
-    targetStack: BattleStack,
-    effectiveRange: number = stack.attackRange,
-  ): GridCell[] {
-    if (stack.destroyed || stack.immobile || targetStack.destroyed) {
-      return [];
-    }
-    const origin: GridCell = { col: stack.col, row: stack.row };
-    const cells: GridCell[] = [];
-    for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
-      for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
-        if (c === stack.col && r === stack.row) {
-          // Include the current cell as a valid candidate ONLY if it is already
-          // within the effective attack range. This allows a stack that has
-          // reached a valid firing position to "stay put" instead of being
-          // forced to pick a different cell (which often causes oscillation
-          // when both attacker and target move simultaneously).
-          const currentCenter = stackCenterVw(stack);
-          if (!isAbsolutePositionInRange(currentCenter, targetStack, effectiveRange)) {
-            continue;
-          }
-        }
-        const destCols = occupiedCols(stack, c);
-        if (destCols.some((dc) => !isInBounds(dc, r) || isOccupied(state, dc, r, stack.stackId))) {
-          continue;
-        }
-        const path = linePath(origin, { col: c, row: r });
-        if (!path || !isPathClear(state, path, stack)) {
-          continue;
-        }
-        const candidateCenter = stackCenterVw({ ...stack, col: c, row: r });
-        if (isAbsolutePositionInRange(candidateCenter, targetStack, effectiveRange)) {
-          cells.push({ col: c, row: r });
-        }
-      }
-    }
-    return cells;
+ * Returns the single best cell for move-to-attack.
+ *
+ * The candidate zone is shrunk to AI_MOVE_TO_ATTACK_RATIO of the
+ * attacker's attack range, so stacks stop short of point-blank. Attack
+ * resolution itself still uses the full reach — this only decides WHERE
+ * the stack moves to.
+ *
+ * Selection order (each step only breaks ties):
+ *   1. Cell farthest from the nearest friendly ally (fan out so stacks
+ *      don't pile up on the same firing position).
+ *   2. Closest cell to the attacker (minimum move cost).
+ *   3. Closest cell to the target.
+ *   4. Stable ordering on the cell itself.
+ */
+export function findBestMoveToAttackCell(
+  state: BattleModelState,
+  stack: BattleStack,
+  targetStack: BattleStack,
+): GridCell | null {
+  if (stack.destroyed || stack.immobile || targetStack.destroyed) {
+    return null;
   }
+  const effectiveRange = stack.attackRange * AI_MOVE_TO_ATTACK_RATIO;
+  const map = buildOccupancyMap(state, stack.stackId);
+  const origin: GridCell = { col: stack.col, row: stack.row };
+  const allies = state.stacks.filter(
+    (s) => !s.destroyed && s.stackId !== stack.stackId && s.side === stack.side,
+  );
+
+  // Rank the cheap-to-evaluate candidates first and trace straight-line
+  // paths only until the first reachable one. Equivalent to filtering by
+  // reachability and then picking the best, but traces far fewer paths —
+  // this runs for every chasing stack on each re-plan.
+  const candidates: { cell: GridCell; ally: number; cost: number; toTarget: number; current: boolean }[] = [];
+  for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
+    for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+      const center = stackCenterVw({ side: stack.side, size: stack.size, col: c, row: r });
+      if (!isAbsolutePositionInRange(center, targetStack, effectiveRange)) {
+        continue;
+      }
+      const current = c === stack.col && r === stack.row;
+      if (!current && !footprintFree(map, stack, c, r, false)) {
+        continue;
+      }
+      const cell = { col: c, row: r };
+      candidates.push({
+        cell,
+        ally: minDistanceToAllies(cell, allies),
+        cost: chebyshev(origin, cell),
+        toTarget: absoluteDistanceVw(center, targetStack),
+        current,
+      });
+    }
+  }
+  candidates.sort(
+    (a, b) =>
+      b.ally - a.ally ||
+      a.cost - b.cost ||
+      a.toTarget - b.toTarget ||
+      a.cell.col - b.cell.col ||
+      a.cell.row - b.cell.row,
+  );
+  for (const candidate of candidates) {
+    // The current cell needs no path (see getMoveToAttackCells).
+    if (candidate.current || canReachOnMap(map, stack, candidate.cell.col, candidate.cell.row)) {
+      return candidate.cell;
+    }
+  }
+  return null;
+}
 
 /*
-   * Returns the single best cell for move-to-attack.
-   *
-   * The candidate zone is shrunk to AI_MOVE_TO_ATTACK_RATIO of the
-   * attacker's attack range, so the AI stops at ~75% of its range instead
-   * of closing to point-blank. Attack resolution itself still uses the
-   * full attackRange — this only decides WHERE the stack moves to.
-   *
-   * Selection order (each step only breaks ties):
-   *   1. Closest cell to the attacker (minimum move cost). The stack closes
-   *      on the nearest free firing position; it only retreats when no free
-   *      cell exists at all.
-   *   2. Closest cell to the target (so the stack stops at its weapon's
-   *      effective range instead of charging point-blank).
-   *   3. Cell farthest from the nearest friendly ally (fan out so stacks
-   *      don't pile up on the same firing position).
-   *   4. Stable ordering on the cell itself.
-   */
-  export function findBestMoveToAttackCell(
-    state: BattleModelState,
-    stack: BattleStack,
-    targetStack: BattleStack,
-  ): GridCell | null {
-    const candidates = getMoveToAttackCells(
-      state,
-      stack,
-      targetStack,
-      stack.attackRange * AI_MOVE_TO_ATTACK_RATIO,
-    );
-    if (candidates.length === 0) {
-      return null;
+ * Fallback when no free cell brings the target into range (blocked by other
+ * stacks or the straight-line path rule): the reachable cell that gets the
+ * stack strictly closer to the target, nearest to the target first, then
+ * cheapest to reach. Returns null when no reachable cell is closer than the
+ * current position. Replaces the old behaviour of retreating away from the
+ * enemy, which made blocked stacks drift out of the fight.
+ */
+export function findApproachCell(
+  state: BattleModelState,
+  stack: BattleStack,
+  targetStack: BattleStack,
+): GridCell | null {
+  if (stack.destroyed || stack.immobile || targetStack.destroyed) {
+    return null;
+  }
+  const map = buildOccupancyMap(state, stack.stackId);
+  const origin: GridCell = { col: stack.col, row: stack.row };
+  // Require meaningful progress (half a cell) so a stack does not shuffle
+  // back and forth between two nearly equidistant cells.
+  const minGainVw = BATTLE_CELL_HEIGHT_VW / 2;
+  const maxDist = absoluteDistanceVw(stackCenterVw(stack), targetStack) - minGainVw;
+  const candidates: { cell: GridCell; dist: number; cost: number }[] = [];
+  for (let c = 1; c <= BATTLE_GRID_COLUMNS; c++) {
+    for (let r = 1; r <= BATTLE_GRID_ROWS; r++) {
+      if (c === stack.col && r === stack.row) continue;
+      const center = stackCenterVw({ side: stack.side, size: stack.size, col: c, row: r });
+      const dist = absoluteDistanceVw(center, targetStack);
+      if (dist > maxDist || !footprintFree(map, stack, c, r, false)) continue;
+      const cell = { col: c, row: r };
+      candidates.push({ cell, dist, cost: chebyshev(origin, cell) });
     }
-    const origin: GridCell = { col: stack.col, row: stack.row };
-    const allies = state.stacks.filter(
-      (s) => !s.destroyed && s.stackId !== stack.stackId && s.side === stack.side,
-    );
-    return candidates.reduce((best, cell) => {
-      // Primary: fan out by preferring the cell farthest from the nearest ally.
-      // This naturally spreads attackers around the target instead of piling
-      // up on the closest approach cell.
-      const cellAlly = minDistanceToAllies(cell, allies);
-      const bestAlly = minDistanceToAllies(best, allies);
-      if (cellAlly > bestAlly) {
-        return cell;
-      }
-      if (cellAlly < bestAlly) {
-        return best;
-      }
-      // Secondary: closest cell to the attacker (minimum move cost).
-      const cellDist = chebyshev(origin, cell);
-      const bestDist = chebyshev(origin, best);
-      if (cellDist < bestDist) {
-        return cell;
-      }
-      if (cellDist > bestDist) {
-        return best;
-      }
-      // Tertiary: prefer the cell closest to the target.
-      const bestCenter = stackCenterVw({ ...stack, col: best.col, row: best.row });
-      const cellCenter = stackCenterVw({ ...stack, col: cell.col, row: cell.row });
-      const bestToTarget = absoluteDistanceCells(bestCenter, targetStack);
-      const cellToTarget = absoluteDistanceCells(cellCenter, targetStack);
-      if (cellToTarget < bestToTarget) {
-        return cell;
-      }
-      if (cellToTarget > bestToTarget) {
-        return best;
-      }
-      // Final tie-break: stable ordering on the cell itself.
-      return cell.col < best.col || (cell.col === best.col && cell.row < best.row)
-        ? cell
-        : best;
-    });
   }
-
-  /* Chebyshev (king-move) distance between two grid cells — matches the
-   * straight-line path step count used by linePath. */
-  function chebyshev(a: GridCell, b: GridCell): number {
-    return Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
-  }
-
-  /* Minimum Chebyshev distance from a candidate cell to any friendly
-   * stack. Mid-flight allies use their reserved destination (targetX/Y)
-   * so the crowding picture is accurate; settled allies use col/row. */
-  function minDistanceToAllies(cell: GridCell, allies: BattleStack[]): number {
-    let min = Infinity;
-    for (const a of allies) {
-      const anchor: GridCell =
-        a.moving && a.targetX != null && a.targetY != null
-          ? vwToStackCell(a, a.targetX, a.targetY)
-          : { col: a.col, row: a.row };
-      const d = chebyshev(cell, anchor);
-      if (d < min) {
-        min = d;
-      }
+  // Nearest to the target first, then cheapest; trace paths only until
+  // the first reachable candidate.
+  candidates.sort((a, b) => a.dist - b.dist || a.cost - b.cost || a.cell.col - b.cell.col || a.cell.row - b.cell.row);
+  for (const candidate of candidates) {
+    if (canReachOnMap(map, stack, candidate.cell.col, candidate.cell.row)) {
+      return candidate.cell;
     }
-    return min === Infinity ? 0 : min;
   }
+  return null;
+}
+
+/* Chebyshev (king-move) distance between two grid cells — matches the
+ * straight-line path step count used by linePath. */
+function chebyshev(a: GridCell, b: GridCell): number {
+  return Math.max(Math.abs(a.col - b.col), Math.abs(a.row - b.row));
+}
+
+/* Minimum Chebyshev distance from a candidate cell to any friendly
+ * stack. Mid-flight allies use their reserved destination (targetX/Y)
+ * so the crowding picture is accurate; settled allies use col/row. */
+function minDistanceToAllies(cell: GridCell, allies: BattleStack[]): number {
+  let min = Infinity;
+  for (const a of allies) {
+    const anchor: GridCell = reservedAnchor(a) ?? { col: a.col, row: a.row };
+    const d = chebyshev(cell, anchor);
+    if (d < min) {
+      min = d;
+    }
+  }
+  return min === Infinity ? 0 : min;
+}
 
 /*
- * Enemy stacks that are outside the current absolute attackRange but reachable
+ * Enemy stacks that are outside the current attack reach but reachable
  * via a clear path. These are valid move-to-attack targets.
- * No AP or moveRange limits.
  */
 export function getMoveToAttackTargetIds(state: BattleModelState, stack: BattleStack): string[] {
-    if (stack.destroyed || stack.immobile) {
-      return [];
-    }
-    return state.stacks
-      .filter((s) => !s.destroyed && s.side !== stack.side)
-      .filter((s) => {
-        // Already attackable — no need to move to attack. canAttack
-        // tolerates a stack that settled just outside absolute range.
-        if (canAttack(stack, s)) {
-          return false;
-        }
-        // Check if there's at least one valid move-to-attack cell
-        return getMoveToAttackCells(state, stack, s).length > 0;
-      })
-      .map((s) => s.stackId);
+  if (stack.destroyed || stack.immobile) {
+    return [];
   }
+  return state.stacks
+    .filter((s) => !s.destroyed && s.side !== stack.side)
+    .filter((s) => !canAttack(stack, s) && getMoveToAttackCells(state, stack, s).length > 0)
+    .map((s) => s.stackId);
+}

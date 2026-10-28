@@ -36,15 +36,26 @@ battle returns to the map.
 
 ## Tactical Grid
 
-- 18 columns × 7 rows of 4vw cells (72vw × 28vw). Concepts (1-indexed cells, grid
-  coordinates) are reused from the System View; the minigame keeps its own constants
-  (`battle.types.ts`) so it does not import `StarMapMovementService`.
-- The attacker deploys on the left columns (`ATTACKER_DEPLOY_COLS = 1, 2, 3, 4`); the
-  defender deploys on the right columns (`DEFENDER_DEPLOY_COLS = 18, 17, 16, 15`). Rows
-  fill centre-out from row 4.
+- **38 columns × 16 rows** over a fixed **72vw × 28vw** battlefield (cells ≈ 1.89vw ×
+  1.75vw). The grid was doubled from 19 × 8 in both directions; the battlefield's physical
+  size did not change. Concepts (1-indexed cells) are reused from the System View; the
+  minigame keeps its own constants (`battle.types.ts`) so it does not import
+  `StarMapMovementService`.
+- Grid cells drive movement, pathing, occupancy and clicks. **Range is physical**: one unit
+  of a ship's `range` stat is `BATTLE_RANGE_UNIT_VW = 3.5vw` (the cell height of the old
+  19 × 8 grid), independent of grid density. Speed is already physical (vw/s). Doubling the
+  grid therefore changed neither weapon reach nor travel time.
+- A stack occupies `size` consecutive cells in its row (1 for tier 1–2, 2 for tier 3–4, 3 for
+  tier 5), growing right for attackers and left for defenders. On the denser grid ships render
+  at half their former size and have four times as much room to manoeuvre.
+- **Deployment slots** keep the old physical spacing: attacker anchor columns
+  `ATTACKER_DEPLOY_COLS = 1, 3, 5, 7`, defender `DEFENDER_DEPLOY_COLS = 38, 36, 34, 32`
+  (outer edge first), rows centre-out `DEPLOY_ROW_ORDER = 8, 6, 10, 4, 12, 2, 14`. Placement
+  is occupancy-aware for both sides, so wide stacks never overlap; when the 28 slots are full,
+  the first free cell scanning inward from the side's edge is used.
 - Planet-defense buildings deploy as `immobile = true` stacks in the **outermost defender
-  column (18) first**, then overflow inward. Garrison stacks fill the remaining defender
-  cells behind them. See [Planet Battles](#planet-battles).
+  slot column first**, then overflow inward. Garrison stacks start one slot column inward
+  from the last column used by turrets. See [Planet Battles](#planet-battles).
 
 ## Ships and Stacks
 
@@ -57,15 +68,14 @@ battle returns to the map.
   overkill spills to the next ship. When the last ship dies the stack is destroyed and
   removed from the grid.
 
-## Action Points
+## Real-Time, Speed-Based
 
-Battles are **real-time, speed-based** — there are no Action Points. Stacks move continuously at their
-`speed` stat (vw/s, range 1–5 from `ship-data.json`). Both sides are active simultaneously; the
-animation busy lock gates attacks only, not movement.
+Battles are **real-time** — there are no Action Points or turns. Stacks move continuously at
+their `speed` stat (vw/s, 1–5 from `ship-data.json`). Both sides act simultaneously.
 
-The `speed` stat is the ship's movement speed in vw/s. The `range` stat is its attack range.
-Virtual defense buildings (turrets) are immobile (speed 0) and use their building definition's
-`range` for attacks.
+The `range` stat is the attack range in range units (see [Tactical Grid](#tactical-grid)).
+Virtual defense buildings (turrets) are immobile (speed 0), use their building definition's
+`range`, and **do fire** like any other stack.
 
 ## Movement
 
@@ -73,20 +83,27 @@ Virtual defense buildings (turrets) are immobile (speed 0) and use their buildin
   target; the RAF game loop interpolates the stack toward that target at `speed` vw/s. No AP cost,
   no move range limit — any reachable cell with a clear path is valid.
 - Every intermediate cell along the path must be in bounds and unoccupied (no pathfinding through
-  obstacles).
-- Stacks can move while attacks are animating on other stacks; movement is never blocked by the
-  animation lock.
+  obstacles). The destination may also not be reserved by another in-flight stack.
+- **Move-to-attack** (chasing a target) moves to the best free cell within
+  `AI_MOVE_TO_ATTACK_RATIO` (0.9) of the attack range. When no such cell is reachable, the stack
+  moves to the reachable cell closest to the target instead (it never retreats). Chasing stacks
+  re-plan every `MOVE_REPLAN_INTERVAL_MS` (150 ms battle time) while the target moves.
 - Immobile stacks (planet-defense buildings) cannot move.
 
 ## Combat
 
-- A stack may attack freely, including while it is moving — there is no per-stack or per-turn
-  attack limit. The only gate is the animation busy lock (no other animation in flight on that
-  stack).
-- Target must be an enemy stack within `range` at the moment the attack starts. Range is measured
-  from the stacks' current absolute `x/y` centers in VW, not from their `col/row` anchors:
-  `distanceVw <= attackRange * BATTLE_CELL_SIZE_VW`. The comparison is Euclidean and inclusive at
-  the exact boundary.
+- **Fire control** (`BattleCombatService.runFireControl`) is the only place that decides when a
+  stack fires. It runs every frame for every living stack of **both sides** (player, AUTO and enemy
+  AI alike). A stack fires when its cooldown has elapsed, it has no volley in flight, and a target
+  is in reach. Stacks may fire while moving.
+- **Fire cadence** is identical for both sides: one volley every
+  `(1 / fireRate) s × FIRE_RATE_MULTIPLIER` of battle time (≈ 667 ms at the current
+  `fireRate = 1.5`). Fleet size does not slow down the AI side.
+- **Whom to shoot** follows [Orders and Targeting](#orders-and-targeting).
+- **Reach**: target must be an enemy whose absolute `x/y` centre is within
+  `(attackRange + ATTACK_RANGE_TOLERANCE) × BATTLE_RANGE_UNIT_VW` when the volley starts
+  (`ATTACK_RANGE_TOLERANCE = 1`, so every ship effectively reaches `range + 1`). Euclidean,
+  inclusive at the boundary. The selected stack's range ring shows exactly this reach.
 - A projectile captures the attacker and target `x/y` positions when firing starts. It does not
   track a target that moves during the animation.
 - **Damage = whole-stack volley:** `totalAttack = Σ attack of alive ships in the firing
@@ -98,7 +115,49 @@ Virtual defense buildings (turrets) are immobile (speed 0) and use their buildin
   own `weakness` type is the resisted matchup. `max(1, floor(...))` keeps the damage floor.
 - Shield absorbs damage before hull: each ship's own `shield` absorbs first; only overflow
   reaches hull HP. A stack with no alive ships is destroyed.
-- Each attack appends a `BattleLogEntry` (round, side, stacks, gross volley damage, kills).
+- **Simultaneous fire on one target:** damage is applied when a projectile lands. If the target
+  was already destroyed by another volley in flight, the later volley is wasted (no damage, no
+  log entry). Victory is checked after every volley.
+- Each damaging volley appends a `BattleLogEntry` (round, side, stacks, gross volley damage,
+  kills).
+
+## Orders and Targeting
+
+Implemented in `battle-targeting.ts` (target choice), `BattleScreenComponent` (orders) and
+`BattleMovementService.maintainAttackOrders` (chasing).
+
+**Player orders** are plain state on the stack and apply immediately, also while paused:
+
+- **Attack order** (click an enemy with a stack selected) sets `explicitAttackTargetId`.
+  - The stack fires at that target whenever it is in reach.
+  - While it is out of reach the stack chases it, and the order is re-issued on every re-plan
+    tick, so a target moving away does not cancel the order.
+  - Meanwhile the stack **fires opportunistically** at other in-reach enemies without dropping
+    the order, and switches back as soon as the ordered target is in reach.
+  - The order ends only when the target is destroyed (the stack returns to automatic targeting)
+    or the player gives that stack a new order. Selecting other stacks, range loss, AUTO and the
+    AI never clear it. If the target cannot be reached, the order stays and the stack keeps
+    trying while still fighting whatever is in reach.
+- **Move order** (click a cell) replaces any attack order, but only if the move is legal; a
+  blocked move leaves the previous order untouched. AUTO leaves the stack alone until it
+  arrives (`manualMoveOrder`).
+- Re-clicking an enemy never bypasses the fire cooldown.
+
+**Automatic targeting** applies whenever a stack has no in-reach manual target. Each stack has a
+`targetingMode` (player-selectable per stack in the selection panel; the enemy AI uses
+`balanced`). Only in-reach enemies are candidates:
+
+| Mode | Prefers | Tie-breaks |
+|---|---|---|
+| `balanced` (default) | Original role-aware score: target role priority × 1000 + threat × 10 + role bonus + (range − distance) | — |
+| `strongest` | Highest remaining hull + shield (+ shared planetary shield for immobile turrets) | higher firepower |
+| `weakest` | Fewest volleys for **this** attacker to kill (uses the real damage formula: front defense, weapon matchup, floor 1) | lower durability |
+| `firepower` | Highest Σ attack × fireRate | lower durability |
+
+All modes finally break ties by distance (nearer first) and then `stackId`, so selection is
+deterministic. To avoid flip-flopping, the chosen automatic target is **sticky**
+(`autoTargetId`): it is kept while alive and in reach, and dropped when it dies, leaves reach,
+or the mode changes.
 
 ## Planet Battles
 
@@ -111,55 +170,68 @@ Virtual defense buildings (turrets) are immobile (speed 0) and use their buildin
     or `max` if no persisted value exists (first battle after placement).
   - It absorbs damage for **immobile turret stacks only**; garrison ships use their own
     per-ship shields.
-  - At the start of each **defender turn**, the pool regenerates by the sum of all
-    shield-building `shieldRegen` values, capped at `max`.
+  - On every shield-regen tick (`SHIELD_REGEN_INTERVAL_MS`), the pool regenerates by the sum
+    of all shield-building `shieldRegen` values, capped at `max`.
 - The planet visual is presentation-only and never part of `BattleStack` or combat state.
   It is rendered separately by the battle grid, using the planet's name and type color.
 
 ## Real-Time Model
 
-Battles run on a real-time game loop (`BattleGameLoopService` — RAF with raw real delta time, not
-`GameTimeService`, since the star-map clock is paused during battle):
+Battles run on a real-time game loop (`BattleGameLoopService` — RAF, outside the Angular zone).
+Delta time is scaled by the battle-local `BattleTimeService` (pause / 1x / 2x) and is 0 while
+paused; the star-map `GameTimeService` stays paused during battle. Each frame
+(`BattleScreenComponent.gameLoopCallback`) runs, in order:
 
-```
-RAF loop: updateStackPositions → AI tick (every 0.2s) → shield regen (every 1s) → checkVictory
-```
+1. **Stack positions** move toward `targetX`/`targetY` at `speed` vw/s; on arrival `col`/`row`
+   snap to the destination cell and a manual move order is completed.
+2. **AI tick** every `AI_ACTION_INTERVAL_MS = 400` ms for the non-player side, plus a separate
+   **AUTO tick** for the player side when AUTO battle is on (movement decisions only).
+3. **Re-planning** every `MOVE_REPLAN_INTERVAL_MS = 150` ms: manual attack orders re-issue
+   their chase; chasing stacks re-plan their destination.
+4. **Fire control** for every stack (see [Combat](#combat)).
+5. **Shield regen** every `SHIELD_REGEN_INTERVAL_MS = 2000` ms for all living ships on both sides,
+   plus the shared planetary shield pool. The `round` counter increments per regen tick.
+6. **Victory check** (also after every volley): the side with zero alive stacks loses.
 
-1. **Stack positions** are updated every frame toward their `targetX`/`targetY` at `speed` vw/s.
-   When a stack arrives, its `col`/`row` snaps to the destination cell.
-2. **AI tick** fires one action every `AI_ACTION_INTERVAL_MS = 200` ms (configurable), gated by the
-   animation busy lock. The AI picks one action per tick: attack → carrier shield boost → move.
-3. **Shield regen** fires every `SHIELD_REGEN_INTERVAL_MS = 1000` ms for all living ships on both
-   sides, plus the shared planetary shield pool in planet battles. The `round` counter increments
-   per regen tick.
-4. **Victory** is checked after every attack and every game-loop tick: the side with zero alive
-   stacks loses; the battle ends with a winner declared.
+While paused nothing in steps 1–5 advances: positions, cooldowns and in-flight animation waits
+are all on battle time. Player orders can still be given and take effect on resume.
 
-## Non-Player Control
+## Tactical AI and AUTO Battle
 
-- The side whose `factionId !== 'player'` is controlled by a deterministic, greedy
-  [tactical AI](./architecture.md) (`BattleAiService`). It lives entirely inside the
-  battle-screen module and has no knowledge of the strategic `enemy-*` AI layers.
-- AI plan per action (one action per 0.2s tick):
-  1. Attack with the first stack that has an in-range enemy target.
-  2. If no attack available, perform a Carrier Shield Pulse if a carrier can boost a damaged ally.
-  3. If no attack or boost, move the nearest stack toward the nearest enemy (move-to-attack if
-     possible).
-  Planet-defense buildings never move.
+- The non-player side is controlled by a deterministic, greedy tactical AI (`BattleAiService`).
+  It lives entirely inside the battle-screen module and has no knowledge of the strategic
+  `enemy-*` AI layers.
+- The AI decides **movement and Carrier Shield Pulse only**; it never fires (fire control does).
+  Every AI tick, each controlled stack whose `AI_ACTION_COOLDOWN_MS` (1000 ms) has expired and
+  that is not moving gets one decision:
+  1. Carrier: Shield Pulse if an ally in reach is below 50 % shield.
+  2. An enemy is already in reach: hold position.
+  3. Otherwise move-to-attack the nearest enemy (approach fallback when blocked).
+- Planet-defense buildings never move (they still fire).
+- **AUTO battle** (header toggle, persisted in `localStorage`, on by default) runs the same AI for
+  the **player side only**. It never commands a player stack that holds a manual order (attack
+  target, or an in-flight manual move) — manual orders always win. Enabling AUTO does not give the
+  enemy extra decisions.
+
+## Carrier Shield Pulse
+
+Restores the Carrier front ship's `shieldRegen` to every friendly ship within the Carrier's reach
+(capped at `maxShield`). It requires the Carrier to be stationary, not mid-volley and off fire
+cooldown, and at least one ally in reach must be missing shield (otherwise it does nothing and
+costs nothing). It **consumes the Carrier's fire cooldown**, so it replaces a volley and cannot
+be spammed. Other stacks animating elsewhere do not block it.
 
 ## Animation / State Locking
 
-`BattleAnimationService` holds a single in-flight counter plus a `busy` signal:
+`BattleAnimationService` tracks in-flight animations **per stack** (plus a global count used only
+by the result overlay, which waits until all animations finished):
 
-- Every attack is wrapped in `anim.run(fn)`, which balances a `begin()`/`end()` pair around the
-  animation even if `fn` throws.
-- The **animation lock** gates attacks only — movement is never blocked by it. Two stacks can
-  attack simultaneously on different ticks, but only one attack animation can be in flight
-  globally.
-- The view, the input handlers, the combat services, and the AI all re-check the busy flag,
-  so a race in any one layer cannot advance state mid-animation.
-- `ticks$` emits after every mid-animation state change (projectile → impact → explosion) so
-  the OnPush view re-renders effect phases without polling.
+- Every volley is wrapped in `anim.run(fn, stackId)`, which balances `begin()`/`end()` even if
+  `fn` throws. A stack never has two volleys in flight; different stacks animate concurrently.
+- Animation waits use the battle clock, so they freeze on pause and run faster at 2x.
+- Movement is never blocked by animations.
+- `ticks$` emits after every mid-animation state change (projectile → impact → explosion) and
+  every frame, which triggers change detection on the battle screen.
 
 ## Outcome
 
@@ -182,3 +254,9 @@ The minigame returns a `BattleOutcome`:
   is written back after a planet battle. A garrisoned fleet parked on the planet is not
   touched (pre-existing simplification preserved).
 - Leaving a battle mid-combat is not offered: BACK only appears once a winner is decided.
+- Targeting modes and orders are battle-local; nothing about them is saved, so save data is
+  unaffected.
+- Pathing is straight-line only (no detours around obstacles); a blocked stack approaches as
+  close as a straight line allows.
+- The selection panel's DEF shows the sum over the stack's ships, while combat uses only the
+  front ship's defense.

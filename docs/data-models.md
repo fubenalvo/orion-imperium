@@ -178,13 +178,13 @@ auto-resolving implementation. It now lives in
 `src/app/components/battle-screen/battle/battle.types.ts` as `BattleModelState` and is built
 by `createBattleState()` (in `battle/battle-state.ts`), **not** by `BattleService`.
 
-- `round`: increments every 1s shield-regen tick (real-time model)
+- `round`: increments every shield-regen tick (`SHIELD_REGEN_INTERVAL_MS` = 2s) (real-time model)
 - `battleType`: `'fleet' | 'planet'`
 - `planetId?`, `planetName?`, `planetColor?`: planet-battle metadata
 - `defenderShieldPool?`: `{ current, max, regen } | null` — shared planetary shield that
-  absorbs damage for immobile turret stacks only and regenerates every 1s
+  absorbs damage for immobile turret stacks only and regenerates on every shield-regen tick
 - `stacks`: `BattleStack[]` — the tactical units on the grid
-- `effect`: the single in-flight `BattleAttackEffect` (projectile / impact / explosion)
+- `effects`: in-flight `BattleAttackEffect`s (projectile / impact / explosion), at most one per firing stack
 - `winner`: the battle side with surviving stacks, or `null`
 - `attackerFleetId`, `defenderFleetId`, faction ids, and display names/colors
 - `attackerShips`, `defenderShips`: full rosters in input order (used to build the outcome)
@@ -197,10 +197,17 @@ by `createBattleState()` (in `battle/battle-state.ts`), **not** by `BattleServic
 - `targetX`, `targetY`: vw destination (null when idle); set by `moveStack`, cleared on arrival
 - `speed`: movement speed in vw/s (from `ShipType.speed`, 1–5; 0 for immobile)
 - `ships`: `BattleShip[]` (≤ `MAX_STACK_SIZE = 5`)
-- `tier`: size/combat tier
-- `attackRange`: = the ship type's `range` (0 for unknown/fallback types)
-- `immobile`: true for planet-defense buildings, which also receive the shared shield
+- `tier`: size/combat tier; `size`: cells occupied in the row (1–3, by tier)
+- `attackRange`: = the ship type's `range`, in range units of `BATTLE_RANGE_UNIT_VW`
+  (0 for unknown/fallback types); `fireRate`: volleys per second
+- `immobile`: true for planet-defense buildings (they cannot move but do fire), which also
+  receive the shared shield
 - `moving`, `firing`
+- Orders/targeting (battle-local, never persisted): `explicitAttackTargetId` (manual attack
+  order), `manualMoveOrder`, `moveToAttackTargetId` (chase target), `targetingMode`
+  (`'balanced' | 'strongest' | 'weakest' | 'firepower'`), `autoTargetId` (sticky automatic
+  target), `attackCooldownUntil` (fire cooldown), `actionCooldownUntil` (AI re-plan cooldown).
+  See [Battle Rules](./battle-rules.md#orders-and-targeting).
 - `destroyed`: true when every ship in the stack is dead
 
 ### BattleShip

@@ -1,17 +1,22 @@
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { BattleTimeService } from './battle-time.service';
+import { startBattleTestClock } from './battle-test-clock';
 import { BattleAnimationService } from './battle-animation.service';
 
 describe('BattleAnimationService', () => {
+  let stopClock: () => void = () => {};
   let service: BattleAnimationService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
     service = TestBed.inject(BattleAnimationService);
     vi.useFakeTimers();
+    stopClock = startBattleTestClock(TestBed.inject(BattleTimeService));
   });
 
   afterEach(() => {
     service.reset();
+    stopClock();
     vi.useRealTimers();
   });
 

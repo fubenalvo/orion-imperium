@@ -180,6 +180,8 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 - Confirming a build deducts the building's `price` from the player's credits and appends a new `PlanetBuilding` (with the chosen `x`/`y`) to `planet.buildings`.
 - The same component is reused across the system view (when a planet is selected) and the planet view.
 - The sidebar exposes a tab strip with DETAILS, BUILD, PRODUCTION, and ASSEMBLY. Tab visibility is data-driven: BUILD is shown only for player-owned planets, PRODUCTION only when the planet has a Spaceship Factory, and ASSEMBLY only when the planet has a Spaceport. Selecting a tab replaces the sidebar's content area; no floating overlays are mounted outside the sidebar (the production and spaceport panels are re-used inline).
+- **Zoom levels:** a CLOSE / MEDIUM / FAR selector (bottom-right of the surface; top-right below 600px width) scales the grid via `PLANET_SURFACE_ZOOM_SCALES` (`1` / `0.75` / `0.55`) inside the grid's inline transform. CLOSE (`1`) is the original framing defined by `PLANET_SURFACE_CELL_VW`; the scale is applied around the grid center, and the pan offset is rescaled on switch so the view does not jump. Pan clamp bounds use the scaled size.
+- Zoom is view-only state: it is never stored on the planet, in game state, or in saves. Every planet opening starts at MEDIUM (`DEFAULT_PLANET_SURFACE_ZOOM`) — the component is destroyed when the planet view closes, and a change of planet id resets it. There is no deliberate view-state persistence for the planet view (unlike `currentView`/camera, which the save system restores), so this does not conflict with any existing behaviour.
 
 ## Save System
 

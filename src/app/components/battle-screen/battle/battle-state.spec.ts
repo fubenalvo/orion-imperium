@@ -137,9 +137,9 @@ describe('battle-state', () => {
     const garrison = defenders.filter((s) => !s.immobile);
 
     expect(turrets).toHaveLength(3);
-    expect(turrets.every((s) => s.col === 19)).toBe(true);
+    expect(turrets.every((s) => s.col === 38)).toBe(true);
     expect(garrison).toHaveLength(2);
-    expect(garrison.every((s) => s.col < 19)).toBe(true);
+    expect(garrison.every((s) => s.col < 38)).toBe(true);
 
     const occupied = new Set<string>();
     for (const stack of defenders) {
@@ -186,18 +186,18 @@ describe('battle-state', () => {
     const state = createBattleState(b, shipService, planetBattleService);
     const attacker = getStacks(state, 'attacker')[0];
     const defender = getStacks(state, 'defender')[0];
-    expect(attacker.col).toBeLessThanOrEqual(4);
+    expect(attacker.col).toBeLessThanOrEqual(8);
     expect(attacker.col).toBeGreaterThanOrEqual(1);
-    expect(defender.col).toBeGreaterThanOrEqual(16);
-    expect(defender.col).toBeLessThanOrEqual(19);
+    expect(defender.col).toBeGreaterThanOrEqual(31);
+    expect(defender.col).toBeLessThanOrEqual(38);
 
     for (const stack of state.stacks) {
       expect(stack.row).toBeGreaterThanOrEqual(1);
-      expect(stack.row).toBeLessThanOrEqual(8);
+      expect(stack.row).toBeLessThanOrEqual(16);
     }
   });
 
-  it('centres deployment around row 4 and wraps to the next column', () => {
+  it('centres deployment around row 8 and wraps to the next slot column', () => {
     // 40 fighters of one type => 8 stacks (5 each) spread across the grid.
     const ships: FleetShip[] = Array.from({ length: 40 }, (_, i) => ({
       id: i,
@@ -208,11 +208,37 @@ describe('battle-state', () => {
     const state = createBattleState(b, shipService, planetBattleService);
     const stacks = getStacks(state, 'attacker');
     expect(stacks.length).toBe(8);
-    // ROW_ORDER = [4,3,5,2,6,1,7]; the 8th stack (index 7) wraps to col 2.
-    expect(stacks[0].row).toBe(4);
-    expect(stacks[1].row).toBe(3);
-    expect(stacks[7].col).toBe(2);
-    expect(stacks[7].row).toBe(4);
+    // DEPLOY_ROW_ORDER = [8,6,10,4,12,2,14]; slot columns are 1,3,5,7, so the
+    // 8th stack (index 7) wraps to col 3.
+    expect(stacks[0].row).toBe(8);
+    expect(stacks[1].row).toBe(6);
+    expect(stacks[7].col).toBe(3);
+    expect(stacks[7].row).toBe(8);
+  });
+
+  it('never overlaps wide stacks at deployment on either side', () => {
+    const mixed = (base: number): FleetShip[] =>
+      ['dreadnought', 'battleship', 'cruiser', 'fighter', 'dreadnought', 'carrier', 'frigate',
+        'dreadnought', 'battleship', 'cruiser', 'fighter', 'dreadnought', 'carrier', 'frigate',
+        'dreadnought', 'battleship', 'cruiser', 'fighter', 'dreadnought', 'carrier']
+        .map((type, i) => ({ id: base + i, name: type, type }));
+    const b = battle({
+      fleet1: fleet(1, 'ORION', 'player', mixed(1000)),
+      fleet2: fleet(2, 'RAIDER', 'enemy1', mixed(2000)),
+    });
+    const state = createBattleState(b, shipService, planetBattleService);
+    const occupied = new Set<string>();
+    for (const stack of state.stacks) {
+      const dir = stack.side === 'attacker' ? 1 : -1;
+      for (let i = 0; i < stack.size; i++) {
+        const col = stack.col + i * dir;
+        expect(col).toBeGreaterThanOrEqual(1);
+        expect(col).toBeLessThanOrEqual(38);
+        const key = `${col}:${stack.row}`;
+        expect(occupied.has(key)).toBe(false);
+        occupied.add(key);
+      }
+    }
   });
 
   it('resolves stack combat stats from ShipService', () => {

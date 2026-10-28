@@ -1,5 +1,5 @@
 ﻿import { Injectable } from '@angular/core';
-import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, SNAP_DEADBAND_VW, AI_MOVE_TO_ATTACK_RATIO } from './battle.types';
+import { BattleModelState, BattleStack, GridCell, BATTLE_CELL_WIDTH_VW, BATTLE_CELL_HEIGHT_VW, BATTLE_GRID_COLUMNS, BATTLE_GRID_ROWS, SNAP_DEADBAND_VW, AI_MOVE_TO_ATTACK_RATIO, battleDebug } from './battle.types';
 import {
   isInBounds,
   isPathClear,
@@ -10,15 +10,15 @@ import {
   isOccupied,
   occupiedCols,
   vwToStackCell,
-  absoluteDistanceCells,
+  absoluteDistanceRangeUnits,
   stackCenterVw,
+  findApproachCell,
 } from './battle-grid';
 import { BattleAnimationService } from './battle-animation.service';
-import { BattleCombatService } from './battle-combat.service';
 
 /*
  * =========================================================
- * BATTLE MINIGAME â€” MOVEMENT SERVICE
+ * BATTLE MINIGAME — MOVEMENT SERVICE
  * =========================================================
  *
  * Real-time, speed-based movement. One command sets a stack's vw target;
@@ -26,20 +26,21 @@ import { BattleCombatService } from './battle-combat.service';
  * frame to interpolate the stack toward its target at `speed` vw/s.
  *
  * No AP costs, no moveRange limits. The only gate is the animation busy
- * lock during attacks â€” stacks can move while attacks are animating on
+ * lock during attacks — stacks can move while attacks are animating on
  * other stacks.
  *
  * Movement direction uses straight-line paths (orthogonal + diagonal),
  * matching the star-map fleet movement pattern. Each intermediate cell
- * must be in bounds and unoccupied â€” no pathfinding through obstacles.
+ * must be in bounds and unoccupied — no pathfinding through obstacles.
+ *
+ * This service never fires. Move-to-attack only positions a stack; the
+ * shared fire control (BattleCombatService.runFireControl) shoots once the
+ * target is in reach.
  */
 
 @Injectable({ providedIn: 'root' })
 export class BattleMovementService {
-  constructor(
-    private anim: BattleAnimationService,
-    private combat: BattleCombatService,
-  ) {}
+  constructor(private anim: BattleAnimationService) {}
 
   private readonly movementWaiters = new Map<string, Array<() => void>>();
 
@@ -74,14 +75,22 @@ export class BattleMovementService {
     stack.targetX = targetVw.x;
     stack.targetY = targetVw.y;
     stack.moving = true;
-    console.log(`[MOVE-START] ${stackId} (${stack.side}) from (${from.col},${from.row}) -> (${target.col},${target.row})`);
+    battleDebug(`[MOVE-START] ${stackId} (${stack.side}) from (${from.col},${from.row}) -> (${target.col},${target.row})`);
     return true;
   }
 
   /*
-   * Move to attack: find the best cell within attack range of the target,
-   * then move there. When the stack arrives, the caller (player clicks or
-   * AI tick) handles the attack separately.
+   * Move to attack: bring the stack into reach of the target.
+   *
+   * - Already in reach: nothing to do (returns true, no movement).
+   * - A free firing cell exists: move there.
+   * - No free firing cell (blocked): move to the reachable cell that gets
+   *   closest to the target, so the stack keeps closing in instead of
+   *   standing still or retreating.
+   *
+   * moveToAttackTargetId is set so updateMoveToAttackTargets() keeps
+   * re-planning while the target moves. Returns false only when the stack
+   * cannot make any progress at all.
    */
   async moveToAttack(
     state: BattleModelState,
@@ -98,26 +107,75 @@ export class BattleMovementService {
     }
 
     const canAttackNow = canAttack(stack, target);
-    console.log(`[MOVE-TO-ATTACK] ${stackId} (${stack.side}) @(${stack.col},${stack.row}) -> ${targetStackId} (${target.side}) @(${target.col},${target.row}) | canAttack=${canAttackNow} | dist=${absoluteDistanceCells(stack, target).toFixed(2)} | range=${stack.attackRange}`);
-
+    battleDebug(`[MOVE-TO-ATTACK] ${stackId} -> ${targetStackId} | canAttack=${canAttackNow} | dist=${absoluteDistanceRangeUnits(stack, target).toFixed(2)} | range=${stack.attackRange}`);
     if (canAttackNow) {
-      console.log(`[MOVE-TO-ATTACK] -> DIRECT ATTACK (in range)`);
-      return this.combat.attackStack(state, stackId, targetStackId);
+      return true;
     }
 
-    const bestCell = findBestMoveToAttackCell(state, stack, target);
-    if (!bestCell) {
-      console.log(`[MOVE-TO-ATTACK] -> NO VALID CELL`);
+    const cell = findBestMoveToAttackCell(state, stack, target) ?? findApproachCell(state, stack, target);
+    if (!cell) {
+      battleDebug(`[MOVE-TO-ATTACK] -> NO PROGRESS POSSIBLE`);
       return false;
     }
 
-    console.log(`[MOVE-TO-ATTACK] -> MOVE TO CELL (${bestCell.col},${bestCell.row})`);
+    if (cell.col === stack.col && cell.row === stack.row) {
+      // The stack's own cell is a firing position but it is mid-flight off
+      // centre: settle back onto the cell centre instead of rejecting.
+      const center = cellCenterVw(cell, stack);
+      stack.targetX = center.x;
+      stack.targetY = center.y;
+      stack.moving = true;
+      stack.moveToAttackTargetId = targetStackId;
+      return true;
+    }
 
-    const moved = await this.moveStack(state, stackId, bestCell.col, bestCell.row);
+    const moved = await this.moveStack(state, stackId, cell.col, cell.row);
     if (moved) {
       stack.moveToAttackTargetId = targetStackId;
     }
     return moved;
+  }
+
+  /*
+   * Keeps manual attack orders alive: every stack holding an
+   * explicitAttackTargetId whose target is out of reach, and that is not
+   * already chasing that target, is sent after it again. This is what lets
+   * a manual order survive the target moving away. Called on the
+   * MOVE_REPLAN_INTERVAL_MS cadence by the game loop. If the target is
+   * unreachable the call simply fails and is retried on the next cadence;
+   * meanwhile the stack keeps firing opportunistically, so it is never stuck
+   * doing nothing.
+   */
+  maintainAttackOrders(state: BattleModelState): void {
+    if (state.winner) {
+      return;
+    }
+    for (const stack of state.stacks) {
+      const targetId = stack.explicitAttackTargetId;
+      if (!targetId || stack.destroyed || stack.immobile) {
+        continue;
+      }
+      const target = state.stacks.find((s) => s.stackId === targetId && !s.destroyed);
+      if (!target || canAttack(stack, target)) {
+        continue;
+      }
+      if (stack.moving && stack.moveToAttackTargetId === targetId) {
+        continue;
+      }
+      void this.moveToAttack(state, stack.stackId, targetId);
+    }
+  }
+
+  /* Cancels the stack's current movement: it settles on the nearest free
+   * cell centre (smoothly, via snapToGrid) and stops chasing. */
+  stopStack(state: BattleModelState, stackId: string): void {
+    const stack = state.stacks.find((s) => s.stackId === stackId && !s.destroyed);
+    if (!stack || !stack.moving) {
+      return;
+    }
+    stack.moveToAttackTargetId = null;
+    stack.manualMoveOrder = false;
+    this.snapToGrid(stack, state);
   }
 
   waitForMovement(stack: BattleStack): Promise<void> {
@@ -158,7 +216,7 @@ export class BattleMovementService {
         (s) => !s.destroyed && s.stackId === stack.moveToAttackTargetId,
       );
       if (!target) {
-        console.log(`[MOVE-REEVAL] ${stack.stackId} target destroyed -> snapToGrid | stack: col=${stack.col}, row=${stack.row} x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} targetX=${stack.targetX?.toFixed(2)}, targetY=${stack.targetY?.toFixed(2)}`);
+        battleDebug(`[MOVE-REEVAL] ${stack.stackId} target destroyed -> snapToGrid | stack: col=${stack.col}, row=${stack.row} x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} targetX=${stack.targetX?.toFixed(2)}, targetY=${stack.targetY?.toFixed(2)}`);
         this.snapToGrid(stack, state);
         stack.moveToAttackTargetId = null;
         continue;
@@ -172,11 +230,11 @@ export class BattleMovementService {
         // re-evaluate on its next tick (every 400ms) and pick a new cell
         // if needed. This prevents the "move-attack loop" where a ship
         // repeatedly starts moving, gets snapped back, and starts again.
-        console.log(`[MOVE-REEVAL] ${stack.stackId} NO CELL IN RANGE of ${target.stackId} -> KEEP CURRENT TARGET | stack: col=${stack.col}, row=${stack.row} x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} target: col=${target.col}, row=${target.row} x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} distCells=${absoluteDistanceCells({x:stack.x,y:stack.y}, {x:target.x,y:target.y}).toFixed(2)} attackRange=${stack.attackRange}`);
+        battleDebug(`[MOVE-REEVAL] ${stack.stackId} NO CELL IN RANGE of ${target.stackId} -> KEEP CURRENT TARGET | stack: col=${stack.col}, row=${stack.row} x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} target: col=${target.col}, row=${target.row} x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} distCells=${absoluteDistanceRangeUnits({x:stack.x,y:stack.y}, {x:target.x,y:target.y}).toFixed(2)} attackRange=${stack.attackRange}`);
         continue;
       }
       const targetVw = cellCenterVw(bestCell, stack);
-      // Only redirect if the best cell actually changed â€” prevents micro-jitter
+      // Only redirect if the best cell actually changed — prevents micro-jitter
       // when the enemy is near a cell boundary and the optimal cell flips
       // back and forth between adjacent cells.
       if (stack.targetX != null && stack.targetY != null) {
@@ -187,9 +245,9 @@ export class BattleMovementService {
         }
       }
       const currentCenter = { x: stack.x, y: stack.y };
-      const distToTarget = absoluteDistanceCells(currentCenter, target);
-      const logicalDist = absoluteDistanceCells(stackCenterVw(stack), stackCenterVw(target));
-      console.log(`[MOVE-REEVAL] ${stack.stackId} redirect to (${bestCell.col},${bestCell.row}) target=${target.stackId}@(${target.col},${target.row}) | stack logical: col=${stack.col}, row=${stack.row} | stack visual: x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} | target visual: x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} | distCells(logical)=${logicalDist.toFixed(2)} | distCells(visual)=${distToTarget.toFixed(2)} | attackRange=${stack.attackRange} | effectiveRange=${(stack.attackRange * AI_MOVE_TO_ATTACK_RATIO).toFixed(2)}`);
+      const distToTarget = absoluteDistanceRangeUnits(currentCenter, target);
+      const logicalDist = absoluteDistanceRangeUnits(stackCenterVw(stack), stackCenterVw(target));
+      battleDebug(`[MOVE-REEVAL] ${stack.stackId} redirect to (${bestCell.col},${bestCell.row}) target=${target.stackId}@(${target.col},${target.row}) | stack logical: col=${stack.col}, row=${stack.row} | stack visual: x=${stack.x.toFixed(2)}, y=${stack.y.toFixed(2)} | target visual: x=${target.x.toFixed(2)}, y=${target.y.toFixed(2)} | distCells(logical)=${logicalDist.toFixed(2)} | distCells(visual)=${distToTarget.toFixed(2)} | attackRange=${stack.attackRange} | effectiveRange=${(stack.attackRange * AI_MOVE_TO_ATTACK_RATIO).toFixed(2)}`);
       stack.targetX = targetVw.x;
       stack.targetY = targetVw.y;
     }
@@ -205,12 +263,12 @@ export class BattleMovementService {
    * visible snap. The caller is responsible for clearing moveToAttackTargetId;
    * completeMovement is deferred to updateStackPositions when the ship arrives.
    * If the nearest cell is already reserved by another in-flight stack, searches
-   * in a diamond pattern for the nearest free cell â€” preventing two AI stacks
+   * in a diamond pattern for the nearest free cell — preventing two AI stacks
    * from being sent to the same cell simultaneously.
    */
   private snapToGrid(stack: BattleStack, state: BattleModelState): void {
     const cell = vwToStackCell(stack, stack.x, stack.y);
-    console.log(`[SNAP-TO-GRID] ${stack.stackId} from visual (${stack.x.toFixed(2)},${stack.y.toFixed(2)}) -> cell (${cell.col},${cell.row}) | was moving=${stack.moving} | moveToAttackTargetId=${stack.moveToAttackTargetId ?? 'none'} | targetX=${stack.targetX?.toFixed(2)}, targetY=${stack.targetY?.toFixed(2)}`);
+    battleDebug(`[SNAP-TO-GRID] ${stack.stackId} from visual (${stack.x.toFixed(2)},${stack.y.toFixed(2)}) -> cell (${cell.col},${cell.row}) | was moving=${stack.moving} | moveToAttackTargetId=${stack.moveToAttackTargetId ?? 'none'} | targetX=${stack.targetX?.toFixed(2)}, targetY=${stack.targetY?.toFixed(2)}`);
     stack.col = cell.col;
     stack.row = cell.row;
 
@@ -220,7 +278,7 @@ export class BattleMovementService {
       // Deadband: if the stack is already close enough to this cell's
       // centre, don't re-target. Without this, a stack whose interpolated
       // x/y drifts a fraction of a cell off-centre every frame gets
-      // re-snapped to the exact centre, then drifts again â€” an out-and-
+      // re-snapped to the exact centre, then drifts again — an out-and-
       // back jitter that's most visible while the stack is firing.
       if (
         stack.targetX != null &&
@@ -228,20 +286,20 @@ export class BattleMovementService {
         Math.abs(center.x - stack.targetX) < SNAP_DEADBAND_VW &&
         Math.abs(center.y - stack.targetY) < SNAP_DEADBAND_VW
       ) {
-        console.log(`[SNAP-TO-GRID] ${stack.stackId} deadband hit, skipping re-target`);
+        battleDebug(`[SNAP-TO-GRID] ${stack.stackId} deadband hit, skipping re-target`);
         return;
       }
       stack.targetX = center.x;
       stack.targetY = center.y;
       stack.moving = true;
-      console.log(`[SNAP-TO-GRID] ${stack.stackId} re-targeted to (${target.col},${target.row}) center=(${center.x.toFixed(2)},${center.y.toFixed(2)})`);
+      battleDebug(`[SNAP-TO-GRID] ${stack.stackId} re-targeted to (${target.col},${target.row}) center=(${center.x.toFixed(2)},${center.y.toFixed(2)})`);
     } else {
-      // No free cell found â€” stop at current position
+      // No free cell found — stop at current position
       stack.moving = false;
       stack.targetX = null;
       stack.targetY = null;
       this.completeMovement(stack.stackId);
-      console.log(`[SNAP-TO-GRID] ${stack.stackId} no free cell, stopped`);
+      battleDebug(`[SNAP-TO-GRID] ${stack.stackId} no free cell, stopped`);
     }
   }
 
