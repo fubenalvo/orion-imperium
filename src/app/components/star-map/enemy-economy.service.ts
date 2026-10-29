@@ -19,6 +19,7 @@ import { isCombatShipType } from './ai-queries';
 import { EnemyPlanService } from './enemy-plan.service';
 import { getAiPersonalityProfile } from './ai-personality';
 import planetData from './planet-data.json';
+import { ResourceCost, addCosts, buildingCost, canAffordCost, payCost, shipCost } from '../../services/resource-cost';
 
 /*
  * =========================================================
@@ -40,13 +41,13 @@ import planetData from './planet-data.json';
  *                      a Spaceport (or create a fleet there)
  *
  * Game rules this relies on (verified in code, keep in sync):
- *  - Credits are the only currency anything spends (ship cost via
- *    ProductionService.queueOrder, building price). Raw materials are
- *    produced but never consumed, research points are spent only by the
- *    research tree, and building maintenance is shown in the economy
- *    breakdown but never deducted. So credits cannot go negative through
- *    upkeep; the economic failure mode is satisfaction loss (energy
- *    deficit → -1/s) leading to rebellion.
+ *  - Buildings and ships cost credits AND raw materials (resource-cost.ts,
+ *    the same helpers the player UI uses). Research points are spent only
+ *    by the research tree.
+ *  - Buildings, fleet ships and stocked ships pay upkeep every economy
+ *    tick (EconomyService.applyEconomyDelta). Credits never go negative:
+ *    unpaid upkeep (arrears) drains satisfaction toward rebellion, and an
+ *    energy deficit does the same (-1/s).
  *  - Credit income is population × 0.1 × satisfaction; population is
  *    capped by housing capacity, so housing is the real growth building.
  *  - Ships are built by Spaceship Factories into the faction-wide stock;
@@ -57,10 +58,22 @@ import planetData from './planet-data.json';
  *
  * Spending policy: construction rules are tiered. Emergency and core
  * infrastructure may spend everything; optional tiers (defense, growth,
- * research) and military production must leave a reserve that covers the
- * currently committed needs (next colonizer, a missing Spaceport, the
- * next military ship). An unaffordable rule falls through to the next
- * rule, so a shortage changes the decision instead of deadlocking.
+ * research) and military production must leave a reserve (credits and raw
+ * materials) that covers the currently committed needs (next colonizer, a
+ * missing Spaceport, the next military ship). An unaffordable rule falls
+ * through to the next rule, so a shortage changes the decision instead of
+ * deadlocking.
+ *
+ * Upkeep policy: every purchase adds permanent upkeep, so each one must
+ * leave the faction's projected net credit income (current net minus the
+ * upkeep of queued ships) above a per-tier margin: emergency power has no
+ * margin (it prevents rebellion); core infrastructure and housing need
+ * net ≥ 0 after the purchase, except that the treasury may carry a
+ * deficit for CORE_RUNWAY_SECONDS; optional buildings and warships need a
+ * share of gross income left over (OPTIONAL_BUILDING_MARGIN_SHARE, larger,
+ * and UPKEEP_MARGIN_SHARE / personality military preference). A faction whose
+ * net is negative therefore only builds what restores it (power, housing,
+ * which raises income) until income catches up.
  *
  * State is in-memory only and rebuilt from the game snapshot; reset()
  * runs on load via StarMapAiTickService.resetAiPipeline().
@@ -72,6 +85,7 @@ interface BuildingDef {
   role?: string;
   size: number;
   price: number;
+  rawMaterialCost?: number;
   population?: number;
   requiresOreProximity?: boolean;
 }
@@ -85,10 +99,26 @@ interface ConstructionDecision {
 
 type PlanetEconomySnapshot = ReturnType<EconomyService['calculatePlanetEconomy']>;
 
+type UpkeepTier = 'emergency' | 'core' | 'optional';
+
 interface ConstructionRule {
   /* Whether this tier must leave the spending reserve untouched. */
   respectsReserve: boolean;
+  /* How much projected net income the new building's upkeep must leave (see header). */
+  upkeep: UpkeepTier;
   candidates: (planet: PlanetTile, economy: PlanetEconomySnapshot) => BuildingDef[];
+}
+
+/* Budget for one construction decision: spendable stock and upkeep headroom (credits/s). */
+interface ConstructionBudget {
+  cost: ResourceCost;
+  upkeepAllowance: number;
+  /*
+   * Core buildings the faction still lacks (Spaceport, Spaceship Factory),
+   * the owned planets, and how many of the missing ones fit right now. No
+   * placement may reduce that number (see countPlaceableCore).
+   */
+  coreSites?: { planets: PlanetTile[]; missing: BuildingDef[]; placeable: number };
 }
 
 export interface EconomyContext {
@@ -118,6 +148,14 @@ export class EnemyEconomyService {
    */
   private static readonly MILITARY_BASE_STRENGTH = 80;
   private static readonly MILITARY_STRENGTH_PER_PLANET = 60;
+  /*
+   * Economy-scaled floor of the military target: the strength whose upkeep
+   * costs this share of gross credit income (using the preferred hull's
+   * strength per upkeep). It matches the headroom the upkeep margins leave
+   * for warships, so a growing economy keeps arming instead of spending
+   * everything on buildings, and a shrinking one stops.
+   */
+  private static readonly MILITARY_INCOME_SHARE = 0.12;
   private static readonly THREAT_RADIUS = 25;
   private static readonly THREAT_COVER = 1.5;
   private static readonly WEALTHY_TARGET_MULTIPLIER = 2;
@@ -126,7 +164,32 @@ export class EnemyEconomyService {
   // A home fleet at this size is not reinforced further; new ships form a new fleet.
   private static readonly MAX_FLEET_SHIPS = 12;
   // Above this balance surplus credits are turned into extra military.
-  private static readonly HOARD_THRESHOLD = 3000;
+  // Just above the most expensive single building (Spaceport, 4000), so
+  // only credits no planned purchase needs count as surplus.
+  private static readonly HOARD_THRESHOLD = 5000;
+  /*
+   * Share of gross credit income that must remain as net income after a
+   * purchase's upkeep. Warships keep a small buffer (scaled by personality);
+   * optional buildings keep a larger one. Building upkeep is permanent and
+   * construction runs before military production every decision, so
+   * without the gap optional buildings would lock in all headroom long
+   * before the navy needs it.
+   */
+  private static readonly UPKEEP_MARGIN_SHARE = 0.1;
+  private static readonly OPTIONAL_BUILDING_MARGIN_SHARE = 0.25;
+  /*
+   * Raw-material income (per second) below which an ore planet gets a
+   * Mining Complex. Factories alone yield little raw material, and ships
+   * and buildings both consume it.
+   */
+  private static readonly RAW_INCOME_TARGET = 15;
+  /*
+   * Core purchases (housing, factory, Spaceport) may run a deficit the
+   * treasury can carry for this many seconds. Without it a faction whose
+   * only planet is a fresh colony (zero income) could never build the
+   * housing that creates income.
+   */
+  private static readonly CORE_RUNWAY_SECONDS = 300;
   private static readonly FACTORY_NAME = 'Spaceship Factory';
 
   private readonly accumulators = new Map<string, number>();
@@ -218,7 +281,9 @@ export class EnemyEconomyService {
       return false;
     }
 
-    faction.currencies['credits'] = (faction.currencies['credits'] ?? 0) - decision.building.price;
+    if (!payCost(faction, buildingCost(decision.building))) {
+      return false;
+    }
     decision.planet.buildings.push({
       name: decision.building.name,
       size: decision.building.size,
@@ -232,23 +297,65 @@ export class EnemyEconomyService {
    * getSpendingReserve: Credits optional spending must leave untouched,
    * covering the faction's currently committed needs.
    */
-  getSpendingReserve(faction: Faction, starSystems: StarSystem[], context: EconomyContext, includeMilitary: boolean): number {
-    let reserve = 0;
+  getSpendingReserve(faction: Faction, starSystems: StarSystem[], context: EconomyContext, includeMilitary: boolean): ResourceCost {
+    let reserve: ResourceCost = { credits: 0, rawmaterials: 0 };
     const planets = this.getOwnedPlanetsSorted(faction.id, starSystems);
 
-    if (this.wantsColonizer(faction, starSystems, context)) {
-      reserve += this.shipService.getShipType('colonizer')?.cost ?? 0;
+    const colonizer = this.shipService.getShipType('colonizer');
+    if (colonizer && this.wantsColonizer(faction, starSystems, context)) {
+      reserve = addCosts(reserve, shipCost(colonizer));
     }
 
+    // Missing core buildings are saved for before optional spending: at
+    // their prices, cheap optional buildings would otherwise always win.
+    // Saving only works with positive net income; without it (e.g. a lone
+    // fresh colony) growth buildings must not wait for a factory forever.
+    const canSave = this.getProjectedNet(faction, starSystems, context).net > 0;
     const hasFactory = planets.some((p) => this.isFactoryPlanet(p));
-    if (hasFactory && !this.spaceportService.hasSpaceport(faction.id, starSystems)) {
-      reserve += this.findBuilding('spaceport')?.price ?? 0;
+    const factory = this.findBuilding('spaceship_factory');
+    if (factory && !hasFactory && planets.length > 0 && canSave) {
+      reserve = addCosts(reserve, buildingCost(factory));
+    }
+    const spaceport = this.findBuilding('spaceport');
+    if (spaceport && hasFactory && canSave && !this.spaceportService.hasSpaceport(faction.id, starSystems)) {
+      reserve = addCosts(reserve, buildingCost(spaceport));
     }
 
     if (includeMilitary && this.militaryNeed(faction, starSystems, context).strength > 0) {
-      reserve += this.selectMilitaryShip(faction, Infinity)?.cost ?? 0;
+      const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
+      if (ship) reserve = addCosts(reserve, shipCost(ship));
     }
     return reserve;
+  }
+
+  /*
+   * getProjectedNet: Net credit income per second including the upkeep
+   * the faction has already committed to but not yet started paying
+   * (queued ship orders). Uses the same EconomyService calculation as the
+   * economy tick and the HUD.
+   */
+  getProjectedNet(
+    faction: Faction,
+    starSystems: StarSystem[],
+    context: EconomyContext,
+  ): { income: number; net: number; rawNet: number } {
+    const breakdown = this.economyService.calculateEconomy(
+      faction.id, context.factions ?? [faction], starSystems, context.fleets, context.shipStock,
+    );
+    const queuedUpkeep = this.pendingOrders(faction.id, context)
+      .reduce((sum, o) => sum + o.quantity * this.economyService.getShipUpkeepPerSecond(o.shipTypeId), 0);
+    return {
+      income: breakdown.incomePerSecond,
+      net: breakdown.netPerSecond - queuedUpkeep,
+      rawNet: breakdown.net['rawmaterials'] ?? 0,
+    };
+  }
+
+  /* Upkeep (credits/s) a new purchase in this tier may add. */
+  private upkeepAllowance(tier: UpkeepTier, finances: { income: number; net: number }, credits: number): number {
+    if (tier === 'emergency') return Infinity;
+    if (tier === 'core') return finances.net + Math.max(0, credits) / EnemyEconomyService.CORE_RUNWAY_SECONDS;
+    return finances.net - finances.income * EnemyEconomyService.OPTIONAL_BUILDING_MARGIN_SHARE;
   }
 
   private selectConstruction(
@@ -263,37 +370,49 @@ export class EnemyEconomyService {
 
     const hasFactory = planets.some((p) => this.isFactoryPlanet(p));
     const hasSpaceport = this.spaceportService.hasSpaceport(faction.id, starSystems);
+    const finances = this.getProjectedNet(faction, starSystems, context);
 
     const rules: ConstructionRule[] = [
       {
         respectsReserve: false,
+        upkeep: 'emergency',
         candidates: (_, e) => (e.energyProduction < e.energyConsumption ? this.unlockedByRole(faction, 'power') : []),
       },
       {
         respectsReserve: false,
+        upkeep: 'core',
         candidates: (_, e) => (e.workforceAvailable < e.workforceRequired ? this.unlockedByRole(faction, 'housing') : []),
       },
       {
         respectsReserve: false,
+        upkeep: 'core',
         candidates: () => (hasFactory ? [] : this.unlockedById(faction, 'spaceship_factory')),
       },
       {
         respectsReserve: false,
+        upkeep: 'core',
         candidates: () => (hasFactory && !hasSpaceport ? this.unlockedById(faction, 'spaceport') : []),
       },
       {
         respectsReserve: true,
+        upkeep: 'optional',
         candidates: (planet) => (this.hasRole(planet, 'defense') ? [] : this.unlockedByRole(faction, 'defense')),
       },
       {
+        // Housing raises the population cap and therefore income: it only
+        // has to keep net income non-negative. Only the largest unlocked
+        // block is built (saving up for it if needed): cheap small blocks
+        // would fill the surface with low-capacity housing.
         respectsReserve: true,
+        upkeep: 'core',
         candidates: (planet) =>
           this.needsHousingGrowth(planet)
-            ? [...this.unlockedByRole(faction, 'housing')].sort((a, b) => (b.population ?? 0) - (a.population ?? 0))
+            ? [...this.unlockedByRole(faction, 'housing')].sort((a, b) => (b.population ?? 0) - (a.population ?? 0)).slice(0, 1)
             : [],
       },
       {
         respectsReserve: true,
+        upkeep: 'optional',
         // Research buildings per planet: personality-dependent cap (1 for most).
         candidates: (planet) =>
           this.countRole(planet, 'research') >= this.planService.getPosture(faction).researchBuildingsPerPlanet
@@ -304,6 +423,7 @@ export class EnemyEconomyService {
         // Upgrade: a planet whose only research building is the small lab
         // gets the full Research Laboratory once researched.
         respectsReserve: true,
+        upkeep: 'optional',
         candidates: (planet) =>
           this.hasRole(planet, 'research') && !planet.buildings.some((b) => b.name === 'Research Laboratory')
             ? this.unlockedById(faction, 'research_lab')
@@ -311,6 +431,7 @@ export class EnemyEconomyService {
       },
       {
         respectsReserve: true,
+        upkeep: 'optional',
         candidates: (planet) =>
           (this.isWealthy(faction) || getAiPersonalityProfile(faction).parallelMilitaryProduction)
             && this.countFactories(planet) < getAiPersonalityProfile(faction).factoriesPerPlanet
@@ -320,7 +441,14 @@ export class EnemyEconomyService {
     ];
 
     const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(p)] as const));
-    let reserve: number | undefined;
+    const missingCore = [
+      ...(hasSpaceport ? [] : this.unlockedById(faction, 'spaceport')),
+      ...(hasFactory ? [] : this.unlockedById(faction, 'spaceship_factory')),
+    ];
+    const coreSites = missingCore.length > 0
+      ? { planets, missing: missingCore, placeable: this.countPlaceableCore(planets, missingCore) }
+      : undefined;
+    let reserve: ResourceCost | undefined;
 
     /*
      * Posture-driven ordering of the optional tiers (indices 4.. are D, G,
@@ -331,18 +459,47 @@ export class EnemyEconomyService {
     const posture = this.planService.getPosture(faction);
     const core = rules.slice(0, 4);
     const [defenseTier, growthTier, researchTier, researchUpgradeTier, factoryTier] = rules.slice(4);
+    // Raw-material supply comes first among the optional tiers: ships and
+    // every building need it, and it only triggers on ore planets while
+    // raw income is low.
+    const miningTier: ConstructionRule = {
+      respectsReserve: true,
+      upkeep: 'optional',
+      candidates: (planet) =>
+        finances.rawNet < EnemyEconomyService.RAW_INCOME_TARGET
+          && (planet.resourceTiles ?? []).length > 0
+          && !planet.buildings.some((b) => b.name === 'Mining Complex')
+          ? this.unlockedById(faction, 'mining_complex')
+          : [],
+    };
     const researchFirst = posture.primary === 'research' || posture.researchBuildingsPerPlanet > 1;
     const ordered = posture.primary === 'stabilize'
       ? core
       : researchFirst
-        ? [...core, researchTier, researchUpgradeTier, defenseTier, growthTier, factoryTier]
-        : rules;
+        ? [...core, miningTier, researchTier, researchUpgradeTier, defenseTier, growthTier, factoryTier]
+        : [...core, miningTier, defenseTier, growthTier, researchTier, researchUpgradeTier, factoryTier];
+
+    // While the navy is below target, optional buildings also leave upkeep
+    // headroom for the next warship (the upkeep counterpart of the credit
+    // reserve); otherwise construction runs first every decision and uses
+    // up all headroom, and military production starves.
+    const nextWarship = this.spaceportService.hasSpaceport(faction.id, starSystems)
+      && this.militaryNeed(faction, starSystems, context).strength > 0
+      ? this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity)
+      : undefined;
+    const militaryUpkeepReserve = nextWarship ? this.economyService.getShipUpkeepPerSecond(nextWarship.id) : 0;
 
     for (const rule of ordered) {
-      let budget = faction.currencies['credits'] ?? 0;
+      const budget: ConstructionBudget = {
+        cost: { credits: faction.currencies['credits'] ?? 0, rawmaterials: faction.currencies['rawmaterials'] ?? 0 },
+        upkeepAllowance: this.upkeepAllowance(rule.upkeep, finances, faction.currencies['credits'] ?? 0)
+          - (rule.upkeep === 'optional' ? militaryUpkeepReserve : 0),
+        coreSites,
+      };
       if (rule.respectsReserve) {
         reserve ??= this.getSpendingReserve(faction, starSystems, context, true);
-        budget -= reserve;
+        budget.cost.credits -= reserve.credits;
+        budget.cost.rawmaterials -= reserve.rawmaterials;
       }
       for (const planet of planets) {
         const decision = this.resolveCandidates(faction, planet, rule.candidates(planet, economies.get(planet.id)!), budget, 2);
@@ -358,15 +515,19 @@ export class EnemyEconomyService {
     faction: Faction,
     planet: PlanetTile,
     candidates: BuildingDef[],
-    budget: number,
+    budget: ConstructionBudget,
     depth: number,
   ): ConstructionDecision | undefined {
     const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
     for (const building of candidates) {
-      if (budget < building.price) {
+      const cost = buildingCost(building);
+      if (budget.cost.credits < cost.credits || budget.cost.rawmaterials < cost.rawmaterials) {
         continue;
       }
-      const placement = this.findValidPlacement(planet, building, gridSize);
+      if (this.economyService.getBuildingUpkeepPerSecond(building.name) > budget.upkeepAllowance) {
+        continue;
+      }
+      const placement = this.choosePlacement(planet, building, gridSize, budget.coreSites);
       if (!placement) {
         continue;
       }
@@ -383,12 +544,68 @@ export class EnemyEconomyService {
       } else if (!safety.workforceOk && building.role !== 'housing') {
         enablers = this.unlockedByRole(faction, 'housing');
       }
+      // An enabler only exists to unlock the building above, so it may not
+      // use more upkeep headroom than that building's own tier allows.
       const enabler = this.resolveCandidates(faction, planet, enablers, budget, depth - 1);
       if (enabler) {
         return enabler;
       }
     }
     return undefined;
+  }
+
+  /*
+   * choosePlacement: First valid placement (row-major) that does not
+   * reduce how many missing core buildings still fit on the faction's
+   * planets. Core buildings cost several times more than the cheap
+   * buildings the AI keeps adding while it saves for them; without this
+   * the faction could fill every surface (or put its factory on the only
+   * Spaceport-sized spot) and then never build or deploy ships. A missing
+   * core building may consume its own slot; when no placement keeps the
+   * others possible it still gets the first one, since building it beats
+   * waiting for room that will never appear. Other buildings are skipped.
+   */
+  private choosePlacement(
+    planet: PlanetTile,
+    building: BuildingDef,
+    gridSize: number,
+    coreSites: ConstructionBudget['coreSites'],
+  ): { x: number; y: number } | undefined {
+    const first = this.findValidPlacement(planet, building, gridSize);
+    if (!first || !coreSites) {
+      return first;
+    }
+    const isMissingCore = coreSites.missing.some((def) => def.id === building.id);
+    const others = coreSites.missing.filter((def) => def.id !== building.id);
+    const required = isMissingCore ? Math.max(0, coreSites.placeable - 1) : coreSites.placeable;
+    const keepsCore = (at: { x: number; y: number }) => {
+      const after = coreSites.planets.map((p) => p.id !== planet.id
+        ? p
+        : { ...p, buildings: [...p.buildings, { name: building.name, size: building.size, x: at.x, y: at.y }] });
+      return this.countPlaceableCore(after, others) >= required;
+    };
+    if (keepsCore(first)) {
+      return first;
+    }
+    const alternative = this.findValidPlacements(planet, building, gridSize).find(keepsCore);
+    return alternative ?? (isMissingCore ? first : undefined);
+  }
+
+  /* How many of `defs` fit at once (largest first, greedy) on the given surfaces. */
+  private countPlaceableCore(planets: PlanetTile[], defs: BuildingDef[]): number {
+    const surfaces = planets.map((p) => ({ ...p, buildings: [...p.buildings] }));
+    let count = 0;
+    for (const def of [...defs].sort((a, b) => b.size - a.size)) {
+      for (const p of surfaces) {
+        const spot = this.findValidPlacement(p, def, (PLANET_SIZE_MAP[p.size] ?? 3) * 2 + 3);
+        if (spot) {
+          p.buildings.push({ name: def.name, size: def.size, x: spot.x, y: spot.y });
+          count++;
+          break;
+        }
+      }
+    }
+    return count;
   }
 
   /*
@@ -490,8 +707,18 @@ export class EnemyEconomyService {
       if (shortfall <= 0 || slots <= 0) {
         break;
       }
-      const budget = (faction.currencies['credits'] ?? 0) - this.getSpendingReserve(faction, starSystems, context, false);
-      const ship = this.selectMilitaryShip(faction, budget);
+      const reserve = this.getSpendingReserve(faction, starSystems, context, false);
+      const budget: ResourceCost = {
+        credits: (faction.currencies['credits'] ?? 0) - reserve.credits,
+        rawmaterials: (faction.currencies['rawmaterials'] ?? 0) - reserve.rawmaterials,
+      };
+      // Recomputed per order: the previous order's upkeep counts as committed.
+      // Personality: a militarist (militaryTarget 1.5) keeps a smaller income
+      // buffer for warship upkeep than an expansionist (0.8).
+      const finances = this.getProjectedNet(faction, starSystems, context);
+      const militaryPreference = Math.max(0.5, getAiPersonalityProfile(faction).militaryTarget);
+      const upkeepAllowance = finances.net - finances.income * EnemyEconomyService.UPKEEP_MARGIN_SHARE / militaryPreference;
+      const ship = this.selectMilitaryShip(faction, budget, upkeepAllowance);
       if (!ship) {
         break;
       }
@@ -591,6 +818,7 @@ export class EnemyEconomyService {
     const wealthy = this.isWealthy(faction);
 
     let target = EnemyEconomyService.MILITARY_BASE_STRENGTH + EnemyEconomyService.MILITARY_STRENGTH_PER_PLANET * planetCount;
+    target = Math.max(target, this.incomeSupportedStrength(faction, starSystems, context));
     target = Math.max(target, this.nearbyThreatStrength(faction, ownedSystems, context) * EnemyEconomyService.THREAT_COVER);
     // Posture: personality preference and current threat level.
     target *= this.planService.getPosture(faction).militaryTargetMultiplier;
@@ -617,6 +845,18 @@ export class EnemyEconomyService {
     return { strength: target - current, slots: cap - count };
   }
 
+  /* Combat strength MILITARY_INCOME_SHARE of gross income can keep in upkeep. */
+  private incomeSupportedStrength(faction: Faction, starSystems: StarSystem[], context: EconomyContext): number {
+    const hull = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
+    const upkeep = hull ? this.economyService.getShipUpkeepPerSecond(hull.id) : 0;
+    if (!hull || upkeep <= 0) {
+      return 0;
+    }
+    const strengthPerUpkeep = this.shipService.calculateFleetStrength([{ type: hull.id }]) / upkeep;
+    const income = this.getProjectedNet(faction, starSystems, context).income;
+    return income * EnemyEconomyService.MILITARY_INCOME_SHARE * strengthPerUpkeep;
+  }
+
   /* Strength of hostile (other non-neutral team) fleets near the faction's systems. */
   private nearbyThreatStrength(faction: Faction, ownedSystems: StarSystem[], context: EconomyContext): number {
     const factions = context.factions ?? [];
@@ -634,16 +874,24 @@ export class EnemyEconomyService {
    * unlocked hull costing at most a quarter of the budget. When credits
    * are tight, take the best strength per credit that is affordable.
    * Research therefore pays off militarily by unlocking heavier hulls.
+   * Both credits and raw materials must fit the budget, and the hull's
+   * upkeep must fit the faction's upkeep allowance (credits/s).
    */
-  private selectMilitaryShip(faction: Faction, budget: number): ShipType | undefined {
+  private selectMilitaryShip(faction: Faction, budget: ResourceCost, upkeepAllowance: number): ShipType | undefined {
     const candidates = this.shipService
       .getAllShipTypes()
-      .filter((t) => isCombatShipType(t) && t.cost > 0 && t.cost <= budget && this.researchService.isShipUnlocked(faction, t.id));
+      .filter((t) => {
+        const cost = shipCost(t);
+        return isCombatShipType(t) && t.cost > 0
+          && cost.credits <= budget.credits && cost.rawmaterials <= budget.rawmaterials
+          && this.economyService.getShipUpkeepPerSecond(t.id) <= upkeepAllowance
+          && this.researchService.isShipUnlocked(faction, t.id);
+      });
     if (candidates.length === 0) {
       return undefined;
     }
     const strength = (t: ShipType) => this.shipService.calculateFleetStrength([{ type: t.id }]);
-    const comfortable = candidates.filter((t) => t.cost * 4 <= budget);
+    const comfortable = candidates.filter((t) => t.cost * 4 <= budget.credits && (t.rawMaterialCost ?? 0) * 4 <= budget.rawmaterials);
     if (comfortable.length > 0) {
       return [...comfortable].sort((a, b) => strength(b) - strength(a) || a.cost - b.cost || a.id.localeCompare(b.id))[0];
     }
@@ -737,6 +985,20 @@ export class EnemyEconomyService {
    * overlap with buildings, never on a resource tile unless the building
    * requires ore proximity (then it must touch one).
    */
+  private findValidPlacements(planet: PlanetTile, building: BuildingDef, gridSize: number): { x: number; y: number }[] {
+    const requiresOre = building.requiresOreProximity === true;
+    const resourceTiles = planet.resourceTiles ?? [];
+    const placements: { x: number; y: number }[] = [];
+    for (let y = 0; y + building.size <= gridSize; y++) {
+      for (let x = 0; x + building.size <= gridSize; x++) {
+        if (this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre)) {
+          placements.push({ x, y });
+        }
+      }
+    }
+    return placements;
+  }
+
   private findValidPlacement(planet: PlanetTile, building: BuildingDef, gridSize: number): { x: number; y: number } | undefined {
     const requiresOre = building.requiresOreProximity === true;
     const resourceTiles = planet.resourceTiles ?? [];

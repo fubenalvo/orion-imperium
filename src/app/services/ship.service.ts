@@ -18,6 +18,9 @@ export interface ShipType {
   range: number;
   battleMoveRange: number;
   cost: number;
+  /* Raw materials consumed per ship, charged with `cost` at queue time (see resource-cost.ts). */
+  rawMaterialCost?: number;
+  /* Upkeep points per second; EconomyService converts them to credits. */
   maintenanceCost: number;
   /*
    * Production metadata. Absent on the seeded JSON; both fields are

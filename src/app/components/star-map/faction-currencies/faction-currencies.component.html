@@ -90,13 +90,34 @@
         }
 
         @if (selectedCurrency === 'credits') {
+          <div class="hud-overlay__section">
+            <div class="hud-overlay__section-title">Expenses</div>
+            <div class="hud-overlay__row">
+              <span>Building upkeep</span>
+              <span>-{{ economyBreakdown.buildingUpkeepPerSecond | number:'1.0-1' }}/sec</span>
+            </div>
+            <div class="hud-overlay__row">
+              <span>Colony administration</span>
+              <span>-{{ economyBreakdown.administrationPerSecond | number:'1.0-1' }}/sec</span>
+            </div>
+            <div class="hud-overlay__row">
+              <span>Ship upkeep</span>
+              <span>-{{ economyBreakdown.shipUpkeepPerSecond | number:'1.0-1' }}/sec</span>
+            </div>
+            @if (economyBreakdown.unpaidUpkeepPerSecond > 0) {
+              <div class="hud-overlay__row hud-overlay__row--expense">
+                <span>Unpaid upkeep (planets lose satisfaction)</span>
+                <span>{{ economyBreakdown.unpaidUpkeepPerSecond | number:'1.0-1' }}/sec</span>
+              </div>
+            }
+          </div>
           @if (economyBreakdown.fleetExpenses.length > 0) {
             <div class="hud-overlay__section">
               <div class="hud-overlay__section-title">Fleet Maintenance</div>
               @for (entry of economyBreakdown.fleetExpenses; track entry) {
                 <div class="hud-overlay__row">
                   <span>{{ entry.fleetName }} - {{ entry.shipType }} x{{ entry.count }}</span>
-                  <span>-{{ entry.totalCost | number:'1.0-0' }}/sec</span>
+                  <span>-{{ entry.totalCost | number:'1.0-1' }}/sec</span>
                 </div>
               }
             </div>

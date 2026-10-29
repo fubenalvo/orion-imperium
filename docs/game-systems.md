@@ -163,15 +163,15 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 
 `EconomyService` is a data-driven system that derives production, consumption, maintenance, and efficiency from `planet-data.json`.
 
-- **Stock resources** are accumulated: `credits`, `rawmaterials`, `research`. Credits are floored on accumulation; the other two are stored as floats.
+- **Stock resources** are accumulated: `credits`, `rawmaterials`, `research`. Credits are integers (fraction carried between ticks); the other two are stored as floats. Buildings and ships cost credits and raw materials; research points buy technologies. Full rules: [Economy](./economy.md).
 - **Energy** is a flow resource. It is never accumulated, only used to compute efficiency. If `energyProduction >= energyConsumption`, efficiency is 1.0; otherwise efficiency = `energyProduction / max(energyConsumption, 1)`. The effective rate applied per stock resource is `netRate * efficiency`.
 - **Building stats** are read once from `planet-data.json` (indexed by `id` and by `name`) and applied generically, so adding a new building requires no code change.
 - **Population** contributes `population * 0.1` credits/s as a planet-level production source.
-- **Maintenance** comes from `building.maintenanceCost` (per building instance) and `shipType.maintenanceCost` (per non-destroyed ship in non-destroyed fleets).
+- **Upkeep** is charged every economy tick: `maintenanceCost` points (× 0.3 credits) per building instance and per non-destroyed ship in non-destroyed fleets, half rate for ships in the stock, plus colony administration (3% of planet income per planet beyond the first, max 45%). At 0 credits unpaid upkeep costs satisfaction (arrears).
 - The same service exposes `getPlanetTax(planet)` (legacy `pop*0.1 + factories*500`) and `getPlanetEnergy(planet)` for callers that still expect them.
-- `EconomyService.applyEconomyDelta()` is called once per second for every faction. It mutates `faction.currencies` only; it never changes the saved snapshot directly.
+- `EconomyService.applyEconomyDelta()` is called once per second for every faction. It mutates `faction.currencies`, planet satisfaction/population and (on rebellion) ownership; it never changes the saved snapshot directly.
 
-`FactionCurrenciesComponent` shows the current balances and provides an expandable breakdown per planet (income, expense, net, efficiency, per-building maintenance).
+`FactionCurrenciesComponent` shows the current balances and an expandable breakdown: effective production/consumption/net per resource, building upkeep, colony administration, ship upkeep, unpaid upkeep (arrears), per-planet rows and per-fleet upkeep. These are the same rates the economy tick applies.
 
 ## Planet Surface
 
@@ -180,7 +180,7 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 - The grid is `numericSize * 2 + 3` cells per side (`5, 7, 9, 11`).
 - A build menu lists every `building` from `planet-data.json`.
 - Selecting a building type enters build mode; clicking a cell highlights the building's footprint and reveals a BUILD button if placement is valid.
-- Confirming a build deducts the building's `price` from the player's credits and appends a new `PlanetBuilding` (with the chosen `x`/`y`) to `planet.buildings`.
+- Confirming a build charges the building's `price` (credits) and `rawMaterialCost` through `payCost` (nothing is charged if either is short) and appends a new `PlanetBuilding` (with the chosen `x`/`y`) to `planet.buildings`. The build list shows both costs and disables unaffordable buildings. Confirmation reaches `StarMap.onBuildingConfirmed` through the `buildConfirmed` output only (a second input callback used to place and charge every building twice).
 - The same component is reused across the system view (when a planet is selected) and the planet view.
 - The sidebar exposes a tab strip with DETAILS, BUILD, PRODUCTION, and ASSEMBLY. Tab visibility is data-driven: BUILD is shown only for player-owned planets, PRODUCTION only when the planet has a Spaceship Factory, and ASSEMBLY only when the planet has a Spaceport. Selecting a tab replaces the sidebar's content area; no floating overlays are mounted outside the sidebar (the production and spaceport panels are re-used inline).
 - **Zoom levels:** a CLOSE / MEDIUM / FAR selector (bottom-right of the surface; top-right below 600px width) scales the grid via `PLANET_SURFACE_ZOOM_SCALES` (`1` / `0.75` / `0.55`) inside the grid's inline transform. CLOSE (`1`) is the original framing defined by `PLANET_SURFACE_CELL_VW`; the scale is applied around the grid center, and the pan offset is rescaled on switch so the view does not jump. Pan clamp bounds use the scaled size.

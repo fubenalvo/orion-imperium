@@ -23,6 +23,7 @@ import { EnemyIntelService } from './enemy-intel.service';
 import { EnemyEconomyService } from './enemy-economy.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { isCombatShipType } from './ai-queries';
+import { canAffordCost, shipCost } from '../../services/resource-cost';
 
 /*
  * =========================================================
@@ -178,8 +179,7 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    const credits = faction.currencies['credits'] ?? 0;
-    if (credits < shipType.cost) {
+    if (!canAffordCost(faction, shipCost(shipType))) {
       return false;
     }
 
@@ -250,8 +250,7 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    const credits = faction.currencies['credits'] ?? 0;
-    if (credits < shipType.cost) {
+    if (!canAffordCost(faction, shipCost(shipType))) {
       return false;
     }
 

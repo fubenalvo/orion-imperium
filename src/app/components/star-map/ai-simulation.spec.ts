@@ -24,6 +24,8 @@ import { EnemyReachService } from './enemy-reach.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { ResearchService } from '../../services/research.service';
 import { Fleet } from './star-map.models';
+import { generateResourceTilesForPlanet, selectPlanetsForResources } from './star-map-resources.util';
+import { getPlanetGridSize } from './star-map-display.util';
 
 /*
  * =========================================================
@@ -98,6 +100,15 @@ interface FactionTrace {
   personality: string;
   /* First contact (shared galaxy cell) with each hostile fleet. */
   contacts: { time: number; hostileFleetId: number; aiStrength: number; hostileStrength: number }[];
+  /* Economy metrics (EconomyService breakdown summed over every economy tick). */
+  grossIncome: number;
+  upkeepCharged: number;
+  startRaw: number;
+  rawSpent: number;
+  /* ProductionService.queueOrder calls by this faction that were rejected. */
+  failedOrders: number;
+  /* Economy ticks on which part of the upkeep could not be paid. */
+  arrearsTicks: number;
 }
 
 interface OwnershipChange {
@@ -138,6 +149,12 @@ function generate(options: ScenarioOptions): StarMapData {
     })),
   ];
   const data = TestBed.inject(GalaxyGeneratorService).generate(config, options.seed ?? 31337);
+  // Mirrors StarMap.ensureResourceTiles on load: ore deposits on ~20% of planets.
+  const allPlanets = data.starSystems.flatMap((s) => s.planetsTiles);
+  const withOre = selectPlanetsForResources(allPlanets);
+  for (const planet of allPlanets) {
+    planet.resourceTiles = withOre.has(planet.id) ? generateResourceTilesForPlanet(planet, getPlanetGridSize) : [];
+  }
   if (options.removePlayerFleets) {
     data.fleets = data.fleets.filter((f) => f.factionId !== 'player');
   }
@@ -217,6 +234,12 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
         .flatMap((f) => f.ships)
         .filter((sh) => sh.type !== 'colonizer').length,
       contacts: [],
+      grossIncome: 0,
+      upkeepCharged: 0,
+      startRaw: faction.currencies['rawmaterials'] ?? 0,
+      rawSpent: 0,
+      failedOrders: 0,
+      arrearsTicks: 0,
     });
   }
 
@@ -232,6 +255,13 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     } finally {
       inColonizationSlot = false;
     }
+  });
+  const queueOrder = production.queueOrder.bind(production);
+  const queueSpy = vi.spyOn(production, 'queueOrder').mockImplementation((...args: Parameters<typeof queueOrder>) => {
+    const result = queueOrder(...args);
+    const trace = traces.get(args[1]);
+    if (trace && !result.ok) trace.failedOrders++;
+    return result;
   });
   const evaluateSpy = vi.spyOn(actions as any, 'evaluateAction').mockImplementation((...args: any[]) => evaluateAction(...args));
   // Scheduling: count the goal layer's per-faction decisions (every 2 s),
@@ -315,6 +345,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       if (fleet) fleet.system = null;
     });
     const creditsBeforeTick = new Map(data.factions.map((f) => [f.id, f.currencies['credits'] ?? 0] as const));
+    const rawBeforeTick = new Map(data.factions.map((f) => [f.id, f.currencies['rawmaterials'] ?? 0] as const));
     const techsBeforeTick = new Map(data.factions.map((f) => [f.id, (f.researchedTechnologies ?? []).length] as const));
     const tickStart = performance.now();
     const changed = aiTick.tick(dt, {
@@ -356,6 +387,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       const faction = data.factions.find((f) => f.id === factionId)!;
       // AI spending happens inside the AI tick (buildings, production orders).
       trace.creditsSpent += Math.max(0, creditsBeforeTick.get(factionId)! - (faction.currencies['credits'] ?? 0));
+      trace.rawSpent += Math.max(0, rawBeforeTick.get(factionId)! - (faction.currencies['rawmaterials'] ?? 0));
       if ((faction.researchedTechnologies ?? []).length > techsBeforeTick.get(factionId)!) trace.researchTimes.push(time);
       if (frames % 600 === 0) {
         trace.priorities.push(TestBed.inject(EnemyPlanService).getPosture(faction).primary);
@@ -392,7 +424,15 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     economyAccumulator += dt;
     if (economyAccumulator >= 1) {
       for (const faction of data.factions) {
-        economy.applyEconomyDelta(faction.id, data.factions, data.starSystems, data.fleets, economyAccumulator);
+        const breakdown = economy.applyEconomyDelta(
+          faction.id, data.factions, data.starSystems, data.fleets, economyAccumulator, data.production, data.shipStock,
+        );
+        const trace = traces.get(faction.id);
+        if (trace) {
+          trace.grossIncome += (breakdown.incomePerSecond ?? 0) * economyAccumulator;
+          trace.upkeepCharged += (breakdown.expensePerSecond ?? 0) * economyAccumulator;
+          if ((breakdown.unpaidUpkeepPerSecond ?? 0) > 0) trace.arrearsTicks++;
+        }
       }
       economyAccumulator = 0;
     }
@@ -474,6 +514,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
 
   // Restore so a test may run several scenarios (e.g. a control run).
   evaluateSpy.mockRestore();
+  queueSpy.mockRestore();
   colonizationSpy.mockRestore();
   goalSpy.mockRestore();
   return {
@@ -641,13 +682,18 @@ describe('AI simulation (headless multi-minute games)', () => {
  *  - AI-assembled fleets move 0.2 cells/s (speed 4 / 10 / cellSizeVw 2),
  *    and colonization targets are limited to 60 cells (≤ 300 s travel);
  *  - one construction decision per faction every 2 s;
- *  - homeworld income ≈ 140 credits/s (1400 pop × 0.1).
+ *  - homeworld income ≈ 140 credits/s (1400 pop × 0.1), ≈ 86/s net of
+ *    upkeep with the starting fleet; Spaceship Factory 3000 and Spaceport
+ *    4000 credits (docs/economy.md).
  */
 const stripToResidential = (data: StarMapData): void => {
   for (const faction of data.factions.filter((f) => f.ai)) {
     const home = homeworldOf(data)(faction.id);
     home.buildings = [{ name: 'Large Residential Block', size: 3, x: 0, y: 0 }];
-    faction.currencies['credits'] = 300;
+    // Enough for one power building (Solar Array: 600 credits). With an
+    // energy deficit the homeworld earns nothing, so less than that would
+    // be an unwinnable start under the economy rules, not an AI test.
+    faction.currencies['credits'] = 1000;
   }
 };
 
@@ -669,7 +715,8 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     for (const [factionId, trace] of result.traces) {
       expect(trace.factoryAt, `${factionId} factory`).not.toBeNull();
       expect(trace.spaceportAt, `${factionId} spaceport`).not.toBeNull();
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(60);
+      // Factory (3000) + Spaceport (4000) from a 1000-credit start at ~85 credits/s net.
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(180);
       expect(trace.firstColonizationAt!, `${factionId} first colony time`).toBeLessThan(300);
       expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(2);
       // Every owned planet (except possibly a colony founded in the last
@@ -701,8 +748,10 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
 
     expectHealthyAiFactions(result, options);
     for (const [factionId, trace] of result.traces) {
-      expect(trace.factoryAt!, `${factionId} factory time`).toBeLessThan(30);
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(60);
+      // Solar Array first, then Factory (3000) and Spaceport (4000) from a
+      // half-capacity homeworld's net income.
+      expect(trace.factoryAt!, `${factionId} factory time`).toBeLessThan(120);
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(300);
       expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(1);
       const home = result.data.starSystems.flatMap((s) => s.planetsTiles).find((p) => p.id === trace.homeworldId)!;
       const economy = TestBed.inject(EconomyService).calculatePlanetEconomy(home);
@@ -793,8 +842,9 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     expectHealthyAiFactions(result, options);
     for (const [factionId, trace] of result.traces) {
       expect(trace.spaceportAt, `${factionId} spaceport`).not.toBeNull();
-      // 500 credits at ~140/s plus other committed needs: well under a minute.
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(60);
+      // 4000 credits + 600 raw at ~80 credits/s net (homeworld income minus
+      // upkeep) plus other committed needs: about a minute.
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(120);
       if (trace.firstResearchBuildingAt !== null) {
         expect(trace.firstResearchBuildingAt, `${factionId} research before spaceport`).toBeGreaterThan(trace.spaceportAt!);
       }
@@ -1065,6 +1115,7 @@ describe('AI simulation — Phase 3 research and military operations', () => {
     const damaged = new Map<string, number[]>();
     const rolesAfterLoss: { factionId: string; fleetId: number; role: string | undefined; atSpaceport: boolean; lostShare: number }[] = [];
     const lostShareOf = new Map<number, number>();
+    const managedAtLoss = new Set<number>();
     const ships = () => TestBed.inject(ShipService);
     const militaryStrength = (data: StarMapData, factionId: string) =>
       data.fleets
@@ -1082,6 +1133,10 @@ describe('AI simulation — Phase 3 research and military operations', () => {
           // Same state change as StarMap.applyBattleResult after lost battles:
           // ships flagged destroyed, wiped-out fleets destroyed, targets cleared.
           apply: (data) => {
+            const fleetOps = TestBed.inject(EnemyFleetService);
+            for (const fleet of data.fleets) {
+              if (fleetOps.getAssignment(fleet.id)) managedAtLoss.add(fleet.id);
+            }
             for (const faction of data.factions.filter((f) => f.ai)) {
               preLoss.set(faction.id, militaryStrength(data, faction.id));
               for (const fleet of data.fleets.filter((f) => f.factionId === faction.id && !f.destroyed)) {
@@ -1114,6 +1169,11 @@ describe('AI simulation — Phase 3 research and military operations', () => {
                 const fleet = data.fleets.find((f) => f.id === id)!;
                 if (fleet.destroyed || fleet.ships.some((sh) => sh.type === 'colonizer' && !sh.destroyed)) continue;
                 const atSpaceport = spaceports.some((sy) => Math.floor(sy.x) === Math.floor(fleet.x) && Math.floor(sy.y) === Math.floor(fleet.y));
+                // Only fleets fleet operations managed when the losses hit:
+                // a fleet the colonization pipeline owned until then has no
+                // recorded pre-loss peak (EnemyFleetService tracks peaks for
+                // managed fleets only), so it cannot detect the drop.
+                if (!managedAtLoss.has(id)) continue;
                 rolesAfterLoss.push({ factionId, fleetId: id, role: fleetOps.getAssignment(id)?.role, atSpaceport, lostShare: lostShareOf.get(id) ?? 0 });
               }
             }
@@ -1401,6 +1461,8 @@ interface LeagueRow {
   livingStrength: number;
   /* Time of the last technology bought (the whole tree when techs = 31). */
   treeCompletedAt: number;
+  /* Time of the 10th researched technology (6th bought after the 4 starting ones). */
+  tenthTechAt: number;
   priorities: Record<string, number>;
 }
 
@@ -1435,6 +1497,7 @@ function leagueRows(result: ScenarioResult, options: ScenarioOptions, windowSeco
       deadlocks: events.filter((e) => e.factionId === factionId && e.type !== 'saturated').length,
       inactiveWindows,
       treeCompletedAt: Math.round(trace.researchTimes.at(-1) ?? options.seconds),
+      tenthTechAt: Math.round(trace.researchTimes[5] ?? options.seconds),
       livingStrength: Math.round(TestBed.inject(ShipService).calculateFleetStrength(
         result.data.fleets.filter((f) => f.factionId === factionId && !f.destroyed).flatMap((f) => f.ships),
       )),
@@ -1516,7 +1579,8 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
         const who = `${label} ${row.factionId} (${row.personality})`;
         expect(row.inactiveWindows, `${who} inactive 5-minute windows`).toBe(0);
         expect(row.planetsEnd, `${who} planet growth`).toBeGreaterThan(row.planetsStart);
-        expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(12);
+        // Research costs are balanced for a ~30–40 minute tree (research-tree.json).
+        expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(8);
         expect(row.deadlocks, `${who} deadlock replans`).toBeLessThanOrEqual(3);
         expect(row.creditsSpent, `${who} spends resources`).toBeGreaterThan(0);
       }
@@ -1558,8 +1622,9 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     expect(sum(militarist, 'combatBuilt'), 'militarists build more warships').toBeGreaterThan(sum(expansionist, 'combatBuilt'));
     expect(sum(expansionist, 'colonizations'), 'expansionists colonize at least as much').toBeGreaterThanOrEqual(sum(militarist, 'colonizations'));
     expect(sum(technologist, 'techs'), 'technologists research at least as much').toBeGreaterThanOrEqual(sum(militarist, 'techs'));
-    // Every faction finishes the tree eventually; technologists get there sooner.
-    expect(sum(technologist, 'treeCompletedAt'), 'technologists finish research sooner').toBeLessThan(sum(militarist, 'treeCompletedAt'));
+    // The tree takes ~30–40 minutes (research-tree.json costs), so a 15-minute
+    // game compares an early milestone: technologists reach it sooner.
+    expect(sum(technologist, 'tenthTechAt'), 'technologists research sooner').toBeLessThan(sum(militarist, 'tenthTechAt'));
   });
 });
 
@@ -1618,7 +1683,10 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
       const who = `${options.size} ${row.factionId} (${row.personality}/${row.difficulty})`;
       expect(row.inactiveWindows, `${who} inactive 10-minute windows`).toBe(0);
       expect(row.planetsEnd, `${who} planets`).toBeGreaterThan(row.planetsStart);
-      expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(20);
+      // Research costs target a ~30–40 minute tree, and labs compete with
+      // warships for upkeep headroom, so research-light personalities on Easy
+      // finish about half the tree in 40 minutes.
+      expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(15);
       expect(row.deadlocks, `${who} deadlock replans`).toBeLessThanOrEqual(6);
     }
     // Bounded AI state: nothing grows with game time beyond the entity counts.
@@ -1651,3 +1719,101 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
     expect(result.aiTickMs.max, 'worst AI frame (ms)').toBeLessThan(100);
   }, 60_000);
 });
+
+/*
+ * Economy validation: runs long multi-faction games and reports per-faction
+ * economic metrics (printed via console.info, which the suites do not mock).
+ * The assertions encode the economy's design goals: factions keep
+ * expanding, actually spend a meaningful share of their income, never sit
+ * in upkeep arrears for long, and the research tree is not exhausted early.
+ */
+interface EconomyRow {
+  who: string;
+  planets: string;
+  credits: number;
+  raw: number;
+  grossIncome: number;
+  upkeep: number;
+  spent: number;
+  spendShare: number;
+  rawSpent: number;
+  built: number;
+  ships: number;
+  techs: number;
+  tech10At: number | null;
+  tech20At: number | null;
+  failedOrders: number;
+  arrearsTicks: number;
+  rebellions: number;
+}
+
+function economyRows(result: ScenarioResult, label: string): EconomyRow[] {
+  return [...result.traces].map(([factionId, trace]) => {
+    const faction = result.data.factions.find((f) => f.id === factionId)!;
+    return {
+      who: `${label} ${factionId} (${trace.personality})`,
+      planets: `${trace.startPlanets}->${ownedPlanets(result.data, factionId).length}`,
+      credits: Math.round(faction.currencies['credits'] ?? 0),
+      raw: Math.round(faction.currencies['rawmaterials'] ?? 0),
+      grossIncome: Math.round(trace.grossIncome),
+      upkeep: Math.round(trace.upkeepCharged),
+      spent: Math.round(trace.creditsSpent),
+      spendShare: Math.round((trace.creditsSpent / Math.max(1, trace.grossIncome)) * 100),
+      rawSpent: Math.round(trace.rawSpent),
+      built: trace.buildTimes.length,
+      ships: trace.combatShipsProduced + trace.colonizersProduced,
+      techs: (faction.researchedTechnologies ?? []).length,
+      tech10At: trace.researchTimes[5] !== undefined ? Math.round(trace.researchTimes[5]) : null,
+      tech20At: trace.researchTimes[15] !== undefined ? Math.round(trace.researchTimes[15]) : null,
+      failedOrders: trace.failedOrders,
+      arrearsTicks: trace.arrearsTicks,
+      rebellions: result.ownershipChanges.filter((c) => c.from === factionId && c.to === 'independent').length,
+    };
+  });
+}
+
+describe('AI simulation — economy validation', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('long multi-faction games: factions expand, spend a meaningful share of income and research steadily', () => {
+    const configs: ScenarioOptions[] = [
+      { size: 'medium', aiCount: 3, seconds: 1800, dt: 1 / 30 },
+      { size: 'large', aiCount: 5, seconds: 1800, dt: 1 / 30, seed: 4242 },
+    ];
+    const rows: EconomyRow[] = [];
+    for (const options of configs) {
+      const result = runScenario(options);
+      expectHealthyAiFactions(result, options);
+      rows.push(...economyRows(result, `${options.size}/${options.aiCount}`));
+    }
+    for (const row of rows) {
+      // Expansion stays viable under upkeep and administration costs.
+      expect(Number(row.planets.split('->')[1]), `${row.who} planets`).toBeGreaterThan(Number(row.planets.split('->')[0]));
+      // Purchases are a real share of income (the old economy: 3–5%), and
+      // purchases + upkeep consume most of it (the old economy: 3–5% total).
+      expect(row.spendShare, `${row.who} purchase share of gross income %`).toBeGreaterThanOrEqual(8);
+      expect((row.spent + row.upkeep) / row.grossIncome, `${row.who} total outflow share`).toBeGreaterThan(0.6);
+      // The AI's own spending never drives it into persistent arrears.
+      expect(row.arrearsTicks, `${row.who} ticks in arrears`).toBeLessThanOrEqual(10);
+      // Raw materials are consumed, and production orders are only placed when affordable.
+      expect(row.rawSpent, `${row.who} raw materials spent`).toBeGreaterThan(0);
+      expect(row.failedOrders, `${row.who} rejected production orders`).toBe(0);
+      // Research is long-term: the 20th technology takes more than 10 minutes
+      // (the old economy: ~3.5 minutes for the whole tree).
+      if (row.tech20At !== null) {
+        expect(row.tech20At, `${row.who} 20th technology time`).toBeGreaterThan(600);
+      }
+    }
+    // console.log is mocked in these suites and console.info is swallowed by
+    // the Angular test builder, so the report goes straight to stdout.
+    (globalThis as any).process?.stdout?.write(`ECONOMY METRICS ${JSON.stringify(rows)}\n`);
+  }, 180_000);
+});
+

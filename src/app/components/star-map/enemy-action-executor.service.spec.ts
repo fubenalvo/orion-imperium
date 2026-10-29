@@ -83,6 +83,11 @@ describe('EnemyActionExecutor', () => {
         workforceRequired: 20,
         production: { rawmaterials: 10 },
       })),
+      // A comfortably positive faction economy, so upkeep headroom never
+      // decides these tests (EnemyEconomyService upkeep policy has its own tests).
+      calculateEconomy: vi.fn(() => ({ incomePerSecond: 1000, netPerSecond: 1000, net: { rawmaterials: 100 } })),
+      getBuildingUpkeepPerSecond: vi.fn(() => 1),
+      getShipUpkeepPerSecond: vi.fn(() => 1),
     };
 
     TestBed.configureTestingModule({
@@ -2604,7 +2609,7 @@ describe('EnemyActionExecutor', () => {
     it('should build a power building when energy is short', () => {
       const factions = baseFactions.map((f) =>
         f.id === 'enemy1'
-          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_power'], currencies: { ...f.currencies } }
+          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_power'], currencies: { credits: 10000, rawmaterials: 10000 } }
           : f,
       );
       (economyService.calculatePlanetEconomy as any).mockReturnValue({
@@ -2627,13 +2632,15 @@ describe('EnemyActionExecutor', () => {
       expect(result).toBe(true);
       expect(systems[0].planetsTiles[0].buildings).toHaveLength(1);
       expect(systems[0].planetsTiles[0].buildings[0].name).toBe('Fusion Power Plant');
-      expect(factions.find((f) => f.id === 'enemy1')!.currencies['credits']).toBe(100);
+      // Fusion Power Plant price in planet-data.json: 2500 credits, 400 raw materials.
+      expect(factions.find((f) => f.id === 'enemy1')!.currencies['credits']).toBe(10000 - 2500);
+      expect(factions.find((f) => f.id === 'enemy1')!.currencies['rawmaterials']).toBe(10000 - 400);
     });
 
     it('should build a residential building when workforce is short', () => {
       const factions = baseFactions.map((f) =>
         f.id === 'enemy1'
-          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_science'], currencies: { ...f.currencies } }
+          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_science'], currencies: { credits: 10000, rawmaterials: 10000 } }
           : f,
       );
       (economyService.calculatePlanetEconomy as any).mockReturnValue({
@@ -2661,7 +2668,7 @@ describe('EnemyActionExecutor', () => {
     it('should build an industry building when raw materials are needed', () => {
       const factions = baseFactions.map((f) =>
         f.id === 'enemy1'
-          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_industry'], currencies: { ...f.currencies } }
+          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_industry'], currencies: { credits: 10000, rawmaterials: 10000 } }
           : f,
       );
       (economyService.calculatePlanetEconomy as any).mockReturnValue({
@@ -2696,7 +2703,7 @@ describe('EnemyActionExecutor', () => {
     it('should build a research building as fallback', () => {
       const factions = baseFactions.map((f) =>
         f.id === 'enemy1'
-          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_science'], currencies: { credits: 1000 } }
+          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_science'], currencies: { credits: 10000, rawmaterials: 10000 } }
           : f,
       );
       (economyService.calculatePlanetEconomy as any).mockReturnValue({
@@ -2736,7 +2743,7 @@ describe('EnemyActionExecutor', () => {
     it('should not build when the building is not researched', () => {
       const factions = baseFactions.map((f) =>
         f.id === 'enemy1'
-          ? { ...f, researchedTechnologies: ['basic_engineering'], currencies: { ...f.currencies } }
+          ? { ...f, researchedTechnologies: ['basic_engineering'], currencies: { credits: 10000, rawmaterials: 10000 } }
           : f,
       );
       (researchService.isBuildingUnlocked as any).mockReturnValue(false);
@@ -2850,7 +2857,7 @@ describe('EnemyActionExecutor', () => {
     it('should build at most once per develop interval', () => {
       const factions = baseFactions.map((f) =>
         f.id === 'enemy1'
-          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_power'], currencies: { credits: 1000 } }
+          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_power'], currencies: { credits: 10000, rawmaterials: 10000 } }
           : f,
       );
       (economyService.calculatePlanetEconomy as any).mockReturnValue({
@@ -2884,7 +2891,7 @@ describe('EnemyActionExecutor', () => {
     it('should develop a later planet when the first planet has no room', () => {
       const factions = baseFactions.map((f) =>
         f.id === 'enemy1'
-          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_power'], currencies: { credits: 1000 } }
+          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_power'], currencies: { credits: 10000, rawmaterials: 10000 } }
           : f,
       );
       (economyService.calculatePlanetEconomy as any).mockReturnValue({

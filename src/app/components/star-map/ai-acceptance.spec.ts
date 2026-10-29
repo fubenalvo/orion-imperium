@@ -191,7 +191,9 @@ describe('AI acceptance (real StarMap sessions)', () => {
   it('AI debug panel: F9 toggles it and snapshots expose every faction\'s state', () => {
     startGame({ ...createDefaultNewGameConfig('medium'), seed: 4711 });
     const map = createStarMap();
-    run(map, 30);
+    // Long enough for a first completed action under the economy rules
+    // (the first factory is affordable after ~40 s).
+    run(map, 90);
     expect(map.aiDebugVisible).toBe(false);
     map.handleKeyboard(new KeyboardEvent('keydown', { key: 'F9' }));
     expect(map.aiDebugVisible).toBe(true);

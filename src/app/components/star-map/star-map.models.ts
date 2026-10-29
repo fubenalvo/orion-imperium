@@ -195,6 +195,14 @@ export interface ProductionOrder {
   quantity: number;
   progress: number;
   startedAtTick: number;
+  /*
+   * Resources actually charged when the order was queued. Refunds are
+   * computed from this, not from today's ship price, so a rebalance or an
+   * order from a save that predates raw-material costs can never refund
+   * more than was paid. Absent on legacy orders: those paid credits only
+   * (ship `cost` × quantity).
+   */
+  paid?: { credits: number; rawmaterials: number };
 }
 
 export interface FactionProduction {
@@ -216,6 +224,7 @@ export interface ShipType {
   speed: number;
   range: number;
   cost: number;
+  rawMaterialCost?: number;
   maintenanceCost: number;
 }
 
@@ -344,10 +353,23 @@ export interface PlanetEconomy {
   buildingMoraleBonus: number;
 }
 
+/*
+ * Faction economy as produced by EconomyService.calculateEconomy. All
+ * rates are effective per-second values (efficiency, satisfaction,
+ * difficulty and upkeep already applied); `net[r]` is exactly what one
+ * second of the economy tick adds to the stock of resource r.
+ */
 export interface EconomyBreakdown {
   incomePerSecond: number;
+  /* Total upkeep in credits/s (buildings + fleet ships + reserve ships). */
   expensePerSecond: number;
   netPerSecond: number;
+  buildingUpkeepPerSecond: number;
+  /* Colony administration (EconomyService.administrationShare × planet income). */
+  administrationPerSecond: number;
+  shipUpkeepPerSecond: number;
+  /* Upkeep that could not be paid on the last applied tick (arrears); 0 otherwise. */
+  unpaidUpkeepPerSecond: number;
   totalPopulation: number;
   planets: PlanetEconomyEntry[];
   fleetExpenses: FleetExpenseEntry[];
@@ -361,7 +383,9 @@ export interface PlanetEconomyEntry {
   planetName: string;
   population: number;
   income: number;
+  /* Credits/s this planet costs: building upkeep + administration. */
   expense: number;
+  administration?: number;
   net: number;
   production: ResourceRates;
   consumption: ResourceRates;
@@ -399,6 +423,10 @@ export interface BuildingStats {
   id: string;
   name: string;
   role?: string;
+  /* Purchase price: credits (`price`) and raw materials (see resource-cost.ts). */
+  price?: number;
+  rawMaterialCost?: number;
+  /* Upkeep points per second; EconomyService converts them to credits. */
   maintenanceCost: number;
   production: ResourceRates;
   consumption: ResourceRates;

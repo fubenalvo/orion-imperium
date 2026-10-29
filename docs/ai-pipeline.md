@@ -152,7 +152,7 @@ The primary Spaceport system is the first Spaceport by (system id, planet id) �
 
 Verified in code; if any of these change, revisit `EnemyEconomyService`:
 
-- **Credits are the only currency anything spends** (ship cost, building price). Raw materials are produced but never consumed; research points are spent only by the research tree; building `maintenanceCost` is shown in the economy breakdown but never deducted. Credits therefore cannot go negative through upkeep — the real economic failure mode is satisfaction loss from an energy deficit (−1/s) leading to rebellion.
+- **Buildings and ships cost credits and raw materials** (`resource-cost.ts`, the same helpers as the player UI). Research points are spent only by the research tree. Buildings, fleet ships, reserve (stocked) ships and colony administration cost upkeep every economy tick. Credits never go negative: unpaid upkeep (arrears) and an energy deficit (−1/s) both drain satisfaction toward rebellion. See [Economy](./economy.md).
 - Credit income is `population × 0.1 × satisfaction`; population is capped by housing capacity, so **housing is the growth building**.
 - Workforce shortages only scale resource production (`EconomyService.calculatePlanetEconomy`), never energy output or satisfaction.
 - Ships are built one order at a time per Spaceship Factory (build time `cost × 0.1 / 0.5`: colonizer 20 s, fighter 15 s) into the faction-wide stock. Leaving the stock requires a Spaceport. `FleetAssemblyService.reinforceFleet` does not check fleet location, so the AI only reinforces fleets that are physically in a Spaceport system.
@@ -162,27 +162,30 @@ Verified in code; if any of these change, revisit `EnemyEconomyService`:
 
 `EnemyEconomyService.tryConstruct` (also used by the executor's `develop` action) places at most one building per faction per 2 s of game time; a search that finds nothing also waits one interval. Rule tiers, each tried over all owned planets (ascending system id, then planet id):
 
-| Tier | Condition | Builds | Reserve |
-|---|---|---|---|
-| E1 | planet energy shortage | power | ignored |
-| E2 | planet workforce shortage | housing | ignored |
-| I1 | faction has no Spaceship Factory | Spaceship Factory | ignored |
-| I2 | factory but no Spaceport | Spaceport | ignored |
-| D | planet has no defense building | defense (turret) | respected |
-| G | planet has no housing, or population ≥ 90% of capacity | housing | respected |
-| R | planet has no research building | research | respected |
-| P | wealthy (credits > 3000) and planet has no factory | Spaceship Factory | respected |
+| Tier | Condition | Builds | Reserve | Upkeep tier |
+|---|---|---|---|---|
+| E1 | planet energy shortage | power | ignored | emergency |
+| E2 | planet workforce shortage | housing | ignored | core |
+| I1 | faction has no Spaceship Factory | Spaceship Factory | ignored | core |
+| I2 | factory but no Spaceport | Spaceport | ignored | core |
+| M | raw income < 15/s and an ore planet has no Mining Complex | Mining Complex | respected | optional |
+| D | planet has no defense building | defense (turret) | respected | optional |
+| G | planet has no housing, or population ≥ 90% of capacity | largest unlocked housing only | respected | core |
+| R | planet has no research building | research | respected | optional |
+| P | wealthy (credits > 5000) or militarist, and planet below its factory count | Spaceship Factory | respected | optional |
 
 - **Safety:** the planet economy is evaluated with the candidate added; it is placed only if it does not create or worsen an energy deficit, nor a workforce deficit (power buildings are exempt from the workforce check because workforce never scales energy output — otherwise a fresh colony deadlocks between housing and power). If the safety check fails, an enabling power/housing building (up to two levels) is built first.
-- **Reserve:** optional tiers and military production leave credits for the faction's committed needs: the next colonizer (when an unhabited planet exists and none is in stock, fleets or the queue), a missing Spaceport, and the next military ship. An unaffordable rule falls through to the next, so a shortage changes the decision instead of deadlocking.
-- Research unlocks, credits and grid placement (including ore proximity) are always checked.
+- **Reserve:** optional tiers and military production leave credits **and raw materials** for the faction's committed needs: the next colonizer (when an unhabited planet exists and none is in stock, fleets or the queue), a missing Spaceship Factory or Spaceport (only while net income is positive — saving needs income), and the next military ship. An unaffordable rule falls through to the next, so a shortage changes the decision instead of deadlocking.
+- **Upkeep headroom:** each purchase's upkeep must fit the projected net income (`getProjectedNet`: the `EconomyService` net minus the upkeep of queued ships). Emergency: always. Core: net ≥ 0 after the purchase, or a deficit the treasury can carry for 300 s (a lone fresh colony has no income but must still build housing). Optional buildings: leave 25% of gross income, minus a further reserve for the next warship's upkeep while the navy is below target. Warships: leave `10% / personality militaryTarget`. Building upkeep is permanent and construction runs before military production, so the larger building margin is what keeps income available for the navy.
+- **Space for core buildings:** while a Spaceship Factory or Spaceport is missing, a placement is chosen that keeps as many of them placeable as before (largest first); other buildings that would reduce that number are skipped. Without it, cheap buildings bought while saving would fill the surface (or the factory would take the only Spaceport-sized spot) and the faction could never build or deploy ships.
+- Research unlocks, credits, raw materials and grid placement (including ore proximity) are always checked.
 
 ## Military production and deployment
 
-- **Target strength** (fleets + stock + queued, living ships): `80 + 60 × planets`, raised to 1.5 × the strength of hostile fleets within 25 cells of AI systems. When wealthy (credits > 3000) the target is multiplied by `2 + floor(credits / 3000)`, turning surplus credits into military.
+- **Target strength** (fleets + stock + queued, living ships): the largest of `80 + 60 × planets`, the strength whose upkeep would cost 12% of gross credit income (preferred hull's strength per upkeep), and 1.5 × the strength of hostile fleets within 25 cells of AI systems. When wealthy (credits > 5000) the target is multiplied by `2 + floor(credits / 5000)`, turning surplus credits into military.
 - **Count cap:** 24 combat ships, 60 when wealthy — production is bounded regardless of income.
 - Normally one combat order at a time (factory queues stay free for colonizers); when wealthy every idle factory gets one order per decision.
-- **Hull choice:** strength per credit is nearly flat across hulls and build time is proportional to cost, so the binding limit is the ship cap. With a comfortable budget the AI builds the strongest unlocked hull costing at most a quarter of its budget; when credits are tight, the best strength per credit. Research therefore pays off by unlocking heavier hulls.
+- **Hull choice:** a hull must fit the credit and raw-material budget (after the reserve) and its upkeep must fit the warship allowance. With a comfortable budget (4× the hull's credits and raw materials) the AI builds the strongest such hull; when tight, the best strength per credit. Research therefore pays off by unlocking heavier hulls.
 - **Deployment:** stocked combat ships join the smallest parked fleet in the primary Spaceport system that has fewer than 12 living ships, otherwise a new fleet is created there. Reinforcement through the `reinforce_fleet` action also requires the fleet to be in a Spaceport system — ships never teleport. A faction that lost every fleet recovers through the same path.
 
 ## Research (EnemyResearchService)
@@ -215,7 +218,8 @@ AI pipeline state is in-memory only and fully rebuilt from the game snapshot. `S
 
 - All generated AI factions share team 2 (no AI-vs-AI war); they do not share intel with each other. AI planet battles against non-player defenders are auto-resolved with the simplifications listed in [Planet Capture](./planet-capture.md#auto-resolver-battle-auto-resolvets).
 - AI-vs-AI conflict is still absent (shared team), so personalities compete for land but never fight each other.
-- Resource efficiency (credits spent / earned) stays at 5–10% in 15–20 minute simulations: without upkeep, income outgrows every sink: after ~10 minutes AI factions hold 100k–300k unspent credits even with the wealth-driven military and factory rules. Fixing this needs either game-side upkeep or AI research/stronger ship tiers.
+- With upkeep and priced buildings, purchases take ~10–15% and upkeep ~65–75% of gross income in 30-minute simulations (the economy validation test in `ai-simulation.spec.ts`), but late-game factions still hold ~100–200k unspent credits once their planets are built out and their warship counts capped.
+- `EnemyFleetService` records peak strength only for fleets it manages; a fleet released by the colonization pipeline right after losses has no pre-loss peak and does not regroup.
 - Offensive planning is limited to one assault at a time per faction against targets within colonization reach; there is no multi-front campaign or staging of reinforcements.
 - Garrisons create one small fleet per owned system; there is no fleet merging.
 - Once nothing valuable remains, research also buys zero-value technologies (e.g. ones unlocking ships it already has); points have no other use.

@@ -118,6 +118,7 @@ The project currently contains the following documentation files:
 - `docs/game-systems.md` — major gameplay systems and their responsibilities
 - `docs/invariants.md` — rules and conditions that must always remain true
 - `docs/ship-production.md` — ship production, global stock, and fleet assembly pipeline
+- `docs/economy.md` — faction economy: resources, the economy tick, upkeep and colony administration, arrears, building/ship/research prices, purchase and refund rules, AI spending policy summary, save compatibility
 - `docs/game-time.md` — centralized game time, pause/speed controls, and scaled delta flow
 - `docs/new-game-generation.md` — New Game setup, procedural galaxy generation, AI difficulty, and generated-save persistence
 - `docs/planet-capture.md` — authoritative planet ownership pathway, capture rules, planet battle paths (interactive vs auto-resolve), battle outcome application, game outcome (victory/defeat) rules

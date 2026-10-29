@@ -46,7 +46,7 @@
             @for (type of vm.buildable; track type.id) {
               <button class="production-panel__type" type="button" (click)="pickType(type.id)">
                 <span class="production-panel__type-name">{{ type.name }}</span>
-                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr / unit</span>
+                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr · {{ vm.shipRawCosts?.[type.id] ?? 0 }} rm / unit</span>
                 <span class="production-panel__type-build">{{ vm.shipBuildTimes[type.id] }}s @1 fac</span>
               </button>
             }
@@ -59,7 +59,7 @@
                 (click)="pickType(type.id)"
               >
                 <span class="production-panel__type-name">{{ type.name }}</span>
-                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr / unit</span>
+                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr · {{ vm.shipRawCosts?.[type.id] ?? 0 }} rm / unit</span>
               </button>
             }
           }
@@ -71,9 +71,9 @@
             <span class="production-panel__quantity-value">{{ selectedQuantity }}</span>
             <button type="button" (click)="changeQuantity(1)">+</button>
           </div>
-          <div class="production-panel__total">Total: {{ totalCost() }} cr</div>
+          <div class="production-panel__total">Total: {{ totalCost() }} cr · {{ totalRawCost() }} rm</div>
           @if (!canQueue()) {
-            <div class="production-panel__error">Not enough credits.</div>
+            <div class="production-panel__error">{{ missingResourceLabel() }}</div>
           }
           <div class="production-panel__modal-actions">
             <button type="button" (click)="closeBuildMenu.emit()">CANCEL</button>

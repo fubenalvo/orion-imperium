@@ -23,6 +23,7 @@ import { SpaceportService } from '../../services/spaceport.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { isCombatShipType } from './ai-queries';
+import { canAffordCost, shipCost } from '../../services/resource-cost';
 
 /*
  * =========================================================
@@ -607,8 +608,7 @@ export class EnemyActionService {
       return false;
     }
 
-    const credits = faction.currencies['credits'] ?? 0;
-    if (credits < colonizer.cost) {
+    if (!canAffordCost(faction, shipCost(colonizer))) {
       return false;
     }
 
@@ -644,11 +644,7 @@ export class EnemyActionService {
       if (!this.researchService.isShipUnlocked(faction, ship.id)) {
         return false;
       }
-      const credits = faction.currencies['credits'] ?? 0;
-      if (credits < ship.cost) {
-        return false;
-      }
-      return true;
+      return canAffordCost(faction, shipCost(ship));
     });
 
     if (combatShips.length === 0) {
@@ -690,8 +686,7 @@ export class EnemyActionService {
     if (!ship) {
       return false;
     }
-    const credits = faction.currencies['credits'] ?? 0;
-    return credits >= ship.cost;
+    return canAffordCost(faction, shipCost(ship));
   }
 
   private selectWeakestFleet(factionId: string, fleets: Fleet[]): Fleet | undefined {

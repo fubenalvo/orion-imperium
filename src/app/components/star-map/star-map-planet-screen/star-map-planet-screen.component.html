@@ -189,7 +189,7 @@
                       <span class="planet-sidebar__build-lock">🔒</span>
                     } @else {
                       <span class="planet-sidebar__build-price"
-                        >{{ getBuildingPrice(building) ?? 0 }} CR</span
+                        >{{ getBuildingPrice(building) ?? 0 }} CR · {{ getBuildingRawCost(building) }} RM</span
                       >
                     }
                   </button>
@@ -359,13 +359,10 @@
               <div class="planet-sidebar__info-row">
                 <span
                   ><img src="icon-credits.png" alt="" width="14" height="14" class="info-icon" />
-                  INCOME</span
+                  NET INCOME</span
                 >
                 <span
-                  >{{
-                    (planetEconomy.netRates['credits'] ?? 0) * (planetEconomy.incomeMultiplier ?? 1)
-                      | number: '1.0-0'
-                  }}/s</span
+                  >{{ planetEconomy.net | number: '1.0-0' }}/s</span
                 >
               </div>
 

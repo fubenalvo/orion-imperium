@@ -14,13 +14,15 @@ describe('EnemyEconomyService', () => {
     service = TestBed.inject(EnemyEconomyService);
   });
 
-  const faction = (credits: number): Faction => ({
+  // Raw materials default to plenty so tests isolate credit decisions;
+  // raw-material shortages are tested explicitly.
+  const faction = (credits: number, rawmaterials = 100000): Faction => ({
     id: 'enemy1',
     name: 'Enemy 1',
     color: '#d65757',
     team: 2,
     ai: true,
-    currencies: { credits },
+    currencies: { credits, rawmaterials },
     researchedTechnologies: ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power'],
   });
 
@@ -64,7 +66,9 @@ describe('EnemyEconomyService', () => {
   };
 
   it('bootstraps an empty colony with power and then housing instead of deadlocking', () => {
-    const f = faction(1000);
+    // Enough for Solar Array (600) + Small Residential Block (400) plus the
+    // treasury runway that lets a zero-income colony carry their upkeep.
+    const f = faction(2000);
     const colony = planet({ id: 2, size: 'small' });
     const systems = [system([colony])];
 
@@ -101,14 +105,15 @@ describe('EnemyEconomyService', () => {
     const systems = [system([home])];
     const ctx = context();
 
-    // Credits arrive in steps: below the Spaceport price nothing optional is built.
-    f.currencies['credits'] = 450;
+    // Credits arrive in steps: below the Spaceport price (4000) nothing
+    // optional is built, although a Small Research Laboratory (1000) is affordable.
+    f.currencies['credits'] = 3500;
     run(f, systems, ctx, 2.1);
     expect(home.buildings.some((b) => b.name === 'Small Research Laboratory')).toBe(false);
 
     // The Spaceport (60 workers) would open a workforce deficit (205/200),
     // so the planner first builds an enabling Small Residential Block.
-    f.currencies['credits'] = 700;
+    f.currencies['credits'] = 4500;
     run(f, systems, ctx, 4.1);
     const names = home.buildings.map((b) => b.name);
     expect(names).toContain('Spaceport');
@@ -170,5 +175,57 @@ describe('EnemyEconomyService', () => {
     const colony = planet();
     service.tick(0, f, [system([colony])], context());
     expect(colony.buildings).toHaveLength(0);
+  });
+
+  /* Homeworld with a factory and Spaceport, so only affordability decides. */
+  const armedHome = () => planet({
+    population: 1400,
+    buildings: [
+      { name: 'Large Residential Block', size: 3, x: 0, y: 0 },
+      { name: 'Large Residential Block', size: 3, x: 3, y: 0 },
+      { name: 'Fusion Power Plant', size: 3, x: 6, y: 0 },
+      { name: 'Spaceship Factory', size: 3, x: 0, y: 3 },
+      { name: 'Spaceport', size: 4, x: 3, y: 3 },
+    ],
+  });
+
+  it('with credits but no raw materials it neither builds nor queues ships, and recovers when raw materials return', () => {
+    const f = faction(100000, 0);
+    const home = armedHome();
+    const systems = [system([home])];
+    const production: FactionProduction[] = [];
+    const ctx = context([], [], production);
+    const buildingsBefore = home.buildings.length;
+
+    run(f, systems, ctx, 10);
+
+    expect(home.buildings).toHaveLength(buildingsBefore);
+    expect(Object.values(production[0]?.ordersByPlanet ?? {}).flat()).toHaveLength(0);
+    expect(f.currencies['credits']).toBe(100000);
+    expect(f.currencies['rawmaterials']).toBe(0);
+
+    f.currencies['rawmaterials'] = 5000;
+    run(f, systems, ctx, 10);
+    expect(home.buildings.length + Object.values(production[0]?.ordersByPlanet ?? {}).flat().length).toBeGreaterThan(buildingsBefore);
+    expect(f.currencies['rawmaterials']).toBeGreaterThanOrEqual(0);
+  });
+
+  it('with negative net income it buys no optional buildings or warships (core housing may use the treasury)', () => {
+    const f = faction(100000);
+    const home = armedHome();
+    // Satisfaction 0 → no credit income at all, while upkeep continues.
+    home.satisfaction = 0;
+    const systems = [system([home])];
+    const production: FactionProduction[] = [];
+    const before = home.buildings.length;
+
+    run(f, systems, context([], [], production), 10);
+
+    const added = home.buildings.slice(before).map((b) => b.name);
+    // Housing is a core purchase (it restores income) and may draw on the
+    // treasury runway; defense, research and extra factories are optional.
+    const optional = ['Laser Turret', 'Missile Turret', 'Planetary Shield', 'Small Research Laboratory', 'Research Laboratory', 'Spaceship Factory', 'Mining Complex'];
+    expect(added.filter((name) => optional.includes(name))).toEqual([]);
+    expect(Object.values(production[0]?.ordersByPlanet ?? {}).flat()).toHaveLength(0);
   });
 });

@@ -11,8 +11,7 @@ import {
   StarSystem,
   PlanetTile,
   Fleet,
-  FleetShip,
-  ShipType,
+  FactionShipStock,
   ResourceType,
   ResourceRates,
   PlanetEconomy,
@@ -38,9 +37,36 @@ import {
  * Building production/consumption is defined in planet-data.json
  * and read generically, so new buildings require no code changes.
  *
- * Population income (pop * 0.1 credits/s) is treated as a
- * planet-level production source for extensibility.
+ * Population income (pop * 0.1 credits/s, plus a pop * POPULATION_RAW_RATE
+ * raw-material trickle) is treated as a planet-level production source.
+ *
+ * Upkeep: `maintenanceCost` in planet-data.json / ship-data.json is in
+ * upkeep points per second; one point costs UPKEEP_CREDITS_PER_POINT
+ * credits. Buildings, fleet ships and ships in the faction-wide reserve
+ * (ship stock, at RESERVE_SHIP_UPKEEP_FACTOR) all pay upkeep. Upkeep is
+ * charged only in applyEconomyDelta. See docs/economy.md.
  */
+
+/* Credits per second charged for one upkeep point (the single upkeep tuning knob). */
+export const UPKEEP_CREDITS_PER_POINT = 0.3;
+/* Stocked ships are mothballed: they cost this share of their fleet upkeep. */
+export const RESERVE_SHIP_UPKEEP_FACTOR = 0.5;
+export const RESERVE_FLEET_LABEL = 'Reserve (ship stock)';
+/* Raw materials per second per inhabitant (homeworld: 1400 pop → 2.8/s). */
+export const POPULATION_RAW_RATE = 0.002;
+/*
+ * Colony administration: every owned planet beyond the first costs this
+ * share of each planet's credit income, capped at ADMINISTRATION_MAX_SHARE.
+ * It makes over-expansion expensive (a fresh colony raises the share on
+ * the whole empire before its own income grows) without ever making total
+ * income negative.
+ */
+export const ADMINISTRATION_SHARE_PER_PLANET = 0.03;
+export const ADMINISTRATION_MAX_SHARE = 0.45;
+
+export function administrationShare(ownedPlanetCount: number): number {
+  return Math.min(ADMINISTRATION_MAX_SHARE, ADMINISTRATION_SHARE_PER_PLANET * Math.max(0, ownedPlanetCount - 1));
+}
 
 export type { ResourceType, ResourceRates, PlanetEconomy };
 export type { EconomyBreakdown, PlanetEconomyEntry, BuildingExpenseEntry, FleetExpenseEntry, BuildingStats };
@@ -56,7 +82,15 @@ export class EconomyService {
   // second at full satisfaction and best habitability. Tunable balance knob.
   private readonly POPULATION_GROWTH_BASE_RATE = 0.005;
 
+  /*
+   * Satisfaction lost per second on every planet of a faction that cannot
+   * pay any of its upkeep (scaled by the unpaid share).
+   */
+  static readonly ARREARS_MORALE_PENALTY = 2;
+
   private readonly planetOwnership: PlanetOwnershipService;
+  /* Fractional credits carried between ticks, per faction (not persisted; < 1 credit). */
+  private readonly creditRemainders = new Map<string, number>();
 
   /*
    * PlanetOwnershipService is always injected by Angular DI. It is optional
@@ -116,6 +150,11 @@ export class EconomyService {
     const pop = planet.population || 0;
     if (pop > 0) {
       production['credits'] = (production['credits'] ?? 0) + pop * 0.1;
+      // Small population-driven raw trickle (local salvage and extraction).
+      // Not scaled by workforce: it guarantees that a faction which lost its
+      // factories and has no ore can still slowly afford to rebuild one, so
+      // raw-material costs can never deadlock an economy.
+      production['rawmaterials'] = (production['rawmaterials'] ?? 0) + pop * POPULATION_RAW_RATE;
     }
 
     const net: ResourceRates = {};
@@ -251,15 +290,30 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
   }
 
   /*
-   * calculateEconomy: Aggregates economy for a faction across all owned planets.
-   * Returns extended breakdown with per-resource aggregates.
+   * calculateEconomy: Aggregates the faction economy across all owned
+   * planets, fleets and the ship reserve.
+   *
+   * Every rate in the result is EFFECTIVE: it already includes energy
+   * efficiency, the satisfaction multiplier on credits, the AI difficulty
+   * income multiplier, and upkeep converted to credits. applyEconomyDelta
+   * applies exactly `net[r] × deltaTime`, so what the HUD shows is what the
+   * balance does (apart from integer rounding of credits and arrears
+   * clamping at 0).
+   *
+   * Credits: production = Σ planet income; consumption = building upkeep
+   * + colony administration (administrationShare × planet income) + fleet
+   * and reserve ship upkeep. `incomePerSecond`, `expensePerSecond`,
+   * `netPerSecond` mirror the credit row.
    */
   calculateEconomy(
     factionId: string,
     factions: Faction[],
     starSystems: StarSystem[],
     fleets: Fleet[],
+    shipStock?: FactionShipStock[],
   ): EconomyBreakdown {
+    const faction = factions.find((f) => f.id === factionId);
+    const difficultyIncomeMultiplier = faction ? getAiDifficultyProfile(faction).incomeMultiplier : 1;
     const ownedPlanets = this.getOwnedPlanets(factionId, starSystems);
     const ownedFleets = fleets.filter((f) => f.factionId === factionId && !f.destroyed);
 
@@ -269,114 +323,87 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     const factionProduction: ResourceRates = {};
     const factionConsumption: ResourceRates = {};
     const factionNet: ResourceRates = {};
-    let totalExpense = 0;
     let totalPopulation = 0;
     let totalEfficiency = 0;
-    let planetCount = 0;
+    let buildingUpkeep = 0;
+    let administration = 0;
+    const adminShare = administrationShare(ownedPlanets.length);
 
     for (const planet of ownedPlanets) {
-      const pop = planet.population || 0;
-      totalPopulation += pop;
-
-      const economy = this.calculatePlanetEconomy(planet);
-
-      const planetExpense = this.calculatePlanetMaintenance(planet);
-      totalExpense += planetExpense;
-
-      totalEfficiency += economy.efficiency;
-      planetCount++;
-
+      const entry = this.buildPlanetEntry(planet, difficultyIncomeMultiplier, adminShare);
+      totalPopulation += entry.population;
+      totalEfficiency += entry.efficiency;
+      administration += entry.administration ?? 0;
+      buildingUpkeep += entry.expense - (entry.administration ?? 0);
       for (const resource of STOCK_RESOURCES) {
-        factionProduction[resource] = (factionProduction[resource] ?? 0) + (economy.production[resource] ?? 0);
-        factionConsumption[resource] = (factionConsumption[resource] ?? 0) + (economy.consumption[resource] ?? 0);
-        factionNet[resource] = (factionNet[resource] ?? 0) + economy.net[resource]!;
+        factionProduction[resource] = (factionProduction[resource] ?? 0) + (entry.production[resource] ?? 0);
+        factionConsumption[resource] = (factionConsumption[resource] ?? 0) + (entry.consumption[resource] ?? 0);
+        factionNet[resource] = (factionNet[resource] ?? 0) + (entry.netRates[resource] ?? 0);
       }
-
-      const buildings: BuildingExpenseEntry[] = this.getPlanetBuildingExpenses(planet);
-
-      planets.push({
-        planetName: planet.name,
-        population: pop,
-        income: economy.production['credits'] ?? 0,
-        expense: planetExpense,
-        net: (economy.net['credits'] ?? 0) - planetExpense,
-        production: economy.production,
-        consumption: economy.consumption,
-        netRates: economy.net,
-        energyProduction: economy.energyProduction,
-        energyConsumption: economy.energyConsumption,
-        energyBalance: economy.energyBalance,
-        efficiency: economy.efficiency,
-        buildings,
-        satisfaction: economy.satisfaction,
-        incomeMultiplier: economy.incomeMultiplier,
-        workforceAvailable: economy.workforceAvailable,
-        workforceRequired: economy.workforceRequired,
-        workforceEfficiency: economy.workforceEfficiency,
-        habitabilityDrift: economy.habitabilityDrift,
-        buildingMoraleBonus: economy.buildingMoraleBonus,
-      });
+      planets.push(entry);
     }
 
+    let shipUpkeep = 0;
     for (const fleet of ownedFleets) {
-      const shipCounts = new Map<string, number>();
-      for (const ship of fleet.ships) {
-        if (ship.destroyed) continue;
-        shipCounts.set(ship.type, (shipCounts.get(ship.type) || 0) + 1);
-      }
-
-      for (const [typeId, count] of shipCounts) {
-        const shipType = this.shipService.getShipType(typeId);
-        const cost = shipType?.maintenanceCost ?? 0;
-        if (cost > 0) {
-          const totalCost = cost * count;
-          totalExpense += totalCost;
-          fleetExpenses.push({
-            fleetName: fleet.name,
-            shipType: shipType?.name ?? typeId,
-            count,
-            maintenanceCost: cost,
-            totalCost,
-          });
-        }
+      for (const entry of this.shipUpkeepEntries(fleet.name, fleet.ships.filter((s) => !s.destroyed), 1)) {
+        shipUpkeep += entry.totalCost;
+        fleetExpenses.push(entry);
       }
     }
+    const reserve = shipStock?.find((s) => s.factionId === factionId)?.ships ?? [];
+    for (const entry of this.shipUpkeepEntries(RESERVE_FLEET_LABEL, reserve, RESERVE_SHIP_UPKEEP_FACTOR)) {
+      shipUpkeep += entry.totalCost;
+      fleetExpenses.push(entry);
+    }
+    // Building upkeep is already inside the planets' credit consumption.
+    factionConsumption['credits'] = (factionConsumption['credits'] ?? 0) + shipUpkeep;
+    factionNet['credits'] = (factionNet['credits'] ?? 0) - shipUpkeep;
 
-    const avgEfficiency = planetCount > 0 ? totalEfficiency / planetCount : 1.0;
-
+    const income = factionProduction['credits'] ?? 0;
+    const expense = buildingUpkeep + administration + shipUpkeep;
     return {
-      incomePerSecond: factionProduction['credits'] ?? 0,
-      expensePerSecond: totalExpense,
-      netPerSecond: (factionProduction['credits'] ?? 0) - totalExpense,
+      incomePerSecond: income,
+      expensePerSecond: expense,
+      netPerSecond: income - expense,
+      buildingUpkeepPerSecond: buildingUpkeep,
+      administrationPerSecond: administration,
+      shipUpkeepPerSecond: shipUpkeep,
+      unpaidUpkeepPerSecond: 0,
       totalPopulation,
       planets,
       fleetExpenses,
       production: factionProduction,
       consumption: factionConsumption,
       net: factionNet,
-      efficiency: avgEfficiency,
+      efficiency: ownedPlanets.length > 0 ? totalEfficiency / ownedPlanets.length : 1.0,
     };
   }
 
   /*
-   * applyEconomyDelta: Applies resource changes over deltaTime.
-   * Only stock resources (credits, rawmaterials, research) are mutated.
-   * Energy is a flow resource and is NOT accumulated.
+   * applyEconomyDelta: Advances one faction's economy by deltaTime. Called
+   * once per faction per economy tick (StarMap accumulates frame deltas into
+   * ~1 s ticks), so upkeep is charged exactly once per tick and is
+   * frame-rate independent. Energy is a flow resource and is NOT stored.
    *
-   * Side effects on each owned planet:
-   * - Satisfaction is updated based on energy balance (±1 per second) PLUS the
-   *   planet's habitability drift (planet type) and building morale bonuses
-   *   (social/entertainment buildings offset harsh worlds; industrial
-   *   buildings add a small negative pressure). When energy-short the ±1
-   *   portion is -1, otherwise +1. The morale portion is `getMoraleDriftPerSecond`
-   *   × deltaTime, so it pauses with the game and runs 2x at speed 2x. All
-   *   clamped to [0, 100].
-   * - When satisfaction reaches 0, the planet's factionId is set to
-   *   'independent'. This rebellion happens BEFORE the income tick so
-   *   the flipping planet does not generate credits on the same tick.
-   * - Credits are scaled by `satisfaction / 100`. Raw materials and
-   *   research are not affected. Building production is additionally scaled
-   *   by the planet's workforce efficiency (see calculatePlanetEconomy).
+   * Order within a tick:
+   *  1. Satisfaction drift per owned planet: +1/s with enough energy, -1/s
+   *     when energy-short, plus habitability + building morale
+   *     (getMoraleDriftPerSecond); clamped to [0, 100]. A planet reaching 0
+   *     rebels (→ 'independent') BEFORE income is computed, so it neither
+   *     pays its old owner nor costs it upkeep on that tick.
+   *  2. The effective breakdown is computed from the post-drift state and
+   *     `net[r] × deltaTime` is applied to every stock resource: income
+   *     minus upkeep for credits; raw materials and research as produced.
+   *  3. Credits are kept as integers; the fractional remainder is carried
+   *     per faction (in memory only) so rounding never drifts the balance
+   *     away from the HUD rate.
+   *  4. Arrears: credits never go below 0. If the treasury cannot cover the
+   *     upkeep, the unpaid part is waived and every owned planet loses
+   *     satisfaction at ARREARS_MORALE_PENALTY × (unpaid / upkeep) per
+   *     second. A small shortfall is outweighed by the +1/s energy drift; a
+   *     large one leads toward rebellion unless income recovers or upkeep
+   *     is cut (e.g. by disbanding fleets into the cheaper reserve).
+   *  5. Population growth on every owned planet.
    */
   applyEconomyDelta(
     factionId: string,
@@ -386,77 +413,144 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     deltaTime: number,
     // Lets a rebellion cancel the old owner's orders on the planet.
     production?: FactionProduction[],
+    shipStock?: FactionShipStock[],
   ): EconomyBreakdown {
-    const breakdown = this.calculateEconomy(factionId, factions, starSystems, fleets);
     const faction = factions.find((f) => f.id === factionId);
-    if (!faction) return breakdown;
-    const difficultyIncomeMultiplier = getAiDifficultyProfile(faction).incomeMultiplier;
+    if (!faction || deltaTime <= 0) {
+      return this.calculateEconomy(factionId, factions, starSystems, fleets, shipStock);
+    }
 
-    for (const planetEntry of breakdown.planets) {
-      const planet = this.findPlanetByName(planetEntry.planetName, starSystems);
-      if (!planet) continue;
-
-       // 1) Drift satisfaction based on this tick's energy balance.
-       //    Independent planets stay locked at 0 (they are no longer in
-       //    `breakdown.planets` because they are not owned by factionId,
-       //    so the guard is mostly defensive).
-       if (planet.factionId !== 'independent') {
-         const energyShort = planetEntry.efficiency < 1.0;
-         const energyDirection = energyShort ? -1 : 1;
-         // Habitability + building morale bonuses are additive to the energy
-         // drift. They are scaled by `deltaTime` here, so they pause with the
-         // game (deltaTime 0) and run 2x as fast at speed 2x (see GameTimeService).
-         const moraleDrift = this.getMoraleDriftPerSecond(planet);
-         const current = planet.satisfaction ?? 100;
-         const next = Math.max(0, Math.min(100, current + (energyDirection + moraleDrift) * deltaTime));
-         planet.satisfaction = next;
-
-        // 2) Rebellion check: 0% satisfaction -> independent faction.
-        //    The multiplier for this tick must be 0 so we do not pay out
-        //    credits for the same tick the planet flips. We use the new
-        //    satisfaction value here, not the one captured in the
-        //    breakdown entry, so the flip is honored immediately.
-        if (planet.satisfaction <= 0 && planet.factionId !== 'independent') {
-          this.planetOwnership.transferPlanet({ production, factions }, planet, 'independent', 'rebellion');
-        }
+    // 1) Satisfaction drift and rebellion.
+    for (const planet of this.getOwnedPlanets(factionId, starSystems)) {
+      if (planet.factionId === 'independent') continue;
+      const energyShort = this.calculatePlanetEconomy(planet).efficiency < 1.0;
+      const energyDirection = energyShort ? -1 : 1;
+      const moraleDrift = this.getMoraleDriftPerSecond(planet);
+      const current = planet.satisfaction ?? 100;
+      planet.satisfaction = Math.max(0, Math.min(100, current + (energyDirection + moraleDrift) * deltaTime));
+      if (planet.satisfaction <= 0) {
+        this.planetOwnership.transferPlanet({ production, factions }, planet, 'independent', 'rebellion');
       }
+    }
 
-      // 3) Apply resource deltas. Credits are scaled by the current
-      //    satisfaction multiplier (read straight from the planet after
-      //    any updates above). Raw materials and research are not scaled.
-      //    AI difficulty scales positive income only (never losses); the
-      //    multiplier is 1 for humans, neutrals and 'normal' AI.
-      const effectiveMultiplier = (planet.satisfaction ?? 0) / 100;
-      for (const resource of STOCK_RESOURCES) {
-        const netRate = planetEntry.netRates[resource] ?? 0;
-        const multiplier = resource === 'credits' ? effectiveMultiplier : 1;
-        let effectiveRate = netRate * planetEntry.efficiency * multiplier;
-        if (effectiveRate > 0) {
-          effectiveRate *= difficultyIncomeMultiplier;
-        }
-        const current = faction.currencies[resource] ?? 0;
-        const newValue = current + effectiveRate * deltaTime;
-        faction.currencies[resource] = resource === 'credits' ? Math.floor(newValue) : newValue;
-      }
+    // 2) Raw materials and research from the effective (post-drift) breakdown.
+    const breakdown = this.calculateEconomy(factionId, factions, starSystems, fleets, shipStock);
+    for (const resource of STOCK_RESOURCES) {
+      if (resource === 'credits') continue;
+      faction.currencies[resource] = (faction.currencies[resource] ?? 0) + (breakdown.net[resource] ?? 0) * deltaTime;
+    }
 
-      // 4) Population growth: natural increase driven by current
-      //    satisfaction and habitability. Scales with `deltaTime`, so it
-      //    pauses with the game and runs 2x at speed 2x. Independent
-      //    planets already yield 0 growth (satisfaction locked at 0).
-      let currentPop = planet.population;
-      if (currentPop === undefined) {
-        currentPop = 0;
+    // 3) Credits with a carried fractional remainder.
+    const exact = (faction.currencies['credits'] ?? 0) + (this.creditRemainders.get(factionId) ?? 0)
+      + breakdown.netPerSecond * deltaTime;
+    if (exact >= 0) {
+      const whole = Math.floor(exact);
+      faction.currencies['credits'] = whole;
+      this.creditRemainders.set(factionId, exact - whole);
+    } else {
+      // 4) Arrears: the treasury is empty and part of the upkeep is unpaid.
+      faction.currencies['credits'] = 0;
+      this.creditRemainders.set(factionId, 0);
+      const unpaid = -exact;
+      const due = breakdown.expensePerSecond * deltaTime;
+      const unpaidShare = due > 0 ? Math.min(1, unpaid / due) : 0;
+      breakdown.unpaidUpkeepPerSecond = unpaid / deltaTime;
+      const penalty = EconomyService.ARREARS_MORALE_PENALTY * unpaidShare * deltaTime;
+      for (const planet of this.getOwnedPlanets(factionId, starSystems)) {
+        planet.satisfaction = Math.max(0, (planet.satisfaction ?? 100) - penalty);
       }
+    }
+
+    // 5) Population growth (pauses with deltaTime 0, scales with speed).
+    for (const planet of this.getOwnedPlanets(factionId, starSystems)) {
       const growth = this.calculatePopulationGrowth(planet, deltaTime);
       const capacity = this.getPopulationCapacity(planet);
-      let nextPop = currentPop + growth;
-      if (nextPop > capacity) {
-        nextPop = capacity;
-      }
-      planet.population = nextPop;
+      planet.population = Math.min(capacity, (planet.population ?? 0) + growth);
     }
 
     return breakdown;
+  }
+
+  /*
+   * Upkeep in credits per second of one building / one ship of a type.
+   * Exposed so the AI prices the ongoing cost of a purchase with the same
+   * conversion the economy tick uses.
+   */
+  getBuildingUpkeepPerSecond(buildingName: string): number {
+    return (this.buildingStatsByName.get(buildingName)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT;
+  }
+
+  getShipUpkeepPerSecond(shipTypeId: string): number {
+    return (this.shipService.getShipType(shipTypeId)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT;
+  }
+
+  /*
+   * buildPlanetEntry: One planet's effective economy (see calculateEconomy).
+   * Building upkeep and colony administration are booked as this planet's
+   * credit consumption (and `expense`).
+   */
+  private buildPlanetEntry(planet: PlanetTile, difficultyIncomeMultiplier: number, adminShare: number): PlanetEconomyEntry {
+    const economy = this.calculatePlanetEconomy(planet);
+    const buildingUpkeep = this.calculatePlanetMaintenance(planet);
+    const creditIncome = (economy.production['credits'] ?? 0) * economy.efficiency * economy.incomeMultiplier
+      * difficultyIncomeMultiplier;
+    const administration = creditIncome * adminShare;
+    const upkeep = buildingUpkeep + administration;
+    const production: ResourceRates = {};
+    const consumption: ResourceRates = {};
+    const netRates: ResourceRates = {};
+    for (const resource of STOCK_RESOURCES) {
+      const satisfactionMultiplier = resource === 'credits' ? economy.incomeMultiplier : 1;
+      production[resource] = (economy.production[resource] ?? 0) * economy.efficiency * satisfactionMultiplier
+        * difficultyIncomeMultiplier;
+      consumption[resource] = (economy.consumption[resource] ?? 0) + (resource === 'credits' ? upkeep : 0);
+      netRates[resource] = production[resource]! - consumption[resource]!;
+    }
+    // Energy is reported raw (flow resource, never stored).
+    production['energy'] = economy.energyProduction;
+    consumption['energy'] = economy.energyConsumption;
+    netRates['energy'] = economy.energyBalance;
+
+    return {
+      planetName: planet.name,
+      population: planet.population || 0,
+      income: production['credits'] ?? 0,
+      expense: upkeep,
+      administration,
+      net: netRates['credits'] ?? 0,
+      production,
+      consumption,
+      netRates,
+      energyProduction: economy.energyProduction,
+      energyConsumption: economy.energyConsumption,
+      energyBalance: economy.energyBalance,
+      efficiency: economy.efficiency,
+      buildings: this.getPlanetBuildingExpenses(planet),
+      satisfaction: economy.satisfaction,
+      incomeMultiplier: economy.incomeMultiplier,
+      workforceAvailable: economy.workforceAvailable,
+      workforceRequired: economy.workforceRequired,
+      workforceEfficiency: economy.workforceEfficiency,
+      habitabilityDrift: economy.habitabilityDrift,
+      buildingMoraleBonus: economy.buildingMoraleBonus,
+    };
+  }
+
+  /* Upkeep lines per ship type for one fleet (or the reserve), in credits/s. */
+  private shipUpkeepEntries(fleetName: string, ships: { type: string }[], factor: number): FleetExpenseEntry[] {
+    const shipCounts = new Map<string, number>();
+    for (const ship of ships) {
+      shipCounts.set(ship.type, (shipCounts.get(ship.type) || 0) + 1);
+    }
+    const entries: FleetExpenseEntry[] = [];
+    for (const [typeId, count] of shipCounts) {
+      const shipType = this.shipService.getShipType(typeId);
+      const cost = (shipType?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT * factor;
+      if (cost > 0) {
+        entries.push({ fleetName, shipType: shipType?.name ?? typeId, count, maintenanceCost: cost, totalCost: cost * count });
+      }
+    }
+    return entries;
   }
 
   private findPlanetByName(planetName: string, starSystems: StarSystem[]): PlanetTile | null {
@@ -486,44 +580,22 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
   }
 
   /*
-   * getPlanetEconomyBreakdown: Returns the economy breakdown for a specific planet.
+   * getPlanetEconomyBreakdown: Effective economy of one planet (same values
+   * as its row in calculateEconomy), for the planet screen and info panel.
    */
-  getPlanetEconomyBreakdown(planet: PlanetTile): PlanetEconomyEntry {
-    const economy = this.calculatePlanetEconomy(planet);
-    const pop = planet.population || 0;
-    const planetExpense = this.calculatePlanetMaintenance(planet);
-    const buildings = this.getPlanetBuildingExpenses(planet);
-
-    return {
-      planetName: planet.name,
-      population: pop,
-      income: economy.production['credits'] ?? 0,
-      expense: planetExpense,
-      net: (economy.net['credits'] ?? 0) - planetExpense,
-      production: economy.production,
-      consumption: economy.consumption,
-      netRates: economy.net,
-      energyProduction: economy.energyProduction,
-      energyConsumption: economy.energyConsumption,
-      energyBalance: economy.energyBalance,
-      efficiency: economy.efficiency,
-      buildings,
-      satisfaction: economy.satisfaction,
-      incomeMultiplier: economy.incomeMultiplier,
-      workforceAvailable: economy.workforceAvailable,
-      workforceRequired: economy.workforceRequired,
-      workforceEfficiency: economy.workforceEfficiency,
-      habitabilityDrift: economy.habitabilityDrift,
-      buildingMoraleBonus: economy.buildingMoraleBonus,
-    };
+  getPlanetEconomyBreakdown(planet: PlanetTile, factions: Faction[] = [], starSystems: StarSystem[] = []): PlanetEconomyEntry {
+    const owner = factions.find((f) => f.id === planet.factionId);
+    const ownedCount = starSystems.length > 0 ? this.getOwnedPlanets(planet.factionId, starSystems).length : 1;
+    return this.buildPlanetEntry(
+      planet, owner ? getAiDifficultyProfile(owner).incomeMultiplier : 1, administrationShare(ownedCount),
+    );
   }
 
+  /* Building upkeep of a planet in credits per second. */
   private calculatePlanetMaintenance(planet: PlanetTile): number {
     let expense = 0;
     for (const building of planet.buildings ?? []) {
-      const stats = this.buildingStatsByName.get(building.name);
-      const cost = stats?.maintenanceCost ?? 0;
-      expense += cost;
+      expense += this.getBuildingUpkeepPerSecond(building.name);
     }
     return expense;
   }
@@ -533,8 +605,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     const buildingCosts = new Map<string, number>();
 
     for (const building of planet.buildings ?? []) {
-      const stats = this.buildingStatsByName.get(building.name);
-      const cost = stats?.maintenanceCost ?? 0;
+      const cost = this.getBuildingUpkeepPerSecond(building.name);
       if (cost > 0) {
         buildingCounts.set(building.name, (buildingCounts.get(building.name) || 0) + 1);
         buildingCosts.set(building.name, (buildingCosts.get(building.name) || 0) + cost);
@@ -547,7 +618,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
       entries.push({
         buildingName: name,
         count,
-        maintenanceCost: Math.ceil(totalCost / count),
+        maintenanceCost: totalCost / count,
         totalCost,
       });
     }

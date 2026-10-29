@@ -53,9 +53,11 @@ export class StarMapPanelVmService {
       etas[order.id] = this.productionService.getOrderEta(order, selectedPlanetTile);
     }
     const shipCosts: Record<string, number> = {};
+    const shipRawCosts: Record<string, number> = {};
     const shipBuildTimes: Record<string, number> = {};
     for (const t of buildable) {
       shipCosts[t.id] = t.cost;
+      shipRawCosts[t.id] = t.rawMaterialCost ?? 0;
       shipBuildTimes[t.id] = t.buildTime ?? Math.max(1, t.cost * 0.1);
     }
     return {
@@ -67,9 +69,11 @@ export class StarMapPanelVmService {
       power: this.productionService.getPlanetPower(selectedPlanetTile),
       queue,
       shipCosts,
+      shipRawCosts,
       shipBuildTimes,
       etas,
       factionCredits: this.getPlayerCredits(factions),
+      factionRawMaterials: factions.find((f) => f.id === 'player')?.currencies?.['rawmaterials'] ?? 0,
     };
   }
 
@@ -132,7 +136,7 @@ export class StarMapPanelVmService {
       case 'no_factory':
         return 'No factory on this planet.';
       case 'insufficient_resources':
-        return 'Not enough credits.';
+        return 'Not enough credits or raw materials.';
       case 'invalid_type':
         return 'Invalid ship type.';
       case 'invalid_quantity':

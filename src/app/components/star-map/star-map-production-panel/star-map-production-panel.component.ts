@@ -22,9 +22,12 @@ export interface ProductionPanelViewModel {
   power: number;
   queue: ProductionOrder[];
   shipCosts: Record<string, number>;
+  /* Raw materials per unit; optional so older view-model fixtures still type-check. */
+  shipRawCosts?: Record<string, number>;
   shipBuildTimes: Record<string, number>;
   etas: Record<number, number | null>;
   factionCredits: number;
+  factionRawMaterials?: number;
 }
 
 @Component({
@@ -65,11 +68,27 @@ export class StarMapProductionPanelComponent {
     return cost * this.selectedQuantity;
   }
 
+  totalRawCost(): number {
+    if (!this.vm || !this.selectedTypeId) {
+      return 0;
+    }
+    return (this.vm.shipRawCosts?.[this.selectedTypeId] ?? 0) * this.selectedQuantity;
+  }
+
+  /* Mirrors ProductionService.queueOrder: credits AND raw materials must cover the order. */
   canQueue(): boolean {
     if (!this.vm || !this.selectedTypeId) {
       return false;
     }
-    return this.vm.factionCredits >= this.totalCost();
+    return this.vm.factionCredits >= this.totalCost() && (this.vm.factionRawMaterials ?? 0) >= this.totalRawCost();
+  }
+
+  missingResourceLabel(): string {
+    if (!this.vm) return '';
+    const noCredits = this.vm.factionCredits < this.totalCost();
+    const noRaw = (this.vm.factionRawMaterials ?? 0) < this.totalRawCost();
+    if (noCredits && noRaw) return 'Not enough credits or raw materials.';
+    return noRaw ? 'Not enough raw materials.' : 'Not enough credits.';
   }
 
   confirmQueue(): void {

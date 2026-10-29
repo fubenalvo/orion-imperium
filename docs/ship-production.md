@@ -99,7 +99,15 @@ cancelled.
 `StarMapData.shipStock` and `StarMapData.production` are optional fields.
 `SaveGameService.migrateSave` backfills `[]` for both on load so older saves
 keep working. Production progress and per-fleet composition persist via the
-existing root-state persistence.
+existing root-state persistence. Orders record what they were charged in
+`paid`; orders from saves without it are refunded as credits-only.
+
+## Costs
+
+Ordering charges `cost` credits and `rawMaterialCost` raw materials per ship
+at queue time (all-or-nothing, `resource-cost.ts`). Completion and fleet
+assembly never charge again. Ships cost upkeep while they exist: full rate in
+a fleet, half rate in the stock. See [Economy](./economy.md).
 
 ## Edge case handling
 

@@ -158,22 +158,23 @@ describe('EconomyService — habitability & workforce', () => {
   });
 
   describe('7. production is reduced when workforce is short', () => {
-    it('Spaceship Factory base 10 rawmaterials -> 5 at 50% workforce', () => {
+    // Population 0 isolates building output from the population raw trickle.
+    it('Spaceship Factory base 6 rawmaterials -> 3 at 50% workforce', () => {
       const planet = makePlanet(1, 'earthlike', [
         b('Medium Residential Block'),
         b('Spaceship Factory'),
-      ]);
+      ], { population: 0 });
       const e = economy.calculatePlanetEconomy(planet);
-      expect(e.production['rawmaterials']).toBeCloseTo(5, 5);
+      expect(e.production['rawmaterials']).toBeCloseTo(3, 5);
     });
 
     it('production is full when workforce is sufficient', () => {
       const planet = makePlanet(1, 'earthlike', [
         b('Large Residential Block'),
         b('Spaceship Factory'),
-      ]);
+      ], { population: 0 });
       const e = economy.calculatePlanetEconomy(planet);
-      expect(e.production['rawmaterials']).toBeCloseTo(10, 5);
+      expect(e.production['rawmaterials']).toBeCloseTo(6, 5);
     });
   });
 
@@ -300,7 +301,7 @@ describe('EconomyService — habitability & workforce', () => {
     });
 
     it('production is 0 when workforce is 0 for a mining planet', () => {
-      const planet = makePlanet(1, 'earthlike', [b('Mining Complex')]);
+      const planet = makePlanet(1, 'earthlike', [b('Mining Complex')], { population: 0 });
       const e = economy.calculatePlanetEconomy(planet);
       expect(e.production['rawmaterials']).toBeCloseTo(0, 5);
     });
@@ -397,6 +398,8 @@ describe('EconomyService — habitability & workforce', () => {
     it('applyEconomyDelta mutates planet.population; paused tick does nothing', () => {
       const planet = makePlanet(1, 'earthlike', [b('Solar Array'), b('Small Residential Block')], { satisfaction: 100, population: 0 });
       const { factions, systems, fleets } = wrap(planet);
+      // Funds the buildings' upkeep so arrears do not lower satisfaction (and growth).
+      factions[0].currencies['credits'] = 1000;
       economy.applyEconomyDelta('player', factions, systems, fleets, 0);
       expect(planet.population).toBe(0);
       economy.applyEconomyDelta('player', factions, systems, fleets, 1);

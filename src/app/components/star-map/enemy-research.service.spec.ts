@@ -64,7 +64,8 @@ describe('EnemyResearchService', () => {
   });
 
   it('prefers unlocking a stronger warship when hostile fleets threaten its systems', () => {
-    const f = faction(400);
+    // Enough points for the military-path technologies (research-tree.json costs).
+    const f = faction(2400);
     f.researchedTechnologies!.push('military_engineering');
     const systems = [
       { id: 'home', name: 'Home', x: 10, y: 10, planets: 1, color: '#fff',

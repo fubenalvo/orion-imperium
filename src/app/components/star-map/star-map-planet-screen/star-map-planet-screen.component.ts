@@ -37,6 +37,7 @@ export interface BuildingType {
   name: string;
   role: string;
   price: number;
+  rawMaterialCost?: number;
   size: number;
   maintenanceCost: number;
   population: number;
@@ -142,8 +143,8 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
   @Input() getPlayerCredits: () => number = () => 0;
+  @Input() getPlayerRawMaterials: () => number = () => 0;
 
-  @Input() onConfirmBuild: (buildingId: string, x: number, y: number) => void = () => {};
   @Input() hasFactory: () => boolean = () => false;
   @Input() hasSpaceport: () => boolean = () => false;
   @Input() getProductionPanelVm: () => ProductionPanelViewModel | null = () => null;
@@ -219,6 +220,10 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   getBuildingPrice(building: BuildingType): number {
     return building.price;
+  }
+
+  getBuildingRawCost(building: BuildingType): number {
+    return building.rawMaterialCost ?? 0;
   }
 
   activeTab: PlanetSidebarTab = 'details';
@@ -450,12 +455,15 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       x: col,
       y: row,
     });
-    this.onConfirmBuild(this.selectedBuildingType.id, col, row);
     this.exitBuildMode();
   }
 
+  /* Same rule StarMap.onBuildingConfirmed enforces: credits AND raw materials. */
   canAfford(building: BuildingType): boolean {
-    return this.getPlayerCredits() >= building.price;
+    return (
+      this.getPlayerCredits() >= building.price
+      && this.getPlayerRawMaterials() >= this.getBuildingRawCost(building)
+    );
   }
 
   isCellInPreview(row: number, col: number): boolean {

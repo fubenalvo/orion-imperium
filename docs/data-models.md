@@ -38,7 +38,7 @@ See [Ship Production](./ship-production.md) for the full pipeline. The relevant 
 
 - `ShipStockEntry`: per-instance ship record held in the global stock. Same shape as `FleetShip` minus `currentHp` / `destroyed` so the existing battle / sensor / movement code can consume it when it is pushed into a fleet.
 - `FactionShipStock`: `{ factionId, ships: ShipStockEntry[] }` — empire-scoped reserve, never planet-scoped.
-- `ProductionOrder`: `{ id, shipTypeId, quantity, progress, startedAtTick }` — one in-flight order per planet; resource cost is deducted up-front at queue time.
+- `ProductionOrder`: `{ id, shipTypeId, quantity, progress, startedAtTick, paid? }` — one in-flight order per planet; resource cost (credits + raw materials) is deducted up-front at queue time and recorded in `paid`, which refunds are computed from. `paid` is absent on orders from older saves (they paid credits only).
 - `FactionProduction`: `{ factionId, ordersByPlanet: Record<planetId, ProductionOrder[]> }`.
 - `StarMapData.shipStock` and `StarMapData.production` are optional fields; `SaveGameService.migrateSave` backfills them as `[]` for older saves.
 - The `Spaceport` building is a permission flag for fleet assembly. The faction must own a planet with a `Spaceport` to call `FleetAssemblyService.createFleet` or `reinforceFleet`; the building does not store ships.
@@ -135,7 +135,8 @@ Read from `ship-data.json`:
   `battle-grid.ts` via `weaponMultiplier()` in `battle-combat.service.ts`.
 - `defense`: flat damage reduction per ship
 - `speed`, `range`, `cost`: `range` is used as each ship's sensor contribution (fleets take the max ship range as a floor above `Fleet.sensorRange`); `cost` is not currently used in gameplay logic
-- `maintenanceCost`: per-second credit cost applied by `EconomyService`
+- `rawMaterialCost`: raw materials charged per ship at queue time (with `cost` credits)
+- `maintenanceCost`: upkeep points per second; `EconomyService` charges `× UPKEEP_CREDITS_PER_POINT` (0.3) credits, half in the ship stock
 
 ## BuildingType / BuildingStats
 
@@ -143,9 +144,9 @@ Read from `planet-data.json`:
 
 - `id`, `name`: identity
 - `role`: e.g. `'industrial'`, `'defense'`
-- `price`: build cost in credits
+- `price`: build cost in credits; `rawMaterialCost`: build cost in raw materials (see [Economy](./economy.md) for the price table)
 - `size`: footprint in surface-grid cells
-- `maintenanceCost`: per-second credit cost
+- `maintenanceCost`: upkeep points per second (`× 0.3` credits/s)
 - `production`, `consumption`: `ResourceRates` – resources produced or consumed per second
 - `energyProduction`, `energyConsumption`: per-second energy flow
 - `population`, `workforce`, `providesWorkforce`, `moraleRate`: optional demographic / morale fields. `workforce` is the workforce *required* by the building per second of operation; `providesWorkforce` (housing-role buildings only) is the workforce *provided* by the building; `moraleRate` is the building's per-second contribution to the planet's morale/satisfaction drift (social/entertainment buildings are positive, heavy industry mildly negative). All three are now consumed by `EconomyService`.

@@ -100,6 +100,7 @@ import {
 import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
 import { StarMapBlackholeComponent } from './blackhole/blackhole.component';
 import { StarMapResearchTreeComponent } from './star-map-research-tree/star-map-research-tree.component';
+import { buildingCost, payCost } from '../../services/resource-cost';
 
 /*
  * =========================================================
@@ -849,14 +850,12 @@ loadError = '';
     }
 
     const buildingDef = (
-      planetData as { buildings: { id: string; price: number; size: number; name: string }[] }
+      planetData as { buildings: { id: string; price: number; rawMaterialCost?: number; size: number; name: string }[] }
     ).buildings.find((b) => b.id === event.buildingId);
     if (!buildingDef) return;
 
-    const credits = player.currencies['credits'] ?? 0;
-    if (credits < buildingDef.price) return;
-
-    player.currencies['credits'] = credits - buildingDef.price;
+    // Credits and raw materials are checked and deducted together.
+    if (!payCost(player, buildingCost(buildingDef))) return;
 
     planet.buildings.push({
       name: buildingDef.name,
@@ -878,6 +877,7 @@ loadError = '';
       this.factions,
       this.starSystems,
       this.fleets,
+      this.shipStock,
     );
   }
 
@@ -1159,9 +1159,9 @@ loadError = '';
   readonly boundGetPlayerEconomyBreakdown = this.getPlayerEconomyBreakdown.bind(this);
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
   readonly boundGetPlayerCredits = this.getPlayerCredits.bind(this);
+  readonly boundGetPlayerRawMaterials = (): number =>
+    this.factions.find((f) => f.id === 'player')?.currencies['rawmaterials'] ?? 0;
   readonly boundIsEnemyInPreview = this.isEnemyInPreview.bind(this);
-  readonly boundOnConfirmBuild = (buildingId: string, x: number, y: number) =>
-    this.onBuildingConfirmed({ buildingId, x, y });
   readonly boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
   readonly boundGetEnergyForPlanet = this.getEnergyForPlanet.bind(this);
   readonly boundGetTaxForPlanet = this.getTaxForPlanet.bind(this);
@@ -1220,7 +1220,7 @@ loadError = '';
 
   /** Returns the economy breakdown for a planet. */
   getPlanetEconomy(planet: PlanetTile): PlanetEconomyEntry {
-    return this.economyService.getPlanetEconomyBreakdown(planet);
+    return this.economyService.getPlanetEconomyBreakdown(planet, this.factions, this.starSystems);
   }
 
   /** Returns the CSS class names to apply to a planet tile for styling. */
@@ -1993,23 +1993,27 @@ loadError = '';
 
     this.economyAccumulator += gameDeltaTime;
     let economyUpdated = false;
+    // The economy (income, upkeep, arrears) is charged only here, once per
+    // ~1 s tick of accumulated game time, so costs are frame-rate independent.
     if (this.economyAccumulator >= this.economyTickInterval) {
+      let playerUnpaidUpkeep = 0;
       for (const faction of this.factions) {
-        this.economyService.applyEconomyDelta(
+        const applied = this.economyService.applyEconomyDelta(
           faction.id,
           this.factions,
           this.starSystems,
           this.fleets,
           this.economyAccumulator,
           this.production,
+          this.shipStock,
         );
+        if (faction.id === 'player') playerUnpaidUpkeep = applied.unpaidUpkeepPerSecond;
       }
-      this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy(
-        'player',
-        this.factions,
-        this.starSystems,
-        this.fleets,
-      );
+      // Post-tick rates for the HUD; arrears are a property of the tick just applied.
+      this.cachedPlayerEconomyBreakdown = {
+        ...this.economyService.calculateEconomy('player', this.factions, this.starSystems, this.fleets, this.shipStock),
+        unpaidUpkeepPerSecond: playerUnpaidUpkeep,
+      };
       this.economyAccumulator = 0;
       economyUpdated = true;
     }

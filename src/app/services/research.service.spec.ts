@@ -105,12 +105,15 @@ describe('ResearchService', () => {
   describe('researchTechnology', () => {
     it('deducts the correct research cost and marks as researched', () => {
       player.researchedTechnologies = ['basic_engineering'];
-      player.currencies['research'] = 1000;
+      player.currencies['research'] = 10000;
+      // The cost is read from research-tree.json (the balance source of truth).
+      const cost = service.getTechnology('advanced_engineering')!.researchCost;
+      expect(cost).toBeGreaterThan(0);
 
       const result = service.researchTechnology(player, 'advanced_engineering');
       expect(result.ok).toBe(true);
       expect(result.technology!.id).toBe('advanced_engineering');
-      expect(player.currencies['research']).toBe(1000 - 150);
+      expect(player.currencies['research']).toBe(10000 - cost);
       expect(player.researchedTechnologies).toContain('advanced_engineering');
     });
 
@@ -262,7 +265,7 @@ describe('ResearchService', () => {
 
     it('can research urban_infrastructure when both prerequisites are met', () => {
       player.researchedTechnologies = ['advanced_construction', 'advanced_manufacturing'];
-      player.currencies['research'] = 1000;
+      player.currencies['research'] = 100000;
       expect(service.canResearch(player, 'urban_infrastructure')).toBe(true);
     });
 
@@ -274,7 +277,7 @@ describe('ResearchService', () => {
 
     it('can research colonization_technology when both prerequisites are met', () => {
       player.researchedTechnologies = ['advanced_construction', 'advanced_science'];
-      player.currencies['research'] = 1000;
+      player.currencies['research'] = 100000;
       expect(service.canResearch(player, 'colonization_technology')).toBe(true);
     });
   });

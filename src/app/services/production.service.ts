@@ -9,6 +9,7 @@ import {
 } from '../components/star-map/star-map.models';
 import { ShipService, ShipType, ProductionBuildingKind } from './ship.service';
 import { ShipStockService } from './ship-stock.service';
+import { ResourceCost, payCost, refundCost, scaleCost, shipCost } from './resource-cost';
 
 export interface ProductionResult {
   ok: boolean;
@@ -37,9 +38,13 @@ export interface ProductionTickResult {
  * capacity and power come from the building definitions on each planet,
  * not from any hard-coded list.
  *
- * Resource cost is deducted up-front at queue time. If production stalls
- * because a factory is destroyed, the un-built portion is refunded
- * proportionally on auto-cancel.
+ * Resource cost (credits + raw materials, see resource-cost.ts) is
+ * deducted in full at queue time and recorded on the order as `paid`.
+ * That is the only charge: completion pushes ships into the stock for
+ * free, and assembling fleets from the stock never charges again. A
+ * cancel or auto-cancel (factory lost, planet lost, unknown type) refunds
+ * the un-built fraction of `paid`, so a refund can never exceed the
+ * original charge. A failed queue attempt changes nothing.
  */
 @Injectable({ providedIn: 'root' })
 export class ProductionService {
@@ -114,11 +119,10 @@ export class ProductionService {
     if (!faction) {
       return { ok: false, reason: 'invalid_type' };
     }
-    const totalCost = shipType.cost * quantity;
-    if (!this.canAfford(faction, totalCost)) {
+    const totalCost = shipCost(shipType, quantity);
+    if (!payCost(faction, totalCost)) {
       return { ok: false, reason: 'insufficient_resources' };
     }
-    this.deductCost(faction, totalCost);
 
     const order: ProductionOrder = {
       id: this.orderIdCounter++,
@@ -126,6 +130,7 @@ export class ProductionService {
       quantity,
       progress: 0,
       startedAtTick: this.tickCounter,
+      paid: totalCost,
     };
     this.getQueue(data, factionId, planetId).push(order);
     return { ok: true, order };
@@ -149,18 +154,8 @@ export class ProductionService {
     }
     const order = queue[idx];
     queue.splice(idx, 1);
-    const shipType = this.shipService.getShipType(order.shipTypeId);
-    const totalCost = (shipType?.cost ?? 0) * order.quantity;
-    const builtFraction = Math.max(0, Math.min(1, order.progress));
-    const unbuilt = Math.round(totalCost * (1 - builtFraction));
-    const faction = factions.find((f) => f.id === factionId);
-    if (faction && unbuilt > 0) {
-      faction.currencies['credits'] = (faction.currencies['credits'] ?? 0) + unbuilt;
-    }
-    return {
-      ok: true,
-      refunded: { credits: unbuilt, rawmaterials: 0, research: 0 },
-    };
+    const refund = this.refundOrder(order, factions, factionId);
+    return { ok: true, refunded: refund };
   }
 
   getQueue(data: { production?: FactionProduction[] }, factionId: string, planetId: number): ProductionOrder[] {
@@ -305,13 +300,24 @@ export class ProductionService {
     if (!faction) {
       return { credits: 0, rawmaterials: 0, research: 0 };
     }
-    const shipType = this.shipService.getShipType(order.shipTypeId);
-    const totalCost = (shipType?.cost ?? 0) * order.quantity;
-    const unbuilt = Math.round(totalCost * Math.max(0, 1 - order.progress));
-    if (unbuilt > 0) {
-      faction.currencies['credits'] = (faction.currencies['credits'] ?? 0) + unbuilt;
+    const unbuilt = scaleCost(this.getPaidCost(order), 1 - order.progress);
+    refundCost(faction, unbuilt);
+    return { credits: unbuilt.credits, rawmaterials: unbuilt.rawmaterials, research: 0 };
+  }
+
+  /*
+   * getPaidCost: What the order was charged. Orders queued before
+   * raw-material costs existed (legacy saves) have no `paid` record and
+   * were charged credits only.
+   */
+  getPaidCost(order: ProductionOrder): ResourceCost {
+    const paid = order.paid;
+    // A malformed record (hand-edited or corrupt save) falls back to the legacy rule.
+    if (paid && Number.isFinite(paid.credits) && Number.isFinite(paid.rawmaterials)) {
+      return { credits: Math.max(0, paid.credits), rawmaterials: Math.max(0, paid.rawmaterials) };
     }
-    return { credits: unbuilt, rawmaterials: 0, research: 0 };
+    const shipType = this.shipService.getShipType(order.shipTypeId);
+    return { credits: (shipType?.cost ?? 0) * order.quantity, rawmaterials: 0 };
   }
 
   private findPlanet(starSystems: StarSystem[], planetId: number): PlanetTile | null {
@@ -323,14 +329,6 @@ export class ProductionService {
       }
     }
     return null;
-  }
-
-  private canAfford(faction: Faction, amount: number): boolean {
-    return (faction.currencies['credits'] ?? 0) >= amount;
-  }
-
-  private deductCost(faction: Faction, amount: number): void {
-    faction.currencies['credits'] = (faction.currencies['credits'] ?? 0) - amount;
   }
 
   /*

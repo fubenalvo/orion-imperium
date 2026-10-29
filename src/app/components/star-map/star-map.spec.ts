@@ -84,7 +84,6 @@ describe('StarMap', () => {
       });
       const economyService = TestBed.inject(EconomyService);
       vi.spyOn(economyService, 'applyEconomyDelta').mockImplementation(() => ({}) as never);
-      vi.spyOn(economyService, 'calculateEconomy').mockImplementation(() => ({}) as never);
       // Suppress verbose AI console output and prevent Angular CD.
       logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       vi.spyOn(component['ngZone'], 'run').mockImplementation((fn: () => void) => fn());
@@ -216,7 +215,7 @@ describe('StarMap', () => {
     it('should execute produce_colonizer through the full AI pipeline', () => {
       component.factions = component.factions.map((f) => {
         if (f.id === 'enemy1') {
-          return { ...f, currencies: { credits: 1000 }, researchedTechnologies: ['basic_engineering'] };
+          return { ...f, currencies: { credits: 1000, rawmaterials: 1000 }, researchedTechnologies: ['basic_engineering'] };
         }
         return f;
       });
