@@ -135,6 +135,10 @@ At most one of `selectedSystem`, `selectedFleet`, `selectedPlanetTile` is active
 
 `selectedFleetAction` is currently limited to `'move'`. When set, the next click on the map (`onMapClick`) or system grid (`onSystemGridClick`) translates the click into a 1-indexed grid target and assigns it to the selected fleet. The action is then cleared.
 
+**Right-click orders** (alternative to the MOVE button, which keeps working): with a player fleet selected, a right-click issues an order based on what is under the cursor — empty galaxy/system space, a star system, a planet, or a friendly/neutral fleet → move there (moving onto an enemy planet is the planet attack, handled by planet arrival); a hostile fleet on the galaxy map (same hostility rule as battle detection: different teams, neither neutral) → **attack order**; a drifting asteroid → intercept order; the selected fleet itself → deselect. Every order goes through `moveSelectedFleet`, so the usual validation and fleet-panel rejection messages apply. Without a selected player fleet a right-click keeps its old meaning (clear the clicked object type's selection). The native browser menu is suppressed on the map, and the right button never starts a camera drag.
+
+**Attack orders** (`fleet-attack-orders.ts`, `Fleet.attackFleetId`, player only): the attacker pursues the quarry — each frame its galaxy target is re-aimed at the quarry's position once it drifted ≥ 0.5 cell (routing applies; re-aiming stops while both share a cell). Combat is not special-cased: the regular battle detection fires when they meet. The order ends when the quarry is destroyed/gone or no longer hostile, leaves the player's sensor picture ("lost contact" notice), or becomes unreachable (notice); the fleet then flies on to the last aimed point. Any manual move or intercept order replaces it. The fleet panel shows `ATTACKING <fleet>`.
+
 ### Movement
 
 Fleet movement is target-based. Each frame, `StarMapMovementService.updateFleets()` processes every active fleet:

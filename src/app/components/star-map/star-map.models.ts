@@ -649,6 +649,12 @@ export interface Fleet {
    * EnemyFleetService (the single owner of AI fleet targets).
    */
   interceptAsteroidId?: number | null;
+  /*
+   * Player attack order: id of the hostile fleet this fleet pursues on the
+   * galaxy map (see fleet-attack-orders.ts). Re-aimed every frame while the
+   * quarry stays visible; cleared by any manual move or intercept order.
+   */
+  attackFleetId?: number | null;
 }
 
 export interface CapabilityRequirement {

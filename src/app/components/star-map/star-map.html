@@ -98,8 +98,10 @@
       [onWheel]="boundOnMapWheel"
       [onSystemClick]="boundOnSystemClick"
       [onFleetClick]="boundOnFleetClick"
+      [onMapContextMenu]="boundOnMapContextMenu"
       [onSystemContextMenu]="boundOnSystemContextMenu"
       [onFleetContextMenu]="boundOnFleetContextMenu"
+      [onAsteroidContextMenu]="boundOnAsteroidContextMenu"
     >
     </app-star-map-galaxy-view>
 
@@ -150,6 +152,7 @@
         [nebulaSpeedPenaltyPercent]="nebulaSpeedPenaltyPercent"
         [nebulaSensorPenaltyPercent]="nebulaSensorPenaltyPercent"
         [interceptLabel]="getSelectedFleetInterceptLabel()"
+        [attackLabel]="getSelectedFleetAttackLabel()"
         (close)="deselectFleet()"
         (setFleetAction)="setFleetAction($event)"
         (reinforce)="onReinforceSelected()"
@@ -233,6 +236,7 @@
         [onSystemGridClick]="boundOnSystemGridClick"
         [onPlanetClick]="boundOnPlanetClick"
         [onFleetClick]="boundOnFleetClick"
+        [onSystemGridContextMenu]="boundOnSystemGridContextMenu"
         [onPlanetContextMenu]="boundOnPlanetContextMenu"
         [onFleetContextMenu]="boundOnFleetContextMenu"
       >

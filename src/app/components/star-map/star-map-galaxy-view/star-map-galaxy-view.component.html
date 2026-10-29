@@ -3,6 +3,7 @@
   #mapViewport
   class="map-viewport"
   (click)="onMapClick($event)"
+  (contextmenu)="onMapContextMenu($event)"
   (pointerdown)="onPointerDown($event)"
   (pointermove)="onPointerMove($event)"
   (pointerup)="onPointerUp($event)"
@@ -97,7 +98,7 @@
           [style.--star-color]="system.color"
           type="button"
           (click)="onSystemClick(system, $event)"
-          (contextmenu)="onSystemContextMenu($event)"
+          (contextmenu)="onSystemContextMenu(system, $event)"
         >
           <span class="star-system__star">&#10022;</span>
           <span class="star-system__name">{{ system.name }}</span>
@@ -124,7 +125,7 @@
           [style.--fleet-color]="getFactionColor(fleet.factionId)"
           type="button"
           (click)="onFleetClick(fleet, $event)"
-          (contextmenu)="onFleetContextMenu($event)"
+          (contextmenu)="onFleetContextMenu(fleet, $event)"
         >
           <span class="fleet__icon">
             <app-fleet-ship
@@ -228,8 +229,9 @@
           class="asteroid"
           type="button"
           [attr.aria-label]="asteroid.label"
-          [title]="asteroid.label + ' — click to intercept'"
+          [title]="asteroid.label + ' — click to intercept (right-click with a fleet selected)'"
           (click)="onAsteroidClick(asteroid.id, $event)"
+          (contextmenu)="onAsteroidContextMenu(asteroid.id, $event)"
         >
           <span class="asteroid__rock" [style.transform]="'rotate(' + asteroid.angleDeg + 'deg)'"></span>
           <span class="asteroid__label">{{ asteroid.label }}</span>

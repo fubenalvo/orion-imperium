@@ -61,6 +61,9 @@
   font-family: var(--font-primary);
   cursor: pointer;
   z-index: 1;
+  /* Cancel the global 3D bevel button look (styles.scss): only the brackets frame a fleet. */
+  box-shadow: none;
+  transition: none;
 
   @include mobile-view {
     width: 3.5vw;
@@ -86,6 +89,14 @@
 
 .fleet:hover {
   --bracket-color: color-mix(in srgb, var(--fleet-color, var(--color-blue)) 85%, transparent);
+  box-shadow: none;
+  filter: none;
+}
+
+.fleet:active {
+  box-shadow: none;
+  filter: none;
+  transform: none;
 }
 
 .fleet:focus-visible {

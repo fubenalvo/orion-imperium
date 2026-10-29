@@ -271,6 +271,9 @@ export class StarMapMovementService {
           if (fleet.interceptAsteroidId != null) {
             fleet.interceptAsteroidId = null;
           }
+          if (fleet.attackFleetId != null) {
+            fleet.attackFleetId = null;
+          }
           onRouteBlocked?.(fleet.id, route.failure);
           continue;
         }

@@ -98,8 +98,11 @@ export class StarMapGalaxyViewComponent {
   @Input() onWheel: (event: WheelEvent) => void = () => {};
   @Input() onSystemClick: (system: StarSystem, event: MouseEvent) => void = () => {};
   @Input() onFleetClick: (fleet: Fleet, event: MouseEvent) => void = () => {};
-  @Input() onSystemContextMenu: (event: MouseEvent) => void = () => {};
-  @Input() onFleetContextMenu: (event: MouseEvent) => void = () => {};
+  /* Right-click handlers: with a player fleet selected they issue move/attack/intercept orders. */
+  @Input() onMapContextMenu: (event: MouseEvent) => void = () => {};
+  @Input() onSystemContextMenu: (system: StarSystem, event: MouseEvent) => void = () => {};
+  @Input() onFleetContextMenu: (fleet: Fleet, event: MouseEvent) => void = () => {};
+  @Input() onAsteroidContextMenu: (asteroidId: number, event: MouseEvent) => void = () => {};
 
   constructor(public movementService: StarMapMovementService) {}
 

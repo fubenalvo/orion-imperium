@@ -28,6 +28,8 @@ export class StarMapFleetInfoComponent {
   @Input() nebulaSensorPenaltyPercent = 0;
   // Label of the asteroid this fleet is intercepting, if any.
   @Input() interceptLabel: string | null = null;
+  /* Name of the hostile fleet this fleet is pursuing (attack order), if any. */
+  @Input() attackLabel: string | null = null;
 
   formatEta(seconds: number): string {
     const total = Math.max(0, Math.round(seconds));

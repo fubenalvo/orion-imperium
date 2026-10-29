@@ -108,6 +108,7 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 - `x`, `y`: 1-indexed grid column/row on the galaxy map (floats for smooth movement)
 - `targetX`, `targetY`: map movement target in grid cells (`null` when idle). Always the final destination: the movement service routes around black holes internally (the route is a runtime cache, not saved)
 - `interceptAsteroidId?`: player intercept order on a drifting asteroid; while set, `DriftingAsteroidService` re-aims `targetX/targetY`. Cleared by manual moves and when the asteroid is gone. Never used by AI fleets
+- `attackFleetId?`: player attack order (pursuit of a hostile fleet, see `fleet-attack-orders.ts`); re-aims `targetX/targetY` at the quarry while it stays visible. Optional and persisted with the fleet (no save version bump: missing = no order). Cleared by manual moves, intercept orders, an unreachable route, or when the quarry is lost. Never used by AI fleets
 - `speed`: in vw/s; converted to cells/s via `speed / 10 / GALAXY_MOVEMENT_CELL_SIZE_VW` (fixed 2) for map movement — the rendered `cellSizeVw` does not affect movement
 - `system`: `SystemLocation | null` — present while the fleet is inside a star system
 - `gridCol`, `gridRow`: derived integer cell on whichever view the fleet is currently in

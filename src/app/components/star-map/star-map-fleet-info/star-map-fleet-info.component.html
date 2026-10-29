@@ -10,7 +10,9 @@
     <div>
       STATUS:
 
-      @if (interceptLabel) {
+      @if (attackLabel) {
+        ATTACKING {{ attackLabel }}
+      } @else if (interceptLabel) {
         INTERCEPTING {{ interceptLabel }}
       } @else if (fleet!.targetX !== null) {
         MOVING
@@ -39,6 +41,7 @@
         <button
           type="button"
           class="action-btn move-btn"
+          title="Tip: right-click the map to move, or an enemy fleet to attack"
           [class.active]="selectedFleetAction === 'move'"
           (click)="setFleetAction.emit('move'); $event.stopPropagation()"
         >

@@ -72,6 +72,7 @@ import { NEBULA_CONFIG, nebulaSvgPath } from './nebula';
 import { BeltView, buildBeltView } from './asteroid-belts';
 import { RouteFailure } from './fleet-navigation';
 import { FleetHeadingTracker, headingForDirection } from './fleet-heading';
+import { AttackOrderHooks, updateAttackOrders } from './fleet-attack-orders';
 import {
   StarMapAsteroidInfoComponent,
   AsteroidPanelViewModel,
@@ -632,6 +633,7 @@ loadError = '';
     }
     const result = this.asteroidService.orderIntercept(fleet, this.selectedAsteroidId);
     if (result.ok) {
+      fleet.attackFleetId = null;
       this.asteroidPanelMessage = null;
       if (this.selectedFleet?.id === fleet.id) {
         this.fleetMoveError = null;
@@ -1486,6 +1488,9 @@ loadError = '';
   readonly boundOnSystemContextMenu = this.onSystemContextMenu.bind(this);
   readonly boundOnFleetContextMenu = this.onFleetContextMenu.bind(this);
   readonly boundOnPlanetContextMenu = this.onPlanetContextMenu.bind(this);
+  readonly boundOnMapContextMenu = this.onMapContextMenu.bind(this);
+  readonly boundOnSystemGridContextMenu = this.onSystemGridContextMenu.bind(this);
+  readonly boundOnAsteroidContextMenu = this.onAsteroidContextMenu.bind(this);
   readonly boundGetPlanetClassNames = this.getPlanetClassNames.bind(this);
 
   // Ship type helpers
@@ -1726,22 +1731,179 @@ loadError = '';
    * components. Preserve the original inline binding behavior exactly:
    * deselect first, then suppress the native menu and stop propagation.
    */
-  onSystemContextMenu(event: MouseEvent): void {
+  /*
+   * Right-click orders. With a player fleet selected, a right-click issues
+   * an order depending on what is under the cursor (no MOVE button needed;
+   * the button still works):
+   *   - empty space / star system / planet / friendly or neutral fleet: move there
+   *     (moving onto an enemy planet is the planet attack, via arrival handling)
+   *   - hostile fleet on the galaxy map: attack order (pursuit, see fleet-attack-orders.ts)
+   *   - drifting asteroid: intercept order
+   *   - the selected fleet itself: deselect
+   * Without a commandable fleet the old behavior stays: right-click clears
+   * the selection of the clicked object type. The native menu is always
+   * suppressed.
+   */
+  private commandableFleet(): Fleet | null {
+    const fleet = this.selectedFleet;
+    return fleet && fleet.factionId === 'player' && !fleet.destroyed ? fleet : null;
+  }
+
+  /* Same rule as battle detection: different teams, neither neutral. */
+  areFleetsHostile(a: Fleet, b: Fleet): boolean {
+    const fa = this.factions.find((f) => f.id === a.factionId);
+    const fb = this.factions.find((f) => f.id === b.factionId);
+    return !!fa && !!fb && fa.team !== 0 && fb.team !== 0 && fa.team !== fb.team;
+  }
+
+  /* Suppresses the native menu; true when the click only closed the disambiguation menu. */
+  private consumeRightClick(event: MouseEvent): boolean {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return true;
+    }
+    return false;
+  }
+
+  onSystemContextMenu(system: StarSystem, event: MouseEvent): void {
+    if (this.consumeRightClick(event)) return;
+    if (this.commandableFleet() && this.currentView === 'map') {
+      this.selectedFleetAction = null;
+      this.moveSelectedFleet(system.x, system.y);
+      this.cdr.detectChanges();
+      return;
+    }
     this.deselectSystem();
-    event.preventDefault();
-    event.stopPropagation();
   }
 
-  onFleetContextMenu(event: MouseEvent): void {
-    this.deselectFleet();
-    event.preventDefault();
-    event.stopPropagation();
+  onFleetContextMenu(target: Fleet, event: MouseEvent): void {
+    if (this.consumeRightClick(event)) return;
+    const fleet = this.commandableFleet();
+    if (!fleet || fleet.id === target.id) {
+      this.deselectFleet();
+      return;
+    }
+    this.selectedFleetAction = null;
+    if (this.currentView === 'map') {
+      if (this.areFleetsHostile(fleet, target)) {
+        this.orderAttack(target);
+      } else {
+        this.moveSelectedFleet(target.x, target.y);
+      }
+    } else if (this.selectedSystem && fleet.system?.id === this.selectedSystem.id && target.system) {
+      const tile = this.movementService.getSystemTileCenter(target.system.x, target.system.y);
+      this.moveSelectedFleet(tile.x, tile.y);
+    }
+    this.cdr.detectChanges();
   }
 
-  onPlanetContextMenu(event: MouseEvent): void {
+  onPlanetContextMenu(planet: PlanetTile, event: MouseEvent): void {
+    if (this.consumeRightClick(event)) return;
+    const fleet = this.commandableFleet();
+    if (fleet && this.selectedSystem && fleet.system?.id === this.selectedSystem.id) {
+      const cell = this.movementService.getPlanetGridPosition(planet);
+      const size = StarMapMovementService.systemCellSizeVw;
+      this.selectedFleetAction = null;
+      this.moveSelectedFleet((cell.col - 0.5) * size, (cell.row - 0.5) * size);
+      this.cdr.detectChanges();
+      return;
+    }
     this.deselectPlanetTile();
-    event.preventDefault();
-    event.stopPropagation();
+  }
+
+  /* Right-click on empty galaxy space: move the selected fleet there. */
+  onMapContextMenu(event: MouseEvent): void {
+    if (this.consumeRightClick(event)) return;
+    // `dragMoved` describes the LAST left-button drag and stays true until the
+    // next left press, so it must not gate right-clicks (that silently
+    // dropped orders after every camera pan). Only an in-progress drag does.
+    if (!this.commandableFleet() || this.isDragging) {
+      return;
+    }
+    const tile = this.galaxyTileAt(event);
+    this.selectedFleetAction = null;
+    this.moveSelectedFleet(tile.x, tile.y);
+    this.cdr.detectChanges();
+  }
+
+  /* Right-click on empty system-view space: move the selected fleet there. */
+  onSystemGridContextMenu(event: MouseEvent): void {
+    if (this.consumeRightClick(event)) return;
+    const fleet = this.commandableFleet();
+    if (!fleet || !this.selectedSystem || fleet.system?.id !== this.selectedSystem.id) {
+      return;
+    }
+    const tile = this.systemTileAt(event);
+    this.selectedFleetAction = null;
+    this.moveSelectedFleet(tile.x, tile.y);
+    this.cdr.detectChanges();
+  }
+
+  /* Right-click on a drifting asteroid: intercept it with the selected fleet. */
+  onAsteroidContextMenu(asteroidId: number, event: MouseEvent): void {
+    if (this.consumeRightClick(event)) return;
+    const fleet = this.commandableFleet();
+    if (!fleet) {
+      return;
+    }
+    this.selectedFleetAction = null;
+    this.selectAsteroid(asteroidId);
+    this.onInterceptAsteroid(fleet.id);
+  }
+
+  /* Starts pursuing a hostile fleet; the order is validated like a move. */
+  orderAttack(quarry: Fleet): void {
+    const fleet = this.commandableFleet();
+    if (!fleet || this.currentView !== 'map') {
+      return;
+    }
+    if (this.moveSelectedFleet(quarry.x, quarry.y)) {
+      fleet.attackFleetId = quarry.id;
+      this.simStateDirty = true;
+    }
+  }
+
+  /* Name of the fleet the selected fleet is attacking, for the fleet panel. */
+  getSelectedFleetAttackLabel(): string | null {
+    const id = this.selectedFleet?.attackFleetId;
+    if (id == null) {
+      return null;
+    }
+    return this.fleets.find((f) => f.id === id && !f.destroyed)?.name ?? null;
+  }
+
+  private readonly attackOrderHooks: AttackOrderHooks = {
+    isVisible: (quarry) => this.isFleetVisible(quarry),
+    isHostile: (attacker, quarry) => this.areFleetsHostile(attacker, quarry),
+    retarget: (attacker, x, y) => {
+      if (!this.movementService.planGalaxyRoute({ x: attacker.x, y: attacker.y }, { x, y }).ok) {
+        return false;
+      }
+      attacker.interceptAsteroidId = null;
+      attacker.targetX = x;
+      attacker.targetY = y;
+      if (this.selectedFleet?.id === attacker.id && this.currentView === 'map') {
+        this.targetX = x;
+        this.targetY = y;
+      }
+      return true;
+    },
+  };
+
+  /* Re-aims pursuing fleets; tells the player when an attack order ends without a fight. */
+  private updateAttackOrders(): boolean {
+    const { ended, retargeted } = updateAttackOrders(this.fleets, this.attackOrderHooks);
+    for (const end of ended) {
+      const quarryName = end.quarry?.name ?? 'the target';
+      if (end.reason === 'lost-contact') {
+        this.showMapNotice(`${end.attacker.name} lost contact with ${quarryName}.`);
+      } else if (end.reason === 'no-route') {
+        this.showMapNotice(`${end.attacker.name}: no safe route to ${quarryName}. Attack cancelled.`);
+      }
+    }
+    return retargeted || ended.length > 0;
   }
 
   // Click handlers
@@ -1915,27 +2077,34 @@ loadError = '';
     return 'allowed';
   }
 
-  /** Commands the selected fleet to move to the given world coordinates. */
-  moveSelectedFleet(x: number, y: number): void {
+  /*
+   * Commands the selected fleet to move to the given world coordinates.
+   * Returns true when the order was accepted. Any accepted manual order
+   * replaces an attack order (orderAttack re-sets it afterwards).
+   */
+  moveSelectedFleet(x: number, y: number): boolean {
     if (!this.selectedFleet) {
-      return;
+      return false;
     }
 
     const validation = this.validateFleetMove(x, y);
     if (validation !== 'allowed') {
       this.fleetMoveError = this.panelVmService.describeFleetMoveRejection(validation);
       this.cdr.detectChanges();
-      return;
+      return false;
     }
     this.fleetMoveError = null;
 
     if (this.currentView === 'system') {
       if (this.selectedSystem && this.selectedFleet.system?.id === this.selectedSystem.id) {
+        this.selectedFleet.attackFleetId = null;
         this.selectedFleet.system.targetX = x;
         this.selectedFleet.system.targetY = y;
         this.targetX = x;
         this.targetY = y;
+        return true;
       }
+      return false;
     } else {
       // Reject destinations that cannot be reached without crossing a black
       // hole or an asteroid belt before the order is accepted, so the fleet
@@ -1953,14 +2122,16 @@ loadError = '';
               : 'blocked-black-hole',
         );
         this.cdr.detectChanges();
-        return;
+        return false;
       }
-      // A manual order replaces any asteroid intercept order.
+      // A manual order replaces any asteroid intercept or attack order.
       this.selectedFleet.interceptAsteroidId = null;
+      this.selectedFleet.attackFleetId = null;
       this.selectedFleet.targetX = x;
       this.selectedFleet.targetY = y;
       this.targetX = x;
       this.targetY = y;
+      return true;
     }
   }
 
@@ -1975,16 +2146,7 @@ loadError = '';
       return;
     }
 
-    const viewport = event.currentTarget as HTMLElement;
-    const rect = viewport.getBoundingClientRect();
-    const screenX = event.clientX - rect.left;
-    const screenY = event.clientY - rect.top;
-
-    const viewportUnitInPixels = window.innerWidth / 100;
-    const worldX = this.cameraX + screenX / viewportUnitInPixels / this.zoom;
-    const worldY = this.cameraY + screenY / viewportUnitInPixels / this.zoom;
-
-    const targetTile = this.movementService.getTileCenter(worldX, worldY);
+    const targetTile = this.galaxyTileAt(event);
     this.moveSelectedFleet(targetTile.x, targetTile.y);
 
     if (this.selectedFleet && this.selectedFleetAction) {
@@ -2008,17 +2170,27 @@ loadError = '';
       return;
     }
 
-    const viewport = event.currentTarget as HTMLElement;
-    const rect = viewport.getBoundingClientRect();
-    const screenX = event.clientX - rect.left;
-    const screenY = event.clientY - rect.top;
-
-    const viewportUnitInPixels = window.innerWidth / 100;
-    const systemX = screenX / viewportUnitInPixels;
-    const systemY = screenY / viewportUnitInPixels;
-
-    const targetTile = this.movementService.getSystemTileCenter(systemX, systemY);
+    const targetTile = this.systemTileAt(event);
     this.moveSelectedFleet(targetTile.x, targetTile.y);
+  }
+
+  /* Galaxy grid tile under a mouse event on the map viewport (event.currentTarget). */
+  private galaxyTileAt(event: MouseEvent): { x: number; y: number } {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const viewportUnitInPixels = window.innerWidth / 100;
+    const worldX = this.cameraX + (event.clientX - rect.left) / viewportUnitInPixels / this.zoom;
+    const worldY = this.cameraY + (event.clientY - rect.top) / viewportUnitInPixels / this.zoom;
+    return this.movementService.getTileCenter(worldX, worldY);
+  }
+
+  /* System-view tile center (vw) under a mouse event on the system grid (event.currentTarget). */
+  private systemTileAt(event: MouseEvent): { x: number; y: number } {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    const viewportUnitInPixels = window.innerWidth / 100;
+    return this.movementService.getSystemTileCenter(
+      (event.clientX - rect.left) / viewportUnitInPixels,
+      (event.clientY - rect.top) / viewportUnitInPixels,
+    );
   }
 
   // Camera
@@ -2186,6 +2358,10 @@ loadError = '';
     if (this.contextMenu) {
       return;
     }
+    // The right button issues orders (onMapContextMenu); it never drags.
+    if (event.button === 2) {
+      return;
+    }
     if (this.isInteractiveElement(event.target as HTMLElement)) {
       return;
     }
@@ -2284,7 +2460,8 @@ loadError = '';
       this.cdr.detectChanges();
       return;
     }
-    const didMoveFleets = this.updateFleets(gameDeltaTime);
+    const attackOrdersChanged = gameDeltaTime > 0 && this.updateAttackOrders();
+    const didMoveFleets = this.updateFleets(gameDeltaTime) || attackOrdersChanged;
     const headingsChanged = this.updateFleetHeadings(gameDeltaTime);
     const asteroidResult = this.asteroidService.tick(
       gameDeltaTime,

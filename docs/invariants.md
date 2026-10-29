@@ -187,7 +187,7 @@ See [Star Map Terrain](./star-map-terrain.md).
 - A drifting asteroid's reward is granted exactly once: the asteroid is removed in the same step its cargo is added, and `StarMap` autosaves immediately after any collection.
 - At most `ASTEROID_CONFIG.maxActive` asteroids exist; asteroids that left the map or were collected are removed from `asteroidEvents.active` (state stays bounded).
 - Asteroids advance only with the scaled game delta (frozen while paused).
-- AI fleet targets keep a single owner: the AI salvage role is driven by `EnemyFleetService`; `Fleet.interceptAsteroidId` is player-only.
+- AI fleet targets keep a single owner: the AI salvage role is driven by `EnemyFleetService`; `Fleet.interceptAsteroidId` and `Fleet.attackFleetId` are player-only (`updateAttackOrders` clears the latter on any non-player fleet).
 
 ## Ship Production & Fleet Assembly Invariants
 

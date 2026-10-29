@@ -72,8 +72,10 @@ export class StarMapSystemGridViewComponent {
   @Input() onSystemGridClick: (event: MouseEvent) => void = () => {};
   @Input() onPlanetClick: (planet: PlanetTile, event: MouseEvent) => void = () => {};
   @Input() onFleetClick: (fleet: Fleet, event: MouseEvent) => void = () => {};
-  @Input() onPlanetContextMenu: (event: MouseEvent) => void = () => {};
-  @Input() onFleetContextMenu: (event: MouseEvent) => void = () => {};
+  /* Right-click handlers: with a player fleet selected they issue move orders. */
+  @Input() onSystemGridContextMenu: (event: MouseEvent) => void = () => {};
+  @Input() onPlanetContextMenu: (planet: PlanetTile, event: MouseEvent) => void = () => {};
+  @Input() onFleetContextMenu: (fleet: Fleet, event: MouseEvent) => void = () => {};
 
   constructor(public movementService: StarMapMovementService) {}
 }
