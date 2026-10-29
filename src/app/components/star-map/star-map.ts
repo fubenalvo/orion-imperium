@@ -269,6 +269,10 @@ loadError = '';
   productionBuildError: string | null = null;
   showSpaceportPanel = false;
   spaceportError: string | null = null;
+  // Why the player's last move command was rejected; shown in the fleet panel.
+  // Set only by moveSelectedFleet (always a player click) and cleared by the
+  // next accepted move or a selection change.
+  fleetMoveError: string | null = null;
   spaceportFleetName = 'New Fleet';
   spaceportMode: 'create' | 'reinforce' = 'create';
   spaceportTargetFleetId: number | null = null;
@@ -1272,6 +1276,7 @@ loadError = '';
   /** Selects a fleet, updates the camera, and tracks its movement target. */
   selectFleet(fleet: Fleet): void {
     this.selectedFleet = fleet;
+    this.fleetMoveError = null;
 
     if (this.currentView !== 'system') {
       this.selectedSystem = null;
@@ -1305,6 +1310,7 @@ loadError = '';
   /** Clears the current fleet selection and its movement target. */
   deselectFleet(): void {
     this.selectedFleet = null;
+    this.fleetMoveError = null;
     this.selectedFleetAction = null;
     this.targetX = null;
     this.targetY = null;
@@ -1614,12 +1620,12 @@ loadError = '';
     }
 
     const validation = this.validateFleetMove(x, y);
-    if (validation === 'blocked-team') {
+    if (validation !== 'allowed') {
+      this.fleetMoveError = this.panelVmService.describeFleetMoveRejection(validation);
+      this.cdr.detectChanges();
       return;
     }
-    if (validation === 'blocked-ours') {
-      return;
-    }
+    this.fleetMoveError = null;
 
     if (this.currentView === 'system') {
       if (this.selectedSystem && this.selectedFleet.system?.id === this.selectedSystem.id) {

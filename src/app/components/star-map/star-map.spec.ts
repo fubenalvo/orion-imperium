@@ -920,6 +920,89 @@ describe('StarMap', () => {
     });
   });
 
+  /*
+   * Rejected fleet moves used to fail silently. The movement rules are
+   * unchanged; the player now gets the reason in the fleet panel.
+   */
+  describe('Fleet move rejection feedback', () => {
+    // Center of a 1-indexed system grid cell, in system-view vw (5vw cells).
+    const cellCenter = (cell: { col: number; row: number }) => ({ x: (cell.col - 1) * 5 + 2.5, y: (cell.row - 1) * 5 + 2.5 });
+
+    const setup = () => {
+      const system = component.starSystems[0];
+      const planet = system.planetsTiles[0];
+      const [mover, parked] = component.fleets.filter((f) => f.factionId === 'player');
+      for (const fleet of [mover, parked]) {
+        fleet.x = system.x;
+        fleet.y = system.y;
+        fleet.targetX = null;
+        fleet.targetY = null;
+        // Earlier tests may have destroyed these fleets in the shared default data.
+        fleet.destroyed = false;
+      }
+      mover.system ={ id: system.id, x: 2.5, y: 2.5, targetX: null, targetY: null };
+      parked.system = { id: system.id, x: 90, y: 47.5, targetX: null, targetY: null };
+      component.currentView = 'system';
+      component.selectedSystem = system;
+      component.selectFleet(mover);
+      component.selectedFleetAction = 'move';
+      return { system, planet, mover, parked, target: cellCenter(component.movementService.getPlanetGridPosition(planet)) };
+    };
+
+    it('explains a move onto an allied planet and does not move the fleet', () => {
+      const { planet, mover, target } = setup();
+      component.factions.push({ id: 'ally', name: 'Ally', color: '#0f0', team: 1, currencies: {} } as any);
+      planet.factionId = 'ally';
+
+      component.moveSelectedFleet(target.x, target.y);
+
+      expect(component.fleetMoveError).toBe('Cannot move onto an allied planet.');
+      expect(mover.system!.targetX).toBeNull();
+      expect(mover.system!.targetY).toBeNull();
+    });
+
+    it('explains a move onto an own planet where another fleet is stationed', () => {
+      const { planet, mover, parked, target } = setup();
+      planet.factionId = 'player';
+      parked.system = { ...parked.system!, x: target.x, y: target.y };
+      // Only a fleet with a living ship counts as stationed.
+      parked.ships = [{ id: 9001, name: 'Guard', type: 'frigate' }];
+
+      component.moveSelectedFleet(target.x, target.y);
+
+      expect(component.fleetMoveError).toBe('Another fleet is already stationed at this planet.');
+      expect(mover.system!.targetX).toBeNull();
+    });
+
+    it('shows nothing for an accepted move and clears an earlier rejection', () => {
+      const { planet, mover, target } = setup();
+      component.factions.push({ id: 'ally', name: 'Ally', color: '#0f0', team: 1, currencies: {} } as any);
+      planet.factionId = 'ally';
+      component.moveSelectedFleet(target.x, target.y);
+      expect(component.fleetMoveError).not.toBeNull();
+
+      component.moveSelectedFleet(42.5, 32.5);
+
+      expect(component.fleetMoveError).toBeNull();
+      expect(mover.system!.targetX).toBe(42.5);
+      expect(mover.system!.targetY).toBe(32.5);
+    });
+
+    it('clears the message when the fleet selection changes', () => {
+      const { planet, parked, target } = setup();
+      component.factions.push({ id: 'ally', name: 'Ally', color: '#0f0', team: 1, currencies: {} } as any);
+      planet.factionId = 'ally';
+      component.moveSelectedFleet(target.x, target.y);
+
+      component.selectFleet(parked);
+      expect(component.fleetMoveError).toBeNull();
+
+      component.moveSelectedFleet(target.x, target.y);
+      component.deselectFleet();
+      expect(component.fleetMoveError).toBeNull();
+    });
+  });
+
   describe('AI planet capture integration', () => {
     // Minimal valid game: the player owns one planet and one fleet, enemy1 owns one planet.
     beforeEach(() => {

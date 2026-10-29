@@ -51,6 +51,9 @@
           </button>
         }
       </div>
+      @if (moveError) {
+        <div class="fleet-info__move-error" role="status">{{ moveError }}</div>
+      }
     }
 
     <hr class="fleet-section-divider" />

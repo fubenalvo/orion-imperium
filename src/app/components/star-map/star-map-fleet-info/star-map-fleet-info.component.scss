@@ -7,3 +7,10 @@
   margin-right: 4px;
   image-rendering: pixelated;
 }
+
+/* Same treatment as the spaceport/production panel errors. */
+.fleet-info__move-error {
+  color: #f44336;
+  font-size: 0.8rem;
+  margin-top: 0.3vw;
+}

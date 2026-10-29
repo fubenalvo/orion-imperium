@@ -161,6 +161,13 @@ export class StarMapPanelVmService {
     }
   }
 
+  /* Player-facing reason for a fleet move command the movement rules rejected. */
+  describeFleetMoveRejection(reason: 'blocked-team' | 'blocked-ours'): string {
+    return reason === 'blocked-team'
+      ? 'Cannot move onto an allied planet.'
+      : 'Another fleet is already stationed at this planet.';
+  }
+
   suggestFleetName(fleets: { factionId: string; name: string }[]): string {
     const used = new Set(fleets.filter((f) => f.factionId === 'player').map((f) => f.name));
     for (let i = 1; i < 1000; i++) {

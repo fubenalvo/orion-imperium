@@ -139,6 +139,8 @@ Fleet movement is target-based. Each frame, `StarMapMovementService.updateFleets
 - **Map movement** uses `fleet.targetX` / `fleet.targetY` (1-indexed grid cells). Speed is in vw/s and is converted to cells/s via `fleet.speed / 10 / GALAXY_MOVEMENT_CELL_SIZE_VW` (a fixed 2 = the desktop cell size) before applying; the rendered cell size never affects travel time. When the remaining distance is below 0.01, the fleet snaps to the target, clears the target, and fires the `onTargetReached` callback (used to clear the visible target marker). If the fleet has a `system.id` and is no longer inside that system cell, `onLeaveSystem` is invoked, which clears `fleet.system`.
 - **System movement** uses `fleet.system.targetX` / `fleet.system.targetY` in vw units. Speed is in vw/s and applied directly (no cell conversion). Same target-reached / snap behaviour. While in the system, `gridCol`/`gridRow` are derived from `calculateSystemGridCell(system.x, system.y)`.
 
+Player move commands in system view are rejected by `StarMap.validateFleetMove` when the target cell is an allied (same team, not player-owned) planet, or a player planet where another living player fleet is already stationed. A rejected command changes nothing; its reason is shown in the fleet panel (`StarMap.fleetMoveError`, worded by `StarMapPanelVmService.describeFleetMoveRejection`) until the next accepted move or a selection change.
+
 After every move, `gridCol` and `gridRow` are refreshed from the current x/y. `refreshGridPositions()` does the same for every fleet and system and is called on load, after resize, and on every reload from a save.
 
 ### Planet Arrivals

@@ -19,6 +19,8 @@ export class StarMapFleetInfoComponent {
   @Input() selectedFleetAction: 'move' | null = null;
   @Input() canReinforce = false;
   @Input() canDisband = false;
+  // Reason the last move command was rejected (null when the last move was accepted).
+  @Input() moveError: string | null = null;
 
   @Output() close = new EventEmitter<void>();
   @Output() setFleetAction = new EventEmitter<'move'>();
