@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { ResearchService } from '../../services/research.service';
 import { Faction, FactionProduction, Fleet, PlanetTile, StarSystem, PLANET_TYPE_COLORS } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService, VirtualDefenseFleet } from '../../services/planet-battle.service';
@@ -63,6 +64,7 @@ export class EnemyInvasionService {
     private readonly planetBattleService: PlanetBattleService,
     private readonly planetOwnership: PlanetOwnershipService,
     private readonly battleOutcomeService: BattleOutcomeService,
+    private readonly researchService: ResearchService,
   ) {}
 
   reset(): void {
@@ -128,6 +130,8 @@ export class EnemyInvasionService {
    * EnemyFleetService to judge interceptions and retreats. `survivingRatio`
    * is the share of the attackers' strength left alive.
    */
+  // Deliberately tech-agnostic (no combatBonuses): the AI does not know
+  // which technologies its opponents have researched.
   forecastFleetBattle(attackers: Fleet[], defenders: Fleet[]): { win: boolean; survivingRatio: number } {
     const attackerShips = attackers.flatMap((f) => f.ships.filter((s) => !s.destroyed)).map((s) => ({ ...s }));
     const defenderShips = defenders.flatMap((f) => f.ships.filter((s) => !s.destroyed)).map((s) => ({ ...s }));
@@ -230,6 +234,7 @@ export class EnemyInvasionService {
       planetId: planet.id,
       planetName: planet.name,
       planetColor: PLANET_TYPE_COLORS[planet.type] ?? '#ffffff',
+      combatBonuses: this.researchService.buildCombatBonuses([attackerFaction, defenderFaction]),
     } as Battle;
   }
 

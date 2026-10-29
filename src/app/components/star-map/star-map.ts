@@ -1210,7 +1210,7 @@ loadError = '';
 
   /** Computes energy production for a planet based on its power-producing buildings. */
   getEnergyForPlanet(planet: PlanetTile): number {
-    return this.economyService.getPlanetEnergy(planet);
+    return this.economyService.getPlanetEnergy(planet, this.factions.find((f) => f.id === planet.factionId));
   }
 
   /** Computes tax income for a planet based on population and industrial buildings. */

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { ResearchService } from '../../services/research.service';
 import { BattleService } from '../../services/battle.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { PlanetOwnershipService } from '../../services/planet-ownership.service';
@@ -48,6 +49,7 @@ export class StarMapPlanetArrivalService {
     private battleService: BattleService,
     private movementService: StarMapMovementService,
     private planetOwnership: PlanetOwnershipService,
+    private researchService: ResearchService,
   ) {}
 
   /** Clears per-session arrival bookkeeping. Safe to call on every load. */
@@ -206,6 +208,7 @@ export class StarMapPlanetArrivalService {
       planetId: targetPlanet.id,
       planetName: targetPlanet.name,
       planetColor: PLANET_TYPE_COLORS[targetPlanet.type] ?? '#ffffff',
+      combatBonuses: this.researchService.buildCombatBonuses([attackerFaction, defenderFaction]),
     });
 
     ctx.enterBattleScreen();

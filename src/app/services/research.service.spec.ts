@@ -180,9 +180,12 @@ describe('ResearchService', () => {
       expect(service.isShipUnlocked(player, 'dreadnought')).toBe(true);
     });
 
-    it('returns true for colonizer via colonization_technology', () => {
+    // Colonizers come from basic_engineering only; colonization_technology
+    // is a population-growth technology (no duplicate unlock).
+    it('colonization_technology does not unlock the colonizer; it speeds up population growth', () => {
       player.researchedTechnologies = ['colonization_technology'];
-      expect(service.isShipUnlocked(player, 'colonizer')).toBe(true);
+      expect(service.isShipUnlocked(player, 'colonizer')).toBe(false);
+      expect(service.getModifiers(player).populationGrowth).toBeGreaterThan(1);
     });
   });
 
@@ -365,9 +368,12 @@ describe('ResearchService', () => {
       expect(service.isShipUnlocked(player, 'colonizer')).toBe(true);
     });
 
-    it('colonizer is also unlockable via colonization_technology', () => {
-      player.researchedTechnologies = ['colonization_technology'];
-      expect(service.isShipUnlocked(player, 'colonizer')).toBe(true);
+    it('ship classes are unlocked by exactly one technology each', () => {
+      const unlockers = new Map<string, string[]>();
+      for (const tech of service.getAllTechnologies()) {
+        for (const ship of tech.unlocksShips) unlockers.set(ship, [...(unlockers.get(ship) ?? []), tech.id]);
+      }
+      for (const [ship, techs] of unlockers) expect(techs, ship).toHaveLength(1);
     });
   });
 

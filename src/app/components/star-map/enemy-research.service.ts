@@ -1,8 +1,10 @@
 import { Injectable } from '@angular/core';
-import { Faction, Fleet, StarSystem, Technology } from './star-map.models';
+import { Faction, Fleet, StarSystem, Technology, TechnologyBonus } from './star-map.models';
 import { ResearchService } from '../../services/research.service';
 import { ShipService } from '../../services/ship.service';
+import { EconomyService } from '../../services/economy.service';
 import { isCombatShipType } from './ai-queries';
+import { getAiPersonalityProfile } from './ai-personality';
 
 /*
  * =========================================================
@@ -16,19 +18,34 @@ import { isCombatShipType } from './ai-queries';
  * state to track: one technology per DECISION_INTERVAL, then the next
  * decision picks the next one.
  *
- * Selection: every technology the faction can research right now
- * (prerequisites met, affordable, not yet researched) is scored by
+ * Selection: every technology whose prerequisites are met is scored by
  *   (direct value + LOOKAHEAD × best value it unlocks next) / cost
- * where direct value comes from what the technology unlocks that the
+ * where direct value comes from what the technology adds that the
  * faction does not already have:
  *  - combat ships: strength relative to the best combat ship already
  *    unlocked (only an improvement counts), × military need;
  *  - buildings: BUILDING_VALUE (economic usefulness for the AI economy
- *    manager), × economic need;
- *  - sensor bonuses: small, because AI decisions do not use sensors.
+ *    manager);
+ *  - bonuses (TechModifiers): valued from the faction's current situation
+ *    using the same EconomyService numbers the economy tick applies —
+ *    e.g. upkeep reductions by today's upkeep share of income, energy by
+ *    the tightest planet's energy margin, raw output by raw income, ship
+ *    combat bonuses by the share of the faction's own fleet strength in
+ *    the affected hulls × military need, sensors by expansion (AI intel
+ *    uses the sensor bonus);
+ *  - personality weights (economy / research / expansion / offense)
+ *    scale the matching values, so personalities research differently;
+ *    under threat the peacetime values are divided by the military need.
  * Military need rises when hostile fleets are near AI territory.
- * When nothing is affordable the service simply waits; it never issues
- * an attempt that ResearchService would reject.
+ *
+ * Saving: if the best-scoring technology is not affordable yet, scores
+ * clearly better than the best affordable one, and research income will
+ * pay for it within SAVE_HORIZON seconds, the faction waits for it.
+ * Otherwise it buys the best affordable technology, so a faction with
+ * little research income never stalls. It never issues an attempt that
+ * ResearchService would reject. Every value is derived from game state
+ * the faction legitimately knows (its own economy and fleets, perceived
+ * hostile fleets), never from other factions' research.
  */
 @Injectable({ providedIn: 'root' })
 export class EnemyResearchService {
@@ -52,7 +69,10 @@ export class EnemyResearchService {
     park: 0.2,
     entertainment_center: 0.2,
   };
-  private static readonly SENSOR_VALUE = 0.1;
+  // Floor so effect-less leftovers (e.g. a bonus for hulls never built) still finish eventually.
+  private static readonly MIN_VALUE = 0.05;
+  private static readonly SAVE_HORIZON = 180;
+  private static readonly SAVE_SCORE_RATIO = 1.5;
 
   private readonly accumulators = new Map<string, number>();
   private readonly history = new Map<string, string[]>();
@@ -60,6 +80,7 @@ export class EnemyResearchService {
   constructor(
     private readonly researchService: ResearchService,
     private readonly shipService: ShipService,
+    private readonly economyService: EconomyService,
   ) {}
 
   reset(): void {
@@ -106,24 +127,123 @@ export class EnemyResearchService {
   }
 
   selectTechnology(faction: Faction, factions: Faction[], starSystems: StarSystem[], fleets: Fleet[]): Technology | undefined {
-    const candidates = this.researchService
+    const researched = new Set(faction.researchedTechnologies ?? []);
+    const available = this.researchService
       .getAllTechnologies()
-      .filter((tech) => this.researchService.canResearch(faction, tech.id));
-    if (candidates.length === 0) {
+      .filter((tech) => !researched.has(tech.id) && tech.prerequisites.every((p) => researched.has(p)));
+    if (available.length === 0) {
       return undefined;
     }
 
-    const militaryNeed = this.militaryNeed(faction, factions, starSystems, fleets);
-    const scored = candidates.map((tech) => {
-      const value = this.directValue(faction, tech, militaryNeed)
-        + EnemyResearchService.LOOKAHEAD_WEIGHT * this.bestFollowUpValue(faction, tech, militaryNeed);
-      return { tech, score: value / Math.max(1, tech.researchCost) };
+    const context = this.buildContext(faction, factions, starSystems, fleets);
+    const scored = available.map((tech) => {
+      const value = this.directValue(faction, tech, context)
+        + EnemyResearchService.LOOKAHEAD_WEIGHT * this.bestFollowUpValue(faction, tech, context);
+      const cost = this.researchService.getResearchCost(faction, tech);
+      return { tech, cost, score: Math.max(EnemyResearchService.MIN_VALUE, value) / Math.max(1, cost) };
     });
-    scored.sort((a, b) => b.score - a.score || a.tech.researchCost - b.tech.researchCost || a.tech.id.localeCompare(b.tech.id));
-    return scored[0].tech;
+    scored.sort((a, b) => b.score - a.score || a.cost - b.cost || a.tech.id.localeCompare(b.tech.id));
+
+    const points = faction.currencies['research'] ?? 0;
+    const bestAffordable = scored.find((s) => s.cost <= points);
+    const best = scored[0];
+    if (best !== bestAffordable) {
+      const shortfall = best.cost - points;
+      const reachable = context.researchIncome > 0
+        && shortfall / context.researchIncome <= EnemyResearchService.SAVE_HORIZON;
+      const worthWaiting = !bestAffordable || best.score >= bestAffordable.score * EnemyResearchService.SAVE_SCORE_RATIO;
+      if (reachable && worthWaiting) {
+        return undefined; // save research points for `best`
+      }
+    }
+    return bestAffordable?.tech;
   }
 
-  private directValue(faction: Faction, tech: Technology, militaryNeed: number): number {
+  /* Situation snapshot shared by all technology valuations of one decision. */
+  private buildContext(faction: Faction, factions: Faction[], starSystems: StarSystem[], fleets: Fleet[]): ResearchContext {
+    const economy = this.economyService.calculateEconomy(faction.id, factions, starSystems, fleets);
+    const owned = starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === faction.id);
+    let tightestEnergyMargin = 1;
+    let growthRoom = 0;
+    for (const planet of owned) {
+      const e = this.economyService.calculatePlanetEconomy(planet, faction);
+      if (e.energyProduction > 0 || e.energyConsumption > 0) {
+        tightestEnergyMargin = Math.min(tightestEnergyMargin, (e.energyProduction - e.energyConsumption) / Math.max(1, e.energyProduction));
+      }
+      const capacity = this.economyService.getPopulationCapacity(planet);
+      if (capacity > 0 && (planet.population ?? 0) < capacity * 0.9) growthRoom++;
+    }
+    const ownShips = fleets.filter((f) => f.factionId === faction.id && !f.destroyed).flatMap((f) => f.ships.filter((s) => !s.destroyed));
+    const strengthByType = new Map<string, number>();
+    for (const ship of ownShips) {
+      strengthByType.set(ship.type, (strengthByType.get(ship.type) ?? 0) + this.shipService.calculateFleetStrength([ship]));
+    }
+    const weights = getAiPersonalityProfile(faction).weights;
+    const militaryNeed = this.militaryNeed(faction, factions, starSystems, fleets);
+    // Under threat (need > 1) peacetime priorities step back: economic,
+    // research and expansion values are divided by the military need.
+    const peace = 1 / militaryNeed;
+    return {
+      militaryNeed,
+      income: Math.max(1, economy.incomePerSecond),
+      buildingUpkeep: economy.buildingUpkeepPerSecond,
+      shipUpkeep: economy.shipUpkeepPerSecond,
+      rawIncome: economy.net['rawmaterials'] ?? 0,
+      researchIncome: economy.net['research'] ?? 0,
+      tightestEnergyMargin,
+      growthRoom,
+      planetCount: owned.length,
+      hasFactory: owned.some((p) => p.buildings.some((b) => b.name === 'Spaceship Factory')),
+      fleetStrength: [...strengthByType.values()].reduce((a, b) => a + b, 0),
+      strengthByType,
+      weights: {
+        economy: weights.economy * peace,
+        research: weights.research * peace,
+        expansion: weights.expansion * peace,
+        military: Math.max(weights.offense, weights.defense),
+      },
+    };
+  }
+
+  /*
+   * bonusValue: Value of one technology bonus for this faction now, on
+   * roughly the same scale as BUILDING_VALUE (1 ≈ a useful building).
+   */
+  private bonusValue(faction: Faction, bonus: TechnologyBonus, ctx: ResearchContext): number {
+    const w = ctx.weights;
+    switch (bonus.type) {
+      case 'buildingUpkeep':
+        return w.economy * Math.min(3, 40 * Math.abs(bonus.value) * ctx.buildingUpkeep / ctx.income);
+      case 'shipUpkeep':
+        return w.economy * Math.min(3, 40 * Math.abs(bonus.value) * ctx.shipUpkeep / ctx.income);
+      case 'energyOutput':
+        // Valuable when some planet is energy-tight (the AI then needs fewer power plants).
+        return w.economy * (ctx.tightestEnergyMargin < 0.2 ? 1.5 : 0.5);
+      case 'rawOutput':
+        return w.economy * (ctx.rawIncome < 15 ? 1.5 : 0.6);
+      case 'researchOutput':
+        return w.research * Math.min(3, 0.5 + ctx.researchIncome / 10);
+      case 'shipBuildSpeed':
+        return ctx.hasFactory ? w.military * (0.5 + 0.5 * ctx.militaryNeed) : 0;
+      case 'populationGrowth':
+        return w.expansion * Math.min(2.5, 0.3 + 0.3 * ctx.growthRoom);
+      case 'sensorRange':
+        // AI intel (fog of war) uses the sensor bonus: worth more while expanding.
+        return w.expansion * (0.2 + 0.05 * ctx.planetCount);
+      case 'shipAttack':
+      case 'shipShield': {
+        const affected = (bonus.shipTypes ?? []).reduce((sum, t) => sum + (ctx.strengthByType.get(t) ?? 0), 0);
+        const buildable = (bonus.shipTypes ?? []).some((t) => this.researchService.isShipUnlocked(faction, t));
+        const share = (ctx.fleetStrength > 0 ? affected / ctx.fleetStrength : 0) + (buildable ? 0.2 : 0);
+        return w.military * ctx.militaryNeed * bonus.value * 5 * Math.min(1, share);
+      }
+      default:
+        return 0;
+    }
+  }
+
+  private directValue(faction: Faction, tech: Technology, ctx: ResearchContext): number {
+    const militaryNeed = ctx.militaryNeed;
     let value = 0;
 
     const bestStrength = this.bestUnlockedCombatStrength(faction);
@@ -137,7 +257,7 @@ export class EnemyResearchService {
       }
       const strength = this.shipService.calculateFleetStrength([{ type: shipId }]);
       if (strength > bestStrength) {
-        value += (strength / Math.max(1, bestStrength)) * militaryNeed;
+        value += (strength / Math.max(1, bestStrength)) * militaryNeed * ctx.weights.military;
       }
     }
 
@@ -145,11 +265,11 @@ export class EnemyResearchService {
       if (this.researchService.isBuildingUnlocked(faction, buildingId)) {
         continue;
       }
-      value += EnemyResearchService.BUILDING_VALUE[buildingId] ?? 0.2;
+      value += (EnemyResearchService.BUILDING_VALUE[buildingId] ?? 0.2) * ctx.weights.economy;
     }
 
-    if ((tech.bonuses ?? []).some((b) => b.type === 'sensorRange')) {
-      value += EnemyResearchService.SENSOR_VALUE;
+    for (const bonus of tech.bonuses ?? []) {
+      value += this.bonusValue(faction, bonus, ctx);
     }
     return value;
   }
@@ -160,7 +280,7 @@ export class EnemyResearchService {
    * pure prerequisite technologies (e.g. orbital_engineering) are not
    * scored as worthless.
    */
-  private bestFollowUpValue(faction: Faction, tech: Technology, militaryNeed: number): number {
+  private bestFollowUpValue(faction: Faction, tech: Technology, ctx: ResearchContext): number {
     const researched = new Set([...(faction.researchedTechnologies ?? []), tech.id]);
     const hypothetical: Faction = { ...faction, researchedTechnologies: [...researched] };
     let best = 0;
@@ -171,7 +291,7 @@ export class EnemyResearchService {
       if (!next.prerequisites.every((p) => researched.has(p))) {
         continue;
       }
-      best = Math.max(best, this.directValue(hypothetical, next, militaryNeed));
+      best = Math.max(best, this.directValue(hypothetical, next, ctx));
     }
     return best;
   }
@@ -211,4 +331,22 @@ export class EnemyResearchService {
       .reduce((sum, f) => sum + this.shipService.calculateFleetStrength(f.ships), 0);
     return Math.min(3, 1 + threat / Math.max(1, own));
   }
+}
+
+interface ResearchContext {
+  militaryNeed: number;
+  income: number;
+  buildingUpkeep: number;
+  shipUpkeep: number;
+  rawIncome: number;
+  researchIncome: number;
+  /* Smallest (production − consumption) / production over owned planets. */
+  tightestEnergyMargin: number;
+  /* Owned planets below 90% of housing capacity. */
+  growthRoom: number;
+  planetCount: number;
+  hasFactory: boolean;
+  fleetStrength: number;
+  strengthByType: Map<string, number>;
+  weights: { economy: number; research: number; expansion: number; military: number };
 }

@@ -78,7 +78,7 @@ Rationale: early basics (housing, solar, turret) cost a few seconds to a minute 
 
 Ships keep their credit `cost`; `rawMaterialCost` is 50% of it (rounded to 5), colonizer 100 credits / 150 raw. Build time is unchanged (`cost × 0.1 / factory power`).
 
-Research costs in `research-tree.json` are 5× the original values (whole tree: 35,375 points), so the tree takes roughly 30–40 minutes of AI play instead of ~3.5 minutes.
+Research costs are set by prerequisite depth and value and grow with every technology already researched; see [Research](./research.md). Technology bonuses change several economy rates (energy, raw and research output, building and ship upkeep, population growth); `EconomyService` applies them through `ResearchService.getModifiers` for the owning faction, so the HUD, the economy tick and the AI see the same numbers.
 
 ## Purchases
 

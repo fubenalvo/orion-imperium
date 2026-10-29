@@ -12,6 +12,12 @@ import { ResearchService, TechnologyStatus } from '../../../services/research.se
 })
 export class StarMapResearchTreeComponent {
   @Input() faction: Faction | null = null;
+  /*
+   * Current research income (points per second, from the economy
+   * breakdown the HUD shows). Used only for the time estimate: research is
+   * an instant purchase once enough points have accumulated.
+   */
+  @Input() researchPerSecond = 0;
   @Output() close = new EventEmitter<void>();
   @Output() researched = new EventEmitter<void>();
 
@@ -60,9 +66,53 @@ export class StarMapResearchTreeComponent {
     }
   }
 
+  /* Current cost for this faction (grows with technologies already researched). */
+  getCost(tech: Technology): number {
+    return this.researchService.getResearchCost(this.faction, tech);
+  }
+
   getPrerequisiteNames(tech: Technology): string[] {
     return tech.prerequisites
       .map((id) => this.researchService.getTechnology(id)?.name ?? id)
       .filter(Boolean);
+  }
+
+  /* Mechanical effects (from the data the rules read), separate from flavour text. */
+  getEffects(tech: Technology): string[] {
+    return this.researchService.describeEffects(tech);
+  }
+
+  getDependentNames(tech: Technology): string[] {
+    return this.researchService.getDependents(tech.id).map((t) => t.name);
+  }
+
+  /*
+   * Why the technology cannot be researched now, or an empty string. For
+   * missing points it includes the time to reach the cost at the current
+   * research income.
+   */
+  getBlockerText(tech: Technology): string {
+    if (!this.faction) return '';
+    const blocker = this.researchService.getResearchBlocker(this.faction, tech.id);
+    if (blocker === 'prerequisites_missing') {
+      const missing = tech.prerequisites
+        .filter((id) => !this.researchService.isResearched(this.faction!, id))
+        .map((id) => this.researchService.getTechnology(id)?.name ?? id);
+      return `Requires ${missing.join(', ')}`;
+    }
+    if (blocker === 'insufficient_research') {
+      const shortfall = Math.ceil(this.getCost(tech) - this.getResearchPoints());
+      if (this.researchPerSecond <= 0) {
+        return `Need ${shortfall} more RP (no research income — build research labs)`;
+      }
+      return `Need ${shortfall} more RP (~${this.formatDuration(shortfall / this.researchPerSecond)} at ${this.researchPerSecond.toFixed(1)} RP/s)`;
+    }
+    return '';
+  }
+
+  private formatDuration(seconds: number): string {
+    if (seconds < 60) return `${Math.ceil(seconds)} s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} min ${Math.ceil(seconds - minutes * 60)} s`;
   }
 }

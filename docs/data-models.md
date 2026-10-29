@@ -38,6 +38,8 @@ See [Ship Production](./ship-production.md) for the full pipeline. The relevant 
 
 - `ShipStockEntry`: per-instance ship record held in the global stock. Same shape as `FleetShip` minus `currentHp` / `destroyed` so the existing battle / sensor / movement code can consume it when it is pushed into a fleet.
 - `FactionShipStock`: `{ factionId, ships: ShipStockEntry[] }` — empire-scoped reserve, never planet-scoped.
+- `Technology` (`research-tree.json`): `{ id, name, description, researchCost, prerequisites, unlocksShips, unlocksBuildings, bonuses? }`. `bonuses` are `{ type, value, shipTypes? }` (`TechnologyBonusType`); `ResearchService.getModifiers` aggregates them into `TechModifiers`, which are derived and never saved. `Faction.researchedTechnologies` is the only persisted research state. See [Research](./research.md).
+- `Battle.combatBonuses?`: per faction id, per ship type attack/shield multipliers stamped at battle creation.
 - `ProductionOrder`: `{ id, shipTypeId, quantity, progress, startedAtTick, paid? }` — one in-flight order per planet; resource cost (credits + raw materials) is deducted up-front at queue time and recorded in `paid`, which refunds are computed from. `paid` is absent on orders from older saves (they paid credits only).
 - `FactionProduction`: `{ factionId, ordersByPlanet: Record<planetId, ProductionOrder[]> }`.
 - `StarMapData.shipStock` and `StarMapData.production` are optional fields; `SaveGameService.migrateSave` backfills them as `[]` for older saves.

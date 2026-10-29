@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { ResearchService } from '../../services/research.service';
 import { BattleService } from '../../services/battle.service';
 import { Fleet, StarSystem, Faction } from './star-map.models';
 
@@ -14,7 +15,10 @@ import { Fleet, StarSystem, Faction } from './star-map.models';
 
 @Injectable({ providedIn: 'root' })
 export class StarMapBattleDetectionService {
-  constructor(private battleService: BattleService) {}
+  constructor(
+    private battleService: BattleService,
+    private researchService: ResearchService,
+  ) {}
 
   /*
    * checkForBattles: Iterates through all active fleet pairs
@@ -88,6 +92,7 @@ export class StarMapBattleDetectionService {
           faction2Color: faction2.color,
           attackerId,
           defenderId,
+          combatBonuses: this.researchService.buildCombatBonuses([faction1, faction2]),
         });
 
         enterBattleScreen();

@@ -49,8 +49,10 @@ export function createBattleState(
   const defenderFleet = sideFleet(battle, battle.defenderId);
   const defender = battle.fleet1 === defenderFleet ? battle.fleet1 : battle.fleet2;
 
-  const attackerShips = attackerFleet.ships.map((s) => toBattleShip(s, shipService, planetBattleService));
-  const defenderShips = defenderFleet.ships.map((s) => toBattleShip(s, shipService, planetBattleService));
+  const attackerShips = attackerFleet.ships.map((s) =>
+    withCombatBonus(toBattleShip(s, shipService, planetBattleService), battle.combatBonuses?.[attackerFleet.factionId]));
+  const defenderShips = defenderFleet.ships.map((s) =>
+    withCombatBonus(toBattleShip(s, shipService, planetBattleService), battle.combatBonuses?.[defenderFleet.factionId]));
 
   const attackerStacks = buildStacks('attacker', attackerShips, shipService, planetBattleService);
   const defenderStacks = buildStacks('defender', defenderShips, shipService, planetBattleService);
@@ -93,6 +95,24 @@ export function createBattleState(
     attackerShips,
     defenderShips,
   };
+}
+
+/*
+ * Applies a faction's technology combat multipliers (Battle.combatBonuses)
+ * to one battle ship. Battle ships are rebuilt from the overworld fleet for
+ * every battle, so the bonus is applied exactly once per battle and never
+ * written back to the fleet.
+ */
+function withCombatBonus(
+  ship: BattleShip,
+  bonus: { attack: Record<string, number>; shield: Record<string, number> } | undefined,
+): BattleShip {
+  if (!bonus) {
+    return ship;
+  }
+  const attack = bonus.attack[ship.typeId] ?? 1;
+  const shield = bonus.shield[ship.typeId] ?? 1;
+  return { ...ship, attack: ship.attack * attack, shield: ship.shield * shield, maxShield: ship.maxShield * shield };
 }
 
 function sideFleet(battle: Battle, fleetId: number): BattleFleet {

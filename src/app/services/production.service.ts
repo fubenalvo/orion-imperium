@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import {
   Faction,
   FactionProduction,
@@ -10,6 +10,7 @@ import {
 import { ShipService, ShipType, ProductionBuildingKind } from './ship.service';
 import { ShipStockService } from './ship-stock.service';
 import { ResourceCost, payCost, refundCost, scaleCost, shipCost } from './resource-cost';
+import { ResearchService } from './research.service';
 
 export interface ProductionResult {
   ok: boolean;
@@ -55,10 +56,24 @@ export class ProductionService {
   private orderIdCounter = 1;
   private tickCounter = 0;
 
+  private readonly research: ResearchService;
+
   constructor(
     private shipService: ShipService,
     private shipStockService: ShipStockService,
-  ) {}
+    @Optional() research?: ResearchService,
+  ) {
+    this.research = research ?? new ResearchService();
+  }
+
+  /*
+   * Effective production power for a faction: factory power × the owner's
+   * shipBuildSpeed technology multiplier. Progress already made is kept;
+   * a new technology only speeds up the remaining work.
+   */
+  getEffectivePower(planet: PlanetTile, kind: ProductionBuildingKind, faction: Faction | null | undefined): number {
+    return this.getPlanetPower(planet, kind) * this.research.getModifiers(faction).shipBuildSpeed;
+  }
 
   /*
    * rebaseFromSave: Resynchronizes the in-memory id/tick counters with a
@@ -249,7 +264,7 @@ export class ProductionService {
           continue;
         }
         const kind = shipType.productionBuilding ?? 'spaceship_factory';
-        const power = this.getPlanetPower(planet, kind);
+        const power = this.getEffectivePower(planet, kind, factions.find((f) => f.id === factionProd.factionId));
         if (power <= 0) {
           // Factory missing: track stall, then auto-cancel if it times out.
           head.startedAtTick = head.startedAtTick;
@@ -336,12 +351,12 @@ export class ProductionService {
    * using the planet's current `productionPower`. Returns null if the
    * planet cannot produce that ship type at the moment.
    */
-  getOrderEta(order: ProductionOrder, planet: PlanetTile): number | null {
+  getOrderEta(order: ProductionOrder, planet: PlanetTile, faction?: Faction | null): number | null {
     const shipType = this.shipService.getShipType(order.shipTypeId);
     if (!shipType) {
       return null;
     }
-    const power = this.getPlanetPower(planet, shipType.productionBuilding ?? 'spaceship_factory');
+    const power = this.getEffectivePower(planet, shipType.productionBuilding ?? 'spaceship_factory', faction);
     if (power <= 0) {
       return null;
     }

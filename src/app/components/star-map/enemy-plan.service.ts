@@ -168,7 +168,7 @@ export class EnemyPlanService {
     const ownedSystems = starSystems.filter((s) => s.planetsTiles.some((p) => p.factionId === faction.id));
 
     const atRisk = ownedPlanets.filter((p) => {
-      const e = this.economyService.calculatePlanetEconomy(p);
+      const e = this.economyService.calculatePlanetEconomy(p, faction);
       return e.energyProduction < e.energyConsumption || (p.satisfaction ?? 100) < EnemyPlanService.STABILITY_THRESHOLD;
     }).length;
     const economy = ownedPlanets.length > 0 ? atRisk / ownedPlanets.length : 0;

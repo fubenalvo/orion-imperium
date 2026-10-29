@@ -343,7 +343,7 @@ export class EnemyEconomyService {
       faction.id, context.factions ?? [faction], starSystems, context.fleets, context.shipStock,
     );
     const queuedUpkeep = this.pendingOrders(faction.id, context)
-      .reduce((sum, o) => sum + o.quantity * this.economyService.getShipUpkeepPerSecond(o.shipTypeId), 0);
+      .reduce((sum, o) => sum + o.quantity * this.economyService.getShipUpkeepPerSecond(o.shipTypeId, faction), 0);
     return {
       income: breakdown.incomePerSecond,
       net: breakdown.netPerSecond - queuedUpkeep,
@@ -440,7 +440,7 @@ export class EnemyEconomyService {
       },
     ];
 
-    const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(p)] as const));
+    const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(p, faction)] as const));
     const missingCore = [
       ...(hasSpaceport ? [] : this.unlockedById(faction, 'spaceport')),
       ...(hasFactory ? [] : this.unlockedById(faction, 'spaceship_factory')),
@@ -487,7 +487,7 @@ export class EnemyEconomyService {
       && this.militaryNeed(faction, starSystems, context).strength > 0
       ? this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity)
       : undefined;
-    const militaryUpkeepReserve = nextWarship ? this.economyService.getShipUpkeepPerSecond(nextWarship.id) : 0;
+    const militaryUpkeepReserve = nextWarship ? this.economyService.getShipUpkeepPerSecond(nextWarship.id, faction) : 0;
 
     for (const rule of ordered) {
       const budget: ConstructionBudget = {
@@ -524,14 +524,14 @@ export class EnemyEconomyService {
       if (budget.cost.credits < cost.credits || budget.cost.rawmaterials < cost.rawmaterials) {
         continue;
       }
-      if (this.economyService.getBuildingUpkeepPerSecond(building.name) > budget.upkeepAllowance) {
+      if (this.economyService.getBuildingUpkeepPerSecond(building.name, faction) > budget.upkeepAllowance) {
         continue;
       }
       const placement = this.choosePlacement(planet, building, gridSize, budget.coreSites);
       if (!placement) {
         continue;
       }
-      const safety = this.checkSafety(planet, building, placement);
+      const safety = this.checkSafety(faction, planet, building, placement);
       if (safety.energyOk && safety.workforceOk) {
         return { planet, building, x: placement.x, y: placement.y };
       }
@@ -614,15 +614,16 @@ export class EnemyEconomyService {
    * building on an energy-short planet is still allowed.
    */
   private checkSafety(
+    faction: Faction,
     planet: PlanetTile,
     building: BuildingDef,
     placement: { x: number; y: number },
   ): { energyOk: boolean; workforceOk: boolean } {
-    const current = this.economyService.calculatePlanetEconomy(planet);
+    const current = this.economyService.calculatePlanetEconomy(planet, faction);
     const projected = this.economyService.calculatePlanetEconomy({
       ...planet,
       buildings: [...planet.buildings, { name: building.name, size: building.size, x: placement.x, y: placement.y }],
-    });
+    }, faction);
     const energyBefore = current.energyProduction - current.energyConsumption;
     const energyAfter = projected.energyProduction - projected.energyConsumption;
     const workforceBefore = current.workforceAvailable - current.workforceRequired;
@@ -848,7 +849,7 @@ export class EnemyEconomyService {
   /* Combat strength MILITARY_INCOME_SHARE of gross income can keep in upkeep. */
   private incomeSupportedStrength(faction: Faction, starSystems: StarSystem[], context: EconomyContext): number {
     const hull = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
-    const upkeep = hull ? this.economyService.getShipUpkeepPerSecond(hull.id) : 0;
+    const upkeep = hull ? this.economyService.getShipUpkeepPerSecond(hull.id, faction) : 0;
     if (!hull || upkeep <= 0) {
       return 0;
     }
@@ -884,7 +885,7 @@ export class EnemyEconomyService {
         const cost = shipCost(t);
         return isCombatShipType(t) && t.cost > 0
           && cost.credits <= budget.credits && cost.rawmaterials <= budget.rawmaterials
-          && this.economyService.getShipUpkeepPerSecond(t.id) <= upkeepAllowance
+          && this.economyService.getShipUpkeepPerSecond(t.id, faction) <= upkeepAllowance
           && this.researchService.isShipUnlocked(faction, t.id);
       });
     if (candidates.length === 0) {

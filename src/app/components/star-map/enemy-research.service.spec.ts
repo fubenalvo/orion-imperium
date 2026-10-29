@@ -80,14 +80,16 @@ describe('EnemyResearchService', () => {
     const calm = service.selectTechnology(f, [f, player], systems, []);
     const threatened = service.selectTechnology(f, [f, player], systems, threat);
 
-    // Military path: unlocks a warship itself, or is the prerequisite of a
-    // technology that does (e.g. advanced_weapons → capital ships).
+    // Military path: unlocks a warship or improves warships in battle
+    // (shipAttack/shipShield bonuses), or is the prerequisite of such a
+    // technology (e.g. military_engineering → advanced_weapons).
     const unlocksWarship = (id: string) =>
-      research.getTechnology(id)!.unlocksShips.some((s) => s !== 'colonizer' && s !== 'scout' && s !== 'fighter');
+      research.getTechnology(id)!.unlocksShips.some((s) => s !== 'colonizer' && s !== 'scout' && s !== 'fighter')
+      || (research.getTechnology(id)!.bonuses ?? []).some((b) => b.type === 'shipAttack' || b.type === 'shipShield');
     const onMilitaryPath = (id: string) =>
       unlocksWarship(id) || research.getAllTechnologies().some((t) => t.prerequisites.includes(id) && unlocksWarship(t.id));
     expect(threatened).toBeDefined();
-    expect(onMilitaryPath(threatened!.id)).toBe(true);
+    expect(onMilitaryPath(threatened!.id), threatened!.id).toBe(true);
     expect(calm).toBeDefined();
   });
 

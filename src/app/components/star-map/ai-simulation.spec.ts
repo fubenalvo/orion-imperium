@@ -109,6 +109,9 @@ interface FactionTrace {
   failedOrders: number;
   /* Economy ticks on which part of the upkeep could not be paid. */
   arrearsTicks: number;
+  /* Researched technology ids in order, with researchOrderTimes[i] = when. */
+  researchOrder: string[];
+  researchOrderTimes: number[];
 }
 
 interface OwnershipChange {
@@ -164,10 +167,6 @@ function generate(options: ScenarioOptions): StarMapData {
 
 function ownedPlanets(data: StarMapData, factionId: string) {
   return data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === factionId);
-}
-
-function buildingCount(data: StarMapData, factionId: string): number {
-  return ownedPlanets(data, factionId).reduce((sum, p) => sum + p.buildings.length, 0);
 }
 
 const RESEARCH_BUILDINGS = ['Small Research Laboratory', 'Research Laboratory'];
@@ -240,6 +239,8 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       rawSpent: 0,
       failedOrders: 0,
       arrearsTicks: 0,
+      researchOrder: [],
+      researchOrderTimes: [],
     });
   }
 
@@ -338,7 +339,12 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     const ownersBefore = new Map(
       data.starSystems.flatMap((s) => s.planetsTiles).map((p) => [p.id, p.factionId] as const),
     );
-    const buildingsBefore = new Map([...traces.keys()].map((id) => [id, buildingCount(data, id)] as const));
+    // Per-planet building counts: construction is counted only on planets
+    // the faction owned both before and after the frame, so capturing an
+    // already developed planet is not mistaken for a new building.
+    const buildingsBefore = new Map(
+      data.starSystems.flatMap((s) => s.planetsTiles).map((p) => [p.id, p.buildings.length] as const),
+    );
 
     movement.updateFleets(data.fleets, data.starSystems, null, 'map', dt, () => {}, (fleetId) => {
       const fleet = data.fleets.find((f) => f.id === fleetId);
@@ -388,7 +394,14 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       // AI spending happens inside the AI tick (buildings, production orders).
       trace.creditsSpent += Math.max(0, creditsBeforeTick.get(factionId)! - (faction.currencies['credits'] ?? 0));
       trace.rawSpent += Math.max(0, rawBeforeTick.get(factionId)! - (faction.currencies['rawmaterials'] ?? 0));
-      if ((faction.researchedTechnologies ?? []).length > techsBeforeTick.get(factionId)!) trace.researchTimes.push(time);
+      const researchedNow = faction.researchedTechnologies ?? [];
+      if (researchedNow.length > techsBeforeTick.get(factionId)!) {
+        trace.researchTimes.push(time);
+        for (const id of researchedNow.slice(techsBeforeTick.get(factionId)!)) {
+          trace.researchOrder.push(id);
+          trace.researchOrderTimes.push(time);
+        }
+      }
       if (frames % 600 === 0) {
         trace.priorities.push(TestBed.inject(EnemyPlanService).getPosture(faction).primary);
         trace.strategies.push(TestBed.inject(EnemyStrategyService).getStrategy(factionId) ?? 'none');
@@ -451,7 +464,10 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       if (loser) loser.lostPlanets++;
     }
     for (const [factionId, trace] of traces) {
-      if (buildingCount(data, factionId) > buildingsBefore.get(factionId)!) trace.buildTimes.push(time);
+      const built = ownedPlanets(data, factionId).some(
+        (p) => ownersBefore.get(p.id) === factionId && p.buildings.length > (buildingsBefore.get(p.id) ?? 0),
+      );
+      if (built) trace.buildTimes.push(time);
       if (trace.spaceportAt === null && hasBuilding(data, factionId, ['Spaceport'])) trace.spaceportAt = time;
       if (trace.factoryAt === null && hasBuilding(data, factionId, ['Spaceship Factory'])) trace.factoryAt = time;
       if (trace.firstResearchBuildingAt === null) {
@@ -725,7 +741,8 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
       expect(developedPlanetCount(result.data, factionId, trace), `${factionId} developed planets`).toBeGreaterThanOrEqual(planets.length - 1);
       const economy = TestBed.inject(EconomyService);
       for (const planet of planets) {
-        const e = economy.calculatePlanetEconomy(planet);
+        // The owner's technologies (e.g. improved_power) count, as in the game.
+        const e = economy.calculatePlanetEconomy(planet, result.data.factions.find((f) => f.id === factionId));
         expect(e.energyProduction, `${factionId} ${planet.name} energy`).toBeGreaterThanOrEqual(e.energyConsumption);
       }
       expect(trace.combatShipsProduced, `${factionId} combat ships`).toBeGreaterThanOrEqual(2);
@@ -754,7 +771,7 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
       expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(300);
       expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(1);
       const home = result.data.starSystems.flatMap((s) => s.planetsTiles).find((p) => p.id === trace.homeworldId)!;
-      const economy = TestBed.inject(EconomyService).calculatePlanetEconomy(home);
+      const economy = TestBed.inject(EconomyService).calculatePlanetEconomy(home, result.data.factions.find((f) => f.id === factionId));
       expect(economy.energyProduction, `${factionId} homeworld energy`).toBeGreaterThanOrEqual(economy.energyConsumption);
     }
   });
@@ -780,7 +797,7 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     const economy = TestBed.inject(EconomyService);
     for (const [factionId, trace] of result.traces) {
       const home = result.data.starSystems.flatMap((s) => s.planetsTiles).find((p) => p.id === trace.homeworldId)!;
-      const e = economy.calculatePlanetEconomy(home);
+      const e = economy.calculatePlanetEconomy(home, result.data.factions.find((f) => f.id === factionId));
       expect(e.energyProduction, `${factionId} energy`).toBeGreaterThanOrEqual(e.energyConsumption);
       expect(home.satisfaction ?? 100, `${factionId} satisfaction`).toBeGreaterThan(80);
     }
@@ -1461,8 +1478,8 @@ interface LeagueRow {
   livingStrength: number;
   /* Time of the last technology bought (the whole tree when techs = 31). */
   treeCompletedAt: number;
-  /* Time of the 10th researched technology (6th bought after the 4 starting ones). */
-  tenthTechAt: number;
+  /* Sum of base research costs of everything researched (research volume). */
+  researchVolume: number;
   priorities: Record<string, number>;
 }
 
@@ -1497,7 +1514,8 @@ function leagueRows(result: ScenarioResult, options: ScenarioOptions, windowSeco
       deadlocks: events.filter((e) => e.factionId === factionId && e.type !== 'saturated').length,
       inactiveWindows,
       treeCompletedAt: Math.round(trace.researchTimes.at(-1) ?? options.seconds),
-      tenthTechAt: Math.round(trace.researchTimes[5] ?? options.seconds),
+      researchVolume: (faction.researchedTechnologies ?? [])
+        .reduce((sum, id) => sum + (TestBed.inject(ResearchService).getTechnology(id)?.researchCost ?? 0), 0),
       livingStrength: Math.round(TestBed.inject(ShipService).calculateFleetStrength(
         result.data.fleets.filter((f) => f.factionId === factionId && !f.destroyed).flatMap((f) => f.ships),
       )),
@@ -1624,7 +1642,10 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     expect(sum(technologist, 'techs'), 'technologists research at least as much').toBeGreaterThanOrEqual(sum(militarist, 'techs'));
     // The tree takes ~30–40 minutes (research-tree.json costs), so a 15-minute
     // game compares an early milestone: technologists reach it sooner.
-    expect(sum(technologist, 'tenthTechAt'), 'technologists research sooner').toBeLessThan(sum(militarist, 'tenthTechAt'));
+    // Research cost grows with every technology, so "first to N technologies"
+    // rewards buying cheap ones; research volume (base cost acquired) is the
+    // measure of research investment.
+    expect(sum(technologist, 'researchVolume'), 'technologists research more').toBeGreaterThan(sum(militarist, 'researchVolume'));
   });
 });
 
@@ -1745,6 +1766,46 @@ interface EconomyRow {
   failedOrders: number;
   arrearsTicks: number;
   rebellions: number;
+  /* Time all technologies of a prerequisite depth were researched (null = not within the run). */
+  tier1DoneAt: number | null;
+  tier2DoneAt: number | null;
+  treeDoneAt: number | null;
+  firstPicks: string;
+  /* Technologies still unresearched at the end of the run. */
+  missing: string;
+}
+
+/* Prerequisite depth of each technology (starting technologies: 0). */
+function technologyDepths(): Map<string, number> {
+  const research = TestBed.inject(ResearchService);
+  const depths = new Map<string, number>();
+  const depthOf = (id: string): number => {
+    if (depths.has(id)) return depths.get(id)!;
+    const tech = research.getTechnology(id)!;
+    const d = tech.prerequisites.length === 0 ? 0 : 1 + Math.max(...tech.prerequisites.map(depthOf));
+    depths.set(id, d);
+    return d;
+  };
+  research.getAllTechnologies().forEach((t) => depthOf(t.id));
+  return depths;
+}
+
+function researchMilestones(factionId: string, trace: FactionTrace): Pick<EconomyRow, 'tier1DoneAt' | 'tier2DoneAt' | 'treeDoneAt' | 'firstPicks' | 'missing'> {
+  const history = trace.researchOrder;
+  const depths = technologyDepths();
+  const doneAt = (maxDepth: number): number | null => {
+    const needed = [...depths].filter(([, d]) => d >= 1 && d <= maxDepth).map(([id]) => id);
+    const indices = needed.map((id) => history.indexOf(id));
+    if (indices.some((i) => i < 0)) return null;
+    return Math.round(trace.researchOrderTimes[Math.max(...indices)]);
+  };
+  return {
+    tier1DoneAt: doneAt(1),
+    tier2DoneAt: doneAt(2),
+    treeDoneAt: doneAt(99),
+    firstPicks: history.slice(0, 6).join(','),
+    missing: [...depths.keys()].filter((id) => depths.get(id)! > 0 && !history.includes(id)).join(','),
+  };
 }
 
 function economyRows(result: ScenarioResult, label: string): EconomyRow[] {
@@ -1767,6 +1828,7 @@ function economyRows(result: ScenarioResult, label: string): EconomyRow[] {
       tech20At: trace.researchTimes[15] !== undefined ? Math.round(trace.researchTimes[15]) : null,
       failedOrders: trace.failedOrders,
       arrearsTicks: trace.arrearsTicks,
+      ...researchMilestones(factionId, trace),
       rebellions: result.ownershipChanges.filter((c) => c.from === factionId && c.to === 'independent').length,
     };
   });
@@ -1810,7 +1872,15 @@ describe('AI simulation — economy validation', () => {
       if (row.tech20At !== null) {
         expect(row.tech20At, `${row.who} 20th technology time`).toBeGreaterThan(600);
       }
+      // Research progression: early technologies arrive within the first
+      // ~15 minutes, the full tree takes a long session (not minutes).
+      expect(row.techs, `${row.who} technologies after 30 minutes`).toBeGreaterThanOrEqual(15);
+      if (row.treeDoneAt !== null) {
+        expect(row.treeDoneAt, `${row.who} full tree time`).toBeGreaterThan(1200);
+      }
     }
+    // Personalities research differently: not every faction picks the same first technologies.
+    expect(new Set(rows.map((r) => r.firstPicks)).size, 'distinct research openings').toBeGreaterThan(1);
     // console.log is mocked in these suites and console.info is swallowed by
     // the Angular test builder, so the report goes straight to stdout.
     (globalThis as any).process?.stdout?.write(`ECONOMY METRICS ${JSON.stringify(rows)}\n`);

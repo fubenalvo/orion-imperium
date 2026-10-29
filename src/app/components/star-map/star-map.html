@@ -314,6 +314,7 @@
   @if (showResearchTree) {
     <app-star-map-research-tree
       [faction]="getPlayerFaction()!"
+      [researchPerSecond]="getPlayerEconomyBreakdown().net['research'] ?? 0"
       (close)="closeResearchTree()"
       (researched)="onTechnologyResearched()"
     ></app-star-map-research-tree>

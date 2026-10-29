@@ -159,6 +159,10 @@ deterministic. To avoid flip-flopping, the chosen automatic target is **sticky**
 (`autoTargetId`): it is kept while alive and in reach, and dropped when it dies, leaves reach,
 or the mode changes.
 
+## Technology Combat Bonuses
+
+Researched technologies can raise a faction's ship `attack` and `shield` per hull type (see [Research](./research.md)). The multipliers are stamped on the `Battle` (`combatBonuses`, per faction id and ship type) when the battle is created and applied once in `createBattleState`, to both the current and maximum shield. Planet defense (virtual) ships and battles without stamped bonuses (AI forecasts) use base stats. Overworld fleets are never modified.
+
 ## Planet Battles
 
 - A planet with defensive buildings spawns a virtual defender fleet (`id = -planet.id`) made

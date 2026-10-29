@@ -61,7 +61,32 @@ export interface Technology {
   prerequisites: string[];
   unlocksShips: string[];
   unlocksBuildings: string[];
-  bonuses?: { type: 'sensorRange'; value: number }[];
+  /* Mechanical effects; aggregated by ResearchService.getModifiers (docs/research.md). */
+  bonuses?: TechnologyBonus[];
+}
+
+/*
+ * One mechanical effect of a technology. Values are additive between
+ * technologies of the same type: multipliers become (1 + Σ value), so two
+ * +15% energy technologies give ×1.30; reductions use negative values.
+ * `shipTypes` restricts ship combat bonuses to those hulls.
+ */
+export type TechnologyBonusType =
+  | 'sensorRange'
+  | 'energyOutput'
+  | 'researchOutput'
+  | 'rawOutput'
+  | 'buildingUpkeep'
+  | 'shipUpkeep'
+  | 'shipBuildSpeed'
+  | 'populationGrowth'
+  | 'shipAttack'
+  | 'shipShield';
+
+export interface TechnologyBonus {
+  type: TechnologyBonusType;
+  value: number;
+  shipTypes?: string[];
 }
 
 /*

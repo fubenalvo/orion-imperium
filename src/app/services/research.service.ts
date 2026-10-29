@@ -1,10 +1,64 @@
 import { Injectable } from '@angular/core';
-import { Faction, Technology } from '../components/star-map/star-map.models';
+import { Faction, Technology, TechnologyBonus, TechnologyBonusType } from '../components/star-map/star-map.models';
 import researchTreeData from '../components/star-map/research-tree.json';
 import shipData from '../components/star-map/ship-data.json';
 import planetData from '../components/star-map/planet-data.json';
 
 export type TechnologyStatus = 'researched' | 'available' | 'locked';
+
+/*
+ * Aggregated mechanical effect of a faction's researched technologies.
+ * Multipliers are 1 when nothing applies. Derived from
+ * `faction.researchedTechnologies` on demand and never stored, so effects
+ * apply exactly once, follow the researched list immediately, and are
+ * recomputed identically after loading a save.
+ */
+export interface TechModifiers {
+  /* Extra sensor range in grid cells. */
+  sensorRange: number;
+  /* Multiplier on building energy production. */
+  energyOutput: number;
+  /* Multiplier on building research production. */
+  researchOutput: number;
+  /* Multiplier on building raw-material production (not the population trickle). */
+  rawOutput: number;
+  /* Multiplier on building upkeep. */
+  buildingUpkeep: number;
+  /* Multiplier on fleet and reserve ship upkeep. */
+  shipUpkeep: number;
+  /* Multiplier on factory production power (ship build speed). */
+  shipBuildSpeed: number;
+  /* Multiplier on natural population growth. */
+  populationGrowth: number;
+  /* Battle attack / shield multipliers per ship type (absent → 1). */
+  shipAttack: Record<string, number>;
+  shipShield: Record<string, number>;
+}
+
+export const NEUTRAL_TECH_MODIFIERS: Readonly<TechModifiers> = Object.freeze({
+  sensorRange: 0,
+  energyOutput: 1,
+  researchOutput: 1,
+  rawOutput: 1,
+  buildingUpkeep: 1,
+  shipUpkeep: 1,
+  shipBuildSpeed: 1,
+  populationGrowth: 1,
+  shipAttack: Object.freeze({}) as Record<string, number>,
+  shipShield: Object.freeze({}) as Record<string, number>,
+});
+
+/* Reductions can never remove more than this share of a cost. */
+const MIN_COST_MULTIPLIER = 0.25;
+
+/*
+ * Research cost scaling: every technology a faction has researched beyond
+ * the starting ones raises the cost of its next technologies by this share
+ * of their base cost. Early choices stay cheap while a research leader pays
+ * more for the late tree, which damps runaway research advantages and keeps
+ * the full tree a long-session goal (docs/research.md).
+ */
+export const RESEARCH_COST_GROWTH_PER_TECH = 0.02;
 
 export interface ResearchResult {
   ok: boolean;
@@ -26,9 +80,16 @@ export interface ValidationError {
  * Data-driven research system. Technologies are defined in
  * research-tree.json and referenced by ID from ships and buildings.
  *
+ * Technologies have two kinds of effect: unlocks (`unlocksShips`,
+ * `unlocksBuildings`, checked by isShipUnlocked / isBuildingUnlocked) and
+ * bonuses (`bonuses`, aggregated by getModifiers and read by the systems
+ * that own the mechanic: EconomyService, ProductionService, sensors, AI
+ * intel, battle setup). See docs/research.md for the effect inventory.
+ *
  * The service does NOT:
  *  - modify ship or building definitions
- *  - alter the economy
+ *  - store derived effects (getModifiers recomputes them from the
+ *    researched list; the result is cached by that list)
  *  - persist state (save/load is handled by StarMapData)
  */
 
@@ -44,6 +105,7 @@ export class ResearchService {
   private readonly technologies: Technology[];
   private readonly technologyMap: Map<string, Technology>;
   private readonly validationErrors: ValidationError[];
+  private readonly modifierCache = new Map<string, TechModifiers>();
 
   constructor() {
     const data = researchTreeData as { technologies: Technology[] };
@@ -113,19 +175,148 @@ export class ResearchService {
     return 'available';
   }
 
+  /*
+   * getResearchCost: What this faction pays for the technology now — the
+   * base `researchCost` × (1 + RESEARCH_COST_GROWTH_PER_TECH × researched
+   * non-starting technologies), rounded. The single cost rule used by
+   * canResearch, researchTechnology, the research UI and the AI.
+   */
+  getResearchCost(faction: Faction | null | undefined, tech: Technology): number {
+    const researched = new Set(faction?.researchedTechnologies ?? []);
+    let count = 0;
+    for (const t of this.technologies) {
+      if (researched.has(t.id) && !STARTING_TECHNOLOGY_IDS.includes(t.id)) count++;
+    }
+    return Math.round(tech.researchCost * (1 + RESEARCH_COST_GROWTH_PER_TECH * count));
+  }
+
   getSensorRangeBonus(faction: Faction): number {
-    const researched = faction.researchedTechnologies ?? [];
-    let bonus = 0;
+    return this.getModifiers(faction).sensorRange;
+  }
+
+  /*
+   * getModifiers: The aggregated bonuses of every researched technology.
+   * Iterates the technology list (not the researched list), so unknown or
+   * duplicated ids in a save can never count twice. Cached by the sorted
+   * researched list; callers must treat the result as read-only.
+   */
+  getModifiers(faction: Faction | null | undefined): TechModifiers {
+    const researched = faction?.researchedTechnologies ?? [];
+    if (researched.length === 0) {
+      return NEUTRAL_TECH_MODIFIERS;
+    }
+    const key = [...researched].sort().join('|');
+    const cached = this.modifierCache.get(key);
+    if (cached) {
+      return cached;
+    }
+    const owned = new Set(researched);
+    const sums: Record<Exclude<TechnologyBonusType, 'shipAttack' | 'shipShield'>, number> = {
+      sensorRange: 0, energyOutput: 0, researchOutput: 0, rawOutput: 0,
+      buildingUpkeep: 0, shipUpkeep: 0, shipBuildSpeed: 0, populationGrowth: 0,
+    };
+    const shipAttack: Record<string, number> = {};
+    const shipShield: Record<string, number> = {};
     for (const tech of this.technologies) {
-      if (!researched.includes(tech.id)) continue;
-      const bonuses = tech.bonuses ?? [];
-      for (const b of bonuses) {
-        if (b.type === 'sensorRange') {
-          bonus += b.value;
+      if (!owned.has(tech.id)) continue;
+      for (const bonus of tech.bonuses ?? []) {
+        if (bonus.type === 'shipAttack' || bonus.type === 'shipShield') {
+          const target = bonus.type === 'shipAttack' ? shipAttack : shipShield;
+          for (const shipType of bonus.shipTypes ?? []) {
+            target[shipType] = (target[shipType] ?? 1) + bonus.value;
+          }
+        } else {
+          sums[bonus.type] += bonus.value;
         }
       }
     }
-    return bonus;
+    const modifiers: TechModifiers = {
+      sensorRange: sums.sensorRange,
+      energyOutput: 1 + sums.energyOutput,
+      researchOutput: 1 + sums.researchOutput,
+      rawOutput: 1 + sums.rawOutput,
+      buildingUpkeep: Math.max(MIN_COST_MULTIPLIER, 1 + sums.buildingUpkeep),
+      shipUpkeep: Math.max(MIN_COST_MULTIPLIER, 1 + sums.shipUpkeep),
+      shipBuildSpeed: 1 + sums.shipBuildSpeed,
+      populationGrowth: 1 + sums.populationGrowth,
+      shipAttack,
+      shipShield,
+    };
+    this.modifierCache.set(key, modifiers);
+    return modifiers;
+  }
+
+  /*
+   * describeEffects: The mechanical effects of a technology as short,
+   * player-facing lines (unlocks first, then bonuses). Generated from the
+   * same data the game rules read, so the text cannot drift from the
+   * implementation.
+   */
+  describeEffects(tech: Technology): string[] {
+    const shipNames = new Map((shipData as { shipTypes: { id: string; name: string }[] }).shipTypes.map((s) => [s.id, s.name]));
+    const buildingNames = new Map((planetData as { buildings: { id: string; name: string }[] }).buildings.map((b) => [b.id, b.name]));
+    const lines: string[] = [];
+    if (tech.unlocksShips.length > 0) {
+      lines.push(`Unlocks ships: ${tech.unlocksShips.map((id) => shipNames.get(id) ?? id).join(', ')}`);
+    }
+    if (tech.unlocksBuildings.length > 0) {
+      lines.push(`Unlocks buildings: ${tech.unlocksBuildings.map((id) => buildingNames.get(id) ?? id).join(', ')}`);
+    }
+    for (const bonus of tech.bonuses ?? []) {
+      lines.push(this.describeBonus(bonus, shipNames));
+    }
+    return lines;
+  }
+
+  private describeBonus(bonus: TechnologyBonus, shipNames: Map<string, string>): string {
+    const pct = `${bonus.value > 0 ? '+' : ''}${Math.round(bonus.value * 100)}%`;
+    const allCombat = (bonus.shipTypes ?? []).length >= 8;
+    const hulls = allCombat ? 'all warships' : (bonus.shipTypes ?? []).map((id) => shipNames.get(id) ?? id).join(', ');
+    switch (bonus.type) {
+      case 'sensorRange': return `+${bonus.value} sensor range (fleets and systems)`;
+      case 'energyOutput': return `${pct} energy from power buildings`;
+      case 'researchOutput': return `${pct} research from research buildings`;
+      case 'rawOutput': return `${pct} raw materials from buildings`;
+      case 'buildingUpkeep': return `${pct} building upkeep`;
+      case 'shipUpkeep': return `${pct} ship upkeep`;
+      case 'shipBuildSpeed': return `${pct} ship construction speed`;
+      case 'populationGrowth': return `${pct} population growth`;
+      case 'shipAttack': return `${pct} battle damage: ${hulls}`;
+      case 'shipShield': return `${pct} battle shields: ${hulls}`;
+    }
+  }
+
+  /* Technologies that list `technologyId` as a prerequisite. */
+  getDependents(technologyId: string): Technology[] {
+    return this.technologies.filter((t) => t.prerequisites.includes(technologyId));
+  }
+
+  /*
+   * buildCombatBonuses: Battle attack/shield multipliers of the given
+   * factions, keyed by faction id, for Battle.combatBonuses.
+   */
+  buildCombatBonuses(factions: (Faction | null | undefined)[]): Record<string, { attack: Record<string, number>; shield: Record<string, number> }> {
+    const result: Record<string, { attack: Record<string, number>; shield: Record<string, number> }> = {};
+    for (const faction of factions) {
+      if (!faction) continue;
+      const modifiers = this.getModifiers(faction);
+      result[faction.id] = { attack: { ...modifiers.shipAttack }, shield: { ...modifiers.shipShield } };
+    }
+    return result;
+  }
+
+  /*
+   * getResearchBlocker: Why a technology cannot be researched right now,
+   * in the same order researchTechnology checks it; undefined when it can.
+   */
+  getResearchBlocker(faction: Faction, technologyId: string): ResearchResult['reason'] | 'unknown_technology' | undefined {
+    const tech = this.technologyMap.get(technologyId);
+    if (!tech) return 'unknown_technology';
+    if (this.isResearched(faction, technologyId)) return 'already_researched';
+    const researched = faction.researchedTechnologies ?? [];
+    if (!tech.prerequisites.every((prereq) => researched.includes(prereq))) return 'prerequisites_missing';
+    if ((faction.currencies['research'] ?? 0) < this.getResearchCost(faction, tech)) return 'insufficient_research';
+    return undefined;
   }
 
   /*
@@ -141,7 +332,7 @@ export class ResearchService {
     const hasPrerequisites = tech.prerequisites.every((prereq) => researched.includes(prereq));
     if (!hasPrerequisites) return false;
     const researchPoints = faction.currencies['research'] ?? 0;
-    return researchPoints >= tech.researchCost;
+    return researchPoints >= this.getResearchCost(faction, tech);
   }
 
   /*
@@ -162,10 +353,11 @@ export class ResearchService {
       return { ok: false, reason: 'prerequisites_missing', technology: tech };
     }
     const researchPoints = faction.currencies['research'] ?? 0;
-    if (researchPoints < tech.researchCost) {
+    const cost = this.getResearchCost(faction, tech);
+    if (researchPoints < cost) {
       return { ok: false, reason: 'insufficient_research', technology: tech };
     }
-    faction.currencies['research'] = researchPoints - tech.researchCost;
+    faction.currencies['research'] = researchPoints - cost;
     if (!faction.researchedTechnologies) {
       faction.researchedTechnologies = [];
     }

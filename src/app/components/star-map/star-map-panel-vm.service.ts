@@ -50,7 +50,7 @@ export class StarMapPanelVmService {
     const queue = this.productionService.getQueue(data, 'player', selectedPlanetTile.id);
     const etas: Record<number, number | null> = {};
     for (const order of queue) {
-      etas[order.id] = this.productionService.getOrderEta(order, selectedPlanetTile);
+      etas[order.id] = this.productionService.getOrderEta(order, selectedPlanetTile, playerFaction);
     }
     const shipCosts: Record<string, number> = {};
     const shipRawCosts: Record<string, number> = {};
@@ -66,7 +66,7 @@ export class StarMapPanelVmService {
       factionId: 'player',
       buildable,
       capacity: this.productionService.getPlanetCapacity(selectedPlanetTile),
-      power: this.productionService.getPlanetPower(selectedPlanetTile),
+      power: this.productionService.getEffectivePower(selectedPlanetTile, 'spaceship_factory', playerFaction),
       queue,
       shipCosts,
       shipRawCosts,

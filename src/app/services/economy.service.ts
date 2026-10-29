@@ -3,6 +3,7 @@ import { ShipService } from './ship.service';
 import { PlanetOwnershipService } from './planet-ownership.service';
 import { ProductionService } from './production.service';
 import { ShipStockService } from './ship-stock.service';
+import { ResearchService, TechModifiers } from './research.service';
 import planetData from '../components/star-map/planet-data.json';
 import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
 import {
@@ -97,12 +98,16 @@ export class EconomyService {
    * only so specs can still construct `new EconomyService(new ShipService())`;
    * such an instance gets a private ownership service with identical rules.
    */
+  private readonly research: ResearchService;
+
   constructor(
     private shipService: ShipService,
     @Optional() planetOwnership?: PlanetOwnershipService,
+    @Optional() research?: ResearchService,
   ) {
     this.planetOwnership = planetOwnership
       ?? new PlanetOwnershipService(new ProductionService(shipService, new ShipStockService()));
+    this.research = research ?? new ResearchService();
     const buildings = (planetData as { buildings: BuildingStats[] }).buildings;
     for (const building of buildings) {
       this.buildingStats.set(building.id, building);
@@ -115,8 +120,13 @@ export class EconomyService {
    * Does not mutate the planet. Reads the current satisfaction value from
    * the planet (defaulting to 100) and exposes the income multiplier that
    * should be applied to credits production.
+   *
+   * `owner` applies the owner's technology modifiers (energy, raw-material
+   * and research output of buildings). Without it the result is the
+   * technology-free baseline; every economy and AI path passes the owner.
    */
-  calculatePlanetEconomy(planet: PlanetTile): PlanetEconomy {
+  calculatePlanetEconomy(planet: PlanetTile, owner?: Faction | null): PlanetEconomy {
+    const tech = this.research.getModifiers(owner);
     const production: ResourceRates = {};
     const consumption: ResourceRates = {};
     let energyProduction = 0;
@@ -135,15 +145,16 @@ export class EconomyService {
       if (!stats) continue;
 
       for (const [resource, amount] of Object.entries(stats.production ?? {})) {
+        const techMultiplier = resource === 'rawmaterials' ? tech.rawOutput : resource === 'research' ? tech.researchOutput : 1;
         production[resource as ResourceType] =
-          (production[resource as ResourceType] ?? 0) + amount * workforceEfficiency;
+          (production[resource as ResourceType] ?? 0) + amount * workforceEfficiency * techMultiplier;
       }
 
       for (const [resource, amount] of Object.entries(stats.consumption ?? {})) {
         consumption[resource as ResourceType] = (consumption[resource as ResourceType] ?? 0) + amount;
       }
 
-      energyProduction += stats.energyProduction ?? 0;
+      energyProduction += (stats.energyProduction ?? 0) * tech.energyOutput;
       energyConsumption += stats.energyConsumption ?? 0;
     }
 
@@ -249,7 +260,8 @@ export class EconomyService {
     return (PLANET_TYPE_HABITABILITY[planet.type] ?? 0) + moraleBonus;
   }
 
-calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
+  /* `owner` applies the populationGrowth technology modifier. */
+  calculatePopulationGrowth(planet: PlanetTile, deltaTime: number, owner?: Faction | null): number {
     let capacity = this.getPopulationCapacity(planet);
     let pop = planet.population;
     if (pop === undefined) {
@@ -270,7 +282,8 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
       hab = looked;
     }
     const habMod = Math.max(0, 1 + hab);
-    return this.POPULATION_GROWTH_BASE_RATE * satMod * habMod * remaining * deltaTime;
+    return this.POPULATION_GROWTH_BASE_RATE * satMod * habMod * remaining * deltaTime
+      * this.research.getModifiers(owner).populationGrowth;
   }
 
   /*
@@ -330,7 +343,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     const adminShare = administrationShare(ownedPlanets.length);
 
     for (const planet of ownedPlanets) {
-      const entry = this.buildPlanetEntry(planet, difficultyIncomeMultiplier, adminShare);
+      const entry = this.buildPlanetEntry(planet, difficultyIncomeMultiplier, adminShare, faction);
       totalPopulation += entry.population;
       totalEfficiency += entry.efficiency;
       administration += entry.administration ?? 0;
@@ -345,13 +358,13 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
 
     let shipUpkeep = 0;
     for (const fleet of ownedFleets) {
-      for (const entry of this.shipUpkeepEntries(fleet.name, fleet.ships.filter((s) => !s.destroyed), 1)) {
+      for (const entry of this.shipUpkeepEntries(fleet.name, fleet.ships.filter((s) => !s.destroyed), 1, faction)) {
         shipUpkeep += entry.totalCost;
         fleetExpenses.push(entry);
       }
     }
     const reserve = shipStock?.find((s) => s.factionId === factionId)?.ships ?? [];
-    for (const entry of this.shipUpkeepEntries(RESERVE_FLEET_LABEL, reserve, RESERVE_SHIP_UPKEEP_FACTOR)) {
+    for (const entry of this.shipUpkeepEntries(RESERVE_FLEET_LABEL, reserve, RESERVE_SHIP_UPKEEP_FACTOR, faction)) {
       shipUpkeep += entry.totalCost;
       fleetExpenses.push(entry);
     }
@@ -423,7 +436,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     // 1) Satisfaction drift and rebellion.
     for (const planet of this.getOwnedPlanets(factionId, starSystems)) {
       if (planet.factionId === 'independent') continue;
-      const energyShort = this.calculatePlanetEconomy(planet).efficiency < 1.0;
+      const energyShort = this.calculatePlanetEconomy(planet, faction).efficiency < 1.0;
       const energyDirection = energyShort ? -1 : 1;
       const moraleDrift = this.getMoraleDriftPerSecond(planet);
       const current = planet.satisfaction ?? 100;
@@ -463,7 +476,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
 
     // 5) Population growth (pauses with deltaTime 0, scales with speed).
     for (const planet of this.getOwnedPlanets(factionId, starSystems)) {
-      const growth = this.calculatePopulationGrowth(planet, deltaTime);
+      const growth = this.calculatePopulationGrowth(planet, deltaTime, faction);
       const capacity = this.getPopulationCapacity(planet);
       planet.population = Math.min(capacity, (planet.population ?? 0) + growth);
     }
@@ -476,12 +489,19 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
    * Exposed so the AI prices the ongoing cost of a purchase with the same
    * conversion the economy tick uses.
    */
-  getBuildingUpkeepPerSecond(buildingName: string): number {
-    return (this.buildingStatsByName.get(buildingName)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT;
+  getBuildingUpkeepPerSecond(buildingName: string, owner?: Faction | null): number {
+    return (this.buildingStatsByName.get(buildingName)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT
+      * this.research.getModifiers(owner).buildingUpkeep;
   }
 
-  getShipUpkeepPerSecond(shipTypeId: string): number {
-    return (this.shipService.getShipType(shipTypeId)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT;
+  getShipUpkeepPerSecond(shipTypeId: string, owner?: Faction | null): number {
+    return (this.shipService.getShipType(shipTypeId)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT
+      * this.research.getModifiers(owner).shipUpkeep;
+  }
+
+  /* Technology modifiers of a faction (same source every economy rule uses). */
+  getTechModifiers(owner: Faction | null | undefined): TechModifiers {
+    return this.research.getModifiers(owner);
   }
 
   /*
@@ -489,9 +509,14 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
    * Building upkeep and colony administration are booked as this planet's
    * credit consumption (and `expense`).
    */
-  private buildPlanetEntry(planet: PlanetTile, difficultyIncomeMultiplier: number, adminShare: number): PlanetEconomyEntry {
-    const economy = this.calculatePlanetEconomy(planet);
-    const buildingUpkeep = this.calculatePlanetMaintenance(planet);
+  private buildPlanetEntry(
+    planet: PlanetTile,
+    difficultyIncomeMultiplier: number,
+    adminShare: number,
+    owner: Faction | null | undefined,
+  ): PlanetEconomyEntry {
+    const economy = this.calculatePlanetEconomy(planet, owner);
+    const buildingUpkeep = this.calculatePlanetMaintenance(planet, owner);
     const creditIncome = (economy.production['credits'] ?? 0) * economy.efficiency * economy.incomeMultiplier
       * difficultyIncomeMultiplier;
     const administration = creditIncome * adminShare;
@@ -525,7 +550,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
       energyConsumption: economy.energyConsumption,
       energyBalance: economy.energyBalance,
       efficiency: economy.efficiency,
-      buildings: this.getPlanetBuildingExpenses(planet),
+      buildings: this.getPlanetBuildingExpenses(planet, owner),
       satisfaction: economy.satisfaction,
       incomeMultiplier: economy.incomeMultiplier,
       workforceAvailable: economy.workforceAvailable,
@@ -537,7 +562,12 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
   }
 
   /* Upkeep lines per ship type for one fleet (or the reserve), in credits/s. */
-  private shipUpkeepEntries(fleetName: string, ships: { type: string }[], factor: number): FleetExpenseEntry[] {
+  private shipUpkeepEntries(
+    fleetName: string,
+    ships: { type: string }[],
+    factor: number,
+    owner: Faction | null | undefined,
+  ): FleetExpenseEntry[] {
     const shipCounts = new Map<string, number>();
     for (const ship of ships) {
       shipCounts.set(ship.type, (shipCounts.get(ship.type) || 0) + 1);
@@ -545,7 +575,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     const entries: FleetExpenseEntry[] = [];
     for (const [typeId, count] of shipCounts) {
       const shipType = this.shipService.getShipType(typeId);
-      const cost = (shipType?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT * factor;
+      const cost = this.getShipUpkeepPerSecond(typeId, owner) * factor;
       if (cost > 0) {
         entries.push({ fleetName, shipType: shipType?.name ?? typeId, count, maintenanceCost: cost, totalCost: cost * count });
       }
@@ -565,8 +595,8 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
   /*
    * getPlanetEnergy: Backward-compatible energy lookup for a planet.
    */
-  getPlanetEnergy(planet: PlanetTile): number {
-    const economy = this.calculatePlanetEconomy(planet);
+  getPlanetEnergy(planet: PlanetTile, owner?: Faction | null): number {
+    const economy = this.calculatePlanetEconomy(planet, owner);
     return economy.energyProduction;
   }
 
@@ -587,25 +617,25 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     const owner = factions.find((f) => f.id === planet.factionId);
     const ownedCount = starSystems.length > 0 ? this.getOwnedPlanets(planet.factionId, starSystems).length : 1;
     return this.buildPlanetEntry(
-      planet, owner ? getAiDifficultyProfile(owner).incomeMultiplier : 1, administrationShare(ownedCount),
+      planet, owner ? getAiDifficultyProfile(owner).incomeMultiplier : 1, administrationShare(ownedCount), owner,
     );
   }
 
   /* Building upkeep of a planet in credits per second. */
-  private calculatePlanetMaintenance(planet: PlanetTile): number {
+  private calculatePlanetMaintenance(planet: PlanetTile, owner: Faction | null | undefined): number {
     let expense = 0;
     for (const building of planet.buildings ?? []) {
-      expense += this.getBuildingUpkeepPerSecond(building.name);
+      expense += this.getBuildingUpkeepPerSecond(building.name, owner);
     }
     return expense;
   }
 
-  private getPlanetBuildingExpenses(planet: PlanetTile): BuildingExpenseEntry[] {
+  private getPlanetBuildingExpenses(planet: PlanetTile, owner: Faction | null | undefined): BuildingExpenseEntry[] {
     const buildingCounts = new Map<string, number>();
     const buildingCosts = new Map<string, number>();
 
     for (const building of planet.buildings ?? []) {
-      const cost = this.getBuildingUpkeepPerSecond(building.name);
+      const cost = this.getBuildingUpkeepPerSecond(building.name, owner);
       if (cost > 0) {
         buildingCounts.set(building.name, (buildingCounts.get(building.name) || 0) + 1);
         buildingCosts.set(building.name, (buildingCosts.get(building.name) || 0) + cost);

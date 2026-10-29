@@ -125,6 +125,26 @@
   color: #bbb;
 }
 
+// Mechanical effects are set apart from the flavour description.
+.research-tree__card-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2vw;
+  font-size: 0.8vw;
+  color: #9fd8a8;
+  border-left: 2px solid rgba(159, 216, 168, 0.5);
+  padding-left: 0.5vw;
+}
+
+.research-tree__card-effects-label {
+  color: #666;
+}
+
+.research-tree__card-blocker {
+  font-size: 0.8vw;
+  color: #e0a060;
+}
+
 .research-tree__card-footer {
   display: flex;
   justify-content: space-between;
@@ -211,7 +231,9 @@
     font-size: 3.2vw;
   }
 
-  .research-tree__card-prereqs {
+  .research-tree__card-prereqs,
+  .research-tree__card-effects,
+  .research-tree__card-blocker {
     font-size: 3vw;
   }
 

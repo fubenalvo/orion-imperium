@@ -190,9 +190,9 @@ Verified in code; if any of these change, revisit `EnemyEconomyService`:
 
 ## Research (EnemyResearchService)
 
-- Uses `ResearchService.canResearch` / `researchTechnology` — the same authoritative rules as the player's research tree (prerequisites, research-point cost, no duplicates). Research is an instant purchase, so there is no in-progress state; one technology per 5 s decision.
-- Score = (direct value + 0.5 × best value it makes researchable next) / cost. Direct value: a combat hull stronger than the best unlocked one (strength ratio × military need), economically useful buildings (fusion plant, larger housing, research lab), small value for sensor bonuses. Military need rises to ×3 when hostile fleets stronger than the faction's are near its systems.
-- When nothing is affordable the service waits; it never issues an attempt the research service would reject. Research points come from research buildings built by the economy manager (one per planet, upgraded to the full laboratory once researched).
+- Uses `ResearchService.canResearch` / `researchTechnology` / `getResearchCost` — the same authoritative rules as the player's research tree (prerequisites, scaled research-point cost, no duplicates). Research is an instant purchase, so there is no in-progress state; one technology per 5 s decision.
+- Score = (direct value + 0.5 × best value it makes researchable next) / current cost, over every technology whose prerequisites are met. Direct value: a combat hull stronger than the best unlocked one (strength ratio × military need), economically useful buildings, and technology bonuses valued from the faction's own situation (upkeep share, energy margin, raw and research income, growth room, fleet composition × military need). Personality weights scale the matching values; under threat, peacetime values are divided by the military need (×1–3).
+- Saving: if the best technology is not affordable, scores ≥ 1.5× the best affordable one and research income reaches it within 180 s, the faction waits; otherwise it buys the best affordable technology, so it never stalls. Research points come from research buildings built by the economy manager. Full inventory and rules: [Research](./research.md).
 
 ## Colonization
 

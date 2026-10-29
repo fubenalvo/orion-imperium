@@ -390,5 +390,16 @@ export interface Battle {
   planetId?: number;
   planetName?: string;
   planetColor?: string;
+  /*
+   * Technology combat multipliers per faction id, per ship type
+   * (ResearchService.buildCombatBonuses), stamped when the battle is
+   * created and applied once in createBattleState. Stored on the battle
+   * object (which BattleService hands to the battle screen) so the
+   * interactive battle and auto-resolve use the same values. Absent (AI
+   * forecasts, battles built elsewhere) means no bonus.
+   */
+  combatBonuses?: CombatBonuses;
 }
+
+export type CombatBonuses = Record<string, { attack: Record<string, number>; shield: Record<string, number> }>;
 

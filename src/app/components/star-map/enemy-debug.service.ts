@@ -137,7 +137,7 @@ export class EnemyDebugService {
     }
     const owned = starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === faction.id);
     for (const planet of owned) {
-      const e = this.economy.calculatePlanetEconomy(planet);
+      const e = this.economy.calculatePlanetEconomy(planet, faction);
       if (e.energyProduction < e.energyConsumption) out.push(`${planet.name}: energy ${e.energyProduction}/${e.energyConsumption}`);
       if (e.workforceAvailable < e.workforceRequired) out.push(`${planet.name}: workforce ${e.workforceAvailable}/${e.workforceRequired}`);
       if ((planet.satisfaction ?? 100) < 40) out.push(`${planet.name}: satisfaction ${Math.round(planet.satisfaction ?? 0)}%`);
