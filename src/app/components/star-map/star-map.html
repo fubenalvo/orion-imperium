@@ -300,6 +300,15 @@
   >
   </app-star-map-context-menu>
 
+  @if (aiDebugVisible) {
+    <app-ai-debug-panel
+      [snapshots]="aiDebugSnapshots"
+      [consoleEnabled]="aiDebugService.consoleEnabled"
+      (close)="toggleAiDebug()"
+      (toggleConsole)="toggleAiDebugConsole()"
+    ></app-ai-debug-panel>
+  }
+
   @if (showResearchTree) {
     <app-star-map-research-tree
       [faction]="getPlayerFaction()!"

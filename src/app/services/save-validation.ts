@@ -1,3 +1,4 @@
+import { isAiPersonality } from '../components/star-map/ai-personality';
 import { StarMapData } from '../components/star-map/star-map.models';
 import shipData from '../components/star-map/ship-data.json';
 
@@ -436,6 +437,10 @@ export function validateSaveData(
       const difficulty = (faction as { aiDifficulty?: unknown } | null)?.aiDifficulty;
       if (difficulty !== undefined && difficulty !== 'easy' && difficulty !== 'normal' && difficulty !== 'hard') {
         errors.push(error('ai_difficulty_invalid', `factions[${i}].aiDifficulty`, 'aiDifficulty must be easy, normal, or hard'));
+      }
+      const personality = (faction as { aiPersonality?: unknown } | null)?.aiPersonality;
+      if (personality !== undefined && !isAiPersonality(personality)) {
+        errors.push(error('ai_personality_invalid', `factions[${i}].aiPersonality`, 'aiPersonality must be balanced, expansionist, militarist, or technologist'));
       }
     }
   }

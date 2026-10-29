@@ -74,7 +74,7 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
   the legacy system-view layout positions by index. Unique planet names are required:
   `EconomyService` resolves planets by name.
 - **Factions:** the human → id `'player'` (team 1); AIs → `'enemy1'…` in config order (team 2,
-  `ai: true`, `aiDifficulty`); the neutral `independent` and `unhabited` factions are always added.
+  `ai: true`, `aiDifficulty`, `aiPersonality`); the neutral `independent` and `unhabited` factions are always added.
   All AIs share team 2, as on the legacy map, so they do not fight each other.
 - **Homeworld** (planet 1 of each home system, earthlike/medium, population 1400): the legacy Earth
   buildings plus a Fusion Power Plant, so every faction starts energy-positive. Without it, AI
@@ -103,14 +103,27 @@ separate AI implementation.
 
 | Setting                       | Easy    | Normal   | Hard       | Used by                 |
 | ----------------------------- | ------- | -------- | ---------- | ----------------------- |
-| Attack strength advantage     | 1.6×    | 1.2×     | 1.0×       | `EnemyStrategyService`  |
+| Attack strength advantage     | 1.6×    | 1.2×     | 1.0×       | `EnemyStrategyService`, `EnemyFleetService` (accepted risk) |
+| Combat forecast (decision quality) | no (summed strength) | yes | yes | `EnemyFleetService` interceptions and retreats |
+| Reaction interval (fleet decisions) | 4 s | 2 s | 2 s | `EnemyFleetService` |
 | Income multiplier (gains only)| 0.75    | 1        | 1.3        | `EconomyService`        |
 | Starting resources            | 0.75×   | 1×       | 1.5×       | generator               |
 | Starting fleets               | 2 frigates | human roster | human roster + 4 destroyers | generator |
 | Extra home-system colonies    | 0       | 1        | 2          | generator               |
 
-`normal` is neutral by design: factions without `aiDifficulty` (older saves, the legacy map) keep
-their exact previous behavior. Human factions are never ticked by the AI (`ai: false`).
+`normal` is the reference setting: factions without `aiDifficulty` (older saves, the legacy map)
+are treated as Normal. Difficulty changes decision quality (forecast vs crude strength sums,
+reaction speed, risk appetite) and the income multiplier on legitimately produced income; it never
+bypasses game rules.
+
+## AI personality (`components/star-map/ai-personality.ts`)
+
+Each generated AI faction gets `aiPersonality` — `balanced`, `expansionist`, `militarist` or
+`technologist` — cycling through that list from a seed-derived offset (`(seed + aiIndex) % 4`).
+The assignment is arithmetic on the seed and does not consume the Mulberry32 stream, so a seed's
+galaxy layout is unchanged. Missing on older saves and the legacy map → `balanced`, which is the
+neutral profile. What each personality changes is documented in
+[AI Pipeline](./ai-pipeline.md#personalities-and-difficulty). Human factions are never ticked by the AI (`ai: false`).
 
 ## Persistence
 

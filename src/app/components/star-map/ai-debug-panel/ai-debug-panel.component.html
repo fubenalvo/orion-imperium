@@ -1,0 +1,42 @@
+<div class="ai-debug" role="dialog" aria-label="AI debug panel">
+  <header>
+    <span>AI DEBUG (F9)</span>
+    <label class="console-toggle">
+      <input type="checkbox" [checked]="consoleEnabled" (change)="toggleConsole.emit()" />
+      console events
+    </label>
+    <button type="button" (click)="close.emit()" aria-label="Close AI debug panel">×</button>
+  </header>
+  @for (s of snapshots; track s.factionId) {
+    <section>
+      <h4>{{ s.name }} <small>{{ s.factionId }} · {{ s.personality }} · {{ s.difficulty }}</small></h4>
+      <dl>
+        <dt>Priority / strategy</dt><dd>{{ s.priority }} / {{ s.strategy }}</dd>
+        <dt>Goal</dt><dd>{{ s.goal }}</dd>
+        <dt>Action</dt><dd>{{ s.action }}</dd>
+        <dt>Colonization</dt><dd>{{ s.colonizationGoal }} → {{ s.colonizationAction }}</dd>
+        <dt>Last completed</dt>
+        <dd>{{ s.lastCompleted ? s.lastCompleted.type + ' (' + s.lastCompleted.time.toFixed(0) + 's)' : '—' }}</dd>
+        <dt>Last failed</dt>
+        <dd>{{ s.lastFailed ? s.lastFailed.type + ': ' + s.lastFailed.reason + ' (' + s.lastFailed.time.toFixed(0) + 's)' : '—' }}</dd>
+        <dt>Since progress</dt><dd>{{ s.secondsSinceProgress }} s</dd>
+        <dt>Resources</dt><dd>{{ s.credits }} cr · {{ s.research }} rp</dd>
+        <dt>Intel</dt>
+        <dd>{{ s.intel.knownSystems }}/{{ s.intel.totalSystems }} systems · {{ s.intel.visibleHostiles }} visible · {{ s.intel.rememberedHostiles }} remembered</dd>
+        <dt>Shortages</dt><dd>{{ s.shortages.length ? s.shortages.join('; ') : '—' }}</dd>
+      </dl>
+      <div class="fleets">
+        @for (f of s.fleets; track f.fleetId) {
+          <span>#{{ f.fleetId }} {{ f.role }}{{ f.target ? ' → ' + f.target : '' }}</span>
+        }
+      </div>
+      @if (s.recentReplans.length) {
+        <ul class="replans">
+          @for (e of s.recentReplans; track $index) {
+            <li>{{ e.time.toFixed(0) }}s {{ e.type }}: {{ e.detail }}</li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</div>

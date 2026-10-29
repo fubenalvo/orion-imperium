@@ -1,0 +1,78 @@
+.ai-debug {
+  position: absolute;
+  top: 4vw;
+  right: 1vw;
+  z-index: 50;
+  width: 30vw;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 0.6vw;
+  background: rgba(4, 28, 50, 0.9);
+  border: 1px solid var(--color-blue);
+  color: #cfefff;
+  font: 11px/1.35 monospace;
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 0.6vw;
+    font-weight: bold;
+
+    .console-toggle {
+      margin-left: auto;
+      font-weight: normal;
+    }
+
+    button {
+      background: none;
+      border: none;
+      color: inherit;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  }
+
+  section {
+    margin-top: 0.5vw;
+    padding-top: 0.4vw;
+    border-top: 1px solid rgba(0, 240, 255, 0.3);
+  }
+
+  h4 {
+    margin: 0 0 0.2vw;
+
+    small {
+      opacity: 0.7;
+      font-weight: normal;
+    }
+  }
+
+  dl {
+    display: grid;
+    grid-template-columns: 9em 1fr;
+    gap: 1px 0.5em;
+    margin: 0;
+  }
+
+  dt {
+    opacity: 0.7;
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .fleets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3em 0.8em;
+    margin-top: 0.2vw;
+  }
+
+  .replans {
+    margin: 0.2vw 0 0;
+    padding-left: 1.2em;
+    color: #ffcc66;
+  }
+}

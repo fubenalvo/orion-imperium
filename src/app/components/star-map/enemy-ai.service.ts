@@ -2,8 +2,29 @@ import { Injectable } from '@angular/core';
 import { Fleet, Faction, getAiFactionIds } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
 
+/*
+ * =========================================================
+ * ENEMY AI SERVICE (legacy reactive fleet targeting, "V3")
+ * =========================================================
+ *
+ * Reactive opportunistic pursuit: an idle AI fleet picks a nearby player
+ * fleet (weak before comparable before strong, then nearest) and follows
+ * it. Runs every frame, before the strategic pipeline.
+ *
+ * Ownership rules (the strategic pipeline always wins):
+ *  - Fleets in `reservedFleetIds` are never touched. StarMapAiTickService
+ *    reserves fleets the pipeline is commanding (move_to_target / defend)
+ *    and every fleet carrying a colonizer.
+ *  - A new pursuit only starts against player fleets within
+ *    PURSUIT_ACQUIRE_RANGE cells; an already-acquired target is followed
+ *    while it stays valid.
+ *  - This service only clears targets it set itself, so it never cancels
+ *    a movement order issued by the executor or the player.
+ */
 @Injectable({ providedIn: 'root' })
 export class EnemyAiService {
+  // Matches EnemyStrategyService.ENGAGEMENT_DISTANCE.
+  private readonly PURSUIT_ACQUIRE_RANGE = 15;
   private readonly currentTargets = new Map<number, number>();
 
   constructor(private readonly shipService: ShipService) {}
@@ -22,7 +43,12 @@ export class EnemyAiService {
     return 'strong';
   }
 
-  tick(gameDeltaTime: number, fleets: Fleet[], factions: Faction[]): boolean {
+  tick(
+    gameDeltaTime: number,
+    fleets: Fleet[],
+    factions: Faction[],
+    reservedFleetIds: ReadonlySet<number> = new Set(),
+  ): boolean {
      if (gameDeltaTime <= 0) {
       return false;
     }
@@ -61,6 +87,11 @@ export class EnemyAiService {
         continue;
       }
 
+      if (reservedFleetIds.has(fleet.id)) {
+        this.currentTargets.delete(fleet.id);
+        continue;
+      }
+
       let targetedPlayerFleet: Fleet | undefined;
       const targetedPlayerFleetId = this.currentTargets.get(fleet.id);
 
@@ -84,26 +115,32 @@ export class EnemyAiService {
         && targetedPlayerFleet.ships.length > 0;
 
       if (!hasValidTarget) {
-        if (targetedPlayerFleetId !== undefined) {
+        const ownedTarget = targetedPlayerFleetId !== undefined;
+        if (ownedTarget) {
           this.currentTargets.delete(fleet.id);
         }
 
-        if (playerFleets.length === 0) {
-          fleet.targetX = null;
-          fleet.targetY = null;
-          continue;
-        }
-
-          const enemyStrength = this.shipService.calculateFleetStrength(fleet.ships);
-          const candidates = playerFleets.map((playerFleet) => {
+        const enemyStrength = this.shipService.calculateFleetStrength(fleet.ships);
+        const candidates = playerFleets
+          .map((playerFleet) => {
             const dx = fleet.x - playerFleet.x;
             const dy = fleet.y - playerFleet.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             const playerStrength = this.shipService.calculateFleetStrength(playerFleet.ships);
-          const ratio = enemyStrength > 0 ? playerStrength / enemyStrength : 1;
-          const category = this.getStrengthCategory(ratio);
-          return { fleet: playerFleet, distance, category, ratio };
-        });
+            const ratio = enemyStrength > 0 ? playerStrength / enemyStrength : 1;
+            const category = this.getStrengthCategory(ratio);
+            return { fleet: playerFleet, distance, category, ratio };
+          })
+          .filter((candidate) => candidate.distance <= this.PURSUIT_ACQUIRE_RANGE);
+
+        if (candidates.length === 0) {
+          // Stop a pursuit this service started; leave foreign orders alone.
+          if (ownedTarget) {
+            fleet.targetX = null;
+            fleet.targetY = null;
+          }
+          continue;
+        }
 
         candidates.sort((a, b) => {
           const categoryOrder = { weak: 0, comparable: 1, strong: 2 };

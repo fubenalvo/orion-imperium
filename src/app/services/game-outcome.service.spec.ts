@@ -205,4 +205,61 @@ describe('GameOutcomeService', () => {
     expect(r1).toBe('victory');
     expect(r2).toBe('victory');
   });
+
+  describe('elimination and terminal outcomes', () => {
+    it('defeat is reachable while hostile AI planets exist', () => {
+      const data = makeData({
+        starSystems: [
+          { id: 's1', name: 'S1', x: 1, y: 1, planets: 1, color: '#fff', planetsTiles: [makePlanet(2, 'enemy1')] } as any,
+        ],
+        fleets: [makeFleet(5, 'enemy1')],
+      });
+      expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('defeat');
+    });
+
+    it('a player without planets but with a living fleet is not defeated, even while the AI holds planets', () => {
+      const data = makeData({
+        starSystems: [
+          { id: 's1', name: 'S1', x: 1, y: 1, planets: 1, color: '#fff', planetsTiles: [makePlanet(2, 'enemy1')] } as any,
+        ],
+        fleets: [makeFleet(1, 'player')],
+      });
+      expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('inProgress');
+    });
+
+    it('an owned but uninhabited planet still counts as a foothold', () => {
+      const data = makeData({
+        starSystems: [
+          { id: 's1', name: 'S1', x: 1, y: 1, planets: 2, color: '#fff', planetsTiles: [makePlanet(1, 'player', 0), makePlanet(2, 'enemy1')] } as any,
+        ],
+      });
+      expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('inProgress');
+    });
+
+    it('a destroyed fleet is not a recovery route', () => {
+      const data = makeData({
+        starSystems: [
+          { id: 's1', name: 'S1', x: 1, y: 1, planets: 1, color: '#fff', planetsTiles: [makePlanet(2, 'enemy1')] } as any,
+        ],
+        fleets: [makeFleet(1, 'player', true)],
+      });
+      expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('defeat');
+    });
+
+    it('an AI faction without planets but with a fleet blocks victory (it can still recover)', () => {
+      const data = makeData({ fleets: [makeFleet(5, 'enemy1')] });
+      expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('inProgress');
+    });
+
+    it('a terminal outcome stored in the save is never overwritten', () => {
+      const data = makeData({
+        starSystems: [
+          { id: 's1', name: 'S1', x: 1, y: 1, planets: 1, color: '#fff', planetsTiles: [makePlanet(1, 'player'), makePlanet(2, 'enemy1')] } as any,
+        ],
+        gameOutcome: 'defeat',
+      });
+      expect(service.evaluate(data)).toBe('defeat');
+      expect(service.evaluate({ ...data, gameOutcome: 'victory' })).toBe('victory');
+    });
+  });
 });

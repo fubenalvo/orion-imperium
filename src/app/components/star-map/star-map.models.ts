@@ -72,6 +72,9 @@ export interface Technology {
  */
 export type AiDifficulty = 'easy' | 'normal' | 'hard';
 
+/* AI strategic preferences; profiles live in `ai-personality.ts`. */
+export type AiPersonality = 'balanced' | 'expansionist' | 'militarist' | 'technologist';
+
 export interface Faction {
   id: string;
   name: string;
@@ -83,6 +86,11 @@ export interface Faction {
    * legacy star-map-data.json map; treated as 'normal'.
    */
   aiDifficulty?: AiDifficulty;
+  /*
+   * Only meaningful when `ai === true`. Assigned by the galaxy generator;
+   * missing on older saves and the legacy map, treated as 'balanced'.
+   */
+  aiPersonality?: AiPersonality;
   currencies: Record<string, number>;
   researchedTechnologies?: string[];
 }
@@ -448,7 +456,8 @@ export interface FleetTrail {
 /*
  * Fleet position on the galaxy map.
  * x/y and targetX/Y are 1-indexed grid cell coordinates (floats for smooth movement).
- * Speed is in vw/s; the movement service converts to cells/s using cellSizeVw.
+ * Speed is in vw/s; the movement service converts to galaxy cells/s using the fixed
+ * GALAXY_MOVEMENT_CELL_SIZE_VW (2), independent of the rendered cell size.
  * systemX/Y and systemTargetX/Y are system view positions in vw units (separate grid).
  */
 export interface Fleet {

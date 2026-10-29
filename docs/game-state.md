@@ -158,11 +158,11 @@ src/app/
 - Buildings cannot overlap or be placed directly on resource tiles
 
 ### 4.4 Movement
-- Map: target grid cells, speed/cellSizeVw → cells/s
+- Map: target grid cells, speed / 10 / `GALAXY_MOVEMENT_CELL_SIZE_VW` (2) → cells/s
 - System: target vw units, speed direct
 - Snap at < 0.01 distance
 - New fleets spawn on their host planet's system-grid cell
-- Movement speed on galaxy map is fleet.speed / 10 / cellSizeVw
+- Movement speed on galaxy map is fleet.speed / 10 / `GALAXY_MOVEMENT_CELL_SIZE_VW` (fixed 2, not the rendered cell size, so it is the same on every window width)
 
 ### 4.5 Fog of War
 - Player fleet range = max(floor, best ship range), default 3
@@ -281,6 +281,11 @@ src/app/
 - Resource tile data is generated once and persisted in `planet.resourceTiles`
 
 ### 4.13 Enemy AI V3
+
+System-level overview of the whole AI pipeline (ownership, scheduling, invariants, simulation tests): [AI Pipeline](./ai-pipeline.md).
+
+> **Current role:** `EnemyAiService` is now a fallback. Every AI fleet is owned either by the strategic pipeline or by `EnemyFleetService` (§4.20), and both are passed in `reservedFleetIds`, so in generated games this layer issues no orders. The rules below describe its behavior for fleets nobody else manages.
+
 - `EnemyAiService` runs every frame inside the existing `StarMap.gameLoopCallback`
 - Uses the same scaled `gameDeltaTime` as other systems (pause-safe, 1x/2x-aware)
   - Only AI-controlled factions (`f.ai === true`, dynamically derived from the `factions` array) are controlled; player, independent, and unhabited fleets are never modified
@@ -289,16 +294,17 @@ src/app/
   - The map is cleared via `reset()` for test isolation
 - Fleet strength calculation:
   - `shipStrength = attack + defense + hitPoints / 10 + shield / 10`
-  - `fleetStrength = sum(shipStrength for all ships in fleet)`
+  - `fleetStrength = sum(shipStrength for all living ships in fleet)` — `ShipService.calculateFleetStrength` skips ships flagged `destroyed`
   - Uses existing `ShipService.getShipType(typeId)` to resolve ship stats from `ship-data.json`
   - No duplicate ship-stat definitions; reuses the existing `ShipType` interface
 - Strength categories (based on `ratio = playerFleetStrength / enemyStrength`):
   - `weak`: ratio <= 0.75
   - `comparable`: 0.75 < ratio <= 1.5
   - `strong`: ratio > 1.5
+- Fleet ownership: fleets reserved by the strategic pipeline (the fleet of a current `move_to_target` / `defend` action, and every AI fleet carrying a living colonizer) are passed in `reservedFleetIds` by `StarMapAiTickService` and are never retargeted.
 - Target selection algorithm:
-  1. Filter fleets to enemy factions and skip destroyed ones
-  2. For each enemy fleet without a valid target, find all valid player fleets (not destroyed, has ships)
+  1. Filter fleets to enemy factions and skip destroyed and reserved ones
+  2. For each enemy fleet without a valid target, find all valid player fleets (not destroyed, has ships) within `PURSUIT_ACQUIRE_RANGE` (15 cells)
   3. Calculate `enemyStrength` and `playerFleetStrength` for each candidate
   4. Calculate `ratio = playerFleetStrength / enemyStrength` (if `enemyStrength === 0`, all candidates are treated as `comparable`)
   5. Categorize each candidate as weak / comparable / strong
@@ -311,8 +317,8 @@ src/app/
   - A target becomes **invalid** if the player fleet is destroyed, has no ships, or no longer exists in the fleet array
   - The AI does NOT switch targets just because another player fleet becomes closer or weaker; it commits to the current target until invalidity
 - Retargeting behavior:
-  - When a target becomes invalid, the AI clears the old mapping and immediately selects the nearest remaining player fleet using the new strength + distance algorithm
-  - If no valid player fleets remain, the enemy fleet's target is cleared (`targetX = null`, `targetY = null`)
+  - When a target becomes invalid, the AI clears the old mapping and immediately selects the best remaining in-range player fleet using the strength + distance algorithm
+  - If no valid in-range player fleet remains, the fleet's target is cleared (`targetX = null`, `targetY = null`) **only if this service set it**; movement orders issued by the executor or the player are left alone
   - Logging: `[Enemy AI] <name> -> <target> (<category> target, ratio=<value>)` on new assignment or retargeting
 - Integration with existing systems:
   - **Movement**: The AI only sets `targetX/targetY`; the existing `StarMapMovementService` handles actual fleet movement each frame
@@ -330,7 +336,7 @@ src/app/
 - Decision rules (in priority order):
   1. **DEFEND**: any enemy-owned star system has a player fleet within 5 galaxy cells.
   2. **ATTACK**: any enemy fleet has a player fleet within 15 galaxy cells and the enemy fleet strength is at least 1.2× the player fleet strength.
-  3. **EXPAND**: any enemy fleet is within 20 galaxy cells of an unhabited planet.
+  3. **EXPAND**: the faction has a fleet and an unhabited planet lies within `AI_COLONIZATION_REACH` (60 cells, shared with the goal layer) of a system it owns or within 20 cells of one of its fleets (`EXPANSION_DISTANCE`). The owned-system reach exists because generated maps place neighbouring systems ~45–60 cells apart.
   4. **DEVELOP**: fallback when no other condition is met.
 - Fleet strength formula matches V3: `sum(attack + defense + hitPoints/10 + shield/10)` per ship, resolved via `ShipService.getShipType()`.
 - The layer does not execute strategy yet; it only stores and logs the current intention.
@@ -343,7 +349,7 @@ src/app/
 - `EnemyGoalService` runs below `EnemyStrategyService` (V4.1) and above `EnemyAiService` V3.
 - Given a faction's current strategy, selects a concrete strategic goal with a specific target.
 - Goal types: `colonize` | `attack` | `defend` | `develop`.
-- Evaluation timing: every 2 seconds of game time using an internal accumulator, matching the V4.1 cadence.
+- Evaluation timing: every 2 seconds of game time using a **per-faction** accumulator, matching the V4.1 cadence (see [AI Pipeline](./ai-pipeline.md#scheduling)).
 - Goal commitment:
   - A goal is kept while it remains valid and the strategy does not change.
   - A goal is replaced when it becomes invalid or when the strategy changes.
@@ -358,6 +364,8 @@ src/app/
   - `defend`: target planet/system still exists, planet is still owned by the faction, and a player fleet is still within threat distance.
   - `develop`: always valid.
 - Cross-faction deduplication: colonize goals check if another enemy faction already targets the same planet and skip it.
+- Colonize reach and worth: targets farther than `AI_COLONIZATION_REACH` (60 cells) from the faction's planets (or fleets, when it owns none) are ignored; systems where another faction owns a planet score ×0.5.
+- Failure recovery: a colonize goal unfinished after 480 s of game time is dropped and its target is skipped for 600 s (per-faction, in-memory, cleared on reset).
 - The layer does NOT execute goals. It only stores and logs the current goal.
 - Integration: `StarMap.gameLoopCallback` calls `EnemyGoalService.tick()` for each enemy faction each frame; change detection runs when any faction's goal changes.
 - Reset: goal state is cleared on game load / new game via `EnemyGoalService.reset()`.
@@ -370,7 +378,7 @@ src/app/
 - Result type: `CapabilityResult` with `canExecute: boolean`, `goalType`, `factionId`, and `requirements: CapabilityRequirement[]`.
 - Each `CapabilityRequirement` has `type`, `satisfied`, `reason`, and an optional numeric `value` for context (used by `fleet_needs_reinforcement` to carry peak strength).
 - The layer does NOT execute actions. It only inspects the current game state and reports what is available and what is missing.
-- Evaluation timing: every 2 seconds of game time using an internal accumulator, matching the V4.1/V4.2 cadence.
+- Evaluation timing: every 2 seconds of game time using a per-faction accumulator, matching the V4.1/V4.2 cadence.
 - Peak fleet strength is tracked per faction (`updatePeakStrength`) by summing the strength of living ships in living fleets. It only ever increases and is cleared on `reset()`.
 - Capability checks by goal type:
   - **COLONIZE**:
@@ -406,13 +414,13 @@ src/app/
 - Result type: `ActionResult` with `type`, `factionId`, `goalType`, `goal`, `targetId`, `targetSystemId`, `targetPlanetId`, `shipTypeId`, `targetStrength`, `reason`.
 - Action types: `none` | `produce_colonizer` | `produce_combat_ship` | `reinforce_fleet` | `create_fleet` | `assemble_fleet` | `move_to_target` | `colonize` | `attack` | `defend` | `develop`
 - The layer does NOT execute actions. It only inspects the current game state and returns an `ActionResult` describing the recommended next step.
-- Evaluation timing: actions are recalculated every 2 seconds of game time using an internal accumulator, matching the V4.1/V4.2/V4.3 cadence.
+- Evaluation timing: actions are recalculated every 2 seconds of game time using a per-faction accumulator, matching the V4.1/V4.2/V4.3 cadence.
 - Action evaluation logic:
   - If capability is not satisfied: evaluates preparation actions (e.g., `produce_colonizer` when colonizer is missing but production is possible)
   - If capability is satisfied: evaluates execute actions (e.g., `move_to_target` → `colonize` when fleet reaches the planet)
   - `defend` is special-cased: its preparation result is evaluated first, so an under-strength fleet returns `reinforce_fleet` even when the defend goal is otherwise executable
 - Action selection by goal type:
-  - **colonize**: finds fleet with colonizer, checks if at target planet → `colonize`; if not at target → `move_to_target`; if no colonizer but in stock → `assemble_fleet`; if no colonizer at all → `produce_colonizer` (if conditions met)
+  - **colonize**: finds fleet with colonizer; when its galaxy-map cell equals the target system's cell → `colonize`, otherwise → `move_to_target`; if no colonizer but in stock → `assemble_fleet` (or `develop` with reason `missing_spaceport_for_assembly` when the faction has no Spaceport); if no colonizer at all → `produce_colonizer` when possible, otherwise `develop` with reason `missing_factory_for_colonizer` when the faction has no Spaceship Factory. Arrival is never judged from `fleet.gridCol/gridRow` (it holds a system-view cell after fleet assembly).
   - **attack**: finds best enemy fleet, checks if at target position → `attack`; otherwise → `move_to_target`. When the fleet has no combat-role ships but a combat ship is unlocked, affordable, and buildable → `produce_combat_ship`
   - **defend**: finds best enemy fleet, checks if at threatened system → `defend`; otherwise → `move_to_target`. When the fleet is under-strength → `reinforce_fleet` (economy-guarded); when there is no combat capability at all → `create_fleet` from stock at the nearest owned Spaceport, else `produce_combat_ship` as the production fallback
   - **develop**: always returns `develop` action
@@ -434,19 +442,33 @@ src/app/
   - `produce_combat_ship`: queues one combat ship order (ship type chosen by `EnemyActionService.selectCheapestCombatShip`, carried in `action.shipTypeId`) at the faction's deterministic first factory planet. Guards: basic_engineering researched, ship unlocked, credits ≥ cost, no pending order of the same type, factory capacity available. Used when a faction needs combat capability but has none.
   - `reinforce_fleet`: adds one ship of each combat type already present in the target fleet from the global stock via `FleetAssemblyService.reinforceFleet`, reusing the real stock and Spaceport rules. Guards: fleet exists / alive / owned, living strength below `action.targetStrength`, and not co-located with an enemy fleet (active engagement). `targetStrength` is the faction's peak fleet strength from the V4.3 `fleet_needs_reinforcement` requirement, which makes the action idempotent across the frame loop — once the fleet's living strength reaches the target the executor stops consuming stock even though the action object persists until the next strategy tick. Fleet id, name, position, and system are preserved; only `fleet.ships` grows.
   - `create_fleet`: creates a new fleet at the faction's deterministic nearest owned Spaceport planet via `FleetAssemblyService.createFleet` with a two-ship composition of a combat ship type taken from the faction's stock (`action.shipTypeId` × 2). Used when the faction has no combat-role ships but does have combat ships in stock. Avoids meaningless one-ship fleets. Guard: skipped once the faction owns a living fleet containing a combat-role ship, which makes creation idempotent across the frame loop.
-  - `assemble_fleet` (V5.2): moves one colonizer from the faction ship stock into a fleet via `FleetAssemblyService`. Prefers reinforcing the faction's deterministic lowest-id usable fleet (`reinforceFleet`); when no usable fleet exists, creates a new fleet at the faction's deterministic first owned Spaceport planet (`createFleet`).
-  - `move_to_target` (V5.3): sets `fleet.targetX/targetY` to start map movement toward the goal target. Supports colonize (system position + planet still unhabited), attack (target fleet position + still alive), and defend (threatened system position) goals. Stateless guards prevent duplicate restarts.
-  - `colonize` (V5.4): verifies the target planet still exists and is `unhabited`, finds an AI fleet with a living colonizer at the planet's grid cell, removes the colonizer from the fleet, and sets `planet.factionId`. Reuses `PlanetBattleService.resolveUninhabitedArrival` for colonizer detection.
-  - `attack` (V5.4): validates that an AI fleet and the target player fleet occupy the same galaxy grid cell and are both alive. Does NOT trigger battle; `StarMapBattleDetectionService` handles collision-based battle start automatically.
-  - `defend` (V5.4): validates that an AI fleet is positioned at the threatened star system's grid cell. Movement to the system is already handled by the `move_to_target` action; this method only confirms the fleet has arrived.
-  - `develop` (V5.4): selects the first owned planet with a free building slot, chooses a building based on economy priority (energy → workforce → raw materials → research fallback), verifies research unlock and credits, finds a valid placement, and places the building. Uses the same overlap/grid bounds logic as the planet screen component.
+  - `assemble_fleet` (V5.2): moves one colonizer from the faction ship stock into a fleet via `FleetAssemblyService`. Prefers reinforcing the faction's lowest-id usable fleet **that is parked in one of its Spaceport systems** (`reinforceFleet`); otherwise creates a new fleet at the faction's deterministic first owned Spaceport planet (`createFleet`). Ships never teleport into distant fleets.
+  - `move_to_target` (V5.3): sets `fleet.targetX/targetY` to start map movement toward the goal target. Supports colonize (system position + planet still unhabited), attack (target fleet position + still alive), and defend (threatened system position) goals. Stateless guards prevent duplicate restarts: no-op when the fleet already heads to the destination or is parked (no target) in the destination cell.
+  - `colonize` (V5.4): verifies the target planet still exists and is `unhabited`, finds the AI fleet carrying a living colonizer in the target system's galaxy-map cell, removes the colonizer from the fleet, and sets `planet.factionId`. Reuses `PlanetBattleService.resolveUninhabitedArrival` for colonizer detection. Runs once: afterwards the planet is no longer `unhabited`. A fleet left without living ships is marked `destroyed` (retired).
+  - `attack` (V5.4): validates that an AI fleet and the target player fleet occupy the same galaxy grid cell and are both alive. Does NOT trigger battle; `StarMapBattleDetectionService` handles collision-based battle start automatically. Returns `true` only the first time a given attacker/target pair is confirmed.
+  - `defend` (V5.4): validates that an AI fleet is positioned at the threatened star system's grid cell. Movement to the system is already handled by the `move_to_target` action; this method only confirms the fleet has arrived. Returns `true` only the first time a given fleet/system pair is confirmed.
+  - `develop` (V5.4): delegates to `EnemyEconomyService.tryConstruct` — the same paced, deficit-safe planner the background economy uses (one building per faction per 2 s, all owned planets, tiered spending policy). Full rules: [AI Pipeline](./ai-pipeline.md#construction-and-spending-policy).
 - Not executable: `none`.
-- Duplicate-execution protection is stateless: every frame the executor re-checks the game-state fact its mutation establishes. It keeps no mutable executor state, so `reset()` stays a no-op. Production and propagation actions re-check queue/stock/strength facts; `reinforce_fleet` re-checks fleet strength against `targetStrength`; `create_fleet` re-checks stock and Spaceport validity through `FleetAssemblyService`.
+- Duplicate-execution protection is mostly stateless: every frame the executor re-checks the game-state fact its mutation establishes. The only executor state is the per-faction develop cooldown and the last confirmed attack/defend engagement; `reset()` clears both and is called from `StarMapAiTickService.resetAiPipeline()`. Production and propagation actions re-check queue/stock/strength facts; `reinforce_fleet` re-checks fleet strength against `targetStrength`; `create_fleet` re-checks stock and Spaceport validity through `FleetAssemblyService`.
   - The executor only acts for AI factions (`f.ai === true`, dynamically derived from the `factions` array), never for player / independent factions, and only mutates the acting faction's stock and fleets. Player fleet assembly behavior is unchanged because it goes through the same `FleetAssemblyService` with different callers.
 - Reinforced fleets use the existing `Fleet` / `ShipStockEntry` structures, which are plain serializable objects, so reinforcement survives save/load without additional persistence state.
 - Execution logging follows the existing convention and fires only on actual execution.
-- Integration: `StarMap.gameLoopCallback` calls `EnemyActionExecutor.tick()` every frame after the action layer, once per enemy faction, with the faction's current `ActionResult`. The executor is not called on reset (`reset()` is a no-op).
+- Integration: `StarMap.gameLoopCallback` calls `EnemyActionExecutor.tick()` every frame after the action layer, once per enemy faction, with the faction's current `ActionResult`. `reset()` is called on game load together with the other AI resets. The return value means "game state changed this frame" and feeds change detection and the autosave dirty flag, so no-op confirmations return `false`.
 - Test coverage: 109 Vitest tests covering produce_colonizer execution, produce_combat_ship execution, reinforce_fleet execution (damaged fleet, combat losses, target-strength dedup, destroyed fleet, no stock, no combat ships, no Spaceport, paused, player faction, multi-faction, active engagement, fleet identity/save-load), create_fleet execution, assemble_fleet execution, move_to_target execution, colonize execution, attack execution, defend execution, develop execution (power/housing/industry/research building selection, research lock, credit shortage, placement validation, duplicate prevention), and all guard conditions.
+
+### 4.19 Enemy Economy Manager
+
+- `EnemyEconomyService` runs for every AI faction on every frame from `StarMapAiTickService.tick` (after the executor) and makes decisions every 2 s of game time, independent of the faction's strategic goal.
+- Per decision: at most one building (tiered construction with a spending reserve), combat-ship production up to a planet-scaled target, and deployment of stocked combat ships into a fleet parked at a Spaceport (or a new fleet created there).
+- It owns the per-faction construction cooldown shared with the executor's `develop` action.
+- Rules, tiers, reserve and military targets: [AI Pipeline](./ai-pipeline.md#construction-and-spending-policy). Unit tests: `enemy-economy.service.spec.ts`; behavior over time: `ai-simulation.spec.ts`.
+
+### 4.20 Enemy Fleet Operations and Research
+
+- `EnemyFleetService` assigns every AI fleet the pipeline is not using a role (garrison / intercept / retreat / regroup) and is its only movement writer; `EnemyResearchService` buys technologies through `ResearchService`. Both run per faction from `StarMapAiTickService.tick` before the legacy reactive layer.
+- `EnemyStrategyService` ignores hostile fleets below 25% of the faction's strength for `defend`/`attack`; `EnemyActionService` abandons attacks once the target is stronger (`target_too_strong`) and does not send a defender below 50% of the threat (`threat_too_strong`); attack/defend use the strongest fleet without a colonizer.
+- `EnemyFleetService` also plans `assault`s on hostile planets; `EnemyInvasionService` executes them (undefended capture, auto-resolved battle, or a queued battle-screen battle when the player defends). Ownership always changes through `PlanetOwnershipService`; see [Planet Capture](./planet-capture.md).
+- Full rules: [AI Pipeline](./ai-pipeline.md#fleet-roles-enemyfleetservice), [Research](./ai-pipeline.md#research-enemyresearchservice).
 
 ---
 

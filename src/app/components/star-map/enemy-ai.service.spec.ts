@@ -339,4 +339,38 @@ describe('EnemyAiService', () => {
     expect(fleets[0].targetX).toBeCloseTo(5, 5);
     expect(fleets[0].targetY).toBeCloseTo(5, 5);
   });
+
+  it('should not retarget a fleet reserved by the strategic pipeline', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'COLONY RUN', x: 0, y: 0, id: 1, targetX: 40, targetY: 40 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 1, y: 1, id: 2 }),
+    ];
+
+    const result = service.tick(1, fleets, factions, new Set([1]));
+
+    expect(result).toBe(false);
+    expect(fleets[0].targetX).toBe(40);
+    expect(fleets[0].targetY).toBe(40);
+  });
+
+  it('should not start a pursuit against a player fleet beyond acquire range', () => {
+    const fleets = [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 60, y: 60, id: 2 }),
+    ];
+
+    const result = service.tick(1, fleets, factions);
+
+    expect(result).toBe(false);
+    expect(fleets[0].targetX).toBeNull();
+  });
+
+  it('should not cancel a movement order it did not issue when no player fleets exist', () => {
+    const fleets = [createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, targetX: 30, targetY: 12 })];
+
+    service.tick(1, fleets, factions);
+
+    expect(fleets[0].targetX).toBe(30);
+    expect(fleets[0].targetY).toBe(12);
+  });
 });

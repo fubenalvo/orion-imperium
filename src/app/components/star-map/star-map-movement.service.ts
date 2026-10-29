@@ -14,7 +14,10 @@ import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.model
  *   for x/y (e.g., x=53 means the 53rd column from the left).
  * - Grid cells are rendered as `cellSizeVw` vw wide and `cellSizeVh` vw tall.
  * - Fleet positions can be fractional within a cell for smooth movement.
- * - Fleet speed is in vw/s; converted to cells/s via speed / cellSizeVw.
+ * - Fleet speed is in vw/s at the reference cell size; galaxy movement
+ *   converts it to cells/s via speed / 10 / GALAXY_MOVEMENT_CELL_SIZE_VW.
+ *   The *rendered* cell size (cellSizeVw: 2 desktop, 3.5 mobile) is never
+ *   used for simulation, so travel time does not depend on window width.
  *
  * The system view (inside star systems) uses a separate fixed 18x10 grid
  * with 5vw cells. System view positions (systemX/Y) remain in vw units.
@@ -28,6 +31,15 @@ export class StarMapMovementService {
   gridRows = 0;
 
   private static readonly SYSTEM_CELL_SIZE_VW = 5;
+
+  /*
+   * Fixed vw-per-cell used to convert fleet speed to galaxy cells/s. It
+   * equals the desktop render size (2), which every balance value was tuned
+   * against (AI colonization reach and timeouts assume 0.2 cells/s for
+   * speed 4). Using the render cell size instead made fleets ~43% slower
+   * below the 1300px breakpoint and let a window resize change game speed.
+   */
+  static readonly GALAXY_MOVEMENT_CELL_SIZE_VW = 2;
 
   static get systemCellSizeVw(): number {
     return StarMapMovementService.SYSTEM_CELL_SIZE_VW;
@@ -171,7 +183,8 @@ export class StarMapMovementService {
           // Fleet speed is in vw/s; convert to grid cells/s.
           // Star map view uses 1/10 of the configured fleet speed so that
           // long-distance travel across the galaxy takes meaningful time.
-          const movement = (fleet.speed / 10 / this.cellSizeVw) * deltaTime;
+          const movement =
+            (fleet.speed / 10 / StarMapMovementService.GALAXY_MOVEMENT_CELL_SIZE_VW) * deltaTime;
           const step = Math.min(movement, distance);
           fleet.x += (dx / distance) * step;
           fleet.y += (dy / distance) * step;

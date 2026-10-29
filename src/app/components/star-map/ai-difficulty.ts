@@ -15,10 +15,20 @@ import { AiDifficulty, Faction } from './star-map.models';
  *   per-planet resource income by this factor. Losses are never scaled.
  * - `startingResourceMultiplier`, `startingFleetPreset`, `extraColonies`:
  *   consumed only by GalaxyGeneratorService when a new game is created.
+ * - `combatForecast` (decision quality): when true, EnemyFleetService
+ *   judges interceptions and retreats with a battle forecast using the
+ *   real combat rules (autoResolveBattle); when false it compares summed
+ *   fleet strength, a cruder judgment that ignores weapon matchups,
+ *   shields and focus fire.
+ * - `reactionInterval` (decision quality): multiplier on the fleet
+ *   operations decision interval (2 s); higher = slower reactions.
  *
- * Invariant: 'normal' must stay neutral (multipliers 1, advantage 1.2) so that
- * factions without `aiDifficulty` (older saves, the legacy map) keep the exact
- * behavior they had before difficulty existed.
+ * Difficulty never bypasses game mechanics: the only economic advantage
+ * is the income multiplier on legitimately produced income.
+ *
+ * Invariant: 'normal' is the reference setting (multipliers 1, advantage 1.2,
+ * combat forecast on, reaction interval 1); factions without `aiDifficulty`
+ * (older saves, the legacy map) are treated as 'normal'.
  */
 export interface AiDifficultyProfile {
   id: AiDifficulty;
@@ -28,6 +38,8 @@ export interface AiDifficultyProfile {
   startingResourceMultiplier: number;
   startingFleetPreset: 'reduced' | 'standard' | 'reinforced';
   extraColonies: number;
+  combatForecast: boolean;
+  reactionInterval: number;
 }
 
 export const DEFAULT_AI_DIFFICULTY: AiDifficulty = 'normal';
@@ -41,6 +53,8 @@ export const AI_DIFFICULTY_PROFILES: Readonly<Record<AiDifficulty, AiDifficultyP
     startingResourceMultiplier: 0.75,
     startingFleetPreset: 'reduced',
     extraColonies: 0,
+    combatForecast: false,
+    reactionInterval: 2,
   },
   normal: {
     id: 'normal',
@@ -50,6 +64,8 @@ export const AI_DIFFICULTY_PROFILES: Readonly<Record<AiDifficulty, AiDifficultyP
     startingResourceMultiplier: 1,
     startingFleetPreset: 'standard',
     extraColonies: 1,
+    combatForecast: true,
+    reactionInterval: 1,
   },
   hard: {
     id: 'hard',
@@ -59,6 +75,8 @@ export const AI_DIFFICULTY_PROFILES: Readonly<Record<AiDifficulty, AiDifficultyP
     startingResourceMultiplier: 1.5,
     startingFleetPreset: 'reinforced',
     extraColonies: 2,
+    combatForecast: true,
+    reactionInterval: 1,
   },
 };
 

@@ -1,7 +1,8 @@
 import { Injectable } from '@angular/core';
 import { BattleService } from '../../services/battle.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
-import { Faction, Fleet, PlanetTile, StarSystem, PLANET_TYPE_COLORS } from './star-map.models';
+import { PlanetOwnershipService } from '../../services/planet-ownership.service';
+import { Faction, FactionProduction, Fleet, PlanetTile, StarSystem, PLANET_TYPE_COLORS } from './star-map.models';
 import { StarMapMovementService } from './star-map-movement.service';
 
 /*
@@ -28,6 +29,8 @@ export interface PlanetArrivalContext {
   currentView: 'map' | 'system' | 'planet';
   selectedSystem: StarSystem | null;
   factions: Faction[];
+  // Lets ownership transfers cancel the previous owner's orders on the planet.
+  production?: FactionProduction[];
   saveGame: () => void;
   enterBattleScreen: () => void;
 }
@@ -44,6 +47,7 @@ export class StarMapPlanetArrivalService {
     private planetBattleService: PlanetBattleService,
     private battleService: BattleService,
     private movementService: StarMapMovementService,
+    private planetOwnership: PlanetOwnershipService,
   ) {}
 
   /** Clears per-session arrival bookkeeping. Safe to call on every load. */
@@ -124,8 +128,7 @@ export class StarMapPlanetArrivalService {
       const result = this.planetBattleService.resolveUninhabitedArrival(fleet);
       if (result.colonized && result.colonizerIndex >= 0) {
         fleet.ships.splice(result.colonizerIndex, 1);
-        planet.factionId = fleet.factionId;
-      } else {
+        this.planetOwnership.transferPlanet(ctx, planet, fleet.factionId, 'colonized');
       }
       ctx.saveGame();
       return;
@@ -146,7 +149,7 @@ export class StarMapPlanetArrivalService {
     }
 
     if (!this.planetBattleService.hasPlanetDefenses(planet)) {
-      planet.factionId = fleet.factionId;
+      this.planetOwnership.transferPlanet(ctx, planet, fleet.factionId, 'captured');
       ctx.saveGame();
       return;
     }
@@ -175,7 +178,7 @@ export class StarMapPlanetArrivalService {
      * undefended capture instead of opening an unwinnable empty battle.
      */
     if (defenseFleet.ships.length === 0) {
-      targetPlanet.factionId = attackerFleet.factionId;
+      this.planetOwnership.transferPlanet(ctx, targetPlanet, attackerFleet.factionId, 'captured');
       ctx.saveGame();
       return;
     }

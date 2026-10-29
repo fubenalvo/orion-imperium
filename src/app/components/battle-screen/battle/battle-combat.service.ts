@@ -45,6 +45,75 @@ import { BattleTimeService } from './battle-time.service';
  * replaces one volley rather than being free.
  */
 
+/*
+ * applyVolleyDamage: The damage rule of one volley, shared by the animated
+ * battle (BattleCombatService.attackStack) and the non-interactive
+ * resolver (battle-auto-resolve.ts) so both always use identical combat
+ * maths. Mutates the target ships, the shared planetary shield pool and
+ * the target's destroyed flag; does not check range, cooldown or victory.
+ * The caller must ensure the target has a living ship.
+ */
+export function applyVolleyDamage(
+  state: BattleModelState,
+  attacker: BattleStack,
+  target: BattleStack,
+): { damage: number; kills: number; targetDestroyed: boolean } {
+  const totalAttack = attacker.ships
+    .filter((s) => s.alive)
+    .reduce((sum, s) => sum + s.attack, 0);
+  const front = target.ships.find((s) => s.alive);
+  if (!front) {
+    return { damage: 0, kills: 0, targetDestroyed: target.destroyed };
+  }
+  const raw = totalAttack - front.defense;
+  // The attacker's weapon type is taken from its front ship (stacks
+  // are homogeneous by type per buildStacks).
+  const attackerFront = attacker.ships.find((s) => s.alive);
+  const multiplier = weaponMultiplier(
+    attackerFront?.attackType ?? 'kinetic',
+    front.weakness ?? 'energy',
+  );
+  const damage = Math.max(1, Math.floor(raw * multiplier));
+  let remaining = damage;
+  /*
+   * Planet defense stacks are protected by the shared planetary
+   * shield before their own per-ship shields. The pool absorbs the
+   * whole defense line, so it applies to any immobile target stack
+   * and only the overflow reaches hull / per-ship shield logic.
+   */
+  if (target.immobile && state.defenderShieldPool && state.defenderShieldPool.current > 0) {
+    const absorbed = Math.min(state.defenderShieldPool.current, remaining);
+    state.defenderShieldPool.current -= absorbed;
+    remaining -= absorbed;
+  }
+  let kills = 0;
+  for (const ship of target.ships) {
+    if (!ship.alive || remaining <= 0) {
+      continue;
+    }
+    const shieldHp = ship.shield ?? 0;
+    const shieldDamage = Math.min(shieldHp, remaining);
+    ship.shield = shieldHp - shieldDamage;
+    remaining -= shieldDamage;
+    if (remaining <= 0) {
+      continue;
+    }
+    const applied = Math.min(ship.hp, remaining);
+    ship.hp -= applied;
+    remaining -= applied;
+    if (ship.hp <= 0) {
+      ship.hp = 0;
+      ship.alive = false;
+      kills++;
+    }
+  }
+  const targetDestroyed = target.ships.every((s) => !s.alive);
+  if (targetDestroyed) {
+    target.destroyed = true;
+  }
+  return { damage, kills, targetDestroyed };
+}
+
 @Injectable({ providedIn: 'root' })
 export class BattleCombatService {
   constructor(
@@ -146,61 +215,13 @@ export class BattleCombatService {
       this.anim.tick();
       await this.anim.wait(ANIMATION_MS.projectile);
 
-      const totalAttack = attacker.ships
-        .filter((s) => s.alive)
-        .reduce((sum, s) => sum + s.attack, 0);
       // The target may have been destroyed by another stack while this
       // projectile was in flight; then there is no front ship and the
       // volley is wasted (no damage, no log entry).
       const front = target.ships.find((s) => s.alive);
 
       if (front) {
-        const raw = totalAttack - front.defense;
-        // The attacker's weapon type is taken from its front ship (stacks
-        // are homogeneous by type per buildStacks).
-        const attackerFront = attacker.ships.find((s) => s.alive);
-        const multiplier = weaponMultiplier(
-          attackerFront?.attackType ?? 'kinetic',
-          front.weakness ?? 'energy',
-        );
-        const damage = Math.max(1, Math.floor(raw * multiplier));
-        let remaining = damage;
-        /*
-         * Planet defense stacks are protected by the shared planetary
-         * shield before their own per-ship shields. The pool absorbs the
-         * whole defense line, so it applies to any immobile target stack
-         * and only the overflow reaches hull / per-ship shield logic.
-         */
-        if (target.immobile && state.defenderShieldPool && state.defenderShieldPool.current > 0) {
-          const absorbed = Math.min(state.defenderShieldPool.current, remaining);
-          state.defenderShieldPool.current -= absorbed;
-          remaining -= absorbed;
-        }
-        let kills = 0;
-        for (const ship of target.ships) {
-          if (!ship.alive || remaining <= 0) {
-            continue;
-          }
-          const shieldHp = ship.shield ?? 0;
-          const shieldDamage = Math.min(shieldHp, remaining);
-          ship.shield = shieldHp - shieldDamage;
-          remaining -= shieldDamage;
-          if (remaining <= 0) {
-            continue;
-          }
-          const applied = Math.min(ship.hp, remaining);
-          ship.hp -= applied;
-          remaining -= applied;
-          if (ship.hp <= 0) {
-            ship.hp = 0;
-            ship.alive = false;
-            kills++;
-          }
-        }
-        const targetDestroyed = target.ships.every((s) => !s.alive);
-        if (targetDestroyed) {
-          target.destroyed = true;
-        }
+        const { damage, kills, targetDestroyed } = applyVolleyDamage(state, attacker, target);
         state.log.push({
           round: state.round,
           side: attacker.side,

@@ -42,7 +42,14 @@ export class EnemyCapabilityService {
   private readonly THREAT_DISTANCE = 5;
   private readonly REINFORCEMENT_THRESHOLD = 0.5;
 
-  private accumulator = 0;
+  /*
+   * One accumulator per faction. tick() is called once per AI faction per
+   * frame, so a single shared accumulator advanced N times per frame and
+   * only the faction whose call crossed the threshold was processed —
+   * every other AI faction starved. Keyed by faction id so each faction
+   * gets its own STRATEGY_TICK_INTERVAL cadence.
+   */
+  private readonly accumulators = new Map<string, number>();
   private readonly currentCapabilities = new Map<string, CapabilityResult>();
   private readonly peakStrength = new Map<string, number>();
 
@@ -53,7 +60,7 @@ export class EnemyCapabilityService {
   ) {}
 
   reset(): void {
-    this.accumulator = 0;
+    this.accumulators.clear();
     this.currentCapabilities.clear();
     this.peakStrength.clear();
   }
@@ -72,15 +79,12 @@ export class EnemyCapabilityService {
       return false;
     }
 
-    this.accumulator += gameDeltaTime;
-    if (this.accumulator < this.STRATEGY_TICK_INTERVAL) {
+    const accumulator = (this.accumulators.get(factionId) ?? 0) + gameDeltaTime;
+    if (accumulator < this.STRATEGY_TICK_INTERVAL) {
+      this.accumulators.set(factionId, accumulator);
       return false;
     }
-
-    this.accumulator -= this.STRATEGY_TICK_INTERVAL;
-    if (this.accumulator < 0) {
-      this.accumulator = 0;
-    }
+    this.accumulators.set(factionId, Math.max(0, accumulator - this.STRATEGY_TICK_INTERVAL));
 
     if (currentGoal !== undefined) {
       this.updatePeakStrength(factionId, fleets);
@@ -114,6 +118,23 @@ export class EnemyCapabilityService {
 
   getCapability(factionId: string): CapabilityResult | undefined {
     return this.currentCapabilities.get(factionId);
+  }
+
+  /*
+   * evaluate: Pure capability assessment for an arbitrary goal (used for
+   * the parallel colonization objective, which is not this service's
+   * per-faction primary goal). Does not touch stored results or peaks.
+   */
+  evaluate(
+    goal: StrategicGoal,
+    factionId: string,
+    fleets: Fleet[],
+    factions: Faction[],
+    starSystems: StarSystem[],
+    shipStock: { factionId: string; ships: { id: number; type: string; name: string; producedAtTick?: number; originPlanetId?: number | null }[] }[],
+    production: { factionId: string; ordersByPlanet: Record<number, { shipTypeId: string; quantity: number; progress: number; startedAtTick: number }[]> }[],
+  ): CapabilityResult {
+    return this.evaluateGoal(goal, factionId, fleets, factions, starSystems, shipStock, production);
   }
 
   private evaluateGoal(

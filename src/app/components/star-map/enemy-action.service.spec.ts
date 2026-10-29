@@ -28,6 +28,12 @@ describe('EnemyActionService', () => {
         { id: 'frigate', name: 'Frigate', role: 'Combat', cost: 200, hitPoints: 20, shield: 5, shieldRegen: 0, attack: 10, attackType: 'kinetic', weakness: 'energy', defense: 8, speed: 4, range: 2, maintenanceCost: 10 },
         { id: 'destroyer', name: 'Destroyer', role: 'Combat', cost: 350, hitPoints: 35, shield: 10, shieldRegen: 1, attack: 15, attackType: 'energy', weakness: 'kinetic', defense: 12, speed: 5, range: 3, maintenanceCost: 18 },
       ]),
+      calculateFleetStrength: vi.fn((ships: { type: string; destroyed?: boolean }[]) =>
+        ships.filter((ship) => ship.destroyed !== true).reduce((sum, ship) => {
+          const t = (shipService.getShipType as any)(ship.type);
+          return t ? sum + t.attack + t.defense + t.hitPoints / 10 + t.shield / 10 : sum;
+        }, 0),
+      ),
     };
     researchService = {
       isResearched: vi.fn(() => true),
@@ -327,6 +333,73 @@ describe('EnemyActionService', () => {
       expect(result).toBeDefined();
       expect(result!.type).toBe('colonize');
       expect(result!.targetId).toBe(1);
+    });
+
+    it('should produce COLONIZE on map arrival even when gridCol holds a system-view cell', () => {
+      // FleetAssemblyService stores the planet's system-view cell in gridCol;
+      // arrival must be judged by the fleet's galaxy-map position instead.
+      const fleets = [
+        createFleet({
+          factionId: 'enemy1',
+          x: 10.4,
+          y: 10.6,
+          gridCol: 12,
+          gridRow: 3,
+          id: 1,
+          ships: [{ id: 1, name: 'C', type: 'colonizer', currentHp: 10, destroyed: false }],
+        }),
+      ];
+      const systems = [createSystem({ id: 'sys1', x: 10, y: 10, planetsTiles: [createPlanet({ id: 1, factionId: 'unhabited' })] })];
+      const capability = makeCapability({
+        canExecute: true,
+        requirements: [{ type: 'target_valid', satisfied: true, reason: 'satisfied' }],
+      });
+
+      service.tick(3, makeColonizeGoal(), capability, 'enemy1', fleets, baseFactions, systems, emptyShipStock, emptyProduction);
+
+      expect(service.getAction('enemy1')?.type).toBe('colonize');
+    });
+
+    it('should fall back to DEVELOP when no factory exists to build a colonizer', () => {
+      (productionService.getPlanetCapacity as any).mockReturnValue(0);
+      const factions = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 1000 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const systems = [
+        createSystem({ id: 'sys1', x: 10, y: 10, planetsTiles: [createPlanet({ id: 1, factionId: 'unhabited' })] }),
+        createSystem({ id: 'sys2', x: 30, y: 30, planetsTiles: [createPlanet({ id: 2, factionId: 'enemy1' })] }),
+      ];
+      const capability = makeCapability({
+        canExecute: false,
+        requirements: [
+          { type: 'colonizer_technology', satisfied: true, reason: 'satisfied' },
+          { type: 'colonizer_unlocked', satisfied: true, reason: 'satisfied' },
+          { type: 'colonizer_available', satisfied: false, reason: 'no_colonizer_available' },
+          { type: 'usable_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+        ],
+      });
+
+      service.tick(3, makeColonizeGoal(), capability, 'enemy1', [], factions, systems, emptyShipStock, emptyProduction);
+
+      expect(service.getAction('enemy1')?.type).toBe('develop');
+      expect(service.getAction('enemy1')?.reason).toBe('missing_factory_for_colonizer');
+    });
+
+    it('should fall back to DEVELOP when a stocked colonizer cannot be assembled without a Spaceport', () => {
+      (spaceportService.hasSpaceport as any).mockReturnValue(false);
+      (shipStockService.getCount as any).mockReturnValue(1);
+      const systems = [createSystem({ id: 'sys1', x: 10, y: 10, planetsTiles: [createPlanet({ id: 1, factionId: 'unhabited' })] })];
+      const capability = makeCapability({
+        canExecute: true,
+        requirements: [{ type: 'target_valid', satisfied: true, reason: 'satisfied' }],
+      });
+      const shipStock = [{ factionId: 'enemy1', ships: [{ id: 1, type: 'colonizer', name: 'Colonizer' }] }];
+
+      service.tick(3, makeColonizeGoal(), capability, 'enemy1', [], baseFactions, systems, shipStock, emptyProduction);
+
+      expect(service.getAction('enemy1')?.type).toBe('develop');
+      expect(service.getAction('enemy1')?.reason).toBe('missing_spaceport_for_assembly');
     });
 
     it('should produce NONE for invalid colonization goal', () => {
@@ -1292,6 +1365,27 @@ describe('EnemyActionService', () => {
       expect(result).toBeDefined();
       expect(result!.type).toBe('none');
       expect(result!.reason).toBe('No fleet with colonizer found');
+    });
+  });
+
+  describe('concurrent colonization objectives', () => {
+    it('binds each colonizer carrier to one objective and produces a colonizer for the unserved one', () => {
+      const factions = baseFactions.map((f) => (f.id === 'enemy1' ? { ...f, currencies: { credits: 1000 }, researchedTechnologies: ['basic_engineering'] } : f));
+      const systems = [
+        createSystem({ id: 'sys1', x: 10, y: 10, planetsTiles: [createPlanet({ id: 1, factionId: 'unhabited' })] }),
+        createSystem({ id: 'sys2', x: 30, y: 30, planetsTiles: [createPlanet({ id: 2, factionId: 'unhabited' })] }),
+        createSystem({ id: 'home', x: 0, y: 0, planetsTiles: [createPlanet({ id: 3, factionId: 'enemy1' })] }),
+      ];
+      const carrier = createFleet({ factionId: 'enemy1', x: 0, y: 0, id: 7, ships: [{ id: 70, name: 'C', type: 'colonizer', currentHp: 10, destroyed: false }] });
+      const capability = makeCapability({ canExecute: true, requirements: [{ type: 'target_valid', satisfied: true, reason: 'satisfied' }] });
+
+      service.tick(3, makeColonizeGoal({ targetPlanetId: 1, targetSystemId: 'sys1' }), capability, 'enemy1', [carrier], factions, systems, emptyShipStock, emptyProduction);
+      expect(service.getAction('enemy1')?.targetId).toBe(7);
+
+      service.planColonizationAction(makeColonizeGoal({ targetPlanetId: 2, targetSystemId: 'sys2' }), capability, 'enemy1', [carrier], factions, systems, emptyShipStock, emptyProduction);
+      const second = service.getColonizationAction('enemy1')!;
+      expect(second.targetId).not.toBe(7);
+      expect(second.type).toBe('produce_colonizer');
     });
   });
 });

@@ -1,3 +1,4 @@
+import { getAiPersonalityProfile } from './ai-personality';
 import { Fleet, Faction, StarSystem } from './star-map.models';
 
 export function getEnemyFleets(factionId: string, fleets: Fleet[]): Fleet[] {
@@ -56,4 +57,21 @@ export function isPlayerFleet(fleet: Fleet, factions: Faction[]): boolean {
  */
 export function isCombatShipType(shipType: { role: string } | undefined): boolean {
   return shipType !== undefined && shipType.role !== 'Recon' && shipType.role !== 'Colonizer';
+}
+
+/*
+ * AI_COLONIZATION_REACH: Maximum distance (galaxy cells) from an owned
+ * system at which an AI faction considers an unhabited planet a
+ * colonization target. Shared by EnemyStrategyService (whether 'expand'
+ * is worth choosing) and EnemyGoalService (which targets qualify) so the
+ * two layers never disagree — a strategy that says 'expand' with no goal
+ * able to match it would leave the faction idle. Generated maps space
+ * systems 22–30 cells apart (neighbours are typically 45–60 cells away);
+ * an AI-assembled fleet (0.2 cells/s) needs ~300 s for the full reach.
+ */
+export const AI_COLONIZATION_REACH = 60;
+
+/* The faction's colonization reach: AI_COLONIZATION_REACH × personality reach. */
+export function getColonizationReach(faction: Faction | undefined): number {
+  return AI_COLONIZATION_REACH * getAiPersonalityProfile(faction).colonizationReach;
 }

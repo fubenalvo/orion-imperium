@@ -11,6 +11,7 @@ import { Router } from '@angular/router';
 import { Subscription, skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { BattleService } from '../../services/battle.service';
+import { BattleOutcomeService } from '../../services/battle-outcome.service';
 import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
@@ -143,6 +144,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   constructor(
     private router: Router,
     private battleService: BattleService,
+    private battleOutcomeService: BattleOutcomeService,
     private shipService: ShipService,
     private planetBattleService: PlanetBattleService,
     private saveGameService: SaveGameService,
@@ -822,111 +824,31 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   /*
-   * Persists fleet-vs-fleet damage to the autosave slot. Both real
-   * fleets get their per-ship roster (final HP + destroyed flags)
-   * written back; a wiped-out fleet is additionally marked destroyed.
-   * StarMap.reloadAfterBattle() reads the same slot on the next
-   * /star-map navigation.
+   * Persists fleet-vs-fleet damage to the autosave slot through
+   * BattleOutcomeService. StarMap.reloadAfterBattle() reads the same slot
+   * on the next /star-map navigation.
    */
   private persistFleetBattleResult(outcome: BattleOutcome): void {
     const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
     if (!data || !data.fleets) {
       return;
     }
-    for (const fleetOutcome of [outcome.attacker, outcome.defender]) {
-      const fleet = data.fleets.find((f) => f.id === fleetOutcome.fleetId);
-      if (!fleet) {
-        continue;
-      }
-      fleet.ships = shipsToSave(fleetOutcome.ships);
-      if (fleetOutcome.wipedOut) {
-        fleet.destroyed = true;
-      }
-    }
+    this.battleOutcomeService.applyFleetBattleOutcome(data, outcome);
     this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
 
   /*
-   * Persists a planet battle outcome: on attacker victory the planet
-   * changes owner; the attacker's ship roster is always written back so
-   * a damaged winner returns damaged. The virtual defense fleet is
-   * never written back.
+   * Persists a planet battle outcome through BattleOutcomeService, the
+   * same code path AI auto-resolved invasions use: on attacker victory the
+   * planet changes owner (PlanetOwnershipService), the attacker's roster
+   * is always written back and a real garrison keeps its damage.
    */
   private applyPlanetBattleResult(battle: Battle, outcome: BattleOutcome): void {
     const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
     if (!data || !data.starSystems) {
       return;
     }
-    const defenderFleet = battle.attackerId === battle.fleet1.id ? battle.fleet2 : battle.fleet1;
-    const garrisonFleetId = defenderFleet.garrisonFleetId;
-    const garrisonShipMap = defenderFleet.garrisonShipMap;
-
-    for (const system of data.starSystems) {
-      const planet = system.planetsTiles?.find((p) => p.id === battle.planetId);
-      if (!planet) {
-        continue;
-      }
-      if (outcome.winnerSide === 'attacker') {
-        planet.factionId = outcome.attacker.factionId;
-      }
-      if (outcome.defender.shieldPoolCurrent !== undefined) {
-        planet.shieldPoolCurrent = outcome.defender.shieldPoolCurrent;
-      }
-      const fleet = data.fleets?.find((f) => f.id === outcome.attacker.fleetId);
-      if (fleet) {
-        fleet.ships = shipsToSave(outcome.attacker.ships);
-        if (outcome.attacker.wipedOut) {
-          fleet.destroyed = true;
-        }
-      }
-
-      // Persist the real garrison fleet's damage and losses. Virtual turret
-      // ids below 1000000 are never in garrisonShipMap and are skipped.
-      if (garrisonFleetId != null) {
-        const garrisonFleet = data.fleets?.find((f) => f.id === garrisonFleetId);
-        if (garrisonFleet) {
-          if (outcome.winnerSide === 'attacker') {
-            // The captured garrison is destroyed along with the planet loss.
-            garrisonFleet.destroyed = true;
-            for (const ship of garrisonFleet.ships) {
-              ship.destroyed = true;
-            }
-          } else if (garrisonShipMap) {
-            for (const shipOutcome of outcome.defender.ships) {
-              const originalShipId = garrisonShipMap[shipOutcome.shipId];
-              if (originalShipId === undefined) {
-                continue;
-              }
-              const ship = garrisonFleet.ships.find((s) => s.id === originalShipId);
-              if (ship) {
-                ship.currentHp = Math.max(0, shipOutcome.hp);
-                ship.destroyed = shipOutcome.destroyed;
-              }
-            }
-            if (garrisonFleet.ships.length > 0 && garrisonFleet.ships.every((s) => s.destroyed === true)) {
-              garrisonFleet.destroyed = true;
-            }
-          }
-        }
-      }
-      break;
-    }
+    this.battleOutcomeService.applyPlanetBattleOutcome(data, battle, outcome);
     this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
 }
-
-/* Converts outcome ship records back to the overworld FleetShip shape. */
-function shipsToSave(
-  ships: BattleOutcome['attacker']['ships'],
-): { id: number; name: string; type: string; currentHp: number; destroyed: boolean }[] {
-  return ships.map((s) => ({
-    id: s.shipId,
-    name: s.name,
-    type: s.typeId,
-    currentHp: s.hp,
-    destroyed: s.destroyed,
-  }));
-}
-
-
-

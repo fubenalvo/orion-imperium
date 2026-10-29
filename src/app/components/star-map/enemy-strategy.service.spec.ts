@@ -137,7 +137,8 @@ describe('EnemyStrategyService', () => {
         x: 5,
         y: 5,
         id: 2,
-        ships: [{ id: 1, name: 'S', type: 'scout', currentHp: 10, destroyed: false }],
+        // A strategically significant target: a lone scout is left to fleet interception.
+        ships: [{ id: 1, name: 'F', type: 'frigate', currentHp: 10, destroyed: false }],
       }),
     ];
     const systems: StarSystem[] = [];
@@ -216,7 +217,8 @@ describe('EnemyStrategyService', () => {
         x: 5,
         y: 5,
         id: 2,
-        ships: [{ id: 1, name: 'S', type: 'scout', currentHp: 10, destroyed: false }],
+        // A strategically significant target: a lone scout is left to fleet interception.
+        ships: [{ id: 1, name: 'F', type: 'frigate', currentHp: 10, destroyed: false }],
       }),
     ];
     const systems = [

@@ -1,9 +1,13 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import { ShipService } from './ship.service';
+import { PlanetOwnershipService } from './planet-ownership.service';
+import { ProductionService } from './production.service';
+import { ShipStockService } from './ship-stock.service';
 import planetData from '../components/star-map/planet-data.json';
 import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
 import {
   Faction,
+  FactionProduction,
   StarSystem,
   PlanetTile,
   Fleet,
@@ -52,7 +56,19 @@ export class EconomyService {
   // second at full satisfaction and best habitability. Tunable balance knob.
   private readonly POPULATION_GROWTH_BASE_RATE = 0.005;
 
-  constructor(private shipService: ShipService) {
+  private readonly planetOwnership: PlanetOwnershipService;
+
+  /*
+   * PlanetOwnershipService is always injected by Angular DI. It is optional
+   * only so specs can still construct `new EconomyService(new ShipService())`;
+   * such an instance gets a private ownership service with identical rules.
+   */
+  constructor(
+    private shipService: ShipService,
+    @Optional() planetOwnership?: PlanetOwnershipService,
+  ) {
+    this.planetOwnership = planetOwnership
+      ?? new PlanetOwnershipService(new ProductionService(shipService, new ShipStockService()));
     const buildings = (planetData as { buildings: BuildingStats[] }).buildings;
     for (const building of buildings) {
       this.buildingStats.set(building.id, building);
@@ -368,6 +384,8 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
     starSystems: StarSystem[],
     fleets: Fleet[],
     deltaTime: number,
+    // Lets a rebellion cancel the old owner's orders on the planet.
+    production?: FactionProduction[],
   ): EconomyBreakdown {
     const breakdown = this.calculateEconomy(factionId, factions, starSystems, fleets);
     const faction = factions.find((f) => f.id === factionId);
@@ -399,7 +417,7 @@ calculatePopulationGrowth(planet: PlanetTile, deltaTime: number): number {
         //    satisfaction value here, not the one captured in the
         //    breakdown entry, so the flip is honored immediately.
         if (planet.satisfaction <= 0 && planet.factionId !== 'independent') {
-          planet.factionId = 'independent';
+          this.planetOwnership.transferPlanet({ production, factions }, planet, 'independent', 'rebellion');
         }
       }
 

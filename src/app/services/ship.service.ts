@@ -62,9 +62,16 @@ export class ShipService {
    * calculateFleetStrength: Returns the aggregate combat strength of a fleet
    * using the formula attack + defense + hitPoints/10 + shield/10 per ship.
    * Extracted from duplicated private methods in four AI services.
+   *
+   * Destroyed ships never count. Battle results keep destroyed ships in the
+   * fleet roster (flagged `destroyed: true`), so callers passing a raw
+   * `fleet.ships` array would otherwise see pre-battle strength.
    */
-  calculateFleetStrength(ships: { type: string }[]): number {
+  calculateFleetStrength(ships: { type: string; destroyed?: boolean }[]): number {
     return ships.reduce((sum, ship) => {
+      if (ship.destroyed === true) {
+        return sum;
+      }
       const shipType = this.getShipType(ship.type);
       if (!shipType) {
         return sum;

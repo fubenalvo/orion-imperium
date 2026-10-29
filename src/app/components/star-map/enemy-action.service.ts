@@ -47,9 +47,25 @@ import { isCombatShipType } from './ai-queries';
 @Injectable({ providedIn: 'root' })
 export class EnemyActionService {
   private readonly STRATEGY_TICK_INTERVAL = 2;
+  private readonly DEFEND_MIN_RATIO = 0.5;
 
-  private accumulator = 0;
+  /*
+   * One accumulator per faction. tick() is called once per AI faction per
+   * frame, so a single shared accumulator advanced N times per frame and
+   * only the faction whose call crossed the threshold was processed —
+   * every other AI faction starved. Keyed by faction id so each faction
+   * gets its own STRATEGY_TICK_INTERVAL cadence.
+   */
+  private readonly accumulators = new Map<string, number>();
   private readonly currentActions = new Map<string, ActionResult>();
+  // Action for the parallel colonization objective (EnemyGoalService.getColonizationGoal).
+  private readonly colonizationActions = new Map<string, ActionResult>();
+  /*
+   * Colonizer carrier → planet id of the colonization objective it serves.
+   * With two concurrent objectives (primary + parallel slot) each carrier
+   * must serve exactly one, or both objectives would steer the same fleet.
+   */
+  private readonly carrierTargets = new Map<number, number>();
 
   constructor(
     private readonly shipService: ShipService,
@@ -62,8 +78,40 @@ export class EnemyActionService {
   ) {}
 
   reset(): void {
-    this.accumulator = 0;
+    this.accumulators.clear();
     this.currentActions.clear();
+    this.colonizationActions.clear();
+    this.carrierTargets.clear();
+  }
+
+  /*
+   * planColonizationAction: Evaluates the next step of the parallel
+   * colonization objective with the same rules as a primary colonize goal
+   * and stores it separately. `goal` undefined clears it. Cadence is the
+   * caller's (StarMapAiTickService runs it on the strategy interval).
+   */
+  planColonizationAction(
+    goal: ColonizeGoal | undefined,
+    capability: CapabilityResult | undefined,
+    factionId: string,
+    fleets: Fleet[],
+    factions: Faction[],
+    starSystems: StarSystem[],
+    shipStock: { factionId: string; ships: ShipStockEntry[] }[],
+    production: { factionId: string; ordersByPlanet: Record<number, ProductionOrder[]> }[],
+  ): boolean {
+    const previous = this.colonizationActions.get(factionId);
+    if (!goal || !capability) {
+      this.colonizationActions.delete(factionId);
+      return previous !== undefined;
+    }
+    const next = this.evaluateAction(goal, capability, factionId, fleets, factions, starSystems, shipStock, production);
+    this.colonizationActions.set(factionId, next);
+    return JSON.stringify(previous) !== JSON.stringify(next);
+  }
+
+  getColonizationAction(factionId: string): ActionResult | undefined {
+    return this.colonizationActions.get(factionId);
   }
 
   tick(
@@ -81,15 +129,12 @@ export class EnemyActionService {
       return false;
     }
 
-    this.accumulator += gameDeltaTime;
-    if (this.accumulator < this.STRATEGY_TICK_INTERVAL) {
+    const accumulator = (this.accumulators.get(factionId) ?? 0) + gameDeltaTime;
+    if (accumulator < this.STRATEGY_TICK_INTERVAL) {
+      this.accumulators.set(factionId, accumulator);
       return false;
     }
-
-    this.accumulator -= this.STRATEGY_TICK_INTERVAL;
-    if (this.accumulator < 0) {
-      this.accumulator = 0;
-    }
+    this.accumulators.set(factionId, Math.max(0, accumulator - this.STRATEGY_TICK_INTERVAL));
 
     const previous = this.currentActions.get(factionId);
     const next = currentGoal !== undefined && capability !== undefined
@@ -154,7 +199,7 @@ export class EnemyActionService {
 
     switch (goal.type) {
       case 'colonize':
-        return this.evaluateColonizeExecute(goal, factionId, fleets, starSystems, shipStock);
+        return this.evaluateColonizeExecute(goal, factionId, fleets, factions, starSystems, shipStock);
       case 'attack':
         return this.evaluateAttackExecute(goal, factionId, fleets);
       case 'defend':
@@ -223,10 +268,30 @@ export class EnemyActionService {
       if (this.canProduceColonizer(factionId, factions, starSystems)) {
         return this.createAction('produce_colonizer', factionId, goal, undefined, goal.targetSystemId, goal.targetPlanetId, 'No colonizer available but production is possible');
       }
+      /*
+       * Expansion needs a Spaceship Factory, and only a develop action
+       * builds one. Without this fallback a faction whose strategy stays
+       * 'expand' waits forever for a factory it never constructs.
+       */
+      if (!this.hasShipFactory(factionId, starSystems)) {
+        return this.createAction('develop', factionId, goal, undefined, undefined, undefined, 'missing_factory_for_colonizer');
+      }
       return this.createNoneAction(factionId, goal, colonizerAvailable.reason);
     }
 
     if (usableFleet && !usableFleet.satisfied) {
+      /*
+       * No fleet left (e.g. all fleets lost) but a colonizer is in stock:
+       * assembling at a Spaceport creates a new fleet for it, so this is
+       * a recoverable state rather than a permanent 'none'.
+       */
+      const stockData = { shipStock } as { shipStock?: { factionId: string; ships: ShipStockEntry[] }[] };
+      if (this.shipStockService.getCount(stockData, factionId, 'colonizer') > 0) {
+        if (this.spaceportService.hasSpaceport(factionId, starSystems)) {
+          return this.createAction('assemble_fleet', factionId, goal, undefined, goal.targetSystemId, goal.targetPlanetId, 'Colonizer in stock and no fleet; assembling at Spaceport');
+        }
+        return this.createAction('develop', factionId, goal, undefined, undefined, undefined, 'missing_spaceport_for_assembly');
+      }
       return this.createNoneAction(factionId, goal, usableFleet.reason);
     }
 
@@ -237,6 +302,7 @@ export class EnemyActionService {
     goal: ColonizeGoal,
     factionId: string,
     fleets: Fleet[],
+    factions: Faction[],
     starSystems: StarSystem[],
     shipStock: { factionId: string; ships: ShipStockEntry[] }[],
   ): ActionResult {
@@ -247,19 +313,36 @@ export class EnemyActionService {
       return this.createNoneAction(factionId, goal, 'Target planet is no longer unhabited');
     }
 
-    const fleetWithColonizer = this.findFleetWithColonizer(factionId, fleets);
+    const fleetWithColonizer = this.selectCarrier(factionId, goal, fleets);
 
     if (!fleetWithColonizer) {
       const stockData = { shipStock } as { shipStock?: { factionId: string; ships: ShipStockEntry[] }[] };
       const colonizerInStock = this.shipStockService.getCount(stockData, factionId, 'colonizer') > 0;
       if (colonizerInStock) {
+        // Fleet assembly requires a Spaceport; build one first instead of
+        // retrying an assembly that FleetAssemblyService always rejects.
+        if (!this.spaceportService.hasSpaceport(factionId, starSystems)) {
+          return this.createAction('develop', factionId, goal, undefined, undefined, undefined, 'missing_spaceport_for_assembly');
+        }
         return this.createAction('assemble_fleet', factionId, goal, undefined, goal.targetSystemId, goal.targetPlanetId, 'Colonizer in stock but no fleet has it');
+      }
+      // Every carrier serves another objective: this one needs its own colonizer.
+      if (this.canProduceColonizer(factionId, factions, starSystems)) {
+        return this.createAction('produce_colonizer', factionId, goal, undefined, goal.targetSystemId, goal.targetPlanetId, 'All carriers are assigned; producing another colonizer');
       }
       return this.createNoneAction(factionId, goal, 'No fleet with colonizer found');
     }
 
-    const planetCell = this.movementService.getPlanetGridPosition(planet);
-    const atTarget = fleetWithColonizer.gridCol === planetCell.col && fleetWithColonizer.gridRow === planetCell.row;
+    /*
+     * Arrival is measured on the galaxy map: the fleet's map cell must
+     * match the target system's map cell. This is the same test the
+     * executor uses before colonizing and the destination that
+     * move_to_target sets. Do NOT compare fleet.gridCol/gridRow with the
+     * planet's system-view cell: gridCol holds a galaxy-map cell after
+     * map movement but a system-view cell after FleetAssemblyService
+     * creates a fleet, so that comparison is never reliably true.
+     */
+    const atTarget = this.isFleetAtSystem(fleetWithColonizer, system);
 
     if (atTarget) {
       return this.createAction('colonize', factionId, goal, planet.id, goal.targetSystemId, planet.id, 'Fleet with colonizer is at the target planet');
@@ -313,6 +396,18 @@ export class EnemyActionService {
     const enemyFleet = this.findBestEnemyFleet(factionId, fleets);
     if (!enemyFleet) {
       return this.createNoneAction(factionId, goal, 'No available enemy fleet');
+    }
+
+    /*
+     * Hysteresis with EnemyStrategyService: the strategy only *starts* an
+     * attack with the difficulty's strength advantage; once committed the
+     * attack continues while the fleet is not weaker than the target, and
+     * is abandoned when the target has become stronger (reinforced, or our
+     * fleet took losses). The released fleet falls back to
+     * EnemyFleetService (retreat / regroup) instead of chasing forever.
+     */
+    if (this.shipService.calculateFleetStrength(enemyFleet.ships) < this.shipService.calculateFleetStrength(targetFleet.ships)) {
+      return this.createNoneAction(factionId, goal, 'target_too_strong');
     }
 
     const atTarget = Math.floor(enemyFleet.x) === Math.floor(targetFleet.x) && Math.floor(enemyFleet.y) === Math.floor(targetFleet.y);
@@ -403,6 +498,18 @@ export class EnemyActionService {
       return this.createNoneAction(factionId, goal, 'No available enemy fleet');
     }
 
+    /*
+     * Defending next to the planet's own defenses justifies worse odds
+     * than an attack, but not a hopeless fight: below DEFEND_MIN_RATIO of
+     * the threat the fleet is not sent (EnemyFleetService keeps it safe).
+     */
+    const threat = fleets.find((f) => f.id === goal.threateningFleetId && !f.destroyed);
+    if (threat
+      && this.shipService.calculateFleetStrength(enemyFleet.ships)
+        < this.DEFEND_MIN_RATIO * this.shipService.calculateFleetStrength(threat.ships)) {
+      return this.createNoneAction(factionId, goal, 'threat_too_strong');
+    }
+
     const atSystem = Math.floor(enemyFleet.x) === Math.floor(system.x) && Math.floor(enemyFleet.y) === Math.floor(system.y);
 
     if (atSystem) {
@@ -412,36 +519,73 @@ export class EnemyActionService {
     return this.createAction('move_to_target', factionId, goal, enemyFleet.id, goal.targetSystemId, goal.targetPlanetId, 'Enemy fleet needs to move to the threatened system');
   }
 
-  private findFleetWithColonizer(factionId: string, fleets: Fleet[]): Fleet | undefined {
+  private isFleetAtSystem(fleet: Fleet, system: StarSystem): boolean {
+    return Math.floor(fleet.x) === Math.floor(system.x) && Math.floor(fleet.y) === Math.floor(system.y);
+  }
+
+  /*
+   * selectCarrier: The carrier already bound to this objective, otherwise
+   * a carrier not bound to another still-active colonization objective
+   * (lowest id). Binds the choice.
+   */
+  private selectCarrier(factionId: string, goal: ColonizeGoal, fleets: Fleet[]): Fleet | undefined {
+    const carriers = fleets
+      .filter((f) => f.factionId === factionId && !f.destroyed && f.ships.some((s) => s.type === 'colonizer' && !s.destroyed))
+      .sort((a, b) => a.id - b.id || a.name.localeCompare(b.name));
+    // Drop bindings of this faction's fleets that are no longer carriers
+    // (colonizer landed, fleet retired or destroyed), so the map stays bounded.
+    const carrierIds = new Set(carriers.map((c) => c.id));
+    for (const fleetId of [...this.carrierTargets.keys()]) {
+      const fleet = fleets.find((f) => f.id === fleetId);
+      if ((!fleet || fleet.factionId === factionId) && !carrierIds.has(fleetId)) {
+        this.carrierTargets.delete(fleetId);
+      }
+    }
+    const activeTargets = new Set<number>([goal.targetPlanetId]);
+    for (const action of [this.currentActions.get(factionId), this.colonizationActions.get(factionId)]) {
+      if (action?.goal?.type === 'colonize') {
+        activeTargets.add(action.goal.targetPlanetId);
+      }
+    }
+    const bound = carriers.find((c) => this.carrierTargets.get(c.id) === goal.targetPlanetId);
+    const carrier = bound ?? carriers.find((c) => {
+      const servedPlanet = this.carrierTargets.get(c.id);
+      return servedPlanet === undefined || !activeTargets.has(servedPlanet);
+    });
+    if (carrier) {
+      this.carrierTargets.set(carrier.id, goal.targetPlanetId);
+    }
+    return carrier;
+  }
+
+  /*
+   * findBestEnemyFleet: The faction's strongest living fleet that carries
+   * no colonizer (a colonization run is never diverted into combat).
+   * Ties: lowest id. Strength counts living ships only.
+   */
+  private findBestEnemyFleet(factionId: string, fleets: Fleet[]): Fleet | undefined {
     const candidates = fleets.filter(
-      (f) => f.factionId === factionId && !f.destroyed && f.ships.some((s) => s.type === 'colonizer' && !s.destroyed),
+      (f) =>
+        f.factionId === factionId
+        && !f.destroyed
+        && f.ships.some((ship) => !ship.destroyed)
+        && !f.ships.some((ship) => ship.type === 'colonizer' && !ship.destroyed),
     );
     if (candidates.length === 0) {
       return undefined;
     }
-    candidates.sort((a, b) => {
-      if (a.id !== b.id) {
-        return a.id - b.id;
-      }
-      return a.name.localeCompare(b.name);
-    });
+    const strength = (f: Fleet) => this.shipService.calculateFleetStrength(f.ships);
+    candidates.sort((a, b) => strength(b) - strength(a) || a.id - b.id || a.name.localeCompare(b.name));
     return candidates[0];
   }
 
-  private findBestEnemyFleet(factionId: string, fleets: Fleet[]): Fleet | undefined {
-    const candidates = fleets.filter(
-      (f) => f.factionId === factionId && !f.destroyed && f.ships.some((ship) => !ship.destroyed),
+  private hasShipFactory(factionId: string, starSystems: StarSystem[]): boolean {
+    return starSystems.some((system) =>
+      system.planetsTiles.some(
+        (planet) =>
+          planet.factionId === factionId && this.productionService.getPlanetCapacity(planet, 'spaceship_factory') > 0,
+      ),
     );
-    if (candidates.length === 0) {
-      return undefined;
-    }
-    candidates.sort((a, b) => {
-      if (a.id !== b.id) {
-        return a.id - b.id;
-      }
-      return a.name.localeCompare(b.name);
-    });
-    return candidates[0];
   }
 
   private canProduceColonizer(factionId: string, factions: Faction[], starSystems: StarSystem[]): boolean {

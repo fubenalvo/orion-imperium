@@ -100,7 +100,7 @@ export function volleysToKill(state: BattleModelState, attacker: BattleStack, ta
  * ends with the same tie-breakers (nearer first, then stackId) so the
  * choice is deterministic.
  */
-function compareTargets(
+export function compareTargets(
   state: BattleModelState,
   attacker: BattleStack,
   mode: BattleTargetingMode,

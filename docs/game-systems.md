@@ -26,6 +26,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 - Grid cells within sensor range are highlighted with a semi-transparent faction-colored overlay (`.sensor-range-cell` with `--sensor-color` CSS variable). Player sensors use the player faction color (`#8cc4ff`).
 - A toggle button in the top HUD (`sensorRangeEnabled`) shows/hides the highlight overlays and fog.
 - Enemy fleet sensor ranges are **never** shown on the galaxy map — only player sensors are visible.
+- AI factions obey the same fog of war with the same sensor rules (per-faction knowledge in `EnemyIntelService`, see [AI Pipeline](./ai-pipeline.md#fog-of-war-enemyintelservice)); with fog disabled they see what the player sees.
 - A pulsing animation (`sensor-pulse`, 2.5s) highlights active sensor area.
 
 **Exploration tracking:**
@@ -135,7 +136,7 @@ At most one of `selectedSystem`, `selectedFleet`, `selectedPlanetTile` is active
 
 Fleet movement is target-based. Each frame, `StarMapMovementService.updateFleets()` processes every active fleet:
 
-- **Map movement** uses `fleet.targetX` / `fleet.targetY` (1-indexed grid cells). Speed is in vw/s and is converted to cells/s via `fleet.speed / cellSizeVw` before applying. When the remaining distance is below 0.01, the fleet snaps to the target, clears the target, and fires the `onTargetReached` callback (used to clear the visible target marker). If the fleet has a `system.id` and is no longer inside that system cell, `onLeaveSystem` is invoked, which clears `fleet.system`.
+- **Map movement** uses `fleet.targetX` / `fleet.targetY` (1-indexed grid cells). Speed is in vw/s and is converted to cells/s via `fleet.speed / 10 / GALAXY_MOVEMENT_CELL_SIZE_VW` (a fixed 2 = the desktop cell size) before applying; the rendered cell size never affects travel time. When the remaining distance is below 0.01, the fleet snaps to the target, clears the target, and fires the `onTargetReached` callback (used to clear the visible target marker). If the fleet has a `system.id` and is no longer inside that system cell, `onLeaveSystem` is invoked, which clears `fleet.system`.
 - **System movement** uses `fleet.system.targetX` / `fleet.system.targetY` in vw units. Speed is in vw/s and applied directly (no cell conversion). Same target-reached / snap behaviour. While in the system, `gridCol`/`gridRow` are derived from `calculateSystemGridCell(system.x, system.y)`.
 
 After every move, `gridCol` and `gridRow` are refreshed from the current x/y. `refreshGridPositions()` does the same for every fleet and system and is called on load, after resize, and on every reload from a save.
@@ -147,7 +148,7 @@ After every move, `gridCol` and `gridRow` are refreshed from the current x/y. `r
 1. **Uninhabited planet** — `PlanetBattleService.resolveUninhabitedArrival()` looks for a non-destroyed `colonizer` ship. If found, the colonizer is removed, the planet's `factionId` becomes the fleet's `factionId`, and the game is saved.
 2. **Same-faction planet** — Logged and ignored.
 3. **Teammate planet** — Logged and ignored.
-4. **Undefended enemy planet** — Captured immediately (`planet.factionId = fleet.factionId`).
+4. **Undefended enemy planet** — Captured immediately (through `PlanetOwnershipService.transferPlanet`, the single ownership pathway — see [Planet Capture](./planet-capture.md)). This arrival handling only runs for the system the player is viewing; AI fleets capture planets through `EnemyInvasionService` on galaxy-map cells instead.
 5. **Defended enemy planet** — `triggerPlanetBattle()` builds a virtual defense fleet (`PlanetBattleService.createVirtualDefenseFleet()`), calls `BattleService.setPlanetBattle()`, saves, and navigates to `/battle`.
 
 A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet arrived on so the same planet is not processed twice in a row.

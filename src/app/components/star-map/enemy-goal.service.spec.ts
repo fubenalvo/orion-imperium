@@ -674,4 +674,123 @@ describe('EnemyGoalService', () => {
       expect(service.getGoal('enemy1')).toBeUndefined();
     });
   });
+
+  describe('per-faction scheduling', () => {
+    const fleets = () => [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 }),
+      createFleet({ factionId: 'enemy2', name: 'HUNTER', x: 0, y: 0, id: 2 }),
+    ];
+    const systems = () => [
+      createSystem({ id: 'sys1', x: 100, y: 100, planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1' })] }),
+    ];
+
+    it('evaluates every faction when ticked once per faction per frame', () => {
+      const f = fleets();
+      const s = systems();
+      // ~2.2 s of game time at 60 fps; both factions must cross their own interval.
+      for (let frame = 0; frame < 130; frame++) {
+        service.tick(1 / 60, 'develop', 'enemy1', f, factions, s);
+        service.tick(1 / 60, 'develop', 'enemy2', f, factions, s);
+      }
+
+      expect(service.getGoal('enemy1')?.type).toBe('develop');
+      expect(service.getGoal('enemy2')?.type).toBe('develop');
+    });
+
+    it('does not evaluate a faction early because other factions are ticked too', () => {
+      const f = fleets();
+      const s = systems();
+      // 1 s of game time: with a shared accumulator two factions reached 2 s.
+      for (let frame = 0; frame < 60; frame++) {
+        service.tick(1 / 60, 'develop', 'enemy1', f, factions, s);
+        service.tick(1 / 60, 'develop', 'enemy2', f, factions, s);
+      }
+
+      expect(service.getGoal('enemy1')).toBeUndefined();
+      expect(service.getGoal('enemy2')).toBeUndefined();
+    });
+  });
+
+  describe('colonization failure recovery', () => {
+    it('drops a colonization goal that makes no progress and skips that target until the retry delay', () => {
+      const fleets = [createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 })];
+      const systems = [
+        createSystem({ id: 'near', x: 5, y: 5, planetsTiles: [createPlanet({ id: 1, factionId: 'unhabited' })] }),
+        createSystem({ id: 'far', x: 20, y: 20, planetsTiles: [createPlanet({ id: 2, factionId: 'unhabited' })] }),
+      ];
+
+      service.tick(2, 'expand', 'enemy1', fleets, factions, systems);
+      expect((service.getGoal('enemy1') as { targetPlanetId: number }).targetPlanetId).toBe(1);
+
+      // Still within the timeout: the goal is kept.
+      for (let t = 0; t < 200; t++) service.tick(2, 'expand', 'enemy1', fleets, factions, systems);
+      expect((service.getGoal('enemy1') as { targetPlanetId: number }).targetPlanetId).toBe(1);
+
+      // Past the 480 s timeout: the stuck target is abandoned for the next one.
+      for (let t = 0; t < 50; t++) service.tick(2, 'expand', 'enemy1', fleets, factions, systems);
+      expect((service.getGoal('enemy1') as { targetPlanetId: number }).targetPlanetId).toBe(2);
+    });
+
+    it('ignores targets beyond the colonization reach', () => {
+      const fleets = [createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1 })];
+      const systems = [
+        createSystem({ id: 'home', x: 0, y: 0, planetsTiles: [createPlanet({ id: 3, factionId: 'enemy1' })] }),
+        createSystem({ id: 'remote', x: 200, y: 0, planetsTiles: [createPlanet({ id: 4, factionId: 'unhabited' })] }),
+      ];
+
+      service.tick(2, 'expand', 'enemy1', fleets, factions, systems);
+
+      expect(service.getGoal('enemy1')).toBeUndefined();
+    });
+  });
+
+  describe('parallel colonization objective', () => {
+    const fleets = () => [
+      createFleet({ factionId: 'enemy1', name: 'RAIDER', x: 0, y: 0, id: 1, ships: [{ id: 1, name: 'D', type: 'destroyer', currentHp: 10, destroyed: false }] }),
+      createFleet({ factionId: 'player', name: 'ORION', x: 5, y: 5, id: 2, ships: [{ id: 2, name: 'F', type: 'frigate', currentHp: 10, destroyed: false }] }),
+    ];
+    const systems = () => [
+      createSystem({ id: 'sys1', x: 10, y: 10, planetsTiles: [createPlanet({ id: 1, factionId: 'unhabited' })] }),
+      createSystem({ id: 'sys2', x: 20, y: 20, planetsTiles: [createPlanet({ id: 2, factionId: 'unhabited' })] }),
+    ];
+
+    it('hands a colonize primary over to the parallel slot when a military goal takes over', () => {
+      const f = fleets();
+      const s = systems();
+      service.tick(3, 'expand', 'enemy1', f, factions, s, true);
+      const colonize = service.getGoal('enemy1') as { type: string; targetPlanetId: number };
+      expect(colonize.type).toBe('colonize');
+
+      service.tick(3, 'attack', 'enemy1', f, factions, s, true);
+      expect(service.getGoal('enemy1')?.type).toBe('attack');
+      expect(service.getColonizationGoal('enemy1')?.targetPlanetId).toBe(colonize.targetPlanetId);
+    });
+
+    it('keeps no parallel objective when the posture does not allow it', () => {
+      service.tick(3, 'attack', 'enemy1', fleets(), factions, systems(), false);
+      expect(service.getColonizationGoal('enemy1')).toBeUndefined();
+    });
+
+    it('never duplicates the primary target; concurrency 2 adds a second, different target', () => {
+      const f = fleets();
+      const s = systems();
+      service.tick(3, 'expand', 'enemy1', f, factions, s, true, 1);
+      expect(service.getColonizationGoal('enemy1')).toBeUndefined();
+      service.tick(3, 'expand', 'enemy1', f, factions, s, true, 2);
+      const primary = service.getGoal('enemy1') as { targetPlanetId: number };
+      const second = service.getColonizationGoal('enemy1')!;
+      expect(second).toBeDefined();
+      expect(second.targetPlanetId).not.toBe(primary.targetPlanetId);
+    });
+
+    it('abandoning a stuck colonization objective skips its target for a while', () => {
+      const f = fleets();
+      const s = systems();
+      service.tick(3, 'attack', 'enemy1', f, factions, s, true);
+      const first = service.getColonizationGoal('enemy1')!.targetPlanetId;
+      service.abandonGoal('enemy1', 'colonization');
+      service.tick(3, 'attack', 'enemy1', f, factions, s, true);
+      expect(service.getColonizationGoal('enemy1')?.targetPlanetId).not.toBe(first);
+    });
+  });
 });

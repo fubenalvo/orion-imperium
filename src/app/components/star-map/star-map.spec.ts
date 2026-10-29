@@ -13,6 +13,8 @@ import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { SAVE_VERSION } from '../../services/save-validation';
 import { BattleService } from '../../services/battle.service';
 import type { BattleOutcome } from '../../services/battle.service';
+import { StarMapAiTickService } from './star-map-ai-tick.service';
+import { PlanetOwnershipService } from '../../services/planet-ownership.service';
 
 describe('StarMap', () => {
   let component: StarMap;
@@ -279,20 +281,37 @@ describe('StarMap', () => {
         { factionId: 'enemy1', ships: [{ id: 5001, type: 'colonizer', name: 'Colonizer' }] },
       ];
 
+      const ownedBefore = component.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === 'enemy1').length;
       component['gameLoopCallback'](2);
 
       expect(actionService.getAction('enemy1')?.type).toBe('assemble_fleet');
 
+      // RAIDER is not at the Spaceport, so the colonizer must not teleport
+      // into it: a new enemy1 fleet is created at the Spaceport system.
+      const sol = component.starSystems.find((s) => s.id === 'sol')!;
       const raider = component.fleets.find((f: any) => f.id === 3);
       expect(raider).toBeDefined();
-      expect(raider!.factionId).toBe('enemy1');
-      expect(raider!.ships.some((s: any) => s.type === 'colonizer' && s.id === 5001)).toBe(true);
+      expect(raider!.ships.some((s: any) => s.type === 'colonizer')).toBe(false);
+      const carrier = component.fleets.find(
+        (f: any) => f.factionId === 'enemy1' && f.ships.some((s: any) => s.type === 'colonizer' && s.id === 5001),
+      );
+      expect(carrier).toBeDefined();
+      expect(carrier!.x).toBe(sol.x);
+      expect(carrier!.y).toBe(sol.y);
 
       const enemyStock = component.shipStock.find((s) => s.factionId === 'enemy1');
       expect(enemyStock?.ships.filter((s: any) => s.type === 'colonizer') ?? []).toHaveLength(0);
 
       component['gameLoopCallback'](2);
-      expect(component.fleets.find((f: any) => f.id === 3)!.ships.filter((s: any) => s.type === 'colonizer')).toHaveLength(1);
+      const colonizers = component.fleets
+        .filter((f: any) => f.factionId === 'enemy1')
+        .flatMap((f: any) => f.ships)
+        .filter((s: any) => s.type === 'colonizer');
+      // The colonizer is never duplicated: it is either still in a fleet or
+      // was spent on exactly one new colony (the target may be in sol itself).
+      const newColonies =
+        component.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === 'enemy1').length - ownedBefore;
+      expect(colonizers.length + newColonies).toBe(1);
     });
   });
 
@@ -898,6 +917,65 @@ describe('StarMap', () => {
       // Screen (10vw, 5vw) at zoom 0.5 is world (100 + 20, 60 + 10).
       const expected = component.movementService.getTileCenter(120, 70);
       expect(moveSpy).toHaveBeenCalledWith(expected.x, expected.y);
+    });
+  });
+
+  describe('AI planet capture integration', () => {
+    // Minimal valid game: the player owns one planet and one fleet, enemy1 owns one planet.
+    beforeEach(() => {
+      component.factions = [
+        { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, ai: false, currencies: { credits: 0 } },
+        { id: 'enemy1', name: 'Enemy', color: '#d65757', team: 2, ai: true, currencies: { credits: 0 } },
+      ];
+      const planet = (id: number, factionId: string) => ({
+        id, index: 0, name: `P${id}`, factionId, x: 12, y: 3, type: 'earthlike' as const, size: 'medium' as const,
+        population: 500, buildings: [], explored: true,
+      });
+      component.starSystems = [
+        { id: 'a', name: 'A', x: 10, y: 10, planets: 1, color: '#fff', planetsTiles: [planet(1, 'player')] },
+        { id: 'b', name: 'B', x: 40, y: 10, planets: 1, color: '#fff', planetsTiles: [planet(2, 'enemy1')] },
+      ];
+      component.fleets = [
+        { id: 1, name: 'ORION', factionId: 'player', x: 10, y: 10, targetX: null, targetY: null, speed: 4, system: null, ships: [{ id: 1, name: 'f', type: 'frigate' }] },
+      ];
+      component.gameOutcome = 'inProgress';
+    });
+
+    it('opens the battle screen for a queued AI assault on a player planet', () => {
+      const aiTick = TestBed.inject(StarMapAiTickService);
+      const battleService = TestBed.inject(BattleService);
+      const battle = { type: 'planet', planetId: 1, attackerId: 3 } as any;
+      vi.spyOn(aiTick, 'tick').mockReturnValue(false);
+      vi.spyOn(aiTick, 'takePendingPlayerBattle').mockReturnValueOnce(battle);
+      const setPlanetBattle = vi.spyOn(battleService, 'setPlanetBattle');
+      const enterBattle = vi.spyOn(component as any, 'enterBattleScreen').mockImplementation(() => {});
+
+      component['gameLoopCallback'](0.016);
+
+      expect(setPlanetBattle).toHaveBeenCalledWith(battle);
+      expect(enterBattle).toHaveBeenCalledTimes(1);
+    });
+
+    it('ends the game in defeat when an ownership change during the frame loop eliminates the player', () => {
+      const aiTick = TestBed.inject(StarMapAiTickService);
+      const ownership = TestBed.inject(PlanetOwnershipService);
+      vi.spyOn(aiTick, 'takePendingPlayerBattle').mockReturnValue(undefined);
+      component.fleets = component.fleets.filter((f) => f.factionId !== 'player');
+      component['gameLoopCallback'](0.016);
+      expect(component.gameOutcome).toBe('inProgress');
+
+      // An AI capture of every player planet happens inside the AI tick.
+      vi.spyOn(aiTick, 'tick').mockImplementation(() => {
+        for (const planet of component.starSystems.flatMap((s) => s.planetsTiles)) {
+          if (planet.factionId === 'player') {
+            ownership.transferPlanet({ factions: component.factions }, planet, 'enemy1', 'battle_won');
+          }
+        }
+        return true;
+      });
+      component['gameLoopCallback'](0.016);
+
+      expect(component.gameOutcome).toBe('defeat');
     });
   });
 });

@@ -28,6 +28,7 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `color`: hex color used for the UI accent (player-configurable)
 - `team`: `0` neutral, `1` player, `2+` enemies. Same-team factions never fight; team 0 is never attacked and never attacks
 - `ai?: boolean`: `true` when the AI pipeline should tick this faction. Replaces the previous hardcoded `enemy1`/`enemy2` ID sets — any faction with `ai: true` is managed by the AI layers (V3 target selection → V4.1 strategy → V4.2 goal → V4.3 capability → V5 action → V5.1/V5.2 execution). `false` for player and neutral factions. Backfilled from `team === 2` by `SaveGameService.migrateSave` for older saves.
+- `aiPersonality?`: `'balanced' | 'expansionist' | 'militarist' | 'technologist'` – only for `ai: true`; profiles in `ai-personality.ts`; missing (older saves, legacy map) is `'balanced'`; validated by `save-validation.ts` when present.
 - `aiDifficulty?`: `'easy' | 'normal' | 'hard'` – only for `ai: true`. Tuning lives in `ai-difficulty.ts`; missing is treated as `'normal'` (the original AI behavior) and backfilled by `migrateSave`
 - `currencies`: `Record<string, number>` containing at least `credits`, `rawmaterials`, `research`
 
@@ -101,7 +102,7 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 - `id`, `name`, `factionId`: identity and ownership
 - `x`, `y`: 1-indexed grid column/row on the galaxy map (floats for smooth movement)
 - `targetX`, `targetY`: map movement target in grid cells (`null` when idle)
-- `speed`: in vw/s; converted to cells/s via `speed / cellSizeVw` for map movement
+- `speed`: in vw/s; converted to cells/s via `speed / 10 / GALAXY_MOVEMENT_CELL_SIZE_VW` (fixed 2) for map movement — the rendered `cellSizeVw` does not affect movement
 - `system`: `SystemLocation | null` — present while the fleet is inside a star system
 - `gridCol`, `gridRow`: derived integer cell on whichever view the fleet is currently in
   - `ships`: `FleetShip[]`

@@ -224,7 +224,10 @@ export class ProductionService {
       for (const planetIdStr of Object.keys(factionProd.ordersByPlanet)) {
         const planetId = Number(planetIdStr);
         const planet = this.findPlanet(starSystems, planetId);
-        if (!planet) {
+        // Planet gone or no longer owned by this faction (e.g. an order left
+        // over in a save written before PlanetOwnershipService cancelled orders
+        // on capture): refund every order instead of building for the loser.
+        if (!planet || planet.factionId !== factionProd.factionId) {
           // Planet lost; refund every order on it.
           const queue = factionProd.ordersByPlanet[planetId];
           for (const order of queue.splice(0)) {

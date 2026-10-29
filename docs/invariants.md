@@ -5,7 +5,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 ## Grid Coordinate System
 
 - `map.width` and `map.height` define the galaxy grid in cells (currently 100 columns × 60 rows).
-- `cellSizeVw` and `cellSizeVh` are the rendered vw size of one cell. On desktop (`window.innerWidth >= gridBreakpointPx`, default 1300) both are `2`. On mobile (below the breakpoint) both are `3.5`. The change happens in `StarMap.onResize()` and also forces a grid position refresh.
+- `cellSizeVw` and `cellSizeVh` are the rendered vw size of one cell. On desktop (`window.innerWidth >= gridBreakpointPx`, default 1300) both are `2`. On mobile (below the breakpoint) both are `3.5`. The change happens in `StarMap.onResize()` and also forces a grid position refresh. The rendered cell size is presentation only: galaxy movement uses the fixed `StarMapMovementService.GALAXY_MOVEMENT_CELL_SIZE_VW` (2), so fleet travel time never depends on window width or resizing.
 - Star systems and fleets use **1-indexed grid cell coordinates** for `x`/`y` (e.g. `x = 18` is column 18).
 - `StarMapMovementService.calculateGridCell(x, y)` snaps to `{ col: floor(x), row: floor(y) }`.
 - `StarMapMovementService.getTileCenter(vwX, vwY)` converts vw coordinates to 1-indexed grid cells: `{ x: floor(vwX / cellSizeVw) + 1, y: floor(vwY / cellSizeVh) + 1 }`.
@@ -84,7 +84,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 4. When a side has no living stacks, `state.winner` is set and the simulation stops advancing; the result appears as a modal overlay above the `/battle` tactical interface after the final animation completes. The overlay dims the background, blocks further battle input, and can only be dismissed with `BACK TO STAR MAP`.
 5. On "Back to Star Map":
    - Fleet battle: `loser.destroyed = true`; `setDestroyedFleetId(loser.id)`; `clearBattle()`.
-   - Planet battle: `applyPlanetBattleResult()` reloads the save, sets `planet.factionId` to the attacker's faction (if attacker won) or marks the attacker destroyed (otherwise), and writes the save back. `clearBattle()` is also called.
+   - Planet battle: `applyPlanetBattleResult()` reloads the save and applies `BattleOutcomeService.applyPlanetBattleOutcome`, which transfers the planet to the attacker's faction through `PlanetOwnershipService` (if attacker won) or marks the attacker destroyed (otherwise), and writes the save back. `clearBattle()` is also called.
 6. `StarMap.reloadAfterBattle()` (subscribed to `Router.events`) reloads the save and calls `removeDestroyedFleetFromService()`, which applies the destroyed fleet id (if any), clears the selection if it matched, and saves again.
 
 ### Tactical battle invariants
@@ -193,3 +193,36 @@ See [New Game Generation](./new-game-generation.md) for the rules behind these.
 - The same config + seed always produces the same galaxy; the generator must use only its seeded RNG.
 - `aiDifficulty: 'normal'` (or missing) must reproduce the pre-difficulty AI behavior: income multiplier 1, attack advantage 1.2.
 - Map widths of exactly 200 are reserved for the legacy pre-grid save format.
+
+## AI pipeline
+
+See [AI Pipeline](./ai-pipeline.md) for context.
+
+- **Per-faction scheduling:** `EnemyGoalService`, `EnemyCapabilityService` and `EnemyActionService` are ticked once per AI faction per frame and therefore keep one accumulator **per faction**. A shared accumulator starves every faction but one.
+- **One owner per fleet order:** `EnemyAiService` (reactive pursuit) never retargets a fleet reserved by `StarMapAiTickService.getReservedFleetIds` (pipeline-commanded fleets and every AI fleet carrying a colonizer), and only clears targets it set itself.
+- **Galaxy-map arrival:** AI arrival checks compare `Math.floor(fleet.x/y)` with the target system's cell. `fleet.gridCol/gridRow` is not a reliable galaxy-map cell (fleet assembly stores a system-view cell there).
+- **Paced, safe construction:** the AI builds at most one building per faction per 2 s of game time (`EnemyEconomyService`, shared by the background economy and the `develop` action) and never places a building that creates or worsens an energy deficit, or a workforce deficit (power buildings excepted — workforce never scales energy output).
+- **No teleporting ships:** AI code only moves stock ships into a fleet that is in a Spaceport system (galaxy-map cell), or creates a new fleet at the Spaceport. `FleetAssemblyService.reinforceFleet` does not check location itself.
+- **One writer per AI fleet order:** pipeline fleets (colonizer carriers, the fleet of a current `move_to_target`/`defend` action) → `EnemyActionExecutor`; all other AI fleets → `EnemyFleetService`; `EnemyAiService` only acts on fleets neither manages.
+- **No suicide engagements:** AI interception requires the difficulty's `attackStrengthAdvantage` over the target; an ongoing attack is dropped once the target is stronger than the attacker.
+- **AI research uses ResearchService:** AI factions only gain technologies through `ResearchService.researchTechnology`, after `canResearch` is true.
+- **Shared colonization reach:** `EnemyStrategyService`, `EnemyGoalService` and `EnemyPlanService` all read reach from `EnemyReachService`; a strategy that says 'expand' must always have targets the goal layer accepts.
+- **Neutral posture and personality:** the balanced personality without threats reproduces the Phase 4 constants (military ×1, home guard 30%, assault survival 50%); factions without `aiPersonality` are balanced.
+- **One carrier, one colonization objective:** a colonizer carrier serves at most one objective at a time (primary or parallel slot), and the parallel slot never targets the primary's planet.
+- **AI fog of war:** with fog of war on, AI decision layers only read `EnemyIntelService.getView` (sensed or remembered information); only the executor, invasion and construction touch the real world, and they re-validate every decision.
+- **AI debug output is passive:** `EnemyDebugService` never changes state, runs only on demand (≈1 Hz while the F9 panel is open) and logs nothing unless console output is switched on.
+- **Production follows ownership:** an order on a planet its faction no longer owns is refunded and dropped.
+- **Throttled recovery:** `EnemyProgressService` replans a faction at most once per 60 s per detector and never resets the whole AI.
+- **Truthful change reporting:** AI layers return `true` from `tick` only when game state actually changed; no-op movement orders and repeated attack/defend confirmations return `false`.
+- **Fleet strength counts living ships only:** `ShipService.calculateFleetStrength` skips ships flagged `destroyed`.
+
+## Planet ownership and game outcome
+
+See [Planet Capture](./planet-capture.md).
+
+- **Single ownership pathway:** gameplay code changes `PlanetTile.factionId` only through `PlanetOwnershipService.transferPlanet` (colonization, capture, battle victory, rebellion); only the galaxy generator writes initial owners directly.
+- **Captured planets stop producing for the loser:** a transfer cancels and refunds the previous owner's production orders on that planet.
+- **Same-team planets are never attacked;** a planet battle changes ownership only on attacker victory; a draw leaves the planet with the defender.
+- **One combat damage rule:** the animated battle and the auto-resolver both use `applyVolleyDamage`.
+- **Terminal outcomes are sticky:** once `victory`/`defeat` is stored, `GameOutcomeService.evaluate` returns it unchanged and the star-map frame loop stops simulating.
+- **Defeat = elimination:** the allied side owns no planet and has no living fleet; it is checked before victory and is reachable while hostile planets exist.

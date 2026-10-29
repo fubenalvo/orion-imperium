@@ -426,7 +426,7 @@ if (planet battle) {
   setDestroyedFleetId(outcome.loserFleetId);  // Real fleet wiped out
 }
 
-if (planet) applyPlanetBattleResult(battle, outcome);  // Changes planet.factionId
+if (planet) applyPlanetBattleResult(battle, outcome);  // BattleOutcomeService → PlanetOwnershipService
 else persistFleetBattleResult(outcome);  // Writes ship rosters to AUTOSAVE
 
 this.router.navigate(['/star-map']);
@@ -480,7 +480,7 @@ saveGame();  // Persists to AUTOSAVE
 - Same minigame, `battle.type === 'planet'`
 - Defender fleet built by `PlanetBattleService` from planet's defense buildings
 - Virtual ships: `immobile = true`, stats from `planet-data.json`
-- Attacker wins → planet.factionId = attacker.factionId (in `applyPlanetBattleResult`)
+- Attacker wins → the planet changes owner via `BattleOutcomeService.applyPlanetBattleOutcome` → `PlanetOwnershipService.transferPlanet` (shared with AI auto-resolved invasions; see [Planet Capture](./planet-capture.md))
 - Virtual defender fleet (negative ID) never persists
 - Attacker ship roster always written back (damaged winner returns damaged)
 
@@ -708,3 +708,7 @@ several sit in per-frame paths.
 - **RAF loop** runs outside Angular zone for smooth 60fps movement
 - **Shallow state**: `BattleModelState` is flat, no deep nesting
 - **Stack limit**: MAX_STACK_SIZE=5 caps visual complexity
+
+## Non-interactive resolution
+
+`battle/battle-auto-resolve.ts` resolves a `Battle` without the screen (AI assaults on non-player planets and AI battle forecasts). It reuses `createBattleState`, `compareTargets`, `applyVolleyDamage` (the damage function `BattleCombatService.attackStack` calls), `regenerateAllShields`, `checkVictory` and `buildBattleOutcome`; it ignores grid range/movement, has no animation delays, skips the Carrier Shield Pulse and treats a battle undecided after 300 s as a draw held by the defender. Rules and rationale: [Planet Capture](./planet-capture.md#auto-resolver-battle-auto-resolvets).

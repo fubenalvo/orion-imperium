@@ -13,6 +13,7 @@ import {
 } from '../components/star-map/star-map.models';
 import { createMulberry32 } from '../components/star-map/star-map-resources.util';
 import { AI_DIFFICULTY_PROFILES } from '../components/star-map/ai-difficulty';
+import { AI_PERSONALITIES } from '../components/star-map/ai-personality';
 import { SAVE_VERSION } from './save-validation';
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
 
@@ -235,7 +236,7 @@ export class GalaxyGeneratorService {
     const planetNames = new PlanetNameGenerator(rng);
     let nextPlanetId = 1;
 
-    const factions = this.buildFactions(participants);
+    const factions = this.buildFactions(participants, seed);
     const factionById = new Map(factions.map((f) => [f.id, f]));
 
     const starSystems: StarSystem[] = [];
@@ -317,7 +318,14 @@ export class GalaxyGeneratorService {
     };
   }
 
-  private buildFactions(participants: ParticipantAssignment[]): Faction[] {
+  /*
+   * AI personalities cycle through AI_PERSONALITIES from a seed-derived
+   * offset, so a game mixes different strategic styles while staying
+   * reproducible. Derived arithmetically from the seed — the Mulberry32
+   * stream is not consumed, so galaxy layout for a seed is unchanged.
+   */
+  private buildFactions(participants: ParticipantAssignment[], seed: number): Faction[] {
+    let aiIndex = 0;
     const factions: Faction[] = participants.map(({ factionId, setup }) => {
       const isAi = setup.controller === 'ai';
       const difficulty: AiDifficulty | undefined = isAi ? setup.difficulty : undefined;
@@ -339,6 +347,7 @@ export class GalaxyGeneratorService {
       };
       if (difficulty) {
         faction.aiDifficulty = difficulty;
+        faction.aiPersonality = AI_PERSONALITIES[((seed >>> 0) + aiIndex++) % AI_PERSONALITIES.length];
       }
       return faction;
     });

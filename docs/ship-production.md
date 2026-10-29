@@ -117,3 +117,7 @@ behaviours:
   future "captured stock" mechanic can hook `ShipStockService.onFactionRemoved`.
 - **Orbital Factory**: the `productionBuilding` discriminator on `ShipType`
   keeps the service class-agnostic.
+
+## Ownership changes
+
+Orders always belong to the planet's owner. `PlanetOwnershipService.transferPlanet` cancels and refunds the previous owner's orders when a planet changes hands, and `ProductionService.tick` refunds and drops any order whose planet is gone **or no longer owned by the ordering faction** (this repairs orders left over in saves written before the ownership service existed). See [Planet Capture](./planet-capture.md).

@@ -120,6 +120,8 @@ The project currently contains the following documentation files:
 - `docs/ship-production.md` — ship production, global stock, and fleet assembly pipeline
 - `docs/game-time.md` — centralized game time, pause/speed controls, and scaled delta flow
 - `docs/new-game-generation.md` — New Game setup, procedural galaxy generation, AI difficulty, and generated-save persistence
+- `docs/planet-capture.md` — authoritative planet ownership pathway, capture rules, planet battle paths (interactive vs auto-resolve), battle outcome application, game outcome (victory/defeat) rules
+- `docs/ai-pipeline.md` — strategic AI pipeline: execution order, per-faction scheduling, fleet-order ownership, AI economy manager (construction, spending policy, military production), AI research, fleet roles and combat decisions, strategic posture and personalities, multiple objectives, deadlock detection, adaptive reach, AI fog of war and exploration, AI debug panel, save/load and bounded state, colonization and failure recovery, simulation, evaluation and acceptance tests
 
 These files are the current documentation sources of truth for their respective topics.
 

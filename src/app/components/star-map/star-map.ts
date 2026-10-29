@@ -33,6 +33,9 @@ import { StarMapGameLoopService } from './star-map-game-loop.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import { StarMapAiTickService } from './star-map-ai-tick.service';
+import { PlanetOwnershipService } from '../../services/planet-ownership.service';
+import { EnemyDebugService, AiDebugSnapshot } from './enemy-debug.service';
+import { AiDebugPanelComponent } from './ai-debug-panel/ai-debug-panel.component';
 import {
   StarMapSensorService,
   SensorCellInfo,
@@ -124,6 +127,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
 @Component({
   selector: 'app-star-map',
   imports: [
+    AiDebugPanelComponent,
     StarMapPauseComponent,
     StarMapNavigationComponent,
     StarMapFleetInfoComponent,
@@ -270,6 +274,10 @@ loadError = '';
   spaceportTargetFleetId: number | null = null;
 
   showResearchTree = false;
+  // Developer AI debug panel (F9). Snapshots refresh ~1×/s of real time only while open.
+  aiDebugVisible = false;
+  aiDebugSnapshots: AiDebugSnapshot[] = [];
+  private aiDebugRefreshedAt = 0;
 
   isLandscape = false;
 
@@ -283,6 +291,8 @@ loadError = '';
   readonly shipTypes: ShipType[] = (shipData as { shipTypes: ShipType[] }).shipTypes;
 
   private economyAccumulator = 0;
+  // Last PlanetOwnershipService.revision seen by the outcome check.
+  private lastOwnershipRevision = -1;
   private readonly economyTickInterval = 1;
   private cachedPlayerEconomyBreakdown: EconomyBreakdown | null = null;
 
@@ -323,6 +333,8 @@ loadError = '';
     private arrivalService: StarMapPlanetArrivalService,
     private gameSettingsService: GameSettingsService,
     private gameOutcomeService: GameOutcomeService,
+    private planetOwnership: PlanetOwnershipService,
+    public aiDebugService: EnemyDebugService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -1953,6 +1965,15 @@ loadError = '';
       production: this.production,
     });
 
+    // AI assault on a defended player planet: the player defends it on the
+    // battle screen (same transport as a player-initiated planet battle).
+    const aiPlanetBattle = this.aiTickService.takePendingPlayerBattle();
+    if (aiPlanetBattle) {
+      this.battleService.setPlanetBattle(aiPlanetBattle);
+      this.enterBattleScreen();
+      return;
+    }
+
     const visibilityChanged = this.updateSensorVisibility();
 
     const productionResult = this.productionService.tick(
@@ -1974,6 +1995,7 @@ loadError = '';
           this.starSystems,
           this.fleets,
           this.economyAccumulator,
+          this.production,
         );
       }
       this.cachedPlayerEconomyBreakdown = this.economyService.calculateEconomy(
@@ -1984,6 +2006,22 @@ loadError = '';
       );
       this.economyAccumulator = 0;
       economyUpdated = true;
+    }
+
+    // Ownership changed during this frame (AI capture, colonization,
+    // rebellion): the outcome may have become terminal.
+    if (this.planetOwnership.revision !== this.lastOwnershipRevision) {
+      this.lastOwnershipRevision = this.planetOwnership.revision;
+      this.checkGameOutcome();
+      if (this.gameOutcome !== 'inProgress') {
+        return;
+      }
+    }
+
+    const debugRefreshed = this.refreshAiDebug();
+    if (debugRefreshed && !(didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged)) {
+      // Panel-only refresh: redraw, but do not mark the save dirty.
+      this.ngZone.run(() => this.cdr.detectChanges());
     }
 
     if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged) {
@@ -2029,6 +2067,7 @@ loadError = '';
       currentView: this.currentView,
       selectedSystem: this.selectedSystem,
       factions: this.factions,
+      production: this.production,
       saveGame: () => this.saveGame(),
       enterBattleScreen: () => this.enterBattleScreen(),
     });
@@ -2635,7 +2674,41 @@ loadError = '';
         event.preventDefault();
         this.openPauseMenu();
         break;
+      case 'F9':
+        event.preventDefault();
+        this.toggleAiDebug();
+        break;
     }
+  }
+
+  toggleAiDebug(): void {
+    this.aiDebugVisible = !this.aiDebugVisible;
+    this.aiDebugRefreshedAt = 0;
+    this.refreshAiDebug();
+    this.cdr.detectChanges();
+  }
+
+  toggleAiDebugConsole(): void {
+    this.aiDebugService.consoleEnabled = !this.aiDebugService.consoleEnabled;
+  }
+
+  /* Rebuilds the debug snapshots at most once per real second; returns true when refreshed. */
+  private refreshAiDebug(): boolean {
+    if (!this.aiDebugVisible) {
+      return false;
+    }
+    const now = performance.now();
+    if (now - this.aiDebugRefreshedAt < 1000) {
+      return false;
+    }
+    this.aiDebugRefreshedAt = now;
+    this.aiDebugSnapshots = this.aiDebugService.snapshots({
+      factions: this.factions,
+      starSystems: this.starSystems,
+      fleets: this.fleets,
+      shipStock: this.shipStock,
+    });
+    return true;
   }
 
   // Cleanup

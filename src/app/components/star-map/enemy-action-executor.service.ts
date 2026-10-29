@@ -10,7 +10,6 @@ import {
   ColonizeGoal,
   AttackGoal,
   DefendGoal,
-  PLANET_SIZE_MAP,
 } from './star-map.models';
 import { ProductionService } from '../../services/production.service';
 import { ShipService } from '../../services/ship.service';
@@ -19,10 +18,11 @@ import { ShipStockService } from '../../services/ship-stock.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
-import { EconomyService } from '../../services/economy.service';
+import { PlanetOwnershipService } from '../../services/planet-ownership.service';
+import { EnemyIntelService } from './enemy-intel.service';
+import { EnemyEconomyService } from './enemy-economy.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { isCombatShipType } from './ai-queries';
-import planetData from '../../components/star-map/planet-data.json';
 
 /*
  * =========================================================
@@ -43,12 +43,25 @@ import planetData from '../../components/star-map/planet-data.json';
  * movement). It does not evaluate goals, capabilities, or
  * actions.
  *
- * Duplicate-execution protection is stateless: every frame
- * the executor re-checks the game-state fact that its own
+ * Duplicate-execution protection is mostly stateless: every
+ * frame the executor re-checks the game-state fact that its own
  * mutation establishes (a queued colonizer order for
  * production; a fleet already carrying a colonizer for
- * assembly; a fleet already moving to the same destination
- * for movement). No mutable executor state is kept.
+ * assembly; a fleet already moving to, or already at, the same
+ * destination for movement). One small piece of per-faction
+ * state exists because no game-state fact can express it:
+ *   - confirmedEngagements: attack/defend only *confirm* that a
+ *     fleet is in place (battles start via collision detection),
+ *     so they report a state change once per engagement, not on
+ *     every frame the fleet stays there.
+ * It is cleared by reset() (called from resetAiPipeline on load).
+ *
+ * Construction (`develop`) is delegated to EnemyEconomyService,
+ * which owns the planner and the per-faction construction cooldown
+ * shared with its background economy tick.
+ *
+ * The return value means "game state changed this frame"; it
+ * feeds StarMap change detection and the autosave dirty flag.
  *
  * Timing: runs on the same RAF loop as the other AI layers,
  * using the same scaled gameDeltaTime. Returns early when
@@ -65,11 +78,15 @@ export class EnemyActionExecutor {
     private readonly fleetAssemblyService: FleetAssemblyService,
     private readonly spaceportService: SpaceportService,
     private readonly planetBattleService: PlanetBattleService,
-    private readonly economyService: EconomyService,
+    private readonly enemyEconomyService: EnemyEconomyService,
+    private readonly planetOwnership: PlanetOwnershipService,
+    private readonly intelService: EnemyIntelService,
   ) {}
 
+  private readonly confirmedEngagements = new Map<string, string>();
+
   reset(): void {
-    // No mutable executor state for V5.1 / V5.2.
+    this.confirmedEngagements.clear();
   }
 
   /*
@@ -84,6 +101,9 @@ export class EnemyActionExecutor {
     production: FactionProduction[],
     shipStock: FactionShipStock[],
     fleets: Fleet[],
+    // True for the parallel colonization action: it must not reset the
+    // primary action's attack/defend engagement confirmation.
+    parallel = false,
   ): boolean {
     if (gameDeltaTime <= 0) {
       return false;
@@ -96,6 +116,10 @@ export class EnemyActionExecutor {
     const faction = factions.find((f) => f.id === action.factionId);
     if (faction?.ai !== true) {
       return false;
+    }
+
+    if (!parallel && action.type !== 'attack' && action.type !== 'defend') {
+      this.confirmedEngagements.delete(faction.id);
     }
 
     switch (action.type) {
@@ -112,13 +136,13 @@ export class EnemyActionExecutor {
       case 'move_to_target':
         return this.executeMoveToTarget(action, fleets, starSystems);
       case 'colonize':
-        return this.executeColonize(action, factions, starSystems, fleets);
+        return this.executeColonize(action, factions, starSystems, fleets, production);
       case 'attack':
         return this.executeAttack(action, fleets);
       case 'defend':
         return this.executeDefend(action, starSystems, fleets);
       case 'develop':
-        return this.executeDevelop(action, factions, starSystems);
+        return this.enemyEconomyService.tryConstruct(faction, starSystems, { fleets, shipStock, production, factions });
       default:
         return false;
     }
@@ -326,6 +350,20 @@ export class EnemyActionExecutor {
       return false;
     }
 
+    /*
+     * Ships come out of the global stock at a Spaceport, so only a fleet
+     * physically in a Spaceport system can receive them —
+     * FleetAssemblyService.reinforceFleet does not check location itself.
+     * A damaged fleet elsewhere is brought home by EnemyFleetService
+     * (regroup) and reinforced on arrival.
+     */
+    const atSpaceport = this.spaceportService
+      .listSpaceports(faction.id, starSystems)
+      .some(({ system }) => Math.floor(system.x) === Math.floor(fleet.x) && Math.floor(system.y) === Math.floor(fleet.y));
+    if (!atSpaceport) {
+      return false;
+    }
+
     const combatTypes = new Map<string, number>();
     for (const ship of livingShips) {
       if (isCombatShipType(this.shipService.getShipType(ship.type))) {
@@ -442,7 +480,7 @@ export class EnemyActionExecutor {
     shipStock: FactionShipStock[],
     fleets: Fleet[],
   ): boolean {
-    if (this.hasFleetWithColonizer(action.factionId, fleets)) {
+    if (this.hasIdleCarrier(action.factionId, fleets)) {
       return false;
     }
 
@@ -454,7 +492,7 @@ export class EnemyActionExecutor {
     const data = { shipStock, fleets };
     const composition = [{ typeId: 'colonizer', count: 1 }];
 
-    const candidate = this.selectReinforceFleet(action.factionId, fleets);
+    const candidate = this.selectReinforceFleet(action.factionId, fleets, starSystems);
     if (candidate) {
       const result = this.fleetAssemblyService.reinforceFleet(data, starSystems, {
         factionId: action.factionId,
@@ -530,8 +568,13 @@ export class EnemyActionExecutor {
       if (!targetFleet || targetFleet.destroyed) {
         return false;
       }
-      destX = targetFleet.x;
-      destY = targetFleet.y;
+      // Fog of war: chase where the faction believes the target is.
+      const known = this.intelService.getKnownPosition(action.factionId, targetFleet);
+      if (!known) {
+        return false;
+      }
+      destX = known.x;
+      destY = known.y;
     } else if (action.goalType === 'defend') {
       const goal = action.goal as DefendGoal;
       const system = starSystems.find((s) => s.id === goal.targetSystemId);
@@ -552,6 +595,23 @@ export class EnemyActionExecutor {
       return false;
     }
 
+    // A moving target (attack goal) shifts a little every frame; re-issue
+    // the order only once it drifted a full cell, otherwise every frame
+    // would rewrite the target and report a state change.
+    if (fleet.targetX !== null && fleet.targetY !== null
+      && Math.abs(fleet.targetX - destX) < 1 && Math.abs(fleet.targetY - destY) < 1) {
+      return false;
+    }
+
+    // Already parked in the destination cell: re-issuing the order would
+    // restart a zero-length move every frame (movement clears the target
+    // on arrival) and report a false state change each time.
+    if (fleet.targetX === null
+      && Math.floor(fleet.x) === Math.floor(destX)
+      && Math.floor(fleet.y) === Math.floor(destY)) {
+      return false;
+    }
+
     fleet.targetX = destX;
     fleet.targetY = destY;
     return true;
@@ -559,20 +619,21 @@ export class EnemyActionExecutor {
 
   /*
    * executeColonize: Colonizes an unhabited planet using a colonizer
-   * from an AI fleet that is at the planet's grid position. Reuses
+   * from an AI fleet in the target system's galaxy-map cell. Reuses
    * PlanetBattleService.resolveUninhabitedArrival to detect the
    * colonizer and remove it from the fleet.
    *
    * Guards (checked every frame) prevent duplicate or invalid
    * colonization:
    *   - target planet still exists and is unhabited
-   *   - an AI fleet with a living colonizer is at the planet cell
+   *   - an AI fleet with a living colonizer is in the system's map cell
    */
   private executeColonize(
     action: ActionResult,
     factions: Faction[],
     starSystems: StarSystem[],
     fleets: Fleet[],
+    production: FactionProduction[],
   ): boolean {
     const system = starSystems.find((s) => s.id === action.targetSystemId);
     const planet = system?.planetsTiles.find((p) => p.id === action.targetPlanetId);
@@ -580,7 +641,9 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    const fleet = fleets.find(
+    // Prefer the fleet that actually carries a colonizer; a combat fleet
+    // sharing the cell must not hide it.
+    const fleetsHere = fleets.filter(
       (f) =>
         f.factionId === action.factionId &&
         !f.destroyed &&
@@ -588,6 +651,8 @@ export class EnemyActionExecutor {
         Math.floor(f.x) === Math.floor(system.x) &&
         Math.floor(f.y) === Math.floor(system.y),
     );
+    const fleet = fleetsHere.find((f) => f.ships.some((s) => s.type === 'colonizer' && !s.destroyed))
+      ?? fleetsHere[0];
 
     if (!fleet) {
       return false;
@@ -599,7 +664,12 @@ export class EnemyActionExecutor {
     }
 
     fleet.ships.splice(result.colonizerIndex, 1);
-    planet.factionId = action.factionId;
+    this.planetOwnership.transferPlanet({ production, factions }, planet, action.factionId, 'colonized');
+    // A colonizer-only fleet has nothing left after landing; retire it so
+    // empty AI fleets do not accumulate on the map with every colony.
+    if (!fleet.ships.some((s) => !s.destroyed)) {
+      fleet.destroyed = true;
+    }
 
     return true;
   }
@@ -640,6 +710,19 @@ export class EnemyActionExecutor {
       return false;
     }
 
+    return this.confirmEngagement(action.factionId, `attack:${attackerFleet.id}:${targetFleet.id}`);
+  }
+
+  /*
+   * Returns true only the first time a faction confirms a given
+   * engagement, so a fleet waiting in place is not reported as a state
+   * change on every frame.
+   */
+  private confirmEngagement(factionId: string, key: string): boolean {
+    if (this.confirmedEngagements.get(factionId) === key) {
+      return false;
+    }
+    this.confirmedEngagements.set(factionId, key);
     return true;
   }
 
@@ -672,213 +755,7 @@ export class EnemyActionExecutor {
       return false;
     }
 
-    return true;
-  }
-
-  /*
-   * executeDevelop: Minimal deterministic building construction for
-   * AI factions. Selects the first owned planet with a free building
-   * slot, chooses a building based on economy priority, verifies
-   * research unlock and credits, finds a valid placement, and places
-   * the building.
-   *
-   * Building selection priority:
-   *   1. Energy shortage -> Fusion Power Plant / Solar Array
-   *   2. Workforce shortage -> residential block
-   *   3. Raw material production needed -> Spaceship Factory / Mining Complex
-   *   4. Fallback -> Research Laboratory
-   *
-   * Placement reuses the overlap/grid bounds logic from the planet
-   * screen component. No new placement system is introduced.
-   */
-  private executeDevelop(action: ActionResult, factions: Faction[], starSystems: StarSystem[]): boolean {
-    const faction = factions.find((f) => f.id === action.factionId);
-    if (!faction) {
-      return false;
-    }
-
-    const planet = this.selectDevelopPlanet(action.factionId, starSystems);
-    if (!planet) {
-      return false;
-    }
-
-    const buildingId = this.selectDevelopBuilding(faction, planet);
-    if (!buildingId) {
-      return false;
-    }
-
-    const buildingDef = (planetData as any).buildings.find((b: any) => b.id === buildingId);
-    if (!buildingDef) {
-      return false;
-    }
-
-    if (!this.researchService.isBuildingUnlocked(faction, buildingId)) {
-      return false;
-    }
-
-    const credits = faction.currencies['credits'] ?? 0;
-    if (credits < buildingDef.price) {
-      return false;
-    }
-
-    const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
-    const placement = this.findValidPlacement(planet, buildingDef.size, buildingId, gridSize);
-    if (!placement) {
-      return false;
-    }
-
-    faction.currencies['credits'] = credits - buildingDef.price;
-    planet.buildings.push({
-      name: buildingDef.name,
-      size: buildingDef.size,
-      x: placement.x,
-      y: placement.y,
-    });
-
-    return true;
-  }
-
-  /*
-   * selectDevelopPlanet: Returns the first owned planet (ascending
-   * system id, then planet id) that has at least one free building
-   * slot. Deterministic tie-breaking.
-   */
-  private selectDevelopPlanet(factionId: string, starSystems: StarSystem[]): PlanetTile | undefined {
-    const sortedSystems = [...starSystems].sort((a, b) => a.id.localeCompare(b.id));
-    for (const system of sortedSystems) {
-      const sortedPlanets = [...(system.planetsTiles ?? [])].sort((a, b) => a.id - b.id);
-      for (const planet of sortedPlanets) {
-        if (planet.factionId !== factionId) {
-          continue;
-        }
-        if (this.hasFreeBuildingSlot(planet)) {
-          return planet;
-        }
-      }
-    }
-    return undefined;
-  }
-
-  /*
-   * hasFreeBuildingSlot: Returns true when the planet has enough
-   * free grid cells to accommodate at least one 1x1 building.
-   * Uses the same grid-size formula as the planet screen.
-   */
-  private hasFreeBuildingSlot(planet: PlanetTile): boolean {
-    const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
-    const occupied = new Set<string>();
-    for (const b of planet.buildings ?? []) {
-      for (let r = b.y; r < b.y + b.size; r++) {
-        for (let c = b.x; c < b.x + b.size; c++) {
-          occupied.add(`${r},${c}`);
-        }
-      }
-    }
-    const totalCells = gridSize * gridSize;
-    return occupied.size < totalCells;
-  }
-
-  /*
-   * selectDevelopBuilding: Chooses a building based on the planet's
-   * current economy needs. Returns the building id or undefined if
-   * no suitable building is available.
-   */
-  private selectDevelopBuilding(faction: Faction, planet: PlanetTile): string | undefined {
-    const economy = this.economyService.calculatePlanetEconomy(planet);
-    const buildings = (planetData as any).buildings;
-
-    if (economy.energyProduction < economy.energyConsumption) {
-      const candidate = buildings.find((b: any) => b.role === 'power' && this.researchService.isBuildingUnlocked(faction, b.id));
-      if (candidate) return candidate.id;
-    }
-
-    if (economy.workforceAvailable < economy.workforceRequired) {
-      const candidate = buildings.find((b: any) => b.role === 'housing' && this.researchService.isBuildingUnlocked(faction, b.id));
-      if (candidate) return candidate.id;
-    }
-
-    const rawMaterialProd = economy.production['rawmaterials'] ?? 0;
-    if (rawMaterialProd < 10) {
-      const candidate = buildings.find((b: any) => b.role === 'industry' && this.researchService.isBuildingUnlocked(faction, b.id));
-      if (candidate) return candidate.id;
-    }
-
-    const candidate = buildings.find((b: any) => b.role === 'research' && this.researchService.isBuildingUnlocked(faction, b.id));
-    if (candidate) return candidate.id;
-
-    return undefined;
-  }
-
-  /*
-   * findValidPlacement: Scans the planet grid for the first valid
-   * top-left coordinate where the building footprint fits without
-   * overlapping existing buildings or resource tiles (and satisfies
-   * ore-proximity rules). Returns {x, y} or undefined.
-   */
-  private findValidPlacement(
-    planet: PlanetTile,
-    buildingSize: number,
-    buildingId: string,
-    gridSize: number,
-  ): { x: number; y: number } | undefined {
-    const buildingDef = (planetData as any).buildings.find((b: any) => b.id === buildingId);
-    const requiresOre = buildingDef?.requiresOreProximity === true;
-    const resourceTiles = planet.resourceTiles ?? [];
-
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
-        if (!this.canPlaceBuilding(planet, buildingSize, x, y, resourceTiles, requiresOre)) {
-          continue;
-        }
-        return { x, y };
-      }
-    }
-    return undefined;
-  }
-
-  /*
-   * canPlaceBuilding: Checks bounds, building overlap, and resource
-   * tile rules for a candidate placement.
-   */
-  private canPlaceBuilding(
-    planet: PlanetTile,
-    buildingSize: number,
-    x: number,
-    y: number,
-    resourceTiles: { type: string; x: number; y: number }[],
-    requiresOre: boolean,
-  ): boolean {
-    const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
-    if (x + buildingSize > gridSize || y + buildingSize > gridSize) {
-      return false;
-    }
-
-    for (const b of planet.buildings ?? []) {
-      if (x < b.x + b.size && x + buildingSize > b.x && y < b.y + b.size && y + buildingSize > b.y) {
-        return false;
-      }
-    }
-
-    let touchesResource = false;
-    for (let r = y; r < y + buildingSize; r++) {
-      for (let c = x; c < x + buildingSize; c++) {
-        for (const rt of resourceTiles) {
-          if (r === rt.y && c === rt.x) {
-            if (requiresOre) {
-              touchesResource = true;
-            } else {
-              return false;
-            }
-          }
-        }
-      }
-    }
-
-    if (requiresOre && !touchesResource) {
-      return false;
-    }
-
-    return true;
+    return this.confirmEngagement(action.factionId, `defend:${fleet.id}:${system.id}`);
   }
 
   /*
@@ -887,29 +764,47 @@ export class EnemyActionExecutor {
    * a successful assembly establishes, so it doubles as the
    * duplicate-execution guard between action re-evaluations.
    */
-  private hasFleetWithColonizer(factionId: string, fleets: Fleet[]): boolean {
+  /*
+   * hasIdleCarrier: A carrier with no movement order is waiting for one;
+   * assembling another colonizer would duplicate it. Carriers already
+   * travelling to an objective do not block assembly for a second,
+   * concurrent objective (expansionist personality).
+   */
+  private hasIdleCarrier(factionId: string, fleets: Fleet[]): boolean {
     return fleets.some(
       (f) =>
         f.factionId === factionId &&
         !f.destroyed &&
+        f.targetX === null &&
         f.ships.some((s) => s.type === 'colonizer' && !s.destroyed),
     );
   }
 
   /*
-   * selectReinforceFleet: Picks the lowest-id usable faction fleet
-   * that does not yet carry a colonizer. Mirrors the deterministic
-   * ascending-id ordering used by the EnemyActionService fleet
-   * helpers; a fleet counts as usable when it has at least one
-   * living ship.
+   * selectReinforceFleet: Picks the lowest-id usable faction fleet that
+   * does not yet carry a colonizer, has no movement order, AND is physically in one of the
+   * faction's Spaceport systems (same galaxy-map cell), so the colonizer
+   * boards a fleet that is actually there. FleetAssemblyService itself
+   * does not check fleet location; without this filter the colonizer
+   * would appear in a fleet anywhere on the map. When no fleet is at a
+   * Spaceport, executeAssembleFleet creates a new fleet at the Spaceport.
    */
-  private selectReinforceFleet(factionId: string, fleets: Fleet[]): Fleet | undefined {
+  private selectReinforceFleet(factionId: string, fleets: Fleet[], starSystems: StarSystem[]): Fleet | undefined {
+    const spaceportCells = new Set(
+      this.spaceportService
+        .listSpaceports(factionId, starSystems)
+        .map(({ system }) => `${Math.floor(system.x)},${Math.floor(system.y)}`),
+    );
     const candidates = fleets.filter(
       (f) =>
         f.factionId === factionId &&
         !f.destroyed &&
         f.ships.some((s) => !s.destroyed) &&
-        !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed),
+        !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed) &&
+        // Parked only: a fleet passing through on another order (e.g. an
+        // interception) would carry the colonizer off with it.
+        f.targetX === null &&
+        spaceportCells.has(`${Math.floor(f.x)},${Math.floor(f.y)}`),
     );
     if (candidates.length === 0) {
       return undefined;
