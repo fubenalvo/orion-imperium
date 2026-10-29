@@ -60,12 +60,16 @@
             [class.selected]="selectedFleet?.id === fleet.id"
             [class.moving]="fleet.system?.targetX !== null && fleet.system?.targetY !== null"
             [class.arriced]="fleet.system?.targetX === null || fleet.system?.targetY === null"
+            [style.--fleet-color]="getFactionColor(fleet.factionId)"
             type="button"
             (click)="onFleetClick(fleet, $event)"
             (contextmenu)="onFleetContextMenu($event)"
           >
             <span class="fleet__icon">
-              <img src="fleet.svg" />
+              <app-fleet-ship
+                [heading]="fleetHeading(fleet)"
+                [thrusting]="fleet.system?.targetX != null && fleet.system?.targetY != null"
+              />
             </span>
             <span class="fleet__name" [style.color]="getFactionColor(fleet.factionId)">{{
               fleet.name

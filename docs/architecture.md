@@ -66,6 +66,9 @@ src/app/
       star-map-system-grid/
         → Presentational system view grid (sun, system sensor highlights,
           planets, fleets in system, movement target)
+      fleet-ship/ + fleet-heading.ts
+        → Shared fleet marker ship glyph (rotating hull + engine trail) used by
+          both views; render-only heading trackers updated by StarMap's loop
       star-map-data.json
         → Legacy hand-made galaxy: reference scale for the Large preset and
           source for migrating pre-v3 saves (no longer used to start games)

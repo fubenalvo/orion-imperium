@@ -2,6 +2,7 @@ import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { Fleet, FleetTrail, PlanetTile, StarSystem } from '../star-map.models';
 import { StarMapMovementService } from '../star-map-movement.service';
+import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
 
 /*
  * =========================================================
@@ -21,7 +22,7 @@ import { StarMapMovementService } from '../star-map-movement.service';
 @Component({
   selector: 'app-star-map-system-grid',
   standalone: true,
-  imports: [NgClass],
+  imports: [NgClass, FleetShipComponent],
   templateUrl: './star-map-system-grid.component.html',
   styleUrl: './star-map-system-grid.component.scss',
 })
@@ -37,6 +38,8 @@ export class StarMapSystemGridViewComponent {
     preview: { col: number; row: number }[];
   } = { cells: [], preview: [] };
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
+  /* Screen heading of a fleet's ship in this view (CSS rotate degrees); see fleet-heading.ts. */
+  @Input() fleetHeading: (fleet: Fleet) => number = () => 0;
   @Input() getPlanetClassNames: (planet: PlanetTile) => string[] = () => [];
   @Input() trails: FleetTrail[] = [];
 

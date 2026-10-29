@@ -121,12 +121,16 @@
           [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
           [class.arriced]="fleet.targetX === null || fleet.targetY === null"
           [class.fleet--preview]="isEnemyInPreview(fleet)"
+          [style.--fleet-color]="getFactionColor(fleet.factionId)"
           type="button"
           (click)="onFleetClick(fleet, $event)"
           (contextmenu)="onFleetContextMenu($event)"
         >
           <span class="fleet__icon">
-            <img src="fleet.svg" />
+            <app-fleet-ship
+              [heading]="fleetHeading(fleet)"
+              [thrusting]="fleet.targetX !== null && fleet.targetY !== null"
+            />
           </span>
           <span class="fleet__name" [style.color]="getFactionColor(fleet.factionId)">
             {{ fleet.name }}

@@ -71,6 +71,7 @@ import {
 import { NEBULA_CONFIG, nebulaSvgPath } from './nebula';
 import { BeltView, buildBeltView } from './asteroid-belts';
 import { RouteFailure } from './fleet-navigation';
+import { FleetHeadingTracker, headingForDirection } from './fleet-heading';
 import {
   StarMapAsteroidInfoComponent,
   AsteroidPanelViewModel,
@@ -717,6 +718,38 @@ loadError = '';
 
   readonly boundOnAsteroidClick = this.onAsteroidClick.bind(this);
   readonly boundIsFleetInNebula = this.isFleetInNebula.bind(this);
+
+  /*
+   * Render-only ship headings, one tracker per view (a fleet's galaxy leg
+   * and its in-system movement point in unrelated directions). Never saved.
+   */
+  private readonly galaxyHeadings = new FleetHeadingTracker();
+  private readonly systemHeadings = new FleetHeadingTracker();
+  readonly boundGalaxyFleetHeading = (fleet: Fleet): number => this.galaxyHeadings.get(fleet.id);
+  readonly boundSystemFleetHeading = (fleet: Fleet): number => this.systemHeadings.get(fleet.id);
+
+  /*
+   * Turns every ship toward its current movement leg. Galaxy: the next route
+   * waypoint (fleets steer around obstacles) or the final target, converted
+   * to screen space with the view's per-axis cell sizes. System view: the
+   * in-system target, already in uniform vw. Returns true if any heading
+   * changed (redraw needed; not a simulation change).
+   */
+  private updateFleetHeadings(dt: number): boolean {
+    const galaxyChanged = this.galaxyHeadings.update(this.fleets, dt, (fleet) => {
+      if (fleet.targetX === null || fleet.targetY === null) return null;
+      const next = this.movementService.getActiveRoute(fleet)?.waypoints[0];
+      const nx = next ? next.x : fleet.targetX;
+      const ny = next ? next.y : fleet.targetY;
+      return headingForDirection((nx - fleet.x) * this.cellSizeVw, (ny - fleet.y) * this.cellSizeVh);
+    });
+    const systemChanged = this.systemHeadings.update(this.fleets, dt, (fleet) => {
+      const sys = fleet.system;
+      if (!sys || sys.targetX === null || sys.targetY === null) return null;
+      return headingForDirection(sys.targetX - sys.x, sys.targetY - sys.y);
+    });
+    return galaxyChanged || systemChanged;
+  }
 
   /*
    * Derives the render-only terrain data (nebula SVG paths, black hole
@@ -2252,6 +2285,7 @@ loadError = '';
       return;
     }
     const didMoveFleets = this.updateFleets(gameDeltaTime);
+    const headingsChanged = this.updateFleetHeadings(gameDeltaTime);
     const asteroidResult = this.asteroidService.tick(
       gameDeltaTime,
       this.fleets,
@@ -2326,8 +2360,9 @@ loadError = '';
     }
 
     const debugRefreshed = this.refreshAiDebug();
-    if (debugRefreshed && !(didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged)) {
-      // Panel-only refresh: redraw, but do not mark the save dirty.
+    if ((debugRefreshed || headingsChanged) && !(didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged)) {
+      // Presentation-only refresh (AI debug panel, ship turning): redraw, but do
+      // not mark the save dirty.
       this.ngZone.run(() => this.cdr.detectChanges());
     }
 

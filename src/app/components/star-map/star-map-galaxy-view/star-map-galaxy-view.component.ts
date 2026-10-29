@@ -6,6 +6,7 @@ import { StarMapBlackholeComponent } from '../blackhole/blackhole.component';
 import { SensorCellInfo, SensorPreviewCellInfo } from '../star-map-sensor.service';
 import { blackHoleNavigationRadius } from '../fleet-navigation';
 import { BeltView } from '../asteroid-belts';
+import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
 
 /* Pre-built SVG paths of one nebula (grid units; see nebulaSvgPath). */
 export interface NebulaView {
@@ -55,7 +56,7 @@ export interface AsteroidMapView {
 @Component({
   selector: 'app-star-map-galaxy-view',
   standalone: true,
-  imports: [StarMapBlackholeComponent],
+  imports: [StarMapBlackholeComponent, FleetShipComponent],
   templateUrl: './star-map-galaxy-view.component.html',
   styleUrl: './star-map-galaxy-view.component.scss',
 })
@@ -79,6 +80,8 @@ export class StarMapGalaxyViewComponent {
   @Input() blackHoleRings: BlackHoleRingView[] = [];
   @Input() asteroids: AsteroidMapView[] = [];
   @Input() isFleetInNebula: (fleet: Fleet) => boolean = () => false;
+  /* Screen heading of a fleet's ship (CSS rotate degrees); see fleet-heading.ts. */
+  @Input() fleetHeading: (fleet: Fleet) => number = () => 0;
   @Input() onAsteroidClick: (asteroidId: number, event: MouseEvent) => void = () => {};
   @Input() selectedSystem: StarSystem | null = null;
   @Input() selectedFleet: Fleet | null = null;
