@@ -2307,11 +2307,17 @@ loadError = '';
    */
   private enterBattleScreen(): void {
     this.saveGame();
+    this.aiTickService.suspendForBattle();
     this.ngZone.run(() => this.router.navigate(['/battle']));
   }
 
   /** Restores game state from the active save slot and refreshes selection and grid data. */
-  loadGame(): void {
+  /*
+   * resumeAi: true only for the reload after the battle screen; the AI
+   * keeps its memory (see StarMapAiTickService.suspendForBattle). Every
+   * other load (new game, main-menu or pause-menu load) resets the AI.
+   */
+  loadGame(options: { resumeAi?: boolean } = {}): void {
     if (this.saveGameService.currentSlot === null) {
       return;
     }
@@ -2450,7 +2456,11 @@ loadError = '';
     // Reset game time state (speed=1, not paused) on every load
     this.gameTimeService.reset();
 
-    this.aiTickService.resetAiPipeline();
+    if (options.resumeAi) {
+      this.aiTickService.resumeAfterBattle();
+    } else {
+      this.aiTickService.resetAiPipeline();
+    }
 
     this.clampCamera();
   }
@@ -2480,6 +2490,9 @@ loadError = '';
    */
   ngOnInit(): void {
     this.onResize();
+    // Taken before any early return so a stale flag can never leak into a
+    // later, unrelated session start.
+    const resumeAi = this.aiTickService.takeBattleSuspension();
 
     if (this.saveGameService.currentSlot === null) {
       const slotIndex = this.saveGameService.getMostRecentSlotIndex();
@@ -2498,7 +2511,7 @@ loadError = '';
       }
     }
 
-    this.loadGame();
+    this.loadGame({ resumeAi });
     this.removeDestroyedFleetFromService();
     this.checkGameOutcome();
 
@@ -2533,7 +2546,7 @@ loadError = '';
     private reloadAfterBattle(): void {
       if (this.saveGameService.currentSlot === null) return;
       this.arrivalService.triggeredBattles.clear();
-      this.loadGame();
+      this.loadGame({ resumeAi: this.aiTickService.takeBattleSuspension() });
       this.removeDestroyedFleetFromService();
       this.checkGameOutcome();
       this.cdr.detectChanges();

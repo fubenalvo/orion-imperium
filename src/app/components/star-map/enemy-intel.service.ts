@@ -88,6 +88,19 @@ export class EnemyIntelService {
     this.intel.clear();
   }
 
+  /*
+   * Drops every cached view so the next tick rebuilds it. Used when the
+   * world was reloaded from the save without a reset (battle return): the
+   * cached views hold the previous load's real fleet and planet objects.
+   * Knowledge (charted systems, sightings) is kept.
+   */
+  invalidateViews(): void {
+    for (const state of this.intel.values()) {
+      state.view = undefined;
+      state.nextUpdateAt = state.clock;
+    }
+  }
+
   get enabled(): boolean {
     return this.settings.fogOfWarEnabled;
   }

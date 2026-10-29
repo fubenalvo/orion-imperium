@@ -46,7 +46,7 @@ When the game's fog of war is on (`GameSettingsService.fogOfWarEnabled`, the pla
 
 ## Save/load and bounded state
 
-All AI state is in-memory and rebuilt after a load (`resetAiPipeline` resets every service, including intel, reach and progress). What must survive is in the save itself: ownership, fleets, stock, production queue, research. Loading therefore cannot replay or duplicate an action: goals and fleet roles are re-derived from the saved world within one decision interval. Stale world references are repaired by the rules that own them — production orders on a planet that no longer belongs to the faction are refunded and dropped (`ProductionService.tick`), invalid goals fail validation and are reselected.
+All AI state is in-memory and rebuilt after a genuine load or new game (`resetAiPipeline` resets every service, including intel, reach and progress). **Returning from the battle screen is not a load:** the battle screen is a separate route, so `StarMap` is recreated and re-reads the autosave, but the session continues (game time was paused). `StarMap.enterBattleScreen` calls `StarMapAiTickService.suspendForBattle()`, the next `StarMap` initialization takes that flag and calls `resumeAfterBattle()` instead of the reset: charted systems, sightings, goals, fleet roles, assaults, failed targets and their retry clocks are kept. Only state holding objects of the previous load is discarded — cached intel views (rebuilt on the next tick) and queued, not yet fought player battles (their assaults return to the pre-launch state and are re-queued from the reloaded fleets). Every other load (main-menu new game or load, pause-menu load, re-entering the map without a battle) resets. What must survive is in the save itself: ownership, fleets, stock, production queue, research. Loading therefore cannot replay or duplicate an action: goals and fleet roles are re-derived from the saved world within one decision interval. Stale world references are repaired by the rules that own them — production orders on a planet that no longer belongs to the faction are refunded and dropped (`ProductionService.tick`), invalid goals fail validation and are reselected.
 
 Diagnostic histories are capped (replan events 200, assault reports 200); per-entity maps (assignments, peak strength, motion samples, carrier bindings, sightings) are pruned when their fleet or target disappears.
 
@@ -209,7 +209,7 @@ Verified in code; if any of these change, revisit `EnemyEconomyService`:
 
 ## Save/load
 
-AI pipeline state is in-memory only and fully rebuilt from the game snapshot. `StarMap.loadGame` calls `StarMapAiTickService.resetAiPipeline()`, which resets every layer including the executor and the economy service. Failed-target memory and goal timers are therefore not persisted (a reload gives stuck targets a fresh attempt).
+AI pipeline state is in-memory only and fully rebuilt from the game snapshot. `StarMap.loadGame` calls `StarMapAiTickService.resetAiPipeline()`, which resets every layer including the executor and the economy service — except on a battle-screen return, which keeps AI memory (see [Save/load and bounded state](#saveload-and-bounded-state)). Failed-target memory and goal timers are not persisted in the save (a genuine reload gives stuck targets a fresh attempt).
 
 ## Known limitations
 

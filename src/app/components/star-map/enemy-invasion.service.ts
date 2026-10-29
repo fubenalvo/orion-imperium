@@ -69,6 +69,17 @@ export class EnemyInvasionService {
     this.pendingPlayerBattles.length = 0;
   }
 
+  /*
+   * Empties the player-battle queue and returns the queued planet ids.
+   * Queued Battle objects reference fleets of the previous load, so after a
+   * battle return they must be re-created from the reloaded world.
+   */
+  dropPendingPlayerBattles(): number[] {
+    const planetIds = this.pendingPlayerBattles.map((b) => b.planetId!).filter((id) => id != null);
+    this.pendingPlayerBattles.length = 0;
+    return planetIds;
+  }
+
   /* Next queued player-defended battle, removed from the queue. */
   takePendingPlayerBattle(): Battle | undefined {
     return this.pendingPlayerBattles.shift();

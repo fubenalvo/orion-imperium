@@ -68,6 +68,8 @@ export class StarMapAiTickService {
   // Cadence of the parallel colonization objective's action evaluation.
   private static readonly COLONIZATION_INTERVAL = 2;
   private readonly colonizationAccumulators = new Map<string, number>();
+  // Set when StarMap leaves for the battle screen; see suspendForBattle.
+  private suspendedForBattle = false;
 
   /*
    * An AI assault on a player-owned defended planet is fought on the
@@ -295,6 +297,7 @@ export class StarMapAiTickService {
    * The reset order mirrors the pipeline order.
    */
   resetAiPipeline(): void {
+    this.suspendedForBattle = false;
     this.enemyAiService.reset();
     this.enemyStrategyService.reset();
     this.enemyGoalService.reset();
@@ -310,6 +313,40 @@ export class StarMapAiTickService {
     this.enemyReachService.reset();
     this.enemyIntelService.reset();
     this.colonizationAccumulators.clear();
+  }
+
+  /*
+   * Battle-screen round trip. The battle screen is a separate route, so
+   * StarMap is recreated and reloads the autosave when the player comes
+   * back. That reload continues the running session (game time was paused
+   * during the battle), so AI memory — charted systems, sightings, goals,
+   * fleet roles, assaults, failed targets and their retry timers — must
+   * survive it; only a genuine new game or save load resets the pipeline.
+   *
+   * suspendForBattle() is called right before navigating to the battle
+   * screen; StarMap takes the flag on its next initialization (every exit
+   * of the battle screen leads back to /star-map) and then calls
+   * resumeAfterBattle() instead of resetAiPipeline().
+   */
+  suspendForBattle(): void {
+    this.suspendedForBattle = true;
+  }
+
+  takeBattleSuspension(): boolean {
+    const suspended = this.suspendedForBattle;
+    this.suspendedForBattle = false;
+    return suspended;
+  }
+
+  /*
+   * Keeps all AI memory but discards what references objects of the
+   * previous load (the save was re-read, so every fleet/planet is a new
+   * object): cached intel views and queued player battles. AI state is
+   * otherwise keyed by ids and revalidated against the world every tick.
+   */
+  resumeAfterBattle(): void {
+    this.enemyIntelService.invalidateViews();
+    this.enemyFleetService.cancelQueuedLaunches(this.enemyInvasionService.dropPendingPlayerBattles());
   }
 
   /*

@@ -149,6 +149,24 @@ export class EnemyFleetService {
   }
 
   /*
+   * Returns assaults whose player battle was queued but never fought to
+   * the pre-launch state, so advanceAssaults launches them again (and the
+   * battle is re-queued from current objects) instead of reading the
+   * planet owner as a repelled assault.
+   */
+  cancelQueuedLaunches(planetIds: readonly number[]): void {
+    if (planetIds.length === 0) {
+      return;
+    }
+    const queued = new Set(planetIds);
+    for (const assignment of this.assignments.values()) {
+      if (assignment.role === 'assault' && assignment.launched && queued.has(assignment.planetId!)) {
+        assignment.launched = false;
+      }
+    }
+  }
+
+  /*
    * releaseFleet: Drops a fleet's role and order (EnemyProgressService
    * found it unable to complete its objective). It is reassigned on the
    * next decision like any free fleet.

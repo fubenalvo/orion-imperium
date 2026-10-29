@@ -85,7 +85,8 @@ Conditions that must remain true across the codebase. When changing any code tha
 5. On "Back to Star Map":
    - Fleet battle: `loser.destroyed = true`; `setDestroyedFleetId(loser.id)`; `clearBattle()`.
    - Planet battle: `applyPlanetBattleResult()` reloads the save and applies `BattleOutcomeService.applyPlanetBattleOutcome`, which transfers the planet to the attacker's faction through `PlanetOwnershipService` (if attacker won) or marks the attacker destroyed (otherwise), and writes the save back. `clearBattle()` is also called.
-6. `StarMap.reloadAfterBattle()` (subscribed to `Router.events`) reloads the save and calls `removeDestroyedFleetFromService()`, which applies the destroyed fleet id (if any), clears the selection if it matched, and saves again.
+6. `StarMap.reloadAfterBattle()` (subscribed to `Router.events`) reloads the save and calls `removeDestroyedFleetFromService()`, which applies the destroyed fleet id (if any), clears the selection if it matched, and saves again. (A recreated `StarMap` does the same in `ngOnInit`.)
+7. A battle-screen return continues the session: the reload keeps AI memory (`StarMapAiTickService.suspendForBattle` / `resumeAfterBattle`); every other load resets the AI pipeline. The suspension flag is taken on the next `StarMap` initialization before any early return, so it can never leak into a different session.
 
 ### Tactical battle invariants
 

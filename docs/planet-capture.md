@@ -68,7 +68,7 @@ Planned by `EnemyFleetService` (role `assault`, see [AI Pipeline](./ai-pipeline.
 - result: captured → fleets garrison the new system; repelled → survivors are released (regroup rule applies) and the target is remembered as failed; player battle → the group holds until the battle screen result is observed;
 - an assault is abandoned if the target stops being hostile, if the group does not arrive within 400 s, or if a stronger hostile fleet appears nearby (retreat).
 
-Assault state is in-memory; a load resets it and assaults are re-planned from the saved situation. A capture is persisted with the planet, so a reload can neither undo nor repeat it.
+Assault state is in-memory; a genuine load resets it and assaults are re-planned from the saved situation. A return from the battle screen keeps it: the assault whose player battle was just fought reads the planet's owner (captured, or repelled and remembered as failed for 300 s), and an assault whose battle was queued but not yet fought is launched again. A capture is persisted with the planet, so a reload can neither undo nor repeat it.
 
 ## Game outcome (`GameOutcomeService`)
 
