@@ -57,7 +57,29 @@ import {
   Faction,
   SpecialObject,
   GalaxyInfo,
+  Nebula,
+  DriftingAsteroid,
+  AsteroidBelt,
 } from './star-map.models';
+import { StarMapTerrainService } from './star-map-terrain.service';
+import { DriftingAsteroidService, AsteroidTickResult } from './drifting-asteroid.service';
+import {
+  ASTEROID_CONFIG,
+  asteroidPosition,
+  asteroidRemainingSeconds,
+} from './drifting-asteroids';
+import { NEBULA_CONFIG, nebulaSvgPath } from './nebula';
+import { BeltView, buildBeltView } from './asteroid-belts';
+import { RouteFailure } from './fleet-navigation';
+import {
+  StarMapAsteroidInfoComponent,
+  AsteroidPanelViewModel,
+} from './star-map-asteroid-info/star-map-asteroid-info.component';
+import {
+  AsteroidMapView,
+  BlackHoleRingView,
+  NebulaView,
+} from './star-map-galaxy-view/star-map-galaxy-view.component';
 import {
   createMulberry32,
   generateResourceTilesForPlanet as generateResourceTilesUtil,
@@ -141,6 +163,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapGalaxyViewComponent,
     StarMapSystemGridViewComponent,
     StarMapResearchTreeComponent,
+    StarMapAsteroidInfoComponent,
   ],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
@@ -167,6 +190,26 @@ loadError = '';
   fleets: Fleet[] = initialStarMapData.fleets;
   factions: StarMapData['factions'] = initialStarMapData.factions;
   specialObjects: SpecialObject[] = initialStarMapData.specialObjects ?? [];
+  // Terrain of the loaded galaxy (persisted in the save, never regenerated on load).
+  nebulae: Nebula[] = [];
+  // Render-only data derived from the terrain once per load (SVG paths are
+  // not cheap enough to rebuild on every change-detection pass).
+  nebulaViews: NebulaView[] = [];
+  blackHoleRings: BlackHoleRingView[] = [];
+  // Impassable asteroid belts (persisted geometry) and their render data.
+  asteroidBelts: AsteroidBelt[] = [];
+  beltViews: BeltView[] = [];
+
+  // Drifting asteroid selection / panel state (asteroids themselves live in
+  // DriftingAsteroidService and are persisted through serializeGameState).
+  selectedAsteroidId: number | null = null;
+  asteroidPanelVm: AsteroidPanelViewModel | null = null;
+  asteroidPanelMessage: string | null = null;
+  private asteroidPanelClock = 0;
+  // Short gameplay notice on the galaxy HUD (asteroid collected, route blocked…).
+  mapNotice: string | null = null;
+  private mapNoticeClock = 0;
+  private static readonly MAP_NOTICE_SECONDS = 6;
   shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
   production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
   defaultView: import('./star-map.models').StarMapData['defaultView'] = initialStarMapData.defaultView ?? undefined;
@@ -340,6 +383,8 @@ loadError = '';
     private gameOutcomeService: GameOutcomeService,
     private planetOwnership: PlanetOwnershipService,
     public aiDebugService: EnemyDebugService,
+    private terrainService: StarMapTerrainService,
+    private asteroidService: DriftingAsteroidService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -452,21 +497,245 @@ loadError = '';
           continue;
         }
       }
-      const vw = this.movementService.getGalaxyTrailVw(fleet);
-      if (!vw) {
-        continue;
-      }
-      trails.push({
-        fleetId: fleet.id,
-        factionId: fleet.factionId,
-        color: this.getFactionColor(fleet.factionId),
-        x1: vw.x1,
-        y1: vw.y1,
-        x2: vw.x2,
-        y2: vw.y2,
+      // One trail per route leg so a detour around a black hole is drawn
+      // exactly as it will be flown.
+      const color = this.getFactionColor(fleet.factionId);
+      this.movementService.getGalaxyTrailSegmentsVw(fleet).forEach((vw, segment) => {
+        trails.push({
+          fleetId: fleet.id,
+          segment,
+          factionId: fleet.factionId,
+          color,
+          x1: vw.x1,
+          y1: vw.y1,
+          x2: vw.x2,
+          y2: vw.y2,
+        });
       });
     }
     return trails;
+  }
+
+  /*
+   * Drifting asteroids the player can see. Asteroids are bright, fast-moving
+   * objects visible across the map, except inside a nebula: there they are
+   * only seen within the player's (nebula-reduced) sensor coverage — the
+   * same rule EnemyIntelService.isPointSensed applies to the AI.
+   */
+  isAsteroidVisible(asteroid: DriftingAsteroid): boolean {
+    if (!this.sensorRangeEnabled) {
+      return true;
+    }
+    const pos = asteroidPosition(asteroid);
+    if (!this.terrainService.isPointInNebula(pos.x, pos.y)) {
+      return true;
+    }
+    const key = `${Math.floor(pos.x)}-${Math.floor(pos.y)}`;
+    return this.sensorRangeCells.has(key) || this.sensorPreviewCells.has(key);
+  }
+
+  get visibleAsteroids(): AsteroidMapView[] {
+    const targeted = new Set(
+      this.fleets
+        .filter((f) => f.factionId === 'player' && !f.destroyed && f.interceptAsteroidId != null)
+        .map((f) => f.interceptAsteroidId as number),
+    );
+    const views: AsteroidMapView[] = [];
+    for (const asteroid of this.asteroidService.active) {
+      if (!this.isAsteroidVisible(asteroid)) {
+        continue;
+      }
+      const pos = asteroidPosition(asteroid);
+      views.push({
+        id: asteroid.id,
+        type: asteroid.type,
+        label: ASTEROID_CONFIG.types[asteroid.type].label,
+        left: (pos.x - 0.5) * this.cellSizeVw,
+        top: (pos.y - 0.5) * this.cellSizeVh,
+        // The tail grows from the entry point up to its full length, so it
+        // never extends outside the map.
+        trailLength: Math.min(asteroid.traveled, ASTEROID_CONFIG.trailLength) * this.cellSizeVw,
+        angleDeg: (Math.atan2(asteroid.dirY, asteroid.dirX) * 180) / Math.PI,
+        selected: this.selectedAsteroidId === asteroid.id,
+        targeted: targeted.has(asteroid.id),
+      });
+    }
+    return views;
+  }
+
+  /* True when a fleet's galaxy position is inside a nebula (slowed, sensors impaired). */
+  isFleetInNebula(fleet: Fleet): boolean {
+    return this.terrainService.isPointInNebula(fleet.x, fleet.y);
+  }
+
+  /* Remaining galaxy travel time of the selected fleet (game seconds), or null. */
+  getSelectedFleetEta(): number | null {
+    if (!this.selectedFleet || this.currentView !== 'map') {
+      return null;
+    }
+    return this.movementService.estimateRemainingTravelSeconds(this.selectedFleet);
+  }
+
+  getSelectedFleetInterceptLabel(): string | null {
+    const id = this.selectedFleet?.interceptAsteroidId;
+    if (id == null) {
+      return null;
+    }
+    const asteroid = this.asteroidService.getAsteroid(id);
+    return asteroid ? ASTEROID_CONFIG.types[asteroid.type].label : null;
+  }
+
+  readonly nebulaSpeedPenaltyPercent = Math.round((1 - NEBULA_CONFIG.speedMultiplier) * 100);
+  readonly nebulaSensorPenaltyPercent = Math.round((1 - NEBULA_CONFIG.sensorMultiplier) * 100);
+
+  /*
+   * Click on an asteroid. With a player fleet selected in MOVE mode the
+   * click is an intercept order for that fleet; otherwise it opens the
+   * asteroid panel (fleet selection is kept so the player can compare).
+   */
+  onAsteroidClick(asteroidId: number, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+    if (this.selectedFleet?.factionId === 'player' && this.selectedFleetAction === 'move') {
+      this.selectedFleetAction = null;
+      this.selectAsteroid(asteroidId);
+      this.onInterceptAsteroid(this.selectedFleet.id);
+      return;
+    }
+    this.selectAsteroid(asteroidId);
+  }
+
+  selectAsteroid(asteroidId: number): void {
+    this.selectedAsteroidId = asteroidId;
+    this.asteroidPanelMessage = null;
+    this.selectedSystem = null;
+    this.refreshAsteroidPanel();
+    this.cdr.detectChanges();
+  }
+
+  deselectAsteroid(): void {
+    this.selectedAsteroidId = null;
+    this.asteroidPanelVm = null;
+    this.asteroidPanelMessage = null;
+    this.cdr.detectChanges();
+  }
+
+  /* Orders a player fleet to intercept the selected asteroid. */
+  onInterceptAsteroid(fleetId: number): void {
+    const fleet = this.fleets.find((f) => f.id === fleetId && f.factionId === 'player' && !f.destroyed);
+    if (!fleet || this.selectedAsteroidId == null) {
+      return;
+    }
+    const result = this.asteroidService.orderIntercept(fleet, this.selectedAsteroidId);
+    if (result.ok) {
+      this.asteroidPanelMessage = null;
+      if (this.selectedFleet?.id === fleet.id) {
+        this.fleetMoveError = null;
+        this.targetX = fleet.targetX;
+        this.targetY = fleet.targetY;
+      }
+      this.saveGame();
+    } else {
+      this.asteroidPanelMessage =
+        result.reason === 'gone'
+          ? 'The asteroid is no longer there.'
+          : `${fleet.name} cannot reach the asteroid before it leaves the map.`;
+    }
+    this.refreshAsteroidPanel();
+    this.cdr.detectChanges();
+  }
+
+  /*
+   * Rebuilds the asteroid panel view model. Intercept estimates plan routes,
+   * so this runs on selection, after orders, and at most every 0.5 game
+   * seconds from the game loop — not from a template getter.
+   */
+  private refreshAsteroidPanel(): void {
+    const asteroid = this.selectedAsteroidId == null ? undefined : this.asteroidService.getAsteroid(this.selectedAsteroidId);
+    if (!asteroid || !this.isAsteroidVisible(asteroid)) {
+      this.selectedAsteroidId = null;
+      this.asteroidPanelVm = null;
+      return;
+    }
+    const cargo: { label: string; amount: number }[] = [];
+    if (asteroid.reward.rawmaterials) cargo.push({ label: 'RAW MATERIALS', amount: asteroid.reward.rawmaterials });
+    if (asteroid.reward.research) cargo.push({ label: 'RESEARCH POINTS', amount: asteroid.reward.research });
+    const fleets = this.fleets
+      .filter((f) => f.factionId === 'player' && !f.destroyed && f.ships.some((s) => !s.destroyed))
+      .map((fleet) => {
+        const intercepting = fleet.interceptAsteroidId === asteroid.id;
+        const plan = intercepting ? null : this.asteroidService.planIntercept(fleet, asteroid);
+        return { fleetId: fleet.id, name: fleet.name, etaSeconds: plan ? plan.time : null, intercepting };
+      });
+    this.asteroidPanelVm = {
+      id: asteroid.id,
+      type: asteroid.type,
+      label: ASTEROID_CONFIG.types[asteroid.type].label,
+      cargo,
+      secondsToExit: asteroidRemainingSeconds(asteroid),
+      fleets,
+    };
+  }
+
+  private showMapNotice(text: string): void {
+    this.mapNotice = text;
+    this.mapNoticeClock = 0;
+  }
+
+  /* Player-facing reactions to one asteroid tick (rewards, lost targets). */
+  private handleAsteroidEvents(result: AsteroidTickResult): void {
+    for (const collection of result.collected) {
+      const fleet = this.fleets.find((f) => f.id === collection.fleetId);
+      const label = ASTEROID_CONFIG.types[collection.asteroid.type].label;
+      const parts: string[] = [];
+      if (collection.reward.rawmaterials) parts.push(`+${collection.reward.rawmaterials} raw materials`);
+      if (collection.reward.research) parts.push(`+${collection.reward.research} research`);
+      if (collection.factionId === 'player') {
+        this.showMapNotice(`${fleet?.name ?? 'Fleet'} recovered a ${label}: ${parts.join(', ')}`);
+      } else if (this.isAsteroidVisible(collection.asteroid)) {
+        this.showMapNotice(`${this.getFactionName(collection.factionId)} claimed a ${label}.`);
+      }
+      if (this.selectedAsteroidId === collection.asteroid.id) {
+        this.selectedAsteroidId = null;
+        this.asteroidPanelVm = null;
+      }
+    }
+    for (const failure of result.failedIntercepts) {
+      const fleet = this.fleets.find((f) => f.id === failure.fleetId);
+      if (fleet?.factionId === 'player') {
+        this.showMapNotice(`${fleet.name} lost the asteroid: it can no longer be intercepted.`);
+        if (this.selectedFleet?.id === fleet.id) {
+          this.targetX = null;
+          this.targetY = null;
+        }
+      }
+    }
+  }
+
+  readonly boundOnAsteroidClick = this.onAsteroidClick.bind(this);
+  readonly boundIsFleetInNebula = this.isFleetInNebula.bind(this);
+
+  /*
+   * Derives the render-only terrain data (nebula SVG paths, black hole
+   * no-fly rings) from the loaded save.
+   */
+  private rebuildTerrainViews(): void {
+    this.nebulaViews = this.nebulae.map((nebula) => ({
+      id: nebula.id,
+      color: nebula.color,
+      halo: nebulaSvgPath(nebula, 1.15),
+      body: nebulaSvgPath(nebula, 1),
+      core: nebulaSvgPath(nebula, 0.55),
+    }));
+    this.beltViews = this.asteroidBelts.map((belt) => buildBeltView(belt));
+    this.blackHoleRings = this.terrainService.obstacles.filter((o) => o.kind === 'blackhole').map((o) => ({
+      cx: o.x - 0.5,
+      cy: o.y - 0.5,
+      r: o.radius,
+    }));
   }
 
   /**
@@ -1635,6 +1904,26 @@ loadError = '';
         this.targetY = y;
       }
     } else {
+      // Reject destinations that cannot be reached without crossing a black
+      // hole or an asteroid belt before the order is accepted, so the fleet
+      // never starts moving.
+      const plan = this.movementService.planGalaxyRoute(
+        { x: this.selectedFleet.x, y: this.selectedFleet.y },
+        { x, y },
+      );
+      if (!plan.ok) {
+        this.fleetMoveError = this.panelVmService.describeFleetMoveRejection(
+          plan.reason === 'no_route'
+            ? 'no-route'
+            : plan.blockedBy === 'belt'
+              ? 'blocked-belt'
+              : 'blocked-black-hole',
+        );
+        this.cdr.detectChanges();
+        return;
+      }
+      // A manual order replaces any asteroid intercept order.
+      this.selectedFleet.interceptAsteroidId = null;
       this.selectedFleet.targetX = x;
       this.selectedFleet.targetY = y;
       this.targetX = x;
@@ -1963,6 +2252,14 @@ loadError = '';
       return;
     }
     const didMoveFleets = this.updateFleets(gameDeltaTime);
+    const asteroidResult = this.asteroidService.tick(
+      gameDeltaTime,
+      this.fleets,
+      this.factions,
+      this.mapWidth,
+      this.mapHeight,
+    );
+    const asteroidsChanged = this.updateAsteroidUi(asteroidResult, gameDeltaTime);
     const aiChanged = this.aiTickService.tick(gameDeltaTime, {
       fleets: this.fleets,
       factions: this.factions,
@@ -2034,7 +2331,7 @@ loadError = '';
       this.ngZone.run(() => this.cdr.detectChanges());
     }
 
-    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged) {
+    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
       this.simStateDirty = true;
     }
@@ -2047,6 +2344,45 @@ loadError = '';
       this.autosaveAccumulator = 0;
       this.simStateDirty = false;
     }
+  }
+
+  /*
+   * Applies one asteroid tick to the UI state. A collection grants
+   * currencies, so it is persisted to the autosave immediately (like
+   * planet arrivals): a battle-return reload must never bring a collected
+   * asteroid back.
+   */
+  private updateAsteroidUi(result: AsteroidTickResult, gameDeltaTime: number): boolean {
+    let changed = result.changed;
+    if (result.collected.length > 0 || result.failedIntercepts.length > 0) {
+      this.handleAsteroidEvents(result);
+      changed = true;
+    }
+    if (result.collected.length > 0) {
+      this.saveGame();
+    }
+    if (this.mapNotice) {
+      this.mapNoticeClock += gameDeltaTime;
+      if (this.mapNoticeClock >= StarMap.MAP_NOTICE_SECONDS) {
+        this.mapNotice = null;
+        changed = true;
+      }
+    }
+    if (this.selectedAsteroidId != null) {
+      this.asteroidPanelClock += gameDeltaTime;
+      if (this.asteroidPanelClock >= 0.5 || !this.asteroidService.getAsteroid(this.selectedAsteroidId)) {
+        this.asteroidPanelClock = 0;
+        this.refreshAsteroidPanel();
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  private describeRouteFailure(fleet: Fleet, reason: RouteFailure): string {
+    return reason === 'target_blocked'
+      ? `${fleet.name}: destination lies inside a black hole or an asteroid belt. Order cancelled.`
+      : `${fleet.name}: no safe route around the black hole and asteroid belts. Order cancelled.`;
   }
 
   /** Advances fleet movement and checks for new battles each frame. */
@@ -2067,6 +2403,21 @@ loadError = '';
         const fleet = this.fleets.find((f) => f.id === fleetId);
         if (fleet) {
           fleet.system = null;
+        }
+      },
+      (fleetId: number, reason: RouteFailure) => {
+        // An accepted order became unreachable (e.g. a loaded legacy order
+        // or a moving intercept point): the fleet stays put; tell the player.
+        const fleet = this.fleets.find((f) => f.id === fleetId);
+        if (fleet?.factionId !== 'player') {
+          return;
+        }
+        if (this.selectedFleet?.id === fleetId) {
+          this.targetX = null;
+          this.targetY = null;
+          this.fleetMoveError = this.describeRouteFailure(fleet, reason);
+        } else {
+          this.showMapNotice(this.describeRouteFailure(fleet, reason));
         }
       },
     );
@@ -2297,6 +2648,9 @@ loadError = '';
       production: this.production,
       defaultView: this.defaultView,
       gameOutcome: this.gameOutcome,
+      nebulae: this.nebulae,
+      asteroidBelts: this.asteroidBelts,
+      asteroidEvents: this.asteroidService.serialize(),
     };
   }
 
@@ -2368,6 +2722,24 @@ loadError = '';
       this.mapHeight = data.map.height;
     }
     this.movementService.initialize(this.cellSizeVw, this.cellSizeVh, this.mapWidth, this.mapHeight);
+    // Terrain must be configured before any movement or sensor update runs
+    // against the new galaxy. Nebulae come from the save (migration
+    // backfilled old saves); they are never regenerated here.
+    this.nebulae = data.nebulae ?? [];
+    this.asteroidBelts = data.asteroidBelts ?? [];
+    this.terrainService.configure({
+      specialObjects: this.specialObjects,
+      nebulae: this.nebulae,
+      asteroidBelts: this.asteroidBelts,
+      width: this.mapWidth,
+      height: this.mapHeight,
+    });
+    this.rebuildTerrainViews();
+    this.asteroidService.restore(data.asteroidEvents, this.galaxy?.seed ?? 0, this.fleets);
+    this.selectedAsteroidId = null;
+    this.asteroidPanelVm = null;
+    this.asteroidPanelMessage = null;
+    this.mapNotice = null;
     this.shipStock = data.shipStock ?? [];
     this.production = data.production ?? [];
     this.productionService.rebaseFromSave(this.production);

@@ -8,6 +8,8 @@ import { EnemyPlanService } from './enemy-plan.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { EnemyReachService } from './enemy-reach.service';
 import { AI_COLONIZATION_REACH } from './ai-queries';
+import { DriftingAsteroidService } from './drifting-asteroid.service';
+import { asteroidPosition } from './drifting-asteroids';
 
 /*
  * =========================================================
@@ -52,6 +54,13 @@ import { AI_COLONIZATION_REACH } from './ai-queries';
  *               ASSAULT_RETRY_DELAY. Assaults on player planets are fought
  *               on the interactive battle screen; the group holds until
  *               that battle has been resolved.
+ *   salvage   — opportunistic: one free fleet (never the home guard)
+ *               intercepts a drifting asteroid the faction can see when it
+ *               can meet it within SALVAGE_MAX_ETA, near its territory.
+ *               Re-planned at every decision; the order follows the predicted meeting point
+ *               (DriftingAsteroidService.planIntercept); dropped when the
+ *               asteroid is gone or out of reach. Collection and rewards
+ *               follow the same proximity rule as for the player.
  *
  * Ownership: fleets carrying a colonizer and fleets commanded by a
  * current move_to_target / defend action belong to the pipeline and are
@@ -77,7 +86,7 @@ import { AI_COLONIZATION_REACH } from './ai-queries';
  * intercepted; remembered ones still count as danger. Assault launches use
  * the real state (`real`), which re-validates the target.
  */
-export type AiFleetRole = 'garrison' | 'intercept' | 'retreat' | 'regroup' | 'assault' | 'explore';
+export type AiFleetRole = 'garrison' | 'intercept' | 'retreat' | 'regroup' | 'assault' | 'explore' | 'salvage';
 
 interface FleetAssignment {
   role: AiFleetRole;
@@ -88,6 +97,8 @@ interface FleetAssignment {
   arrivedAt?: number;
   // Assault: a player-defended battle was queued and not yet observed resolved.
   launched?: boolean;
+  // Salvage: drifting asteroid being intercepted.
+  asteroidId?: number;
   since: number;
 }
 
@@ -119,6 +130,10 @@ export class EnemyFleetService {
   private static readonly ASSAULT_MAX_GROUP = 4;
   private static readonly EXPLORE_TIMEOUT = 300;
   private static readonly EXPLORE_REACH_FACTOR = 1.5;
+  // Salvage: only asteroids the fleet can meet this soon (game seconds)…
+  private static readonly SALVAGE_MAX_ETA = 150;
+  // …and whose meeting point is this close to AI territory (cells).
+  private static readonly SALVAGE_TERRITORY_RANGE = 45;
 
   private readonly accumulators = new Map<string, number>();
   private readonly clocks = new Map<string, number>();
@@ -136,6 +151,7 @@ export class EnemyFleetService {
     private readonly planService: EnemyPlanService,
     private readonly intelService: EnemyIntelService,
     private readonly reachService: EnemyReachService,
+    private readonly asteroidService: DriftingAsteroidService,
   ) {}
 
   reset(): void {
@@ -327,6 +343,31 @@ export class EnemyFleetService {
         }
       }
 
+      // 3c. Continue a salvage run while the asteroid is still reachable.
+      if (current?.role === 'salvage' && current.asteroidId != null) {
+        const point = this.salvagePoint(faction, fleet, current.asteroidId);
+        if (point) {
+          // The meeting point shifts slightly at every decision; re-issue the
+          // order only once it drifted a full cell (same rule as the executor's
+          // moving targets), otherwise every decision would report a state
+          // change and keep the save dirty.
+          const drifted =
+            fleet.targetX === null ||
+            fleet.targetY === null ||
+            Math.abs(fleet.targetX - point.x) >= 1 ||
+            Math.abs(fleet.targetY - point.y) >= 1;
+          if (drifted) {
+            changed = this.moveTo(fleet, point.x, point.y) || changed;
+          }
+          continue;
+        }
+        // Asteroid gone or out of reach: stop and get a new role below.
+        this.assignments.delete(fleet.id);
+        fleet.targetX = null;
+        fleet.targetY = null;
+        changed = true;
+      }
+
       // 3. Continue a still-valid interception.
       if (current?.role === 'intercept' && this.isInterceptStillValid(current, fleet, hostiles, ownedSystems, canWin, managed, clock)) {
         const target = hostiles.find((h) => h.id === current.targetFleetId)!;
@@ -391,6 +432,9 @@ export class EnemyFleetService {
     // (also without any planet left: exploring is part of the recovery route).
     changed = this.planExploration(faction, starSystems, ownedSystems, home, free, managed, clock) || changed;
 
+    // 4e. Opportunistic asteroid salvage with one free fleet.
+    changed = this.planSalvage(faction, ownedSystems, home, free, managed, clock) || changed;
+
     // 5. Garrison duty for everyone else.
     if (home) {
       changed = this.assignGarrisons(free, ownedSystems, home, clock) || changed;
@@ -436,6 +480,80 @@ export class EnemyFleetService {
     this.assignments.set(explorer.id, { role: 'explore', systemId: target.id, since: clock });
     free.splice(free.indexOf(explorer), 1);
     return this.moveTo(explorer, target.x, target.y);
+  }
+
+  /*
+   * Meeting point for a salvage run, or null when the asteroid is gone, no
+   * longer visible to the faction, or can no longer be reached in time.
+   */
+  private salvagePoint(faction: Faction, fleet: Fleet, asteroidId: number): { x: number; y: number } | null {
+    const asteroid = this.asteroidService.getAsteroid(asteroidId);
+    if (!asteroid || !this.canSeeAsteroid(faction, asteroidPosition(asteroid))) {
+      return null;
+    }
+    const plan = this.asteroidService.planIntercept(fleet, asteroid);
+    return plan && plan.time <= EnemyFleetService.SALVAGE_MAX_ETA * 1.5 ? plan.point : null;
+  }
+
+  /*
+   * Same visibility rule as the player's map: asteroids are seen anywhere
+   * except inside a nebula, where only sensor coverage reveals them.
+   */
+  private canSeeAsteroid(faction: Faction, pos: { x: number; y: number }): boolean {
+    return !this.asteroidService.isInNebula(pos) || this.intelService.isPointSensed(faction.id, pos.x, pos.y);
+  }
+
+  private planSalvage(
+    faction: Faction,
+    ownedSystems: StarSystem[],
+    home: StarSystem | undefined,
+    free: Fleet[],
+    managed: Fleet[],
+    clock: number,
+  ): boolean {
+    const asteroids = this.asteroidService.active;
+    if (asteroids.length === 0 || free.length === 0 || ownedSystems.length === 0) {
+      return false;
+    }
+    if (managed.some((f) => this.assignments.get(f.id)?.role === 'salvage')) {
+      return false;
+    }
+    // Never strip the last defender from home: the strongest free fleet
+    // parked at home stays, as for exploration.
+    const homeGuard = home
+      ? free
+        .filter((f) => this.cellKey(f.x, f.y) === this.cellKey(home.x, home.y))
+        .sort((a, b) => this.strength(b) - this.strength(a))[0]
+      : undefined;
+    const candidates = free.filter((f) => f.id !== homeGuard?.id);
+    // Asteroids another faction's fleet is already chasing are left alone,
+    // so two AI factions do not race for the same rock.
+    const claimed = new Set([...this.assignments.values()].filter((a) => a.role === 'salvage').map((a) => a.asteroidId));
+
+    let best: { fleet: Fleet; asteroidId: number; point: { x: number; y: number }; time: number } | null = null;
+    for (const asteroid of asteroids) {
+      if (claimed.has(asteroid.id) || !this.canSeeAsteroid(faction, asteroidPosition(asteroid))) {
+        continue;
+      }
+      for (const fleet of candidates) {
+        const plan = this.asteroidService.planIntercept(fleet, asteroid);
+        if (!plan || plan.time > EnemyFleetService.SALVAGE_MAX_ETA) {
+          continue;
+        }
+        if (ownedSystems.reduce((min, s) => Math.min(min, this.distance(plan.point, s)), Infinity) > EnemyFleetService.SALVAGE_TERRITORY_RANGE) {
+          continue;
+        }
+        if (!best || plan.time < best.time || (plan.time === best.time && fleet.id < best.fleet.id)) {
+          best = { fleet, asteroidId: asteroid.id, point: plan.point, time: plan.time };
+        }
+      }
+    }
+    if (!best) {
+      return false;
+    }
+    this.assignments.set(best.fleet.id, { role: 'salvage', asteroidId: best.asteroidId, since: clock });
+    free.splice(free.indexOf(best.fleet), 1);
+    return this.moveTo(best.fleet, best.point.x, best.point.y);
   }
 
   private isAssaultStillValid(

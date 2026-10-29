@@ -62,8 +62,19 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
   seeded with the seed; the same config + seed always produces the same galaxy.
 - **Black hole:** a `SpecialObject` `{ type: 'blackhole', component: 'blackhole', 4×4 }` whose cell
   span is centered exactly on `((W+1)/2, (H+1)/2)`. All sizes have even dimensions, so a 4×4 span is
-  exactly centered. It is rendered by the existing `app-star-map-blackhole` component and has no
-  gameplay effect beyond keeping systems and starting fleets `blackHoleClearance` cells away.
+  exactly centered. It is rendered by the existing `app-star-map-blackhole` component, keeps
+  systems and starting fleets `blackHoleClearance` cells away, and is a navigation obstacle with a
+  4-cell no-fly radius (see [Star Map Terrain](./star-map-terrain.md#black-holes-navigation-obstacles)).
+- **Nebulae** (`generateGalaxyNebulae`, generator v3): 3/4/5 irregular clouds for small/medium/large,
+  spread over map zones, never covering a home system or touching the black hole no-fly zone.
+  They use a separate seed-derived rng stream, so systems and fleets of a seed are unchanged.
+  See [Star Map Terrain](./star-map-terrain.md#nebulae).
+- **Asteroid belts** (`generateGalaxyAsteroidBelts`, generator v4; gentle arcs since v5): 2/3/4 long impassable belts with
+  their own seed-derived rng stream, kept clear of systems, fleets, the black hole, the border and
+  each other, and never disconnecting a home from any system. See
+  [Star Map Terrain](./star-map-terrain.md#asteroid-belts).
+- **Asteroid events:** `asteroidEvents` starts empty with a seed-derived rng state and first spawn
+  timer (`initialAsteroidEvents`).
 - **Home systems** sit on an ellipse around the black hole at evenly spaced angles (with small
   jitter), so every faction is about equally far from the center and its neighbours.
 - **Other systems** use best-candidate (Mitchell) sampling: for each system, 40 random candidates
@@ -93,7 +104,7 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
 - **Start view:** `defaultView` opens the human homeworld; the camera is centered on the home
   system so leaving the planet view lands there.
 - **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }` (current
-  generator version: 2). `seed` is the
+  generator version: 5). `seed` is the
   seed that actually produced the galaxy (after retries).
 
 ## AI difficulty (`components/star-map/ai-difficulty.ts`)
@@ -131,7 +142,9 @@ A generated galaxy is an ordinary `StarMapData` save. Loading restores the store
 never calls the generator. Since save version 3, `StarMap` persists `specialObjects` and `galaxy`
 and reads `map.width/height` from the save. `migrateSave` backfills the legacy black hole for
 pre-v3 saves (only when it fits the save's grid) and sets `aiDifficulty: 'normal'` on AI factions
-that lack it.
+that lack it. Since save version 4, `nebulae` and `asteroidEvents` are persisted; `migrateSave`
+generates the deterministic nebula set (and a fresh asteroid state) once for older saves. Since
+save version 5, `asteroidBelts` are persisted; older saves get an empty list.
 
 ## Validation (`services/galaxy-validation.ts`)
 
@@ -140,5 +153,6 @@ map size matches the preset, exactly one centered black hole, unique system/plan
 unique system and planet names, valid faction references, coordinates inside the map and outside
 the black hole clearance, minimum system spacing, known buildings placed inside the surface without
 overlap, known ship types, a homeworld and fleet for every participant, exactly one human
-`'player'`, a valid difficulty for each AI, `defaultView` on the human homeworld, and factions that
+`'player'`, a valid difficulty for each AI, `defaultView` on the human homeworld, at least one
+nebula and none covering a home system, an initialized asteroid event state, asteroid belts that cover no system or starting fleet and leave every home connected to every system, and factions that
 match the config (names, colors, controllers, difficulties).

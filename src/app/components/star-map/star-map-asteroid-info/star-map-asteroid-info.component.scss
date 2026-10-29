@@ -1,0 +1,70 @@
+@use '../_star-map-panels';
+@use 'mixins' as *;
+
+/* Sits right of the fleet panel so both can be open while choosing an interceptor. */
+.asteroid-info {
+  position: absolute;
+  left: 28%;
+  bottom: 3%;
+  width: 22%;
+  min-width: 200px;
+  z-index: 30;
+
+  @include mobile-view {
+    left: auto;
+    right: -2px;
+    bottom: -2px;
+  }
+}
+
+.asteroid-info__title--ore {
+  color: #e0a060;
+}
+
+.asteroid-info__title--crystal {
+  color: #6de5f0;
+}
+
+.asteroid-info__title--mixed {
+  color: #d8a8ff;
+}
+
+.asteroid-info__row,
+.asteroid-info__fleet {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.asteroid-info__value {
+  color: var(--color-text-bright);
+}
+
+.asteroid-info__fleet-name {
+  color: var(--color-text-bright);
+  font-size: 0.75rem;
+}
+
+.asteroid-info__fleet .action-btn {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+}
+
+.asteroid-info__status {
+  font-size: 0.65rem;
+  color: var(--color-text-dim);
+}
+
+.asteroid-info__status--active {
+  color: var(--color-success);
+}
+
+.asteroid-info__status--blocked {
+  color: var(--color-danger);
+}
+
+.asteroid-info__message {
+  color: var(--color-warning);
+  font-size: 0.75rem;
+}

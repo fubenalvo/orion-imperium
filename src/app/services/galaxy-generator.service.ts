@@ -1,8 +1,11 @@
 import { Injectable } from '@angular/core';
 import {
   AiDifficulty,
+  AsteroidBelt,
+  AsteroidEventState,
   Faction,
   Fleet,
+  Nebula,
   PlanetBuilding,
   PlanetSize,
   PlanetTile,
@@ -12,6 +15,10 @@ import {
   StarSystem,
 } from '../components/star-map/star-map.models';
 import { createMulberry32 } from '../components/star-map/star-map-resources.util';
+import { buildNavObstacles } from '../components/star-map/fleet-navigation';
+import { NEBULA_CONFIG, generateNebulae } from '../components/star-map/nebula';
+import { ASTEROID_BELT_CONFIG, generateAsteroidBelts } from '../components/star-map/asteroid-belts';
+import { createInitialAsteroidState } from '../components/star-map/drifting-asteroids';
 import { AI_DIFFICULTY_PROFILES } from '../components/star-map/ai-difficulty';
 import { AI_PERSONALITIES } from '../components/star-map/ai-personality';
 import { SAVE_VERSION } from './save-validation';
@@ -40,7 +47,14 @@ import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } fro
  * - the remaining systems use best-candidate (Mitchell) sampling, which
  *   spreads systems evenly without a visible grid pattern;
  * - no system is closer than preset.minSystemSpacing to another or than
- *   preset.blackHoleClearance to the black hole center.
+ *   preset.blackHoleClearance to the black hole center;
+ * - nebulae (generateGalaxyNebulae) are spread over the map and never
+ *   cover a home system or touch the black hole's no-fly zone. They use a
+ *   separate rng stream derived from the seed, so adding them did not
+ *   change the systems/fleets any existing seed produces;
+ * - asteroid belts (generateGalaxyAsteroidBelts) are impassable walls kept
+ *   clear of systems, starting fleets, the black hole and each other, and
+ *   never disconnect a home system from any other system. Own rng stream.
  *
  * Faction ids: the human player is always 'player' (the id every
  * gameplay system treats as the local player); AI players become
@@ -56,8 +70,11 @@ import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } fro
  * 1: initial version (only the human home system started `explored`, which
  *    hid every other star — see markStarPositionsKnown).
  * 2: every star system starts `explored` (positions known); planets stay unexplored.
+ * 3: nebulae and the drifting-asteroid event state are generated.
+ * 4: impassable asteroid belts are generated.
+ * 5: belts curve as gentle arcs instead of a single kink.
  */
-export const GALAXY_GENERATOR_VERSION = 2;
+export const GALAXY_GENERATOR_VERSION = 5;
 export const BLACK_HOLE_SIZE = { width: 4, height: 4 } as const;
 export const PLAYER_FACTION_ID = 'player';
 
@@ -214,6 +231,60 @@ export function mapCenter(width: number, height: number): Point {
   return { x: (width + 1) / 2, y: (height + 1) / 2 };
 }
 
+/*
+ * Nebulae for a galaxy. Shared by the generator and by save migration
+ * (older saves get the set once and then persist it), so both produce the
+ * same clouds for the same seed and map. `homes` are kept clear.
+ */
+export function generateGalaxyNebulae(
+  seed: number,
+  width: number,
+  height: number,
+  size: string,
+  homes: readonly Point[],
+  specialObjects: readonly SpecialObject[],
+): Nebula[] {
+  // Own stream (seed-derived) so the galaxy layout stream is not consumed.
+  const rng = createMulberry32(((seed >>> 0) ^ 0x9e3779b9) >>> 0);
+  return generateNebulae(rng, {
+    width,
+    height,
+    count: NEBULA_CONFIG.countBySize[size] ?? NEBULA_CONFIG.countBySize['large'],
+    homes,
+    obstacles: buildNavObstacles(specialObjects),
+  });
+}
+
+/*
+ * Asteroid belts for a galaxy (generator v4). Separate seed-derived rng
+ * stream, so belts do not alter systems, fleets or nebulae of a seed.
+ */
+export function generateGalaxyAsteroidBelts(
+  seed: number,
+  width: number,
+  height: number,
+  size: string,
+  systems: readonly Point[],
+  homes: readonly Point[],
+  fleets: readonly Point[],
+  specialObjects: readonly SpecialObject[],
+): AsteroidBelt[] {
+  const rng = createMulberry32(((seed >>> 0) ^ 0x85ebca6b) >>> 0);
+  return generateAsteroidBelts(rng, {
+    width,
+    height,
+    count: ASTEROID_BELT_CONFIG.countBySize[size] ?? ASTEROID_BELT_CONFIG.countBySize['large'],
+    systems,
+    homes,
+    fleets,
+    obstacles: buildNavObstacles(specialObjects),
+  });
+}
+
+export function initialAsteroidEvents(seed: number): AsteroidEventState {
+  return createInitialAsteroidState(seed >>> 0);
+}
+
 @Injectable({ providedIn: 'root' })
 export class GalaxyGeneratorService {
   generate(config: NewGameConfig, seed: number): StarMapData {
@@ -295,6 +366,19 @@ export class GalaxyGeneratorService {
       throw new GalaxyGenerationError('No human player configured');
     }
 
+    const specialObjects = [blackHoleObject(preset.width, preset.height)];
+    const nebulae = generateGalaxyNebulae(seed, preset.width, preset.height, preset.id, homePositions, specialObjects);
+    const asteroidBelts = generateGalaxyAsteroidBelts(
+      seed,
+      preset.width,
+      preset.height,
+      preset.id,
+      starSystems.map((s) => ({ x: s.x, y: s.y })),
+      homePositions,
+      fleets.map((f) => ({ x: f.x, y: f.y })),
+      specialObjects,
+    );
+
     return {
       saveVersion: SAVE_VERSION,
       galaxy: {
@@ -305,7 +389,10 @@ export class GalaxyGeneratorService {
       },
       defaultView: { type: 'planet', systemId: playerHome.id, planetId: playerHome.planetsTiles[0].id },
       factions,
-      specialObjects: [blackHoleObject(preset.width, preset.height)],
+      specialObjects,
+      nebulae,
+      asteroidBelts,
+      asteroidEvents: initialAsteroidEvents(seed),
       map: { width: preset.width, height: preset.height, cellSizeVw: 2, cellSizeVh: 2 },
       starSystems,
       fleets,

@@ -6,10 +6,13 @@ All gameplay types live in `src/app/components/star-map/star-map.models.ts`. The
 
 The root save format. Contains everything needed to reconstruct a game session:
 
-- `saveVersion`: format version (currently 3); see `SAVE_VERSION` in `save-validation.ts`
+- `saveVersion`: format version (currently 5); see `SAVE_VERSION` in `save-validation.ts`
 - `galaxy?`: `{ size: 'small' | 'medium' | 'large', seed, requestedSeed, generatorVersion }` – generation metadata of a procedurally generated galaxy (absent for the legacy map). Informational only: loading never regenerates. See [New Game Generation](./new-game-generation.md)
 - `factions`: `Faction[]`
-- `specialObjects?`: `SpecialObject[]` – map entities without ownership, currently the central black hole (`{ x, y, width, height, type: 'blackhole', component: 'blackhole' }`, x/y = top-left grid cell). Persisted since v3; pre-v3 saves are backfilled from `star-map-data.json`
+- `specialObjects?`: `SpecialObject[]` – map entities without ownership, currently the central black hole (`{ x, y, width, height, type: 'blackhole', component: 'blackhole' }`, x/y = top-left grid cell). Persisted since v3; pre-v3 saves are backfilled from `star-map-data.json`. Optional `navigationRadius` sets a black hole's no-fly radius (default 4 cells), see [Star Map Terrain](./star-map-terrain.md#black-holes-navigation-obstacles)
+- `nebulae?`: `Nebula[]` – `{ id, x, y, radius, lobes[], rotation, color }`, irregular gas clouds in grid coordinates (edge distance = `radius × lobe(θ)`). Generated at New Game, persisted, never regenerated on load; pre-v4 saves are backfilled once by `migrateSave`. See [Star Map Terrain](./star-map-terrain.md#nebulae)
+- `asteroidBelts?`: `AsteroidBelt[]` – `{ id, points: {x,y}[] (2 straight / 5 for a gentle arc), halfWidth, visualSeed }`, impassable belts (v5). Navigation uses capsules of radius `halfWidth + safetyMargin` along `points`; rock fragments are rebuilt from `visualSeed`, not saved. Pre-v5 saves get `[]`. See [Star Map Terrain](./star-map-terrain.md#asteroid-belts)
+- `asteroidEvents?`: `{ nextId, spawnTimer, rngState, active: DriftingAsteroid[] }` – drifting asteroid state (v4). `DriftingAsteroid = { id, type: 'ore' | 'crystal' | 'mixed', startX, startY, dirX, dirY, speed, traveled, length, reward: { rawmaterials?, research? } }`; position is derived as start + dir × traveled. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids)
 - `map`: `{ width, height, cellSizeVw, cellSizeVh }` – the grid dimensions and per-cell render size. Width/height vary per galaxy (180×108, 240×144, 300×180) and are read from the save by `StarMap.loadGame`
 - `starSystems`: `StarSystem[]`
 - `fleets`: `Fleet[]`
@@ -68,8 +71,8 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 
 ### Fleet.sensorRange
 
-- `sensorRange?: number` — sensor range **minimum floor** in galaxy grid cells (default 3). The effective range is computed as `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)` via `StarMapSensorService.getFleetSensorRange()`. Stored per-fleet in `star-map-data.json` and persisted in save data.
-- Player-owned star systems (those containing ≥1 planet with `factionId === 'player'`) provide a fixed 5-grid sensor radius on the galaxy map, regardless of fleet presence.
+- `sensorRange?: number` — sensor range **minimum floor** in galaxy grid cells (default 3). The effective range is computed as `max(fleet.sensorRange, max ShipType.range among non-destroyed ships) + SENSOR_RANGE_GLOBAL_BONUS (2)` via `StarMapSensorService.getFleetSensorRange()`. Stored per-fleet in `star-map-data.json` and persisted in save data.
+- Player-owned star systems (those containing ≥1 planet with `factionId === 'player'`) provide a fixed 7-grid sensor radius (5 + the global +2 bonus) on the galaxy map, regardless of fleet presence.
 - A Euclidean circle (`dx² + dy² <= range²`) defines the set of cells visible from a given center.
 
 ### exploredGridCells
@@ -85,7 +88,7 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
  - `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
   - `population`: float (not floored); grown each economy tick by `EconomyService.applyEconomyDelta` per the rule in `docs/invariants.md` (§ Population Growth Invariants), and clamped to the planet's residential `populationCapacity`. Older saves may omit it (treated as `0`).
  - `buildings`: `PlanetBuilding[]`
- - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, on the 18×10 system grid)
+ - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, plus the global +2 bonus, on the 18×10 system grid)
  - `satisfaction?`: number in `[0, 100]`, defaulting to `100` when undefined (backward-compatible with older saves). Represents population satisfaction; drifts each economy tick by `(energyDirection ±1 + moraleDrift) × deltaTime` where `moraleDrift = PLANET_TYPE_HABITABILITY[type] + Σ building.moraleRate`, scaled by game time (pauses when paused, 2× at speed 2). When it reaches `0` the planet's `factionId` is set to `'independent'` (rebellion). Once flipped, satisfaction stays at `0` until the planet is re-conquered (currently out of scope). See `docs/invariants.md` for the rules that depend on this field.
 
 ### PlanetBuilding
@@ -103,13 +106,14 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 
 - `id`, `name`, `factionId`: identity and ownership
 - `x`, `y`: 1-indexed grid column/row on the galaxy map (floats for smooth movement)
-- `targetX`, `targetY`: map movement target in grid cells (`null` when idle)
+- `targetX`, `targetY`: map movement target in grid cells (`null` when idle). Always the final destination: the movement service routes around black holes internally (the route is a runtime cache, not saved)
+- `interceptAsteroidId?`: player intercept order on a drifting asteroid; while set, `DriftingAsteroidService` re-aims `targetX/targetY`. Cleared by manual moves and when the asteroid is gone. Never used by AI fleets
 - `speed`: in vw/s; converted to cells/s via `speed / 10 / GALAXY_MOVEMENT_CELL_SIZE_VW` (fixed 2) for map movement — the rendered `cellSizeVw` does not affect movement
 - `system`: `SystemLocation | null` — present while the fleet is inside a star system
 - `gridCol`, `gridRow`: derived integer cell on whichever view the fleet is currently in
   - `ships`: `FleetShip[]`
   - `destroyed`: `true` after a lost battle; the fleet is filtered from `visibleFleets` and excluded from collision, movement, and rendering
-   - `sensorRange`: `number` (optional, default 3) — minimum floor for sensor range in galaxy grid cells; the effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)`, computed by `StarMapSensorService.getFleetSensorRange()`
+   - `sensorRange`: `number` (optional, default 3) — minimum floor for sensor range in galaxy grid cells; the effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships) + 2`, computed by `StarMapSensorService.getFleetSensorRange()`
 
 ### SystemLocation
 

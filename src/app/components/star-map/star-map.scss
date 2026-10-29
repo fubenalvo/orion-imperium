@@ -80,3 +80,21 @@
 .game-end-btn:hover {
   background: rgba(140, 196, 255, 0.15);
 }
+
+/* Transient galaxy notice (asteroid rewards, cancelled routes). */
+.map-notice {
+  position: absolute;
+  top: calc(8dvh + 0.6em);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 50%;
+  padding: 0.4em 1em;
+  border: 1px solid var(--color-blue);
+  background: rgba(0, 10, 20, 0.85);
+  color: var(--color-text-bright);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-align: center;
+  z-index: 40;
+  pointer-events: none;
+}

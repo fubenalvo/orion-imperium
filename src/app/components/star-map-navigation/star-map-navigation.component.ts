@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { StarSystem } from '../star-map/star-map.models';
 import { StarMapMinimapComponent } from '../star-map-minimap/star-map-minimap.component';
 import { MinimapFleet } from '../star-map-minimap/star-map-minimap.models';
+import { NebulaView } from '../star-map/star-map-galaxy-view/star-map-galaxy-view.component';
+import { BeltView } from '../star-map/asteroid-belts';
 
 /*
  * =========================================================
@@ -28,6 +30,11 @@ export class StarMapNavigationComponent implements OnDestroy {
   @Input() cameraY = 0;
   @Input() starSystems: StarSystem[] = [];
   @Input() fleets: MinimapFleet[] = [];
+  @Input() nebulae: NebulaView[] = [];
+  @Input() belts: BeltView[] = [];
+  @Input() exploredCells: ReadonlySet<string> = new Set();
+  @Input() exploredCount = 0;
+  @Input() fogEnabled = false;
   @Input() cellSizeVw = 2;
   @Input() cellSizeVh = 2;
   @Input() gridColumns = 100;

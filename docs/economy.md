@@ -21,6 +21,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 - **Credits** (stock, integer): population income minus upkeep. Spent on buildings and ships.
 - **Raw materials** (stock): Spaceship Factory 6/s, Mining Complex 15/s (needs an ore tile; ~20% of planets have one), plus a population trickle of `0.002 × population`/s. Building output scales with workforce efficiency; the trickle does not. Spent on buildings and ships.
 - **Research** (stock): research labs. Spent only on technologies.
+- **One-off windfalls:** collecting a drifting asteroid adds its cargo (raw materials and/or research points) directly to the collecting faction's stock, outside the economy tick. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids).
 - **Energy** (flow, never stored): an energy-short planet produces at `production / consumption` efficiency and loses 1 satisfaction/s.
 - **Population**: capped by housing; `0.1 credits/s` per inhabitant at 100% satisfaction.
 

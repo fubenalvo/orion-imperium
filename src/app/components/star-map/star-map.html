@@ -76,6 +76,12 @@
       [sensorPreviewCells]="sensorPreviewCellsArray"
       [systems]="exploredStarSystems"
       [specialObjects]="specialObjects"
+      [nebulae]="nebulaViews"
+      [belts]="beltViews"
+      [blackHoleRings]="blackHoleRings"
+      [asteroids]="visibleAsteroids"
+      [isFleetInNebula]="boundIsFleetInNebula"
+      [onAsteroidClick]="boundOnAsteroidClick"
       [fleets]="visibleFleets"
       [selectedSystem]="selectedSystem"
       [selectedFleet]="selectedFleet"
@@ -110,7 +116,22 @@
     (openResearchTree)="openResearchTree()"
   ></app-star-map-header>
 
-  <!-- SELECTED FLEET INFO -->
+    <!-- GALAXY NOTICE (asteroid rewards, cancelled routes) -->
+    @if (mapNotice) {
+      <div class="map-notice" role="status">{{ mapNotice }}</div>
+    }
+
+    <!-- SELECTED DRIFTING ASTEROID -->
+    @if (asteroidPanelVm) {
+      <app-star-map-asteroid-info
+        [vm]="asteroidPanelVm"
+        [message]="asteroidPanelMessage"
+        (intercept)="onInterceptAsteroid($event)"
+        (close)="deselectAsteroid()"
+      ></app-star-map-asteroid-info>
+    }
+
+    <!-- SELECTED FLEET INFO -->
     @if (selectedFleet) {
       <app-star-map-fleet-info
         [fleet]="selectedFleet"
@@ -123,6 +144,11 @@
         [canReinforce]="selectedFleet.factionId === 'player' && hasSpaceport()"
         [canDisband]="selectedFleet.factionId === 'player' && hasSpaceport()"
         [moveError]="fleetMoveError"
+        [etaSeconds]="getSelectedFleetEta()"
+        [inNebula]="isFleetInNebula(selectedFleet)"
+        [nebulaSpeedPenaltyPercent]="nebulaSpeedPenaltyPercent"
+        [nebulaSensorPenaltyPercent]="nebulaSensorPenaltyPercent"
+        [interceptLabel]="getSelectedFleetInterceptLabel()"
         (close)="deselectFleet()"
         (setFleetAction)="setFleetAction($event)"
         (reinforce)="onReinforceSelected()"
@@ -157,6 +183,11 @@
       [cameraY]="cameraY"
       [starSystems]="exploredStarSystems"
       [fleets]="minimapFleets"
+      [nebulae]="nebulaViews"
+      [belts]="beltViews"
+      [exploredCells]="exploredGridCells"
+      [exploredCount]="exploredGridCells.size"
+      [fogEnabled]="sensorRangeEnabled"
       [cellSizeVw]="cellSizeVw"
       [cellSizeVh]="cellSizeVh"
       [gridColumns]="movementService.gridColumns"

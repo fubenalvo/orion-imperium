@@ -18,8 +18,8 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 
 **Sources of sensor range (galaxy map, player faction only):**
 
-1. **Player fleets** — each fleet has a `sensorRange` field (default 3 grid cells) which serves as a **minimum floor**. The effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)` — if any ship in the fleet has a longer `range`, that ship's range is used instead. The effective range is centered on the fleet's current integer grid position (`Math.floor(fleet.x)`, `Math.floor(fleet.y)`).
-2. **Player-owned star systems** — any star system containing at least one planet with `factionId === 'player'` provides a fixed 5-grid-radius sensor range, centered on the system's grid cell. This is the "base visibility" — your home territory is always partially detected even without a fleet present.
+1. **Player fleets** — each fleet has a `sensorRange` field (default 3 grid cells) which serves as a **minimum floor**. The effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)` — if any ship in the fleet has a longer `range`, that ship's range is used instead — plus `SENSOR_RANGE_GLOBAL_BONUS` (2 cells, applied to every sensor source, player and AI, galaxy and system view). The effective range is centered on the fleet's current integer grid position (`Math.floor(fleet.x)`, `Math.floor(fleet.y)`).
+2. **Player-owned star systems** — any star system containing at least one planet with `factionId === 'player'` provides a fixed 7-grid-radius sensor range (5 + the global +2 bonus), centered on the system's grid cell. This is the "base visibility" — your home territory is always partially detected even without a fleet present.
 
 **Rendering:**
 
@@ -27,7 +27,10 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 - A toggle button in the top HUD (`sensorRangeEnabled`) shows/hides the highlight overlays and fog.
 - Enemy fleet sensor ranges are **never** shown on the galaxy map — only player sensors are visible.
 - AI factions obey the same fog of war with the same sensor rules (per-faction knowledge in `EnemyIntelService`, see [AI Pipeline](./ai-pipeline.md#fog-of-war-enemyintelservice)); with fog disabled they see what the player sees.
+- **Nebulae** shorten sensor radii: a source inside a nebula, or a target cell inside one, is sensed at 60% of the radius (applied once). Player layer and AI intel share this rule; see [Star Map Terrain](./star-map-terrain.md#sensor-penalty).
 - A pulsing animation (`sensor-pulse`, 2.5s) highlights active sensor area.
+- **Fog strength:** unexplored cells are covered at 88% black, explored cells outside current sensor range at 55%. All terrain (nebulae, asteroid belts, the black hole and its no-fly ring) is drawn *under* the fog layer, so anything not yet explored is strongly dimmed; fleets, trails, markers and visible drifting asteroids stay above it.
+- **Minimap fog:** the minimap darkens every unexplored cell (72% opacity) over terrain and stars, under fleets and the viewport frame. It is one SVG path of per-row runs, rebuilt only when the explored set grows; hidden when fog of war is off.
 
 **Exploration tracking:**
 
@@ -140,6 +143,8 @@ Fleet movement is target-based. Each frame, `StarMapMovementService.updateFleets
 - **System movement** uses `fleet.system.targetX` / `fleet.system.targetY` in vw units. Speed is in vw/s and applied directly (no cell conversion). Same target-reached / snap behaviour. While in the system, `gridCol`/`gridRow` are derived from `calculateSystemGridCell(system.x, system.y)`.
 
 Player move commands in system view are rejected by `StarMap.validateFleetMove` when the target cell is an allied (same team, not player-owned) planet, or a player planet where another living player fleet is already stationed. A rejected command changes nothing; its reason is shown in the fleet panel (`StarMap.fleetMoveError`, worded by `StarMapPanelVmService.describeFleetMoveRejection`) until the next accepted move or a selection change.
+
+**Galaxy terrain** (see [Star Map Terrain](./star-map-terrain.md)): every galaxy target is routed around black hole no-fly zones and asteroid belts (cached `NavGraph`; the target stays the final destination, the waypoints are a runtime cache); a target that cannot be reached safely is rejected (player orders, with a fleet-panel message) or dropped (orders that became invalid) and the fleet stays put — never flying through. Inside a nebula the galaxy speed is × 0.7, evaluated per step at the fleet's position. Trails are drawn per route leg and the fleet panel shows the ETA including both effects.
 
 After every move, `gridCol` and `gridRow` are refreshed from the current x/y. `refreshGridPositions()` does the same for every fleet and system and is called on load, after resize, and on every reload from a save.
 

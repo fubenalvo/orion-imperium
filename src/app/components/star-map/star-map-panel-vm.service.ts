@@ -166,10 +166,21 @@ export class StarMapPanelVmService {
   }
 
   /* Player-facing reason for a fleet move command the movement rules rejected. */
-  describeFleetMoveRejection(reason: 'blocked-team' | 'blocked-ours'): string {
-    return reason === 'blocked-team'
-      ? 'Cannot move onto an allied planet.'
-      : 'Another fleet is already stationed at this planet.';
+  describeFleetMoveRejection(
+    reason: 'blocked-team' | 'blocked-ours' | 'blocked-black-hole' | 'blocked-belt' | 'no-route',
+  ): string {
+    switch (reason) {
+      case 'blocked-team':
+        return 'Cannot move onto an allied planet.';
+      case 'blocked-ours':
+        return 'Another fleet is already stationed at this planet.';
+      case 'blocked-black-hole':
+        return "Cannot navigate there: the destination is inside the black hole's gravity well.";
+      case 'blocked-belt':
+        return 'Cannot navigate there: the destination is inside an impassable asteroid belt.';
+      case 'no-route':
+        return 'No safe route to that destination: black holes and asteroid belts block every way.';
+    }
   }
 
   suggestFleetName(fleets: { factionId: string; name: string }[]): string {

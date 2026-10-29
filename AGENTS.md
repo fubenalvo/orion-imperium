@@ -123,6 +123,7 @@ The project currently contains the following documentation files:
 - `docs/game-time.md` — centralized game time, pause/speed controls, and scaled delta flow
 - `docs/new-game-generation.md` — New Game setup, procedural galaxy generation, AI difficulty, and generated-save persistence
 - `docs/planet-capture.md` — authoritative planet ownership pathway, capture rules, planet battle paths (interactive vs auto-resolve), battle outcome application, game outcome (victory/defeat) rules
+- `docs/star-map-terrain.md` — galaxy terrain and map events: black holes as navigation obstacles (no-fly radius, routing, failure handling), nebulae (generation, movement and sensor penalties, rendering), drifting asteroids (spawning, rewards, interception, AI salvage role, persistence), impassable asteroid belts (capsule geometry, generation, connectivity guarantee, rendering), balance values
 - `docs/ai-pipeline.md` — strategic AI pipeline: execution order, per-faction scheduling, fleet-order ownership, AI economy manager (construction, spending policy, military production), AI research, fleet roles and combat decisions, strategic posture and personalities, multiple objectives, deadlock detection, adaptive reach, AI fog of war and exploration, AI debug panel, save/load and bounded state, colonization and failure recovery, simulation, evaluation and acceptance tests
 
 These files are the current documentation sources of truth for their respective topics.

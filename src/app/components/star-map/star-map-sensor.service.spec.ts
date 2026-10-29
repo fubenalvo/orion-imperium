@@ -1,5 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import { StarMapSensorService, DEFAULT_FLEET_SENSOR_RANGE } from './star-map-sensor.service';
+import {
+  StarMapSensorService,
+  DEFAULT_FLEET_SENSOR_RANGE,
+  SENSOR_RANGE_GLOBAL_BONUS,
+} from './star-map-sensor.service';
 import { Fleet, Faction } from './star-map.models';
 
 describe('StarMapSensorService', () => {
@@ -28,7 +32,7 @@ describe('StarMapSensorService', () => {
         ],
         sensorRange: 3,
       };
-      expect(service.getFleetSensorRange(fleet)).toBe(3);
+      expect(service.getFleetSensorRange(fleet)).toBe(3 + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should return the highest ship range when a ship exceeds the floor', () => {
@@ -49,7 +53,7 @@ describe('StarMapSensorService', () => {
         sensorRange: 3,
       };
       // frigate range = 3, battlecruiser range = 5
-      expect(service.getFleetSensorRange(fleet)).toBe(5);
+      expect(service.getFleetSensorRange(fleet)).toBe(5 + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should return the highest ship range with mixed ships', () => {
@@ -71,7 +75,7 @@ describe('StarMapSensorService', () => {
         sensorRange: 3,
       };
       // fighter range = 2, corvette range = 2, dreadnought range = 5
-      expect(service.getFleetSensorRange(fleet)).toBe(5);
+      expect(service.getFleetSensorRange(fleet)).toBe(5 + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should fall back to floor when all ships are destroyed', () => {
@@ -88,7 +92,7 @@ describe('StarMapSensorService', () => {
         ships: [{ id: 1, name: 'A', type: 'battlecruiser', destroyed: true }],
         sensorRange: 3,
       };
-      expect(service.getFleetSensorRange(fleet)).toBe(DEFAULT_FLEET_SENSOR_RANGE);
+      expect(service.getFleetSensorRange(fleet)).toBe(DEFAULT_FLEET_SENSOR_RANGE + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should fall back to floor when fleet has no ships', () => {
@@ -105,7 +109,7 @@ describe('StarMapSensorService', () => {
         ships: [],
         sensorRange: 3,
       };
-      expect(service.getFleetSensorRange(fleet)).toBe(DEFAULT_FLEET_SENSOR_RANGE);
+      expect(service.getFleetSensorRange(fleet)).toBe(DEFAULT_FLEET_SENSOR_RANGE + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should default floor to 3 when sensorRange is undefined', () => {
@@ -122,7 +126,7 @@ describe('StarMapSensorService', () => {
         ships: [{ id: 1, name: 'A', type: 'fighter' }],
       };
       // fighter range = 2, floor defaults to 3
-      expect(service.getFleetSensorRange(fleet)).toBe(3);
+      expect(service.getFleetSensorRange(fleet)).toBe(3 + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should return the floor when it exceeds the highest ship range', () => {
@@ -143,7 +147,7 @@ describe('StarMapSensorService', () => {
         sensorRange: 3,
       };
       // fighter range = 2, colonizer range = 1, floor = 3
-      expect(service.getFleetSensorRange(fleet)).toBe(3);
+      expect(service.getFleetSensorRange(fleet)).toBe(3 + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should skip destroyed ships but count alive ones', () => {
@@ -164,7 +168,7 @@ describe('StarMapSensorService', () => {
         sensorRange: 3,
       };
       // dreadnought (destroyed, skipped), frigate range = 3 → max(3, 3) = 3
-      expect(service.getFleetSensorRange(fleet)).toBe(3);
+      expect(service.getFleetSensorRange(fleet)).toBe(3 + SENSOR_RANGE_GLOBAL_BONUS);
     });
   });
 
@@ -183,7 +187,7 @@ describe('StarMapSensorService', () => {
         ships: [{ id: 1, name: 'A', type: 'scout' }],
         sensorRange: 3,
       };
-      expect(service.getFleetSensorRange(fleet, undefined)).toBe(3);
+      expect(service.getFleetSensorRange(fleet, undefined)).toBe(3 + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should add sensorRange bonus from researched techs', () => {
@@ -208,7 +212,7 @@ describe('StarMapSensorService', () => {
         ships: [{ id: 1, name: 'A', type: 'scout' }],
         sensorRange: 3,
       };
-      expect(service.getFleetSensorRange(fleet, faction)).toBe(4);
+      expect(service.getFleetSensorRange(fleet, faction)).toBe(4 + SENSOR_RANGE_GLOBAL_BONUS);
     });
 
     it('should stack multiple sensorRange bonuses', () => {
@@ -233,7 +237,41 @@ describe('StarMapSensorService', () => {
         ships: [{ id: 1, name: 'A', type: 'scout' }],
         sensorRange: 3,
       };
-      expect(service.getFleetSensorRange(fleet, faction)).toBe(6);
+      expect(service.getFleetSensorRange(fleet, faction)).toBe(6 + SENSOR_RANGE_GLOBAL_BONUS);
     });
+  });
+});
+
+describe('global sensor range bonus', () => {
+  it('adds 2 cells to fleet, owned-system and system-view ranges', () => {
+    TestBed.configureTestingModule({});
+    const service = TestBed.inject(StarMapSensorService);
+    expect(SENSOR_RANGE_GLOBAL_BONUS).toBe(2);
+    const fleet: Fleet = {
+      id: 1, name: 'F', factionId: 'player', x: 50, y: 50, targetX: null, targetY: null, speed: 4,
+      system: null, ships: [], sensorRange: 3,
+    };
+    expect(service.getFleetSensorRange(fleet)).toBe(5);
+
+    // Galaxy layer: a lone fleet now clears a radius-5 circle.
+    const factions: Faction[] = [{ id: 'player', name: 'P', color: '#fff', team: 1, ai: false, currencies: {} }];
+    const layer = service.computeGalaxySensorCells([fleet], [], factions, 100, 100);
+    expect(layer.cells.has('50-55')).toBe(true);
+    expect(layer.cells.has('50-56')).toBe(false);
+
+    // Owned systems: 5 + 2 = 7.
+    const system = {
+      id: 's', name: 'S', x: 20, y: 20, gridCol: 20, gridRow: 20, planets: 1, color: '#fff',
+      planetsTiles: [{ id: 1, index: 0, name: 'P', factionId: 'player', x: 1, y: 1, type: 'earthlike' as const, size: 'small' as const, population: 1, buildings: [], explored: true }],
+    };
+    const sysLayer = service.computeGalaxySensorCells([], [system], factions, 100, 100);
+    expect(sysLayer.cells.has('20-27')).toBe(true);
+    expect(sysLayer.cells.has('20-28')).toBe(false);
+
+    // System view uses the same +2.
+    const inSystem: Fleet = { ...fleet, system: { id: 's', x: 2.5, y: 2.5, targetX: null, targetY: null } };
+    const sv = service.computeSystemSensorCells(inSystem);
+    expect(sv.cells.some((c) => c.col === 1 + 5 && c.row === 1)).toBe(true);
+    expect(sv.cells.some((c) => c.col === 1 + 6 && c.row === 1)).toBe(false);
   });
 });

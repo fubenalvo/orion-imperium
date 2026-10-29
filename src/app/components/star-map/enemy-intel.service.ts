@@ -20,7 +20,8 @@ import { GameSettingsService } from '../../services/game-settings.service';
  * an owned planet senses PLAYER_SYSTEM_SENSOR_RANGE (+ research bonus)
  * cells around it, every own fleet senses getFleetSensorRange. A cell is
  * sensed when its integer cell lies within that Euclidean radius of the
- * source, exactly as getCellsInRadius computes the player's layer.
+ * source, exactly as the player's layer is computed — including the nebula
+ * sensor penalty (StarMapSensorService.isGalaxyCellSensed).
  *
  * Knowledge (refreshed every UPDATE_INTERVAL, first refresh immediately):
  *  - known systems: star positions are public (every star is charted);
@@ -56,6 +57,8 @@ interface FleetSighting {
 
 interface FactionIntel {
   clock: number;
+  /* Sensor sources of the last update; used for point visibility queries. */
+  sources: { x: number; y: number; r: number }[];
   nextUpdateAt: number;
   knownSystems: Map<string, Map<number, PlanetIntel>>;
   sightings: Map<number, FleetSighting>;
@@ -191,11 +194,8 @@ export class EnemyIntelService {
         sources.push({ x: fleet.x, y: fleet.y, r: this.sensorService.getFleetSensorRange(fleet, faction) });
       }
     }
-    const sensed = (x: number, y: number): boolean => {
-      const col = Math.floor(x);
-      const row = Math.floor(y);
-      return sources.some((s) => (col - s.x) ** 2 + (row - s.y) ** 2 <= s.r * s.r);
-    };
+    state.sources = sources;
+    const sensed = (x: number, y: number): boolean => this.isSensedBy(sources, x, y);
 
     // Systems: refresh planet snapshots of every sensed system.
     for (const system of starSystems) {
@@ -279,10 +279,29 @@ export class EnemyIntelService {
     return { starSystems: systems, fleets: viewFleets };
   }
 
+  /*
+   * True when the faction's sensors (as of the last intel update) cover the
+   * galaxy point (x, y). Always true with fog of war disabled. Used for
+   * objects that are not fleets, e.g. drifting asteroids hidden in nebulae.
+   */
+  isPointSensed(factionId: string, x: number, y: number): boolean {
+    if (!this.enabled) {
+      return true;
+    }
+    const state = this.intel.get(factionId);
+    return state ? this.isSensedBy(state.sources, x, y) : false;
+  }
+
+  private isSensedBy(sources: readonly { x: number; y: number; r: number }[], x: number, y: number): boolean {
+    const col = Math.floor(x);
+    const row = Math.floor(y);
+    return sources.some((s) => this.sensorService.isGalaxyCellSensed(col, row, s));
+  }
+
   private state(factionId: string): FactionIntel {
     let state = this.intel.get(factionId);
     if (!state) {
-      state = { clock: 0, nextUpdateAt: 0, knownSystems: new Map(), sightings: new Map(), visible: new Set() };
+      state = { clock: 0, nextUpdateAt: 0, sources: [], knownSystems: new Map(), sightings: new Map(), visible: new Set() };
       this.intel.set(factionId, state);
     }
     return state;

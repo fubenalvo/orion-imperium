@@ -1,0 +1,49 @@
+@if (vm) {
+  <div class="asteroid-info panel-style" (click)="$event.stopPropagation()">
+    <div class="panel-style__title">
+      <span class="asteroid-info__title asteroid-info__title--{{ vm.type }}">{{ vm.label }}</span>
+      <button class="close-btn" type="button" (click)="close.emit()">X</button>
+    </div>
+
+    <div class="system-info__content">
+      @for (item of vm.cargo; track item.label) {
+        <div class="asteroid-info__row">
+          <span>{{ item.label }}</span>
+          <span class="asteroid-info__value">+{{ item.amount }}</span>
+        </div>
+      }
+      <div class="asteroid-info__row">
+        <span>LEAVES MAP IN</span>
+        <span class="asteroid-info__value">{{ formatSeconds(vm.secondsToExit) }}</span>
+      </div>
+
+      <hr class="fleet-section-divider" />
+      <div class="fleet-ships__title">INTERCEPT WITH</div>
+
+      @for (fleet of vm.fleets; track fleet.fleetId) {
+        <div class="asteroid-info__fleet">
+          <span class="asteroid-info__fleet-name">{{ fleet.name }}</span>
+          @if (fleet.intercepting) {
+            <span class="asteroid-info__status asteroid-info__status--active">EN ROUTE</span>
+          } @else if (fleet.etaSeconds !== null) {
+            <button
+              type="button"
+              class="action-btn"
+              (click)="intercept.emit(fleet.fleetId); $event.stopPropagation()"
+            >
+              INTERCEPT ({{ formatSeconds(fleet.etaSeconds) }})
+            </button>
+          } @else {
+            <span class="asteroid-info__status asteroid-info__status--blocked">OUT OF REACH</span>
+          }
+        </div>
+      } @empty {
+        <div class="asteroid-info__status">NO FLEETS AVAILABLE</div>
+      }
+
+      @if (message) {
+        <div class="asteroid-info__message" role="status">{{ message }}</div>
+      }
+    </div>
+  </div>
+}

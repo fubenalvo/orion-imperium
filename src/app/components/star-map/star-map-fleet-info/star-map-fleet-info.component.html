@@ -10,12 +10,24 @@
     <div>
       STATUS:
 
-      @if (fleet!.targetX !== null) {
+      @if (interceptLabel) {
+        INTERCEPTING {{ interceptLabel }}
+      } @else if (fleet!.targetX !== null) {
         MOVING
       } @else {
         IDLE
       }
     </div>
+
+    @if (etaSeconds !== null) {
+      <div>ETA: {{ formatEta(etaSeconds) }}</div>
+    }
+
+    @if (inNebula) {
+      <div class="fleet-info__nebula" role="status">
+        IN NEBULA: SPEED -{{ nebulaSpeedPenaltyPercent }}%, SENSORS -{{ nebulaSensorPenaltyPercent }}%
+      </div>
+    }
 
     <div>
       SPEED:

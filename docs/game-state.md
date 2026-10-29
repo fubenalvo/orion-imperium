@@ -165,15 +165,15 @@ src/app/
 - Movement speed on galaxy map is fleet.speed / 10 / `GALAXY_MOVEMENT_CELL_SIZE_VW` (fixed 2, not the rendered cell size, so it is the same on every window width)
 
 ### 4.5 Fog of War
-- Player fleet range = max(floor, best ship range), default 3
-- Player system range = 5
+- Player fleet range = max(floor, best ship range) + 2 (global bonus), floor default 3
+- Player system range = 7 (5 + 2)
 - Euclidean circles
 - Black/grey/visible layers
 - `exploredGridCells` monotonic
 - Outer-ring preview cells (R+1..R+2) rendered as faint halo, NOT added to explored set
 - Fleet visibility: player fleets always visible; enemy fleets visible in sensor range or in current system view
 - Sensor range bonus from researched radar technologies (+1 per tier: basic_radar → advanced_radar → long_range_radar)
-- Player-owned star systems mark cells within range 5 + sensor bonus as explored
+- Player-owned star systems mark cells within range 7 + sensor bonus as explored
 - Research tree affects sensor range via `getSensorRangeBonus()`
 
 ### 4.6 Battle

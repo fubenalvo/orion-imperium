@@ -17,8 +17,42 @@
   fill: rgba(0, 0, 10, 0.85);
 }
 
+.minimap__nebulae {
+  pointer-events: none;
+}
+
+/* Soft translucent patches under systems and fleets. */
+.minimap__nebula {
+  fill-opacity: 0.28;
+  stroke-opacity: 0.55;
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.minimap__belts {
+  pointer-events: none;
+}
+
+/* Impassable belts read as solid rock walls on the minimap. */
+.minimap__belt {
+  fill: none;
+  stroke: #8f8270;
+  stroke-opacity: 0.85;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .minimap__system {
   filter: drop-shadow(0 0 2px currentColor);
+}
+
+.minimap__fog-layer {
+  pointer-events: none;
+}
+
+.minimap__fog {
+  fill: #000008;
+  fill-opacity: 0.72;
 }
 
 .minimap__fleet {

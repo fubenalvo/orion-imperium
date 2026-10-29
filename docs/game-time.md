@@ -108,7 +108,8 @@ Arrow keys continue to pan the camera (step-based, not time-dependent).
 
 | System | Affected? | Notes |
 |--------|-----------|-------|
-| Fleet movement | Yes | `movement = speed × gameDeltaTime` |
+| Fleet movement | Yes | `movement = speed × nebulaFactor × gameDeltaTime` |
+| Drifting asteroids | Yes | Spawn timer, movement and intercept re-aiming advance with `gameDeltaTime` (frozen while paused) |
 | Production progress | Yes | `progress += gameDeltaTime / buildTime` |
 | Economy (satisfaction, resources) | Yes | `delta += rate × gameDeltaTime` |
 | Economy accumulator | Yes | Accumulates game delta; ticks every 1 s of game time |

@@ -37,7 +37,15 @@ src/app/
         → requestAnimationFrame loop, runs outside Angular zone; always runs;
           delegates delta scaling to GameTimeService
       star-map-movement.service.ts
-        → Fleet movement, grid cell math, coordinate conversion, planet grid layout
+        → Fleet movement, grid cell math, coordinate conversion, planet grid layout;
+          routes every galaxy order around black holes and applies nebula slowdown
+      star-map-terrain.service.ts / fleet-navigation.ts / nebula.ts
+        → Galaxy terrain: black hole no-fly zones + routing, nebula shapes, field
+          and generation (see docs/star-map-terrain.md)
+      drifting-asteroid.service.ts / drifting-asteroids.ts
+        → Drifting asteroid events: spawn, movement, collection, intercepts
+      star-map-asteroid-info/
+        → Selected asteroid panel (cargo, time left, INTERCEPT per fleet)
       star-map-battle-detection.service.ts
         → Fleet-vs-fleet collision detection on the map / inside systems
       star-map-planet-arrival.service.ts

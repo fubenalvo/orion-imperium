@@ -21,6 +21,20 @@ export class StarMapFleetInfoComponent {
   @Input() canDisband = false;
   // Reason the last move command was rejected (null when the last move was accepted).
   @Input() moveError: string | null = null;
+  // Remaining galaxy travel time in game seconds (route + nebula slowdown); null when idle.
+  @Input() etaSeconds: number | null = null;
+  @Input() inNebula = false;
+  @Input() nebulaSpeedPenaltyPercent = 0;
+  @Input() nebulaSensorPenaltyPercent = 0;
+  // Label of the asteroid this fleet is intercepting, if any.
+  @Input() interceptLabel: string | null = null;
+
+  formatEta(seconds: number): string {
+    const total = Math.max(0, Math.round(seconds));
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`;
+  }
 
   @Output() close = new EventEmitter<void>();
   @Output() setFleetAction = new EventEmitter<'move'>();

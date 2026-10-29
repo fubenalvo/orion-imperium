@@ -19,6 +19,261 @@
 
 .special-object-cell {
   position: relative;
-  z-index: 8;
+  /* Under the fog layer (z 5): an unexplored black hole is dimmed like other terrain. */
+  z-index: 4;
   pointer-events: none;
+}
+
+
+/* =========================================================
+   NEBULAE (docs/star-map-terrain.md)
+   Large, soft, translucent clouds under the fog layer (z 5) and every
+   interactive object. Never intercept pointer events.
+   ========================================================= */
+
+.nebula-layer,
+.no-fly-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.nebula-layer {
+  z-index: 4;
+  mix-blend-mode: screen;
+}
+
+.nebula__halo {
+  opacity: 0.12;
+}
+
+.nebula__body {
+  opacity: 0.85;
+}
+
+.nebula__core {
+  opacity: 0.16;
+  animation: nebula-breathe 9s ease-in-out infinite alternate;
+}
+
+.nebula__edge {
+  fill: none;
+  stroke-width: 0.15;
+  stroke-dasharray: 0.6 0.8;
+  opacity: 0.35;
+}
+
+@keyframes nebula-breathe {
+  from {
+    opacity: 0.1;
+  }
+  to {
+    opacity: 0.22;
+  }
+}
+
+/* Fleet inside a nebula: hazy outline signals slowed movement and impaired sensors. */
+.fleet-cell--nebula .fleet__icon {
+  filter: drop-shadow(0 0 4px rgba(200, 150, 255, 0.9)) blur(0.4px);
+}
+
+/* =========================================================
+   BLACK HOLE NO-FLY ZONE
+   ========================================================= */
+
+.no-fly-layer {
+  z-index: 4;
+}
+
+.no-fly-ring {
+  fill: none;
+  stroke: rgba(255, 120, 60, 0.55);
+  stroke-width: 0.12;
+  stroke-dasharray: 0.5 0.5;
+}
+
+.special-object-cell.blackhole {
+  /* Center the (larger) visual on the object's cell span. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+/* =========================================================
+   DRIFTING ASTEROIDS
+   Above fog and trails, below fleets (z 15) so fleets stay clickable.
+   ========================================================= */
+
+.asteroid-cell {
+  --asteroid-color: #e0a060;
+  --asteroid-glow: rgba(255, 170, 90, 0.85);
+
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 13;
+  will-change: left, top;
+}
+
+.asteroid-cell--crystal {
+  --asteroid-color: #6de5f0;
+  --asteroid-glow: rgba(110, 230, 255, 0.9);
+}
+
+.asteroid-cell--mixed {
+  --asteroid-color: #d8a8ff;
+  --asteroid-glow: rgba(220, 170, 255, 0.9);
+}
+
+/* Glowing streak: bright at the asteroid, fading out behind it. */
+.asteroid-trail {
+  position: absolute;
+  top: -0.15vw;
+  left: 0;
+  height: 0.3vw;
+  transform-origin: 0 50%;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--asteroid-glow) 0%, color-mix(in srgb, var(--asteroid-color) 35%, transparent) 35%, transparent 100%);
+  filter: blur(1px) drop-shadow(0 0 4px var(--asteroid-glow));
+  pointer-events: none;
+}
+
+.asteroid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6vw;
+  height: 1.6vw;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: crosshair;
+}
+
+/* Irregular rock: a lumpy gradient blob, distinct from fleet icons and stars. */
+.asteroid__rock {
+  width: 0.9vw;
+  height: 0.75vw;
+  border-radius: 45% 55% 40% 60% / 55% 45% 60% 40%;
+  background: radial-gradient(circle at 35% 35%, #fff 0%, var(--asteroid-color) 35%, color-mix(in srgb, var(--asteroid-color) 40%, #1a1008) 100%);
+  box-shadow: 0 0 6px 1px var(--asteroid-glow);
+  animation: asteroid-pulse 1.6s ease-in-out infinite alternate;
+}
+
+.asteroid__label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 0.1vw;
+  color: var(--asteroid-color);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  text-transform: uppercase;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+.asteroid:hover .asteroid__rock,
+.asteroid-cell--selected .asteroid__rock {
+  box-shadow: 0 0 10px 3px var(--asteroid-glow);
+}
+
+.asteroid-cell--selected .asteroid::after,
+.asteroid-cell--targeted .asteroid::after {
+  content: '';
+  position: absolute;
+  inset: -0.2vw;
+  border: 1px dashed var(--asteroid-color);
+  border-radius: 50%;
+  animation: asteroid-ring 3s linear infinite;
+}
+
+.asteroid-cell--targeted .asteroid::after {
+  border-color: var(--color-success, #39c96f);
+}
+
+@keyframes asteroid-pulse {
+  from {
+    filter: brightness(0.9);
+  }
+  to {
+    filter: brightness(1.25);
+  }
+}
+
+@keyframes asteroid-ring {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =========================================================
+   ASTEROID BELTS (docs/star-map-terrain.md#asteroid-belts)
+   ========================================================= */
+
+.belt-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  /* Under the fog layer (z 5), so unexplored belts are dimmed too. */
+  z-index: 4;
+  /* Kept subdued so the belts read as background terrain, not foreground objects. */
+  opacity: 0.55;
+}
+
+/* Faint dust haze along the belt axis: shows the overall direction. */
+.belt__dust {
+  fill: none;
+  stroke: rgba(150, 128, 104, 0.1);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Rocks: varied brightness with a restrained rim highlight. */
+.belt__rock {
+  stroke: rgba(255, 228, 196, 0.14);
+  stroke-width: 0.05;
+  stroke-linejoin: round;
+}
+
+.belt__rock--0 {
+  fill: #4a433c;
+}
+
+.belt__rock--1 {
+  fill: #6b6053;
+}
+
+.belt__rock--2 {
+  fill: #8f8270;
+}
+
+.belt__rock--spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-name: belt-spin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.belt__rock--reverse {
+  animation-direction: reverse;
+}
+
+@keyframes belt-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }

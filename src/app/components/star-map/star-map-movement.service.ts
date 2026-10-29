@@ -1,5 +1,19 @@
 import { Injectable } from '@angular/core';
 import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.models';
+import { StarMapTerrainService } from './star-map-terrain.service';
+import { NavPoint, RouteFailure, RoutePlan } from './fleet-navigation';
+
+/*
+ * Route the movement service is currently flying for a fleet. Cached per
+ * fleet object (not persisted): it is re-planned whenever the fleet's
+ * target differs from the one it was planned for, which also covers saves
+ * loaded with an old straight-line order through a black hole.
+ */
+interface ActiveRoute {
+  targetX: number;
+  targetY: number;
+  waypoints: NavPoint[];
+}
 
 /*
  * =========================================================
@@ -21,6 +35,15 @@ import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.model
  *
  * The system view (inside star systems) uses a separate fixed 18x10 grid
  * with 5vw cells. System view positions (systemX/Y) remain in vw units.
+ *
+ * Galaxy terrain (docs/star-map-terrain.md), applied to every fleet alike:
+ * - Black holes: `Fleet.targetX/targetY` is always the final destination;
+ *   the service plans a route around black-hole no-fly zones
+ *   (fleet-navigation.ts) and flies its waypoints first. A target that
+ *   cannot be reached safely clears the order (the fleet stays put) and
+ *   reports it through `onRouteBlocked`.
+ * - Nebulae: the per-step galaxy speed is multiplied by the nebula factor
+ *   at the fleet's current position.
  */
 
 @Injectable({ providedIn: 'root' })
@@ -45,7 +68,81 @@ export class StarMapMovementService {
     return StarMapMovementService.SYSTEM_CELL_SIZE_VW;
   }
 
-  constructor() {}
+  private readonly routes = new WeakMap<Fleet, ActiveRoute>();
+
+  // The default keeps `new StarMapMovementService()` (unit tests) working
+  // with empty terrain; Angular DI always passes the shared instance.
+  constructor(private readonly terrain: StarMapTerrainService = new StarMapTerrainService()) {}
+
+  /* Open-space galaxy speed of a fleet in grid cells per game second. */
+  static galaxyCellsPerSecond(fleet: Pick<Fleet, 'speed'>): number {
+    return fleet.speed / 10 / StarMapMovementService.GALAXY_MOVEMENT_CELL_SIZE_VW;
+  }
+
+  /* Plans a galaxy route against the current terrain (no fleet state is touched). */
+  planGalaxyRoute(from: NavPoint, to: NavPoint): RoutePlan {
+    return this.terrain.navGraph.plan(from, to);
+  }
+
+  /*
+   * Returns the route the fleet is flying toward its current target,
+   * planning it if the target changed. Returns null when the fleet has no
+   * galaxy target or the target is unreachable.
+   */
+  getActiveRoute(fleet: Fleet): { waypoints: readonly NavPoint[] } | null {
+    if (fleet.targetX === null || fleet.targetY === null) {
+      return null;
+    }
+    const route = this.ensureRoute(fleet);
+    return 'failure' in route ? null : route;
+  }
+
+  private ensureRoute(fleet: Fleet): ActiveRoute | { failure: RouteFailure } {
+    const targetX = fleet.targetX as number;
+    const targetY = fleet.targetY as number;
+    const cached = this.routes.get(fleet);
+    if (cached && cached.targetX === targetX && cached.targetY === targetY) {
+      return cached;
+    }
+    const plan = this.planGalaxyRoute({ x: fleet.x, y: fleet.y }, { x: targetX, y: targetY });
+    if (!plan.ok) {
+      this.routes.delete(fleet);
+      return { failure: plan.reason };
+    }
+    const route: ActiveRoute = { targetX, targetY, waypoints: plan.waypoints.map((p) => ({ ...p })) };
+    this.routes.set(fleet, route);
+    return route;
+  }
+
+  /*
+   * Game seconds the fleet still needs to reach its galaxy target along its
+   * route, including nebula slowdown. Null when it has no target or no route.
+   */
+  estimateRemainingTravelSeconds(fleet: Fleet): number | null {
+    const route = this.getActiveRoute(fleet);
+    if (!route) {
+      return null;
+    }
+    const points = [
+      { x: fleet.x, y: fleet.y },
+      ...route.waypoints,
+      { x: fleet.targetX as number, y: fleet.targetY as number },
+    ];
+    return this.terrain.nebulaField.pathTravelSeconds(points, StarMapMovementService.galaxyCellsPerSecond(fleet));
+  }
+
+  /*
+   * Game seconds a fleet with `cellsPerSecond` open-space speed needs from
+   * `from` to `to` (route around black holes + nebula slowdown). Infinity
+   * when no safe route exists.
+   */
+  estimateTravelSeconds(from: NavPoint, to: NavPoint, cellsPerSecond: number): number {
+    const plan = this.planGalaxyRoute(from, to);
+    if (!plan.ok) {
+      return Infinity;
+    }
+    return this.terrain.nebulaField.pathTravelSeconds([from, ...plan.waypoints, to], cellsPerSecond);
+  }
 
   /*
    * initialize: Set grid dimensions.
@@ -154,6 +251,7 @@ export class StarMapMovementService {
     deltaTime: number,
     onTargetReached: (fleetId: number) => void,
     onLeaveSystem: (fleetId: number) => void,
+    onRouteBlocked?: (fleetId: number, reason: RouteFailure) => void,
   ): boolean {
     let didMoveFleets = false;
 
@@ -164,17 +262,35 @@ export class StarMapMovementService {
 
       // Map movement (fleet.x/y are 1-indexed grid cell coordinates)
       if (fleet.targetX !== null && fleet.targetY !== null) {
+        const route = this.ensureRoute(fleet);
+        if ('failure' in route) {
+          // Never fly straight through a black hole as a fallback: drop the
+          // order and leave the fleet where it is.
+          fleet.targetX = null;
+          fleet.targetY = null;
+          if (fleet.interceptAsteroidId != null) {
+            fleet.interceptAsteroidId = null;
+          }
+          onRouteBlocked?.(fleet.id, route.failure);
+          continue;
+        }
         didMoveFleets = true;
 
-        const dx = fleet.targetX - fleet.x;
-        const dy = fleet.targetY - fleet.y;
+        const waypoint = route.waypoints[0];
+        const legX = waypoint ? waypoint.x : fleet.targetX;
+        const legY = waypoint ? waypoint.y : fleet.targetY;
+        const dx = legX - fleet.x;
+        const dy = legY - fleet.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
 
-        if (distance <= 0.01) {
+        if (waypoint && distance <= 0.01) {
+          route.waypoints.shift();
+        } else if (distance <= 0.01) {
           fleet.x = fleet.targetX;
           fleet.y = fleet.targetY;
           fleet.targetX = null;
           fleet.targetY = null;
+          this.routes.delete(fleet);
 
           if (selectedFleetId === fleet.id && currentView === 'map') {
             onTargetReached(fleet.id);
@@ -183,11 +299,21 @@ export class StarMapMovementService {
           // Fleet speed is in vw/s; convert to grid cells/s.
           // Star map view uses 1/10 of the configured fleet speed so that
           // long-distance travel across the galaxy takes meaningful time.
+          // Nebulae slow the fleet while its current position is inside one.
           const movement =
-            (fleet.speed / 10 / StarMapMovementService.GALAXY_MOVEMENT_CELL_SIZE_VW) * deltaTime;
+            StarMapMovementService.galaxyCellsPerSecond(fleet) *
+            this.terrain.nebulaField.speedMultiplierAt(fleet.x, fleet.y) *
+            deltaTime;
           const step = Math.min(movement, distance);
           fleet.x += (dx / distance) * step;
           fleet.y += (dy / distance) * step;
+          if (waypoint && step >= distance) {
+            // Land exactly on the waypoint so the next leg starts on the
+            // validated route.
+            fleet.x = waypoint.x;
+            fleet.y = waypoint.y;
+            route.waypoints.shift();
+          }
         }
 
         const mapCell = this.calculateGridCell(fleet.x, fleet.y);
@@ -373,6 +499,32 @@ export class StarMapMovementService {
     const x2 = (fleet.targetX - 0.5) * this.cellSizeVw;
     const y2 = (fleet.targetY - 0.5) * this.cellSizeVh;
     return { x1, y1, x2, y2 };
+  }
+
+  /*
+   * getGalaxyTrailSegmentsVw: Like getGalaxyTrailVw, but one segment per
+   * route leg (current position → waypoints around black holes → target),
+   * so the rendered trail is the path the fleet will actually fly.
+   */
+  getGalaxyTrailSegmentsVw(fleet: Fleet): { x1: number; y1: number; x2: number; y2: number }[] {
+    if (fleet.targetX == null || fleet.targetY == null) {
+      return [];
+    }
+    const route = this.getActiveRoute(fleet);
+    if (!route) {
+      return [];
+    }
+    const points = [{ x: fleet.x, y: fleet.y }, ...route.waypoints, { x: fleet.targetX, y: fleet.targetY }];
+    const segments: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    for (let i = 1; i < points.length; i++) {
+      segments.push({
+        x1: (points[i - 1].x - 0.5) * this.cellSizeVw,
+        y1: (points[i - 1].y - 0.5) * this.cellSizeVh,
+        x2: (points[i].x - 0.5) * this.cellSizeVw,
+        y2: (points[i].y - 0.5) * this.cellSizeVh,
+      });
+    }
+    return segments;
   }
 
   /*

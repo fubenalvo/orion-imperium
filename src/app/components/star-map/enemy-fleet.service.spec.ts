@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { EnemyFleetService } from './enemy-fleet.service';
 import { Faction, Fleet, StarSystem } from './star-map.models';
+import { DriftingAsteroidService } from './drifting-asteroid.service';
+import { GameSettingsService } from '../../services/game-settings.service';
 
 /*
  * Unit tests for AI fleet operations with the real ShipService strength
@@ -140,5 +142,116 @@ describe('EnemyFleetService', () => {
     const f = fleet(1, 'enemy1', 30, 30, ['frigate']);
     expect(service.tick(0, ai, factions, systems(), [f], new Set())).toBe(false);
     expect(f.targetX).toBeNull();
+  });
+});
+
+/*
+ * Opportunistic asteroid salvage: AI fleets compete for drifting asteroids
+ * with the same intercept planning and collection rules as the player.
+ */
+describe('EnemyFleetService salvage role', () => {
+  let service: EnemyFleetService;
+  let asteroids: DriftingAsteroidService;
+
+  const factions: Faction[] = [
+    { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, ai: false, currencies: {} },
+    { id: 'enemy1', name: 'Enemy 1', color: '#d65757', team: 2, ai: true, aiDifficulty: 'normal', currencies: {} },
+  ];
+  const ai = factions[1];
+  const systems = (): StarSystem[] => [
+    {
+      id: 'home', name: 'Home', x: 10, y: 10, planets: 1, color: '#fff',
+      planetsTiles: [
+        {
+          id: 1, index: 0, name: 'H', factionId: 'enemy1', x: 12, y: 3, type: 'earthlike', size: 'medium',
+          population: 1000, explored: true, buildings: [{ name: 'Spaceport', size: 4, x: 0, y: 0 }],
+        },
+      ],
+    },
+  ];
+  const fleet = (id: number, x: number, y: number): Fleet => ({
+    id, name: `F${id}`, factionId: 'enemy1', x, y, targetX: null, targetY: null, speed: 8, system: null,
+    ships: [{ id, name: 'destroyer', type: 'destroyer' }],
+  });
+  const rock = (traveled: number) => ({
+    id: 7, type: 'ore' as const, startX: 0.5, startY: 25, dirX: 1, dirY: 0, speed: 0.15,
+    traveled, length: 120, reward: { rawmaterials: 300 },
+  });
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    TestBed.inject(GameSettingsService).setFogOfWarEnabled(false);
+    service = TestBed.inject(EnemyFleetService);
+    asteroids = TestBed.inject(DriftingAsteroidService);
+  });
+
+  afterEach(() => TestBed.inject(GameSettingsService).setFogOfWarEnabled(true));
+
+  it('sends a free fleet (not the home guard) to intercept a reachable asteroid', () => {
+    asteroids.restore({ nextId: 8, spawnTimer: 9999, rngState: 1, active: [rock(5)] }, 1);
+    const guard = fleet(1, 10, 10);
+    const free = fleet(2, 20, 15);
+    service.tick(2, ai, factions, systems(), [guard, free], new Set());
+
+    expect(service.getAssignment(2)?.role).toBe('salvage');
+    expect(service.getAssignment(1)?.role).not.toBe('salvage');
+    expect(free.targetY).toBeCloseTo(25, 6);
+  });
+
+  it('drops the salvage run once the asteroid is gone', () => {
+    asteroids.restore({ nextId: 8, spawnTimer: 9999, rngState: 1, active: [rock(5)] }, 1);
+    const guard = fleet(1, 10, 10);
+    const free = fleet(2, 20, 15);
+    service.tick(2, ai, factions, systems(), [guard, free], new Set());
+    asteroids.restore({ nextId: 8, spawnTimer: 9999, rngState: 1, active: [] }, 1);
+    service.tick(2, ai, factions, systems(), [guard, free], new Set());
+
+    expect(service.getAssignment(2)?.role).not.toBe('salvage');
+  });
+
+  it('ignores asteroids it cannot reach in time', () => {
+    asteroids.restore({ nextId: 8, spawnTimer: 9999, rngState: 1, active: [rock(118)] }, 1);
+    const guard = fleet(1, 10, 10);
+    const free = fleet(2, 20, 15);
+    service.tick(2, ai, factions, systems(), [guard, free], new Set());
+    expect(service.getAssignment(2)?.role).not.toBe('salvage');
+  });
+});
+
+describe('EnemyFleetService salvage re-aiming', () => {
+  it('does not report a state change when the meeting point barely moved', () => {
+    TestBed.configureTestingModule({});
+    TestBed.inject(GameSettingsService).setFogOfWarEnabled(false);
+    const service = TestBed.inject(EnemyFleetService);
+    const asteroids = TestBed.inject(DriftingAsteroidService);
+    const factions: Faction[] = [
+      { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, ai: false, currencies: {} },
+      { id: 'enemy1', name: 'Enemy 1', color: '#d65757', team: 2, ai: true, aiDifficulty: 'normal', currencies: {} },
+    ];
+    const systems: StarSystem[] = [
+      {
+        id: 'home', name: 'Home', x: 10, y: 10, planets: 1, color: '#fff',
+        planetsTiles: [{
+          id: 1, index: 0, name: 'H', factionId: 'enemy1', x: 12, y: 3, type: 'earthlike', size: 'medium',
+          population: 1000, explored: true, buildings: [{ name: 'Spaceport', size: 4, x: 0, y: 0 }],
+        }],
+      },
+    ];
+    const mk = (id: number, x: number, y: number): Fleet => ({
+      id, name: `F${id}`, factionId: 'enemy1', x, y, targetX: null, targetY: null, speed: 8, system: null,
+      ships: [{ id, name: 'destroyer', type: 'destroyer' }],
+    });
+    const rock = { id: 7, type: 'ore' as const, startX: 0.5, startY: 25, dirX: 1, dirY: 0, speed: 0.15, traveled: 5, length: 120, reward: { rawmaterials: 300 } };
+    asteroids.restore({ nextId: 8, spawnTimer: 9999, rngState: 1, active: [rock] }, 1);
+    const guard = mk(1, 10, 10);
+    const hunter = mk(2, 20, 15);
+    expect(service.tick(2, factions[1], factions, systems, [guard, hunter], new Set())).toBe(true);
+    expect(service.getAssignment(2)?.role).toBe('salvage');
+    const target = { x: hunter.targetX, y: hunter.targetY };
+
+    // Nothing moved: the same meeting point, no new order, no state change.
+    expect(service.tick(2, factions[1], factions, systems, [guard, hunter], new Set())).toBe(false);
+    expect({ x: hunter.targetX, y: hunter.targetY }).toEqual(target);
+    TestBed.inject(GameSettingsService).setFogOfWarEnabled(true);
   });
 });

@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { StarMapData } from '../components/star-map/star-map.models';
 import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
 import legacyStarMapData from '../components/star-map/star-map-data.json';
-import { markStarPositionsKnown } from './galaxy-generator.service';
+import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
 
 /*
  * =========================================================
@@ -264,6 +264,34 @@ export class SaveGameService {
       data.specialObjects = legacyObjects
         .filter((o) => o.x + o.width - 1 <= width && o.y + o.height - 1 <= height)
         .map((o) => ({ ...o }));
+    }
+
+    // v4: terrain and events. Saves without nebulae get the deterministic
+    // set for their seed (legacy-map saves use seed 0) exactly once; after
+    // the next save the clouds are persisted and never regenerated.
+    if (data.nebulae === undefined && data.map && data.map.width > 0 && data.map.height > 0) {
+      const homes = systems
+        .filter((s) => Array.isArray(s?.planetsTiles) && s.planetsTiles.some((p) => {
+          const owner = factions.find((f) => f.id === p.factionId);
+          return !!owner && owner.team !== 0;
+        }))
+        .map((s) => ({ x: s.x, y: s.y }));
+      data.nebulae = generateGalaxyNebulae(
+        data.galaxy?.seed ?? 0,
+        data.map.width,
+        data.map.height,
+        data.galaxy?.size ?? 'large',
+        homes,
+        data.specialObjects ?? [],
+      );
+    }
+    // v5: belts are impassable. Inserting them into a game in progress could
+    // cut fleets off from home, so saves made before belts existed get none.
+    if (data.asteroidBelts === undefined) {
+      data.asteroidBelts = [];
+    }
+    if (data.asteroidEvents === undefined) {
+      data.asteroidEvents = initialAsteroidEvents(data.galaxy?.seed ?? 0);
     }
 
     if (version < SAVE_VERSION) {

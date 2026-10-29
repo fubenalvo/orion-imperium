@@ -30,7 +30,7 @@ Strategy ticks once for all factions. Goal, capability and action are called **o
 
 ## Fog of war (EnemyIntelService)
 
-When the game's fog of war is on (`GameSettingsService.fogOfWarEnabled`, the player's setting), each AI faction knows only what its sensors have seen, using the player's sensor rules (owned systems: radius 5 + research bonus; fleets: `getFleetSensorRange`).
+When the game's fog of war is on (`GameSettingsService.fogOfWarEnabled`, the player's setting), each AI faction knows only what its sensors have seen, using the player's sensor rules (owned systems: radius 7 (5 + the global +2 bonus) + research bonus; fleets: `getFleetSensorRange`, which includes the +2).
 
 - **Knowledge kept separate from the world:** charted systems with last-seen planet snapshots (owner, population, buildings); currently visible hostile fleets (the real objects); remembered hostile fleets as frozen copies at the last-seen position. A sighting is dropped when its spot is seen empty or after 300 s, and is *uncertain* after 60 s. Star positions are public; planet contents are not.
 - **Who uses the view:** plan, strategy, goal, capability, action, fleet operations, research and the economy's threat/target checks receive `getView(faction)`. Own and allied fleets and own planets in the view are the real objects, so decisions about own assets act on live state.
@@ -38,6 +38,8 @@ When the game's fog of war is on (`GameSettingsService.fogOfWarEnabled`, the pla
 - **Exploration:** fleet operations sends one free fleet (never the home guard) to the nearest uncharted system within 1.5 × colonization reach; explorers only abort for a stronger hostile within 7 cells. Factions without planets explore from their fleets.
 - **Interception** only targets visible, non-uncertain fleets; remembered fleets still count as danger.
 - With fog disabled, the view is the real world — the AI sees what the player sees.
+- **Nebulae** apply the player's sensor penalty (shared `StarMapSensorService.isGalaxyCellSensed`); `isPointSensed` answers visibility for non-fleet objects such as asteroids inside nebulae.
+- **Movement terrain** needs no AI code: fleet targets set by any AI subsystem are routed around black holes and asteroid belts and slowed by nebulae in `StarMapMovementService`, exactly like player orders.
 - `EnemyAiService` (legacy pursuit) is not fog-aware; it is dormant because every AI fleet is owned by the pipeline or fleet operations.
 
 ## AI debug panel
@@ -136,6 +138,7 @@ Decided every 2 s per faction, using `ShipService.calculateFleetStrength` (livin
 | regroup | living strength < 50% of the fleet's peak; held until back to 80% | primary Spaceport system (where new ships are deployed into parked fleets) |
 | intercept | hostile within 25 cells of an owned system (or 14 of a free fleet) that the nearest free fleets (up to 4, plus those already intercepting it) are judged able to beat — battle forecast on Normal/Hard, summed strength × `attackStrengthAdvantage` on Easy | follow the target; dropped after 90 s, when the target is > 40 cells from AI territory, or when the group no longer outguns it |
 | assault | planned every 10 s when none is active: a reachable hostile planet the group can take according to a battle forecast (see [Planet Capture](./planet-capture.md#ai-assaults)) | target system; launch when gathered |
+| salvage | a drifting asteroid the faction can see and one free fleet (never the home guard) can meet within 150 s, within 45 cells of its territory, not claimed by another AI fleet; one per faction | the predicted meeting point, re-planned at each decision and re-issued only once it drifted a full cell (keeps the save from staying dirty); dropped when the asteroid is gone or out of reach. Same collection rule as the player (see [Star Map Terrain](./star-map-terrain.md#drifting-asteroids)) |
 | garrison | default | the primary Spaceport system first, then one fleet per other owned system; posts are kept while valid |
 
 The primary Spaceport system is the first Spaceport by (system id, planet id) — the same ordering `EnemyEconomyService` uses for deployment.

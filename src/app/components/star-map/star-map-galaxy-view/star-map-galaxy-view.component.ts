@@ -1,9 +1,41 @@
 import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
-import { Fleet, FleetTrail, StarSystem, SpecialObject } from '../star-map.models';
+import { AsteroidType, Fleet, FleetTrail, StarSystem, SpecialObject } from '../star-map.models';
 import { StarMapMovementService } from '../star-map-movement.service';
 import { StarMapBlackholeComponent } from '../blackhole/blackhole.component';
 import { SensorCellInfo, SensorPreviewCellInfo } from '../star-map-sensor.service';
+import { blackHoleNavigationRadius } from '../fleet-navigation';
+import { BeltView } from '../asteroid-belts';
+
+/* Pre-built SVG paths of one nebula (grid units; see nebulaSvgPath). */
+export interface NebulaView {
+  id: number;
+  color: string;
+  halo: string;
+  body: string;
+  core: string;
+}
+
+/* Black hole no-fly zone outline in SVG grid units. */
+export interface BlackHoleRingView {
+  cx: number;
+  cy: number;
+  r: number;
+}
+
+/* A visible drifting asteroid, positioned in world vw like fleets. */
+export interface AsteroidMapView {
+  id: number;
+  type: AsteroidType;
+  label: string;
+  left: number;
+  top: number;
+  trailLength: number;
+  angleDeg: number;
+  selected: boolean;
+  /* A player fleet has an intercept order on it. */
+  targeted: boolean;
+}
 
 /*
  * =========================================================
@@ -42,6 +74,12 @@ export class StarMapGalaxyViewComponent {
   @Input() systems: StarSystem[] = [];
   @Input() fleets: Fleet[] = [];
   @Input() specialObjects: SpecialObject[] = [];
+  @Input() nebulae: NebulaView[] = [];
+  @Input() belts: BeltView[] = [];
+  @Input() blackHoleRings: BlackHoleRingView[] = [];
+  @Input() asteroids: AsteroidMapView[] = [];
+  @Input() isFleetInNebula: (fleet: Fleet) => boolean = () => false;
+  @Input() onAsteroidClick: (asteroidId: number, event: MouseEvent) => void = () => {};
   @Input() selectedSystem: StarSystem | null = null;
   @Input() selectedFleet: Fleet | null = null;
   @Input() targetX: number | null = null;
@@ -61,6 +99,19 @@ export class StarMapGalaxyViewComponent {
   @Input() onFleetContextMenu: (event: MouseEvent) => void = () => {};
 
   constructor(public movementService: StarMapMovementService) {}
+
+  /*
+   * Size of the black hole visual in world vw, derived from its no-fly
+   * radius so the rendered photon ring matches the forbidden area exactly
+   * at every zoom level and window width (the visual used to be sized in px).
+   */
+  blackHoleRadiusVw(obj: SpecialObject): number {
+    return blackHoleNavigationRadius(obj) * this.cellSizeVw;
+  }
+
+  trackTrail(trail: FleetTrail): string {
+    return `${trail.fleetId}-${trail.segment ?? 0}`;
+  }
 
   /*
    * The camera is in world (unscaled) vw, so the translation is multiplied

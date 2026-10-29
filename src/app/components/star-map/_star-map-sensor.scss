@@ -10,13 +10,15 @@
   position: relative;
   width: var(--cell-size-vw, 5vw);
   height: var(--cell-size-vw, 5vw);
-  background: rgba(0, 0, 0, 0.6);
+  /* Unexplored space: nearly black, so hidden terrain only faintly shows through. */
+  background: rgba(0, 0, 0, 0.88);
   z-index: 5;
   pointer-events: none;
 }
 
 .fog-cell--explored {
-  background: rgba(0, 0, 0, 0.3);
+  /* Explored but currently out of sensor range. */
+  background: rgba(0, 0, 0, 0.55);
 }
 
 /* =========================================================

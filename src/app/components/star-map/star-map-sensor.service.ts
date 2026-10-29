@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { Fleet, StarSystem, Faction } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
+import { StarMapTerrainService } from './star-map-terrain.service';
+import { NEBULA_CONFIG } from './nebula';
 
 /*
  * =========================================================
@@ -21,6 +23,13 @@ import { ResearchService } from '../../services/research.service';
  *
  * - System view uses a separate 18×10 grid with 5vw cells. Sensor ranges
  *   in system view are computed around the fleet's system grid cell.
+ *
+ * Nebulae (galaxy map only, docs/star-map-terrain.md): a source inside a
+ * nebula, or a target cell inside a nebula, is sensed with the radius
+ * multiplied by NEBULA_CONFIG.sensorMultiplier (applied once even when both
+ * are inside). `getGalaxySensorCells` / `isGalaxyCellSensed` implement the
+ * rule; the player layer and EnemyIntelService (AI fog of war) both use it,
+ * so fleets hidden in a nebula are hidden from everyone the same way.
  */
 
 export interface SensorCellInfo {
@@ -49,8 +58,16 @@ export interface SensorLayerResult {
   preview: Map<string, SensorPreviewCellInfo>;
 }
 
+/*
+ * Flat bonus (cells) added to every sensor range — fleets on the galaxy map
+ * and in the system view, and owned star systems — for the player and the
+ * AI alike. Kept separate from the stored `Fleet.sensorRange` floor (3) so
+ * saves and ship data stay unchanged; all range math goes through
+ * getFleetSensorRange / PLAYER_SYSTEM_SENSOR_RANGE / computeSystemSensorCells.
+ */
+export const SENSOR_RANGE_GLOBAL_BONUS = 2;
 export const DEFAULT_FLEET_SENSOR_RANGE = 3;
-export const PLAYER_SYSTEM_SENSOR_RANGE = 5;
+export const PLAYER_SYSTEM_SENSOR_RANGE = 5 + SENSOR_RANGE_GLOBAL_BONUS;
 
 /** System-view grid dimensions (fixed 18×10 with 5vw cells). */
 export const SYSTEM_GRID_COLUMNS = 18;
@@ -62,7 +79,79 @@ export class StarMapSensorService {
   constructor(
     private shipService: ShipService,
     private researchService: ResearchService,
+    private terrain: StarMapTerrainService,
   ) {}
+
+  /* True when a galaxy sensor source at (x, y) sits inside a nebula. */
+  isSourceInNebula(x: number, y: number): boolean {
+    return this.terrain.isPointInNebula(x, y);
+  }
+
+  /*
+   * Effective galaxy sensor radius from a source toward one target cell
+   * under the nebula rule (see class comment).
+   */
+  private galaxyRadiusFor(radius: number, sourceInNebula: boolean, col: number, row: number): number {
+    return sourceInNebula || this.terrain.isCellInNebula(col, row) ? radius * NEBULA_CONFIG.sensorMultiplier : radius;
+  }
+
+  /*
+   * True when the galaxy cell (col, row) is sensed by a source at (x, y)
+   * with base radius r. The distance is measured from the source's
+   * position to the cell's integer coordinates, exactly like
+   * getCellsInRadius.
+   */
+  isGalaxyCellSensed(col: number, row: number, source: { x: number; y: number; r: number }): boolean {
+    const radius = this.galaxyRadiusFor(source.r, this.isSourceInNebula(source.x, source.y), col, row);
+    return (col - source.x) ** 2 + (row - source.y) ** 2 <= radius * radius;
+  }
+
+  /*
+   * Nebula-aware version of getCellsInRadius for the galaxy map: the cells
+   * a source at (centerX, centerY) with base radius `radius` senses.
+   */
+  getGalaxySensorCells(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    gridColumns: number,
+    gridRows: number,
+  ): { col: number; row: number }[] {
+    if (this.terrain.nebulae.length === 0) {
+      return this.getCellsInRadius(centerX, centerY, radius, gridColumns, gridRows);
+    }
+    const sourceInNebula = this.isSourceInNebula(centerX, centerY);
+    return this.getCellsInRadius(centerX, centerY, radius, gridColumns, gridRows).filter((cell) => {
+      const r = this.galaxyRadiusFor(radius, sourceInNebula, cell.col, cell.row);
+      return (cell.col - centerX) ** 2 + (cell.row - centerY) ** 2 <= r * r;
+    });
+  }
+
+  /*
+   * Nebula-aware version of getOuterRingCells: the (R', R'+2] preview band
+   * where R' is the per-cell effective radius.
+   */
+  getGalaxyOuterRingCells(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    gridColumns: number,
+    gridRows: number,
+  ): { col: number; row: number }[] {
+    if (this.terrain.nebulae.length === 0) {
+      return this.getOuterRingCells(centerX, centerY, radius, gridColumns, gridRows);
+    }
+    const sourceInNebula = this.isSourceInNebula(centerX, centerY);
+    const candidates = [
+      ...this.getCellsInRadius(centerX, centerY, radius, gridColumns, gridRows),
+      ...this.getOuterRingCells(centerX, centerY, radius, gridColumns, gridRows),
+    ];
+    return candidates.filter((cell) => {
+      const r = this.galaxyRadiusFor(radius, sourceInNebula, cell.col, cell.row);
+      const distSq = (cell.col - centerX) ** 2 + (cell.row - centerY) ** 2;
+      return distSq > r * r && distSq <= (r + 2) * (r + 2);
+    });
+  }
 
   /**
    * Computes the effective sensor range for a fleet.
@@ -70,7 +159,8 @@ export class StarMapSensorService {
    * `Fleet.sensorRange` is treated as a minimum floor (default 3). If any
    * non-destroyed ship in the fleet has a `ShipType.range` greater than the
    * floor, the highest such range becomes the effective range. A fleet with
-   * no ships or all destroyed ships falls back to the floor.
+   * no ships or all destroyed ships falls back to the floor. The global
+   * bonus (SENSOR_RANGE_GLOBAL_BONUS) and research bonuses are added on top.
    */
   getFleetSensorRange(fleet: Fleet, faction?: Faction): number {
     const floor = fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE;
@@ -82,7 +172,7 @@ export class StarMapSensorService {
         maxShipRange = type.range;
       }
     }
-    const base = Math.max(floor, maxShipRange);
+    const base = Math.max(floor, maxShipRange) + SENSOR_RANGE_GLOBAL_BONUS;
     if (faction) {
       return base + this.researchService.getSensorRangeBonus(faction);
     }
@@ -214,7 +304,7 @@ export class StarMapSensorService {
     for (const system of ownedSystems) {
       const col = system.gridCol ?? Math.floor(system.x);
       const row = system.gridRow ?? Math.floor(system.y);
-      const sensorCells = this.getCellsInRadius(col, row, systemSensorRange, gridColumns, gridRows);
+      const sensorCells = this.getGalaxySensorCells(col, row, systemSensorRange, gridColumns, gridRows);
       for (const cell of sensorCells) {
         const key = `${cell.col}-${cell.row}`;
         playerSystemKeys.add(key);
@@ -233,7 +323,7 @@ export class StarMapSensorService {
         continue;
       }
       const range = this.getFleetSensorRange(fleet, playerFaction);
-      const fleetCells = this.getCellsInRadius(fleet.x, fleet.y, range, gridColumns, gridRows);
+      const fleetCells = this.getGalaxySensorCells(fleet.x, fleet.y, range, gridColumns, gridRows);
       for (const cell of fleetCells) {
         const key = `${cell.col}-${cell.row}`;
         if (!playerSystemKeys.has(key)) {
@@ -253,7 +343,7 @@ export class StarMapSensorService {
     for (const system of ownedSystems) {
       const col = system.gridCol ?? Math.floor(system.x);
       const row = system.gridRow ?? Math.floor(system.y);
-      const ringCells = this.getOuterRingCells(col, row, systemSensorRange, gridColumns, gridRows);
+      const ringCells = this.getGalaxyOuterRingCells(col, row, systemSensorRange, gridColumns, gridRows);
       for (const cell of ringCells) {
         const key = `${cell.col}-${cell.row}`;
         if (playerSystemKeys.has(key) || cells.has(key)) {
@@ -273,7 +363,7 @@ export class StarMapSensorService {
         continue;
       }
       const range = this.getFleetSensorRange(fleet, playerFaction);
-      const ringCells = this.getOuterRingCells(fleet.x, fleet.y, range, gridColumns, gridRows);
+      const ringCells = this.getGalaxyOuterRingCells(fleet.x, fleet.y, range, gridColumns, gridRows);
       for (const cell of ringCells) {
         const key = `${cell.col}-${cell.row}`;
         if (playerSystemKeys.has(key) || cells.has(key)) {
@@ -306,7 +396,7 @@ export class StarMapSensorService {
       return { cells: [], preview: [] };
     }
 
-    const range = fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE;
+    const range = (fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE) + SENSOR_RANGE_GLOBAL_BONUS;
     const centerCol = Math.floor((fleet.system.x ?? 0) / SYSTEM_CELL_SIZE_VW) + 1;
     const centerRow = Math.floor((fleet.system.y ?? 0) / SYSTEM_CELL_SIZE_VW) + 1;
 

@@ -268,6 +268,100 @@ export interface SpecialObject {
   width: number;
   height: number;
   component?: string;
+  /*
+   * Black holes only: radius (grid cells) of the circular no-fly zone
+   * around the object's center. Fleets are routed around it and may never
+   * enter it (docs/star-map-terrain.md). Missing → derived from the cell
+   * span (BLACK_HOLE_DEFAULT_NAVIGATION_RADIUS in fleet-navigation.ts).
+   */
+  navigationRadius?: number;
+}
+
+/*
+ * Nebula: an irregular cloud of interstellar gas on the galaxy map that
+ * slows fleets and degrades sensors (docs/star-map-terrain.md).
+ *
+ * The boundary is a smooth closed "blob" in polar form around (x, y):
+ * the edge distance at angle θ is `radius × lobe(θ)`, where `lobes` are
+ * evenly spaced radius multipliers interpolated with a cosine curve.
+ * x/y/radius use the same 1-indexed grid coordinates as fleets. Generated
+ * once at New Game (or backfilled once by save migration) and persisted;
+ * never regenerated on load.
+ */
+export interface Nebula {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  lobes: number[];
+  /* Angle (radians) of lobes[0]; varies the shape between nebulae. */
+  rotation: number;
+  color: string;
+}
+
+/*
+ * Asteroid belt: a long, narrow, permanent and impassable wall of rock
+ * (docs/star-map-terrain.md#asteroid-belts). Navigation uses only the
+ * geometry: a chain of capsules along `points` with radius
+ * `halfWidth + ASTEROID_BELT_CONFIG.safetyMargin`. The visible fragments are
+ * not stored; they are rebuilt deterministically from `visualSeed`, always
+ * inside `halfWidth`, so the barrier covers every fragment and every gap
+ * between them. Coordinates are 1-indexed grid units like fleets.
+ */
+export interface AsteroidBelt {
+  id: number;
+  /* Polyline of the belt axis: 2 points (straight) or a sampled gentle arc. */
+  points: { x: number; y: number }[];
+  /* Half thickness of the rock band in cells (visual extent). */
+  halfWidth: number;
+  visualSeed: number;
+}
+
+export type AsteroidType = 'ore' | 'crystal' | 'mixed';
+
+/*
+ * Cargo of a drifting asteroid, in existing faction currencies. Rolled once
+ * at spawn so a save/load cannot reroll it.
+ */
+export interface AsteroidReward {
+  rawmaterials?: number;
+  research?: number;
+}
+
+/*
+ * A resource-bearing asteroid crossing the galaxy map on a straight line
+ * (docs/star-map-terrain.md#drifting-asteroids). The position is derived,
+ * not stored: start + direction × traveled. The asteroid leaves play when
+ * `traveled >= length` (it reached the far map edge) or when a fleet
+ * collects it. Coordinates are 1-indexed grid units like fleets.
+ */
+export interface DriftingAsteroid {
+  id: number;
+  type: AsteroidType;
+  startX: number;
+  startY: number;
+  /* Unit direction vector. */
+  dirX: number;
+  dirY: number;
+  /* Grid cells per game second. */
+  speed: number;
+  /* Distance already covered from the start point (cells). */
+  traveled: number;
+  /* Total path length from the entry to the exit point (cells). */
+  length: number;
+  reward: AsteroidReward;
+}
+
+/*
+ * Persistent state of the drifting-asteroid event system. `rngState` is the
+ * Mulberry32 state so spawns stay deterministic across save/load.
+ */
+export interface AsteroidEventState {
+  nextId: number;
+  /* Game seconds until the next spawn attempt. */
+  spawnTimer: number;
+  rngState: number;
+  active: DriftingAsteroid[];
 }
 
 export interface StarMapData {
@@ -318,6 +412,19 @@ export interface StarMapData {
     cameraY?: number;
   };
   gameOutcome?: GameOutcome;
+  /*
+   * Nebula regions (save version 4+). Generated at New Game; older saves
+   * get a deterministic set from SaveGameService.migrateSave once.
+   */
+  nebulae?: Nebula[];
+  /* Drifting asteroid events (save version 4+). */
+  asteroidEvents?: AsteroidEventState;
+  /*
+   * Impassable asteroid belts (save version 5+). Generated at New Game and
+   * persisted; saves made before belts existed load with none (adding a
+   * barrier to a running game could cut off fleets and territory).
+   */
+  asteroidBelts?: AsteroidBelt[];
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';
@@ -498,6 +605,12 @@ export interface SystemLocation {
  */
 export interface FleetTrail {
   fleetId: number;
+  /*
+   * Index of this leg within the fleet's route. A fleet routed around a
+   * black hole produces one trail per leg (current position → waypoints →
+   * target), so the drawn line matches the path actually flown.
+   */
+  segment?: number;
   factionId: string;
   color: string;
   x1: number;
@@ -528,6 +641,14 @@ export interface Fleet {
   ships: FleetShip[];
   destroyed?: boolean;
   sensorRange?: number;
+  /*
+   * Player intercept order: id of the drifting asteroid this fleet chases.
+   * While set, DriftingAsteroidService re-aims targetX/targetY at the
+   * predicted meeting point; any manual move order clears it. AI fleets
+   * never use this field — their salvage role is driven by
+   * EnemyFleetService (the single owner of AI fleet targets).
+   */
+  interceptAsteroidId?: number | null;
 }
 
 export interface CapabilityRequirement {

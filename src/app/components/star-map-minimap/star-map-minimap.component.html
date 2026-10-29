@@ -6,12 +6,35 @@
 
   <rect class="minimap__bg" [attr.width]="MINIMAP_W" [attr.height]="MINIMAP_H"/>
 
+  @if (nebulae.length > 0) {
+    <g class="minimap__nebulae" [attr.transform]="nebulaTransform">
+      @for (n of nebulae; track n.id) {
+        <path class="minimap__nebula" [attr.d]="n.body" [attr.fill]="n.color" [attr.stroke]="n.color"/>
+      }
+    </g>
+  }
+
+  @if (belts.length > 0) {
+    <g class="minimap__belts" [attr.transform]="nebulaTransform">
+      @for (b of belts; track b.id) {
+        <path class="minimap__belt" [attr.d]="b.axis" [attr.stroke-width]="b.haloWidth"/>
+      }
+    </g>
+  }
+
   @for (s of starSystems; track s.id) {
     <circle class="minimap__system"
             [attr.cx]="systemX(s)"
             [attr.cy]="systemY(s)"
             r="3"
             [attr.fill]="s.color"/>
+  }
+
+  <!-- Fog of war: unexplored space darkened over terrain and stars, under fleets. -->
+  @if (fogPath) {
+    <g class="minimap__fog-layer" [attr.transform]="nebulaTransform">
+      <path class="minimap__fog" [attr.d]="fogPath" shape-rendering="crispEdges"/>
+    </g>
   }
 
   @for (f of fleets; track f.id) {

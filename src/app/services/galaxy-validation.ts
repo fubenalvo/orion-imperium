@@ -4,6 +4,9 @@ import planetData from '../components/star-map/planet-data.json';
 import { KNOWN_SHIP_TYPES, validateSaveData } from './save-validation';
 import { GALAXY_SIZE_PRESETS, NewGameConfig } from './new-game.models';
 import { assignFactionIds, mapCenter, PLAYER_FACTION_ID } from './galaxy-generator.service';
+import { isPointInNebula } from '../components/star-map/nebula';
+import { areSystemsConnected, beltAxisDistance, beltNavigationRadius } from '../components/star-map/asteroid-belts';
+import { buildNavObstacles } from '../components/star-map/fleet-navigation';
 
 /*
  * Strict validation of a freshly generated galaxy.
@@ -186,6 +189,49 @@ export function validateGeneratedGalaxy(data: StarMapData, config?: NewGameConfi
   }
   if (!Array.isArray(data.exploredGridCells)) {
     errors.push('exploredGridCells must be initialized');
+  }
+
+  // Terrain and events (generator v3+): nebulae exist, are well-formed and
+  // never cover a homeworld system; the asteroid event state is initialized.
+  if (!Array.isArray(data.nebulae) || data.nebulae.length === 0) {
+    errors.push('nebulae must be generated');
+  } else {
+    for (const nebula of data.nebulae) {
+      for (const system of data.starSystems) {
+        const isHome = system.planetsTiles.some((p) => participants.some((f) => f.id === p.factionId));
+        if (isHome && isPointInNebula(nebula, system.x, system.y)) {
+          errors.push(`nebula ${nebula.id} covers home system ${system.id}`);
+        }
+      }
+    }
+  }
+  // Asteroid belts (generator v4+): no system or starting fleet inside a
+  // belt's no-fly zone, and every home system reaches every system.
+  if (!Array.isArray(data.asteroidBelts)) {
+    errors.push('asteroidBelts must be generated');
+  } else if (data.asteroidBelts.length > 0) {
+    for (const belt of data.asteroidBelts) {
+      const r = beltNavigationRadius(belt);
+      for (const system of data.starSystems) {
+        if (beltAxisDistance(belt, system) < r) errors.push(`asteroid belt ${belt.id} covers system ${system.id}`);
+      }
+      for (const fleet of data.fleets) {
+        if (beltAxisDistance(belt, fleet) < r) errors.push(`asteroid belt ${belt.id} covers fleet ${fleet.id}`);
+      }
+    }
+    const homes = data.starSystems.filter((s) => s.planetsTiles.some((p) => participants.some((f) => f.id === p.factionId)));
+    if (!areSystemsConnected(data.asteroidBelts, {
+      width,
+      height,
+      systems: data.starSystems,
+      homes,
+      obstacles: buildNavObstacles(data.specialObjects),
+    })) {
+      errors.push('asteroid belts cut a home system off from another system');
+    }
+  }
+  if (!data.asteroidEvents || !Array.isArray(data.asteroidEvents.active)) {
+    errors.push('asteroidEvents must be initialized');
   }
 
   // Configuration must be reflected exactly in the factions.

@@ -472,3 +472,95 @@ describe('SaveGameService — v3 generated-galaxy fields', () => {
     expect(validateSaveData(makeData({}, [PLAYER_FACTION, badAi])).ok).toBe(false);
   });
 });
+
+describe('SaveGameService — v4 terrain and asteroid events', () => {
+  let service: SaveGameService;
+
+  beforeEach(() => {
+    localStorage.clear();
+    service = new SaveGameService();
+  });
+
+  afterEach(() => localStorage.clear());
+
+  const legacySave = () =>
+    makeData({
+      map: { width: 240, height: 144, cellSizeVw: 2, cellSizeVh: 2 },
+      galaxy: { size: 'medium', seed: 314, requestedSeed: null, generatorVersion: 2 },
+      specialObjects: [{ x: 119, y: 71, type: 'blackhole', width: 4, height: 4, component: 'blackhole' }],
+      saveVersion: 3,
+    });
+
+  it('backfills nebulae and asteroid state once, deterministically, for older saves', () => {
+    const first = service.migrateSave(legacySave());
+    expect(first.nebulae!.length).toBeGreaterThan(0);
+    expect(first.asteroidEvents).toEqual(expect.objectContaining({ nextId: 1, active: [] }));
+    expect(first.saveVersion).toBe(SAVE_VERSION);
+    // Same save migrated again (e.g. another slot read) yields the same clouds.
+    expect(service.migrateSave(legacySave()).nebulae).toEqual(first.nebulae);
+  });
+
+  it('never regenerates nebulae that a save already carries', () => {
+    const custom = [{ id: 9, x: 50, y: 50, radius: 6, lobes: [1, 0.8, 1.2], rotation: 0, color: '#fff' }];
+    const data = { ...legacySave(), nebulae: custom, saveVersion: SAVE_VERSION };
+    service.saveToSlot(1, data);
+    expect(service.loadFromSlot(1)!.nebulae).toEqual(custom);
+  });
+
+  it('round-trips active asteroids through a save slot', () => {
+    const asteroid = {
+      id: 3, type: 'ore' as const, startX: 0.5, startY: 20, dirX: 1, dirY: 0, speed: 0.15,
+      traveled: 33.3, length: 240, reward: { rawmaterials: 410 },
+    };
+    const data = { ...legacySave(), asteroidEvents: { nextId: 4, spawnTimer: 12.5, rngState: 991, active: [asteroid] } };
+    service.saveToSlot(1, data);
+    expect(service.loadFromSlot(1)!.asteroidEvents).toEqual({ nextId: 4, spawnTimer: 12.5, rngState: 991, active: [asteroid] });
+  });
+
+  it('rejects malformed v4 fields', () => {
+    expect(validateSaveData(makeData({ nebulae: 'clouds' as never })).ok).toBe(false);
+    expect(validateSaveData(makeData({ nebulae: [{ id: 1, x: 1 }] as never })).ok).toBe(false);
+    expect(validateSaveData(makeData({ asteroidEvents: { active: 'x' } as never })).ok).toBe(false);
+  });
+});
+
+describe('SaveGameService — v5 asteroid belts', () => {
+  let service: SaveGameService;
+
+  beforeEach(() => {
+    localStorage.clear();
+    service = new SaveGameService();
+  });
+
+  afterEach(() => localStorage.clear());
+
+  const belt = {
+    id: 1,
+    points: [
+      { x: 20, y: 20 },
+      { x: 50, y: 35 },
+    ],
+    halfWidth: 1.4,
+    visualSeed: 77,
+  };
+
+  it('loads saves that predate belts with no belts (never inserted into a running game)', () => {
+    const migrated = service.migrateSave(makeData({ saveVersion: 4 }));
+    expect(migrated.asteroidBelts).toEqual([]);
+    expect(migrated.saveVersion).toBe(SAVE_VERSION);
+    expect(validateSaveData(migrated).ok).toBe(true);
+  });
+
+  it('round-trips belts unchanged and does not duplicate them on reload', () => {
+    service.saveToSlot(1, makeData({ asteroidBelts: [belt] }));
+    const first = service.loadFromSlot(1)!;
+    expect(first.asteroidBelts).toEqual([belt]);
+    service.saveToSlot(1, first);
+    expect(service.loadFromSlot(1)!.asteroidBelts).toEqual([belt]);
+  });
+
+  it('rejects malformed belts', () => {
+    expect(validateSaveData(makeData({ asteroidBelts: 'rocks' as never })).ok).toBe(false);
+    expect(validateSaveData(makeData({ asteroidBelts: [{ ...belt, points: [{ x: 1, y: 1 }] }] })).ok).toBe(false);
+  });
+});

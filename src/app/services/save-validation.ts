@@ -1,4 +1,7 @@
 import { isAiPersonality } from '../components/star-map/ai-personality';
+import { isWellFormedNebula } from '../components/star-map/nebula';
+import { isWellFormedAsteroid } from '../components/star-map/drifting-asteroids';
+import { isWellFormedBelt } from '../components/star-map/asteroid-belts';
 import { StarMapData } from '../components/star-map/star-map.models';
 import shipData from '../components/star-map/ship-data.json';
 
@@ -27,8 +30,12 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
  * - 2: grid coordinates, gameOutcome.
  * - 3: map dimensions vary per galaxy (procedural generation), plus the
  *      persisted `specialObjects`, `galaxy` metadata and `Faction.aiDifficulty`.
+ * - 4: `nebulae`, `asteroidEvents` and `Fleet.interceptAsteroidId`
+ *      (docs/star-map-terrain.md). Older saves are backfilled by
+ *      SaveGameService.migrateSave.
+ * - 5: `asteroidBelts` (impassable barriers). Older saves get none.
  */
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 5;
 
 /*
  * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
@@ -441,6 +448,49 @@ export function validateSaveData(
       const personality = (faction as { aiPersonality?: unknown } | null)?.aiPersonality;
       if (personality !== undefined && !isAiPersonality(personality)) {
         errors.push(error('ai_personality_invalid', `factions[${i}].aiPersonality`, 'aiPersonality must be balanced, expansionist, militarist, or technologist'));
+      }
+    }
+  }
+
+  if (save.nebulae !== undefined) {
+    if (!Array.isArray(save.nebulae)) {
+      errors.push(error('nebulae_not_array', 'nebulae', 'nebulae must be an array'));
+    } else {
+      for (const [i, nebula] of save.nebulae.entries()) {
+        if (!isWellFormedNebula(nebula)) {
+          errors.push(error('nebula_invalid', `nebulae[${i}]`, 'nebula needs finite id/x/y/radius/rotation, at least 3 positive lobes and a color'));
+        }
+      }
+    }
+  }
+
+  if (save.asteroidBelts !== undefined) {
+    if (!Array.isArray(save.asteroidBelts)) {
+      errors.push(error('asteroid_belts_not_array', 'asteroidBelts', 'asteroidBelts must be an array'));
+    } else {
+      for (const [i, belt] of save.asteroidBelts.entries()) {
+        if (!isWellFormedBelt(belt)) {
+          errors.push(error('asteroid_belt_invalid', `asteroidBelts[${i}]`, 'asteroid belt needs finite id/halfWidth/visualSeed and at least 2 finite points'));
+        }
+      }
+    }
+  }
+
+  if (save.asteroidEvents !== undefined) {
+    const events = save.asteroidEvents as unknown as Record<string, unknown> | null;
+    if (
+      !events ||
+      typeof events !== 'object' ||
+      ![events['nextId'], events['spawnTimer'], events['rngState']].every((v) => typeof v === 'number' && Number.isFinite(v)) ||
+      !Array.isArray(events['active'])
+    ) {
+      errors.push(error('asteroid_events_invalid', 'asteroidEvents', 'asteroidEvents needs numeric nextId/spawnTimer/rngState and an active array'));
+    } else {
+      for (const [i, asteroid] of (events['active'] as unknown[]).entries()) {
+        if (!isWellFormedAsteroid(asteroid)) {
+          // A broken asteroid is dropped on load; it must not block the save.
+          warnings.push(warning('asteroid_invalid', `asteroidEvents.active[${i}]`, 'malformed drifting asteroid will be dropped'));
+        }
       }
     }
   }

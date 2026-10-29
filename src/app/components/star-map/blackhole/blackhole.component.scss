@@ -3,8 +3,15 @@
    ========================================================= */
 
 :host {
-  --blackhole-size: 260px;
-  --disk-size: 680px;
+  /*
+   * Sized from the navigation no-fly radius (--bh-radius-vw, set by the
+   * galaxy view): the photon ring (1.25 × event horizon) spans exactly the
+   * forbidden disc, so what the player sees is what fleets must avoid.
+   * The 260px/680px fallbacks are the original fixed sizes.
+   */
+  --blackhole-size: calc(var(--bh-radius-vw, 162.5px) * 1.6);
+  --disk-size: calc(var(--blackhole-size) * 2.615);
+  flex: 0 0 auto;
 
   display: flex;
   justify-content: center;

@@ -16,6 +16,44 @@
     [style.gridTemplateColumns]="'repeat(' + gridColumns + ', ' + cellSizeVw + 'vw)'"
     [style.gridTemplateRows]="'repeat(' + gridRows + ', ' + cellSizeVh + 'vw)'"
   >
+    <!--
+      NEBULAE: one SVG in grid units (1 unit = 1 cell) under the fog layer,
+      so it scales with the map transform and is dimmed by fog like other
+      terrain. pointer-events: none keeps every object underneath clickable.
+    -->
+    @if (nebulae.length > 0) {
+      <svg
+        class="nebula-layer"
+        [attr.viewBox]="'0 0 ' + gridColumns + ' ' + gridRows"
+        preserveAspectRatio="none"
+        [style.width]="gridColumns * cellSizeVw + 'vw'"
+        [style.height]="gridRows * cellSizeVh + 'vw'"
+        aria-hidden="true"
+      >
+        <defs>
+          <filter id="nebula-soften" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="1.2" />
+          </filter>
+          @for (nebula of nebulae; track nebula.id) {
+            <radialGradient [attr.id]="'nebula-grad-' + nebula.id">
+              <stop offset="0%" [attr.stop-color]="nebula.color" stop-opacity="0.55" />
+              <stop offset="65%" [attr.stop-color]="nebula.color" stop-opacity="0.3" />
+              <stop offset="100%" [attr.stop-color]="nebula.color" stop-opacity="0.06" />
+            </radialGradient>
+          }
+        </defs>
+        @for (nebula of nebulae; track nebula.id) {
+          <g class="nebula" filter="url(#nebula-soften)">
+            <path class="nebula__halo" [attr.d]="nebula.halo" [attr.fill]="nebula.color" />
+            <path class="nebula__body" [attr.d]="nebula.body" [attr.fill]="'url(#nebula-grad-' + nebula.id + ')'" />
+            <path class="nebula__core" [attr.d]="nebula.core" [attr.fill]="nebula.color" />
+          </g>
+          <!-- Crisp, faint edge: where the movement/sensor penalty starts. -->
+          <path class="nebula__edge" [attr.d]="nebula.body" [attr.stroke]="nebula.color" />
+        }
+      </svg>
+    }
+
     <!-- FOG OF WAR CELLS (viewport-culled, unexplored areas) -->
     @if (sensorRangeEnabled) {
       @for (cell of fogCells; track cell.col + '-' + cell.row) {
@@ -72,6 +110,7 @@
       <div
         class="fleet-cell"
         [class.fleet-cell--preview]="isEnemyInPreview(fleet)"
+        [class.fleet-cell--nebula]="isFleetInNebula(fleet)"
         [style.left]="(fleet.x - 0.5) * cellSizeVw + 'vw'"
         [style.top]="(fleet.y - 0.5) * cellSizeVh + 'vw'"
         [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
@@ -106,13 +145,96 @@
         [style.gridRowEnd]="obj.y + obj.height"
       >
         @if (obj.component === 'blackhole') {
-          <app-star-map-blackhole></app-star-map-blackhole>
+          <app-star-map-blackhole [style.--bh-radius-vw]="blackHoleRadiusVw(obj) + 'vw'"></app-star-map-blackhole>
         }
       </div>
     }
 
+    <!--
+      ASTEROID BELTS: impassable walls of rock. One SVG for all belts; static
+      rocks are merged into a few paths per belt and only a capped subset
+      spins, so hundreds of fragments cost a handful of DOM nodes. Above fog
+      (they are major terrain the player plans around), below fleets, trails
+      and markers; never intercepts clicks.
+    -->
+    @if (belts.length > 0) {
+      <svg
+        class="belt-layer"
+        [attr.viewBox]="'0 0 ' + gridColumns + ' ' + gridRows"
+        preserveAspectRatio="none"
+        [style.width]="gridColumns * cellSizeVw + 'vw'"
+        [style.height]="gridRows * cellSizeVh + 'vw'"
+        aria-hidden="true"
+      >
+        <defs>
+          <filter id="belt-dust" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="0.7" />
+          </filter>
+        </defs>
+        @for (belt of belts; track belt.id) {
+          <path class="belt__dust" [attr.d]="belt.axis" [attr.stroke-width]="belt.haloWidth" filter="url(#belt-dust)" />
+          @for (rock of belt.rocks; track rock.shade) {
+            <path class="belt__rock belt__rock--{{ rock.shade }}" [attr.d]="rock.d" />
+          }
+          @for (rock of belt.spinning; track $index) {
+            <g [attr.transform]="rock.transform">
+              <path
+                class="belt__rock belt__rock--{{ rock.shade }} belt__rock--spin"
+                [class.belt__rock--reverse]="rock.reverse"
+                [attr.d]="rock.shape"
+                [style.animation-duration]="rock.duration"
+              />
+            </g>
+          }
+        }
+      </svg>
+    }
+
+    <!-- BLACK HOLE NO-FLY ZONES (navigation obstacle outline) -->
+    @if (blackHoleRings.length > 0) {
+      <svg
+        class="no-fly-layer"
+        [attr.viewBox]="'0 0 ' + gridColumns + ' ' + gridRows"
+        preserveAspectRatio="none"
+        [style.width]="gridColumns * cellSizeVw + 'vw'"
+        [style.height]="gridRows * cellSizeVh + 'vw'"
+        aria-hidden="true"
+      >
+        @for (ring of blackHoleRings; track $index) {
+          <circle class="no-fly-ring" [attr.cx]="ring.cx" [attr.cy]="ring.cy" [attr.r]="ring.r" />
+        }
+      </svg>
+    }
+
+    <!-- DRIFTING ASTEROIDS (glowing tail points backwards along the track) -->
+    @for (asteroid of asteroids; track asteroid.id) {
+      <div
+        class="asteroid-cell asteroid-cell--{{ asteroid.type }}"
+        [class.asteroid-cell--selected]="asteroid.selected"
+        [class.asteroid-cell--targeted]="asteroid.targeted"
+        [style.left]="asteroid.left + 'vw'"
+        [style.top]="asteroid.top + 'vw'"
+      >
+        <div
+          class="asteroid-trail"
+          [style.width]="asteroid.trailLength + 'vw'"
+          [style.transform]="'rotate(' + (asteroid.angleDeg + 180) + 'deg)'"
+        ></div>
+        <button
+          class="asteroid"
+          type="button"
+          [attr.aria-label]="asteroid.label"
+          [title]="asteroid.label + ' — click to intercept'"
+          (click)="onAsteroidClick(asteroid.id, $event)"
+        >
+          <span class="asteroid__rock" [style.transform]="'rotate(' + asteroid.angleDeg + 'deg)'"></span>
+          <span class="asteroid__label">{{ asteroid.label }}</span>
+        </button>
+      </div>
+    }
+
     <!-- MOVEMENT TRAILS -->
-    @for (trail of trails; track trail.fleetId) {
+    @for (trail of trails; track trackTrail(trail)) {
       @if (getTrailLength(trail) > 0) {
         <div
           class="fleet-trail"
