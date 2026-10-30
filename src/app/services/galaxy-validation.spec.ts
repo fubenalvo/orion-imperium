@@ -1,3 +1,4 @@
+import { encodeBlockedMask } from '../components/star-map/planet-surface/planet-surface';
 import { describe, it, expect } from 'vitest';
 import { StarMapData } from '../components/star-map/star-map.models';
 import { GalaxyGeneratorService } from './galaxy-generator.service';
@@ -75,9 +76,26 @@ describe('validateGeneratedGalaxy', () => {
       errorsAfter((d) => d.starSystems[0].planetsTiles[0].buildings.push({ name: 'Death Star', size: 1, x: 8, y: 8 })),
     ).toContain('unknown building');
     expect(
-      errorsAfter((d) =>
-        d.starSystems[0].planetsTiles[0].buildings.push({ name: 'Laser Turret', size: 1, x: 0, y: 0 }),
-      ),
+      errorsAfter((d) => {
+        const buildings = d.starSystems[0].planetsTiles[0].buildings;
+        buildings.push({ name: 'Laser Turret', size: 1, x: buildings[0].x, y: buildings[0].y });
+      }),
     ).toContain('overlapping');
+  });
+
+  it('detects buildings on terrain obstacles and settled planets without terrain', () => {
+    expect(
+      errorsAfter((d) => {
+        const home = d.starSystems.flatMap((s) => s.planetsTiles).find((p) => p.buildings.length > 0)!;
+        const n = home.surface!.gridSize;
+        home.surface = { ...home.surface!, blocked: encodeBlockedMask(new Uint8Array(n * n).fill(1), n) };
+      }),
+    ).toContain('stands on blocked terrain');
+    expect(
+      errorsAfter((d) => {
+        const home = d.starSystems.flatMap((s) => s.planetsTiles).find((p) => p.buildings.length > 0)!;
+        delete home.surface;
+      }),
+    ).toContain('no valid surface');
   });
 });

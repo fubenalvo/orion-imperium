@@ -79,8 +79,6 @@
   opacity: $opacity;
   filter: hue-rotate($hue) saturate($saturate) brightness(0.9);
   mask-image: radial-gradient(closest-side, #000 25%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
-  /* Smooth art: undo the global pixelated image rendering. */
-  image-rendering: auto;
 }
 
 /* Out-of-focus foreground particles. */

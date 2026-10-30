@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
-import { StarMapData } from '../components/star-map/star-map.models';
+import { PlanetTile, StarMapData } from '../components/star-map/star-map.models';
+import { getPlanetGridSize, legacyPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
+import { generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
 import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
 import legacyStarMapData from '../components/star-map/star-map-data.json';
 import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
@@ -294,11 +296,37 @@ export class SaveGameService {
       data.asteroidEvents = initialAsteroidEvents(data.galaxy?.seed ?? 0);
     }
 
+    // v6: planet surfaces doubled in size. Layouts made on the old grid are
+    // moved to the middle of the new grid (the old grid always fits), then
+    // terrain is generated around the existing buildings and deposits.
+    if (version < 6) {
+      for (const system of systems) {
+        const planets = Array.isArray(system?.planetsTiles) ? system.planetsTiles : [];
+        for (const planet of planets) {
+          this.migrateLegacySurface(planet, data.galaxy?.seed ?? 0);
+        }
+      }
+    }
+
     if (version < SAVE_VERSION) {
       data.saveVersion = SAVE_VERSION;
     }
 
     return data;
+  }
+
+  private migrateLegacySurface(planet: PlanetTile, galaxySeed: number): void {
+    if (!planet || typeof planet !== 'object') {
+      return;
+    }
+    const offset = Math.floor((getPlanetGridSize(planet) - legacyPlanetGridSize(planet)) / 2);
+    for (const item of [...(Array.isArray(planet.buildings) ? planet.buildings : []), ...(planet.resourceTiles ?? [])]) {
+      if (item && typeof item.x === 'number' && typeof item.y === 'number') {
+        item.x += offset;
+        item.y += offset;
+      }
+    }
+    planet.surface = generatePlanetSurface(planet, galaxySeed);
   }
 
   /*

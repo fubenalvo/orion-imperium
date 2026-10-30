@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { EnemyActionExecutor } from './enemy-action-executor.service';
 import { EnemyEconomyService } from './enemy-economy.service';
+import { encodeBlockedMask, getPlanetGridSize } from './planet-surface/planet-surface';
 import {
   Faction,
   StarSystem,
@@ -15,7 +16,6 @@ import {
   Fleet,
   PlanetTile,
   PlanetBuilding,
-  PLANET_SIZE_MAP,
 } from './star-map.models';
 import { ProductionService } from '../../services/production.service';
 import { ShipService } from '../../services/ship.service';
@@ -2809,7 +2809,7 @@ describe('EnemyActionExecutor', () => {
         production: { rawmaterials: 10 },
       });
       const buildings: PlanetBuilding[] = [];
-      const gridSize = (PLANET_SIZE_MAP['medium'] ?? 3) * 2 + 3;
+      const gridSize = getPlanetGridSize({ size: 'medium' });
       for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
           buildings.push({ name: 'Laser Turret', size: 1, x, y, type: 'turret' });
@@ -2826,6 +2826,38 @@ describe('EnemyActionExecutor', () => {
       const result = service.tick(2, action, factions, systems, emptyProduction, emptyShipStock, emptyFleets);
 
       expect(result).toBe(false);
+    });
+
+    it('should not build on terrain obstacles', () => {
+      const factions = baseFactions.map((f) =>
+        f.id === 'enemy1'
+          ? { ...f, researchedTechnologies: ['basic_engineering', 'basic_power'], currencies: { credits: 10000, rawmaterials: 10000 } }
+          : f,
+      );
+      (economyService.calculatePlanetEconomy as any).mockReturnValue({
+        energyProduction: 5,
+        energyConsumption: 10,
+        workforceAvailable: 20,
+        workforceRequired: 20,
+        production: { rawmaterials: 10 },
+      });
+      // Everything blocked except a 3×3 patch at (5, 6).
+      const n = getPlanetGridSize({ size: 'medium' });
+      const mask = new Uint8Array(n * n).fill(1);
+      for (let y = 6; y < 9; y++) for (let x = 5; x < 8; x++) mask[y * n + x] = 0;
+      const planet = createOwnedPlanet({
+        id: 1,
+        size: 'medium',
+        buildings: [],
+        surface: { version: 1, seed: 1, gridSize: n, intrusion: 1, blocked: encodeBlockedMask(mask, n) },
+      });
+      const systems = [createSystem({ id: 'sys1', planetsTiles: [planet] })];
+
+      const result = service.tick(2, makeDevelopAction(), factions, systems, emptyProduction, emptyShipStock, emptyFleets);
+
+      expect(result).toBe(true);
+      // The only open 3×3 patch is the only legal spot for any building.
+      expect(planet.buildings).toEqual([expect.objectContaining({ size: 3, x: 5, y: 6 })]);
     });
 
     it('should not build on a planet owned by another faction', () => {
@@ -2902,7 +2934,7 @@ describe('EnemyActionExecutor', () => {
         production: { rawmaterials: 10 },
       });
       const full: PlanetBuilding[] = [];
-      const gridSize = (PLANET_SIZE_MAP['tiny'] ?? 1) * 2 + 3;
+      const gridSize = getPlanetGridSize({ size: 'tiny' });
       for (let y = 0; y < gridSize; y++) {
         for (let x = 0; x < gridSize; x++) {
           full.push({ name: 'Laser Turret', size: 1, x, y });

@@ -146,7 +146,7 @@ describe('GalaxyGeneratorService', () => {
     const c = generator.generate(config, 43);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(JSON.stringify(a.starSystems)).not.toBe(JSON.stringify(c.starSystems));
-    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: 5 });
+    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: 6 });
   });
 
   it('generates unique ids and names with valid references', () => {

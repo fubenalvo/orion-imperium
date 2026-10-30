@@ -147,15 +147,13 @@ src/app/
 - Planet arrivals: colonize / capture / ignore / trigger battle
 
 ### 4.3 Planet Surface
-- Grid: `numericSize * 2 + 3` (5/7/9/11)
-- 4.8vw cells (`PLANET_SURFACE_CELL_VW`, 80% of the doubled size); surfaces larger than the viewport are pannable via mouse drag, touch drag, and a d-pad overlay (`startPan`/`stopPan` continuous pan)
-- Panning state (`scrollX`/`scrollY` in vw) is clamped so the centered grid cannot be panned fully off-screen; the center d-pad button re-centers
-- Clamp is computed against the **visual** extent of the isometric diamond (`layout * sqrt(2)` wide), not the layout box — otherwise a 45°-rotated grid wider than the viewport would report `maxScrollX = 0` and the edge tiles could never be panned into view
-- Two cells of padding are added on each side so the camera can be panned a little beyond the grid edges
+- Grid: `numericSize * 4 + 6` (10/14/18/22), framed by procedural terrain that can make edge cells unbuildable ([Planet Surface](./planet-surface.md))
+- 4.4vw cells at CLOSE zoom (`PLANET_SURFACE_CELL_VW`); the surface is pannable via mouse drag, touch drag, and a d-pad overlay (`startPan`/`stopPan` continuous pan)
+- Panning state (`scrollX`/`scrollY` in vw) is clamped so the camera center stays over the grid's projected diamond; the center d-pad button re-centers
 - Tabs: Details, Build (player only), Production (if factory), Assembly (if spaceport)
 - Deterministic resource deposits on ~20% of planets, visible in planet view
 - Mining Complex buildings must be placed adjacent to resource tiles
-- Buildings cannot overlap or be placed directly on resource tiles
+- Buildings cannot overlap, be placed directly on resource tiles, or stand on terrain obstacles
 
 ### 4.4 Movement
 - Map: target grid cells, speed / 10 / `GALAXY_MOVEMENT_CELL_SIZE_VW` (2) → cells/s
@@ -273,9 +271,9 @@ src/app/
 
 ### 4.12 Resource Deposits
 - Deterministic resource tile generation using Mulberry32 PRNG seeded by `planet.id * 4967297`
-- Each eligible planet gets 1–2 rawmaterial tiles within its surface grid
+- Each eligible planet gets 1–2 rawmaterial tiles on buildable cells of its surface grid, with room for a Mining Complex next to them
 - ~20% of all planets are selected for resource deposits via Fisher-Yates shuffle seeded by sum of all planet IDs
-- Resource tiles are placed on the planet surface grid and rendered as special cells
+- Resource tiles are placed on the planet surface grid and rendered as glowing ore outcrops
 - Mining Complex buildings must be placed adjacent to (within 1 cell of) a resource tile
 - Buildings cannot be placed directly on resource tiles
 - Resource tile data is generated once and persisted in `planet.resourceTiles`

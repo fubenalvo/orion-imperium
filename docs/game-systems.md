@@ -10,7 +10,7 @@ The `StarMap` component (`src/app/components/star-map/star-map.ts`) is the centr
 
 - **`map`** – Galaxy view. Star systems and fleets are positioned on a `map.width` × `map.height` grid of cells. `cellSizeVw` and `cellSizeVh` (both 2 on desktop, 3.5 on mobile) define the rendered size of each cell. `gridBreakpointPx` (1300) decides which cell size is used.
 - **`system`** – Inside a star system. Fleets are positioned in vw units on a separate 18×10 grid with 5vw cells (`StarMapMovementService.SYSTEM_CELL_SIZE_VW`). Planets are arranged in a zigzag arc to the left of the sun via `getPlanetGridPosition()`: column = `13 - planet.index`, row = `6 ± (planet.index % 3)` with a sign that alternates by `planet.index % 2`.
-- **`planet`** – Planet surface. A grid of size `numericPlanetSize * 2 + 3` is overlaid on a noise-textured, type-colored background. The player can place new buildings here.
+- **`planet`** – Planet surface. An isometric colony view: a `numericPlanetSize * 4 + 6` grid framed by procedural terrain that can cut into it (see [Planet Surface](./planet-surface.md)). The player can place new buildings here.
 
 ### Fog of War & Sensor Range
 
@@ -188,15 +188,16 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 
 ## Planet Surface
 
-`StarMapPlanetScreenComponent` renders the surface grid for a single planet. Behaviour:
+`StarMapPlanetScreenComponent` renders the surface of a single planet. Terrain, streets, rendering layers and the camera are documented in [Planet Surface](./planet-surface.md). Behaviour:
 
-- The grid is `numericSize * 2 + 3` cells per side (`5, 7, 9, 11`).
+- The grid is `numericSize * 4 + 6` cells per side (`10, 14, 18, 22`). Terrain obstacles (`planet.surface.blocked`) make some cells unbuildable; build mode hatches them and outlines the buildable area.
 - A build menu lists every `building` from `planet-data.json`.
-- Selecting a building type enters build mode; clicking a cell highlights the building's footprint and reveals a BUILD button if placement is valid.
+- Selecting a building type enters build mode; clicking a cell highlights the building's footprint, shows a ghost of the building (green when valid, red when not) and reveals a BUILD button if placement is valid. A footprint is invalid outside the grid, on terrain obstacles, over other buildings, or on a deposit (the Mining Complex must instead touch one).
+- Hovering a building shows its name; the NAMES toggle next to the zoom selector shows all names.
 - Confirming a build charges the building's `price` (credits) and `rawMaterialCost` through `payCost` (nothing is charged if either is short) and appends a new `PlanetBuilding` (with the chosen `x`/`y`) to `planet.buildings`. The build list shows both costs and disables unaffordable buildings. Confirmation reaches `StarMap.onBuildingConfirmed` through the `buildConfirmed` output only (a second input callback used to place and charge every building twice).
 - The same component is reused across the system view (when a planet is selected) and the planet view.
 - The sidebar exposes a tab strip with DETAILS, BUILD, PRODUCTION, and ASSEMBLY. Tab visibility is data-driven: BUILD is shown only for player-owned planets, PRODUCTION only when the planet has a Spaceship Factory, and ASSEMBLY only when the planet has a Spaceport. Selecting a tab replaces the sidebar's content area; no floating overlays are mounted outside the sidebar (the production and spaceport panels are re-used inline).
-- **Zoom levels:** a CLOSE / MEDIUM / FAR selector (bottom-right of the surface; top-right below 600px width) scales the grid via `PLANET_SURFACE_ZOOM_SCALES` (`1` / `0.75` / `0.55`) inside the grid's inline transform. CLOSE (`1`) is the original framing defined by `PLANET_SURFACE_CELL_VW`; the scale is applied around the grid center, and the pan offset is rescaled on switch so the view does not jump. Pan clamp bounds use the scaled size.
+- **Zoom levels:** a CLOSE / MEDIUM / FAR selector (bottom-right of the surface; top-right below 600px width) scales the whole scene via `PLANET_SURFACE_ZOOM_SCALES` (`1` / `0.733` / `0.537`, an even step) in the camera transform. CLOSE (`1`) is `PLANET_SURFACE_CELL_VW` (4.4vw per cell); the scale is applied around the world center, and the pan offset is rescaled on switch so the view does not jump. Pan clamp bounds use the scaled size.
 - Zoom is view-only state: it is never stored on the planet, in game state, or in saves. Every planet opening starts at MEDIUM (`DEFAULT_PLANET_SURFACE_ZOOM`) — the component is destroyed when the planet view closes, and a change of planet id resets it. There is no deliberate view-state persistence for the planet view (unlike `currentView`/camera, which the save system restores), so this does not conflict with any existing behaviour.
 
 ## Save System

@@ -1,4 +1,5 @@
 import { PlanetTile, ResourceDeposit } from './star-map.models';
+import { pickResourceDeposits } from './planet-surface/planet-surface-generator';
 
 export function createMulberry32(seed: number): () => number {
   return () => {
@@ -10,26 +11,17 @@ export function createMulberry32(seed: number): () => number {
   };
 }
 
+/*
+ * Deposits are placed on buildable ground (never on terrain obstacles) with
+ * clearance around them; see pickResourceDeposits. Call after the planet's
+ * surface exists so the terrain mask is respected.
+ */
 export function generateResourceTilesForPlanet(
   planet: PlanetTile,
   getGridSize: (p: PlanetTile) => number,
 ): ResourceDeposit[] {
-  const gridSize = getGridSize(planet);
   const rng = createMulberry32(planet.id * 4967297);
-  const tiles: ResourceDeposit[] = [];
-  tiles.push({
-    type: 'rawmaterial',
-    x: Math.floor(rng() * gridSize),
-    y: Math.floor(rng() * gridSize),
-  });
-  if (rng() < 0.05) {
-    tiles.push({
-      type: 'rawmaterial',
-      x: Math.floor(rng() * gridSize),
-      y: Math.floor(rng() * gridSize),
-    });
-  }
-  return tiles;
+  return pickResourceDeposits(planet, getGridSize(planet), rng);
 }
 
 export function selectPlanetsForResources(planets: PlanetTile[]): Set<number> {

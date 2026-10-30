@@ -47,11 +47,10 @@ export const PLANET_TYPE_HABITABILITY: Record<PlanetType, number> = {
   desert: -0.05,
 };
 
-// Planet surface grid cell size in vw units. 80% of the doubled size so
-// large planet surfaces still overflow the viewport while leaving room to
-// pan a little around the grid. Surfaces larger than the viewport rely on
-// panning to be fully visible.
-export const PLANET_SURFACE_CELL_VW = 3.36;
+// Side length of one planet surface cell in vw at the CLOSE zoom level (the
+// other zoom levels scale it). Cells are contiguous (no gap), so one cell's
+// isometric diamond is CELL_VW * sqrt(2) wide on screen.
+export const PLANET_SURFACE_CELL_VW = 4.4;
 
 export interface Technology {
   id: string;
@@ -166,6 +165,25 @@ export interface PlanetTile {
   satisfaction?: number;
   resourceTiles?: ResourceDeposit[];
   shieldPoolCurrent?: number;
+  /* Environmental terrain of the surface grid (docs/planet-surface.md). */
+  surface?: PlanetSurface;
+}
+
+/*
+ * Persisted planet surface terrain. `blocked` is authoritative for
+ * construction (cells covered by water, cliffs, rock or chasms); the visual
+ * terrain is regenerated from `seed` and flattened to match `blocked`.
+ * `gridSize` pins the record to the grid it was generated for; a mismatch
+ * makes the record ignored (no blocked cells) rather than misapplied.
+ */
+export interface PlanetSurface {
+  version: number;
+  seed: number;
+  gridSize: number;
+  /* 0..1 field parameter: how deep terrain may cut into the grid. */
+  intrusion: number;
+  /* Row-major hex bitmask, see planet-surface.ts encodeBlockedMask. */
+  blocked: string;
 }
 
 /*

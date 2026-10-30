@@ -1,4 +1,9 @@
-import { StarMapData, PLANET_SIZE_MAP, PlanetSize, PlanetType } from '../components/star-map/star-map.models';
+import { StarMapData, PLANET_SIZE_MAP, PlanetSize, PlanetTile, PlanetType } from '../components/star-map/star-map.models';
+import {
+  getBlockedMask,
+  getPlanetGridSize,
+  isFootprintBlocked,
+} from '../components/star-map/planet-surface/planet-surface';
 import { isAiDifficulty } from '../components/star-map/ai-difficulty';
 import planetData from '../components/star-map/planet-data.json';
 import { KNOWN_SHIP_TYPES, validateSaveData } from './save-validation';
@@ -134,7 +139,8 @@ export function validateGeneratedGalaxy(data: StarMapData, config?: NewGameConfi
         errors.push(`planet ${planet.id} has invalid size "${planet.size}"`);
         continue;
       }
-      validateBuildings(planet.id, planet.buildings, numericSize * 2 + 3, errors);
+      validateBuildings(planet.id, planet.buildings, getPlanetGridSize(planet), errors);
+      validateSurface(planet, errors);
     }
   }
   if (preset && data.starSystems.length !== preset.systemCount) {
@@ -278,6 +284,26 @@ function validateBuildings(
         if (occupied.has(key)) errors.push(`planet ${planetId} has overlapping buildings`);
         occupied.add(key);
       }
+    }
+  }
+}
+
+/*
+ * Settled planets must carry a surface for their grid, and no starting
+ * building may stand on a terrain obstacle. Unsettled planets may omit it;
+ * StarMap.ensurePlanetSurfaces generates it on load (docs/planet-surface.md).
+ */
+function validateSurface(planet: PlanetTile, errors: string[]): void {
+  if (planet.buildings.length === 0 && planet.surface === undefined) {
+    return;
+  }
+  if (!getBlockedMask(planet)) {
+    errors.push(`planet ${planet.id} has no valid surface terrain`);
+    return;
+  }
+  for (const building of planet.buildings) {
+    if (isFootprintBlocked(planet, building.x, building.y, building.size)) {
+      errors.push(`planet ${planet.id} building "${building.name}" stands on blocked terrain`);
     }
   }
 }

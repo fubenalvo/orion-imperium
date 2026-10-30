@@ -89,6 +89,8 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
   - `population`: float (not floored); grown each economy tick by `EconomyService.applyEconomyDelta` per the rule in `docs/invariants.md` (§ Population Growth Invariants), and clamped to the planet's residential `populationCapacity`. Older saves may omit it (treated as `0`).
  - `buildings`: `PlanetBuilding[]`
  - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, plus the global +2 bonus, on the 18×10 system grid)
+ - `resourceTiles?`: raw-material deposits (`{ type, x, y }`, one grid cell each); never on terrain-blocked cells.
+ - `surface?`: `PlanetSurface` terrain record — `{ version, seed, gridSize, intrusion, blocked }`. `blocked` is a row-major hex bitmask of cells covered by terrain obstacles and is authoritative for construction; the visual terrain is regenerated from `seed`. A record whose `gridSize` does not match the planet is ignored and regenerated on load. See [Planet Surface](./planet-surface.md).
  - `satisfaction?`: number in `[0, 100]`, defaulting to `100` when undefined (backward-compatible with older saves). Represents population satisfaction; drifts each economy tick by `(energyDirection ±1 + moraleDrift) × deltaTime` where `moraleDrift = PLANET_TYPE_HABITABILITY[type] + Σ building.moraleRate`, scaled by game time (pauses when paused, 2× at speed 2). When it reaches `0` the planet's `factionId` is set to `'independent'` (rebellion). Once flipped, satisfaction stays at `0` until the planet is re-conquered (currently out of scope). See `docs/invariants.md` for the rules that depend on this field.
 
 ### PlanetBuilding
@@ -100,7 +102,7 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 
 ### PlanetSizeNumber
 
-Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'medium' → 3`, `'big' → 4`, `'huge' → 4` (`PLANET_SIZE_MAP`). Surface grid side length is `numericSize * 2 + 3` (5/7/9/11).
+Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'medium' → 3`, `'big' → 4`, `'huge' → 4` (`PLANET_SIZE_MAP`). Surface grid side length is `numericSize * 4 + 6` (10/14/18/22, `getPlanetGridSize` in `planet-surface/planet-surface.ts`); saves before version 6 used `numericSize * 2 + 3` and are migrated (see [Planet Surface](./planet-surface.md#save-compatibility-save-version-6)).
 
 ## Fleet
 

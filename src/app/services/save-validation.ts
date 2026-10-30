@@ -3,6 +3,7 @@ import { isWellFormedNebula } from '../components/star-map/nebula';
 import { isWellFormedAsteroid } from '../components/star-map/drifting-asteroids';
 import { isWellFormedBelt } from '../components/star-map/asteroid-belts';
 import { StarMapData } from '../components/star-map/star-map.models';
+import { isWellFormedBlockedMask } from '../components/star-map/planet-surface/planet-surface';
 import shipData from '../components/star-map/ship-data.json';
 
 interface ShipDataFile {
@@ -34,8 +35,11 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
  *      (docs/star-map-terrain.md). Older saves are backfilled by
  *      SaveGameService.migrateSave.
  * - 5: `asteroidBelts` (impassable barriers). Older saves get none.
+ * - 6: planet surfaces doubled in size plus persisted `PlanetTile.surface`
+ *      terrain. Older layouts are re-centered on the bigger grid and get
+ *      terrain generated around them (docs/planet-surface.md).
  */
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 /*
  * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
@@ -244,6 +248,17 @@ export function validateSaveData(
             }
             if (planet.resourceTiles !== undefined && !Array.isArray(planet.resourceTiles)) {
               errors.push(error('resource_tiles_not_array', `${planetPath}.resourceTiles`, 'resourceTiles must be an array'));
+            }
+            // A malformed surface is not fatal: it is ignored for placement
+            // and regenerated around the colony on load (ensurePlanetSurfaces).
+            if (
+              planet.surface !== undefined &&
+              (typeof planet.surface !== 'object' ||
+                planet.surface === null ||
+                typeof planet.surface.seed !== 'number' ||
+                !isWellFormedBlockedMask(planet.surface.blocked, planet.surface.gridSize))
+            ) {
+              warnings.push(warning('surface_invalid', `${planetPath}.surface`, 'surface terrain is malformed and will be regenerated'));
             }
           }
         }

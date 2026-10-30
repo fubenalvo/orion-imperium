@@ -90,9 +90,6 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  /* The global reset renders images pixelated for the retro UI; the
-     backdrop art is smooth and would turn blocky when upscaled. */
-  image-rendering: auto;
 }
 
 /* Parallax planes. Bigger factor = closer to the camera. Planes are
@@ -412,8 +409,6 @@
   width: var(--logo-w);
   height: auto;
   max-width: none;
-  /* Downscaled hi-res pixel art aliases badly with nearest-neighbour. */
-  image-rendering: auto;
   filter: drop-shadow(0 0 18px rgba(109, 229, 211, 0.18));
   animation: rise-in 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }

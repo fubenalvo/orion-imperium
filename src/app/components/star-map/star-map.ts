@@ -12,6 +12,7 @@ import { filter } from 'rxjs/operators';
 import { BattleService, BattleOutcome } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
+import { generatePlanetSurface, needsSurface } from './planet-surface/planet-surface-generator';
 import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
@@ -1549,7 +1550,7 @@ loadError = '';
 
   /**
    * Returns the grid dimension (side length) for a planet's surface grid.
-   * Formula: size * 2 + 3, so size 1 -> 5, size 2 -> 7, size 3 -> 9, size 4 -> 11.
+   * Size 1 -> 10, 2 -> 14, 3 -> 18, 4 -> 22 (see planet-surface.ts).
    */
   getPlanetGridSize(planet: PlanetTile): number {
     return getPlanetGridSizeUtil(planet);
@@ -1568,6 +1569,20 @@ loadError = '';
 
   private selectPlanetsForResources(planets: PlanetTile[]): Set<number> {
     return selectPlanetsUtil(planets);
+  }
+
+  /*
+   * Backfills surface terrain for planets without a usable record (e.g. a
+   * save edited by hand). The v6 save migration normally does this; existing
+   * buildings and deposits are always kept buildable.
+   */
+  ensurePlanetSurfaces(): void {
+    const galaxySeed = this.galaxy?.seed ?? 0;
+    for (const planet of this.starSystems.flatMap((s) => s.planetsTiles)) {
+      if (needsSurface(planet)) {
+        planet.surface = generatePlanetSurface(planet, galaxySeed);
+      }
+    }
   }
 
   /** Ensures every planet has a deterministic resourceTiles array. */
@@ -3051,6 +3066,8 @@ loadError = '';
     this.computeInitialSensorVisibility();
     this.updateSensorVisibility();
 
+    // Terrain first: deposit generation avoids blocked surface cells.
+    this.ensurePlanetSurfaces();
     // Ensure every planet has deterministic resource deposit tiles
     this.ensureResourceTiles();
 

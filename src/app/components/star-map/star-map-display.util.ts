@@ -8,6 +8,7 @@ import {
   PLANET_TYPE_COLORS,
   ShipType,
 } from './star-map.models';
+import { getPlanetGridSize as getSurfaceGridSize } from './planet-surface/planet-surface';
 
 /*
  * =========================================================
@@ -94,11 +95,10 @@ export function getPlanetNumericSize(planet: PlanetTile): number {
 
 /**
  * Returns the grid dimension (side length) for a planet's surface grid.
- * Formula: size * 2 + 3, so size 1 -> 5, size 2 -> 7, size 3 -> 9, size 4 -> 11.
+ * Delegates to the planet-surface module (10 / 14 / 18 / 22 cells).
  */
 export function getPlanetGridSize(planet: PlanetTile): number {
-  const numericSize = getPlanetNumericSize(planet);
-  return numericSize * 2 + 3;
+  return getSurfaceGridSize(planet);
 }
 
 /** Returns the representative color for a planet based on its type. */

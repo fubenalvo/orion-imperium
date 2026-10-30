@@ -133,7 +133,6 @@
     0 0 1.5vw 0.4vw color-mix(in srgb, var(--sun-color) 70%, white),
     0 0 6vw 1.5vw color-mix(in srgb, var(--sun-color) 45%, transparent);
   z-index: 2;
-  image-rendering: auto;
 
   &::before {
     content: '';

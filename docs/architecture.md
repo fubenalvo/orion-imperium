@@ -95,7 +95,10 @@ src/app/
       star-map-planet-info/
         → Selected planet panel (population, buildings, economy, "Open Planet")
       star-map-planet-screen/
-        → Planet surface view (build-mode grid, building placement)
+        → Planet surface view (scene layers, build mode, camera)
+      planet-surface/
+        → Surface grid + terrain mask (gameplay), terrain field/generator,
+          terrain renderer, street layout (docs/planet-surface.md)
       faction-currencies/
         → Currency HUD with expandable economy breakdown
     star-map-header/

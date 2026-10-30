@@ -90,6 +90,10 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
 - **Homeworld** (planet 1 of each home system, earthlike/medium, population 1400): the legacy Earth
   buildings plus a Fusion Power Plant, so every faction starts energy-positive. Without it, AI
   homeworlds would lose satisfaction at −1/s and rebel before their develop action ran.
+  Starting layouts (homeworld and AI colonies) are centered on the grid (`centerLayout`).
+- **Planet surfaces:** settled planets get their terrain (`generatePlanetSurface`, seeded from the
+  galaxy seed and planet id, kept clear of the starting buildings) during generation; all other
+  planets receive the identical terrain on first load. See [Planet Surface](./planet-surface.md).
 - **Starting assets:** 1000 credits / raw materials / research (scaled for AI by difficulty), the
   four basic technologies, and fleets placed 3–6 cells from the home system on free cells. The
   human always gets the legacy roster (ORION: 2 frigates, PEGASUS: 3 cruisers).
@@ -144,7 +148,9 @@ and reads `map.width/height` from the save. `migrateSave` backfills the legacy b
 pre-v3 saves (only when it fits the save's grid) and sets `aiDifficulty: 'normal'` on AI factions
 that lack it. Since save version 4, `nebulae` and `asteroidEvents` are persisted; `migrateSave`
 generates the deterministic nebula set (and a fresh asteroid state) once for older saves. Since
-save version 5, `asteroidBelts` are persisted; older saves get an empty list.
+save version 5, `asteroidBelts` are persisted; older saves get an empty list. Since save version 6,
+planet surfaces are doubled and `PlanetTile.surface` is persisted; older layouts are re-centered and
+get terrain generated around them ([Planet Surface](./planet-surface.md#save-compatibility-save-version-6)).
 
 ## Validation (`services/galaxy-validation.ts`)
 
@@ -152,7 +158,7 @@ save version 5, `asteroidBelts` are persisted; older saves get an empty list.
 map size matches the preset, exactly one centered black hole, unique system/planet/fleet/ship ids,
 unique system and planet names, valid faction references, coordinates inside the map and outside
 the black hole clearance, minimum system spacing, known buildings placed inside the surface without
-overlap, known ship types, a homeworld and fleet for every participant, exactly one human
+overlap and off terrain obstacles (settled planets must carry a valid surface), known ship types, a homeworld and fleet for every participant, exactly one human
 `'player'`, a valid difficulty for each AI, `defaultView` on the human homeworld, at least one
 nebula and none covering a home system, an initialized asteroid event state, asteroid belts that cover no system or starting fleet and leave every home connected to every system, and factions that
 match the config (names, colors, controllers, difficulties).

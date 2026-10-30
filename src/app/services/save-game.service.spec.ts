@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SaveGameService, SaveSlotId } from './save-game.service';
-import { StarMapData, Faction } from '../components/star-map/star-map.models';
+import { StarMapData, Faction, PlanetTile } from '../components/star-map/star-map.models';
+import {
+  getPlanetGridSize,
+  isFootprintBlocked,
+  isSurfaceCellBlocked,
+} from '../components/star-map/planet-surface/planet-surface';
 import { SAVE_VERSION, validateSaveData } from './save-validation';
 
 const PLAYER_FACTION = {
@@ -562,5 +567,75 @@ describe('SaveGameService — v5 asteroid belts', () => {
   it('rejects malformed belts', () => {
     expect(validateSaveData(makeData({ asteroidBelts: 'rocks' as never })).ok).toBe(false);
     expect(validateSaveData(makeData({ asteroidBelts: [{ ...belt, points: [{ x: 1, y: 1 }] }] })).ok).toBe(false);
+  });
+});
+
+describe('SaveGameService — v6 planet surfaces', () => {
+  let service: SaveGameService;
+
+  beforeEach(() => {
+    localStorage.clear();
+    service = new SaveGameService();
+  });
+
+  afterEach(() => localStorage.clear());
+
+  const legacyPlanet = (): PlanetTile => ({
+    id: 3,
+    index: 1,
+    name: 'Old Colony',
+    factionId: 'player',
+    x: 1,
+    y: 1,
+    type: 'marslike',
+    size: 'medium',
+    population: 100,
+    explored: true,
+    // Laid out on the old 9×9 grid, touching its corners.
+    buildings: [
+      { name: 'Large Residential Block', size: 3, x: 0, y: 0 },
+      { name: 'Laser Turret', size: 1, x: 8, y: 8 },
+    ],
+    resourceTiles: [{ type: 'rawmaterial', x: 4, y: 6 }],
+  });
+
+  const legacySave = (): StarMapData => {
+    const data = makeData({ saveVersion: 5, galaxy: { size: 'medium', seed: 77, requestedSeed: null, generatorVersion: 5 } });
+    data.starSystems[0].planetsTiles = [legacyPlanet()];
+    return data;
+  };
+
+  it('re-centers old layouts on the doubled grid and generates terrain around them', () => {
+    const migrated = service.migrateSave(legacySave());
+    const planet = migrated.starSystems[0].planetsTiles[0];
+    // 18×18 now; the old 9×9 layout moves by floor((18 - 9) / 2) = 4.
+    expect(planet.buildings.map((b) => [b.x, b.y])).toEqual([
+      [4, 4],
+      [12, 12],
+    ]);
+    expect(planet.resourceTiles).toEqual([{ type: 'rawmaterial', x: 8, y: 10 }]);
+    expect(planet.surface?.gridSize).toBe(getPlanetGridSize(planet));
+    for (const b of planet.buildings) expect(isFootprintBlocked(planet, b.x, b.y, b.size)).toBe(false);
+    expect(isSurfaceCellBlocked(planet, 8, 10)).toBe(false);
+    expect(migrated.saveVersion).toBe(SAVE_VERSION);
+    expect(validateSaveData(migrated).ok).toBe(true);
+  });
+
+  it('is idempotent and persists the terrain unchanged across save/load', () => {
+    const first = service.migrateSave(legacySave());
+    const again = service.migrateSave(first);
+    expect(again.starSystems[0].planetsTiles[0]).toEqual(first.starSystems[0].planetsTiles[0]);
+    service.saveToSlot(1, first);
+    const loaded = service.loadFromSlot(1)!;
+    expect(loaded.starSystems[0].planetsTiles[0].surface).toEqual(first.starSystems[0].planetsTiles[0].surface);
+    expect(loaded.starSystems[0].planetsTiles[0].buildings).toEqual(first.starSystems[0].planetsTiles[0].buildings);
+  });
+
+  it('reports a malformed surface as a warning, not a load blocker', () => {
+    const data = service.migrateSave(legacySave());
+    data.starSystems[0].planetsTiles[0].surface = { version: 1, seed: 1, gridSize: 18, intrusion: 1, blocked: 'nope' };
+    const result = validateSaveData(data);
+    expect(result.ok).toBe(true);
+    expect(result.warnings.some((w) => w.code === 'surface_invalid')).toBe(true);
   });
 });

@@ -7,8 +7,8 @@ import {
   PlanetTile,
   ShipType,
   StarSystem,
-  PLANET_SIZE_MAP,
 } from './star-map.models';
+import { centerOutPlacementOrder, getPlanetGridSize, isFootprintBlocked } from './planet-surface/planet-surface';
 import { EconomyService } from '../../services/economy.service';
 import { ResearchService } from '../../services/research.service';
 import { ShipService } from '../../services/ship.service';
@@ -518,7 +518,7 @@ export class EnemyEconomyService {
     budget: ConstructionBudget,
     depth: number,
   ): ConstructionDecision | undefined {
-    const gridSize = (PLANET_SIZE_MAP[planet.size] ?? 3) * 2 + 3;
+    const gridSize = getPlanetGridSize(planet);
     for (const building of candidates) {
       const cost = buildingCost(building);
       if (budget.cost.credits < cost.credits || budget.cost.rawmaterials < cost.rawmaterials) {
@@ -555,7 +555,7 @@ export class EnemyEconomyService {
   }
 
   /*
-   * choosePlacement: First valid placement (row-major) that does not
+   * choosePlacement: First valid placement (center-out) that does not
    * reduce how many missing core buildings still fit on the faction's
    * planets. Core buildings cost several times more than the cheap
    * buildings the AI keeps adding while it saves for them; without this
@@ -597,7 +597,7 @@ export class EnemyEconomyService {
     let count = 0;
     for (const def of [...defs].sort((a, b) => b.size - a.size)) {
       for (const p of surfaces) {
-        const spot = this.findValidPlacement(p, def, (PLANET_SIZE_MAP[p.size] ?? 3) * 2 + 3);
+        const spot = this.findValidPlacement(p, def, getPlanetGridSize(p));
         if (spot) {
           p.buildings.push({ name: def.name, size: def.size, x: spot.x, y: spot.y });
           count++;
@@ -982,35 +982,27 @@ export class EnemyEconomyService {
   }
 
   /*
-   * Placement mirrors the planet screen rules: inside the grid, no
-   * overlap with buildings, never on a resource tile unless the building
-   * requires ore proximity (then it must touch one).
+   * Placement mirrors the planet screen rules: inside the grid, not on
+   * terrain obstacles, no overlap with buildings, never on a resource tile
+   * unless the building requires ore proximity (then it must touch one).
+   * Candidates are scanned from the grid center outward so AI colonies grow
+   * as one compact settlement (docs/planet-surface.md).
    */
   private findValidPlacements(planet: PlanetTile, building: BuildingDef, gridSize: number): { x: number; y: number }[] {
     const requiresOre = building.requiresOreProximity === true;
     const resourceTiles = planet.resourceTiles ?? [];
-    const placements: { x: number; y: number }[] = [];
-    for (let y = 0; y + building.size <= gridSize; y++) {
-      for (let x = 0; x + building.size <= gridSize; x++) {
-        if (this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre)) {
-          placements.push({ x, y });
-        }
-      }
-    }
-    return placements;
+    return centerOutPlacementOrder(gridSize, building.size)
+      .filter(({ x, y }) => this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre))
+      .map(({ x, y }) => ({ x, y }));
   }
 
   private findValidPlacement(planet: PlanetTile, building: BuildingDef, gridSize: number): { x: number; y: number } | undefined {
     const requiresOre = building.requiresOreProximity === true;
     const resourceTiles = planet.resourceTiles ?? [];
-    for (let y = 0; y + building.size <= gridSize; y++) {
-      for (let x = 0; x + building.size <= gridSize; x++) {
-        if (this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre)) {
-          return { x, y };
-        }
-      }
-    }
-    return undefined;
+    const spot = centerOutPlacementOrder(gridSize, building.size).find(({ x, y }) =>
+      this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre),
+    );
+    return spot ? { x: spot.x, y: spot.y } : undefined;
   }
 
   private canPlace(
@@ -1021,6 +1013,9 @@ export class EnemyEconomyService {
     resourceTiles: { x: number; y: number }[],
     requiresOre: boolean,
   ): boolean {
+    if (isFootprintBlocked(planet, x, y, size)) {
+      return false;
+    }
     for (const b of planet.buildings ?? []) {
       if (x < b.x + b.size && x + size > b.x && y < b.y + b.size && y + size > b.y) {
         return false;

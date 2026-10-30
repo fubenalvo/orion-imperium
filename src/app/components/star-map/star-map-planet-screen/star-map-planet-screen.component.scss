@@ -1,5 +1,3 @@
-@use '../_star-map-panels';
-
 .planet-screen {
   position: absolute;
   top: var(--game-header-h);
@@ -12,70 +10,31 @@
   color: var(--color-text);
 }
 
+/*
+ * Planet surface scene (docs/planet-surface.md).
+ *
+ * The camera is a zero-size point at the viewport center; every layer is
+ * positioned in vw relative to it (the world center) and the camera's inline
+ * transform pans and zooms all of them together.
+ *
+ * Layer order inside the camera: terrain canvas < ground plane (settlement
+ * SVG + cell grid) < sprites < labels. The surrounding `--surface-haze` is
+ * the color the terrain canvas fades into at the world edge.
+ */
 .planet-surface {
   position: relative;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-  background-image: url('planet-surface-noise-light.png');
-
-  background-size:
-    10vw 10vw,
-    5vw 5vw,
-    5vw 5vw;
-  background-position:
-    0% 0%,
-    0% 0%,
-    0% 0%;
-  background-blend-mode: overlay, normal, normal;
-  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
-
-  &:after {
-    position: absolute;
-    pointer-events: none;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    content: '';
-    z-index: 10;
-
-    background: var(--planet-color);
-    opacity: 0.1;
-    mix-blend-mode: color;
-  }
-
-  &::before {
-    position: absolute;
-    pointer-events: none;
-    opacity: 0.25;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    content: '';
-    z-index: 10;
-    background-blend-mode: overlay, normal, normal;
-    background-image: url('planet-clouds.png');
-    background-size: 70vw 70vw;
-    background-repeat: repeat;
-    background-position: 0 0;
-    animation: cloud-scroll 30s linear infinite;
-  }
-
-  @media (max-width: 900px) {
-    background-size:
-      250% 250%,
-      5vw 5vw,
-      5vw 5vw;
-  }
+  background:
+    radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--surface-haze) 85%, #fff 15%) 0%, var(--surface-haze) 45%, color-mix(in srgb, var(--surface-haze) 55%, #02060c 45%) 100%);
+  isolation: isolate;
 }
 
 /*
- * Clipping + interaction viewport for the surface grid. It fills the surface
- * and is the pointer-capture target for drag panning. `touch-action: none`
- * lets pointer events take over touch gestures instead of native scrolling.
+ * Clipping + interaction viewport. It fills the surface and is the
+ * pointer-capture target for drag panning. `touch-action: none` lets pointer
+ * events take over touch gestures instead of native scrolling.
  */
 .planet-surface__viewport {
   position: absolute;
@@ -89,82 +48,314 @@
   }
 }
 
-/*
- * The grid is absolutely positioned and centered on the viewport via
- * `translate(-50%, -50%)` in the inline `gridTransform`; the pan offset and
- * isometric tilt are part of the same inline transform so scrolling moves in
- * screen space. The isometric class keeps only the descendant rules.
- */
-.planet-surface__grid {
+.planet-surface__camera {
   position: absolute;
   top: 50%;
   left: 50%;
-  display: grid;
-  gap: 2.5vw;
-  width: max-content;
+  width: 0;
+  height: 0;
   will-change: transform;
 }
 
+.planet-surface__terrain {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.6s ease;
+
+  &--ready {
+    opacity: 1;
+  }
+
+  // The canvas is created by the renderer and stretched to the host box,
+  // which is sized in vw from the renderer's cell-unit box.
+  ::ng-deep .planet-surface__terrain-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
 /*
- * 45° isometric projection: the square tile grid is rotated into a diamond by
- * the inline `gridTransform` (combined with the pan translate). `overflow:
- * hidden` on the parent crops the four corner triangles that appear when a
- * square is rotated — the intended "diamond window".
+ * Ground plane: the flat, tilted surface. `rotateX(60deg) rotateZ(45deg)`
+ * maps world (u, v) to screen ((u - v)/√2, (u + v)/(2√2)) — the renderer and
+ * the sprite projection in the component use exactly this mapping, so the
+ * three layers stay aligned. Changing the angles here breaks that contract.
  */
-.planet-surface__grid--isometric {
+.planet-surface__ground {
+  position: absolute;
   transform-origin: center center;
-  position: relative;
-  background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-  background-image: url('planet-surface-noise-light.png');
-  background-size: 30% 30%;
-  //background-blend-mode: overlay, normal, normal;
+  transform: rotateX(60deg) rotateZ(45deg);
+}
 
-  /* Keep building labels readable: the grid tilts +45deg, so the label text
-     is counter-rotated back to upright. Sprites stay diamond-tilted for a
-     coherent isometric tile look. */
-  .planet-surface__building-name {
-    transform: rotate(-45deg) translate(33%, 10%);
-    transform-origin: center;
+.planet-surface__settlement {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.planet-surface__developed {
+  fill: rgba(40, 36, 32, 0.16);
+  stroke: rgba(40, 36, 32, 0.16);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.planet-surface__plot {
+  fill: url(#ps-plot);
+  stroke: rgba(196, 214, 230, 0.35);
+  stroke-width: 0.03;
+}
+
+.planet-surface__street-curb,
+.planet-surface__street-glow,
+.planet-surface__street,
+.planet-surface__street-lane {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+// Access-road segments fade out individually; butt caps keep the
+// translucent segments from overlapping into dark joints.
+.planet-surface__access path {
+  stroke-linecap: butt;
+}
+
+.planet-surface__street-curb {
+  stroke: #747c86;
+  stroke-width: 0.36;
+}
+
+// Thin luminous strips along both street edges (glow under the asphalt).
+.planet-surface__street-glow {
+  stroke: rgba(126, 214, 255, 0.85);
+  stroke-width: 0.3;
+}
+
+.planet-surface__street {
+  stroke: #2a2f36;
+  stroke-width: 0.26;
+}
+
+.planet-surface__street-lane {
+  stroke: rgba(236, 214, 120, 0.65);
+  stroke-width: 0.025;
+  stroke-dasharray: 0.14 0.16;
+  stroke-linecap: butt;
+}
+
+.planet-surface__shadows {
+  fill: rgba(4, 8, 14, 0.42);
+}
+
+.planet-surface__light {
+  mix-blend-mode: screen;
+}
+
+.planet-surface__ore-glow {
+  mix-blend-mode: screen;
+  animation: ps-ore-pulse 3.2s ease-in-out infinite;
+}
+
+// Only shown while placing a building: outside build mode the colony should
+// read as part of the landscape, not as a rectangle with a frame.
+.planet-surface__zone-edge {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 0.045;
+  stroke-dasharray: 0.22 0.14;
+  stroke-linecap: round;
+  transition: stroke 0.2s ease;
+
+  .planet-surface--build & {
+    stroke: rgba(140, 220, 255, 0.95);
+    stroke-width: 0.06;
+  }
+}
+
+.planet-surface__hover-plot {
+  fill: rgba(140, 196, 255, 0.12);
+  stroke: rgba(160, 220, 255, 0.9);
+  stroke-width: 0.05;
+}
+
+@keyframes ps-ore-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
   }
 
-  &:before {
-    content: '';
-    position: absolute;
-    top: -50vw;
-    left: -50vh;
-    right: -50vh;
-    bottom: -50vw;
-    background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-    background-image: url('planet-surface-noise-light.png');
-    background-size: 10% 10%;
-    opacity: 0.5;
-    mix-blend-mode: color;
-    pointer-events: none;
+  50% {
+    opacity: 1;
+  }
+}
+
+/*
+ * Interactive cells. Contiguous (no gap) so footprints span exact cells.
+ * Outside build mode the grid is only a faint survey pattern on buildable
+ * cells; build mode strengthens it and hatches terrain-blocked cells.
+ */
+.planet-surface__grid {
+  position: absolute;
+  display: grid;
+  gap: 0;
+}
+
+.planet-surface__cell {
+  width: 100%;
+  height: 100%;
+  box-shadow: inset 0 0 0 0.04vw rgba(170, 215, 255, 0.07);
+  transition:
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+
+  &:hover {
+    background: rgba(140, 200, 255, 0.12);
   }
 
-  &:after {
+  .planet-surface--build & {
+    box-shadow: inset 0 0 0 0.06vw rgba(170, 225, 255, 0.28);
+  }
+}
+
+.planet-surface__cell--blocked {
+  box-shadow: none;
+
+  &:hover {
+    background: none;
+  }
+
+  .planet-surface--build & {
+    box-shadow: none;
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(229, 70, 70, 0.32) 0 0.25vw,
+      rgba(229, 70, 70, 0.06) 0.25vw 0.6vw
+    );
+  }
+}
+
+.planet-surface__cell--resource {
+  box-shadow: inset 0 0 0 0.08vw rgba(255, 190, 90, 0.55);
+}
+
+.planet-surface__cell--build-valid {
+  background: rgba(53, 229, 134, 0.38);
+  box-shadow: inset 0 0 0 0.08vw rgba(53, 229, 134, 0.9);
+}
+
+.planet-surface__cell--build-invalid,
+.planet-surface--build .planet-surface__cell--build-invalid {
+  background: rgba(229, 53, 53, 0.42);
+  box-shadow: inset 0 0 0 0.08vw rgba(229, 53, 53, 0.9);
+}
+
+.planet-surface__cell--build-selected {
+  outline: 0.12vw solid var(--color-blue-bright);
+  outline-offset: -0.12vw;
+}
+
+/*
+ * Upright sprites: anchored at the bottom center (the footprint's front
+ * corner) and sized to the footprint diamond's width; the height follows
+ * the image aspect ratio. They never take pointer input — hovering and
+ * clicking always reach the cells on the ground plane.
+ */
+.planet-surface__objects,
+.planet-surface__labels {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.planet-surface__sprite {
+  position: absolute;
+  height: auto;
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 0 0.06vw rgba(0, 0, 0, 0.55));
+  user-select: none;
+}
+
+.planet-surface__sprite--deposit {
+  filter: drop-shadow(0 0 0.5vw rgba(255, 170, 60, 0.55));
+}
+
+.planet-surface__sprite--ghost {
+  opacity: 0.7;
+  filter: drop-shadow(0 0 0.5vw rgba(80, 255, 160, 0.85)) brightness(1.1);
+}
+
+.planet-surface__sprite--ghost-invalid {
+  filter: drop-shadow(0 0 0.5vw rgba(255, 70, 70, 0.95)) grayscale(0.7) sepia(0.6) hue-rotate(-40deg) saturate(3);
+}
+
+.planet-surface__labels {
+  z-index: 1000;
+}
+
+.planet-surface__building-name {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  padding: 0.15em 0.55em;
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+  color: var(--color-text-bright);
+  background: rgba(3, 10, 20, 0.72);
+  border: 1px solid rgba(53, 134, 229, 0.55);
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(53, 134, 229, 0.25);
+}
+
+.planet-surface__building-name--hover {
+  color: var(--color-blue-bright);
+  border-color: var(--color-blue-bright);
+  z-index: 1;
+}
+
+/*
+ * Atmosphere over the scene (screen space, never intercepts input):
+ * drifting cloud shadows plus a vignette that melts the view edges into the
+ * planet's haze.
+ */
+.planet-surface__atmosphere {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    transparent 55%,
+    color-mix(in srgb, var(--surface-haze) 40%, transparent) 80%,
+    color-mix(in srgb, var(--surface-haze) 55%, #02060c 45%) 100%
+  );
+
+  &::before {
     content: '';
     position: absolute;
-    top: -50vw;
-    left: -50vh;
-    right: -50vh;
-    bottom: -50vw;
-    background: color-mix(in srgb, var(--planet-color) 40%, #111 60%);
-    background-image: url('planet-surface-noise-light.png');
-    background-size: 100% 100%;
-    opacity: 0.7;
-    mix-blend-mode: color;
-    pointer-events: none;
+    inset: 0;
+    background-image: url('planet-clouds.png');
+    background-size: 70vw 70vw;
+    background-repeat: repeat;
+    opacity: 0.16;
+    mix-blend-mode: multiply;
+    animation: cloud-scroll 60s linear infinite;
   }
 }
 
 @keyframes cloud-scroll {
   from {
-    background-position-x: 0;
+    background-position: 0 0;
   }
 
   to {
-    background-position-x: -1000px;
+    background-position: -70vw 35vw;
   }
 }
 
@@ -283,188 +474,6 @@
   border-color: var(--color-blue-bright);
   background: rgba(53, 134, 229, 0.18);
   box-shadow: inset 0 -2px 0 var(--color-blue-bright);
-}
-
-.planet-surface__cell {
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 2px;
-  transition: background 0.15s ease;
-
-  &:hover {
-    background: rgba(53, 134, 229, 0.15);
-  }
-}
-
-.planet-surface__building {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  //background: rgba(53, 134, 229, 0.25);
-  background-color: #333;
-  border: 1px solid rgba(31, 31, 31, 0.6);
-  border-radius: 3px;
-  color: var(--color-text-bright);
-  font-size: 0.55rem;
-  text-align: center;
-  padding: 2px;
-  word-break: break-word;
-  line-height: 1.1;
-  grid-column: calc(var(--building-x, 0) + 1) / span var(--building-size, 1);
-  grid-row: calc(var(--building-y, 0) + 1) / span var(--building-size, 1);
-  position: relative;
-  isolation: isolate;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: transparent;
-    border-radius: 3px;
-    pointer-events: none;
-    border: 0.5vw solid rgba(41, 41, 41, 0.8);
-    width: calc(100% + 0.7vw);
-    height: calc(100% + 0.7vw);
-    top: -0.35vw;
-    left: -0.35vw;
-    z-index: 1;
-  }
-
-  &::after {
-    content: '';
-    position: absolute;
-    top: calc(0% - 1vw);
-    left: calc(0% - 1vw);
-    width: calc(100% + 2vw);
-    height: calc(100% + 2vw);
-
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 100% 100%;
-    background: color-mix(in srgb, #292929 40%, #111 60%);
-    background-image: url('planet-surface-noise-light.png');
-
-    border-radius: 3px;
-    pointer-events: none;
-    z-index: 0;
-    border: 0.3vw solid #44444454;
-    opacity: 0.7;
-  }
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 120%;
-    height: 280%;
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 100% 100%;
-    pointer-events: none;
-    z-index: 4;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(48%, -54%);
-    border: none;
-    box-shadow: none;
-    filter: saturate(1.1) contrast(1.1);
-  }
-
-  // ---- Building type images ----
-  // The ::before background-image is overridden in each modifier class.
-  // Drop the matching PNG into /public/buildings/ and the image will render
-  // automatically because Angular serves /public assets at the site root.
-
-  &--laser-turret::before {
-    background-image: url('buildings-isometric/laser-turret.png');
-    width: 148%;
-    height: 351%;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(43%, -71%);
-  }
-  &--missile-turret::before {
-    background-image: url('buildings-isometric/missile-turret.png');
-  }
-  &--planetary-shield::before {
-    background-image: url('buildings-isometric/planetary-shield.png');
-  }
-  &--small-residential::before {
-    background-image: url('buildings-isometric/small-residential.png');
-    width: 164%;
-    height: 470%;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(66%, -76%);
-  }
-  &--medium-residential::before {
-    background-image: url('buildings-isometric/medium-residential.png');
-  }
-  &--large-residential::before {
-    background-image: url('buildings-isometric/large-residential.png');
-    width: 120%;
-    height: 318%;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(57%, -63%);
-  }
-  &--park::before {
-    background-image: url('buildings-isometric/park.png');
-  }
-  &--hospital::before {
-    background-image: url('buildings-isometric/hospital.png');
-  }
-  &--school::before {
-    background-image: url('buildings-isometric/school.png');
-  }
-  &--entertainment-center::before {
-    background-image: url('buildings-isometric/entertainment-center.png');
-  }
-  &--fusion-plant::before {
-    background-image: url('buildings-isometric/fusion-plant.png');
-  }
-  &--solar-array::before {
-    background-image: url('buildings-isometric/solar-array.png');
-    width: 151%;
-    height: 307%;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(36%, -56%);
-  }
-  &--spaceship-factory::before {
-    background-image: url('buildings-isometric/spaceship-factory.png');
-  }
-  &--mining-complex::before {
-    background-image: url('buildings-isometric/mining-complex.png');
-    width: 145%;
-    height: 307%;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(39%, -60%);
-  }
-  &--small-research-lab::before {
-    background-image: url('buildings-isometric/small-research-lab.png');
-    width: 148%;
-    height: 351%;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(43%, -60%);
-  }
-  &--research-lab::before {
-    background-image: url('buildings-isometric/research-lab.png');
-  }
-  &--spaceport::before {
-    background-image: url('buildings-isometric/spaceport.png');
-    width: 122%;
-    height: 341%;
-    transform: rotateZ(-45deg) rotateX(-55deg) translate(64%, -62%);
-  }
-}
-
-.planet-surface__building-name {
-  position: absolute;
-  bottom: 0.3vw;
-  left: 0;
-  right: 0;
-  font-size: 1rem;
-  z-index: 4;
-  text-shadow:
-    -1px -1px 0 rgba(0, 0, 0, 0.8),
-    0 -1px 0 rgba(0, 0, 0, 0.8),
-    1px -1px 0 rgba(0, 0, 0, 0.8),
-    -1px 0 0 rgba(0, 0, 0, 0.8),
-    1px 0 0 rgba(0, 0, 0, 0.8),
-    -1px 1px 0 rgba(0, 0, 0, 0.8),
-    0 1px 0 rgba(0, 0, 0, 0.8),
-    1px 1px 0 rgba(0, 0, 0, 0.8);
 }
 
 .planet-sidebar {
@@ -690,26 +699,6 @@
   }
 }
 
-.planet-surface__cell--resource {
-  background: rgba(139, 69, 19, 0.35);
-  border: 1px solid rgba(205, 133, 63, 0.6);
-}
-
-.planet-surface__cell--build-valid {
-  background: rgba(53, 229, 134, 0.35);
-  border: 1px solid rgba(53, 229, 134, 0.7);
-}
-
-.planet-surface__cell--build-invalid {
-  background: rgba(229, 53, 53, 0.35);
-  border: 1px solid rgba(229, 53, 53, 0.7);
-}
-
-.planet-surface__cell--build-selected {
-  outline: 2px solid var(--color-blue-bright);
-  outline-offset: -2px;
-}
-
 .planet-sidebar__build-preview {
   flex: 1;
   color: var(--color-text-bright);
@@ -746,14 +735,9 @@
   }
 }
 
-.build-overlay {
-  display: none;
-}
-
 .info-icon {
   width: 14px;
   height: 14px;
   vertical-align: -3px;
   margin-right: 4px;
-  image-rendering: pixelated;
 }

@@ -219,6 +219,17 @@ See [New Game Generation](./new-game-generation.md) for the rules behind these.
 - `aiDifficulty: 'normal'` (or missing) must reproduce the pre-difficulty AI behavior: income multiplier 1, attack advantage 1.2.
 - Map widths of exactly 200 are reserved for the legacy pre-grid save format.
 
+## Planet Surface
+
+See [Planet Surface](./planet-surface.md).
+
+- Every system that places or validates buildings uses `getPlanetGridSize` (`numericSize * 4 + 6`); only the v6 save migration may use the legacy formula.
+- No building and no deposit ever covers a cell marked in `planet.surface.blocked`. The generator keeps occupied cells clear, the player screen and `EnemyEconomyService.canPlace` reject blocked footprints, and the galaxy validator checks starting layouts.
+- `planet.surface.blocked` is the only gameplay source of terrain. Visuals are re-derived from `seed`/`intrusion` and must stay flattened to the mask (buildable cells render as flat plateau at height 0).
+- A surface whose `gridSize` differs from the planet's grid is ignored (no blocked cells) and regenerated on load; it is never applied to a different grid.
+- At most 20% of a grid is blocked when the surface is generated.
+- The CSS ground plane (`rotateX(60deg) rotateZ(45deg)`), the terrain renderer projection and the sprite projection in the planet screen must stay identical.
+
 ## AI pipeline
 
 See [AI Pipeline](./ai-pipeline.md) for context.

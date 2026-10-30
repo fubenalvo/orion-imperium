@@ -21,6 +21,8 @@ import { ASTEROID_BELT_CONFIG, generateAsteroidBelts } from '../components/star-
 import { createInitialAsteroidState } from '../components/star-map/drifting-asteroids';
 import { AI_DIFFICULTY_PROFILES } from '../components/star-map/ai-difficulty';
 import { AI_PERSONALITIES } from '../components/star-map/ai-personality';
+import { centerLayout, generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
+import { getPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
 import { SAVE_VERSION } from './save-validation';
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
 
@@ -55,6 +57,11 @@ import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } fro
  * - asteroid belts (generateGalaxyAsteroidBelts) are impassable walls kept
  *   clear of systems, starting fleets, the black hole and each other, and
  *   never disconnect a home system from any other system. Own rng stream.
+ * - settled planets get their surface terrain (generatePlanetSurface)
+ *   here, derived arithmetically from the seed and the planet id, so it does
+ *   not consume the layout stream; starting buildings are centered on the
+ *   grid and kept clear of obstacles. Other planets receive the identical
+ *   terrain on first load (StarMap.ensurePlanetSurfaces).
  *
  * Faction ids: the human player is always 'player' (the id every
  * gameplay system treats as the local player); AI players become
@@ -73,8 +80,10 @@ import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } fro
  * 3: nebulae and the drifting-asteroid event state are generated.
  * 4: impassable asteroid belts are generated.
  * 5: belts curve as gentle arcs instead of a single kink.
+ * 6: planet surfaces: doubled grids, centered starting layouts and the
+ *    persisted `PlanetTile.surface` terrain (docs/planet-surface.md).
  */
-export const GALAXY_GENERATOR_VERSION = 5;
+export const GALAXY_GENERATOR_VERSION = 6;
 export const BLACK_HOLE_SIZE = { width: 4, height: 4 } as const;
 export const PLAYER_FACTION_ID = 'player';
 
@@ -137,7 +146,7 @@ const COLONY_POPULATION = 100;
  * legacy Earth started energy-negative, which every AI homeworld would
  * have inherited and rebelled from before its develop action ran; the
  * plant makes every faction start energy-positive (100 vs 54).
- * Layout fits the 9×9 surface of a 'medium' planet.
+ * Authored at the origin; centerLayout moves it to the middle of the grid.
  */
 const HOMEWORLD_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Large Residential Block', size: 3, x: 0, y: 0 },
@@ -147,7 +156,7 @@ const HOMEWORLD_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Research Laboratory', size: 2, x: 0, y: 6 },
 ];
 
-/* Extra AI colonies (difficulty bonus). Fits the 7×7 surface of a 'small' planet. */
+/* Extra AI colonies (difficulty bonus). Centered like the homeworld layout. */
 const COLONY_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Small Residential Block', size: 1, x: 0, y: 0 },
   { name: 'Solar Array', size: 2, x: 1, y: 0 },
@@ -358,6 +367,17 @@ export class GalaxyGeneratorService {
       this.settleHomeSystem(homeSystems[i], participant, factionById.get(participant.factionId)!);
     });
 
+    // Settled planets need their terrain now (it must be generated around
+    // the starting buildings, which are already placed). Unsettled planets
+    // get theirs on first load (StarMap.ensurePlanetSurfaces): the result is
+    // identical either way, and doing ~100 planets here would make galaxy
+    // generation (run many times by retries and tests) needlessly slow.
+    for (const planet of starSystems.flatMap((s) => s.planetsTiles)) {
+      if (planet.buildings.length > 0) {
+        planet.surface = generatePlanetSurface(planet, seed);
+      }
+    }
+
     const fleets = this.buildFleets(rng, preset, center, participants, homeSystems, starSystems);
 
     const playerIndex = participants.findIndex((p) => p.factionId === PLAYER_FACTION_ID);
@@ -453,7 +473,7 @@ export class GalaxyGeneratorService {
     homeworld.type = 'earthlike';
     homeworld.size = 'medium';
     homeworld.population = HOMEWORLD_POPULATION;
-    homeworld.buildings = HOMEWORLD_BUILDINGS.map((b) => ({ ...b }));
+    homeworld.buildings = centerLayout(HOMEWORLD_BUILDINGS, getPlanetGridSize(homeworld));
 
     if (faction.ai) {
       const extra = AI_DIFFICULTY_PROFILES[participant.setup.difficulty].extraColonies;
@@ -461,7 +481,7 @@ export class GalaxyGeneratorService {
         planet.factionId = faction.id;
         if (planet.size === 'tiny') planet.size = 'small';
         planet.population = COLONY_POPULATION;
-        planet.buildings = COLONY_BUILDINGS.map((b) => ({ ...b }));
+        planet.buildings = centerLayout(COLONY_BUILDINGS, getPlanetGridSize(planet));
       }
     }
 

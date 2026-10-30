@@ -72,7 +72,6 @@
   /* High contrast: dark lanes go fully black (transparent after the
      screen blend), so the gas shows as filaments, not as a flat fill. */
   filter: grayscale(1) contrast(1.6) brightness(1.5);
-  image-rendering: auto;
 }
 
 /* Pale wisps on top of the tinted gas (see the template). */

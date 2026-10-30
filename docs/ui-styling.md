@@ -58,9 +58,7 @@ Defined in `src/styles/_hud-panel.scss`, the `hud-frame()` (or the combined
 for other visual purposes.** The following elements use their own
 pseudo-elements and must NOT receive the frame:
 
-- `.planet-surface__grid--isometric` — uses `&:before`/`&:after` for cloud/tiling effects
-- `.planet-surface` — uses `&::before`/`&:after` for cloud overlays
-- `.planet-surface__building` — uses `&::before`/`&:after` for isometric building sprites
+- `.planet-surface__atmosphere` — uses `&::before` for drifting cloud shadows
 
 All other panel boxes — `.panel-style`, `.hud-overlay__panel`,
 `.pause-overlay__content`, `.production-panel__modal`, `.star-map-options__content`,
@@ -265,7 +263,24 @@ Bare `url('x.png')` references in component SCSS only resolve if the file is
 listed under `externalDependencies` in `angular.json`; otherwise use a
 root-absolute path (the menu uses `url('/nebula.png')`).
 
+## Image rendering
+
+Images use the browser's default smooth filtering everywhere. The project
+moved away from the pixel-art look, so there is no global
+`image-rendering: pixelated` reset and components must not add one; the
+building sprites in the planet view use the high-resolution
+`buildings-isometric/original-size/` images and are scaled down smoothly.
+
+## Planet view
+
+The planet surface (terrain canvas, tilted ground plane with streets and
+grid, sprite layer, atmosphere) is documented in
+[Planet Surface](./planet-surface.md#rendering). Its controls (d-pad, zoom
+selector with the NAMES toggle) use the same button language as the sidebar
+tabs.
+
 ## Related documentation
 
 - [Architecture](./architecture.md)
 - [Game Systems](./game-systems.md)
+- [Planet Surface](./planet-surface.md)

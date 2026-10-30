@@ -5,6 +5,7 @@ import {
 } from './star-map-planet-screen.component';
 import { PlanetTile, ResourceDeposit } from '../star-map.models';
 import { CommonModule } from '@angular/common';
+import { encodeBlockedMask } from '../planet-surface/planet-surface';
 
 describe('StarMapPlanetScreenComponent', () => {
   let component: StarMapPlanetScreenComponent;
@@ -161,20 +162,24 @@ describe('StarMapPlanetScreenComponent', () => {
       expect(component.zoomLevel).toBe('medium');
       const active = fixture.nativeElement.querySelector('.planet-surface__zoom-btn--active');
       expect(active.textContent.trim()).toBe('MEDIUM');
-      expect(component.gridTransform).toContain(`scale(${PLANET_SURFACE_ZOOM_SCALES.medium})`);
+      expect(component.cameraTransform).toContain(`scale(${PLANET_SURFACE_ZOOM_SCALES.medium})`);
     });
 
-    it('keeps CLOSE at the original, unscaled framing', () => {
+    it('keeps CLOSE at the unscaled cell size', () => {
       expect(PLANET_SURFACE_ZOOM_SCALES.close).toBe(1);
       component.setZoomLevel('close');
-      expect(component.gridTransform).toBe(
-        'translate(-50%, -50%) translate(0vw, 0vw) scale(1) rotateX(45deg) rotateZ(45deg)',
-      );
+      expect(component.cameraTransform).toBe('translate(0vw, 0vw) scale(1)');
     });
 
     it('orders the levels CLOSE > MEDIUM > FAR in scale', () => {
       expect(PLANET_SURFACE_ZOOM_SCALES.close).toBeGreaterThan(PLANET_SURFACE_ZOOM_SCALES.medium);
       expect(PLANET_SURFACE_ZOOM_SCALES.medium).toBeGreaterThan(PLANET_SURFACE_ZOOM_SCALES.far);
+    });
+
+    it('keeps an even step between consecutive levels', () => {
+      const closeToMedium = PLANET_SURFACE_ZOOM_SCALES.medium / PLANET_SURFACE_ZOOM_SCALES.close;
+      const mediumToFar = PLANET_SURFACE_ZOOM_SCALES.far / PLANET_SURFACE_ZOOM_SCALES.medium;
+      expect(mediumToFar).toBeCloseTo(closeToMedium, 2);
     });
 
     it('switches level through the buttons, repeatedly, marking exactly one active', () => {
@@ -232,6 +237,70 @@ describe('StarMapPlanetScreenComponent', () => {
       reopened.componentInstance.planet = mockPlanet;
       reopened.detectChanges();
       expect(reopened.componentInstance.zoomLevel).toBe('medium');
+    });
+  });
+
+  describe('terrain obstacles', () => {
+    // Tiny planet (10×10 grid): rows 0..2 of columns 7..9 are blocked by terrain.
+    beforeEach(() => {
+      const mask = new Uint8Array(10 * 10);
+      for (let y = 0; y < 3; y++) for (let x = 7; x < 10; x++) mask[y * 10 + x] = 1;
+      component.planet = {
+        ...mockPlanet,
+        id: 7,
+        size: 'tiny',
+        buildings: [],
+        resourceTiles: [],
+        surface: { version: 1, seed: 1, gridSize: 10, intrusion: 1, blocked: encodeBlockedMask(mask, 10) },
+      };
+      component.gridSize = 10;
+    });
+
+    it('reports blocked cells', () => {
+      expect(component.isBlockedCell(0, 7)).toBe(true);
+      expect(component.isBlockedCell(3, 7)).toBe(false);
+    });
+
+    it('rejects a footprint that touches a blocked cell', () => {
+      component.selectBuildingType('spaceship_factory');
+      component.onCellClick(1, 5);
+      expect(component.isPreviewValid).toBe(false);
+      expect(component.buildError).toBe('The terrain here is not suitable for construction.');
+    });
+
+    it('accepts the same building next to the obstacle', () => {
+      component.selectBuildingType('spaceship_factory');
+      component.onCellClick(3, 5);
+      expect(component.isPreviewValid).toBe(true);
+    });
+
+    it('shows a ghost sprite of the previewed building', () => {
+      component.selectBuildingType('small_residential');
+      component.onCellClick(4, 4);
+      const ghost = component.sprites.find((s) => s.kind === 'ghost');
+      expect(ghost?.src).toContain('small-residential.png');
+      component.exitBuildMode();
+      expect(component.sprites.some((s) => s.kind === 'ghost')).toBe(false);
+    });
+  });
+
+  describe('sprite depth order', () => {
+    it('draws a 1×1 building in front of the 4×4 block it stands beside', () => {
+      // The 1×1 at (4,0) touches the 4×4's +x side: it is in front even
+      // though its front corner (x+y+2·size) is smaller than the 4×4's.
+      fixture.componentRef.setInput('planet', {
+        ...mockPlanet,
+        id: 8,
+        resourceTiles: [],
+        buildings: [
+          { name: 'Spaceport', size: 4, x: 0, y: 0 },
+          { name: 'Laser Turret', size: 1, x: 4, y: 0 },
+        ],
+      });
+      fixture.detectChanges();
+      const big = component.sprites.find((s) => s.key === 'b0')!;
+      const small = component.sprites.find((s) => s.key === 'b1')!;
+      expect(small.z).toBeGreaterThan(big.z);
     });
   });
 
