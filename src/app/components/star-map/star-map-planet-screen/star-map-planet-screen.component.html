@@ -56,7 +56,7 @@
                   <feGaussianBlur stdDeviation="0.35" />
                 </filter>
                 <filter id="ps-shadow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="0.12" />
+                  <feGaussianBlur stdDeviation="0.04" />
                 </filter>
                 <radialGradient id="ps-light">
                   <stop offset="0" stop-color="#fff4c8" stop-opacity="0.95" />
@@ -122,15 +122,17 @@
               <path class="planet-surface__street" [attr.d]="settlement.streets" />
               <path class="planet-surface__street-lane" [attr.d]="settlement.streets" />
 
-              <!-- Cast shadows: the light comes from the upper left, so they fall toward +x -->
+              <!-- Contact shadows: hug each building's base slab (inset 0.15), only
+                   slightly past its front edges, so buildings sit on the ground.
+                   A larger offset shadow made them look like they were floating. -->
               <g class="planet-surface__shadows" filter="url(#ps-shadow)">
                 @for (plot of settlement.plots; track $index) {
                   <rect
-                    [attr.x]="plot.x + 0.3"
-                    [attr.y]="plot.y + 0.2"
-                    [attr.width]="plot.size * 1.05"
-                    [attr.height]="plot.size - 0.3"
-                    rx="0.2"
+                    [attr.x]="plot.x + 0.13"
+                    [attr.y]="plot.y + 0.13"
+                    [attr.width]="plot.size - 0.2"
+                    [attr.height]="plot.size - 0.2"
+                    rx="0.06"
                   />
                 }
               </g>

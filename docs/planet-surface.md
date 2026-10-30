@@ -180,7 +180,9 @@ Layers, back to front:
      cells whose terrain ended up flat (legacy colonies, folded pockets) get
      rubble so they still read as obstacles.
 2. **Ground plane** — the tilted flat element. It holds the settlement SVG
-   (worn ground, deposit glow, paved plots, streets, cast building shadows,
+   (worn ground, deposit glow, paved plots, streets, contact shadows tight
+   under each building's base slab — a larger offset shadow made buildings
+   look like they were floating —
    street lights, buildable-zone outline in build mode, hover highlight) and
    the interactive CSS grid of cells (contiguous, no gaps).
 3. **Sprites** — buildings (`public/buildings-svg/`, see [Building sprites](#building-sprites)),

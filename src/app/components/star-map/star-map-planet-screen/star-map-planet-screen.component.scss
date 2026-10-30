@@ -98,8 +98,8 @@
 }
 
 .planet-surface__developed {
-  fill: rgba(40, 36, 32, 0.16);
-  stroke: rgba(40, 36, 32, 0.16);
+  fill: rgba(40, 36, 32, 0.08);
+  stroke: rgba(40, 36, 32, 0.08);
   stroke-width: 1.2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -150,7 +150,7 @@
 }
 
 .planet-surface__shadows {
-  fill: rgba(4, 8, 14, 0.42);
+  fill: rgba(4, 8, 14, 0.55);
 }
 
 .planet-surface__light {
@@ -278,7 +278,7 @@
   position: absolute;
   height: auto;
   transform: translate(-50%, -100%);
-  filter: drop-shadow(0 0 0.06vw rgba(0, 0, 0, 0.55));
+  filter: drop-shadow(0 0 0.04vw rgba(0, 0, 0, 0.3));
   user-select: none;
 }
 
