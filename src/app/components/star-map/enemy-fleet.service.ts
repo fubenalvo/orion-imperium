@@ -10,6 +10,7 @@ import { EnemyReachService } from './enemy-reach.service';
 import { AI_COLONIZATION_REACH } from './ai-queries';
 import { DriftingAsteroidService } from './drifting-asteroid.service';
 import { asteroidPosition } from './drifting-asteroids';
+import { areFactionsHostile, hostileFactionIds } from './diplomacy';
 
 /*
  * =========================================================
@@ -77,8 +78,8 @@ import { asteroidPosition } from './drifting-asteroids';
  * decision: lower strength → regroup/retreat, and EnemyEconomyService
  * raises military production.
  *
- * Hostility = different non-neutral team (Faction.team), the same rule
- * battle detection uses.
+ * Hostility = at war (diplomacy.ts `areFactionsHostile`), the same rule
+ * battle detection uses; fleets of factions at peace are ignored.
  *
  * Fog of war: `starSystems`/`fleets` passed to tick are the faction's
  * perceived view (EnemyIntelService) — hostiles are the visible and
@@ -223,16 +224,46 @@ export class EnemyFleetService {
     }
     const clock = (this.clocks.get(faction.id) ?? 0) + gameDeltaTime;
     this.clocks.set(faction.id, clock);
+    const contactLost = this.dropLostInterceptions(faction, factions, (real ?? { fleets }).fleets);
     // First decision immediately, so fleets are owned from the first frame.
     // Difficulty `reactionInterval` slows decisions (Easy decides every 4 s).
     const interval = EnemyFleetService.DECISION_INTERVAL * getAiDifficultyProfile(faction).reactionInterval;
     const accumulator = (this.accumulators.get(faction.id) ?? interval) + gameDeltaTime;
     if (accumulator < interval) {
       this.accumulators.set(faction.id, accumulator);
-      return false;
+      return contactLost;
     }
     this.accumulators.set(faction.id, Math.max(0, accumulator - interval));
-    return this.decide(faction, factions, starSystems, fleets, pipelineFleetIds, clock, production, real ?? { starSystems, fleets });
+    return this.decide(faction, factions, starSystems, fleets, pipelineFleetIds, clock, production, real ?? { starSystems, fleets })
+      || contactLost;
+  }
+
+  /*
+   * Ends interceptions whose target the faction no longer knows about
+   * (intel dropped the sighting) or is no longer at war with (peace was
+   * signed). Runs every frame, not only on decision ticks: intel refreshes
+   * and fleet decisions run on separate 2 s clocks that drift apart, and
+   * without this sweep an interceptor could keep chasing a lost contact
+   * for up to one decision interval. The fleet keeps flying to its last
+   * ordered point and gets a new role at the next decision.
+   */
+  private dropLostInterceptions(faction: Faction, factions: Faction[], realFleets: Fleet[]): boolean {
+    let changed = false;
+    for (const fleet of realFleets) {
+      if (fleet.factionId !== faction.id) continue;
+      const assignment = this.assignments.get(fleet.id);
+      if (assignment?.role !== 'intercept' || assignment.targetFleetId === undefined) continue;
+      const target = realFleets.find((f) => f.id === assignment.targetFleetId);
+      const owner = target ? factions.find((f) => f.id === target.factionId) : undefined;
+      if (!target || !areFactionsHostile(faction, owner) || !this.intelService.getKnownPosition(faction.id, target)) {
+        // Keep the fleet owned by this service (so the legacy pursuit layer
+        // never picks it up); without a target the interception is invalid
+        // at the next decision and the fleet gets a new role.
+        this.assignments.set(fleet.id, { ...assignment, targetFleetId: undefined });
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   private decide(
@@ -271,8 +302,8 @@ export class EnemyFleetService {
       this.spaceportService.listSpaceports(faction.id, starSystems).map(({ system }) => this.cellKey(system.x, system.y)),
     );
 
-    const hostileFactionIds = new Set(factions.filter((f) => f.team !== 0 && f.team !== faction.team).map((f) => f.id));
-    const hostiles = fleets.filter((f) => hostileFactionIds.has(f.factionId) && this.isAlive(f));
+    const hostileIds = hostileFactionIds(faction, factions);
+    const hostiles = fleets.filter((f) => hostileIds.has(f.factionId) && this.isAlive(f));
     const difficulty = getAiDifficultyProfile(faction);
     const advantage = difficulty.attackStrengthAdvantage;
     // Engagement judgment: battle forecast (real combat rules) on Normal and

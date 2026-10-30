@@ -138,6 +138,8 @@
     (setSpeed)="onSetSpeed($event)"
     (togglePause)="onTogglePause()"
     (openResearchTree)="openResearchTree()"
+    [diplomacyAlerts]="getDiplomacyAlertCount()"
+    (openDiplomacy)="openDiplomacy()"
     (openMenu)="openPauseMenu()"
   ></app-star-map-header>
 
@@ -240,6 +242,8 @@
         (setSpeed)="onSetSpeed($event)"
         (togglePause)="onTogglePause()"
         (openResearchTree)="openResearchTree()"
+        [diplomacyAlerts]="getDiplomacyAlertCount()"
+        (openDiplomacy)="openDiplomacy()"
         (openMenu)="openPauseMenu()"
       ></app-star-map-header>
 
@@ -320,6 +324,8 @@
         (setSpeed)="onSetSpeed($event)"
         (togglePause)="onTogglePause()"
         (openResearchTree)="openResearchTree()"
+        [diplomacyAlerts]="getDiplomacyAlertCount()"
+        (openDiplomacy)="openDiplomacy()"
         (openMenu)="openPauseMenu()"
       ></app-star-map-header>
 
@@ -395,6 +401,18 @@
       (cancel)="closeFleetManager()"
     ></app-star-map-fleet-manager>
     }
+  }
+
+  @if (showDiplomacy) {
+    <app-star-map-diplomacy
+      [rows]="getDiplomacyRows()"
+      [message]="diplomacyMessage"
+      (close)="closeDiplomacy()"
+      (proposePeace)="onProposePeace($event)"
+      (declareWar)="onDeclareWar($event)"
+      (acceptOffer)="onAcceptPeaceOffer($event)"
+      (declineOffer)="onDeclinePeaceOffer($event)"
+    ></app-star-map-diplomacy>
   }
 
   @if (showResearchTree) {

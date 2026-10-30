@@ -68,6 +68,11 @@ import {
   DriftingAsteroid,
   AsteroidBelt,
 } from './star-map.models';
+import { areFactionsAllied, areFactionsHostile, getRelation, isTreatyPair } from './diplomacy';
+import { DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
+import { EnemyDiplomacyService } from './enemy-diplomacy.service';
+import { getAiPersonalityProfile } from './ai-personality';
+import { DiplomacyRowVm, StarMapDiplomacyComponent } from './star-map-diplomacy/star-map-diplomacy.component';
 import { StarMapTerrainService } from './star-map-terrain.service';
 import { DriftingAsteroidService, AsteroidTickResult } from './drifting-asteroid.service';
 import {
@@ -174,6 +179,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapGalaxyViewComponent,
     StarMapSystemGridViewComponent,
     StarMapResearchTreeComponent,
+    StarMapDiplomacyComponent,
     StarMapAsteroidInfoComponent,
     StarMapFleetManagerComponent,
   ],
@@ -332,6 +338,13 @@ loadError = '';
   spaceportFleetName = 'New Fleet';
 
   showResearchTree = false;
+  showDiplomacy = false;
+  /* Result line of the player's last diplomatic action, shown in the panel. */
+  diplomacyMessage: string | null = null;
+  /* Set when an AI-vs-AI battle was auto-resolved this frame (fleet losses can end the game). */
+  private autoBattleResolved = false;
+  /* Offers already announced with a map notice (an offer is announced once). */
+  private announcedOffers = new Set<string>();
 
   // Fleet manager dialog (docs/fleet-organization.md). Holds the co-located
   // player fleets captured when the dialog opened; null while closed. The
@@ -407,6 +420,8 @@ loadError = '';
     private terrainService: StarMapTerrainService,
     private asteroidService: DriftingAsteroidService,
     private fleetOrganizationService: FleetOrganizationService,
+    private diplomacyService: DiplomacyService,
+    private enemyDiplomacyService: EnemyDiplomacyService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -1326,6 +1341,167 @@ loadError = '';
     this.showResearchTree = false;
   }
 
+  /* ---------- Diplomacy (docs/diplomacy.md) ---------- */
+
+  openDiplomacy(): void {
+    this.diplomacyMessage = null;
+    this.showDiplomacy = true;
+  }
+
+  closeDiplomacy(): void {
+    this.showDiplomacy = false;
+  }
+
+  /* Number of open AI peace offers; drives the header badge. */
+  getDiplomacyAlertCount(): number {
+    return this.diplomacyService.getOfferIds().length;
+  }
+
+  getDiplomacyRows(): DiplomacyRowVm[] {
+    const player = this.getPlayerFaction();
+    if (!player) return [];
+    const playerStrength = this.enemyDiplomacyService.militaryStrength('player', this.fleets);
+    return this.factions
+      .filter((f) => isTreatyPair(player, f))
+      .map((f) => {
+        const relation = getRelation(player, f)!;
+        const planets = this.starSystems.reduce((n, sys) => n + sys.planetsTiles.filter((p) => p.factionId === f.id).length, 0);
+        const alive = planets > 0 || this.fleets.some((fl) => fl.factionId === f.id && !fl.destroyed && fl.ships.some((sh) => !sh.destroyed));
+        const ratio = this.enemyDiplomacyService.militaryStrength(f.id, this.fleets) / Math.max(1, playerStrength);
+        const others = this.factions.filter((o) => o.id !== player.id && isTreatyPair(f, o));
+        return {
+          id: f.id,
+          name: f.name,
+          color: f.color,
+          personality: f.ai ? getAiPersonalityProfile(f).label : 'Human',
+          state: relation.state,
+          lockSeconds: Math.ceil(relation.lockRemaining),
+          alive,
+          planets,
+          strength: ratio < 0.75 ? 'weaker' : ratio > 1.33 ? 'stronger' : 'comparable',
+          offerSeconds: Math.ceil(this.diplomacyService.getOfferSecondsLeft(f.id)),
+          proposalCooldown: Math.ceil(this.diplomacyService.getRefusalCooldown(f.id)),
+          atWarWith: others.filter((o) => getRelation(f, o)?.state === 'war').map((o) => o.name),
+          atPeaceWith: others.filter((o) => getRelation(f, o)?.state === 'peace').map((o) => o.name),
+        };
+      });
+  }
+
+  /*
+   * The player proposes peace; the AI answers with the same rule it uses
+   * for its own treaties (EnemyDiplomacyService.wantsPeace). A refusal
+   * starts a short cooldown so proposals cannot be spammed.
+   */
+  onProposePeace(factionId: string): void {
+    const player = this.getPlayerFaction();
+    const ai = this.factions.find((f) => f.id === factionId);
+    if (!player || !ai) return;
+    const check = this.diplomacyService.canSignPeace(player, ai);
+    if (!check.ok) {
+      this.diplomacyMessage = this.describeDiplomacyFailure(ai, check.reason, check.waitSeconds);
+      return;
+    }
+    const cooldown = this.diplomacyService.getRefusalCooldown(ai.id);
+    if (cooldown > 0) {
+      this.diplomacyMessage = `${ai.name} will not receive another envoy for ${Math.ceil(cooldown)} s.`;
+      return;
+    }
+    const decision = ai.ai === true
+      ? this.enemyDiplomacyService.wantsPeace(ai, player, this.liveDiplomacyContext())
+      : { accept: false };
+    if (!decision.accept) {
+      this.diplomacyService.startRefusalCooldown(ai.id);
+      this.diplomacyMessage = `${ai.name} refused peace: they believe they can win this war.`;
+      return;
+    }
+    this.diplomacyService.signPeace(player, ai);
+    this.diplomacyMessage = `${ai.name} accepted peace.`;
+    this.afterTreatyChange();
+  }
+
+  onAcceptPeaceOffer(factionId: string): void {
+    const player = this.getPlayerFaction();
+    const ai = this.factions.find((f) => f.id === factionId);
+    if (!player || !ai || !this.diplomacyService.hasOffer(ai.id)) return;
+    const result = this.diplomacyService.signPeace(ai, player);
+    this.diplomacyService.removeOffer(ai.id);
+    this.diplomacyMessage = result.ok
+      ? `Peace signed with ${ai.name}.`
+      : this.describeDiplomacyFailure(ai, result.reason, result.waitSeconds);
+    if (result.ok) this.afterTreatyChange();
+  }
+
+  onDeclinePeaceOffer(factionId: string): void {
+    const ai = this.factions.find((f) => f.id === factionId);
+    this.diplomacyService.removeOffer(factionId);
+    this.diplomacyMessage = ai ? `You rejected the peace offer of ${ai.name}.` : null;
+  }
+
+  onDeclareWar(factionId: string): void {
+    const player = this.getPlayerFaction();
+    const target = this.factions.find((f) => f.id === factionId);
+    if (!player || !target) return;
+    const result = this.diplomacyService.declareWar(player, target);
+    this.diplomacyMessage = result.ok
+      ? `You declared war on ${target.name}.`
+      : this.describeDiplomacyFailure(target, result.reason, result.waitSeconds);
+    if (result.ok) this.afterTreatyChange();
+  }
+
+  private describeDiplomacyFailure(target: Faction, reason: DiplomacyFailure | undefined, waitSeconds?: number): string {
+    switch (reason) {
+      case 'locked':
+        return `The treaty with ${target.name} cannot change for another ${Math.ceil(waitSeconds ?? 0)} s.`;
+      case 'already':
+        return `Nothing to change: that is already the state with ${target.name}.`;
+      default:
+        return `No treaty is possible with ${target.name}.`;
+    }
+  }
+
+  private liveDiplomacyContext(): { factions: Faction[]; fleets: Fleet[]; starSystems: StarSystem[] } {
+    return { factions: this.factions, fleets: this.fleets, starSystems: this.starSystems };
+  }
+
+  /* Player treaty change: drop its event (the panel already reports it), re-check the outcome, save. */
+  private afterTreatyChange(): void {
+    this.diplomacyService.drainEvents();
+    this.checkGameOutcome();
+    this.saveGame();
+    this.cdr.detectChanges();
+  }
+
+  /*
+   * Turns AI treaty events and new AI peace offers into one map notice.
+   * Returns true when anything happened (treaty state is saved with the
+   * factions, so the caller marks the save dirty).
+   */
+  private handleDiplomacyEvents(): boolean {
+    const events = this.diplomacyService.drainEvents();
+    for (const id of [...this.announcedOffers]) {
+      if (!this.diplomacyService.hasOffer(id)) this.announcedOffers.delete(id);
+    }
+    const offers = this.diplomacyService.getOfferIds().filter((id) => !this.announcedOffers.has(id));
+    if (events.length === 0 && offers.length === 0) return false;
+    const name = (id: string) => this.factions.find((f) => f.id === id)?.name ?? id;
+    const lines: string[] = [];
+    for (const event of events) {
+      if (event.kind === 'war') {
+        lines.push(event.targetId === 'player'
+          ? `${name(event.initiatorId)} declared war on you!`
+          : `${name(event.initiatorId)} declared war on ${name(event.targetId)}.`);
+      } else {
+        lines.push(`${name(event.initiatorId)} and ${name(event.targetId)} signed peace.`);
+      }
+    }
+    for (const id of offers) {
+      this.announcedOffers.add(id);
+      lines.push(`${name(id)} offers peace. Open DIPLOMACY to answer.`);
+    }
+    this.showMapNotice(lines.join(' '));
+    return true;
+  }
+
   onTechnologyResearched(): void {
     this.cdr.detectChanges();
     this.saveGame();
@@ -1876,11 +2052,11 @@ loadError = '';
     return fleet && fleet.factionId === 'player' && !fleet.destroyed ? fleet : null;
   }
 
-  /* Same rule as battle detection: different teams, neither neutral. */
+  /* Same rule as battle detection: the owners are at war (diplomacy.ts). */
   areFleetsHostile(a: Fleet, b: Fleet): boolean {
     const fa = this.factions.find((f) => f.id === a.factionId);
     const fb = this.factions.find((f) => f.id === b.factionId);
-    return !!fa && !!fb && fa.team !== 0 && fb.team !== 0 && fa.team !== fb.team;
+    return areFactionsHostile(fa, fb);
   }
 
   /* Suppresses the native menu; true when the click only closed the disambiguation menu. */
@@ -2181,7 +2357,9 @@ loadError = '';
         return 'allowed';
       }
 
-      if (planetFaction.team === playerFaction.team && planet.factionId !== 'player') {
+      // Permanent allies' planets are off limits; planets of a faction at
+      // peace may be visited (arrival then does nothing, see arrival service).
+      if (areFactionsAllied(planetFaction, playerFaction) && planet.factionId !== 'player') {
         return 'blocked-team';
       }
 
@@ -2586,6 +2764,7 @@ loadError = '';
       this.cdr.detectChanges();
       return;
     }
+    this.diplomacyService.tick(gameDeltaTime, this.factions);
     const attackOrdersChanged = gameDeltaTime > 0 && this.updateAttackOrders();
     const didMoveFleets = this.updateFleets(gameDeltaTime) || attackOrdersChanged;
     const headingsChanged = this.updateFleetHeadings(gameDeltaTime);
@@ -2604,6 +2783,8 @@ loadError = '';
       shipStock: this.shipStock,
       production: this.production,
     });
+
+    const diplomacyChanged = this.handleDiplomacyEvents();
 
     // AI assault on a defended player planet: the player defends it on the
     // battle screen (same transport as a player-initiated planet battle).
@@ -2653,9 +2834,12 @@ loadError = '';
     }
 
     // Ownership changed during this frame (AI capture, colonization,
-    // rebellion): the outcome may have become terminal.
-    if (this.planetOwnership.revision !== this.lastOwnershipRevision) {
+    // rebellion), an AI-vs-AI battle destroyed fleets, or a treaty changed
+    // (peace partners do not block victory): the outcome may have become
+    // terminal.
+    if (this.planetOwnership.revision !== this.lastOwnershipRevision || this.autoBattleResolved || diplomacyChanged) {
       this.lastOwnershipRevision = this.planetOwnership.revision;
+      this.autoBattleResolved = false;
       this.checkGameOutcome();
       if (this.gameOutcome !== 'inProgress') {
         return;
@@ -2669,7 +2853,7 @@ loadError = '';
       this.ngZone.run(() => this.cdr.detectChanges());
     }
 
-    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged) {
+    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged || diplomacyChanged) {
       this.ngZone.run(() => this.cdr.detectChanges());
       this.simStateDirty = true;
     }
@@ -2779,6 +2963,9 @@ loadError = '';
       this.starSystems,
       this.enterBattleScreen.bind(this),
       this.arrivalService.triggeredBattles,
+      () => {
+        this.autoBattleResolved = true;
+      },
     );
 
     return didMoveFleets;

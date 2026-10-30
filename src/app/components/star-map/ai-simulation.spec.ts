@@ -26,6 +26,10 @@ import { ResearchService } from '../../services/research.service';
 import { Fleet } from './star-map.models';
 import { generateResourceTilesForPlanet, selectPlanetsForResources } from './star-map-resources.util';
 import { getPlanetGridSize } from './star-map-display.util';
+import { areFactionsHostile, normalizeRelations } from './diplomacy';
+import { DiplomacyService } from '../../services/diplomacy.service';
+import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
+import { BattleService } from '../../services/battle.service';
 
 /*
  * =========================================================
@@ -65,6 +69,18 @@ interface ScenarioOptions {
   prepare?: (data: StarMapData) => void;
   /* One-shot state changes applied once simulated time reaches `at`. */
   events?: { at: number; apply: (data: StarMapData) => void }[];
+  /*
+   * Pre-diplomacy world: every AI on team 2 (permanent allies, as on saves
+   * from before diplomacy). For scenarios whose premise is "AIs against the
+   * player"; without it AIs are at war with each other as in a new game.
+   */
+  aiAlliance?: boolean;
+  /*
+   * Fleet battles with the player are auto-resolved as if the player chose
+   * AUTO on the battle screen (planet battles always are). For whole-game
+   * health runs; scenario tests that study contacts keep them unresolved.
+   */
+  resolvePlayerFleetBattles?: boolean;
 }
 
 interface FactionTrace {
@@ -134,6 +150,8 @@ interface ScenarioResult {
   changedFrames: number;
   traces: Map<string, FactionTrace>;
   colonizerFleetHijacks: number;
+  /* Fleet battles between two AI factions, auto-resolved by battle detection. */
+  aiBattles: number;
 }
 
 const AI_COLORS = ['#d65757', '#39b8a8', '#b07cff', '#7bd66b', '#ff9a3c', '#ff6fcf'];
@@ -160,6 +178,12 @@ function generate(options: ScenarioOptions): StarMapData {
   }
   if (options.removePlayerFleets) {
     data.fleets = data.fleets.filter((f) => f.factionId !== 'player');
+  }
+  if (options.aiAlliance) {
+    for (const faction of data.factions) {
+      if (faction.ai === true) faction.team = 2;
+    }
+    normalizeRelations(data.factions);
   }
   options.prepare?.(data);
   return data;
@@ -308,6 +332,10 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
   const livingCombat = (fleet: Fleet) => fleet.ships.filter((sh) => !sh.destroyed && sh.type !== 'colonizer').length;
   const knownFleetCombat = new Map(data.fleets.map((f) => [f.id, livingCombat(f)] as const));
   const contactKeys = new Set<string>();
+  const diplomacy = TestBed.inject(DiplomacyService);
+  const battleDetection = TestBed.inject(StarMapBattleDetectionService);
+  const triggeredBattles = new Set<string>();
+  let aiBattles = 0;
   const researchBuildingsBefore = new Map(
     [...traces.keys()].map((id) => [
       id,
@@ -350,6 +378,29 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       const fleet = data.fleets.find((f) => f.id === fleetId);
       if (fleet) fleet.system = null;
     });
+    // Mirrors StarMap.gameLoopCallback: treaty locks count down, and battles
+    // between two AI factions at war are auto-resolved on contact (battles
+    // with the player would open the battle screen; the harness has none).
+    diplomacy.tick(dt, data.factions);
+    battleDetection.checkForBattles(
+      data.fleets,
+      data.factions,
+      (x, y) => movement.calculateGridCell(x, y),
+      (fleet, system) => movement.isFleetInSystem(fleet, system),
+      data.starSystems,
+      () => {
+        if (!options.resolvePlayerFleetBattles) return;
+        const battle = TestBed.inject(BattleService).getBattle();
+        if (!battle) return;
+        const resolved = autoResolveBattle(battle, TestBed.inject(ShipService), TestBed.inject(PlanetBattleService));
+        TestBed.inject(BattleOutcomeService).applyFleetBattleOutcome(data, resolved.outcome);
+        TestBed.inject(BattleService).clearBattle();
+      },
+      triggeredBattles,
+      () => {
+        aiBattles++;
+      },
+    );
     const creditsBeforeTick = new Map(data.factions.map((f) => [f.id, f.currencies['credits'] ?? 0] as const));
     const rawBeforeTick = new Map(data.factions.map((f) => [f.id, f.currencies['rawmaterials'] ?? 0] as const));
     const techsBeforeTick = new Map(data.factions.map((f) => [f.id, (f.researchedTechnologies ?? []).length] as const));
@@ -492,14 +543,13 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     }
 
     // Hostile contacts (in game these start a battle).
-    const teamOf = new Map(data.factions.map((f) => [f.id, f.team] as const));
+    const factionById = new Map(data.factions.map((f) => [f.id, f] as const));
     const alive = data.fleets.filter((f) => !f.destroyed && f.ships.some((sh) => !sh.destroyed));
     for (const ai of alive) {
       const trace = traces.get(ai.factionId);
       if (!trace) continue;
       for (const other of alive) {
-        const team = teamOf.get(other.factionId) ?? 0;
-        if (team === 0 || team === teamOf.get(ai.factionId)) continue;
+        if (!areFactionsHostile(factionById.get(ai.factionId), factionById.get(other.factionId))) continue;
         if (Math.floor(other.x) !== Math.floor(ai.x) || Math.floor(other.y) !== Math.floor(ai.y)) continue;
         const key = `${ai.factionId}:${other.id}`;
         if (contactKeys.has(key)) continue;
@@ -534,7 +584,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
   colonizationSpy.mockRestore();
   goalSpy.mockRestore();
   return {
-    data, frames, changedFrames, traces, colonizerFleetHijacks, ownershipChanges, playerBattles, outcome, outcomeAt, fogViolations,
+    data, frames, changedFrames, traces, colonizerFleetHijacks, ownershipChanges, playerBattles, outcome, outcomeAt, fogViolations, aiBattles,
     aiTickMs: { total: aiTickTotal, max: aiTickMax, perFrame: aiTickTotal / Math.max(1, frames) },
   };
 }
@@ -580,7 +630,7 @@ function expectHealthyAiFactions(result: ScenarioResult, options: ScenarioOption
   // Colonizer fleets keep their strategic destination.
   expect(result.colonizerFleetHijacks).toBe(0);
   // Decisions only use knowledge the faction legitimately has.
-  expect(result.fogViolations.slice(0, 5), 'fog-of-war violations').toEqual([]);
+  expect(result.fogViolations.slice(0, 5), 'fog-of-war violations ' + JSON.stringify(result.fogViolations.slice(0, 5))).toEqual([]);
 
   // "State changed" must not be reported on (almost) every frame.
   expect(result.changedFrames / result.frames).toBeLessThan(0.05);
@@ -1080,6 +1130,8 @@ describe('AI simulation — Phase 3 research and military operations', () => {
     let weak: Fleet;
     let exposedId = -1;
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium',
       aiCount: 2,
       seconds: 300,
@@ -1139,6 +1191,8 @@ describe('AI simulation — Phase 3 research and military operations', () => {
         .filter((f) => f.factionId === factionId && !f.destroyed)
         .reduce((sum, f) => sum + ships().calculateFleetStrength(f.ships.filter((sh) => sh.type !== 'colonizer')), 0);
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium',
       aiCount: 2,
       seconds: 900,
@@ -1263,6 +1317,8 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
   it('captures an undefended hostile planet in a system the player has never seen, without a battle', () => {
     let targetId = -1;
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 400, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         const system = nearestFreeSystem(data, 'enemy1');
@@ -1284,6 +1340,8 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
   it('takes a defended planet by battle: both sides lose strength and ownership transfers once', () => {
     let targetId = -1;
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         const planet = nearestFreeSystem(data, 'enemy1').planetsTiles[0];
@@ -1324,6 +1382,8 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
   it('two AI factions capture different targets at the same time', () => {
     const targets = new Map<string, number>();
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 500, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         const first = nearestFreeSystem(data, 'enemy1');
@@ -1345,6 +1405,8 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
   it('attacks a defended player colony through a player battle; the player keeps playing from the homeworld', () => {
     let targetId = -1;
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         const planet = nearestFreeSystem(data, 'enemy1').planetsTiles[0];
@@ -1370,6 +1432,8 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
   it('genuine defeat: the AI captures the player\'s last planet while the player has no fleet', () => {
     let targetId = -1;
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         for (const planet of data.starSystems.flatMap((sy) => sy.planetsTiles)) {
@@ -1397,6 +1461,8 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
   it('a faction that lost its last planet keeps a recovery route and retakes territory', () => {
     let freeId = -1;
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 400, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         // enemy1 loses every planet but keeps its fleets.
@@ -1425,6 +1491,8 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
   it('save/load during an invasion and after a capture neither loses nor repeats the capture', () => {
     let targetId = -1;
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       saveLoadAtSecond: 40,
       prepare: (data) => {
@@ -1541,6 +1609,8 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
 
   it('keeps colonizing while defending against a significant threat (parallel objectives)', () => {
     const options: ScenarioOptions = {
+      // Premise: the AIs act against the player/neutrals, not each other.
+      aiAlliance: true,
       size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         withPersonalities(['balanced'])(data);
@@ -1589,7 +1659,7 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     ];
     const totals = new Map<string, number>();
     for (const options of configs) {
-      const result = runScenario(options);
+      const result = runScenario({ resolvePlayerFleetBattles: true, ...options });
       expectHealthyAiFactions(result, options);
       const rows = leagueRows(result, options);
       const label = `${options.size}/${options.aiCount}/${options.difficulty ?? 'normal'}`;
@@ -1629,6 +1699,15 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
         prepare: withPersonalities([personality]),
       };
       const result = runScenario(options);
+      // DEBUG-DIPLOMACY
+      {
+        const ev = TestBed.inject(EnemyProgressService).getEvents();
+        const summary: Record<string, number> = {};
+        for (const e of ev) { const k = `${e.factionId}|${e.type}|${(e as any).dbg ?? e.detail}`.slice(0, 200); summary[k] = (summary[k] ?? 0) + 1; }
+        (globalThis as any).process.stdout.write(`
+DEBUGP ${personality} battles=${result.aiBattles} changed=${(result.changedFrames / result.frames).toFixed(3)} rel=${JSON.stringify(result.data.factions.map((f) => [f.id, f.relations]))} ${JSON.stringify(summary)}
+`);
+      }
       expectHealthyAiFactions(result, options);
       return leagueRows(result, options);
     };
@@ -1697,9 +1776,21 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
   });
 
   const longRun = (options: ScenarioOptions) => {
-    const result = runScenario(options);
+    const result = runScenario({ resolvePlayerFleetBattles: true, ...options });
     expectHealthyAiFactions(result, options);
     const rows = leagueRows(result, options, 600);
+    // DEBUG-DIPLOMACY
+    {
+      const ev = TestBed.inject(EnemyProgressService).getEvents();
+      const summary: Record<string, number> = {};
+      for (const e of ev) { const k = `${e.factionId}|${e.type}|${(e as any).dbg ?? (e as any).detail}`.slice(0, 200); summary[k] = (summary[k] ?? 0) + 1; }
+      const rel = result.data.factions.filter((f) => f.relations).map((f) => `${f.id}:${JSON.stringify(Object.fromEntries(Object.entries(f.relations!).map(([k, v]) => [k, v.state])))}`);
+      (globalThis as any).process.stdout.write(`
+DEBUG ${options.size} battles=${result.aiBattles} changed=${(result.changedFrames / result.frames).toFixed(3)}
+${JSON.stringify(summary, null, 1)}
+${rel.join(' ; ')}
+`);
+    }
     for (const row of rows) {
       const who = `${options.size} ${row.factionId} (${row.personality}/${row.difficulty})`;
       expect(row.inactiveWindows, `${who} inactive 10-minute windows`).toBe(0);

@@ -5,6 +5,7 @@ import { PlanetBattleService } from '../../services/planet-battle.service';
 import { PlanetOwnershipService } from '../../services/planet-ownership.service';
 import { Faction, FactionProduction, Fleet, PlanetTile, StarSystem, PLANET_TYPE_COLORS } from './star-map.models';
 import { StarMapMovementService } from './star-map-movement.service';
+import { canAttackPlanetOf } from './diplomacy';
 
 /*
  * =========================================================
@@ -230,7 +231,8 @@ export class StarMapPlanetArrivalService {
       return;
     }
 
-    if (planetFaction.team === fleetFaction.team) {
+    // Allied or at-peace owners: the fleet just orbits (diplomacy.ts).
+    if (!canAttackPlanetOf(fleetFaction, planetFaction)) {
       return;
     }
 

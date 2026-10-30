@@ -5,6 +5,7 @@ import { generatePlanetSurface } from '../components/star-map/planet-surface/pla
 import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
 import legacyStarMapData from '../components/star-map/star-map-data.json';
 import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
+import { normalizeRelations } from '../components/star-map/diplomacy';
 
 /*
  * =========================================================
@@ -244,6 +245,12 @@ export class SaveGameService {
         ];
       }
     }
+
+    // Diplomacy: every load (any version) repairs/fills treaty relations.
+    // Saves from before diplomacy keep their teams — all AIs on team 2 stay
+    // permanent allies — and every human/AI pair starts at war, which is
+    // exactly the old hostility rule. Idempotent.
+    normalizeRelations(factions.filter((f) => f && typeof f === 'object'));
 
     if (data.map && data.map.width === 200) {
       this.migrateLegacyGrid(data);

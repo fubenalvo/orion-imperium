@@ -7,6 +7,7 @@ import { PlanetOwnershipService } from '../../services/planet-ownership.service'
 import { BattleOutcomeService } from '../../services/battle-outcome.service';
 import { Battle } from '../battle-screen/battle/battle.types';
 import { autoResolveBattle } from '../battle-screen/battle/battle-auto-resolve';
+import { canAttackPlanetOf } from './diplomacy';
 
 /*
  * =========================================================
@@ -91,13 +92,9 @@ export class EnemyInvasionService {
     return this.pendingPlayerBattles.some((b) => b.planetId === planetId);
   }
 
-  /* Hostile = owned (not 'unhabited') by a faction on another team. */
+  /* Hostile = may be captured by `attacker` (at war, or a neutral rebel planet; diplomacy.ts). */
   isHostilePlanet(planet: PlanetTile, attacker: Faction, factions: Faction[]): boolean {
-    if (planet.factionId === 'unhabited' || planet.factionId === attacker.id) {
-      return false;
-    }
-    const owner = factions.find((f) => f.id === planet.factionId);
-    return owner !== undefined && owner.team !== attacker.team;
+    return canAttackPlanetOf(attacker, factions.find((f) => f.id === planet.factionId));
   }
 
   /*

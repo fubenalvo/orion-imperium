@@ -20,4 +20,18 @@
     [entries]="shipStockEntries"
     [totalShips]="shipStockTotal"
   ></app-star-map-ship-stock>
+
+  <button
+    type="button"
+    class="diplomacy-toggle"
+    [class.diplomacy-toggle--alert]="diplomacyAlerts > 0"
+    (click)="openDiplomacy.emit()"
+    [title]="diplomacyAlerts > 0 ? 'Diplomacy: ' + diplomacyAlerts + ' peace offer(s) waiting' : 'Diplomacy'"
+  >
+    <span class="diplomacy-toggle__icon" aria-hidden="true">&#9878;</span>
+    <span class="diplomacy-toggle__label">DIPLOMACY</span>
+    @if (diplomacyAlerts > 0) {
+      <span class="diplomacy-toggle__badge">{{ diplomacyAlerts }}</span>
+    }
+  </button>
 </app-game-header>

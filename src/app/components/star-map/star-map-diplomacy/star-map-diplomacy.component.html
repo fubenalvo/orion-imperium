@@ -1,0 +1,115 @@
+<div class="diplomacy-overlay" (click)="close.emit()">
+  <div class="diplomacy-panel" role="dialog" aria-modal="true" aria-labelledby="diplomacy-title" (click)="$event.stopPropagation()">
+    <header class="diplomacy__header">
+      <div class="diplomacy__heading">
+        <span class="diplomacy__eyebrow">Imperial Foreign Office</span>
+        <h2 class="diplomacy__title" id="diplomacy-title">Diplomacy</h2>
+      </div>
+      <div class="ui-figure diplomacy__summary">
+        <span class="ui-figure__value">{{ warCount }}</span>
+        <span class="ui-figure__caption">{{ warCount === 1 ? 'war' : 'wars' }} in progress</span>
+      </div>
+      <button class="diplomacy__close-btn" type="button" (click)="close.emit()" aria-label="Close diplomacy">CLOSE</button>
+    </header>
+
+    @if (message) {
+      <div class="ui-notice diplomacy__message" role="status">{{ message }}</div>
+    }
+
+    <div class="diplomacy__body">
+      @for (row of rows; track row.id) {
+        <section
+          class="diplomacy__card"
+          [class.diplomacy__card--war]="row.alive && row.state === 'war'"
+          [class.diplomacy__card--gone]="!row.alive"
+          [style.--faction-color]="row.color"
+        >
+          <div class="diplomacy__card-head">
+            <span class="diplomacy__swatch" aria-hidden="true"></span>
+            <span class="diplomacy__name">{{ row.name }}</span>
+            <span class="diplomacy__personality">{{ row.personality }}</span>
+            @if (!row.alive) {
+              <span class="ui-chip ui-chip--muted">ELIMINATED</span>
+            } @else if (row.state === 'war') {
+              <span class="ui-chip ui-chip--danger">AT WAR</span>
+            } @else {
+              <span class="ui-chip ui-chip--success">AT PEACE</span>
+            }
+          </div>
+
+          @if (row.alive) {
+            <div class="diplomacy__stats">
+              <div class="ui-stat">
+                <span class="ui-stat__label">Planets</span>
+                <span class="ui-stat__value">{{ row.planets }}</span>
+              </div>
+              <div
+                class="ui-stat"
+                [class.ui-stat--danger]="row.strength === 'stronger'"
+                [class.ui-stat--positive]="row.strength === 'weaker'"
+              >
+                <span class="ui-stat__label">Military</span>
+                <span class="ui-stat__value">{{ strengthLabels[row.strength] }}</span>
+              </div>
+              <div class="ui-stat">
+                <span class="ui-stat__label">At war with</span>
+                <span class="ui-stat__value">{{ row.atWarWith.length ? row.atWarWith.join(', ') : 'nobody else' }}</span>
+              </div>
+              @if (row.atPeaceWith.length) {
+                <div class="ui-stat">
+                  <span class="ui-stat__label">At peace with</span>
+                  <span class="ui-stat__value">{{ row.atPeaceWith.join(', ') }}</span>
+                </div>
+              }
+            </div>
+
+            @if (row.offerSeconds > 0) {
+              <div class="ui-notice ui-notice--success diplomacy__offer">
+                <span>{{ row.name }} offers peace ({{ row.offerSeconds }} s left).</span>
+                <span class="diplomacy__actions">
+                  <button class="btn-primary" type="button" (click)="acceptOffer.emit(row.id)">ACCEPT</button>
+                  <button type="button" (click)="declineOffer.emit(row.id)">DECLINE</button>
+                </span>
+              </div>
+            }
+
+            <div class="diplomacy__footer">
+              <span class="diplomacy__lock">
+                @if (row.lockSeconds > 0) {
+                  {{ row.state === 'war' ? 'Peace possible' : 'War possible' }} in {{ row.lockSeconds }} s
+                } @else if (row.state === 'war' && row.proposalCooldown > 0) {
+                  Envoy refused — next proposal in {{ row.proposalCooldown }} s
+                } @else {
+                  Treaty can change now
+                }
+              </span>
+              <span class="diplomacy__actions">
+                @if (row.state === 'war') {
+                  <button
+                    type="button"
+                    [disabled]="row.lockSeconds > 0 || row.proposalCooldown > 0"
+                    (click)="proposePeace.emit(row.id)"
+                  >PROPOSE PEACE</button>
+                } @else {
+                  <button
+                    class="btn-danger"
+                    type="button"
+                    [disabled]="row.lockSeconds > 0"
+                    (click)="declareWar.emit(row.id)"
+                  >DECLARE WAR</button>
+                }
+              </span>
+            </div>
+          }
+        </section>
+      } @empty {
+        <p class="diplomacy__empty">There is nobody to negotiate with.</p>
+      }
+    </div>
+
+    <p class="diplomacy__hint">
+      At peace, fleets do not fight and planets cannot be attacked. A new war lasts at least 1 minute, a new peace at least 3 minutes.
+      You also win if every surviving empire is at peace with you, no rebel planet remains and you hold more than half of the inhabited planets.
+    </p>
+  </div>
+</div>

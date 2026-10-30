@@ -18,7 +18,7 @@ import { GameHeaderComponent, GameHeaderSpeedOption } from '../../game-header/ga
  * star-map view (map, system, planet). It fills the generic header with
  * the view title, an optional back button, the strategic time controls
  * ([⏸] [1x] [2x]), the player's currency row, the global ship stock
- * indicator and the pause-menu button.
+ * indicator, the DIPLOMACY button and the pause-menu button.
  *
  * The header overlays the top --game-header-h of its parent; view content
  * that must not sit under it offsets itself by the same token.
@@ -47,10 +47,13 @@ export class StarMapHeaderComponent {
 
   @Input() gameSpeed: GameSpeed = 1;
   @Input() isPaused = false;
+  /* Open AI peace offers; shown as a badge on the DIPLOMACY button. */
+  @Input() diplomacyAlerts = 0;
 
   @Output() setSpeed = new EventEmitter<GameSpeed>();
   @Output() togglePause = new EventEmitter<void>();
   @Output() openResearchTree = new EventEmitter<void>();
+  @Output() openDiplomacy = new EventEmitter<void>();
   @Output() back = new EventEmitter<void>();
   @Output() openMenu = new EventEmitter<void>();
 

@@ -20,6 +20,7 @@ import { EnemyPlanService } from './enemy-plan.service';
 import { getAiPersonalityProfile } from './ai-personality';
 import planetData from './planet-data.json';
 import { ResourceCost, addCosts, buildingCost, canAffordCost, payCost, shipCost } from '../../services/resource-cost';
+import { hostileFactionIds } from './diplomacy';
 
 /*
  * =========================================================
@@ -858,10 +859,10 @@ export class EnemyEconomyService {
     return income * EnemyEconomyService.MILITARY_INCOME_SHARE * strengthPerUpkeep;
   }
 
-  /* Strength of hostile (other non-neutral team) fleets near the faction's systems. */
+  /* Strength of hostile (at-war, see diplomacy.ts) fleets near the faction's systems. */
   private nearbyThreatStrength(faction: Faction, ownedSystems: StarSystem[], context: EconomyContext): number {
     const factions = context.factions ?? [];
-    const hostile = new Set(factions.filter((f) => f.team !== 0 && f.team !== faction.team).map((f) => f.id));
+    const hostile = hostileFactionIds(faction, factions);
     return (context.perceivedFleets ?? context.fleets)
       .filter((f) => hostile.has(f.factionId) && !f.destroyed)
       .filter((f) => ownedSystems.some((s) => Math.hypot(s.x - f.x, s.y - f.y) <= EnemyEconomyService.THREAT_RADIUS))

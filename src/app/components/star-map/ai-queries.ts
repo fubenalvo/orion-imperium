@@ -1,5 +1,6 @@
 import { getAiPersonalityProfile } from './ai-personality';
 import { Fleet, Faction, StarSystem } from './star-map.models';
+import { areFactionsHostile, hostileFactionIds } from './diplomacy';
 
 export function getEnemyFleets(factionId: string, fleets: Fleet[]): Fleet[] {
   return fleets.filter(
@@ -7,16 +8,20 @@ export function getEnemyFleets(factionId: string, fleets: Fleet[]): Fleet[] {
   );
 }
 
-export function getPlayerFleets(fleets: Fleet[], factions: Faction[]): Fleet[] {
-  const playerFactionIds = new Set(
-    factions
-      .filter((faction) => faction.team === 1)
-      .map((faction) => faction.id),
-  );
-
+/*
+ * Living fleets of every faction `factionId` is at war with (diplomacy.ts).
+ * Before diplomacy this meant "the human player's fleets" (team 1); the
+ * legacy strategy/goal/capability layers now treat any warring faction,
+ * AI or human, as the enemy.
+ */
+export function getHostileFleets(factionId: string, fleets: Fleet[], factions: Faction[]): Fleet[] {
+  const self = factions.find((faction) => faction.id === factionId);
+  if (!self) {
+    return [];
+  }
+  const hostileIds = hostileFactionIds(self, factions);
   return fleets.filter(
-    (fleet) =>
-      playerFactionIds.has(fleet.factionId) && !fleet.destroyed && fleet.ships.length > 0,
+    (fleet) => hostileIds.has(fleet.factionId) && !fleet.destroyed && fleet.ships.length > 0,
   );
 }
 
@@ -40,13 +45,10 @@ export function getUnhabitedPlanets(starSystems: StarSystem[]): { system: StarSy
   return result;
 }
 
-export function isPlayerFleet(fleet: Fleet, factions: Faction[]): boolean {
-  const playerFactionIds = new Set(
-    factions
-      .filter((faction) => faction.team === 1)
-      .map((faction) => faction.id),
-  );
-  return playerFactionIds.has(fleet.factionId);
+export function isHostileFleet(fleet: Fleet, factionId: string, factions: Faction[]): boolean {
+  const self = factions.find((faction) => faction.id === factionId);
+  const owner = factions.find((faction) => faction.id === fleet.factionId);
+  return areFactionsHostile(self, owner);
 }
 
 /*

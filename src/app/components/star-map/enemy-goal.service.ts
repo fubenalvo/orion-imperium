@@ -11,7 +11,7 @@ import {
   DevelopGoal,
 } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
-import { getEnemyFleets, getPlayerFleets, getEnemyPlanets, getUnhabitedPlanets, getColonizationReach } from './ai-queries';
+import { getEnemyFleets, getHostileFleets, getEnemyPlanets, getUnhabitedPlanets, getColonizationReach, isHostileFleet } from './ai-queries';
 import { EnemyReachService } from './enemy-reach.service';
 
 /*
@@ -418,7 +418,7 @@ export class EnemyGoalService {
     const enemyFleets = getEnemyFleets(factionId, fleets);
     const clock = this.clocks.get(factionId) ?? 0;
     const abandoned = this.abandonedAttackTargets.get(factionId);
-    const playerFleets = getPlayerFleets(fleets, factions)
+    const playerFleets = getHostileFleets(factionId, fleets, factions)
       .filter((f) => (abandoned?.get(f.id) ?? -Infinity) <= clock);
 
     if (enemyFleets.length === 0 || playerFleets.length === 0) {
@@ -477,7 +477,7 @@ export class EnemyGoalService {
     starSystems: StarSystem[],
   ): DefendGoal | undefined {
     const enemyPlanets = getEnemyPlanets(factionId, starSystems);
-    const playerFleets = getPlayerFleets(fleets, factions);
+    const playerFleets = getHostileFleets(factionId, fleets, factions);
 
     if (enemyPlanets.length === 0 || playerFleets.length === 0) {
       return undefined;
@@ -536,7 +536,7 @@ export class EnemyGoalService {
       case 'colonize':
         return this.isColonizeGoalValid(goal, starSystems);
       case 'attack':
-        return this.isAttackGoalValid(goal, fleets, factions);
+        return this.isAttackGoalValid(goal, factionId, fleets, factions);
       case 'defend':
         return this.isDefendGoalValid(goal, factionId, fleets, factions, starSystems);
       case 'develop':
@@ -556,17 +556,13 @@ export class EnemyGoalService {
     return planet.factionId === 'unhabited';
   }
 
-  private isAttackGoalValid(goal: AttackGoal, fleets: Fleet[], factions: Faction[]): boolean {
+  /* The target must still be alive and its owner still at war with us (peace ends the goal). */
+  private isAttackGoalValid(goal: AttackGoal, factionId: string, fleets: Fleet[], factions: Faction[]): boolean {
     const fleet = fleets.find((f) => f.id === goal.targetFleetId);
     if (!fleet || fleet.destroyed || fleet.ships.length === 0) {
       return false;
     }
-    const playerFactionIds = new Set(
-      factions
-        .filter((faction) => faction.team === 1)
-        .map((faction) => faction.id),
-    );
-    return playerFactionIds.has(fleet.factionId);
+    return isHostileFleet(fleet, factionId, factions);
   }
 
   private isDefendGoalValid(
@@ -584,7 +580,7 @@ export class EnemyGoalService {
     if (!planet || planet.factionId !== factionId) {
       return false;
     }
-    const playerFleets = getPlayerFleets(fleets, factions);
+    const playerFleets = getHostileFleets(factionId, fleets, factions);
     return playerFleets.some(
       (fleet) => {
         const dx = fleet.x - system.x;

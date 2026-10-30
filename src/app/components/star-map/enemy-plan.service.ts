@@ -5,6 +5,7 @@ import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { EnemyReachService } from './enemy-reach.service';
 import { getAiPersonalityProfile } from './ai-personality';
+import { canAttackPlanetOf, hostileFactionIds } from './diplomacy';
 
 /*
  * =========================================================
@@ -176,7 +177,7 @@ export class EnemyPlanService {
     const ownStrength = fleets
       .filter((f) => f.factionId === faction.id && !f.destroyed)
       .reduce((sum, f) => sum + this.shipService.calculateFleetStrength(f.ships), 0);
-    const hostileIds = new Set(factions.filter((f) => f.team !== 0 && f.team !== faction.team).map((f) => f.id));
+    const hostileIds = hostileFactionIds(faction, factions);
     const threat = fleets
       .filter((f) => hostileIds.has(f.factionId) && !f.destroyed)
       .filter((f) => ownedSystems.some((s) => Math.hypot(s.x - f.x, s.y - f.y) <= EnemyPlanService.THREAT_RADIUS))
@@ -197,8 +198,7 @@ export class EnemyPlanService {
 
     const hostileTeamPlanets = reachable.flatMap((s) => s.planetsTiles).filter((p) => {
       if (p.factionId === 'unhabited' || p.factionId === faction.id) return false;
-      const owner = factions.find((f) => f.id === p.factionId);
-      return owner !== undefined && owner.team !== faction.team;
+      return canAttackPlanetOf(faction, factions.find((f) => f.id === p.factionId));
     }).length;
     const surplus = ownStrength > 0 ? Math.max(0, (ownStrength - 1.5 * threat) / ownStrength) : 0;
     const offense = hostileTeamPlanets > 0 ? Math.min(1, surplus) : 0;

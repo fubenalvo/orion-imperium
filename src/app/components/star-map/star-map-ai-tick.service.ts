@@ -15,6 +15,8 @@ import { EnemyReachService } from './enemy-reach.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { Battle } from '../battle-screen/battle/battle.types';
 import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiFactionIds } from './star-map.models';
+import { EnemyDiplomacyService } from './enemy-diplomacy.service';
+import { DiplomacyService } from '../../services/diplomacy.service';
 
 /*
  * =========================================================
@@ -45,6 +47,7 @@ import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiF
  *    EnemyFleetService has made its first decision (it decides on the
  *    first frame).
  * Research (EnemyResearchService) also runs here per faction.
+ * AI treaty decisions (EnemyDiplomacyService) run first in every tick.
  */
 @Injectable({ providedIn: 'root' })
 export class StarMapAiTickService {
@@ -63,6 +66,8 @@ export class StarMapAiTickService {
     private enemyProgressService: EnemyProgressService,
     private enemyReachService: EnemyReachService,
     private enemyIntelService: EnemyIntelService,
+    private enemyDiplomacyService: EnemyDiplomacyService,
+    private diplomacyService: DiplomacyService,
   ) {}
 
   // Cadence of the parallel colonization objective's action evaluation.
@@ -90,6 +95,10 @@ export class StarMapAiTickService {
       production: FactionProduction[];
     },
   ): boolean {
+    // Treaties first: every layer below reads hostility (diplomacy.ts), so
+    // a peace or war signed this frame is respected by the whole pipeline.
+    const diplomacyChanged = this.enemyDiplomacyService.tick(gameDeltaTime, data);
+
     // Fleet operations and research run first: fleet roles decided here
     // are reserved from the legacy reactive layer in the same frame.
     const pipelineFleetIds = this.getReservedFleetIds(data.fleets, data.factions);
@@ -287,8 +296,8 @@ export class StarMapAiTickService {
       ) || recoveryChanged;
     }
 
-    return operationsChanged || aiChanged || strategyChanged || goalChanged || actionChanged || actionExecuted
-      || economyChanged || recoveryChanged;
+    return diplomacyChanged || operationsChanged || aiChanged || strategyChanged || goalChanged || actionChanged
+      || actionExecuted || economyChanged || recoveryChanged;
   }
 
   /*
@@ -298,6 +307,8 @@ export class StarMapAiTickService {
    */
   resetAiPipeline(): void {
     this.suspendedForBattle = false;
+    this.enemyDiplomacyService.reset();
+    this.diplomacyService.reset();
     this.enemyAiService.reset();
     this.enemyStrategyService.reset();
     this.enemyGoalService.reset();

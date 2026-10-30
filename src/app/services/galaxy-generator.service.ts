@@ -25,6 +25,7 @@ import { centerLayout, generatePlanetSurface } from '../components/star-map/plan
 import { getPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
 import { SAVE_VERSION } from './save-validation';
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
+import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star-map/diplomacy';
 
 /*
  * =========================================================
@@ -431,8 +432,16 @@ export class GalaxyGeneratorService {
    * reproducible. Derived arithmetically from the seed — the Mulberry32
    * stream is not consumed, so galaxy layout for a seed is unchanged.
    */
+  /*
+   * Every participant gets its own team (human 1, AIs 2, 3, …), so no two
+   * participants are permanent allies; who fights whom is decided by
+   * treaties instead. All participants start at war with each other, with
+   * the opening war lock (docs/diplomacy.md). Older saves keep their
+   * shared AI team 2 and therefore their AI alliance.
+   */
   private buildFactions(participants: ParticipantAssignment[], seed: number): Faction[] {
     let aiIndex = 0;
+    let nextAiTeam = 2;
     const factions: Faction[] = participants.map(({ factionId, setup }) => {
       const isAi = setup.controller === 'ai';
       const difficulty: AiDifficulty | undefined = isAi ? setup.difficulty : undefined;
@@ -443,7 +452,7 @@ export class GalaxyGeneratorService {
         id: factionId,
         name: setup.name.trim(),
         color: setup.color,
-        team: isAi ? 2 : 1,
+        team: isAi ? nextAiTeam++ : 1,
         ai: isAi,
         currencies: {
           credits: Math.round(BASE_CURRENCIES.credits * resourceMultiplier),
@@ -458,7 +467,9 @@ export class GalaxyGeneratorService {
       }
       return faction;
     });
-    return [...factions, ...NEUTRAL_FACTIONS.map((f) => structuredClone(f))];
+    const all = [...factions, ...NEUTRAL_FACTIONS.map((f) => structuredClone(f))];
+    normalizeRelations(all, INITIAL_WAR_LOCK_SECONDS);
+    return all;
   }
 
   /*

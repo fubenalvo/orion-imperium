@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Fleet, Faction, StarSystem, AiStrategy, getAiFactionIds } from './star-map.models';
 import { ShipService } from '../../services/ship.service';
-import { getEnemyFleets, getPlayerFleets, getEnemyPlanets, getUnhabitedPlanets } from './ai-queries';
+import { getEnemyFleets, getHostileFleets, getEnemyPlanets, getUnhabitedPlanets } from './ai-queries';
 import { EnemyReachService } from './enemy-reach.service';
 import { getAiDifficultyProfile } from './ai-difficulty';
 
@@ -105,7 +105,7 @@ export class EnemyStrategyService {
   ): AiStrategy {
     const enemyPlanets = getEnemyPlanets(factionId, starSystems);
     const enemyFleets = getEnemyFleets(factionId, fleets);
-    const playerFleets = getPlayerFleets(fleets, factions);
+    const playerFleets = getHostileFleets(factionId, fleets, factions);
     const unhabitedPlanets = getUnhabitedPlanets(starSystems);
 
     if (this.isThreatened(enemyPlanets, playerFleets, enemyFleets)) {

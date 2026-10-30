@@ -28,7 +28,7 @@ export type AttackOrderEnd = 'destroyed' | 'lost-contact' | 'no-route';
 export interface AttackOrderHooks {
   /* True when the quarry is currently visible to the player (fog of war). */
   isVisible(quarry: Fleet): boolean;
-  /* True when attacker and quarry are on opposing, non-neutral teams. */
+  /* True when the owners of attacker and quarry are at war (diplomacy.ts); peace ends the order. */
   isHostile(attacker: Fleet, quarry: Fleet): boolean;
   /* Sets the attacker's galaxy target if a safe route exists; false if not. */
   retarget(attacker: Fleet, x: number, y: number): boolean;

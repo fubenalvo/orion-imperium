@@ -1,0 +1,191 @@
+@use 'ui';
+
+/* =========================================================
+   DIPLOMACY SCREEN
+   ---------------------------------------------------------
+   Modal glass sheet (same language as the research screen):
+   ruled header, a result line, then one card per empire. A
+   card's left edge carries the faction color; an empire at
+   war gets a danger-tinted edge wash.
+   ========================================================= */
+
+.diplomacy-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 2.5vw, 40px);
+  @include ui.backdrop;
+}
+
+.diplomacy-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 880px;
+  max-height: min(92vh, 1000px);
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(22px);
+}
+
+.diplomacy__header {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: clamp(12px, 3vw, 40px);
+  flex-shrink: 0;
+  padding: clamp(14px, 2.4vh, 26px) clamp(16px, 2.4vw, 32px) clamp(10px, 1.6vh, 16px);
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+
+.diplomacy__eyebrow {
+  display: block;
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.diplomacy__title {
+  margin: 0.1em 0 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xl);
+  font-weight: 400;
+  letter-spacing: 0.32em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.diplomacy__close-btn {
+  @include ui.button-size(sm);
+  letter-spacing: 0.24em;
+}
+
+.diplomacy__message {
+  flex-shrink: 0;
+  margin: 12px clamp(16px, 2.4vw, 32px) 0;
+}
+
+.diplomacy__body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 14px clamp(16px, 2.4vw, 32px);
+  overflow-y: auto;
+  @include ui.scroll;
+}
+
+.diplomacy__card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px 12px 16px;
+  border: 1px solid var(--ui-line-soft);
+  border-left: 3px solid var(--faction-color, var(--ui-accent));
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised);
+}
+
+.diplomacy__card--war {
+  background:
+    linear-gradient(90deg, rgba(var(--ui-danger-rgb), 0.1), transparent 45%),
+    var(--ui-surface-raised);
+}
+
+.diplomacy__card--gone {
+  opacity: 0.55;
+}
+
+.diplomacy__card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.diplomacy__swatch {
+  width: 0.7em;
+  height: 0.7em;
+  transform: rotate(45deg);
+  background: var(--faction-color, var(--ui-accent));
+}
+
+.diplomacy__name {
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-lg);
+  letter-spacing: var(--ui-track);
+}
+
+.diplomacy__personality {
+  flex: 1;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: var(--ui-track);
+  text-transform: uppercase;
+}
+
+.diplomacy__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2px 20px;
+}
+
+.diplomacy__offer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.diplomacy__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ui-line-soft);
+}
+
+.diplomacy__lock {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+}
+
+.diplomacy__actions {
+  display: flex;
+  gap: 8px;
+
+  button {
+    @include ui.button-size(sm);
+  }
+}
+
+.diplomacy__empty,
+.diplomacy__hint {
+  margin: 0;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+}
+
+.diplomacy__hint {
+  flex-shrink: 0;
+  padding: 10px clamp(16px, 2.4vw, 32px) 14px;
+  border-top: 1px solid var(--ui-line-soft);
+}
+
+@media (max-width: 600px) {
+  .diplomacy__header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .diplomacy__summary {
+    display: none;
+  }
+}

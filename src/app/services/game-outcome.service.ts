@@ -1,5 +1,14 @@
 import { Injectable } from '@angular/core';
 import { Faction, Fleet, PlanetTile, StarMapData, StarSystem } from '../components/star-map/star-map.models';
+import { getRelationKind } from '../components/star-map/diplomacy';
+
+/*
+ * Diplomatic victory guard: when some surviving AI factions are only at
+ * peace (not defeated), the allied side must own strictly more than this
+ * share of all inhabited planets. Without it, signing peace with every AI
+ * early in the game would be an instant win.
+ */
+export const DIPLOMATIC_VICTORY_PLANET_SHARE = 0.5;
 
 export type GameOutcome = 'inProgress' | 'victory' | 'defeat';
 
@@ -23,8 +32,12 @@ export type GameOutcome = 'inProgress' | 'victory' | 'defeat';
  *     Elimination is checked first, so defeat is reachable even while
  *     hostile planets exist (that ordering was the original bug).
  *  3. Victory: every inhabited planet (population > 0 or any building) is
- *     allied — independent (rebel) planets therefore still block victory
- *     — and no hostile AI faction has a living fleet.
+ *     allied or owned by an AI faction at peace with the player —
+ *     independent (rebel) planets therefore still block victory — and no
+ *     AI faction at war with the player has a living fleet. Peace partners
+ *     do not block victory (diplomatic victory, docs/diplomacy.md), but if
+ *     any of them still owns an inhabited planet the allied side must own
+ *     more than DIPLOMATIC_VICTORY_PLANET_SHARE of the inhabited planets.
  *  4. Otherwise the game is in progress.
  *
  * Rules 2 and 3 are mutually exclusive: victory requires at least one
@@ -80,12 +93,30 @@ export class GameOutcomeService {
       return this.lastOutcome === 'victory' ? 'victory' : 'inProgress';
     }
 
+    const peacePartnerIds = new Set(
+      factions
+        .filter((f) => f.ai === true && getRelationKind(playerFaction, f) === 'peace')
+        .map((f) => f.id),
+    );
+
+    let alliedPlanets = 0;
+    let peacePartnerPlanets = 0;
     for (const planet of inhabitedPlanets) {
-      if (!alliedFactionIds.has(planet.factionId)) return 'inProgress';
+      if (alliedFactionIds.has(planet.factionId)) {
+        alliedPlanets++;
+      } else if (peacePartnerIds.has(planet.factionId)) {
+        peacePartnerPlanets++;
+      } else {
+        return 'inProgress';
+      }
+    }
+
+    if (peacePartnerPlanets > 0 && alliedPlanets / inhabitedPlanets.length <= DIPLOMATIC_VICTORY_PLANET_SHARE) {
+      return 'inProgress';
     }
 
     for (const factionId of aiFactionIds) {
-      if (alliedFactionIds.has(factionId)) continue;
+      if (alliedFactionIds.has(factionId) || peacePartnerIds.has(factionId)) continue;
       if (this.hasSurvivingFleet(fleets, factionId)) return 'inProgress';
     }
 

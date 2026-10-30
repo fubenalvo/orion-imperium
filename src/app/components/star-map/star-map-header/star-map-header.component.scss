@@ -1,3 +1,5 @@
+@use 'hud-controls' as hud;
+
 /* Overlays the top of the view; content below offsets itself by
    --game-header-h. Layout and look come from GameHeaderComponent. */
 :host {
@@ -7,4 +9,41 @@
   right: 0;
   z-index: 20;
   display: block;
+}
+
+/* Same look as the other header controls (see _hud-controls.scss). */
+.diplomacy-toggle {
+  @include hud.hud-button;
+  position: relative;
+  gap: 0.4em;
+  padding: 0 calc(var(--gh-u, 14px) * 0.6);
+  font-weight: 400;
+}
+
+.diplomacy-toggle--alert {
+  @include hud.hud-button-active;
+}
+
+.diplomacy-toggle__icon {
+  font-size: 1.1em;
+  line-height: 1;
+}
+
+.diplomacy-toggle__label {
+  color: var(--ui-ink-dim);
+
+  @media (max-width: 1100px) {
+    display: none;
+  }
+}
+
+.diplomacy-toggle__badge {
+  min-width: 1.4em;
+  padding: 0 0.3em;
+  border-radius: 999px;
+  background: var(--ui-warm);
+  color: #000;
+  font-size: 0.85em;
+  line-height: 1.4;
+  text-align: center;
 }

@@ -24,6 +24,7 @@ import { EnemyEconomyService } from './enemy-economy.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { isCombatShipType } from './ai-queries';
 import { canAffordCost, shipCost } from '../../services/resource-cost';
+import { areFactionsHostile } from './diplomacy';
 
 /*
  * =========================================================
@@ -342,7 +343,7 @@ export class EnemyActionExecutor {
         return false;
       }
       const otherFaction = factions.find((f) => f.id === other.factionId);
-      return otherFaction !== undefined && otherFaction.team !== faction.team;
+      return areFactionsHostile(faction, otherFaction);
     });
 
     if (inActiveBattle) {

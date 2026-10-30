@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Fleet, Faction, getAiFactionIds } from './star-map.models';
+import { getHostileFleets } from './ai-queries';
 import { ShipService } from '../../services/ship.service';
 
 /*
@@ -55,26 +56,17 @@ export class EnemyAiService {
 
     const aiFactionIds = new Set(getAiFactionIds(factions));
 
-    const playerFactionIds = new Set(
-      factions
-        .filter((faction) => faction.team === 1)
-        .map((faction) => faction.id),
-    );
-
-    const playerFleets = fleets.filter((candidate) => {
-      if (!playerFactionIds.has(candidate.factionId)) {
-        return false;
+    // Pursuit targets are the living fleets of factions this AI faction is
+    // at war with (diplomacy.ts); before diplomacy that was the human (team 1).
+    const hostileFleetCache = new Map<string, Fleet[]>();
+    const hostileFleetsFor = (factionId: string): Fleet[] => {
+      let cached = hostileFleetCache.get(factionId);
+      if (!cached) {
+        cached = getHostileFleets(factionId, fleets, factions);
+        hostileFleetCache.set(factionId, cached);
       }
-      if (candidate.destroyed) {
-        return false;
-      }
-      if (candidate.ships.length === 0) {
-        return false;
-      }
-      return true;
-    });
-
-    const playerFleetIds = new Set(playerFleets.map((fleet) => fleet.id));
+      return cached;
+    };
 
     let changed = false;
 
@@ -92,6 +84,7 @@ export class EnemyAiService {
         continue;
       }
 
+      const playerFleets = hostileFleetsFor(fleet.factionId);
       let targetedPlayerFleet: Fleet | undefined;
       const targetedPlayerFleetId = this.currentTargets.get(fleet.id);
 
@@ -110,7 +103,7 @@ export class EnemyAiService {
       }
 
       const hasValidTarget = targetedPlayerFleet !== undefined
-        && playerFleetIds.has(targetedPlayerFleet.id)
+        && playerFleets.includes(targetedPlayerFleet)
         && !targetedPlayerFleet.destroyed
         && targetedPlayerFleet.ships.length > 0;
 

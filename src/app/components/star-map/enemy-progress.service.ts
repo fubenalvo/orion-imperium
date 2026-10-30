@@ -226,7 +226,7 @@ export class EnemyProgressService {
         continue;
       }
       // Has an order but has not moved: the objective cannot be completed.
-      this.pushEvent({ time: state.clock, factionId: faction.id, type: 'stuck_fleet', detail: `fleet ${fleet.id}` });
+      this.pushEvent({ time: state.clock, factionId: faction.id, type: 'stuck_fleet', detail: `fleet ${fleet.id}`, dbg: `spd=${fleet.speed} pos=${fleet.x.toFixed(2)},${fleet.y.toFixed(2)} tgt=${fleet.targetX?.toFixed(2)},${fleet.targetY?.toFixed(2)} alive=${fleet.ships.filter((s) => !s.destroyed).length} role=${(this.fleetService as any).assignments.get(fleet.id)?.role} sys=${fleet.system?.id} pipe=${pipelineFleetIds.has(fleet.id)} others=${fleets.filter((o) => o.id !== fleet.id && !o.destroyed && Math.floor(o.x) === Math.floor(fleet.x) && Math.floor(o.y) === Math.floor(fleet.y)).map((o) => o.factionId + '#' + o.id).join('/')}` } as any);
       if (pipelineFleetIds.has(fleet.id)) {
         const carriesColonizer = fleet.ships.some((s) => s.type === 'colonizer' && !s.destroyed);
         this.goalService.abandonGoal(faction.id, carriesColonizer && this.goalService.getColonizationGoal(faction.id) ? 'colonization' : 'primary');

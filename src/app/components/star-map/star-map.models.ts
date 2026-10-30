@@ -117,6 +117,20 @@ export interface Faction {
   aiPersonality?: AiPersonality;
   currencies: Record<string, number>;
   researchedTechnologies?: string[];
+  /*
+   * Treaty state with every other non-neutral, non-allied faction, keyed by
+   * faction id. Symmetric (both sides hold the same state); written only by
+   * diplomacy.ts `setTreatyState`. See docs/diplomacy.md.
+   */
+  relations?: Record<string, FactionRelation>;
+}
+
+export type TreatyState = 'war' | 'peace';
+
+export interface FactionRelation {
+  state: TreatyState;
+  /* Game seconds until this relation may change again (0 = may change now). */
+  lockRemaining: number;
 }
 
 export type GalaxySize = 'small' | 'medium' | 'large';

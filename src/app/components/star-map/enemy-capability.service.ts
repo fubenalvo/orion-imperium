@@ -14,7 +14,7 @@ import {
 import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { ShipStockService } from '../../services/ship-stock.service';
-import { isPlayerFleet, isCombatShipType } from './ai-queries';
+import { isHostileFleet, isCombatShipType } from './ai-queries';
 
 /*
  * =========================================================
@@ -241,15 +241,10 @@ export class EnemyCapabilityService {
     });
 
     const targetFleet = fleets.find((f) => f.id === goal.targetFleetId);
-    const playerFactionIds = new Set(
-      factions
-        .filter((faction) => faction.team === 1)
-        .map((faction) => faction.id),
-    );
     const targetValid = targetFleet !== undefined
       && !targetFleet.destroyed
       && targetFleet.ships.some((ship) => !ship.destroyed)
-      && playerFactionIds.has(targetFleet.factionId);
+      && isHostileFleet(targetFleet, factionId, factions);
     requirements.push({
       type: 'target_valid',
       satisfied: targetValid,
@@ -300,7 +295,7 @@ export class EnemyCapabilityService {
     });
 
     const playerFleets = fleets.filter(
-      (fleet) => isPlayerFleet(fleet, factions) && !fleet.destroyed && fleet.ships.some((ship) => !ship.destroyed),
+      (fleet) => isHostileFleet(fleet, factionId, factions) && !fleet.destroyed && fleet.ships.some((ship) => !ship.destroyed),
     );
     const threatPresent = targetValid && playerFleets.some((fleet) => {
       const dx = fleet.x - system!.x;

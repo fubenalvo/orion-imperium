@@ -5,6 +5,7 @@ import { ShipService } from '../../services/ship.service';
 import { EconomyService } from '../../services/economy.service';
 import { isCombatShipType } from './ai-queries';
 import { getAiPersonalityProfile } from './ai-personality';
+import { hostileFactionIds } from './diplomacy';
 
 /*
  * =========================================================
@@ -312,7 +313,7 @@ export class EnemyResearchService {
    */
   private militaryNeed(faction: Faction, factions: Faction[], starSystems: StarSystem[], fleets: Fleet[]): number {
     const owned = starSystems.filter((s) => s.planetsTiles.some((p) => p.factionId === faction.id));
-    const hostileIds = new Set(factions.filter((f) => f.team !== 0 && f.team !== faction.team).map((f) => f.id));
+    const hostileIds = hostileFactionIds(faction, factions);
     let threat = 0;
     for (const fleet of fleets) {
       if (!hostileIds.has(fleet.factionId) || fleet.destroyed) {
