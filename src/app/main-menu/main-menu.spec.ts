@@ -112,7 +112,7 @@ describe('MainMenu', () => {
 
   it('opens the new game setup screen instead of starting immediately', () => {
     const newGameButton = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-      .find((b) => b.textContent?.trim() === 'NEW GAME')!;
+      .find((b) => b.querySelector('.menu-item__label')?.textContent?.trim() === 'NEW GAME')!;
     newGameButton.click();
     fixture.detectChanges();
 
@@ -142,7 +142,7 @@ describe('MainMenu', () => {
       errors: ['Could not generate a valid galaxy.'],
     });
     Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
-      .find((b) => b.textContent?.trim() === 'NEW GAME')!
+      .find((b) => b.querySelector('.menu-item__label')?.textContent?.trim() === 'NEW GAME')!
       .click();
     fixture.detectChanges();
 

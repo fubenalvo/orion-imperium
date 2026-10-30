@@ -1,18 +1,3 @@
-<div class="star-map-pause">
-  <button
-    class="star-map-pause__btn"
-    type="button"
-    (click)="openPauseMenu.emit()"
-    aria-label="Open pause menu"
-  >
-    <span class="hamburger-icon">
-      <span></span>
-      <span></span>
-      <span></span>
-    </span>
-  </button>
-</div>
-
 @if (pauseMenuOpen) {
   <div class="pause-overlay">
     @if (!showSaveSlots && !showLoadSlots) {

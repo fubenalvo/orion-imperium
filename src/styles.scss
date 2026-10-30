@@ -108,6 +108,17 @@
   --color-warning: #e6d85c;
 
   --color-danger: #d65757;
+
+  /* -------------------------------------------------------
+     Layout
+     ------------------------------------------------------- */
+
+  /* Height of the shared game header (GameHeaderComponent) on every
+     in-game screen. Content below the header (planet screen, fleet
+     list, map notices, battle grid row) offsets itself by this value,
+     so change it here only. The clamp keeps the header tappable on
+     short landscape phones and stops it growing on tall monitors. */
+  --game-header-h: clamp(44px, 8dvh, 76px);
 }
 
 /* =========================================================
@@ -727,34 +738,3 @@ input[type='range']::-moz-range-thumb {
   z-index: 9999;
 }
 
-/* =========================================================
-   HEADER BACK BUTTON MIDDLE
-   ========================================================= */
-
-.back-btn {
-  position: absolute;
-  top: 0%;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 0.5em 1em;
-  border: 2px solid var(--color-blue);
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--color-text);
-  font-family: var(--font-primary);
-  font-size: 1rem;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  z-index: 110;
-  box-shadow: none;
-  height: 8dvh;
-  min-height: 0;
-  border-top: 0;
-}
-
-.back-btn:hover {
-  transform: translateX(-50%);
-  color: var(--color-blue-bright);
-  border-color: var(--color-blue-bright);
-  background: rgba(0, 20, 25, 0.9);
-  box-shadow: none;
-}

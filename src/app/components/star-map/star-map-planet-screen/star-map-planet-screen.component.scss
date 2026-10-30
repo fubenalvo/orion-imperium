@@ -2,10 +2,10 @@
 
 .planet-screen {
   position: absolute;
-  top: 8%;
+  top: var(--game-header-h);
   left: 0;
   width: 100%;
-  height: 92%;
+  height: calc(100% - var(--game-header-h));
   display: flex;
   overflow: hidden;
   background: var(--color-background);

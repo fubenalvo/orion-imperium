@@ -372,6 +372,30 @@ describe('BattleScreenComponent', () => {
     expect(component.selectedTargetingMode).toBe('weakest');
   });
 
+  it('eases the parallax background on real time, even while paused, and never resets it on leave', () => {
+    createBattle([fleetShip(1, 'fighter')], [fleetShip(2, 'frigate')]);
+    component.toggleBattlePause();
+    const screen = fixture.nativeElement.querySelector('.battle-screen') as HTMLElement;
+    vi.spyOn(screen, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, width: 1000, height: 500, right: 1000, bottom: 500, x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+
+    screen.dispatchEvent(new MouseEvent('mousemove', { clientX: 1000, clientY: 500, bubbles: true }));
+    expect(component.bgDeepTransform).toBe('translate3d(0vw, 0vh, 0)');
+
+    // Paused: scaled delta is 0, the real delta still eases the background.
+    component['gameLoopCallback'](0, 0.25);
+    const eased = component.parallax.x;
+    expect(eased).toBeGreaterThan(0.5);
+    expect(eased).toBeLessThan(1);
+
+    // Leaving the screen must not move the background at all.
+    screen.dispatchEvent(new MouseEvent('mouseleave'));
+    component['gameLoopCallback'](0, 0.25);
+    expect(component.parallax.x).toBeGreaterThan(eased);
+    expect(fixture.nativeElement.innerHTML).not.toContain('mouseleave');
+  });
+
   /*
    * Regression guard against stuck battles: with AUTO on, both sides close
    * in and fight; with AUTO off, the passive player side still fires at

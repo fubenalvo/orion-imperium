@@ -1,9 +1,15 @@
 @use '../_hud-overlay';
 
+/* Sizes use --gh-u (set by GameHeaderComponent) so the row scales with
+   the header; the fallbacks apply if it is ever rendered outside one. */
 .faction-currencies {
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: calc(var(--gh-u, 14px) * 1.1);
+
+  @media (max-width: 1100px) {
+    gap: calc(var(--gh-u, 14px) * 0.6);
+  }
 }
 
 .faction-currencies__item {
@@ -15,7 +21,7 @@
 
   color: var(--color-text);
 
-  font-size: clamp(0.75rem, 1.2vw, 0.95rem);
+  font-size: calc(var(--gh-u, 14px) * 1.15);
 
   letter-spacing: 0.08em;
 

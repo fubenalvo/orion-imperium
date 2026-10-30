@@ -1,45 +1,23 @@
-<div class="hud">
-  <div class="hud__title">{{ title }}</div>
+<app-game-header
+  [title]="title"
+  [backLabel]="backLabel"
+  [speedOptions]="speedOptions"
+  [activeSpeed]="gameSpeed"
+  [isPaused]="isPaused"
+  [showMenuButton]="true"
+  (back)="back.emit()"
+  (togglePause)="togglePause.emit()"
+  (setSpeed)="onSetSpeed($event)"
+  (openMenu)="openMenu.emit()"
+>
+  <app-faction-currencies
+    [currencies]="currencies"
+    [economyBreakdown]="economyBreakdown"
+    (openResearchTree)="openResearchTree.emit()"
+  ></app-faction-currencies>
 
-  <div class="hud__time-controls">
-    <button
-      class="time-control__btn"
-      [class.time-control__btn--active]="isPaused"
-      (click)="togglePause.emit()"
-      aria-label="Pause / Resume"
-    >
-      ⏸
-    </button>
-    <button
-      class="time-control__btn"
-      [class.time-control__btn--active]="!isPaused && gameSpeed === 1"
-      [class.time-control__btn--dimmed]="isPaused"
-      (click)="setSpeed.emit(1)"
-      aria-label="1x speed"
-    >
-      1x
-    </button>
-    <button
-      class="time-control__btn"
-      [class.time-control__btn--active]="!isPaused && gameSpeed === 2"
-      [class.time-control__btn--dimmed]="isPaused"
-      (click)="setSpeed.emit(2)"
-      aria-label="2x speed"
-    >
-      2x
-    </button>
-  </div>
-
-  <div class="hud__right">
-    <app-faction-currencies
-      [currencies]="currencies"
-      [economyBreakdown]="economyBreakdown"
-      (openResearchTree)="openResearchTree.emit()"
-    ></app-faction-currencies>
-
-    <app-star-map-ship-stock
-      [entries]="shipStockEntries"
-      [totalShips]="shipStockTotal"
-    ></app-star-map-ship-stock>
-  </div>
-</div>
+  <app-star-map-ship-stock
+    [entries]="shipStockEntries"
+    [totalShips]="shipStockTotal"
+  ></app-star-map-ship-stock>
+</app-game-header>

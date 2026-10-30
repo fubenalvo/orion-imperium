@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import {
   SaveGameService,
@@ -38,10 +38,12 @@ export class MainMenu implements OnInit, OnDestroy {
     private router: Router,
     private gameSettingsService: GameSettingsService,
     private newGameService: NewGameService,
+    private host: ElementRef<HTMLElement>,
   ) {}
 
   ngOnInit(): void {
     this.updateInstallVisibility();
+    this.startParallax();
   }
 
   @HostListener('window:resize')
@@ -67,6 +69,51 @@ export class MainMenu implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.removeDisplayModeListener();
+    this.stopParallax();
+  }
+
+  /*
+   * Pointer parallax for the decorative background scene. The pointer
+   * position is written as --px/--py (-1..1) on the host and the SCSS maps
+   * them to per-layer offsets. A plain window listener is used on purpose
+   * (instead of @HostListener) so pointer movement never schedules change
+   * detection; the value is only consumed by CSS. Skipped for users who
+   * prefer reduced motion and on touch-only devices.
+   */
+  private parallaxFrame = 0;
+  private parallaxActive = false;
+
+  private readonly onParallaxPointerMove = (event: PointerEvent): void => {
+    const x = (event.clientX / window.innerWidth) * 2 - 1;
+    const y = (event.clientY / window.innerHeight) * 2 - 1;
+    cancelAnimationFrame(this.parallaxFrame);
+    this.parallaxFrame = requestAnimationFrame(() => {
+      const style = this.host.nativeElement.style;
+      style.setProperty('--px', x.toFixed(3));
+      style.setProperty('--py', y.toFixed(3));
+    });
+  };
+
+  private startParallax(): void {
+    if (typeof window.matchMedia !== 'function') {
+      return;
+    }
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const finePointer = window.matchMedia('(pointer: fine)').matches;
+    if (reducedMotion || !finePointer) {
+      return;
+    }
+    window.addEventListener('pointermove', this.onParallaxPointerMove, { passive: true });
+    this.parallaxActive = true;
+  }
+
+  private stopParallax(): void {
+    if (!this.parallaxActive) {
+      return;
+    }
+    window.removeEventListener('pointermove', this.onParallaxPointerMove);
+    cancelAnimationFrame(this.parallaxFrame);
+    this.parallaxActive = false;
   }
 
   get slots(): SaveSlot[] {

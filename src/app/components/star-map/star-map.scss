@@ -84,7 +84,7 @@
 /* Transient galaxy notice (asteroid rewards, cancelled routes). */
 .map-notice {
   position: absolute;
-  top: calc(8dvh + 0.6em);
+  top: calc(var(--game-header-h) + 0.6em);
   left: 50%;
   transform: translateX(-50%);
   max-width: 50%;

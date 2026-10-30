@@ -11,8 +11,8 @@
   @for (cell of moveCells; track cell.col + '-' + cell.row) {
     <div
       class="move-cell"
-      [style.left]="cellVw(cell).x + 'vw'"
-      [style.top]="cellVw(cell).y + 'vw'"
+      [style.left]="u(cellVw(cell).x)"
+      [style.top]="u(cellVw(cell).y)"
     ></div>
   }
 
@@ -20,10 +20,10 @@
   @if (rangeRing; as ring) {
     <div
       class="range-ring"
-      [style.left]="ring.x + 'vw'"
-      [style.top]="ring.y + 'vw'"
-      [style.width]="ring.radiusVw * 2 + 'vw'"
-      [style.height]="ring.radiusVw * 2 + 'vw'"
+      [style.left]="u(ring.x)"
+      [style.top]="u(ring.y)"
+      [style.width]="u(ring.radiusVw * 2)"
+      [style.height]="u(ring.radiusVw * 2)"
     ></div>
   }
 
@@ -31,9 +31,9 @@
   @if (getConnectionLine(); as line) {
     <div
       class="connection-line"
-      [style.left]="line.x + 'vw'"
-      [style.top]="line.y + 'vw'"
-      [style.width]="line.length + 'vw'"
+      [style.left]="u(line.x)"
+      [style.top]="u(line.y)"
+      [style.width]="u(line.length)"
       [style.--connection-angle]="line.angleDeg + 'deg'"
     ></div>
   }
@@ -42,9 +42,9 @@
   @if (getAttackConnectionLine(); as line) {
     <div
       class="connection-line attack"
-      [style.left]="line.x + 'vw'"
-      [style.top]="line.y + 'vw'"
-      [style.width]="line.length + 'vw'"
+      [style.left]="u(line.x)"
+      [style.top]="u(line.y)"
+      [style.width]="u(line.length)"
       [style.--connection-angle]="line.angleDeg + 'deg'"
     ></div>
   }
@@ -54,9 +54,9 @@
     <div
       class="stack-cell"
       [ngClass]="'stack-cell--size-' + stackSize(stack)"
-      [style.left]="stackVw(stack).x + 'vw'"
-      [style.top]="stackVw(stack).y + 'vw'"
-      [style.zIndex]="stack.moving ? 100 + stack.row : stack.row"
+      [style.left]="u(stackVw(stack).x)"
+      [style.top]="u(stackVw(stack).y)"
+      [style.zIndex]="stackZIndex(stack)"
       [class.stack-cell--selected]="stack.stackId === selectedStackId"
     >
          <button
@@ -94,9 +94,9 @@
   @for (bolt of getBolts(); track bolt.id) {
     <div
       class="projectile"
-      [style.left]="bolt.x + 'vw'"
-      [style.top]="bolt.y + 'vw'"
-      [style.width]="bolt.length + 'vw'"
+      [style.left]="u(bolt.x)"
+      [style.top]="u(bolt.y)"
+      [style.width]="u(bolt.length)"
       [style.--projectile-angle]="bolt.angleDeg + 'deg'"
       [style.--bolt-color]="bolt.color"
     ></div>
@@ -105,8 +105,8 @@
     <div
       class="impact"
       [class.impact--explosion]="impact.isExplosion"
-      [style.left]="impact.x + 'vw'"
-      [style.top]="impact.y + 'vw'"
+      [style.left]="u(impact.x)"
+      [style.top]="u(impact.y)"
     ></div>
   }
 </div>

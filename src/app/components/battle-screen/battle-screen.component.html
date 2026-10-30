@@ -1,51 +1,45 @@
 <div class="battle-screen"
      (mousemove)="onPointerMove($event)"
-     (mouseleave)="onPointerLeave()"
      (click)="requestMotionPermission()">
+  <!-- Parallax starfield. Purely decorative, behind everything (z-layer: background). -->
   <div class="battle-bg-deep" [style.transform]="bgDeepTransform"></div>
   <div class="battle-bg-nebula" [style.transform]="bgNebulaTransform"></div>
   <div class="battle-bg-foreground" [style.transform]="bgForegroundTransform"></div>
+
+  <!--
+    Three-row layout: HUD bar / battlefield / command bar. The HUD rows have
+    fixed heights so selecting a unit or changing the hint never resizes the
+    battlefield; the battlefield row takes all remaining space and the grid
+    scales to fit it (see battle-grid --u).
+  -->
   <div class="battle-screen__ui">
   @if (battleState; as state) {
-    <div class="battle-screen__header">
-      <h1 class="battle-screen__title">TACTICAL BATTLE</h1>
-      <div class="battle-screen__time-controls">
-        <button
-          class="battle-time-btn"
-          [class.battle-time-btn--active]="battlePaused"
-          (click)="toggleBattlePause()"
-          aria-label="Pause / Resume"
-        >
-          ⏸
-        </button>
-        <button
-          class="battle-time-btn"
-          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 0.625"
-          [class.battle-time-btn--dimmed]="battlePaused"
-          (click)="setBattleSpeed(0.625)"
-          aria-label="1x speed"
-        >
-          1x
-        </button>
-        <button
-          class="battle-time-btn"
-          [class.battle-time-btn--active]="!battlePaused && battleSpeed === 1.25"
-          [class.battle-time-btn--dimmed]="battlePaused"
-          (click)="setBattleSpeed(1.25)"
-          aria-label="2x speed"
-        >
-          2x
-        </button>
-        <button
-          class="battle-time-btn"
-          [class.battle-time-btn--active]="autoBattleEnabled"
-          [class.battle-time-btn--dimmed]="battlePaused"
-          (click)="toggleAutoBattle()"
-          aria-label="Auto battle toggle"
-        >
-          AUTO
-        </button>
+    <app-game-header
+      class="battle-screen__header"
+      title="TACTICAL BATTLE"
+      tone="alert"
+      [speedOptions]="battleSpeedOptions"
+      [activeSpeed]="battleSpeed"
+      [isPaused]="battlePaused"
+      (togglePause)="toggleBattlePause()"
+      (setSpeed)="onHeaderSpeed($event)"
+    >
+      <div class="battle-hud__matchup" gameHeaderSubtitle>
+        <span class="battle-hud__fleet" [style.color]="state.attackerColor">{{ state.attackerName }}</span>
+        <span class="battle-hud__vs">VS</span>
+        <span class="battle-hud__fleet" [style.color]="state.defenderColor">{{ state.defenderName }}</span>
       </div>
+
+      <button
+        gameHeaderTimeExtra
+        class="battle-auto-btn"
+        type="button"
+        [class.battle-auto-btn--active]="autoBattleEnabled"
+        [attr.aria-pressed]="autoBattleEnabled"
+        (click)="toggleAutoBattle()"
+        aria-label="Auto battle toggle"
+      >AUTO</button>
+
       @if (planetShield; as shield) {
         <div class="battle-screen__planet-shield">
           <span class="battle-screen__planet-shield-label">PLANET SHIELD</span>
@@ -55,14 +49,15 @@
               [style.width.%]="planetShieldFraction * 100"
             ></span>
           </span>
-          <span class="battle-screen__planet-shield-text">
-            {{ shield.current }} / {{ shield.max }}
-          </span>
+          <span class="battle-screen__planet-shield-text">{{ shield.current }} / {{ shield.max }}</span>
         </div>
       }
-    </div>
+      @if (battlePaused && !battleOver) {
+        <span class="battle-hud__paused">PAUSED</span>
+      }
+    </app-game-header>
 
-    <div class="battle-screen__content">
+    <main class="battle-screen__content">
       <app-battle-grid
         [stacks]="liveStacks"
         [selectedStackId]="selectedStackId"
@@ -76,101 +71,103 @@
         [canSelect]="canAct"
         [planet]="planetVisual"
         [planetShieldFraction]="planetShieldFraction"
-        [attackerColor]="battleState?.attackerColor ?? '#ff5252'"
-        [defenderColor]="battleState?.defenderColor ?? '#4caf50'"
+        [attackerColor]="state.attackerColor"
+        [defenderColor]="state.defenderColor"
         [connectionLine]="moveConnectionLine"
         [attackConnectionLine]="attackConnectionLine"
         [onStackClick]="onStackClick"
         [onCellClick]="onCellClick"
       ></app-battle-grid>
-    </div>
+    </main>
 
-    <div class="battle-screen__controls">
-      @if (!battleOver) {
-        @if (canCarrierBoost) {
-          <button
-            class="carrier-boost-btn"
-            type="button"
-            (click)="doCarrierBoost()"
+    <footer class="battle-hud battle-hud--bottom">
+      <div class="battle-hud__inner battle-hud__inner--bottom">
+        @if (selectedStack(); as stack) {
+          <section
+            class="battle-screen__selection"
+            [style.--faction-color]="stack.side === 'attacker' ? state.attackerColor : state.defenderColor"
+            aria-label="Selected unit"
           >
-            SHIELD PULSE
-          </button>
-        }
-      } @else {
-        <button
-          class="back-btn"
-          type="button"
-          (click)="backToStarMap()"
-        >
-          BACK TO STAR MAP
-        </button>
-      }
-    </div>
+            <div class="selection-col selection-col--identity">
+              <div class="selection-header">
+                <span class="selection-type">{{ stack.typeName }}</span>
+                <span class="selection-side">{{ stack.side === 'attacker' ? 'ATTACKER' : 'DEFENDER' }}</span>
+                @if (stack.immobile) {
+                  <span class="selection-tag selection-tag--immobile">IMMOBILE</span>
+                }
+                @if (stack.moving) {
+                  <span class="selection-tag selection-tag--moving">MOVING</span>
+                }
+              </div>
+              <div class="selection-stats">
+                <span>SHIPS <b>{{ selectedShipCount }}/{{ stack.ships.length }}</b></span>
+                <span>TIER <b>{{ stack.tier }}</b></span>
+                <span>ATK <b>{{ selectedTotalAttack }}</b></span>
+                <span>DEF <b>{{ selectedTotalDefense }}</b></span>
+                <span>SPD <b>{{ stack.speed }}</b></span>
+                <span>RNG <b>{{ stack.attackRange }}</b></span>
+              </div>
+            </div>
 
-    <div class="battle-screen__hint">
-      @if (!battleOver) {
-        @if (isMoveBlocked) {
-          <span class="battle-screen__hint--error">PATH BLOCKED</span>
+            <div class="selection-col selection-col--bars">
+              <div class="selection-bar selection-bar--shield">
+                <span class="selection-bar__label">SHIELD</span>
+                <span class="selection-bar__track">
+                  <span class="selection-bar__fill" [style.width.%]="selectedShieldFraction * 100"></span>
+                </span>
+                <span class="selection-bar__text">{{ selectedTotalShield }} / {{ selectedMaxShield }}</span>
+              </div>
+              <div class="selection-bar selection-bar--hp">
+                <span class="selection-bar__label">HULL</span>
+                <span class="selection-bar__track">
+                  <span class="selection-bar__fill" [style.width.%]="selectedHullFraction * 100"></span>
+                </span>
+                <span class="selection-bar__text">{{ selectedTotalHp }} / {{ selectedMaxHp }}</span>
+              </div>
+            </div>
+
+            @if (isSelectedPlayerStack) {
+              <div class="selection-col selection-col--orders">
+                <span class="selection-order">{{ selectedOrderLabel }}</span>
+                <div class="selection-targeting" role="radiogroup" aria-label="Automatic targeting">
+                  <span class="selection-targeting__label">TARGET</span>
+                  @for (mode of targetingModes; track mode) {
+                    <button
+                      type="button"
+                      role="radio"
+                      class="selection-targeting__btn"
+                      [class.selection-targeting__btn--active]="selectedTargetingMode === mode"
+                      [attr.aria-checked]="selectedTargetingMode === mode"
+                      (click)="setSelectedTargetingMode(mode)"
+                    >{{ targetingModeLabels[mode] }}</button>
+                  }
+                </div>
+              </div>
+            }
+          </section>
         } @else {
-          <span>SELECT A SHIP STACK, MOVE OR ATTACK</span>
-        }
-      }
-    </div>
-
-    @if (selectedStack(); as stack) {
-      <div class="battle-screen__selection">
-        <div class="selection-header">
-          <span class="selection-type">{{ stack.typeName }}</span>
-          <span class="selection-side" [class.selection-side--attacker]="stack.side === 'attacker'" [class.selection-side--defender]="stack.side === 'defender'" [style.--faction-color]="stack.side === 'attacker' ? (battleState?.attackerColor ?? '#ff5252') : (battleState?.defenderColor ?? '#4caf50')" [style.color]="stack.side === 'attacker' ? (battleState?.attackerColor ?? '#ff5252') : (battleState?.defenderColor ?? '#4caf50')">{{ stack.side === 'attacker' ? 'ATTACKER' : 'DEFENDER' }}</span>
-          @if (stack.immobile) {
-            <span class="selection-immobile">IMMOBILE</span>
-          }
-          @if (stack.moving) {
-            <span class="selection-moving">MOVING</span>
-          }
-        </div>
-        <div class="selection-stats">
-          <span>SHIPS {{ selectedShipCount }} / {{ stack.ships.length }}</span>
-          <span>TIER {{ stack.tier }}</span>
-          <span>ATK {{ selectedTotalAttack }}</span>
-          <span>DEF {{ selectedTotalDefense }}</span>
-          <span>SPEED {{ stack.speed }}</span>
-          <span>RANGE {{ stack.attackRange }}</span>
-        </div>
-        @if (isSelectedPlayerStack) {
-          <div class="selection-order">
-            <span class="selection-order__status">{{ selectedOrderLabel }}</span>
+          <div class="battle-screen__selection battle-screen__selection--empty">
+            <span>NO UNIT SELECTED</span>
+            <span class="battle-screen__selection-help">Click one of your ships · click a cell to move · click an enemy to attack</span>
           </div>
-          <div class="selection-targeting" role="radiogroup" aria-label="Automatic targeting">
-            <span class="selection-targeting__label">TARGET</span>
-            @for (mode of targetingModes; track mode) {
-              <button
-                type="button"
-                role="radio"
-                class="selection-targeting__btn"
-                [class.selection-targeting__btn--active]="selectedTargetingMode === mode"
-                [attr.aria-checked]="selectedTargetingMode === mode"
-                (click)="setSelectedTargetingMode(mode)"
-              >{{ targetingModeLabels[mode] }}</button>
+        }
+
+        <div class="battle-screen__actions">
+          @if (!battleOver) {
+            @if (canCarrierBoost) {
+              <button class="carrier-boost-btn" type="button" (click)="doCarrierBoost()">SHIELD PULSE</button>
+            }
+          } @else {
+            <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
+          }
+          <div class="battle-screen__hint" aria-live="polite">
+            @if (!battleOver && isMoveBlocked) {
+              <span class="battle-screen__hint--error">PATH BLOCKED</span>
             }
           </div>
-        }
-        <div class="selection-shield">
-          <span class="selection-shield-label">SHIELD</span>
-          <span class="selection-shield-bar">
-            <span class="selection-shield-fill" [style.width.%]="selectedShieldFraction * 100"></span>
-          </span>
-          <span class="selection-shield-text">{{ selectedTotalShield }} / {{ selectedMaxShield }}</span>
-        </div>
-        <div class="selection-hp">
-          <span class="selection-hp-label">HP</span>
-          <span class="selection-hp-bar">
-            <span class="selection-hp-fill" [style.width.%]="selectedHullFraction * 100" [style.background]="stack.side === 'attacker' ? (battleState?.attackerColor ?? '#ff5252') : (battleState?.defenderColor ?? '#4caf50')"></span>
-          </span>
-          <span class="selection-hp-text">{{ selectedTotalHp }} / {{ selectedMaxHp }}</span>
         </div>
       </div>
-    }
+    </footer>
 
   } @else {
     <div class="battle-screen__error">

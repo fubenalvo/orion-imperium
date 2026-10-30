@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Battle Screen is a **fully self-contained real-time tactical combat minigame** that runs at the `/battle` route. It receives two fleets via the `BattleService` transport boundary, runs a speed-based tactical simulation on a 38×16 grid (72vw × 28vw), and returns a `BattleOutcome` with surviving/destroyed ships. It **never touches StarMap strategic state** — no fleet movement, economy, AI strategy, production, or research.
+The Battle Screen is a **fully self-contained real-time tactical combat minigame** that runs at the `/battle` route. It receives two fleets via the `BattleService` transport boundary, runs a speed-based tactical simulation on a 38×16 grid (a 72 × 28 field-unit battlefield scaled to fit the screen), and returns a `BattleOutcome` with surviving/destroyed ships. It **never touches StarMap strategic state** — no fleet movement, economy, AI strategy, production, or research.
 
 Gameplay rules (grid, reach, fire cadence, orders, targeting modes, AI) are specified in [Battle Rules](./battle-rules.md); this document covers the implementation structure.
 
@@ -115,8 +115,65 @@ SHIELD_REGEN_INTERVAL_MS = 2000    // Shield regeneration tick
 BATTLE_DEBUG_LOG = false           // Enables battleDebug() console traces
 ```
 
-The SCSS (`battle-grid.component.scss` `--cell-w`/`--cell-h`, `battle-planet.component.scss`)
-derives cell sizes from the same 72/38 and 28/16 numbers; keep them in sync with the constants.
+The SCSS (`battle-grid.component.scss` `--u`/`--cell-w`/`--cell-h`, `battle-planet.component.scss`)
+derives sizes from the same 72/28 and 38/16 numbers; keep them in sync with the constants.
+
+> **Units.** The `*_VW` constants and every `x`/`y` in battle state are **field units**, not
+> CSS `vw`: the field is 72 × 28 field units. They are rendered through the CSS variable `--u`
+> (see [Layout, scaling and layers](#layout-scaling-and-layers)), so the name `VW` is historical.
+
+## Layout, scaling and layers
+
+**Screen layout** (`battle-screen.component.scss`): a three-row CSS grid — the shared
+`GameHeaderComponent` (title, fleet match-up as subtitle, time controls + AUTO, planet shield /
+PAUSED; see [UI Styling → Game Header](./ui-styling.md#game-header)), the battlefield row, and
+the bottom command bar (selected-unit panel, Shield Pulse / Back, path-blocked hint).
+
+- The HUD rows have **fixed heights** (`--battle-hud-top-h`, `--battle-hud-bottom-h`).
+  Selecting/deselecting a unit, switching between friendly (with targeting buttons) and enemy
+  panels, or a hint appearing never resizes the battlefield. The selected-unit panel is a
+  three-column grid (identity / condition / orders) whose columns clip instead of growing; with
+  no selection it shows a placeholder of the same height.
+- The top row height is the global `--game-header-h` token, so the battle header matches the
+  star-map header exactly. Bottom-bar sizes use the HUD unit `--hu = clamp(13px, 1.45vh, 22px)`
+  instead of `rem`, so the bar grows on large/ultrawide screens and shrinks on short ones; its
+  content is width-capped (`--battle-hud-max-w`) and centred so controls do not drift to the
+  edges of ultrawide screens. Breakpoints at 1100px width / 700px height and 820px width tighten
+  the bottom bar.
+- The battlefield row is a **size container** (`container-type: size`). The grid defines
+  `--u: min(100cqw / 72, 100cqh / 28)` and sizes everything inside the field (cells, ships,
+  bolts, effects, planet) in multiples of `--u`, so the field always fits the row with its fixed
+  72:28 aspect ratio — no scrolling, clipping or fixed `vw` sizes. TS binds positions through
+  `BattleGridComponent.u(fieldUnits)`.
+- Grid clicks are converted with `clientPointToCell()` using only the grid's rendered rect, so
+  cell picking is correct at any scale.
+
+**Layers.** Screen level: parallax starfield (0–2) < UI (10; battlefield row 1 < HUD bars 2) <
+result overlay (20) — HUD controls can never be covered by battlefield content. Inside the grid
+(its own stacking context, tokens in `battle-grid.component.scss`):
+
+| Layer | z | Contents |
+|---|---|---|
+| `--z-field` | 1 | planet visual, range ring, move cells |
+| `--z-lines` | 5 | order / move connection lines (under ships) |
+| `--z-units` | 10 + 2·row (+1 moving) | ships — lower rows over upper rows |
+| `--z-selected` | 50 | the selected ship only |
+| `--z-bolts` | 60 | laser bolts — always above every ship |
+| `--z-effects` | 61 | impact flashes / explosions |
+
+`BattleGridComponent.stackZIndex()` implements the ship part; its constants must stay consistent
+with the tokens. Hover is a quiet outline; selection is a bright border, a glow scaled with `--u`
+(so it never spills over neighbouring cells) and a soft ground light. Reach and Shield Pulse
+highlights pulse the frame's glow, never the ship's opacity.
+
+**Background parallax** (`battle/battle-parallax.ts`): the pointer (or device tilt) only sets a
+target offset in [-1, 1], normalised against the bounding rect of the element that owns the
+listener. The visible offset eases toward it with a frame-rate-independent exponential filter
+(τ = `PARALLAX_SMOOTHING_TAU_S`), stepped every animation frame with **real** time (the game loop
+passes the unscaled delta as a second argument), so it also eases while paused. There is no
+`mouseleave` handler: leaving the screen keeps the background where it is, and re-entering eases
+from there. Device-orientation events with null angles are ignored. Layers are oversized beyond
+their maximum travel so no edge is ever revealed.
 
 ### Key Interfaces
 
@@ -556,10 +613,14 @@ reset(): void                                      // speed=1, isPaused=false, e
 - Shield Pulse applies immediately (it is an instant shield change) and starts the Carrier's
   fire cooldown, which only runs down after resuming.
 
-**Header Controls:**
+**Header Controls** (rendered by the shared `GameHeaderComponent`; the battle passes
+`battleSpeedOptions` that map the internal speeds to the same 1x / 2x labels as the star map):
 - **⏸** — `battleTime.togglePause()`; active when paused
 - **1x** — `setSpeed(0.625)`; **2x** — `setSpeed(1.25)`; dimmed when paused
-- **AUTO** — toggles AUTO battle (player side AI for stacks without manual orders)
+- **AUTO** — toggles AUTO battle (player side AI for stacks without manual orders); projected
+  into the header's time-control group, styled with the shared HUD button mixin
+- The battle header has no back or ☰ menu button; leaving the battle is only possible from the
+  bottom bar once the battle is over.
 
 ---
 
@@ -674,7 +735,8 @@ several sit in per-frame paths.
 
 ### Change Grid Size
 1. Update `BATTLE_GRID_COLUMNS/ROWS` in `battle.types.ts` (cell sizes derive from them).
-2. Update `--cell-w` / `--cell-h` in `battle-grid.component.scss` and the fallback in
+2. Update the 38 / 16 literals in `--cell-w` / `--cell-h` (`battle-grid.component.scss`). Only if
+   the field's aspect ratio changes, also update the 72 / 28 literals in `--u`, the grid size and
    `battle-planet.component.scss`.
 3. Update `ATTACKER_DEPLOY_COLS`, `DEFENDER_DEPLOY_COLS` and `DEPLOY_ROW_ORDER` to keep the
    opening formation's physical spacing.

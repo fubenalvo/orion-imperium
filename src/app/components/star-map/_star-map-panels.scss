@@ -197,17 +197,16 @@
 
 .fleet-buttons {
   position: absolute;
-  top: calc(8dvh - 1px);
+  top: calc(var(--game-header-h) - 1px);
   left: -2px;
   width: 120px;
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - var(--game-header-h));
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 50;
   border: 0;
 
   @include mobile-view {
-    top: calc(8% - 1px);
     width: 90px;
   }
 }

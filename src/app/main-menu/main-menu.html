@@ -1,48 +1,102 @@
-<div class="game-frame">
-  <main class="main-menu">
-    <div class="starfield">
-      <div class="layer layer-1"></div>
-      <div class="layer layer-2"></div>
-      <div class="layer layer-3"></div>
-      <div class="layer layer-4"></div>
+<main
+  class="main-menu"
+  [class.main-menu--sheet]="showNewGameSetup"
+  [class.main-menu--load]="showLoadGameSlots"
+>
+  <!--
+    Decorative scene. Purely visual: aria-hidden and pointer-events: none.
+    Each .scene__depth wrapper receives the pointer-parallax offset, while the
+    elements inside it own their idle animations, so the two transforms never
+    fight over the same element.
+  -->
+  <div class="scene" aria-hidden="true">
+    <div class="scene__depth scene__depth--far">
+      <div class="scene__stars scene__stars--far"></div>
+      <div class="scene__nebula"></div>
+      <div class="scene__stars scene__stars--twinkle"></div>
     </div>
-    <div class="main-menu__content">
-      @if (!showNewGameSetup && !showLoadGameSlots) {
+
+    <div class="scene__depth scene__depth--sun">
+      <div class="scene__sun">
+        <div class="scene__sun-flare"></div>
+      </div>
+    </div>
+
+    <div class="scene__depth scene__depth--planet">
+      <div class="planet">
+        <div class="planet__orbit planet__orbit--back"></div>
+        <div class="planet__atmosphere"></div>
+        <div class="planet__body">
+          <div class="planet__surface"></div>
+          <div class="planet__clouds"></div>
+          <div class="planet__shade"></div>
+        </div>
+        <div class="planet__orbit planet__orbit--front"></div>
+      </div>
+      <div class="moon"></div>
+    </div>
+
+    <div class="scene__depth scene__depth--fleet">
+      <div class="convoy">
+        <img class="convoy__ship" src="ship.svg" alt="" />
+        <img class="convoy__ship convoy__ship--wing-a" src="ship.svg" alt="" />
+        <img class="convoy__ship convoy__ship--wing-b" src="ship.svg" alt="" />
+      </div>
+    </div>
+
+    <div class="scene__depth scene__depth--near">
+      <div class="scene__dust"></div>
+    </div>
+
+    <div class="scene__veil"></div>
+  </div>
+
+  @if (!showNewGameSetup) {
+    <section class="menu">
+      <header class="menu__brand">
         <img src="logo.png" title="Orion Imperium" alt="Orion Imperium Logo" class="game-logo" />
-
         <p class="game-subtitle">A GALACTIC STRATEGY GAME</p>
+      </header>
 
-        <nav class="main-menu__buttons">
-          <button type="button" (click)="openNewGameSetup()">NEW GAME</button>
-
-          <button type="button" (click)="showLoadGameSlots = true" [disabled]="!hasAnySave">
-            LOAD GAME
+      @if (!showLoadGameSlots) {
+        <nav class="menu__nav" aria-label="Main menu">
+          <button type="button" class="menu-item" (click)="openNewGameSetup()">
+            <span class="menu-item__label">NEW GAME</span>
+            <span class="menu-item__hint">Forge a new empire among the stars</span>
           </button>
 
-          <button type="button" (click)="onOptions()">OPTIONS</button>
+          <button
+            type="button"
+            class="menu-item"
+            (click)="showLoadGameSlots = true"
+            [disabled]="!hasAnySave"
+          >
+            <span class="menu-item__label">LOAD GAME</span>
+            <span class="menu-item__hint">
+              {{ hasAnySave ? 'Resume a saved campaign' : 'No saved campaigns yet' }}
+            </span>
+          </button>
+
+          <button type="button" class="menu-item" (click)="onOptions()">
+            <span class="menu-item__label">OPTIONS</span>
+            <span class="menu-item__hint">Adjust game settings</span>
+          </button>
 
           @if (showInstallButton) {
-            <button type="button" class="install-btn" (click)="onInstallClick()">
-              INSTALL GAME
+            <button type="button" class="menu-item install-btn" (click)="onInstallClick()">
+              <span class="menu-item__label">INSTALL GAME</span>
+              <span class="menu-item__hint">Add Orion Imperium to your device</span>
             </button>
           }
 
-          <button type="button">CREDITS</button>
+          <button type="button" class="menu-item">
+            <span class="menu-item__label">CREDITS</span>
+            <span class="menu-item__hint">The makers of the empire</span>
+          </button>
         </nav>
-      }
-
-      @if (showNewGameSetup) {
-        <app-new-game-setup
-          [slots]="slots"
-          [startError]="newGameErrors"
-          [starting]="startingNewGame"
-          (start)="onStartNewGame($event)"
-          (cancel)="closeNewGameSetup()"
-        ></app-new-game-setup>
-      }
-
-      @if (showLoadGameSlots) {
-        <div class="save-slots">
+      } @else {
+        <div class="save-slots" role="group" aria-label="Load game">
+          <div class="save-slots__title">LOAD GAME</div>
           @for (slot of slots; track $index) {
             <button
               type="button"
@@ -63,32 +117,42 @@
             class="save-slot save-slot--close"
             (click)="showLoadGameSlots = false"
           >
-            CLOSE
+            BACK
           </button>
         </div>
       }
+    </section>
+  }
 
-      @if (showIOSGuide) {
-        <div class="ios-guide-overlay" (click)="onCloseIOSGuide()">
-          <div class="ios-guide-content" (click)="$event.stopPropagation()">
-            <div class="ios-guide__title">INSTALL GAME</div>
-            <ol class="ios-guide__steps">
-              <li>Tap the Share button in Safari</li>
-              <li>Tap &ldquo;Add to Home Screen&rdquo;</li>
-              <li>Tap &ldquo;Add&rdquo; to confirm</li>
-            </ol>
-            <button
-              class="star-map-options__btn-back"
-              type="button"
-              (click)="onCloseIOSGuide()"
-            >
-              DONE
-            </button>
-          </div>
-        </div>
-      }
-
-      <span class="game-version"> v0.2 </span>
+  @if (showNewGameSetup) {
+    <div class="sheet">
+      <div class="sheet__panel">
+        <app-new-game-setup
+          [slots]="slots"
+          [startError]="newGameErrors"
+          [starting]="startingNewGame"
+          (start)="onStartNewGame($event)"
+          (cancel)="closeNewGameSetup()"
+        ></app-new-game-setup>
+      </div>
     </div>
-  </main>
-</div>
+  }
+
+  @if (showIOSGuide) {
+    <div class="ios-guide-overlay" (click)="onCloseIOSGuide()">
+      <div class="ios-guide-content" (click)="$event.stopPropagation()">
+        <div class="ios-guide__title">INSTALL GAME</div>
+        <ol class="ios-guide__steps">
+          <li>Tap the Share button in Safari</li>
+          <li>Tap &ldquo;Add to Home Screen&rdquo;</li>
+          <li>Tap &ldquo;Add&rdquo; to confirm</li>
+        </ol>
+        <button class="ios-guide__done" type="button" (click)="onCloseIOSGuide()">DONE</button>
+      </div>
+    </div>
+  }
+
+  <footer class="main-menu__footer">
+    <span class="game-version">v0.2</span>
+  </footer>
+</main>

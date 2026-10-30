@@ -93,11 +93,15 @@ src/app/
       faction-currencies/
         → Currency HUD with expandable economy breakdown
     star-map-header/
-        → Top HUD: title, time controls ([⏸] [1x] [2x]), currencies, ship stock
+        → Star-map flavour of the shared game header: title, back button,
+          time controls ([⏸] [1x] [2x]), currencies, ship stock, ☰ pause-menu button
     star-map-navigation/
         → Camera pan controls, minimap, viewport position
     star-map-pause/
-        → Pause overlay, save slot UI, exit-to-menu
+        → Pause overlay, save slot UI, exit-to-menu (opened from the header ☰ button or ESC)
+    game-header/
+        → Shared top bar for every in-game screen (star map, system, planet, battle);
+          see ui-styling.md → Game Header
     star-map-minimap/
         → Standalone minimap widget (consumed by the navigation component)
     battle-screen/

@@ -34,7 +34,6 @@
     [currentSlot]="currentSlot"
     [loadError]="loadError"
     [saveError]="saveError"
-    (openPauseMenu)="openPauseMenu()"
     (closePauseMenu)="closePauseMenu()"
     (saveGame)="saveFromMenu($event)"
     (loadGame)="loadFromMenu($event)"
@@ -117,6 +116,7 @@
     (setSpeed)="onSetSpeed($event)"
     (togglePause)="onTogglePause()"
     (openResearchTree)="openResearchTree()"
+    (openMenu)="openPauseMenu()"
   ></app-star-map-header>
 
     <!-- GALAXY NOTICE (asteroid rewards, cancelled routes) -->
@@ -208,6 +208,8 @@
     <div class="system-view">
       <app-star-map-header
         [title]="selectedSystem?.name ?? ''"
+        backLabel="STAR MAP"
+        (back)="leaveSystem()"
         [currencies]="getPlayerCurrencies()"
         [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
         [shipStockEntries]="boundGetPlayerShipStockEntries()"
@@ -217,9 +219,8 @@
         (setSpeed)="onSetSpeed($event)"
         (togglePause)="onTogglePause()"
         (openResearchTree)="openResearchTree()"
+        (openMenu)="openPauseMenu()"
       ></app-star-map-header>
-
-      <button class="back-btn" type="button" (click)="leaveSystem()">BACK TO STAR-MAP</button>
 
       <app-star-map-system-grid
         [selectedSystem]="selectedSystem"
@@ -282,6 +283,8 @@
     <div class="planet-view">
       <app-star-map-header
         [title]="selectedPlanetTile?.name ?? ''"
+        [backLabel]="selectedSystem?.name || 'SYSTEM'"
+        (back)="leavePlanetView()"
         [currencies]="getPlayerCurrencies()"
         [economyBreakdown]="boundGetPlayerEconomyBreakdown()"
         [shipStockEntries]="boundGetPlayerShipStockEntries()"
@@ -291,9 +294,8 @@
         (setSpeed)="onSetSpeed($event)"
         (togglePause)="onTogglePause()"
         (openResearchTree)="openResearchTree()"
+        (openMenu)="openPauseMenu()"
       ></app-star-map-header>
-
-      <button class="back-btn" type="button" (click)="leavePlanetView()">BACK TO STAR MAP</button>
 
       @if (selectedPlanetTile) {
         <app-star-map-planet-screen

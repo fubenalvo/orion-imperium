@@ -11,8 +11,17 @@ import {
 import {
   BATTLE_CELL_WIDTH_VW,
   BATTLE_CELL_HEIGHT_VW,
+  BATTLE_FIELD_HEIGHT_VW,
+  BATTLE_FIELD_WIDTH_VW,
+  BATTLE_GRID_COLUMNS,
+  BATTLE_GRID_ROWS,
   PROJECTILE_LENGTH_VW,
 } from '../battle/battle.types';
+
+/* Must stay consistent with --z-units / --z-selected / --z-bolts in the
+ * SCSS: base + 2 * 16 rows + 1 = 43 < selected (50) < bolts (60). */
+const STACK_Z_BASE = 10;
+const STACK_Z_SELECTED = 50;
 import { BattlePlanetComponent } from '../battle-planet/battle-planet.component';
 
 /*
@@ -72,6 +81,24 @@ export class BattleGridComponent {
 
   @Input() onStackClick: (stackId: string) => void = () => {};
   @Input() onCellClick: (col: number, row: number) => void = () => {};
+
+  /* CSS length for `fieldUnits` battlefield units. The simulation's "vw"
+   * coordinates are field units; they render through --u so the field can
+   * scale to its container (see battle-grid.component.scss). */
+  u(fieldUnits: number): string {
+    return `calc(var(--u) * ${fieldUnits})`;
+  }
+
+  /* Stacking order of a ship (see the layer table in the SCSS). Lower rows
+   * draw over upper rows; a moving ship draws over a stationary one in the
+   * same row; the selected ship is above all ships but never above bolts
+   * or effects. */
+  stackZIndex(stack: BattleStack): number {
+    if (stack.stackId === this.selectedStackId) {
+      return STACK_Z_SELECTED;
+    }
+    return STACK_Z_BASE + stack.row * 2 + (stack.moving ? 1 : 0);
+  }
 
   /* vw position of a stack. stack.x/y are absolute VW coordinates maintained
    * by the game loop (initialized from stackCenterVw). col/row are used for
@@ -256,12 +283,34 @@ export class BattleGridComponent {
       return;
     }
     const target = event.currentTarget as HTMLElement;
-    const rect = target.getBoundingClientRect();
-    const vwUnit = window.innerWidth / 100;
-    const vwX = (event.clientX - rect.left) / vwUnit;
-    const vwY = (event.clientY - rect.top) / vwUnit;
-    const col = Math.floor(vwX / BATTLE_CELL_WIDTH_VW) + 1;
-    const row = Math.floor(vwY / BATTLE_CELL_HEIGHT_VW) + 1;
-    this.onCellClick(col, row);
+    const cell = clientPointToCell(event.clientX, event.clientY, target.getBoundingClientRect());
+    if (cell) {
+      this.onCellClick(cell.col, cell.row);
+    }
   }
+}
+
+/*
+ * Maps a pointer position to the grid cell under it, using only the grid's
+ * rendered rect. The battlefield is scaled to fit its container, so the
+ * conversion must not assume any fixed px-per-unit (the old version divided
+ * by window.innerWidth / 100 and broke as soon as the field was not exactly
+ * 72vw wide). Returns null outside the field.
+ */
+export function clientPointToCell(
+  clientX: number,
+  clientY: number,
+  rect: { left: number; top: number; width: number; height: number },
+): GridCell | null {
+  if (rect.width <= 0 || rect.height <= 0) {
+    return null;
+  }
+  const fieldX = ((clientX - rect.left) / rect.width) * BATTLE_FIELD_WIDTH_VW;
+  const fieldY = ((clientY - rect.top) / rect.height) * BATTLE_FIELD_HEIGHT_VW;
+  const col = Math.floor(fieldX / BATTLE_CELL_WIDTH_VW) + 1;
+  const row = Math.floor(fieldY / BATTLE_CELL_HEIGHT_VW) + 1;
+  if (col < 1 || row < 1 || col > BATTLE_GRID_COLUMNS || row > BATTLE_GRID_ROWS) {
+    return null;
+  }
+  return { col, row };
 }

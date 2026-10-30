@@ -1,0 +1,73 @@
+<header class="game-header" [class.game-header--alert]="tone === 'alert'">
+  <div class="game-header__start">
+    @if (backLabel) {
+      <button
+        class="game-header__btn game-header__back"
+        type="button"
+        (click)="back.emit()"
+        [attr.aria-label]="'Back to ' + backLabel"
+        [title]="'Back to ' + backLabel"
+      >
+        <span class="game-header__back-arrow" aria-hidden="true">&#8249;</span>
+        <span class="game-header__back-label">{{ backLabel }}</span>
+      </button>
+    }
+
+    <div class="game-header__title-block">
+      <div class="game-header__title" [title]="title">{{ title }}</div>
+      <div class="game-header__subtitle">
+        <ng-content select="[gameHeaderSubtitle]"></ng-content>
+      </div>
+    </div>
+  </div>
+
+  <div class="game-header__center" role="group" aria-label="Time controls">
+    @if (speedOptions.length > 0) {
+      <button
+        class="game-header__btn"
+        type="button"
+        [class.game-header__btn--active]="isPaused"
+        [attr.aria-pressed]="isPaused"
+        (click)="togglePause.emit()"
+        aria-label="Pause / Resume"
+      >
+        &#9208;
+      </button>
+      @for (option of speedOptions; track option.value) {
+        <button
+          class="game-header__btn"
+          type="button"
+          [class.game-header__btn--active]="!isPaused && activeSpeed === option.value"
+          [class.game-header__btn--dimmed]="isPaused"
+          (click)="setSpeed.emit(option.value)"
+          [attr.aria-label]="option.label + ' speed'"
+        >
+          {{ option.label }}
+        </button>
+      }
+    }
+    <ng-content select="[gameHeaderTimeExtra]"></ng-content>
+  </div>
+
+  <div class="game-header__end">
+    <div class="game-header__status">
+      <ng-content></ng-content>
+    </div>
+
+    @if (showMenuButton) {
+      <button
+        class="game-header__btn game-header__menu"
+        type="button"
+        (click)="openMenu.emit()"
+        aria-label="Open pause menu"
+        title="Menu"
+      >
+        <span class="game-header__hamburger" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+      </button>
+    }
+  </div>
+</header>

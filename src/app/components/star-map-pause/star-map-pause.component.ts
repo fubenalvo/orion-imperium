@@ -10,15 +10,15 @@ import { SaveGameService, SaveSlot, SaveSlotId } from '../../services/save-game.
  * Communicates with StarMap via event emitters.
  *
  * States:
- * - Normal: shows ☰ hamburger button (opens pause menu)
+ * - Closed: renders nothing
  * - Paused (menu open): shows Continue, Save, Load, Main Menu buttons
  * - Paused (load slots): shows 4 save slots for loading
  *
  * Notes:
- * - The simulation freezes when paused (via GameTimeService), and the
- *   overlay appears when the hamburger button is clicked or ESC is pressed.
- * - The ☰ button opens the pause menu (pause + overlay).
- * - ESC opens the pause menu (pause + overlay).
+ * - The simulation freezes when paused (via GameTimeService).
+ * - The menu is opened by StarMap, either from the ☰ button in the shared
+ *   game header (StarMapHeaderComponent → openMenu) or by pressing ESC.
+ *   This component has no trigger button of its own.
  */
 
 @Component({
@@ -33,7 +33,6 @@ export class StarMapPauseComponent {
   @Input() loadError = '';
   @Input() saveError = '';
 
-  @Output() openPauseMenu = new EventEmitter<void>();
   @Output() closePauseMenu = new EventEmitter<void>();
   @Output() saveGame = new EventEmitter<number>();
   @Output() loadGame = new EventEmitter<number>();

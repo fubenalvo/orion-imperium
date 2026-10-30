@@ -60,6 +60,8 @@ import { BattleGameLoopService } from './battle/battle-game-loop.service';
 import { BattleAnimationService } from './battle/battle-animation.service';
 import { BattleAiService } from './battle/battle-ai.service';
 import { BattleGridComponent } from './battle-grid/battle-grid.component';
+import { BattleParallax } from './battle/battle-parallax';
+import { GameHeaderComponent, GameHeaderSpeedOption } from '../game-header/game-header.component';
 
 /*
  * =========================================================
@@ -107,7 +109,7 @@ interface BattleResultSideSummary {
 @Component({
   selector: 'app-battle-screen',
   standalone: true,
-  imports: [CommonModule, BattleGridComponent],
+  imports: [CommonModule, BattleGridComponent, GameHeaderComponent],
   templateUrl: './battle-screen.component.html',
   styleUrl: './battle-screen.component.scss',
 })
@@ -127,8 +129,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   readonly targetingModes = TARGETING_MODES;
   readonly targetingModeLabels = TARGETING_MODE_LABELS;
 
-  private pointerX = 0.5;
-  private pointerY = 0.5;
+  readonly parallax = new BattleParallax();
   private motionEnabled = false;
   private motionPermissionRequested = false;
   private resultModalFocused = false;
@@ -283,6 +284,16 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.battleTime.setSpeed(speed);
   }
 
+  /** Battle's internal speeds are shown as 1x / 2x in the shared header. */
+  readonly battleSpeedOptions: readonly GameHeaderSpeedOption[] = [
+    { value: 0.625, label: '1x' },
+    { value: 1.25, label: '2x' },
+  ];
+
+  onHeaderSpeed(speed: number): void {
+    this.setBattleSpeed(speed as BattleSpeed);
+  }
+
   get isMoveBlocked(): boolean {
     return performance.now() < this.moveFailedUntil;
   }
@@ -383,43 +394,42 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return Math.max(0, Math.min(1, pool.current / pool.max));
   }
 
+  /* Parallax layer transforms. Deeper layers move more; every layer is
+   * oversized in the SCSS by at least its maximum travel so no edge shows. */
   get bgDeepTransform(): string {
-    const offsetX = (this.pointerX - 0.5) * 2;
-    const offsetY = (this.pointerY - 0.5) * 2;
-    return `translate(${offsetX * 5}vw, ${offsetY * 5}vh)`;
+    return this.parallaxTransform(5);
   }
 
   get bgNebulaTransform(): string {
-    const offsetX = (this.pointerX - 0.5) * 2;
-    const offsetY = (this.pointerY - 0.5) * 2;
-    return `translate(${offsetX * 3.75}vw, ${offsetY * 3.75}vh)`;
+    return this.parallaxTransform(3.75);
   }
 
   get bgForegroundTransform(): string {
-    const offsetX = (this.pointerX - 0.5) * 2;
-    const offsetY = (this.pointerY - 0.5) * 2;
-    return `translate(${offsetX * 2.5}vw, ${offsetY * 2.5}vh)`;
+    return this.parallaxTransform(2.5);
   }
 
-  public onPointerMove = (event: MouseEvent): void => {
-    this.pointerX = event.clientX / window.innerWidth;
-    this.pointerY = event.clientY / window.innerHeight;
-  };
+  private parallaxTransform(amplitude: number): string {
+    return `translate3d(${this.parallax.x * amplitude}vw, ${this.parallax.y * amplitude}vh, 0)`;
+  }
 
-  public onPointerLeave = (): void => {
-    this.pointerX = 0.5;
-    this.pointerY = 0.5;
+  /* Only sets the parallax target; the game loop eases toward it. There is
+   * intentionally no mouseleave handler (see BattleParallax). */
+  public onPointerMove = (event: MouseEvent): void => {
+    const el = event.currentTarget as HTMLElement | null;
+    const rect = el?.getBoundingClientRect() ?? {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+    };
+    this.parallax.setPointer(event.clientX, event.clientY, rect);
   };
 
   public onDeviceOrientation = (event: DeviceOrientationEvent): void => {
     if (!this.motionEnabled) {
       return;
     }
-    const gamma = event.gamma ?? 0;
-    const beta = event.beta ?? 0;
-    this.pointerX = Math.max(0, Math.min(1, (gamma + 90) / 180));
-    this.pointerY = Math.max(0, Math.min(1, (beta + 45) / 90));
-    this.cdr.detectChanges();
+    this.parallax.setTilt(event.gamma, event.beta);
   };
 
   public async requestMotionPermission(): Promise<void> {
@@ -712,8 +722,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!this.state) {
       return;
     }
-    this.gameLoop.startGameLoop((deltaTime: number) => {
-      this.gameLoopCallback(deltaTime);
+    this.gameLoop.startGameLoop((deltaTime: number, realDeltaTime: number) => {
+      this.gameLoopCallback(deltaTime, realDeltaTime);
     });
   }
 
@@ -729,8 +739,12 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
    *   4. fire control      — every stack, both sides, own cadence
    *   5. shield regen
    *   6. victory check + view tick (always, so the result modal appears)
+   *
+   * realDeltaTime (unscaled, also while paused) only drives presentation:
+   * the background parallax easing.
    */
-  private gameLoopCallback(deltaTime: number): void {
+  private gameLoopCallback(deltaTime: number, realDeltaTime = 0): void {
+    this.parallax.step(realDeltaTime);
     if (!this.state) {
       return;
     }

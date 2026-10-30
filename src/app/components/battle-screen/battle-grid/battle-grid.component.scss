@@ -2,22 +2,53 @@
   display: contents;
 }
 
+/*
+ * =========================================================
+ * BATTLEFIELD UNITS & LAYERS
+ * =========================================================
+ *
+ * --u is the battlefield unit: the simulation works in "field units"
+ * (BATTLE_FIELD_WIDTH_VW x BATTLE_FIELD_HEIGHT_VW = 72 x 28, historically
+ * vw), and 1 field unit renders as --u. --u is derived from the parent
+ * size container (.battle-screen__content), so the whole field — cells,
+ * ships, bolts, effects, the planet — scales to fit the available space
+ * with a fixed 72:28 aspect ratio. Never use vw inside the battlefield.
+ * The 72 / 28 / 38 / 16 literals must match battle.types.ts.
+ *
+ * Layers inside .battle-grid (it is its own stacking context):
+ *   --z-field     planet visual, range ring, move cells (ground level)
+ *   --z-lines     order / move connection lines (under ships, so they
+ *                 never hide a unit)
+ *   --z-units     ships: base + 2 * row (+1 while moving), see
+ *                 BattleGridComponent.stackZIndex, so lower rows overlap
+ *                 upper ones consistently
+ *   --z-selected  the selected ship, lifted above other ships only
+ *   --z-bolts     laser bolts, always above every ship
+ *   --z-effects   impact flashes / explosions
+ */
 .battle-grid {
-  /* Must match BATTLE_FIELD_*_VW / BATTLE_GRID_COLUMNS|ROWS in battle.types.ts.
-   * Children (stack cells, effects, planet marker) size themselves from these. */
-  --cell-w: calc(72vw / 38);
-  --cell-h: calc(28vw / 16);
+  --u: min(100cqw / 72, 100cqh / 28);
+  --cell-w: calc(var(--u) * 72 / 38);
+  --cell-h: calc(var(--u) * 28 / 16);
+  --z-field: 1;
+  --z-lines: 5;
+  --z-units: 10;
+  --z-selected: 50;
+  --z-bolts: 60;
+  --z-effects: 61;
+
   position: relative;
-  width: 72vw;
-  height: 28vw;
-  flex-shrink: 0;
+  z-index: 0;
+  width: calc(var(--u) * 72);
+  height: calc(var(--u) * 28);
   background-image:
-    linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
-    linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
+    linear-gradient(to right, rgba(53, 134, 229, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(53, 134, 229, 0.08) 1px, transparent 1px);
   background-size: var(--cell-w) var(--cell-h);
-  border-bottom: rgba(53, 134, 229, 0.1) 2px solid;
+  background-color: rgba(0, 4, 10, 0.25);
+  outline: 1px solid rgba(53, 134, 229, 0.22);
+  box-shadow: 0 0 calc(var(--u) * 1.5) rgba(0, 0, 0, 0.6);
   cursor: crosshair;
-  box-shadow: 0px 58vw 0px 30vw rgba(0, 0, 0, 1);
 }
 
 /* =========================================================
@@ -32,7 +63,7 @@
   border: 1px dashed rgba(140, 196, 255, 0.45);
   border-radius: 2px;
   pointer-events: none;
-  z-index: 0;
+  z-index: var(--z-field);
 }
 
 /* =========================================================
@@ -47,12 +78,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 0;
   pointer-events: none;
-}
-
-.stack-cell--selected {
-  z-index: 0;
+  /* z-index is bound per stack (BattleGridComponent.stackZIndex). */
 }
 
 .stack-cell--size-1 {
@@ -60,11 +87,11 @@
 }
 
 .stack-cell--size-2 {
-  width: calc(2 * 0.925 * var(--cell-w) + 0.2vw);
+  width: calc(2 * 0.925 * var(--cell-w) + var(--u) * 0.2);
 }
 
 .stack-cell--size-3 {
-  width: calc(3 * 0.925 * var(--cell-w) + 2 * 0.2vw);
+  width: calc(3 * 0.925 * var(--cell-w) + var(--u) * 0.4);
 }
 
 .stack {
@@ -93,9 +120,11 @@
   background: transparent;
 }
 
+/* Hover is a quiet outline only; selection (below) is the strong state, so
+ * the two never look alike. Borders exist (transparent) in every state, so
+ * hovering never changes the box size. */
 .stack:hover {
-  border-color: var(--color-blue-bright);
-  box-shadow: 0 0 12px rgba(140, 196, 255, 0.6);
+  border-color: rgba(140, 196, 255, 0.55);
 }
 
 /* =========================================================
@@ -109,8 +138,7 @@
 }
 
 .stack--enemy:hover {
-  border-color: #ff6b6b;
-  box-shadow: 0 0 12px rgba(255, 82, 82, 0.6);
+  border-color: rgba(255, 107, 107, 0.7);
 }
 
 .stack__marker {
@@ -137,26 +165,23 @@
 
 /* Enemy stacks: small downward red chevron centred above the sprite. */
 .stack--enemy .stack__marker {
-  top: -0.35vw;
+  top: calc(var(--u) * -0.35);
   left: 50%;
-  width: 0.7vw;
-  height: 0.4vw;
+  width: calc(var(--u) * 0.7);
+  height: calc(var(--u) * 0.4);
   transform: translateX(-50%);
   background: #ff5252;
   clip-path: polygon(0 0, 50% 100%, 100% 0, 80% 0, 50% 60%, 20% 0);
   filter: drop-shadow(0 0 2px rgba(255, 82, 82, 0.8));
 }
 
+/* Selected: crisp bright border, a tight glow (scaled with the field so it
+ * never spills over neighbouring cells) and a soft ground light behind the
+ * ship. */
 .stack.selected {
   border-color: var(--color-blue-bright);
-  box-shadow:
-    0 0 8px var(--color-blue),
-    0 0 18px rgba(53, 134, 229, 0.5);
-}
-
-.stack.moving {
-  //border-color: var(--color-blue-bright);
-  //box-shadow: 0 0 12px rgba(140, 196, 255, 0.7);
+  background: radial-gradient(ellipse at center, rgba(53, 134, 229, 0.28), transparent 70%);
+  box-shadow: 0 0 calc(var(--u) * 0.35) rgba(53, 134, 229, 0.75);
 }
 
 .stack.firing {
@@ -178,11 +203,11 @@
   }
 }
 
+/* Enemy within the selected stack's reach. Only the frame pulses; the
+ * ship itself stays fully opaque (the old opacity pulse made targets
+ * flicker). */
 .stack.attack-target {
-  border-color: #d65757;
-  box-shadow:
-    0 0 8px rgba(214, 87, 87, 0.7),
-    0 0 18px rgba(214, 87, 87, 0.4);
+  border-color: rgba(214, 87, 87, 0.85);
   animation: target-pulse 0.9s ease-in-out infinite;
 }
 
@@ -203,7 +228,7 @@
   border-radius: 50%;
   background: radial-gradient(circle, transparent 60%, rgba(53, 134, 229, 0.06));
   pointer-events: none;
-  z-index: 0;
+  z-index: var(--z-field);
 }
 
 /* Highlight friendly stacks a selected Carrier could restore with Shield
@@ -211,22 +236,16 @@
  * move-to-attack-target highlights. */
 .stack.carrier-boost-target {
   border-color: #3ec8ff;
-  box-shadow:
-    0 0 8px rgba(62, 200, 255, 0.7),
-    0 0 18px rgba(62, 200, 255, 0.4);
   animation: carrier-boost-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes carrier-boost-pulse {
   0%,
   100% {
-    opacity: 0.8;
+    box-shadow: 0 0 calc(var(--u) * 0.2) rgba(62, 200, 255, 0.5);
   }
   50% {
-    opacity: 1;
-    box-shadow:
-      0 0 12px rgba(62, 200, 255, 0.9),
-      0 0 24px rgba(62, 200, 255, 0.5);
+    box-shadow: 0 0 calc(var(--u) * 0.45) rgba(62, 200, 255, 0.9);
   }
 }
 
@@ -260,7 +279,7 @@
   position: absolute;
   top: 0.1em;
   left: 0.3em;
-  font-size: 0.6rem;
+  font-size: clamp(0.45rem, calc(var(--u) * 0.55), 0.7rem);
   letter-spacing: 0.05em;
   opacity: 0.85;
 }
@@ -435,7 +454,8 @@
   );
   opacity: 0.5;
   box-shadow: 0 0 4px rgba(140, 196, 255, 0.6);
-  z-index: 15;
+  z-index: var(--z-lines);
+  pointer-events: none;
   transform: rotate(var(--connection-angle, 0deg));
   animation: trail-dash-move 0.5s linear infinite;
 }
@@ -473,8 +493,8 @@
    * bolt actually is. The element's left/top is the bolt tail; it is
    * rotated around its left-middle point. */
   position: absolute;
-  height: 0.22vw;
-  margin-top: -0.11vw;
+  height: max(2px, calc(var(--u) * 0.22));
+  margin-top: min(-1px, calc(var(--u) * -0.11));
   transform-origin: 0 50%;
   transform: rotate(var(--projectile-angle, 0deg));
   border-radius: 999px;
@@ -486,9 +506,9 @@
     #fff 100%
   );
   box-shadow:
-    0 0 0.25vw var(--bolt-color, #ff3b3b),
-    0 0 0.6vw var(--bolt-color, #ff3b3b);
-  z-index: 20;
+    0 0 calc(var(--u) * 0.25) var(--bolt-color, #ff3b3b),
+    0 0 calc(var(--u) * 0.6) var(--bolt-color, #ff3b3b);
+  z-index: var(--z-bolts);
   pointer-events: none;
 }
 
@@ -504,7 +524,7 @@
     rgba(214, 87, 87, 0.5) 40%,
     transparent 70%
   );
-  z-index: 21;
+  z-index: var(--z-effects);
   animation: impact-flash 200ms ease-out forwards;
   pointer-events: none;
 }
@@ -537,13 +557,20 @@
 }
 
 @keyframes target-pulse {
-  0% {
-    opacity: 0.8;
+  0%,
+  100% {
+    box-shadow: 0 0 calc(var(--u) * 0.15) rgba(214, 87, 87, 0.35);
   }
   50% {
-    opacity: 1;
+    box-shadow: 0 0 calc(var(--u) * 0.45) rgba(214, 87, 87, 0.8);
   }
-  100% {
-    opacity: 0.8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stack.attack-target,
+  .stack.carrier-boost-target,
+  .stack.firing,
+  .connection-line {
+    animation: none;
   }
 }

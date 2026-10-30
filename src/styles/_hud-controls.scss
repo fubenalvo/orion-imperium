@@ -1,0 +1,87 @@
+/* =========================================================
+   HUD CONTROLS
+   Shared look for the small square HUD buttons used in the
+   game header (back, pause, speed, menu, battle AUTO toggle).
+
+   Sizes are multiples of --gh-u, the header unit defined by
+   GameHeaderComponent, so every control scales with the header
+   height. The fallback keeps the mixin usable outside a header.
+
+   The global `button` rule in styles.scss gives every button a
+   large gradient look (min-height, padding, hover filter, active
+   translate); the mixin resets those so HUD buttons never change
+   size or position on hover/press and cannot push neighbours.
+   ========================================================= */
+
+@mixin hud-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  height: calc(var(--gh-u, 14px) * 2.2);
+  min-width: calc(var(--gh-u, 14px) * 2.2);
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+
+  color: var(--color-blue-light);
+  font-family: var(--font-primary);
+  font-size: calc(var(--gh-u, 14px) * 1.1);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  background: rgba(53, 134, 229, 0.15);
+  border: 1px solid var(--color-blue);
+  border-radius: 2px;
+  box-shadow: none;
+  filter: none;
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease;
+
+  &:hover {
+    color: var(--color-blue-bright);
+    background: rgba(53, 134, 229, 0.3);
+    box-shadow: 0 0 10px rgba(53, 134, 229, 0.4);
+    filter: none;
+  }
+
+  &:active {
+    transform: none;
+    filter: brightness(0.9);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue-bright);
+    outline-offset: 2px;
+  }
+}
+
+@mixin hud-button-active {
+  color: var(--color-black);
+  background: var(--color-blue);
+  box-shadow: 0 0 12px rgba(53, 134, 229, 0.55);
+
+  &:hover {
+    color: var(--color-black);
+    background: var(--color-blue);
+  }
+}
+
+@mixin hud-button-dimmed {
+  opacity: 0.4;
+
+  &:hover {
+    background: rgba(53, 134, 229, 0.15);
+    box-shadow: none;
+  }
+}

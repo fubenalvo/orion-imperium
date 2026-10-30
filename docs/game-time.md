@@ -80,7 +80,8 @@ update even without a simulation change.
 
 ## Time Controls (Header)
 
-The `StarMapHeaderComponent` renders three buttons: **⏸**, **1x**, **2x**.
+The `StarMapHeaderComponent` (through the shared `GameHeaderComponent`, see
+[UI Styling → Game Header](./ui-styling.md#game-header)) renders three buttons: **⏸**, **1x**, **2x**.
 
 - **⏸** (pause toggle) — calls `gameTimeService.togglePause()`. Active state
   highlighted when paused.

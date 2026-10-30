@@ -107,10 +107,41 @@ LED indicators, inspired by the sci-fi system-status dots.
 
 ### Usage in the codebase
 
-- **Star-map header** — shows game status (4 active when running, 1 active
-  when paused).
 - **Panel titles** — small status indicator next to the title text in
   system-info, fleet-info, planet-info, and research-tree panels.
+
+## Game Header
+
+`GameHeaderComponent` (`src/app/components/game-header/`) is the single top bar of every
+in-game screen. The star map, system view and planet view use it through
+`StarMapHeaderComponent`; the battle screen uses it directly. Screens never position header
+controls themselves — earlier, separately positioned back / menu buttons overlapped the time
+controls on narrow screens.
+
+**Layout.** A three-column grid: *start* (back button + title, optional subtitle) · *center*
+(⏸ and speed buttons, plus projected extras such as battle AUTO) · *end* (projected status
+content such as currencies / ship stock / planet shield, then the ☰ pause-menu button).
+The start column may shrink to zero (the title truncates with an ellipsis); the end column
+never shrinks below its content. When space is ample both side columns are equal, so the time
+controls sit exactly in the middle.
+
+**Sizing.** The height is the global token `--game-header-h` (`styles.scss`,
+`clamp(44px, 8dvh, 76px)`). The header defines `--gh-u = --game-header-h / 4`, and every size
+inside it — including projected content (currencies, ship stock, battle shield) — is a multiple
+of `--gh-u`. Content that sits below the header (planet screen, fleet list, map notices, battle
+grid row) offsets itself by `--game-header-h`; never hard-code the header height.
+
+**Buttons.** All header buttons use the `hud-button` mixins in `src/styles/_hud-controls.scss`
+(`@use 'hud-controls' as hud;`), which also reset the global gradient `button` look so hover
+and press never change a button's size or position.
+
+**Responsive rules** (viewport width): at ≤1100px the back button collapses to its arrow (the
+full label stays in its tooltip / aria-label), the ship-stock "STOCK" label is hidden and gaps
+tighten; at ≤820px the subtitle is hidden and the title shrinks.
+
+**Constraint.** Do not add `container-type`, `transform`, `filter` or `backdrop-filter` to the
+header or its ancestors: they would become the containing block for the `position: fixed`
+currency / ship-stock detail overlays rendered inside it.
 
 ## Related documentation
 

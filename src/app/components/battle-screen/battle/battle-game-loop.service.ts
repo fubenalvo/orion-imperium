@@ -31,7 +31,7 @@ export class BattleGameLoopService {
    * startGameLoop: Begins the game loop. Must be called after view init.
    * The loop runs continuously until stopGameLoop() is called.
    */
-  startGameLoop(updateCallback: (deltaTime: number) => void): void {
+  startGameLoop(updateCallback: (deltaTime: number, realDeltaTime: number) => void): void {
     this.lastFrameTime = performance.now();
 
     this.ngZone.runOutsideAngular(() => {
@@ -44,12 +44,14 @@ export class BattleGameLoopService {
    * Calculates real delta time (clamped to 0.1s to prevent spikes
    * when the browser tab is suspended), calls the update callback.
    */
-  private tick(time: number, updateCallback: (deltaTime: number) => void): void {
+  private tick(time: number, updateCallback: (deltaTime: number, realDeltaTime: number) => void): void {
     const realDeltaTime = Math.min((time - this.lastFrameTime) / 1000, 0.1);
     this.lastFrameTime = time;
 
     this.time.onTick(realDeltaTime);
-    updateCallback(this.time.getScaledDeltaTime(realDeltaTime));
+    // Scaled delta drives the simulation (0 while paused); the real delta
+    // is for presentation that must keep animating while paused (parallax).
+    updateCallback(this.time.getScaledDeltaTime(realDeltaTime), realDeltaTime);
 
     this.ngZone.runOutsideAngular(() => {
       this.animationFrameId = requestAnimationFrame((nextTime) =>
