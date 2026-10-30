@@ -34,13 +34,10 @@ export interface SpaceportPanelViewModel {
 export class StarMapSpaceportPanelComponent {
   @Input() vm: SpaceportPanelViewModel | null = null;
   @Input() fleetName = 'New Fleet';
-  @Input() mode: 'create' | 'reinforce' = 'create';
-  @Input() targetFleetId: number | null = null;
 
   @Output() close = new EventEmitter<void>();
   @Output() openBuildMenu = new EventEmitter<void>();
-  @Output() confirm = new EventEmitter<{ fleetName: string; composition: { typeId: string; count: number }[]; systemId: string; planetId: number; fleetId: number | null }>();
-  @Output() disband = new EventEmitter<void>();
+  @Output() confirm = new EventEmitter<{ fleetName: string; composition: { typeId: string; count: number }[]; systemId: string; planetId: number }>();
   @Output() fleetNameChange = new EventEmitter<string>();
 
   selected: { [typeId: string]: number } = {};
@@ -97,7 +94,6 @@ export class StarMapSpaceportPanelComponent {
       composition,
       systemId: this.vm.selectedSystemId!,
       planetId: this.vm.selectedPlanetId!,
-      fleetId: this.targetFleetId,
     });
   }
 }

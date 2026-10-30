@@ -49,13 +49,14 @@
         >
           MOVE
         </button>
-        @if (canReinforce) {
+        @if (colonizeTargetName) {
           <button
             type="button"
-            class="action-btn reinforce-btn"
-            (click)="reinforce.emit(); $event.stopPropagation()"
+            class="action-btn btn-primary colonize-btn"
+            [title]="'Settle ' + colonizeTargetName + ' (uses one Colonizer)'"
+            (click)="colonize.emit(); $event.stopPropagation()"
           >
-            REINFORCE
+            COLONIZE
           </button>
         }
         @if (canDisband) {
@@ -68,6 +69,26 @@
           </button>
         }
       </div>
+      @if (canOrganize) {
+        <button
+          type="button"
+          class="fleet-organize"
+          [class.fleet-organize--merge]="coLocatedFleetCount > 1 || atSpaceport"
+          (click)="organize.emit(); $event.stopPropagation()"
+        >
+          <span class="fleet-organize__label">Organize fleets</span>
+          <span class="fleet-organize__hint">
+            @if (coLocatedFleetCount > 1) {
+              {{ coLocatedFleetCount }} fleets here · merge or split
+            } @else {
+              Split or rename
+            }
+            @if (atSpaceport) {
+              · reserve
+            }
+          </span>
+        </button>
+      }
       @if (moveError) {
         <div class="ui-notice ui-notice--danger fleet-info__move-error" role="status">{{ moveError }}</div>
       }

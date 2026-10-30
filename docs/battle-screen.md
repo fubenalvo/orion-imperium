@@ -200,13 +200,14 @@ mapping and the rendered size. Unknown type ids fall back to the frigate icon, a
   their opacity (the engine flicker).
 - **Facing.** The icon is rotated by `BattleStack.heading` (CSS `rotate` on `.stack__hull`), so
   defenders face left via a 180° turn, not a mirror. `battle/battle-heading.ts`
-  (`updateStackHeadings`, called in the game loop right after `updateStackPositions`) turns the
+  (`updateStackHeadings`, called in the game loop right before `updateStackPositions`) turns the
   heading toward the current movement target at a tier-based rate. Light ships turn at 240°/s,
   the dreadnought at 75°/s, all in battle seconds, so pause and speed apply. Idle stacks ease back
   to their side's default facing (toward the enemy), and immobile turrets never turn. Final
   approaches under 0.3 u keep the current heading, so grid snapping doesn't twitch the ship.
-  Heading is presentation only: movement, collision, range and targeting never read it. Only the
-  icon rotates (the selection frame, bars and markers stay axis-aligned), and a long ship flying
+  Heading also slows travel while the hull points off-course (see
+  [Battle Rules → Maneuvering](./battle-rules.md#maneuvering)); pathing, collision, range and
+  targeting never read it. Only the icon rotates (the selection frame, bars and markers stay axis-aligned), and a long ship flying
   vertically can briefly overlap the rows above and below.
 - **Visual language.** One palette for every class: hull `#9ac9c2` (the legacy `ship.svg` color,
   still used by the main-menu convoy), plating `#73a49e`, deep panels `#3d6662`, barrels
@@ -446,20 +447,22 @@ for each living stack (both sides, turrets included):
   clear orders/sticky targets that point at destroyed stacks
   skip if fire cooldown not elapsed, a volley is in flight, or no ship has attack
   target = selectFireTarget(state, stack)   // battle-targeting.ts
-  if target: attackCooldownUntil = now + 1000 / fireRate; attackStack(...)
+  if target: attackCooldownUntil = nextVolleyDueMs(prev, now, 1000 / fireRate × fireJitter); attackStack(...)
 
 attackStack(state, attackerStackId, targetStackId): Promise<boolean>
 1. Validate: both stacks exist, alive, opposite sides, no winner yet
 2. Reach check: canAttack() — absolute x/y distance ≤ (attackRange + 1) × BATTLE_RANGE_UNIT_VW
 3. Launch a BattleProjectile: tip at the attacker's x/y, unit direction toward the target's
-   current x/y (fixed forever), volley snapshot of the attacker's ships, faction color
+   current x/y (fixed forever), volley snapshot of the attacker's ships, faction color,
+   visual `scale` = shotScale(attacker)
 4. Resolve true once the bolt has hit or fizzled (false immediately if not fired)
 
 updateProjectiles(state, deltaSec)   // every unpaused frame, also after victory
 - age impact/explosion effects (remainingMs) and drop expired ones
 - move each bolt PROJECTILE_SPEED_VW_PER_S × deltaSec along its direction
 - swept segment vs intended target's hitbox (segmentHitsStack) and no winner yet →
-    applyVolleyDamage(state, snapshot, target); log; impact/explosion effect; checkVictory
+    applyVolleyDamage(state, snapshot, target)   // reference volley × volleyShare + carry
+    log; impact/explosion effect (impact sized by the bolt's scale, keyed by bolt id); checkVictory
 - traveled ≥ reach + PROJECTILE_OVERSHOOT_VW or out of the field → miss, removed
 - stack.firing = has a bolt younger than ANIMATION_MS.muzzle
 ```
@@ -467,10 +470,19 @@ updateProjectiles(state, deltaSec)   // every unpaused frame, also after victory
 **Damage Model:**
 - **Stack volley**: All alive ships in stack fire once per attack
 - **Defense**: Only the front (first alive) target ship's defense applies
-- **Formula**: `damage = max(1, totalAttack - front.defense)`
+- **Formula**: reference volley `max(1, floor((totalAttack - front.defense) × matchup))`, then
+  `damage = floor(reference × REFERENCE_FIRE_RATE / fireRate + carry)`. Per-class cadence
+  changes the rhythm, not damage per second (see [Battle Rules](./battle-rules.md#combat))
+- **Bolt visuals**: `shotScale()` maps per-ship shot power (`attack × volleyShare`, log scale) to
+  ~0.45 (fighter, scout) … 1 (destroyer, about the old fixed bolt) … 1.75 (dreadnought). The
+  grid scales bolt thickness, glow and length, and the hit flash, by it. Kill explosions stay
+  full size
+- **Bolt colors**: body, glow and hit flash use the shooter's faction color (`state.attackerColor` /
+  `defenderColor` → `projectile.color` → `effect.color`). Only a thin core is lightened, and it stays
+  tinted, so even thin rapid-fire shots read as their faction. Kill explosions keep neutral fire colors
 - **Spillover**: Remaining damage continues to next ship in stack
 - **No RNG**: Fully deterministic (misses come only from geometry: the target moving out of
-  the bolt's path)
+  the bolt's path; the cadence jitter is a hash of stack id and time)
 - **Shared rule**: `applyVolleyDamage()` is also used by the auto-resolver, which has no
   projectiles (every volley hits)
 - **Shields/weapon types**: Loaded from data and applied in `BattleCombatService.attackStack()` and `BattleAiService`. Shield absorbs before hull for immobile targets; weapon effectiveness scales via `attackType` vs `weakness`. See [Battle Rules](./battle-rules.md) §Combat.

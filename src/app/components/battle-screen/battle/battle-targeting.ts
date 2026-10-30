@@ -3,6 +3,7 @@ import {
   BattleStack,
   BattleTargetingMode,
   DEFAULT_TARGETING_MODE,
+  REFERENCE_FIRE_RATE,
 } from './battle.types';
 import {
   absoluteDistanceRangeUnits,
@@ -64,15 +65,18 @@ export function effectiveDurability(state: BattleModelState, stack: BattleStack)
   return own + pool;
 }
 
-/* Offensive output: total volley attack × volleys per second. */
+/* Offensive output per second. Independent of fireRate: a class that fires
+ * faster deals proportionally smaller volleys (see REFERENCE_FIRE_RATE). */
 export function firepower(stack: BattleStack): number {
   const attack = aliveShips(stack).reduce((sum, s) => sum + s.attack, 0);
-  return attack * (stack.fireRate ?? 1.5);
+  return attack * REFERENCE_FIRE_RATE;
 }
 
-/* Damage one volley of `attacker` would deal to `target`, using the same
- * formula as BattleCombatService.attackStack (front-ship defense and
- * weapon matchup, floor of 1). */
+/* Damage one REFERENCE volley of `attacker` would deal to `target` (same
+ * formula as applyVolleyDamage before the fire-rate split: front-ship
+ * defense, weapon matchup, floor of 1). Equal to damage per
+ * 1 / REFERENCE_FIRE_RATE seconds for every class, so rankings stay
+ * comparable across fire rates. */
 export function expectedVolleyDamage(attacker: BattleStack, target: BattleStack): number {
   const totalAttack = aliveShips(attacker).reduce((sum, s) => sum + s.attack, 0);
   const front = target.ships.find((s) => s.alive);
@@ -84,7 +88,8 @@ export function expectedVolleyDamage(attacker: BattleStack, target: BattleStack)
   return Math.max(1, Math.floor((totalAttack - front.defense) * multiplier));
 }
 
-/* Volleys this attacker needs to destroy the target. Ignores shield regen
+/* Reference volleys (see expectedVolleyDamage) this attacker needs to destroy
+ * the target, i.e. time-to-kill in 1 / REFERENCE_FIRE_RATE s units. Ignores shield regen
  * and spill-over of defense between ships — a ranking heuristic, not a
  * simulation. */
 export function volleysToKill(state: BattleModelState, attacker: BattleStack, target: BattleStack): number {

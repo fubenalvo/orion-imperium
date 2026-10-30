@@ -187,8 +187,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Input() getProductionPanelVm: () => ProductionPanelViewModel | null = () => null;
   @Input() getSpaceportPanelVm: () => SpaceportPanelViewModel | null = () => null;
   @Input() spaceportFleetName = 'New Fleet';
-  @Input() spaceportMode: 'create' | 'reinforce' = 'create';
-  @Input() spaceportTargetFleetId: number | null = null;
   @Input() productionBuildError: string | null = null;
   @Input() spaceportError: string | null = null;
   @Input() isBuildingUnlocked: (buildingId: string) => boolean = () => false;
@@ -202,9 +200,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     composition: { typeId: string; count: number }[];
     systemId: string;
     planetId: number;
-    fleetId: number | null;
   }>();
-  @Output() spaceportDisband = new EventEmitter<void>();
   @Output() spaceportFleetNameChange = new EventEmitter<string>();
   @Output() openProductionTab = new EventEmitter<void>();
   @Output() openSpaceportTab = new EventEmitter<void>();

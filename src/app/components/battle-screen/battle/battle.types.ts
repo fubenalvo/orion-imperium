@@ -53,6 +53,35 @@ export const AI_ACTION_COOLDOWN_MS = 1000;
  * <1 = faster, >1 = slower. No UI — purely a tuning constant. */
 export const FIRE_RATE_MULTIPLIER = 1.0;
 
+/*
+ * Cadence the ship/turret `attack` stats are balanced for (shots/s).
+ * Classes differ in fireRate (fighters fire fast, capital ships slowly), but
+ * NOT in damage per second: each volley deals REFERENCE_FIRE_RATE / fireRate
+ * of a "reference volley" (attack − defense, × weapon matchup, floored at 1),
+ * so fireRate only changes the rhythm of a fight, never its balance. Changing
+ * this constant rescales every class's damage per second.
+ */
+export const REFERENCE_FIRE_RATE = 1.5;
+
+/*
+ * Due time of a stack's next volley. During sustained fire it is scheduled
+ * from the previous due time, not from "now": loop ticks (frames, or the
+ * auto-resolver's 50 ms steps) otherwise round every interval up and quietly
+ * cut damage per second, most for fast-firing classes. After an idle gap
+ * (previous due time more than one interval ago) it restarts from now, so
+ * no burst of stored shots is possible.
+ */
+export function nextVolleyDueMs(previousDueMs: number | undefined, nowMs: number, intervalMs: number): number {
+  const base = previousDueMs != null && nowMs - previousDueMs < intervalMs ? Math.min(previousDueMs, nowMs) : nowMs;
+  return base + intervalMs;
+}
+
+/* Share of a reference volley that one volley of this stack deals. */
+export function volleyShare(stack: { fireRate: number }): number {
+  const fireRate = stack.fireRate > 0 ? stack.fireRate : REFERENCE_FIRE_RATE;
+  return REFERENCE_FIRE_RATE / fireRate;
+}
+
 /* How often (battle ms) chasing stacks re-plan their destination and
  * manual attack orders re-issue a chase. Throttled because each re-plan
  * scans the whole grid; per-frame re-planning was the main battle hot path. */
@@ -215,10 +244,11 @@ export interface BattleStack {
   y: number;
   targetX: number | null;
   targetY: number | null;
-  /* Presentation only: icon facing in degrees (0 = right, 90 = down), turned
-   * gradually toward the movement direction by battle-heading.ts. Undefined
-   * until the first running frame (= the side's default facing). Never read
-   * by movement, range or targeting. */
+  /* Hull facing in degrees (0 = right, 90 = down), turned gradually toward
+   * the movement direction by battle-heading.ts. Undefined until the first
+   * running frame (= the side's default facing). Drives the icon rotation and
+   * slows movement while the hull points off-course (maneuverSpeedFactor);
+   * never read by pathing, collision, range or targeting. Battle-local. */
   heading?: number;
   /* Shots per second (from ship-data.json fireRate). */
   fireRate: number;
@@ -287,16 +317,26 @@ export interface BattleProjectile {
   maxTravelVw: number;
   /* Faction color of the shooter's side, for rendering. */
   color: string;
+  /* Visual size of the bolt (~0.45 light shot … 1.75 capital shot, 1 =
+   * medium), from the per-ship power of one shot. Purely visual. */
+  scale: number;
 }
 
 /* Impact flash or explosion at a hit. Lives for remainingMs of battle time.
  * Multiple effects can run concurrently. */
 export interface BattleAttackEffect {
   phase: 'impact' | 'explosion';
+  /* Id of the bolt that caused it: a stable render key, since rapid-fire
+   * classes can land several hits on the same spot at once. */
+  id?: number;
   to: { x: number; y: number };
   targetStackId: string;
   attackerStackId: string;
   remainingMs: number;
+  /* Visual size of an impact flash (the bolt's scale); explosions ignore it. */
+  scale?: number;
+  /* Shooter's faction color for the hit flash (the bolt's color). */
+  color?: string;
 }
 
 export interface BattleLogEntry {
@@ -351,6 +391,14 @@ export interface BattleModelState {
    * predate planet battles keep compiling without a new required field.
    */
   defenderShieldPool?: BattleShieldPool | null;
+  /*
+   * Fractional damage carried per attacker stackId. A volley of a fast-firing
+   * class is a fraction of a reference volley (see REFERENCE_FIRE_RATE);
+   * damage is applied in whole points and the remainder carries to the
+   * stack's next volley, so damage per second matches the reference exactly.
+   * Created lazily by applyVolleyDamage.
+   */
+  damageCarry?: Record<string, number>;
   /*
    * Full rosters in input order. Stacks reference the same BattleShip
    * objects, so damage applied to a stack is immediately reflected here.

@@ -1,5 +1,6 @@
 import { BattleModelState, BattleStack } from './battle.types';
-import { angleDelta, stackHeading, updateStackHeadings } from './battle-heading';
+import { angleDelta, maneuverSpeedFactor, stackHeading, updateStackHeadings } from './battle-heading';
+import { updateStackPositions } from './battle-grid';
 
 function makeStack(overrides: Partial<BattleStack> = {}): BattleStack {
   return {
@@ -93,5 +94,58 @@ describe('battle heading', () => {
     expect(mover.heading).toBeUndefined();
     run(state, 1);
     expect(turret.heading).toBe(180);
+  });
+});
+
+describe('maneuver speed factor', () => {
+  // Attacker facing right (0°); vectors are directions of travel.
+  const at = (deg: number, tier = 1) => {
+    const rad = (deg * Math.PI) / 180;
+    return maneuverSpeedFactor(makeStack({ tier, heading: 0 }), Math.cos(rad) * 5, Math.sin(rad) * 5);
+  };
+
+  it('gives full thrust up to 20° off course', () => {
+    expect(at(0)).toBe(1);
+    expect(at(20)).toBe(1);
+    expect(at(-20)).toBe(1);
+  });
+
+  it('slows down monotonically between 20° and 160°', () => {
+    const samples = [20, 45, 90, 135, 160].map((d) => at(d));
+    for (let i = 1; i < samples.length; i++) {
+      expect(samples[i]).toBeLessThan(samples[i - 1]);
+    }
+  });
+
+  it('stops slowing past 160° and never reaches zero', () => {
+    expect(at(160)).toBeCloseTo(at(180), 10);
+    for (let tier = 1; tier <= 5; tier++) {
+      expect(at(180, tier)).toBeGreaterThan(0.15);
+    }
+    expect(at(180, 5)).toBeLessThan(at(180, 1));
+  });
+
+  it('does not penalise short final approaches (grid snaps)', () => {
+    const stack = makeStack({ heading: 0 });
+    expect(maneuverSpeedFactor(stack, -0.2, 0)).toBe(1);
+  });
+
+  it('makes a reversing ship turn first, then accelerate', () => {
+    // Attacker facing right ordered 6 units to the left.
+    const stack = makeStack({ x: 20, y: 10, moving: true, targetX: 14, targetY: 10 });
+    const state = stateOf(stack);
+    const frame = () => {
+      updateStackHeadings(state, 1 / 60);
+      updateStackPositions(state, 1 / 60);
+    };
+    frame();
+    const firstStep = 20 - stack.x;
+    expect(firstStep).toBeGreaterThan(0);
+    expect(firstStep).toBeLessThan((stack.speed / 60) * 0.5);
+    for (let i = 0; i < 60; i++) frame();
+    const before = stack.x;
+    frame();
+    // Turned onto the course by now: full speed.
+    expect(before - stack.x).toBeCloseTo(stack.speed / 60, 5);
   });
 });

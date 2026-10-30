@@ -17,7 +17,6 @@ export class StarMapFleetInfoComponent {
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
   @Input() isPlayerFleet = false;
   @Input() selectedFleetAction: 'move' | null = null;
-  @Input() canReinforce = false;
   @Input() canDisband = false;
   // Reason the last move command was rejected (null when the last move was accepted).
   @Input() moveError: string | null = null;
@@ -30,6 +29,14 @@ export class StarMapFleetInfoComponent {
   @Input() interceptLabel: string | null = null;
   /* Name of the hostile fleet this fleet is pursuing (attack order), if any. */
   @Input() attackLabel: string | null = null;
+  /* Fleet can be opened in the fleet manager (player fleet with living ships). */
+  @Input() canOrganize = false;
+  /* Player fleets on this fleet's cell, itself included; >1 means merging is possible. */
+  @Input() coLocatedFleetCount = 1;
+  /* Fleet stands at an own Spaceport: the ship reserve can be used in the fleet manager. */
+  @Input() atSpaceport = false;
+  /* Uninhabited planet the fleet is parked on and can colonize now (it carries a colonizer); null hides COLONIZE. */
+  @Input() colonizeTargetName: string | null = null;
 
   formatEta(seconds: number): string {
     const total = Math.max(0, Math.round(seconds));
@@ -41,6 +48,7 @@ export class StarMapFleetInfoComponent {
   @Output() close = new EventEmitter<void>();
   @Output() setFleetAction = new EventEmitter<'move'>();
   @Output() selectFleet = new EventEmitter<Fleet>();
-  @Output() reinforce = new EventEmitter<void>();
   @Output() disband = new EventEmitter<void>();
+  @Output() organize = new EventEmitter<void>();
+  @Output() colonize = new EventEmitter<void>();
 }

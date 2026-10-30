@@ -126,6 +126,14 @@ behaviours:
 - **Orbital Factory**: the `productionBuilding` discriminator on `ShipType`
   keeps the service class-agnostic.
 
+## Reorganizing assembled fleets
+
+Once ships are in fleets, the player can merge, split and redistribute them
+freely anywhere. Moving ships between the stock and an existing fleet
+(reinforcing, or docking ships back) happens in the same dialog's reserve
+column and only at an own Spaceport; `reinforceFleet` enforces the same rule
+for the AI. See [Fleet Organization](./fleet-organization.md#reserve).
+
 ## Ownership changes
 
 Orders always belong to the planet's owner. `PlanetOwnershipService.transferPlanet` cancels and refunds the previous owner's orders when a planet changes hands, and `ProductionService.tick` refunds and drops any order whose planet is gone **or no longer owned by the ordering faction** (this repairs orders left over in saves written before the ownership service existed). See [Planet Capture](./planet-capture.md).

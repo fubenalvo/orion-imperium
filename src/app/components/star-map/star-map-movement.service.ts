@@ -209,6 +209,13 @@ export class StarMapMovementService {
     return fleetCell.col === sysCell.col && fleetCell.row === sysCell.row;
   }
 
+  /* System-view (vw) center of a planet's cell: the point a fleet must stop on to arrive at the planet. */
+  getPlanetCellCenter(planet: PlanetTile): { x: number; y: number } {
+    const cell = this.getPlanetGridPosition(planet);
+    const size = StarMapMovementService.systemCellSizeVw;
+    return { x: (cell.col - 0.5) * size, y: (cell.row - 0.5) * size };
+  }
+
   /*
    * getPlanetGridPosition: Returns the planet's grid position in system view.
    * Uses planet.x and planet.y as 1-indexed column/row coordinates.

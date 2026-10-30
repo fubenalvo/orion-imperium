@@ -14,3 +14,30 @@
 .fleet-info__move-error {
   margin-top: 0.3em;
 }
+
+/* Entry to the fleet manager. A second line tells whether there is anything
+   to merge with, so the action is discoverable without a separate badge. */
+.fleet-organize {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.8em;
+  width: 100%;
+  min-height: 0;
+  margin-top: 0.45em;
+  padding: 0.45em 0.9em;
+  font-size: var(--ui-fs-xs);
+}
+
+.fleet-organize__hint {
+  overflow: hidden;
+  color: var(--ui-ink-dim);
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.fleet-organize--merge .fleet-organize__hint {
+  color: var(--ui-accent-text);
+}

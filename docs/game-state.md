@@ -584,7 +584,7 @@ System-level overview of the whole AI pipeline (ownership, scheduling, invariant
 ### Planet Sidebar
 - PlanetScreen: grid, build mode, resource tiles display
 - ProductionPanel: queue, ETA, cancel
-- SpaceportPanel: create/reinforce/disband
+- SpaceportPanel: create (reinforcing moved to the Fleet Command reserve, see fleet-organization.md)
 
 ### Navigation
 - NavigationComponent: d-pad + minimap

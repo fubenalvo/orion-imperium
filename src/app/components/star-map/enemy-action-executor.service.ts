@@ -351,10 +351,10 @@ export class EnemyActionExecutor {
 
     /*
      * Ships come out of the global stock at a Spaceport, so only a fleet
-     * physically in a Spaceport system can receive them —
-     * FleetAssemblyService.reinforceFleet does not check location itself.
-     * A damaged fleet elsewhere is brought home by EnemyFleetService
-     * (regroup) and reinforced on arrival.
+     * physically in a Spaceport system can receive them
+     * (FleetAssemblyService.reinforceFleet enforces the same rule; checking
+     * here first skips the call). A damaged fleet elsewhere is brought home
+     * by EnemyFleetService (regroup) and reinforced on arrival.
      */
     const atSpaceport = this.spaceportService
       .listSpaceports(faction.id, starSystems)

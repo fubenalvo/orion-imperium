@@ -1,0 +1,345 @@
+<div class="fm-overlay" (click)="onBackdrop($event)">
+  <section
+    class="fm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="fm-title"
+    [style.--faction]="factionColor"
+  >
+    <header class="fm__header">
+      <div class="fm__heading">
+        <span class="fm__eyebrow">Fleet command</span>
+        <h2 id="fm-title" class="fm__title">{{ locationLabel }}</h2>
+      </div>
+      <div class="fm__totals">
+        <div class="ui-figure">
+          <span class="ui-figure__value">{{ views.length }}</span>
+          <span class="ui-figure__caption">{{ views.length === 1 ? 'Fleet' : 'Fleets' }}</span>
+        </div>
+        <div class="ui-figure">
+          <span class="ui-figure__value">{{ totalShips }}</span>
+          <span class="ui-figure__caption">Ships</span>
+        </div>
+        @if (reserveView) {
+          <div class="ui-figure">
+            <span class="ui-figure__value">{{ reserveView.shipCount }}</span>
+            <span class="ui-figure__caption">Reserve</span>
+          </div>
+        }
+      </div>
+      <button type="button" class="fm__close" (click)="requestCancel()">Close</button>
+    </header>
+
+    <div class="fm__hint" role="status">
+      @if (selection) {
+        <span
+          ><b>{{ selectedCount }}</b> {{ selectedCount === 1 ? 'ship' : 'ships' }} selected in
+          <b>{{ selectionSource?.fleet?.name }}</b
+          >. Choose a destination fleet or form a new one.</span
+        >
+        <button type="button" class="btn-ghost fm__hint-clear" (click)="clearSelection()">
+          Clear
+        </button>
+      } @else {
+        <span
+          >Select ship classes, then send them to another fleet. Drag rows to move them directly.
+          @if (reserveView) {
+            Spaceport here: draw ships from the reserve or return them to it.
+          }
+        </span>
+      }
+    </div>
+
+    <div class="fm__board">
+      @for (view of columns; track view.key) {
+        <article
+          class="fm-fleet"
+          [class.fm-fleet--source]="selection?.fleetKey === view.key"
+          [class.fm-fleet--target]="canTransferTo(view.key)"
+          [class.fm-fleet--over]="dragOverKey === view.key"
+          [class.fm-fleet--flash]="flashKey === view.key"
+          [class.fm-fleet--new]="view.isNew"
+          [class.fm-fleet--reserve]="view.isReserve"
+          (dragover)="onDragOver($event, view.key)"
+          (dragleave)="onDragLeave($event, view.key)"
+          (drop)="onDrop($event, view.key)"
+        >
+          <header class="fm-fleet__head">
+            @if (view.isReserve) {
+              <span class="fm-fleet__title">Reserve</span>
+            } @else {
+              <input
+                class="fm-fleet__name"
+                type="text"
+                [value]="view.fleet.name"
+                [attr.maxlength]="nameMaxLength"
+                [class.fm-fleet__name--blank]="!view.fleet.name.trim()"
+                (input)="rename(view.key, $any($event.target).value)"
+                aria-label="Fleet name"
+                spellcheck="false"
+              />
+            }
+            <div class="fm-fleet__meta">
+              @if (view.isReserve) {
+                <span class="ui-chip ui-chip--muted">Spaceport stock</span>
+              } @else if (view.isNew) {
+                <span class="ui-chip">New</span>
+              } @else if (view.moving) {
+                <span class="ui-chip ui-chip--warning">Under way</span>
+              }
+              <span
+                ><b>{{ view.shipCount }}</b> {{ view.shipCount === 1 ? 'ship' : 'ships' }}</span
+              >
+              <span
+                >ATK <b>{{ view.attack }}</b></span
+              >
+              <span
+                >DEF <b>{{ view.defense }}</b></span
+              >
+            </div>
+          </header>
+
+          @if (canTransferTo(view.key)) {
+            <button type="button" class="fm-fleet__drop" (click)="transferTo(view.key)">
+              @if (view.isReserve) {
+                Return {{ selectedCount }} {{ selectedCount === 1 ? 'ship' : 'ships' }} to reserve
+              } @else {
+                Transfer {{ selectedCount }} {{ selectedCount === 1 ? 'ship' : 'ships' }} here
+              }
+            </button>
+          }
+
+          <ul class="fm-fleet__ships">
+            @if (view.isReserve && view.shipCount === 0) {
+              <li class="fm-fleet__empty">
+                No ships in stock. Ships returned here wait for a new assignment.
+              </li>
+            }
+            @for (group of view.groups; track group.typeId) {
+              @let selected = isSelected(view.key, group.typeId);
+              @let icon = iconSize(group.typeId);
+              <li class="fm-ship" [class.fm-ship--selected]="selected">
+                <div
+                  class="fm-ship__row"
+                  role="button"
+                  tabindex="0"
+                  draggable="true"
+                  [attr.aria-pressed]="selected"
+                  [attr.aria-label]="group.typeName + ', ' + group.ships.length + ' ships'"
+                  (click)="toggleGroup(view.key, group)"
+                  (keydown)="onRowKey($event, view.key, group)"
+                  (dragstart)="onDragStart($event, view.key, group)"
+                  (dragend)="onDragEnd()"
+                >
+                  <span class="fm-ship__icon-box" aria-hidden="true">
+                    <svg class="fm-ship__icon" [style.width.em]="icon.w" [style.height.em]="icon.h">
+                      <use [attr.href]="iconHref(group.typeId)" width="100%" height="100%"></use>
+                    </svg>
+                  </span>
+                  <span class="fm-ship__text">
+                    <span class="fm-ship__name">{{ group.typeName }}</span>
+                    <span class="fm-ship__role">{{ group.role }}</span>
+                  </span>
+                  <span class="fm-ship__hull" [title]="'Hull ' + hullPercent(group) + '%'">
+                    <span class="ui-meter"
+                      ><span
+                        class="ui-meter__fill"
+                        [class.fm-ship__hull-fill--low]="group.condition < 0.5"
+                        [style.width.%]="group.condition * 100"
+                      ></span
+                    ></span>
+                  </span>
+                  <span class="fm-ship__count">
+                    @if (selected) {
+                      <b>{{ selectedOf(group.typeId) }}</b
+                      >/{{ group.ships.length }}
+                    } @else {
+                      ×{{ group.ships.length }}
+                    }
+                  </span>
+                </div>
+
+                @if (selected && group.ships.length > 1) {
+                  <div class="fm-ship__qty" (click)="$event.stopPropagation()">
+                    <button
+                      type="button"
+                      (click)="adjust(group, -1)"
+                      [disabled]="selectedOf(group.typeId) <= 1"
+                      aria-label="One fewer"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="range"
+                      min="1"
+                      [max]="group.ships.length"
+                      [value]="selectedOf(group.typeId)"
+                      (input)="setCount(group, +$any($event.target).value)"
+                      [attr.aria-label]="'Number of ' + group.typeName + ' ships to move'"
+                    />
+                    <button
+                      type="button"
+                      (click)="adjust(group, 1)"
+                      [disabled]="selectedOf(group.typeId) >= group.ships.length"
+                      aria-label="One more"
+                    >
+                      +
+                    </button>
+                    <button type="button" class="btn-ghost" (click)="setCount(group, 1)">1</button>
+                    <button
+                      type="button"
+                      class="btn-ghost"
+                      (click)="setCount(group, group.ships.length)"
+                    >
+                      All
+                    </button>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+
+          <footer class="fm-fleet__tools">
+            <button
+              type="button"
+              class="btn-ghost"
+              [disabled]="view.shipCount === 0"
+              (click)="selectAll(view.key)"
+            >
+              Select all
+            </button>
+            @if (!view.isReserve && views.length > 1) {
+              <button
+                type="button"
+                class="btn-ghost"
+                (click)="gather(view.key)"
+                title="Move every other fleet's ships into this fleet"
+              >
+                Gather here
+              </button>
+            }
+            @if (!view.isReserve && view.groups.length > 1) {
+              <button
+                type="button"
+                class="btn-ghost"
+                (click)="splitByClass(view.key)"
+                title="One fleet per ship class"
+              >
+                Split by class
+              </button>
+            }
+            @if (!view.isReserve && view.shipCount > 1) {
+              <button
+                type="button"
+                class="btn-ghost"
+                (click)="splitInHalf(view.key)"
+                title="Detach half of every class into a new fleet"
+              >
+                Halve
+              </button>
+            }
+          </footer>
+        </article>
+      }
+
+      <div
+        class="fm-new"
+        [class.fm-new--ready]="canFormNew"
+        [class.fm-new--over]="dragOverKey === 'new'"
+        (dragover)="onDragOver($event, 'new')"
+        (dragleave)="onDragLeave($event, 'new')"
+        (drop)="onDrop($event, 'new')"
+      >
+        <button
+          type="button"
+          class="fm-new__btn"
+          [disabled]="!canFormNew"
+          (click)="transferTo('new')"
+        >
+          <span class="fm-new__plus" aria-hidden="true">+</span>
+          @if (canFormNew) {
+            <span
+              >Form new fleet with {{ selectedCount }}
+              {{ selectedCount === 1 ? 'ship' : 'ships' }}</span
+            >
+          } @else {
+            <span>New fleet</span>
+            <span class="fm-new__hint">
+              @if (selection) {
+                Leave at least one ship behind to split a fleet.
+              } @else {
+                Select ships, then click or drop them here.
+              }
+            </span>
+          }
+        </button>
+      </div>
+    </div>
+
+    <footer class="fm__footer">
+      <div class="fm__summary" aria-live="polite">
+        @if (dirty) {
+          @if (summary.fromReserve > 0) {
+            <span class="ui-chip ui-chip--success">{{ summary.fromReserve }} from reserve</span>
+          }
+          @if (summary.toReserve > 0) {
+            <span class="ui-chip ui-chip--warning">{{ summary.toReserve }} to reserve</span>
+          }
+          @if (summary.movedShips > 0) {
+            <span class="ui-chip"
+              >{{ summary.movedShips }}
+              {{ summary.movedShips === 1 ? 'ship' : 'ships' }} reassigned</span
+            >
+          }
+          @if (summary.createdFleets > 0) {
+            <span class="ui-chip ui-chip--success"
+              >+{{ summary.createdFleets }} new
+              {{ summary.createdFleets === 1 ? 'fleet' : 'fleets' }}</span
+            >
+          }
+          @for (gone of summary.dissolvedFleets; track gone.fleetId) {
+            <span
+              class="ui-chip ui-chip--muted"
+              title="All ships moved out; this fleet will be dissolved"
+              >{{ gone.name }} dissolved</span
+            >
+          }
+          @if (summary.renamedFleets > 0) {
+            <span class="ui-chip ui-chip--muted">{{ summary.renamedFleets }} renamed</span>
+          }
+        } @else {
+          <span class="fm__summary-idle">No changes yet</span>
+        }
+      </div>
+
+      @if (error) {
+        <div class="ui-notice ui-notice--danger fm__error" role="alert">{{ error }}</div>
+      } @else if (blankNames) {
+        <div class="ui-notice ui-notice--warning fm__error" role="status">
+          Every fleet needs a name.
+        </div>
+      }
+
+      <div class="fm__actions">
+        @if (confirmDiscard) {
+          <span class="fm__confirm">Discard these changes?</span>
+          <button type="button" (click)="keepEditing()">Keep editing</button>
+          <button type="button" class="btn-danger" (click)="discard()">Discard</button>
+        } @else {
+          <button type="button" class="btn-ghost" (click)="reset()" [disabled]="!dirty">
+            Reset
+          </button>
+          <button type="button" (click)="requestCancel()">Cancel</button>
+          <button
+            type="button"
+            class="btn-primary"
+            (click)="onApply()"
+            [disabled]="!dirty || blankNames"
+          >
+            Apply changes
+          </button>
+        }
+      </div>
+    </footer>
+  </section>
+</div>

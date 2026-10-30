@@ -17,7 +17,8 @@ export type AssemblyFailure =
   | 'insufficient_stock'
   | 'invalid_composition'
   | 'invalid_target'
-  | 'enemy_fleet';
+  | 'enemy_fleet'
+  | 'not_at_spaceport';
 
 export interface AssemblyResult {
   ok: boolean;
@@ -152,6 +153,12 @@ export class FleetAssemblyService {
     }
     if (!this.spaceportService.hasSpaceport(request.factionId, starSystems)) {
       return { ok: false, reason: 'no_spaceport' };
+    }
+    // Stock ships are handed over at a Spaceport only: the fleet must stand
+    // in a system with one of the faction's Spaceport planets. Applies to
+    // the AI as well (its callers already pick fleets parked at a Spaceport).
+    if (!this.spaceportService.spaceportAt(request.factionId, fleet, starSystems)) {
+      return { ok: false, reason: 'not_at_spaceport' };
     }
     if (request.composition.length === 0) {
       return { ok: false, reason: 'invalid_composition' };

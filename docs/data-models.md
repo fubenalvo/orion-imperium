@@ -46,7 +46,7 @@ See [Ship Production](./ship-production.md) for the full pipeline. The relevant 
 - `ProductionOrder`: `{ id, shipTypeId, quantity, progress, startedAtTick, paid? }` — one in-flight order per planet; resource cost (credits + raw materials) is deducted up-front at queue time and recorded in `paid`, which refunds are computed from. `paid` is absent on orders from older saves (they paid credits only).
 - `FactionProduction`: `{ factionId, ordersByPlanet: Record<planetId, ProductionOrder[]> }`.
 - `StarMapData.shipStock` and `StarMapData.production` are optional fields; `SaveGameService.migrateSave` backfills them as `[]` for older saves.
-- The `Spaceport` building is a permission flag for fleet assembly. The faction must own a planet with a `Spaceport` to call `FleetAssemblyService.createFleet` or `reinforceFleet`; the building does not store ships.
+- The `Spaceport` building is a permission flag for fleet assembly; the building does not store ships. `FleetAssemblyService.createFleet` needs a Spaceport planet as the assembly point, and stock ships reach an existing fleet (`reinforceFleet`, or the fleet manager's reserve) only while that fleet stands in a system with one of its faction's Spaceport planets ([Fleet Organization](./fleet-organization.md#reserve)).
 
 ## ShipType extensions
 
@@ -115,7 +115,7 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 - `system`: `SystemLocation | null` — present while the fleet is inside a star system
 - `gridCol`, `gridRow`: derived integer cell on whichever view the fleet is currently in
   - `ships`: `FleetShip[]`
-  - `destroyed`: `true` after a lost battle; the fleet is filtered from `visibleFleets` and excluded from collision, movement, and rendering
+  - `destroyed`: `true` after a lost battle, a disband, an AI merge, or when fleet organization moved all its living ships into other fleets ([Fleet Organization](./fleet-organization.md)); the fleet is filtered from `visibleFleets` and excluded from collision, movement, and rendering. Its record stays in `fleets` so stored ids keep resolving
    - `sensorRange`: `number` (optional, default 3) — minimum floor for sensor range in galaxy grid cells; the effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships) + 2`, computed by `StarMapSensorService.getFleetSensorRange()`
 
 ### SystemLocation
@@ -159,7 +159,7 @@ Read from `planet-data.json`:
 - `production`, `consumption`: `ResourceRates` – resources produced or consumed per second
 - `energyProduction`, `energyConsumption`: per-second energy flow
 - `population`, `workforce`, `providesWorkforce`, `moraleRate`: optional demographic / morale fields. `workforce` is the workforce *required* by the building per second of operation; `providesWorkforce` (housing-role buildings only) is the workforce *provided* by the building; `moraleRate` is the building's per-second contribution to the planet's morale/satisfaction drift (social/entertainment buildings are positive, heavy industry mildly negative). All three are now consumed by `EconomyService`.
-- `defense`: optional `{ type, attack, attackType, range, weakness, shield, shieldRegen }` block for defense buildings
+- `defense`: optional `{ type, attack, attackType, range, fireRate, weakness, shield, shieldRegen }` block for defense buildings
 
 ## Battle
 
@@ -214,7 +214,7 @@ by `createBattleState()` (in `battle/battle-state.ts`), **not** by `BattleServic
 - `ships`: `BattleShip[]` (≤ `MAX_STACK_SIZE = 5`)
 - `tier`: size/combat tier; `size`: cells occupied in the row (1–3, by tier)
 - `attackRange`: = the ship type's `range`, in range units of `BATTLE_RANGE_UNIT_VW`
-  (0 for unknown/fallback types); `fireRate`: volleys per second
+  (0 for unknown/fallback types); `fireRate`: volleys per second (per class; changes battle rhythm, not damage per second, see [Battle Rules](./battle-rules.md#combat))
 - `immobile`: true for planet-defense buildings (they cannot move but do fire), which also
   receive the shared shield
 - `moving`, `firing`

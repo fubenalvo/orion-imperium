@@ -13,7 +13,10 @@ import {
   PROJECTILE_HITBOX_SCALE,
   PROJECTILE_OVERSHOOT_VW,
   PROJECTILE_SPEED_VW_PER_S,
+  REFERENCE_FIRE_RATE,
   battleDebug,
+  nextVolleyDueMs,
+  volleyShare,
 } from './battle.types';
 import {
   checkVictory,
@@ -33,17 +36,23 @@ import { BattleTimeService } from './battle-time.service';
  *  BATTLE MINIGAME — COMBAT SERVICE
  * =========================================================
  *
- * One attack = the whole stack fires one volley. Total damage is the sum
- * of the firing stack's alive-ship attack values, reduced by the target
- * front ship's defense (per-ship semantics, not summed), scaled by weapon
- * effectiveness (attacker attackType vs front target weakness: 1.5x /
- * 1.0x / 0.5x), floored at 1. Damage is applied ship by ship in order;
- * each ship's shield absorbs first, overkill spills to the next ship.
+ * One attack = the whole stack fires one volley. A "reference volley" is
+ * the sum of the firing stack's alive-ship attack values, reduced by the
+ * target front ship's defense (per-ship semantics, not summed), scaled by
+ * weapon effectiveness (attacker attackType vs front target weakness:
+ * 1.5x / 1.0x / 0.5x), floored at 1. One actual volley deals
+ * volleyShare = REFERENCE_FIRE_RATE / fireRate of that, so fast-firing
+ * classes land many small hits and slow ones few big hits at the same
+ * damage per second (fractions carry over, see damageCarry). Damage is
+ * applied ship by ship in order; each ship's shield absorbs first,
+ * overkill spills to the next ship.
  *
  * Fire control (runFireControl) is the ONLY place that decides when a
  * stack fires. It runs every frame for every living stack of both sides —
- * player, AUTO and enemy AI alike — so all stacks fire at the same cadence
- * of (1 / fireRate) s * FIRE_RATE_MULTIPLIER. Whom to shoot comes from
+ * player, AUTO and enemy AI alike. Each stack fires on its own class
+ * cadence of (1 / fireRate) s * FIRE_RATE_MULTIPLIER, with a small
+ * deterministic jitter (FIRE_JITTER) so same-class stacks do not fire in
+ * lockstep. Whom to shoot comes from
  * battle-targeting.ts. Player commands and the AI only set orders/movement.
  *
  * Planet-defense turrets are immobile but DO fire.
@@ -60,6 +69,44 @@ import { BattleTimeService } from './battle-time.service';
  * each ship's maxShield) and consumes the Carrier's fire cooldown, so it
  * replaces one volley rather than being free.
  */
+
+/* ±fraction of the fire interval varied per volley. Small enough that the
+ * average cadence (and so damage per second) is unchanged in practice. */
+const FIRE_JITTER = 0.08;
+
+/*
+ * Deterministic multiplier in [1 − FIRE_JITTER, 1 + FIRE_JITTER] for one
+ * volley, hashed from the stack id and the fire time, so stacks of the same
+ * class drift apart instead of firing in lockstep while replays and tests
+ * stay reproducible (no Math.random in the battle simulation).
+ */
+export function fireJitter(stackId: string, nowMs: number): number {
+  let h = 2166136261;
+  const key = stackId + ':' + Math.round(nowMs);
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const unit = (h >>> 0) / 4294967295;
+  return 1 + (unit * 2 - 1) * FIRE_JITTER;
+}
+
+/* Per-ship power of one shot (attack × volleyShare) mapped onto a log scale
+ * to the bolt's visual size: ~0.45 (fighter, scout) … 1 (destroyer, a
+ * medium-heavy shot) … 1.75 (dreadnought). Log because shot power spans
+ * two orders of magnitude between classes. */
+const SHOT_SCALE_MIN = 0.45;
+const SHOT_SCALE_MAX = 1.75;
+const SHOT_POWER_LOG_MIN = 0.5; // ≈ 3 attack per shot
+const SHOT_POWER_LOG_MAX = 2.7; // ≈ 500 attack per shot
+
+export function shotScale(stack: BattleStack): number {
+  const front = stack.ships.find((s) => s.alive) ?? stack.ships[0];
+  const power = Math.max(1, (front?.attack ?? 1) * volleyShare(stack));
+  const t = (Math.log10(power) - SHOT_POWER_LOG_MIN) / (SHOT_POWER_LOG_MAX - SHOT_POWER_LOG_MIN);
+  const clamped = Math.min(1, Math.max(0, t));
+  return SHOT_SCALE_MIN + (SHOT_SCALE_MAX - SHOT_SCALE_MIN) * clamped;
+}
 
 /*
  * applyVolleyDamage: The damage rule of one volley, shared by the animated
@@ -89,7 +136,16 @@ export function applyVolleyDamage(
     attackerFront?.attackType ?? 'kinetic',
     front.weakness ?? 'energy',
   );
-  const damage = Math.max(1, Math.floor(raw * multiplier));
+  // Defense is subtracted from the whole reference volley, then the volley
+  // is split by fire rate — subtracting it per small shot would let armour
+  // erase fast-firing classes. At REFERENCE_FIRE_RATE (share 1) this is
+  // exactly the reference volley and the carry stays 0.
+  const referenceDamage = Math.max(1, Math.floor(raw * multiplier));
+  const carry = (state.damageCarry ??= {});
+  const exact = referenceDamage * volleyShare(attacker) + (carry[attacker.stackId] ?? 0);
+  // Epsilon guards against 0.9999… float remainders swallowing a point.
+  const damage = Math.floor(exact + 1e-9);
+  carry[attacker.stackId] = Math.max(0, exact - damage);
   let remaining = damage;
   /*
    * Planet defense stacks are protected by the shared planetary
@@ -187,7 +243,7 @@ export class BattleCombatService {
 
   /* Milliseconds (battle time) between two volleys of a stack. */
   fireIntervalMs(stack: BattleStack): number {
-    const fireRate = stack.fireRate > 0 ? stack.fireRate : 1.5;
+    const fireRate = stack.fireRate > 0 ? stack.fireRate : REFERENCE_FIRE_RATE;
     return (1000 / fireRate) * FIRE_RATE_MULTIPLIER;
   }
 
@@ -222,7 +278,11 @@ export class BattleCombatService {
       if (!target) {
         continue;
       }
-      stack.attackCooldownUntil = now + this.fireIntervalMs(stack);
+      stack.attackCooldownUntil = nextVolleyDueMs(
+        stack.attackCooldownUntil,
+        now,
+        this.fireIntervalMs(stack) * fireJitter(stack.stackId, now),
+      );
       rememberAutoTarget(stack, target);
       void this.attackStack(state, stack.stackId, target.stackId);
     }
@@ -287,6 +347,7 @@ export class BattleCombatService {
       traveledVw: 0,
       maxTravelVw: effectiveAttackRange(attacker) * BATTLE_RANGE_UNIT_VW + PROJECTILE_OVERSHOOT_VW,
       color: attacker.side === 'attacker' ? state.attackerColor : state.defenderColor,
+      scale: shotScale(attacker),
     };
     state.projectiles.push(projectile);
     attacker.firing = true;
@@ -373,11 +434,14 @@ export class BattleCombatService {
       kills,
     });
     state.effects.push({
+      id: p.id,
       phase: targetDestroyed ? 'explosion' : 'impact',
       to: { x: target.x, y: target.y },
       targetStackId: target.stackId,
       attackerStackId: p.attackerStackId,
       remainingMs: targetDestroyed ? ANIMATION_MS.explosion : ANIMATION_MS.hit,
+      scale: p.scale,
+      color: p.color,
     });
     checkVictory(state);
   }

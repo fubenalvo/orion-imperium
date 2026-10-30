@@ -158,7 +158,7 @@ Verified in code; if any of these change, revisit `EnemyEconomyService`:
 - **Buildings and ships cost credits and raw materials** (`resource-cost.ts`, the same helpers as the player UI). Research points are spent only by the research tree. Buildings, fleet ships, reserve (stocked) ships and colony administration cost upkeep every economy tick. Credits never go negative: unpaid upkeep (arrears) and an energy deficit (−1/s) both drain satisfaction toward rebellion. See [Economy](./economy.md).
 - Credit income is `population × 0.1 × satisfaction`; population is capped by housing capacity, so **housing is the growth building**.
 - Workforce shortages only scale resource production (`EconomyService.calculatePlanetEconomy`), never energy output or satisfaction.
-- Ships are built one order at a time per Spaceship Factory (build time `cost × 0.1 / 0.5`: colonizer 20 s, fighter 15 s) into the faction-wide stock. Leaving the stock requires a Spaceport. `FleetAssemblyService.reinforceFleet` does not check fleet location, so the AI only reinforces fleets that are physically in a Spaceport system.
+- Ships are built one order at a time per Spaceship Factory (build time `cost × 0.1 / 0.5`: colonizer 20 s, fighter 15 s) into the faction-wide stock. Leaving the stock requires a Spaceport. `FleetAssemblyService.reinforceFleet` rejects fleets that are not in a system with one of the faction's Spaceport planets (the same rule as the player's reserve), and the AI only picks fleets parked in such a system.
 - AI-assembled fleets move at 0.2 cells/s on the galaxy map (speed 4 / 10 / `GALAXY_MOVEMENT_CELL_SIZE_VW` 2, independent of window width).
 
 ## Construction and spending policy

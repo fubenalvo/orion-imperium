@@ -32,3 +32,10 @@
 .planet-info__empty {
   color: var(--ui-ink-dim);
 }
+
+/* Colonization guidance on uninhabited planets: readable prose, not a stat row. */
+.planet-info__note {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+}

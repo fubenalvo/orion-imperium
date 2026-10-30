@@ -80,7 +80,7 @@ Galaxy Map → Select Fleet → Move to System → Enter System → Move to Plan
 ```
 
 1. **Explore:** Fog of war hides unexplored galaxy cells. Player fleets and owned star systems (range 5) reveal cells. Newly explored cells stay permanently visible.
-2. **Expand:** Move a colonizer-containing fleet to an unhabited planet to colonize it. Build residential blocks to grow population. Build a Spaceship Factory and Spaceport to enable production and fleet assembly.
+2. **Expand:** Move a colonizer-containing fleet onto an unhabited planet and press COLONIZE in the fleet panel. Build residential blocks to grow population. Build a Spaceship Factory and Spaceport to enable production and fleet assembly.
 3. **Build Economy:** Construct power plants to keep buildings powered (energy efficiency affects all production). Build residential blocks for workforce. Build mining complexes on resource tiles for raw materials. Build research labs for research points.
 4. **Produce & Expand:** Queue ship production at planets with Spaceship Factories. Completed ships enter the empire-wide stock. Assemble them into fleets at planets with Spaceports.
 5. **Research:** Spend accumulated research points on the technology tree (18 techs). Research unlocks new ship types, buildings, and sensor upgrades.
@@ -167,7 +167,7 @@ The game runs continuously when unpaused (time speeds 1× and 2×). All simulati
 - A virtual defense fleet is built from the planet's defense buildings (turrets become immobile ships; shield buildings contribute to a shared shield pool).
 
 **Planet interactions:**
-- **Uninhabited planet:** Fleet with a colonizer lands, colonizer is consumed, planet becomes owned.
+- **Uninhabited planet:** A fleet with a colonizer parks on it; the player presses COLONIZE in the fleet panel (next to MOVE), the colonizer is consumed and the planet becomes owned (a colonizer-only fleet is retired). A map notice confirms the colony; the planet panel explains the next step.
 - **Undefended enemy planet:** Captured immediately (flip `factionId`).
 - **Same-faction/teammate planet:** Logged, ignored.
 - **Shield-only planet:** No combat stacks → treated as undefended capture.
@@ -243,7 +243,7 @@ See [Battle Screen](./battle-screen.md) for full tactical rules.
 
 ### 3.11 Fleet Assembly
 
-**Triggers:** Fleet info panel "Reinforce" button, Spaceport panel "Create Fleet"
+**Triggers:** Spaceport panel "Create Fleet", Fleet Command reserve column (fleet panel "Organize fleets" at an own Spaceport), fleet panel "Disband"
 
 **Requirements:**
 - Player must own at least one planet with a Spaceport building
@@ -252,7 +252,7 @@ See [Battle Screen](./battle-screen.md) for full tactical rules.
 
 **Actions:**
 - **Create Fleet:** New fleet spawned at the host planet's system-grid cell
-- **Reinforce:** Existing fleet receives ships from stock
+- **Reinforce:** Existing fleet receives ships from stock, only while it stands in a system with an own Spaceport (Fleet Command reserve; see docs/fleet-organization.md)
 - **Disband:** Fleet destroyed, surviving ships returned to stock, fleet marked `destroyed`
 
 **Fleet properties:** Default speed 4, sensor range 3. Fleet ID is strictly greater than all existing fleet IDs.

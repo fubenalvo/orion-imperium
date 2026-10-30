@@ -109,12 +109,15 @@
       [style.width]="u(bolt.length)"
       [style.--projectile-angle]="bolt.angleDeg + 'deg'"
       [style.--bolt-color]="bolt.color"
+      [style.--bolt-scale]="bolt.scale"
     ></div>
   }
-  @for (impact of getImpacts(); track impact.x + '-' + impact.y + '-' + impact.isExplosion) {
+  @for (impact of getImpacts(); track impact.key) {
     <div
       class="impact"
       [class.impact--explosion]="impact.isExplosion"
+      [style.--impact-scale]="impact.scale"
+      [style.--impact-color]="impact.color"
       [style.left]="u(impact.x)"
       [style.top]="u(impact.y)"
     ></div>

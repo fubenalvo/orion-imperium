@@ -244,20 +244,25 @@ describe('BattleScreenComponent', () => {
     return { state, a, b, e1, e2 };
   };
 
-  it('fires every stack of both sides at the same fire-rate cadence', async () => {
-    const { state, a, e1 } = standardSetup();
+  it('fires every stack of both sides on its own class cadence', async () => {
+    const { state, a, e1, e2 } = standardSetup();
     await runFrames(16);
     // A, E1 and E2 fired on the first frame (B starts out of reach); their
     // bolts are in flight.
     expect(state.projectiles).toHaveLength(3);
     expect(component.projectiles).toBe(state.projectiles);
 
-    // fireRate 1.5 → one volley per ~667 battle-ms: t≈0 and t≈667.
+    // Fighter 4/s vs frigate 2.2/s (±8% jitter per volley): over ~1 s the
+    // fighter lands ~4–5 volleys, each frigate ~2–3.
     await runFrames(1000);
-    expect(volleys(state, a.stackId, e1.stackId)).toBe(2);
-    const enemyVolleysAtA = state.log.filter((e) => e.defenderStack === a.stackId).length;
-    // Two enemy frigates in reach of A, each on its own cadence.
-    expect(enemyVolleysAtA).toBe(4);
+    const fighterVolleys = volleys(state, a.stackId, e1.stackId);
+    const frigateVolleys = (id: string) => state.log.filter((e) => e.attackerStack === id && e.defenderStack === a.stackId).length;
+    expect(fighterVolleys).toBeGreaterThanOrEqual(4);
+    expect(fighterVolleys).toBeLessThanOrEqual(5);
+    for (const e of [e1, e2]) {
+      expect(frigateVolleys(e.stackId)).toBeGreaterThanOrEqual(2);
+      expect(frigateVolleys(e.stackId)).toBeLessThanOrEqual(3);
+    }
   });
 
   it('keeps a manual attack order when another stack is selected and ignores automatic picks', async () => {

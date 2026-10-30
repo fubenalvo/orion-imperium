@@ -7,6 +7,8 @@ import {
   BattleStack,
   DEFAULT_TARGETING_MODE,
   FIRE_RATE_MULTIPLIER,
+  REFERENCE_FIRE_RATE,
+  nextVolleyDueMs,
   SHIELD_REGEN_INTERVAL_MS,
 } from './battle.types';
 import { createBattleState } from './battle-state';
@@ -27,7 +29,9 @@ import { buildBattleOutcome } from './battle-result';
  *  - stacks, ship stats, planet defense stacks and the shared planetary
  *    shield pool come from createBattleState (identical setup);
  *  - every stack fires on its own cadence (1 / fireRate s ×
- *    FIRE_RATE_MULTIPLIER), like BattleCombatService.runFireControl;
+ *    FIRE_RATE_MULTIPLIER, scheduled with nextVolleyDueMs so the 50 ms
+ *    step does not round intervals up), like
+ *    BattleCombatService.runFireControl minus its visual-only jitter;
  *  - volley damage is applyVolleyDamage, the exact function the animated
  *    battle uses;
  *  - targets are chosen with the stack's targeting mode via
@@ -90,7 +94,7 @@ export function autoResolveBattle(
       if (!target) {
         continue;
       }
-      nextFireAt.set(stack.stackId, now + fireIntervalMs(stack));
+      nextFireAt.set(stack.stackId, nextVolleyDueMs(nextFireAt.get(stack.stackId), now, fireIntervalMs(stack)));
       stack.autoTargetId = target.stackId;
       applyVolleyDamage(state, stack, target);
       checkVictory(state);
@@ -105,7 +109,7 @@ export function autoResolveBattle(
 }
 
 function fireIntervalMs(stack: BattleStack): number {
-  const fireRate = stack.fireRate > 0 ? stack.fireRate : 1.5;
+  const fireRate = stack.fireRate > 0 ? stack.fireRate : REFERENCE_FIRE_RATE;
   return (1000 / fireRate) * FIRE_RATE_MULTIPLIER;
 }
 

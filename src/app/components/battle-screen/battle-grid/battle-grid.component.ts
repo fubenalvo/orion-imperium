@@ -222,13 +222,17 @@ export class BattleGridComponent {
   }
 
   /*
-   * Laser bolt geometry: a fixed-length segment ending at the bolt tip.
-   * Right after launch the bolt is shorter than PROJECTILE_LENGTH_VW so it
-   * never appears to start behind the firing ship.
+   * Laser bolt geometry: a segment ending at the bolt tip. Length and
+   * thickness grow with the shot's scale (light rapid shots are short and
+   * thin, capital shots long and heavy). Right after launch the bolt is
+   * shorter than its full length so it never appears to start behind the
+   * firing ship.
    */
-  getBolts(): { id: number; x: number; y: number; length: number; angleDeg: number; color: string }[] {
+  getBolts(): { id: number; x: number; y: number; length: number; angleDeg: number; color: string; scale: number }[] {
     return this.projectiles.map((p) => {
-      const length = Math.min(PROJECTILE_LENGTH_VW, p.traveledVw);
+      const scale = p.scale ?? 1;
+      const fullLength = PROJECTILE_LENGTH_VW * (0.5 + 0.5 * scale);
+      const length = Math.min(fullLength, p.traveledVw);
       return {
         id: p.id,
         x: p.x - p.dirX * length,
@@ -236,16 +240,26 @@ export class BattleGridComponent {
         length,
         angleDeg: (Math.atan2(p.dirY, p.dirX) * 180) / Math.PI,
         color: p.color,
+        scale,
       };
     });
   }
 
   /* Impact/explosion effects for rendering. */
-  getImpacts(): { x: number; y: number; isExplosion: boolean }[] {
-    const impacts: { x: number; y: number; isExplosion: boolean }[] = [];
+  getImpacts(): { key: string; x: number; y: number; isExplosion: boolean; scale: number; color: string | null }[] {
+    const impacts: { key: string; x: number; y: number; isExplosion: boolean; scale: number; color: string | null }[] = [];
     for (const effect of this.effects) {
       if (effect.phase === 'impact' || effect.phase === 'explosion') {
-        impacts.push({ x: effect.to.x, y: effect.to.y, isExplosion: effect.phase === 'explosion' });
+        impacts.push({
+          key: effect.id != null ? String(effect.id) : `${effect.to.x}-${effect.to.y}-${effect.phase}`,
+          x: effect.to.x,
+          y: effect.to.y,
+          isExplosion: effect.phase === 'explosion',
+          // Hit flashes match the shot; a kill explosion is always full size.
+          scale: effect.phase === 'explosion' ? 1 : (effect.scale ?? 1),
+          // Shooter's faction color; null keeps the CSS default.
+          color: effect.color ?? null,
+        });
       }
     }
     return impacts;

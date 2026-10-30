@@ -429,12 +429,9 @@
                 <app-star-map-spaceport-panel
                   [vm]="getSpaceportPanelVm()"
                   [fleetName]="spaceportFleetName"
-                  [mode]="spaceportMode"
-                  [targetFleetId]="spaceportTargetFleetId"
                   (close)="setTab('details')"
                   (fleetNameChange)="spaceportFleetNameChange.emit($event)"
                   (confirm)="spaceportConfirm.emit($event)"
-                  (disband)="spaceportDisband.emit()"
                 ></app-star-map-spaceport-panel>
               } @else {
                 <div class="planet-sidebar__build-hint">No spaceport available.</div>

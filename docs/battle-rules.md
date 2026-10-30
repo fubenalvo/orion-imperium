@@ -90,15 +90,57 @@ Virtual defense buildings (turrets) are immobile (speed 0), use their building d
   re-plan every `MOVE_REPLAN_INTERVAL_MS` (150 ms battle time) while the target moves.
 - Immobile stacks (planet-defense buildings) cannot move.
 
+### Maneuvering
+
+Ships cannot slide sideways or backwards at full speed: they turn into a course.
+(`battle/battle-heading.ts`)
+
+- Every mobile stack has a hull `heading`. While moving, it turns toward the movement target at a
+  tier-based rate: 240°/s for tier 1, then 180, 130 and 100, down to 75°/s for tier 5. Idle
+  stacks turn back toward the enemy side. Turrets keep a fixed facing.
+- Speed is multiplied by `maneuverSpeedFactor`, based on the angle between the heading and the
+  direction of travel. Up to 20° the ship moves at full speed. From 20° to 160° the speed eases
+  down on a smoothstep curve. From 160° on it stays at the tier floor: 40% for tier 1, then 35%,
+  30% and 25%, down to 20% for tier 5. Speed never reaches 0, so every move completes.
+- Final approaches under 0.3 field units (grid snaps) neither steer nor slow down.
+- Only travel time changes. Paths, destinations, occupancy and reach are unaffected, and the AI
+  doesn't model the slowdown.
+
 ## Combat
 
 - **Fire control** (`BattleCombatService.runFireControl`) is the only place that decides when a
   stack fires. It runs every frame for every living stack of **both sides** (player, AUTO and enemy
   AI alike). A stack fires when its cooldown has elapsed, it has no volley in flight, and a target
   is in reach. Stacks may fire while moving.
-- **Fire cadence** is identical for both sides: one volley every
-  `(1 / fireRate) s × FIRE_RATE_MULTIPLIER` of battle time (≈ 667 ms at the current
-  `fireRate = 1.5`). Fleet size does not slow down the AI side.
+- **Fire cadence is per class**, with the same rules for both sides: one volley every
+  `(1 / fireRate) s × FIRE_RATE_MULTIPLIER` of battle time. Fleet size doesn't slow down the AI
+  side. `fireRate` comes from `ship-data.json` (turrets: `planet-data.json`):
+
+  | Class | fireRate (/s) | Class | fireRate (/s) |
+  |---|---|---|---|
+  | fighter | 4 | cruiser | 1.2 |
+  | scout, corvette | 3 | battlecruiser | 0.9 |
+  | frigate | 2.2 | battleship | 0.75 |
+  | colonizer | 2 | dreadnought | 0.5 |
+  | destroyer | 1.6 | laser turret | 2.5 |
+  | carrier | 1.5 | missile turret | 0.8 |
+
+  Each volley is jittered by up to ±8% (`fireJitter`, deterministic from stack id and time),
+  so same-class stacks drift apart instead of firing in lockstep. During sustained fire the next
+  volley is scheduled from the previous due time (`nextVolleyDueMs`), so frame or step
+  rounding never lowers the cadence. After an idle gap it restarts from now, so stacks can't
+  store shots for a burst.
+- **Fire rate never changes damage per second.** Attack stats are balanced for
+  `REFERENCE_FIRE_RATE = 1.5`. A volley deals `volleyShare = REFERENCE_FIRE_RATE / fireRate` of
+  a *reference volley* (see damage below): a fighter deals 0.375 of one, 4 times a second, and
+  a dreadnought deals 3 of one, every 2 s. Leftover fractions carry to the stack's next volley
+  (`state.damageCarry`), so damage per second matches the reference exactly. At `fireRate 1.5`
+  a volley is exactly the old single volley.
+  - Fire rate does change *granularity*. Rapid-fire classes waste less overkill and spread
+    damage more evenly, so they are slightly more effective against many small targets. Slow
+    heavy volleys front-load damage. For example, in auto-resolve, 2 corvettes now beat 4 laser
+    turrets without losses, where the old uniform cadence cost both sides 2 ships. With 5 turrets
+    the fight is close again.
 - **Whom to shoot** follows [Orders and Targeting](#orders-and-targeting).
 - **Reach**: target must be an enemy whose absolute `x/y` centre is within
   `(attackRange + ATTACK_RANGE_TOLERANCE) × BATTLE_RANGE_UNIT_VW` when the volley starts
@@ -122,13 +164,17 @@ Virtual defense buildings (turrets) are immobile (speed 0), use their building d
     fixed at the moment of victory.
   - The fire cooldown is independent of flight time; a stack may have more than one bolt in
     flight.
-- **Damage = whole-stack volley:** `totalAttack = Σ attack of alive ships in the firing
+- **Reference volley = whole stack:** `totalAttack = Σ attack of alive ships in the firing
   stack`; `raw = max(1, totalAttack − frontTargetShip.defense)`. Defense is per-ship (the
-  front target ship's `defense`), not summed.
+  front target ship's `defense`), not summed. It's subtracted once per *reference* volley,
+  before the fire-rate split. Subtracting it from each small rapid-fire shot would let armor
+  erase light classes.
 - Weapon effectiveness scales raw damage by the attacker's `attackType` vs the front target
   ship's `weakness` using the table in `battle-grid.ts`: each attacker type has one strong
   matchup (1.5×), one neutral matchup (1.0×), and one resisted matchup (0.5×). The target's
-  own `weakness` type is the resisted matchup. `max(1, floor(...))` keeps the damage floor.
+  own `weakness` type is the resisted matchup. `max(1, floor(...))` keeps the damage floor of
+  the reference volley. The applied damage is then `floor(reference × volleyShare + carry)`,
+  which can be 0 for a single light shot, with the remainder carried over.
 - Shield absorbs damage before hull: each ship's own `shield` absorbs first; only overflow
   reaches hull HP. A stack with no alive ships is destroyed.
 - **Simultaneous fire on one target:** damage is applied when a bolt hits. If the target was
@@ -167,8 +213,8 @@ Implemented in `battle-targeting.ts` (target choice), `BattleScreenComponent` (o
 |---|---|---|
 | `balanced` (default) | Original role-aware score: target role priority × 1000 + threat × 10 + role bonus + (range − distance) | — |
 | `strongest` | Highest remaining hull + shield (+ shared planetary shield for immobile turrets) | higher firepower |
-| `weakest` | Fewest volleys for **this** attacker to kill (uses the real damage formula: front defense, weapon matchup, floor 1) | lower durability |
-| `firepower` | Highest Σ attack × fireRate | lower durability |
+| `weakest` | Fewest reference volleys (= time to kill) for **this** attacker (uses the real damage formula: front defense, weapon matchup, floor 1) | lower durability |
+| `firepower` | Highest Σ attack × `REFERENCE_FIRE_RATE` (damage per second; independent of fireRate) | lower durability |
 
 All modes finally break ties by distance (nearer first) and then `stackId`, so selection is
 deterministic. To avoid flip-flopping, the chosen automatic target is **sticky**
@@ -202,7 +248,8 @@ Delta time is scaled by the battle-local `BattleTimeService` (pause / 1x / 2x) a
 paused; the star-map `GameTimeService` stays paused during battle. Each frame
 (`BattleScreenComponent.gameLoopCallback`) runs, in order:
 
-1. **Stack positions** move toward `targetX`/`targetY` at `speed` vw/s; on arrival `col`/`row`
+1. **Headings** turn toward each stack's course, then **stack positions** move toward
+   `targetX`/`targetY` at `speed` vw/s × the [maneuver factor](#maneuvering); on arrival `col`/`row`
    snap to the destination cell and a manual move order is completed.
 2. **AI tick** every `AI_ACTION_INTERVAL_MS = 400` ms for the non-player side, plus a separate
    **AUTO tick** for the player side when AUTO battle is on (movement decisions only).

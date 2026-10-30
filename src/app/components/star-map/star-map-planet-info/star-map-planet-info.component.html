@@ -73,6 +73,27 @@
         }
       }
 
+      @if (colonization) {
+        <div class="ui-label">Colonization</div>
+        <div class="planet-info__note">
+          @switch (colonization.status) {
+            @case ('parked') {
+              {{ colonization.fleetName }} is in orbit. Select the fleet and press COLONIZE.
+            }
+            @case ('en_route') {
+              {{ colonization.fleetName }} is on its way. Press COLONIZE in its fleet panel once it arrives.
+            }
+            @case ('in_system') {
+              {{ colonization.fleetName }} carries a Colonizer. Move it onto this planet, then press COLONIZE.
+            }
+            @default {
+              Move a fleet carrying a Colonizer onto this planet, then press COLONIZE in the fleet panel.
+              Colonizers are built at a Spaceship Factory and assembled into a fleet at a Spaceport.
+            }
+          }
+        </div>
+      }
+
       <div class="ui-label">
         <img src="icon-build.png" alt="" width="14" height="14" /> Buildings ({{ groupedBuildings.length }})
       </div>

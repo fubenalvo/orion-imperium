@@ -15,6 +15,8 @@ import { BattleService } from '../../services/battle.service';
 import type { BattleOutcome } from '../../services/battle.service';
 import { StarMapAiTickService } from './star-map-ai-tick.service';
 import { PlanetOwnershipService } from '../../services/planet-ownership.service';
+import { GameTimeService } from '../../services/game-time.service';
+import { Fleet, StarSystem } from './star-map.models';
 
 describe('StarMap', () => {
   let component: StarMap;
@@ -1058,6 +1060,131 @@ describe('StarMap', () => {
       component['gameLoopCallback'](0.016);
 
       expect(component.gameOutcome).toBe('defeat');
+    });
+  });
+
+  describe('Fleet organization', () => {
+    let saveGameService: SaveGameService;
+    let gameTime: GameTimeService;
+
+    const makeFleet = (id: number, shipIds: number[], extra: Partial<Fleet> = {}): Fleet => ({
+      id,
+      name: `Test Fleet ${id}`,
+      factionId: 'player',
+      x: 30.2,
+      y: 40.6,
+      targetX: null,
+      targetY: null,
+      speed: 4,
+      system: null,
+      ships: shipIds.map((sid) => ({ id: sid, name: 'Ship', type: 'fighter', currentHp: 50 })),
+      destroyed: false,
+      ...extra,
+    });
+
+    beforeEach(() => {
+      saveGameService = TestBed.inject(SaveGameService);
+      gameTime = TestBed.inject(GameTimeService);
+      saveGameService.currentSlot = SaveSlotId.AUTOSAVE;
+      gameTime.reset();
+      component.fleets = [
+        makeFleet(501, [9001, 9002]),
+        makeFleet(502, [9003]),
+        makeFleet(503, [9004], { x: 31.5 }), // next cell: not part of the group
+        makeFleet(504, [9005], { factionId: 'enemy1' }),
+      ];
+      component.currentView = 'map';
+      component.selectFleet(component.fleets[1]);
+    });
+
+    it('opens with the co-located player fleets, selected fleet first, and pauses the game', () => {
+      expect(component.getCoLocatedPlayerFleetCount(component.fleets[1])).toBe(2);
+      component.openFleetManager();
+      expect(component.fleetManagerFleets?.map((f) => f.id)).toEqual([502, 501]);
+      expect(gameTime.isPaused).toBe(true);
+    });
+
+    it('ignores map shortcuts while open, so Space cannot unpause behind the dialog', () => {
+      component.openFleetManager();
+      component.handleKeyboard(new KeyboardEvent('keydown', { key: ' ' }));
+      expect(gameTime.isPaused).toBe(true);
+      expect(component.pauseMenuOpen).toBe(false);
+    });
+
+    it('applies a merge, follows the selection, saves, and resumes the game', () => {
+      component.openFleetManager();
+      component.onFleetManagerApply({
+        factionId: 'player',
+        sourceFleetIds: [502, 501],
+        fleets: [{ fleetId: 501, originFleetId: 501, name: 'Home Fleet', shipIds: [9001, 9002, 9003] }],
+      });
+
+      expect(component.fleetManagerFleets).toBeNull();
+      expect(gameTime.isPaused).toBe(false);
+      expect(component.selectedFleet?.id).toBe(501);
+      expect(component.visibleFleets.map((f) => f.id)).not.toContain(502);
+
+      const saved = saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE)!;
+      expect(saved.fleets.find((f) => f.id === 501)!.ships.map((s) => s.id)).toEqual([9001, 9002, 9003]);
+      expect(saved.fleets.find((f) => f.id === 502)!.destroyed).toBe(true);
+    });
+
+    it('keeps the dialog open with a message when the plan is rejected', () => {
+      component.openFleetManager();
+      component.fleets[0].x = 80; // fleet drifted away (stale plan)
+      component.onFleetManagerApply({
+        factionId: 'player',
+        sourceFleetIds: [502, 501],
+        fleets: [{ fleetId: 502, originFleetId: 502, name: 'X', shipIds: [9001, 9002, 9003] }],
+      });
+      expect(component.fleetManagerFleets).not.toBeNull();
+      expect(component.fleetManagerError).toContain('no longer in the same sector');
+      expect(component.fleets[0].ships.length).toBe(2);
+    });
+
+    it('stays paused after closing when the game was already paused', () => {
+      gameTime.pause();
+      component.openFleetManager();
+      component.closeFleetManager();
+      expect(gameTime.isPaused).toBe(true);
+    });
+
+    it('offers the ship reserve only at an own Spaceport', () => {
+      component.openFleetManager();
+      expect(component.fleetManagerReserve).toBeNull();
+      component.closeFleetManager();
+
+      component.starSystems = [
+        ...component.starSystems,
+        {
+          id: 'test-port',
+          name: 'Port',
+          x: 30,
+          y: 40,
+          planets: 1,
+          color: '#fff',
+          planetsTiles: [{ id: 99901, factionId: 'player', buildings: [{ name: 'Spaceport' }] }],
+        } as unknown as StarSystem,
+      ];
+      component.shipStock = [{ factionId: 'player', ships: [{ id: 9900, type: 'frigate', name: 'Ship' }] }];
+      expect(component.isFleetAtOwnSpaceport(component.fleets[1])).toBe(true);
+      component.openFleetManager();
+      expect(component.fleetManagerReserve?.map((e) => e.id)).toEqual([9900]);
+
+      component.onFleetManagerApply({
+        factionId: 'player',
+        sourceFleetIds: [502, 501],
+        fleets: [],
+        reserveShipIds: [9900, 9001, 9002, 9003],
+      });
+      expect(component.selectedFleet).toBeNull();
+      expect(component.shipStock[0].ships.length).toBe(4);
+    });
+
+    it('does not open for enemy fleets', () => {
+      component.selectFleet(component.fleets[3]);
+      component.openFleetManager();
+      expect(component.fleetManagerFleets).toBeNull();
     });
   });
 });

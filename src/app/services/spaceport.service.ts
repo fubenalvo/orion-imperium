@@ -37,6 +37,21 @@ export class SpaceportService {
     return out;
   }
 
+  /*
+   * The faction's Spaceport at a galaxy cell (`floor(x)`, `floor(y)`), if
+   * any. Ships may only move between the global stock and a fleet when the
+   * fleet stands on such a cell (docs/fleet-organization.md#reserve).
+   */
+  spaceportAt(factionId: string, position: { x: number; y: number }, starSystems: StarSystem[]): SpaceportLocation | null {
+    const col = Math.floor(position.x);
+    const row = Math.floor(position.y);
+    return (
+      this.listSpaceports(factionId, starSystems).find(
+        ({ system }) => Math.floor(system.x) === col && Math.floor(system.y) === row,
+      ) ?? null
+    );
+  }
+
   isSpaceportPlanet(planet: PlanetTile | null | undefined): boolean {
     if (!planet) {
       return false;

@@ -55,7 +55,8 @@ src/app/
       star-map-battle-detection.service.ts
         → Fleet-vs-fleet collision detection on the map / inside systems
       star-map-planet-arrival.service.ts
-        → Fleet arrivals on planets: colonization, capture, planet battle trigger;
+        → Fleet arrivals on planets: capture, planet battle trigger; the player COLONIZE
+          command (colonizable-planet check + colonize), never automatic on arrival;
           owns the arrival bookkeeping map and the triggered-battle registry
       star-map-ai-tick.service.ts
         → Sequences one AI pipeline tick (ai → strategy → goal → capability →
@@ -89,7 +90,10 @@ src/app/
       star-map-fleet-buttons/
         → Sidebar list of all visible fleets
       star-map-fleet-info/
-        → Selected fleet detail panel (ships, totals, actions)
+        → Selected fleet detail panel (ships, totals, actions, ORGANIZE FLEETS)
+      star-map-fleet-manager/
+        → "Fleet Command" dialog + editable draft for merging / splitting /
+          redistributing co-located fleets (docs/fleet-organization.md); @defer-loaded
       star-map-system-info/
         → Selected star system info panel + "Enter System" action
       star-map-planet-info/
@@ -131,6 +135,8 @@ src/app/
       → Per-planet and per-faction resource production / consumption / efficiency
     production.service.ts
       → Per-planet production queue and per-tick progress
+    fleet-organization.service.ts
+      → Co-location rule and atomic, validated apply of fleet merge/split plans
     save-game.service.ts
       → localStorage persistence, 5 save slots, "most recent" lookup, migration
     save-validation.ts

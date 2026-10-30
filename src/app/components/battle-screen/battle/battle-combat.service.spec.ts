@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
 import { Battle, FleetShip } from './battle.types';
-import { BattleModelState, BattleStack } from './battle.types';
+import { BattleModelState, BattleStack, REFERENCE_FIRE_RATE } from './battle.types';
 import { createBattleState, getStacks } from './battle-state';
 import { BattleCombatService, segmentHitsStack } from './battle-combat.service';
 import { BattleAnimationService } from './battle-animation.service';
@@ -60,8 +60,17 @@ describe('BattleCombatService', () => {
     defenderId: 2,
   });
 
-  const setup = (attacker: FleetShip[], defender: FleetShip[]): BattleModelState => {
+  /*
+   * Stacks are pinned to REFERENCE_FIRE_RATE by default, so the damage-formula
+   * and cadence tests below check the reference volley exactly (one volley =
+   * one full reference volley). Per-class cadences and the volley split are
+   * covered by battle-fire-rate.spec.ts and the 'classCadence' test.
+   */
+  const setup = (attacker: FleetShip[], defender: FleetShip[], classCadence = false): BattleModelState => {
     const state = createBattleState(battle(attacker, defender), shipService, planetBattleService);
+    if (!classCadence) {
+      for (const s of state.stacks) s.fireRate = REFERENCE_FIRE_RATE;
+    }
     anim.reset();
     tracked.push(state);
     return state;
@@ -736,6 +745,8 @@ describe('BattleCombatService', () => {
       shipService,
       planetBattleService,
     );
+    // Reference cadence, as in setup().
+    for (const st of state.stacks) st.fireRate = REFERENCE_FIRE_RATE;
     anim.reset();
     tracked.push(state);
     return state;
@@ -878,6 +889,20 @@ describe('BattleCombatService', () => {
       expect(combat.fireIntervalMs(atk)).toBeCloseTo(1000 / 1.5);
       expect(volleys(state, atk.stackId)).toBe(3);
       expect(volleys(state, def.stackId)).toBe(3);
+    });
+
+    it('fires each class on its own cadence (fighters often, dreadnoughts rarely)', async () => {
+      const state = setup([fleetShip(1, 'fighter')], [fleetShip(100, 'dreadnought')], true);
+      const atk = getStacks(state, 'attacker')[0];
+      const def = getStacks(state, 'defender')[0];
+      placeAdjacent(atk, def);
+      tank(atk);
+      tank(def);
+      await runFor(state, 2100);
+      expect(combat.fireIntervalMs(atk)).toBeLessThan(combat.fireIntervalMs(def));
+      // ~4/s vs ~0.5/s over 2 s (±1 for the per-volley jitter).
+      expect(volleys(state, atk.stackId)).toBeGreaterThanOrEqual(7);
+      expect(volleys(state, def.stackId)).toBeLessThanOrEqual(2);
     });
 
     it('lets immobile planet turrets fire', async () => {

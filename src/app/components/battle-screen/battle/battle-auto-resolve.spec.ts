@@ -82,8 +82,8 @@ describe('autoResolveBattle', () => {
 
   it('both sides suffer losses in a close fight', () => {
     const { outcome } = autoResolveBattle(
-      // Two corvettes against four laser turrets: each side destroys part of the other.
-      planetBattle(fleet(1, 'enemy1', ['corvette', 'corvette']), planet(4)),
+      // Two corvettes against five laser turrets: each side destroys part of the other.
+      planetBattle(fleet(1, 'enemy1', ['corvette', 'corvette']), planet(5)),
       ships,
       planets,
     );

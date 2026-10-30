@@ -196,7 +196,8 @@ See [Star Map Terrain](./star-map-terrain.md).
 - `StarMapData.shipStock` and `StarMapData.production` are empire-scoped (per faction), never planet-scoped. Adding ships to a faction's stock, removing from it, or queueing a production order never mutates another faction's data.
 - A `ShipStockEntry` has the same `{id, type, name}` shape as a `FleetShip` so `FleetAssemblyService` can push a stock entry into `fleet.ships` and existing battle / sensor / movement code reads it without changes.
 - Stock ship ids share the same id space as `FleetShip.id` and are unique per save (`ShipStockService.nextShipId` walks every fleet and every stock entry to allocate).
-- A `Spaceport` building is a permission flag, not a storage depot. The faction must have ≥1 such building on an owned planet to call `FleetAssemblyService.createFleet` or `reinforceFleet`. New fleets are placed at the host `StarSystem.x/y`; they may immediately be ordered to move.
+- A `Spaceport` building is a permission flag, not a storage depot. `FleetAssemblyService.createFleet` places new fleets at a Spaceport planet's `StarSystem.x/y`; they may immediately be ordered to move.
+- **No teleporting ships:** stock ships enter an existing fleet only while the fleet stands on the galaxy cell of a system with one of its faction's own Spaceport planets. `FleetAssemblyService.reinforceFleet` and `FleetOrganizationService.applyPlan` (reserve) both enforce this, for the player and the AI alike.
 - Production completion is the only way new entries enter the stock: `ProductionService.tick` mints `ShipStockEntry`s and pushes them into `ShipStockService.addToStock` (`production.service.ts:230-244`).
 - Resource cost (credits + raw materials) for a `ProductionOrder` is deducted at queue time and recorded on the order as `paid`; nothing is charged per tick, on completion, or when ships leave the stock. `cancelOrder` and every auto-cancel refund the **un-built** fraction of `paid` only (legacy orders without `paid`: credits only), so a refund never exceeds the charge.
 - Per-planet production capacity = `count(Spaceship Factory on planet)`. Per-planet production power = same count × `0.5` progress/s. A `ShipType` whose `productionBuilding` is `orbital_factory` is rejected by `ProductionService.queueOrder` on planets lacking an Orbital Factory.
@@ -205,6 +206,17 @@ See [Star Map Terrain](./star-map-terrain.md).
 - `FleetAssemblyService.disbandFleet` returns surviving `FleetShip`s to the stock and marks the fleet `destroyed = true`. Destroyed ships in the fleet are lost (matches IG1). After disband the fleet is filtered out of `visibleFleets`, `updateFleets`, the battle detection pass, and `EconomyService.calculateEconomy` exactly like a battle-loss.
 - Reinforcement uses the same `stock -> fleet` path as creation; no fleet state outside `fleet.ships` is touched.
 - `SaveGameService.migrateSave` backfills `shipStock: []` and `production: []` so older saves load unchanged. Production `progress` and per-fleet composition both persist via the existing `StarMapData` root snapshot.
+
+## Fleet Organization Invariants
+
+See [Fleet Organization](./fleet-organization.md).
+
+- Only fleets of one faction on the same galaxy cell (`floor(x)`, `floor(y)`) are organized together; a plan touching a fleet on another cell, a foreign fleet or a destroyed fleet is rejected.
+- A plan is applied all-or-nothing: after a successful apply, every living ship of the source fleets is in exactly one non-destroyed fleet; after a rejected plan, no fleet has changed.
+- With a reserve, every stock entry and every living fleet ship is in exactly one place after the plan (a fleet or the stock); away from an own Spaceport the stock is never part of a plan.
+- No fleet left by fleet organization is empty: a fleet whose living ships all moved out is retired (`destroyed = true`, orders cleared), never deleted from `fleets`. Wreck records (`FleetShip.destroyed`) never move between fleets.
+- New fleets get an id above every existing fleet id (destroyed ones included) and start idle at their origin fleet's position; fleet organization never sets a movement target.
+- The game stays paused while the fleet manager dialog is open, so no simulation step runs on a half-edited layout.
 
 ## New Game & Galaxy Generation Invariants
 
@@ -238,7 +250,7 @@ See [AI Pipeline](./ai-pipeline.md) for context.
 - **One owner per fleet order:** `EnemyAiService` (reactive pursuit) never retargets a fleet reserved by `StarMapAiTickService.getReservedFleetIds` (pipeline-commanded fleets and every AI fleet carrying a colonizer), and only clears targets it set itself.
 - **Galaxy-map arrival:** AI arrival checks compare `Math.floor(fleet.x/y)` with the target system's cell. `fleet.gridCol/gridRow` is not a reliable galaxy-map cell (fleet assembly stores a system-view cell there).
 - **Paced, safe construction:** the AI builds at most one building per faction per 2 s of game time (`EnemyEconomyService`, shared by the background economy and the `develop` action) and never places a building that creates or worsens an energy deficit, or a workforce deficit (power buildings excepted — workforce never scales energy output).
-- **No teleporting ships:** AI code only moves stock ships into a fleet that is in a Spaceport system (galaxy-map cell), or creates a new fleet at the Spaceport. `FleetAssemblyService.reinforceFleet` does not check location itself.
+- **No teleporting ships:** AI code only moves stock ships into a fleet that is in a Spaceport system (galaxy-map cell), or creates a new fleet at the Spaceport. `FleetAssemblyService.reinforceFleet` enforces the same rule (`not_at_spaceport`).
 - **One writer per AI fleet order:** pipeline fleets (colonizer carriers, the fleet of a current `move_to_target`/`defend` action) → `EnemyActionExecutor`; all other AI fleets → `EnemyFleetService`; `EnemyAiService` only acts on fleets neither manages.
 - **No suicide engagements:** AI interception requires the difficulty's `attackStrengthAdvantage` over the target; an ongoing attack is dropped once the target is stronger than the attacker.
 - **AI research uses ResearchService:** AI factions only gain technologies through `ResearchService.researchTechnology`, after `canResearch` is true.

@@ -141,11 +141,6 @@
     (openMenu)="openPauseMenu()"
   ></app-star-map-header>
 
-    <!-- GALAXY NOTICE (asteroid rewards, cancelled routes) -->
-    @if (mapNotice) {
-      <div class="map-notice" role="status">{{ mapNotice }}</div>
-    }
-
     <!-- SELECTED DRIFTING ASTEROID -->
     @if (asteroidPanelVm) {
       <app-star-map-asteroid-info
@@ -166,7 +161,6 @@
         [getFactionColor]="boundGetFactionColor"
         [isPlayerFleet]="selectedFleet.factionId === 'player'"
         [selectedFleetAction]="selectedFleetAction"
-        [canReinforce]="selectedFleet.factionId === 'player' && hasSpaceport()"
         [canDisband]="selectedFleet.factionId === 'player' && hasSpaceport()"
         [moveError]="fleetMoveError"
         [etaSeconds]="getSelectedFleetEta()"
@@ -175,10 +169,15 @@
         [nebulaSensorPenaltyPercent]="nebulaSensorPenaltyPercent"
         [interceptLabel]="getSelectedFleetInterceptLabel()"
         [attackLabel]="getSelectedFleetAttackLabel()"
+        [canOrganize]="canOrganizeFleet(selectedFleet)"
+        [coLocatedFleetCount]="getCoLocatedPlayerFleetCount(selectedFleet)"
+        [atSpaceport]="isFleetAtOwnSpaceport(selectedFleet)"
+        [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
         (close)="deselectFleet()"
         (setFleetAction)="setFleetAction($event)"
-        (reinforce)="onReinforceSelected()"
         (disband)="onDisbandSelected()"
+        (organize)="openFleetManager()"
+        (colonize)="onColonizeSelected()"
       >
       </app-star-map-fleet-info>
     }
@@ -275,13 +274,17 @@
           [getFactionColor]="boundGetFactionColor"
           [isPlayerFleet]="selectedFleet.factionId === 'player'"
           [selectedFleetAction]="selectedFleetAction"
-          [canReinforce]="selectedFleet.factionId === 'player' && hasSpaceport()"
           [canDisband]="selectedFleet.factionId === 'player' && hasSpaceport()"
           [moveError]="fleetMoveError"
+          [canOrganize]="canOrganizeFleet(selectedFleet)"
+          [coLocatedFleetCount]="getCoLocatedPlayerFleetCount(selectedFleet)"
+        [atSpaceport]="isFleetAtOwnSpaceport(selectedFleet)"
+          [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
           (close)="deselectFleet()"
           (setFleetAction)="setFleetAction($event)"
-          (reinforce)="onReinforceSelected()"
           (disband)="onDisbandSelected()"
+          (organize)="openFleetManager()"
+          (colonize)="onColonizeSelected()"
         >
         </app-star-map-fleet-info>
       }
@@ -294,6 +297,7 @@
           [getEnergyForPlanet]="boundGetEnergyForPlanet"
           [getTaxForPlanet]="boundGetTaxForPlanet"
           [planetEconomy]="getPlanetEconomy(selectedPlanetTile!)"
+          [colonization]="getPlanetColonizationVm(selectedPlanetTile!)"
           (close)="selectedPlanetTile = null"
           (openPlanet)="openPlanetView()"
         >
@@ -336,8 +340,6 @@
           [getProductionPanelVm]="boundGetProductionPanelVm"
           [getSpaceportPanelVm]="boundGetSpaceportPanelVm"
           [spaceportFleetName]="spaceportFleetName"
-          [spaceportMode]="spaceportMode"
-          [spaceportTargetFleetId]="spaceportTargetFleetId"
           [productionBuildError]="productionBuildError"
           [spaceportError]="spaceportError"
           [isBuildingUnlocked]="isBuildingUnlocked"
@@ -346,15 +348,22 @@
           (queueOrder)="onQueueOrder($event)"
           (cancelOrder)="onCancelOrder($event)"
           (spaceportConfirm)="onSpaceportConfirm($event)"
-          (spaceportDisband)="onSpaceportDisband()"
           (spaceportFleetNameChange)="spaceportFleetName = $event"
           (openProductionTab)="openProductionPanel()"
-          (openSpaceportTab)="openSpaceportPanel('create', null)"
+          (openSpaceportTab)="openSpaceportPanel()"
         >
         </app-star-map-planet-screen>
       }
     </div>
   }
+
+  <!-- Transient notice (asteroid rewards, cancelled routes, colonization).
+       Rendered outside the view blocks so it shows in every view: a fleet
+       can colonize in a system the player is not looking at. -->
+  @if (mapNotice) {
+    <div class="map-notice" role="status">{{ mapNotice }}</div>
+  }
+
   <app-star-map-context-menu
     [contextMenu]="contextMenu"
     (selectItem)="onContextMenuSelect($event)"
@@ -369,6 +378,23 @@
       (close)="toggleAiDebug()"
       (toggleConsole)="toggleAiDebugConsole()"
     ></app-ai-debug-panel>
+  }
+
+  <!-- Deferred: the dialog ships in its own chunk, outside the initial bundle budget. -->
+  @if (fleetManagerFleets) {
+    @defer (on immediate) {
+    <app-star-map-fleet-manager
+      [fleets]="fleetManagerFleets"
+      factionId="player"
+      [factionColor]="getFactionColor('player')"
+      [locationLabel]="fleetManagerLocationLabel"
+      [reservedNames]="fleetManagerReservedNames"
+      [reserve]="fleetManagerReserve"
+      [error]="fleetManagerError"
+      (apply)="onFleetManagerApply($event)"
+      (cancel)="closeFleetManager()"
+    ></app-star-map-fleet-manager>
+    }
   }
 
   @if (showResearchTree) {

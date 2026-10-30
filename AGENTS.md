@@ -118,6 +118,7 @@ The project currently contains the following documentation files:
 - `docs/game-systems.md` — major gameplay systems and their responsibilities
 - `docs/invariants.md` — rules and conditions that must always remain true
 - `docs/ship-production.md` — ship production, global stock, and fleet assembly pipeline
+- `docs/fleet-organization.md` — fleet merging, splitting and ship redistribution: co-location rule, atomic plan validation, fleet retirement, new-fleet ids and position, the Spaceport-only reserve (stock ↔ fleet, replaces REINFORCE; same rule for the AI), game pause while editing, Fleet Command dialog UX, save compatibility
 - `docs/research.md` — technologies and research: effect inventory (unlocks and bonuses per technology), bonus aggregation and where each bonus is applied, research cost curve and scaling, AI research selection, research UI, save compatibility
 - `docs/economy.md` — faction economy: resources, the economy tick, upkeep and colony administration, arrears, building/ship/research prices, purchase and refund rules, AI spending policy summary, save compatibility
 - `docs/game-time.md` — centralized game time, pause/speed controls, and scaled delta flow

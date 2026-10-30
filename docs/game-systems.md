@@ -139,6 +139,8 @@ At most one of `selectedSystem`, `selectedFleet`, `selectedPlanetTile` is active
 
 **Attack orders** (`fleet-attack-orders.ts`, `Fleet.attackFleetId`, player only): the attacker pursues the quarry — each frame its galaxy target is re-aimed at the quarry's position once it drifted ≥ 0.5 cell (routing applies; re-aiming stops while both share a cell). Combat is not special-cased: the regular battle detection fires when they meet. The order ends when the quarry is destroyed/gone or no longer hostile, leaves the player's sensor picture ("lost contact" notice), or becomes unreachable (notice); the fleet then flies on to the last aimed point. Any manual move or intercept order replaces it. The fleet panel shows `ATTACKING <fleet>`.
 
+**Fleet organization** (ORGANIZE FLEETS in the fleet panel): merges, splits and redistributes the player's fleets on one galaxy cell through a draft that is applied atomically, with the game paused while the dialog is open. See [Fleet Organization](./fleet-organization.md).
+
 ### Movement
 
 Fleet movement is target-based. Each frame, `StarMapMovementService.updateFleets()` processes every active fleet:
@@ -158,15 +160,23 @@ After every move, `gridCol` and `gridRow` are refreshed from the current x/y. `r
 
 ### Planet Arrivals
 
-`checkFleetPlanetArrivals()` runs every frame in system view. For every fleet that has stopped on a planet's grid cell, it invokes `handleFleetPlanetArrival()`:
+`checkFleetPlanetArrivals()` runs every frame in system view, for the viewed system only. For every fleet that has stopped on a planet's grid cell, it invokes `handleFleetPlanetArrival()`:
 
-1. **Uninhabited planet** — `PlanetBattleService.resolveUninhabitedArrival()` looks for a non-destroyed `colonizer` ship. If found, the colonizer is removed, the planet's `factionId` becomes the fleet's `factionId`, and the game is saved.
+1. **Uninhabited planet** — Nothing happens; the fleet just parks. Colonization is an explicit player command (see Colonization below).
 2. **Same-faction planet** — Logged and ignored.
 3. **Teammate planet** — Logged and ignored.
 4. **Undefended enemy planet** — Captured immediately (through `PlanetOwnershipService.transferPlanet`, the single ownership pathway — see [Planet Capture](./planet-capture.md)). This arrival handling only runs for the system the player is viewing; AI fleets capture planets through `EnemyInvasionService` on galaxy-map cells instead.
 5. **Defended enemy planet** — `triggerPlanetBattle()` builds a virtual defense fleet (`PlanetBattleService.createVirtualDefenseFleet()`), calls `BattleService.setPlanetBattle()`, saves, and navigates to `/battle`.
 
 A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet arrived on so the same planet is not processed twice in a row.
+
+### Colonization
+
+The player colonizes only with the **COLONIZE** button of the fleet panel (galaxy map and system view), next to MOVE. It is shown while the selected player fleet is stopped on an uninhabited planet's cell and carries a living colonizer (`StarMapPlanetArrivalService.getColonizablePlanet`, using the fleet's persisted `fleet.system` position, so it also works after leaving the system view). Pressing it (`StarMap.onColonizeSelected` → `StarMapPlanetArrivalService.colonize`) re-validates, removes one colonizer, transfers the planet through `PlanetOwnershipService.transferPlanet` (`colonized`), retires the fleet if no living ship is left (`destroyed = true`, orders cleared — same as the AI executor; the panel is then closed), shows the map notice `"<fleet> colonized <planet>."` and saves. Arrival never colonizes, so a colonizer can pass through or wait on an empty planet.
+
+The system-view planet panel shows a Colonization note for explored uninhabited planets (`StarMap.getPlanetColonizationVm`, from `StarMapPlanetArrivalService.getColonizationCarriers`): a player colonizer fleet parked on the planet, one ordered onto it, one elsewhere in the system, or none — each with the next step. The panel has no colonize button of its own.
+
+AI factions colonize through `EnemyActionExecutor.executeColonize` on galaxy cells ([AI Pipeline](./ai-pipeline.md)); they never use this path.
 
 ### Battle Detection
 
@@ -209,7 +219,7 @@ A `Map<number, number>` (`fleetPlanetMap`) tracks the last planet id each fleet 
 - Manual slots remain explicit snapshots: they are not mutated by activation and are only written to when the player explicitly saves to one.
 - `currentSlot` is the only piece of state kept on the service itself; it is set by `MainMenu` (new game / load) and by `StarMap` when loading via the pause menu.
 - New games are procedurally generated (see [New Game Generation](./new-game-generation.md)): `NewGameService` writes the validated galaxy to the chosen manual slot and activates it. From then on it is an ordinary save — loading never regenerates the galaxy.
-- `StarMap.saveGame()` is called on: entering a system, leaving a system, opening the planet view, leaving the planet view, opening the pause menu, exiting to the main menu, battle trigger (both fleet and planet), planet colonization, planet capture, and on `ngOnDestroy`.
+- `StarMap.saveGame()` is called on: entering a system, leaving a system, opening the planet view, leaving the planet view, opening the pause menu, exiting to the main menu, battle trigger (both fleet and planet), planet colonization (COLONIZE button), planet capture, and on `ngOnDestroy`.
 - Loading happens in `loadGame()` from the pause menu or on `ngOnInit` when the user reaches `/star-map` without going through the main menu. If `currentSlot` is null but a save exists, the most recent slot is auto-selected; if no save exists, the user is redirected to the main menu.
 - Legacy saves (where `map.width > 150`, i.e. the old 200vw grid) are migrated: every system and fleet `x`/`y` is converted from vw to 1-indexed grid cells using a 2vw reference cell size.
 - `destroyedFleetId` is stored as part of the save so that the destruction persists across reloads.

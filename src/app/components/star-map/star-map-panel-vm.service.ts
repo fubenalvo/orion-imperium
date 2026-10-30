@@ -160,6 +160,8 @@ export class StarMapPanelVmService {
         return 'Fleet not found.';
       case 'enemy_fleet':
         return 'Cannot modify an enemy fleet.';
+      case 'not_at_spaceport':
+        return 'The fleet must be at one of your Spaceports.';
       default:
         return 'Assembly failed.';
     }

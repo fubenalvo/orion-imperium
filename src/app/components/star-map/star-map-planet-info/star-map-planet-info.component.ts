@@ -3,6 +3,21 @@ import { CommonModule } from '@angular/common';
 import { UpperCasePipe } from '@angular/common';
 import { PlanetTile, PlanetEconomyEntry } from '../star-map.models';
 
+/*
+ * Colonization guidance for an uninhabited planet, built by StarMap. The
+ * panel only explains the next step: colonizing is done with the COLONIZE
+ * button of the fleet panel, which appears when a player fleet with a
+ * colonizer is parked on the planet.
+ *   parked    - a colonizer fleet is on the planet and can colonize now
+ *   en_route  - a colonizer fleet is ordered onto the planet
+ *   in_system - a colonizer fleet is in this system elsewhere
+ *   none      - no player colonizer fleet in this system
+ */
+export interface PlanetColonizationVm {
+  status: 'parked' | 'en_route' | 'in_system' | 'none';
+  fleetName: string | null;
+}
+
 @Component({
   selector: 'app-star-map-planet-info',
   standalone: true,
@@ -16,6 +31,7 @@ export class StarMapPlanetInfoComponent {
   @Input() getEnergyForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
+  @Input() colonization: PlanetColonizationVm | null = null;
 
   @Output() close = new EventEmitter<void>();
   @Output() openPlanet = new EventEmitter<void>();

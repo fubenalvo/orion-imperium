@@ -23,6 +23,12 @@ import { ProductionService } from '../../services/production.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { GameOutcomeService, GameOutcome } from '../../services/game-outcome.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
+import {
+  FleetOrganizationPlan,
+  FleetOrganizationService,
+  fleetCell,
+} from '../../services/fleet-organization.service';
+import { StarMapFleetManagerComponent } from './star-map-fleet-manager/star-map-fleet-manager.component';
 import { ResearchService } from '../../services/research.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
@@ -110,7 +116,7 @@ import { EconomyBreakdown } from '../../services/economy.service';
 
 import { StarMapFleetInfoComponent } from './star-map-fleet-info/star-map-fleet-info.component';
 import { StarMapSystemInfoComponent } from './star-map-system-info/star-map-system-info.component';
-import { StarMapPlanetInfoComponent } from './star-map-planet-info/star-map-planet-info.component';
+import { PlanetColonizationVm, StarMapPlanetInfoComponent } from './star-map-planet-info/star-map-planet-info.component';
 import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-planet-screen.component';
 import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
@@ -169,6 +175,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapSystemGridViewComponent,
     StarMapResearchTreeComponent,
     StarMapAsteroidInfoComponent,
+    StarMapFleetManagerComponent,
   ],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
@@ -323,10 +330,19 @@ loadError = '';
   // next accepted move or a selection change.
   fleetMoveError: string | null = null;
   spaceportFleetName = 'New Fleet';
-  spaceportMode: 'create' | 'reinforce' = 'create';
-  spaceportTargetFleetId: number | null = null;
 
   showResearchTree = false;
+
+  // Fleet manager dialog (docs/fleet-organization.md). Holds the co-located
+  // player fleets captured when the dialog opened; null while closed. The
+  // game is paused while it is open so the fleets cannot drift apart or be
+  // attacked mid-edit; `fleetManagerResumeOnClose` restores the prior state.
+  fleetManagerFleets: Fleet[] | null = null;
+  // The player's ship stock when the dialog opened at an own Spaceport
+  // (shown as the Reserve column), otherwise null: the stock is out of reach.
+  fleetManagerReserve: import('./star-map.models').ShipStockEntry[] | null = null;
+  fleetManagerError: string | null = null;
+  private fleetManagerResumeOnClose = false;
   // Developer AI debug panel (F9). Snapshots refresh ~1×/s of real time only while open.
   aiDebugVisible = false;
   aiDebugSnapshots: AiDebugSnapshot[] = [];
@@ -390,6 +406,7 @@ loadError = '';
     public aiDebugService: EnemyDebugService,
     private terrainService: StarMapTerrainService,
     private asteroidService: DriftingAsteroidService,
+    private fleetOrganizationService: FleetOrganizationService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -1286,17 +1303,12 @@ loadError = '';
     return this.panelVmService.describeProductionError(reason);
   }
 
-  openSpaceportPanel(mode: 'create' | 'reinforce' = 'create', fleetId: number | null = null): void {
+  openSpaceportPanel(): void {
     if (!this.spaceportService.hasSpaceport('player', this.starSystems)) {
       this.spaceportError = 'You need a Spaceport to assemble fleets.';
       return;
     }
-    this.spaceportMode = mode;
-    this.spaceportTargetFleetId = fleetId;
-    this.spaceportFleetName =
-      mode === 'create'
-        ? this.suggestFleetName()
-        : (this.fleets.find((f) => f.id === fleetId)?.name ?? 'New Fleet');
+    this.spaceportFleetName = this.suggestFleetName();
     this.spaceportError = null;
     this.showSpaceportPanel = true;
   }
@@ -1334,70 +1346,35 @@ loadError = '';
     composition: { typeId: string; count: number }[];
     systemId: string;
     planetId: number;
-    fleetId: number | null;
   }): void {
-    if (event.fleetId != null) {
-      const result = this.fleetAssemblyService.reinforceFleet(this, this.starSystems, {
-        factionId: 'player',
-        fleetId: event.fleetId,
-        composition: event.composition,
-      });
-      if (!result.ok) {
-        this.spaceportError = this.describeAssemblyError(result.reason);
-        return;
-      }
-    } else {
-      const result = this.fleetAssemblyService.createFleet(this, this.starSystems, {
-        factionId: 'player',
-        fleetName: event.fleetName,
-        systemId: event.systemId,
-        planetId: event.planetId,
-        composition: event.composition,
-      });
-      if (!result.ok) {
-        this.spaceportError = this.describeAssemblyError(result.reason);
-        return;
-      }
-      if (result.fleet) {
-        // Place the new fleet on its host planet's system cell and
-        // transition into the system view. The view flip MUST happen
-        // before `selectFleet` because `selectFleet` clears
-        // `selectedSystem` whenever it is called from a non-system
-        // view (`star-map.ts:971-973`). If the order is wrong,
-        // `selectedSystem` is nulled and the system-view template
-        // renders as a blank grid.
-        const hostSystem = this.starSystems.find((s) => s.id === event.systemId);
-        if (hostSystem) {
-          this.selectSystem(hostSystem);
-        }
-        this.currentView = 'system';
-        if (hostSystem) {
-          this.initFleetsInSystem(hostSystem);
-        }
-        this.selectFleet(result.fleet);
-      }
-    }
-    this.spaceportError = null;
-    this.showSpaceportPanel = false;
-    this.saveGame();
-  }
-
-  onSpaceportDisband(): void {
-    const fleetId = this.spaceportTargetFleetId;
-    if (fleetId == null) {
+    const result = this.fleetAssemblyService.createFleet(this, this.starSystems, {
+      factionId: 'player',
+      fleetName: event.fleetName,
+      systemId: event.systemId,
+      planetId: event.planetId,
+      composition: event.composition,
+    });
+    if (!result.ok) {
+      this.spaceportError = this.describeAssemblyError(result.reason);
       return;
     }
-    const fleet = this.fleets.find((f) => f.id === fleetId);
-    if (!fleet) {
-      return;
-    }
-    const ok = window.confirm(`Disband ${fleet.name}? Surviving ships return to the global stock.`);
-    if (!ok) {
-      return;
-    }
-    this.fleetAssemblyService.disbandFleet(this, 'player', fleetId);
-    if (this.selectedFleet?.id === fleetId) {
-      this.deselectFleet();
+    if (result.fleet) {
+      // Place the new fleet on its host planet's system cell and
+      // transition into the system view. The view flip MUST happen
+      // before `selectFleet` because `selectFleet` clears
+      // `selectedSystem` whenever it is called from a non-system
+      // view (`star-map.ts:971-973`). If the order is wrong,
+      // `selectedSystem` is nulled and the system-view template
+      // renders as a blank grid.
+      const hostSystem = this.starSystems.find((s) => s.id === event.systemId);
+      if (hostSystem) {
+        this.selectSystem(hostSystem);
+      }
+      this.currentView = 'system';
+      if (hostSystem) {
+        this.initFleetsInSystem(hostSystem);
+      }
+      this.selectFleet(result.fleet);
     }
     this.spaceportError = null;
     this.showSpaceportPanel = false;
@@ -1413,11 +1390,32 @@ loadError = '';
     this.saveGame();
   }
 
-  onReinforceSelected(): void {
-    if (!this.selectedFleet) {
+  /* Planet the selected player fleet can colonize now (drives the fleet panel's COLONIZE button). */
+  getSelectedFleetColonizeTarget(): PlanetTile | null {
+    const fleet = this.commandableFleet();
+    return fleet ? this.arrivalService.getColonizablePlanet(fleet, this.starSystems) : null;
+  }
+
+  /*
+   * COLONIZE button: the only way the player colonizes. Arriving on an
+   * uninhabited planet just parks the fleet (StarMapPlanetArrivalService).
+   */
+  onColonizeSelected(): void {
+    const fleet = this.commandableFleet();
+    const planet = this.getSelectedFleetColonizeTarget();
+    if (!fleet || !planet) {
       return;
     }
-    this.openSpaceportPanel('reinforce', this.selectedFleet.id);
+    const result = this.arrivalService.colonize(fleet, planet, { production: this.production, factions: this.factions });
+    if (!result) {
+      return;
+    }
+    this.showMapNotice(`${fleet.name} colonized ${planet.name}.`);
+    if (result.fleetRetired) {
+      this.deselectFleet();
+    }
+    this.saveGame();
+    this.cdr.detectChanges();
   }
 
   onDisbandSelected(): void {
@@ -1435,6 +1433,97 @@ loadError = '';
 
   hasSpaceport(): boolean {
     return this.spaceportService.hasSpaceport('player', this.starSystems);
+  }
+
+  // Fleet organization (merge / split / redistribute)
+
+  /* Number of player fleets (including this one) the fleet can be organized with. */
+  getCoLocatedPlayerFleetCount(fleet: Fleet): number {
+    if (fleet.factionId !== 'player' || fleet.destroyed) {
+      return 0;
+    }
+    return this.fleetOrganizationService.getCoLocatedFleets(this.fleets, fleet).length;
+  }
+
+  /* True when the fleet stands in a system with one of the player's Spaceports (reserve reachable). */
+  isFleetAtOwnSpaceport(fleet: Fleet): boolean {
+    return fleet.factionId === 'player' && this.fleetOrganizationService.canUseReserve('player', fleet, this.starSystems);
+  }
+
+  /* A fleet can be organized if it is the player's and has a living ship to move. */
+  canOrganizeFleet(fleet: Fleet): boolean {
+    return fleet.factionId === 'player' && !fleet.destroyed && fleet.ships.some((s) => !s.destroyed);
+  }
+
+  openFleetManager(): void {
+    const anchor = this.selectedFleet;
+    if (!anchor || !this.canOrganizeFleet(anchor)) {
+      return;
+    }
+    this.fleetManagerFleets = this.fleetOrganizationService.getCoLocatedFleets(this.fleets, anchor);
+    this.fleetManagerReserve = this.isFleetAtOwnSpaceport(anchor)
+      ? [...this.shipStockService.getStock(this, 'player')]
+      : null;
+    this.fleetManagerError = null;
+    this.selectedFleetAction = null;
+    this.contextMenu = null;
+    this.fleetManagerResumeOnClose = !this.gameTimeService.isPaused;
+    this.gameTimeService.pause();
+    this.cdr.detectChanges();
+  }
+
+  closeFleetManager(): void {
+    this.fleetManagerFleets = null;
+    this.fleetManagerReserve = null;
+    this.fleetManagerError = null;
+    if (this.fleetManagerResumeOnClose) {
+      this.gameTimeService.resume();
+    }
+    this.fleetManagerResumeOnClose = false;
+    this.cdr.detectChanges();
+  }
+
+  onFleetManagerApply(plan: FleetOrganizationPlan): void {
+    const result = this.fleetOrganizationService.applyPlan(this, this.starSystems, plan);
+    if (!result.ok) {
+      this.fleetManagerError = this.fleetOrganizationService.describeFailure(result.reason);
+      this.cdr.detectChanges();
+      return;
+    }
+    // Keep the selected fleet if it survived; otherwise follow its ships to
+    // the first fleet of the new layout (the dialog lists the opener first).
+    // No fleet left means everything went back to the reserve.
+    const selected = this.selectedFleet;
+    const next = selected && result.fleets.includes(selected) ? selected : result.fleets[0];
+    if (next) {
+      this.selectFleet(next);
+    } else {
+      this.deselectFleet();
+    }
+    // Ship ranges feed fleet sensor ranges, so moving scouts changes coverage.
+    this.updateSensorVisibility(/*force=*/ true);
+    this.saveGame();
+    this.closeFleetManager();
+  }
+
+  /* Star system name at the dialog's cell, or the deep-space sector. */
+  get fleetManagerLocationLabel(): string {
+    const anchor = this.fleetManagerFleets?.[0];
+    if (!anchor) {
+      return '';
+    }
+    const cell = fleetCell(anchor);
+    const system = this.starSystems.find(
+      (s) => Math.floor(s.x) === cell.col && Math.floor(s.y) === cell.row,
+    );
+    return system ? `${system.name} system` : `Deep space ${cell.col}:${cell.row}`;
+  }
+
+  get fleetManagerReservedNames(): string[] {
+    const inDialog = new Set(this.fleetManagerFleets?.map((f) => f.id) ?? []);
+    return this.fleets
+      .filter((f) => f.factionId === 'player' && !f.destroyed && !inDialog.has(f.id))
+      .map((f) => f.name);
   }
 
   hasFactoryOnSelectedPlanet(): boolean {
@@ -1658,6 +1747,22 @@ loadError = '';
     this.cdr.detectChanges();
   }
 
+  /* Colonization guidance for the planet panel; null unless the planet is explored and uninhabited. */
+  getPlanetColonizationVm(planet: PlanetTile): PlanetColonizationVm | null {
+    if (!this.selectedSystem || !planet.explored || planet.factionId !== 'unhabited') {
+      return null;
+    }
+    const { carriers, parked, enRoute } = this.arrivalService.getColonizationCarriers(
+      this.fleets,
+      this.selectedSystem,
+      planet,
+    );
+    if (parked) return { status: 'parked', fleetName: parked.name };
+    if (enRoute) return { status: 'en_route', fleetName: enRoute.name };
+    if (carriers[0]) return { status: 'in_system', fleetName: carriers[0].name };
+    return { status: 'none', fleetName: null };
+  }
+
   /** Clears the currently selected planet tile. */
   deselectPlanetTile(): void {
     this.selectedPlanetTile = null;
@@ -1825,10 +1930,9 @@ loadError = '';
     if (this.consumeRightClick(event)) return;
     const fleet = this.commandableFleet();
     if (fleet && this.selectedSystem && fleet.system?.id === this.selectedSystem.id) {
-      const cell = this.movementService.getPlanetGridPosition(planet);
-      const size = StarMapMovementService.systemCellSizeVw;
+      const center = this.movementService.getPlanetCellCenter(planet);
       this.selectedFleetAction = null;
-      this.moveSelectedFleet((cell.col - 0.5) * size, (cell.row - 0.5) * size);
+      this.moveSelectedFleet(center.x, center.y);
       this.cdr.detectChanges();
       return;
     }
@@ -3271,6 +3375,9 @@ loadError = '';
     const isInput =
       target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable;
     if (isInput) return;
+    // The fleet manager is modal: it handles Escape itself, and map shortcuts
+    // (including un-pausing with Space) must not act behind it.
+    if (this.fleetManagerFleets) return;
 
     switch (event.key) {
       case 'ArrowUp':

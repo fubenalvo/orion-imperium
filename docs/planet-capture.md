@@ -14,7 +14,7 @@ Population, buildings, satisfaction and the persisted planetary shield pool stay
 
 | Reason | Caller |
 |---|---|
-| `colonized` | `StarMapPlanetArrivalService` (player colonizer arrival), `EnemyActionExecutor.executeColonize` (AI) |
+| `colonized` | `StarMapPlanetArrivalService.colonize` (player COLONIZE button), `EnemyActionExecutor.executeColonize` (AI) |
 | `captured` | arrival on an undefended / shield-only planet (player arrival service, AI `EnemyInvasionService`) |
 | `battle_won` | `BattleOutcomeService.applyPlanetBattleOutcome` (battle screen and AI auto-resolve) |
 | `rebellion` | `EconomyService.applyEconomyDelta` (satisfaction reached 0 → `independent`) |

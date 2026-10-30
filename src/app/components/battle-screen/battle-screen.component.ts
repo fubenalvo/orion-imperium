@@ -754,8 +754,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
     if (running) {
       const deltaMs = deltaTime * 1000;
-      updateStackPositions(state, deltaTime, (stackId) => this.movement.completeMovement(stackId));
+      // Headings first: this frame's movement speed depends on how far each
+      // hull is still turned away from its course (battle-heading.ts).
       updateStackHeadings(state, deltaTime);
+      updateStackPositions(state, deltaTime, (stackId) => this.movement.completeMovement(stackId));
 
       this.aiTickAccumulator += deltaMs;
       if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS) {

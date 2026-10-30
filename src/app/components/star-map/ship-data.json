@@ -17,7 +17,7 @@
       "cost": 50,
       "rawMaterialCost": 25,
       "maintenanceCost": 2,
-      "fireRate": 1.5
+      "fireRate": 3
     },
     {
       "id": "fighter",
@@ -36,7 +36,7 @@
       "cost": 75,
       "rawMaterialCost": 40,
       "maintenanceCost": 3,
-      "fireRate": 1.5
+      "fireRate": 4
     },
     {
       "id": "corvette",
@@ -55,7 +55,7 @@
       "cost": 120,
       "rawMaterialCost": 60,
       "maintenanceCost": 5,
-      "fireRate": 1.5
+      "fireRate": 3
     },
     {
       "id": "frigate",
@@ -74,7 +74,7 @@
       "cost": 180,
       "rawMaterialCost": 90,
       "maintenanceCost": 8,
-      "fireRate": 1.5
+      "fireRate": 2.2
     },
     {
       "id": "destroyer",
@@ -93,7 +93,7 @@
       "cost": 260,
       "rawMaterialCost": 130,
       "maintenanceCost": 12,
-      "fireRate": 1.5
+      "fireRate": 1.6
     },
     {
       "id": "cruiser",
@@ -112,7 +112,7 @@
       "cost": 400,
       "rawMaterialCost": 200,
       "maintenanceCost": 18,
-      "fireRate": 1.5
+      "fireRate": 1.2
     },
     {
       "id": "carrier",
@@ -150,7 +150,7 @@
       "cost": 700,
       "rawMaterialCost": 350,
       "maintenanceCost": 32,
-      "fireRate": 1.5
+      "fireRate": 0.75
     },
     {
       "id": "battlecruiser",
@@ -169,7 +169,7 @@
       "cost": 750,
       "rawMaterialCost": 375,
       "maintenanceCost": 35,
-      "fireRate": 1.5
+      "fireRate": 0.9
     },
     {
       "id": "dreadnought",
@@ -188,7 +188,7 @@
       "cost": 1200,
       "rawMaterialCost": 600,
       "maintenanceCost": 55,
-      "fireRate": 1.5
+      "fireRate": 0.5
     },
     {
       "id": "colonizer",
@@ -207,7 +207,7 @@
       "cost": 100,
       "rawMaterialCost": 150,
       "maintenanceCost": 5,
-      "fireRate": 1.5
+      "fireRate": 2
     }
   ]
 }

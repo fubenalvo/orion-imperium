@@ -502,41 +502,65 @@
     ========================================================= */
 
 .projectile {
-  /* Laser bolt: white-hot core with a glow in the shooter's faction color.
+  /* Laser bolt in the shooter's faction color: colored body and glow, with
+   * a thin core lightened only slightly (still tinted) so two factions'
+   * bolts stay distinguishable even on thin rapid-fire shots.
    * Position, length and angle are bound every frame from the projectile
    * simulation — no CSS movement animation, so what you see is where the
    * bolt actually is. The element's left/top is the bolt tail; it is
-   * rotated around its left-middle point. */
+   * rotated around its left-middle point. --bolt-scale (shot power, ~0.45
+   * light … 1.75 capital, see shotScale) sets thickness and glow; length
+   * is scaled in TS. */
+  --bolt-h: calc(var(--u) * 0.2 * var(--bolt-scale, 1));
+
   position: absolute;
-  height: max(2px, calc(var(--u) * 0.22));
-  margin-top: min(-1px, calc(var(--u) * -0.11));
+  height: max(1px, var(--bolt-h));
+  margin-top: calc(max(1px, var(--bolt-h)) / -2);
   transform-origin: 0 50%;
   transform: rotate(var(--projectile-angle, 0deg));
   border-radius: 999px;
   background: linear-gradient(
     90deg,
     transparent 0%,
-    color-mix(in srgb, var(--bolt-color, #ff3b3b) 80%, white) 25%,
-    #fff 60%,
-    #fff 100%
+    color-mix(in srgb, var(--bolt-color, #ff3b3b) 70%, transparent) 25%,
+    var(--bolt-color, #ff3b3b) 55%,
+    var(--bolt-color, #ff3b3b) 100%
   );
   box-shadow:
-    0 0 calc(var(--u) * 0.25) var(--bolt-color, #ff3b3b),
-    0 0 calc(var(--u) * 0.6) var(--bolt-color, #ff3b3b);
+    0 0 calc(var(--u) * 0.25 * var(--bolt-scale, 1)) var(--bolt-color, #ff3b3b),
+    0 0 calc(var(--u) * 0.6 * var(--bolt-scale, 1)) var(--bolt-color, #ff3b3b);
   z-index: var(--z-bolts);
   pointer-events: none;
+
+  /* Hot core along the front half of the bolt. */
+  &::after {
+    content: '';
+    position: absolute;
+    top: 30%;
+    bottom: 30%;
+    left: 35%;
+    right: 4%;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--bolt-color, #ff3b3b) 45%, white) 60%
+    );
+  }
 }
 
 .impact {
   position: absolute;
-  width: calc(0.6 * var(--cell-w));
-  height: calc(0.6 * var(--cell-h));
+  /* Hit flash sized by the shot (--impact-scale); explosions are bound to 1. */
+  width: calc(0.6 * var(--cell-w) * var(--impact-scale, 1));
+  height: calc(0.6 * var(--cell-h) * var(--impact-scale, 1));
   transform: translate(-50%, -50%);
   border-radius: 50%;
+  /* Hit flash in the shooter's faction color (--impact-color). */
   background: radial-gradient(
     circle,
-    rgba(255, 255, 255, 0.9),
-    rgba(214, 87, 87, 0.5) 40%,
+    color-mix(in srgb, var(--impact-color, #d65757) 35%, white),
+    color-mix(in srgb, var(--impact-color, #d65757) 55%, transparent) 40%,
     transparent 70%
   );
   z-index: var(--z-effects);

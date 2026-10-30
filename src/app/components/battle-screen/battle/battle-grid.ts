@@ -1,4 +1,5 @@
 import type { BattleModelState, BattleStack, GridCell } from './battle.types';
+import { maneuverSpeedFactor } from './battle-heading';
 import {
   BATTLE_GRID_COLUMNS,
   BATTLE_GRID_ROWS,
@@ -441,7 +442,8 @@ export function regenerateAllShields(state: BattleModelState): void {
 /*
  * Update all stacks' positions toward their targets.
  * Called every frame by the game loop with scaled delta time (seconds).
- * Moves stacks at speed vw/s toward targetX/targetY.
+ * Moves stacks at speed vw/s toward targetX/targetY, scaled down while the
+ * hull is still turning onto the course (maneuverSpeedFactor, battle-heading.ts).
  * When a stack reaches its target, snaps position and updates col/row.
  *
  * When deltaTime === 0 (battle paused), positions don't change and
@@ -501,7 +503,10 @@ export function updateStackPositions(
         onComplete(stack.stackId);
       }
     } else {
-      const step = Math.min(stack.speed * deltaTime, dist);
+      // Slowed while the hull still points away from its course (see
+      // battle-heading.ts), so ships turn into a move instead of sliding.
+      const speed = stack.speed * maneuverSpeedFactor(stack, dx, dy);
+      const step = Math.min(speed * deltaTime, dist);
       stack.x += (dx / dist) * step;
       stack.y += (dy / dist) * step;
       stack.moving = true;

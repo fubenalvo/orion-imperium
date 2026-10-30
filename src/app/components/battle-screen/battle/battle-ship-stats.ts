@@ -60,6 +60,13 @@ const VIRTUAL_RANGE_LOOKUP: Record<string, number> = Object.fromEntries(
     .map((b) => [b.id, b.range as number]),
 );
 
+/* Virtual defense building fire rates (planet-data.json, shots per second). */
+const VIRTUAL_FIRE_RATE_LOOKUP: Record<string, number> = Object.fromEntries(
+  (planetData as { buildings: { id: string; fireRate?: number }[] }).buildings
+    .filter((b) => b.fireRate != null)
+    .map((b) => [b.id, b.fireRate as number]),
+);
+
 export function getBattleShipStats(
   typeId: string,
   shipService: ShipService,
@@ -107,7 +114,7 @@ export function getBattleShipStats(
       weakness: virtual.weakness ?? 'energy',
       role: virtual.role ?? 'defense',
       speed: 0,
-      fireRate: 1.5,
+      fireRate: VIRTUAL_FIRE_RATE_LOOKUP[typeId] ?? 1.5,
     };
   }
 

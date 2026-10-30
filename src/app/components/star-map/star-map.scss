@@ -101,7 +101,7 @@
   letter-spacing: 0.2em;
 }
 
-/* Transient galaxy notice (asteroid rewards, cancelled routes). */
+/* Transient notice (asteroid rewards, cancelled routes, colonization); shown in every view. */
 .map-notice {
   position: absolute;
   top: calc(var(--game-header-h) + var(--ui-edge));
