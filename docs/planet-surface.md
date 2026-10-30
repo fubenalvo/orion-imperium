@@ -219,10 +219,13 @@ id with dashes), generated from geometry by `scripts/building-sprites/`:
   the terrain renderer and the CSS ground plane), the shared light
   (top / left-front / right-front face brightness), and primitives (boxes
   with ambient-occluded faces, window grids, glowing light strips,
-  cylinders and cooling-tower shells, domes, discs, glows, trees).
+  cylinders and cooling-tower shells, round towers, domes, halos, arches,
+  ribbon-window bands, spires, discs, glows, trees).
 - `buildings.mjs` — one design per building id (Imperium Galactica-like
-  colony architecture: concrete and steel volumes on a bevelled base slab,
-  lit windows, cyan light strips, red beacons, hazard-yellow markings).
+  sci-fi colony: round towers with domed caps, glowing ribbon windows,
+  floating halo rings, arches, tube bridges, glass bio-domes and spires
+  with glowing tips on bevelled base slabs with luminous edges; cyan is the
+  colony light, red marks beacons and medical, hazard yellow industry).
   Each design draws back to front, since SVG paints in document order.
 - `generate.mjs` — writes one file per building in `planet-data.json` and
   fails if a building has no design, so a new building cannot ship without

@@ -227,6 +227,81 @@ export class IsoSvg {
     });
   }
 
+  /* Back half-ring (the part hidden behind a cylinder/tower): draw before it. */
+  ringBack(cu, cv, r, h, color, width = 2, glow = true) {
+    const e = this.ell(cu, cv, r, h);
+    this.path(`M${r1(e.cx + e.rx)},${r1(e.cy)} A${r1(e.rx)} ${r1(e.ry)} 0 0 0 ${r1(e.cx - e.rx)},${r1(e.cy)}`, 'none', {
+      stroke: color,
+      width,
+      opacity: 0.75,
+      filter: glow ? 'glow' : undefined,
+    });
+  }
+
+  /* Floating halo: back half before the object, front half via `ring` after it. */
+  halo(cu, cv, r, h, color, draw, width = 2.2) {
+    this.ringBack(cu, cv, r, h, css(color), width);
+    draw();
+    this.ring(cu, cv, r, h, css(color, 1.1), width, true);
+  }
+
+  /* Arch in the vertical plane through two ground points (gateways, conduits). */
+  arch(a, b, height, color, width = 3, glow = true, steps = 16) {
+    const pts = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      pts.push(this.p(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t + Math.sin(t * Math.PI) * height));
+    }
+    const d = 'M' + pts.map(([x, y]) => `${r1(x)},${r1(y)}`).join(' L');
+    this.path(d, 'none', { stroke: color, width, filter: glow ? 'glow' : undefined });
+    this.body[this.body.length - 1] = this.body[this.body.length - 1].replace('<path', '<path stroke-linecap="round"');
+  }
+
+  /* Continuous glowing window bands on a face (sci-fi ribbon windows). */
+  bands(face, b, h0, h1, n, color, o = {}) {
+    const along = face === 'left' ? b.du : b.dv;
+    const step = (h1 - h0) / n;
+    for (let k = 0; k < n; k++) {
+      const lo = h0 + k * step + step * 0.3;
+      const hi = h0 + (k + 1) * step - step * 0.25;
+      this.poly(this.facePoly(face, b, along * 0.06, along * 0.94, lo, hi), css(color, face === 'left' ? 1.05 : 0.8), {
+        filter: o.glow === false ? undefined : 'glow',
+      });
+    }
+  }
+
+  /* Thin tapered spire with a glowing tip. */
+  spire(u, v, h0, height, color, base = [130, 138, 150], w = 0.035) {
+    const [x0, y0] = this.p(u, v, h0);
+    const [x1, y1] = this.p(u, v, h0 + height);
+    const sw = w * S;
+    this.track(y1 - 6);
+    this.body.push(
+      `<polygon points="${r1(x0 - sw)},${r1(y0)} ${r1(x0 + sw)},${r1(y0)} ${r1(x1)},${r1(y1)}" fill="${this.linear(x0 - sw, 0, x0 + sw, 0, [[0, css(base, 1.2)], [1, css(base, 0.55)]])}"/>`,
+    );
+    this.glow(u, v, h0 + height, 0.06, color);
+  }
+
+  /*
+   * Round sci-fi tower: cylinder with glowing ring windows, a collar, and a
+   * dome cap (optionally a spire). Returns the top height.
+   */
+  roundTower(cu, cv, r, h0, h1, base, light, o = {}) {
+    this.cylinder(cu, cv, r, h0, h1, base, base, o.taper ?? r);
+    const rt = o.taper ?? r;
+    const rings = o.rings ?? Math.max(2, Math.round((h1 - h0) / 0.16));
+    for (let k = 0; k < rings; k++) {
+      const h = h0 + 0.1 + ((h1 - h0 - 0.16) * k) / Math.max(1, rings - 1);
+      const rr = r + (rt - r) * ((h - h0) / (h1 - h0));
+      this.ring(cu, cv, rr * 1.002, h, css(light, 1.05), o.ringWidth ?? 2.4, true);
+    }
+    this.cylinder(cu, cv, rt * 1.12, h1, h1 + 0.04, [96, 104, 116], [150, 158, 170]);
+    if (o.dome !== false) this.dome(cu, cv, rt * 0.95, h1 + 0.04, rt * 0.9, o.domeTint ?? light, { ribs: 4 });
+    const top = h1 + 0.04 + (o.dome !== false ? rt * 0.9 : 0);
+    if (o.spire) this.spire(cu, cv, top - 0.02, o.spire, light);
+    return top;
+  }
+
   disc(cu, cv, r, h, fill, o = {}) {
     this.path(this.ellipsePath(this.ell(cu, cv, r, h)), fill, o);
   }
