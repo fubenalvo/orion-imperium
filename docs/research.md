@@ -72,7 +72,15 @@ Measured in the 30-minute economy validation simulation (`ai-simulation.spec.ts`
 
 ## UI
 
-The research tree shows, per technology: name, flavour description, **Effects** (generated from the data by `ResearchService.describeEffects`, so the text cannot drift from the rules), current cost, prerequisites, what it leads to, status, and why it cannot be researched now (missing prerequisites, or points still needed with the time at current research income).
+The research screen shows, per technology: name, flavour description, **Effects** (generated from the data by `ResearchService.describeEffects`, so the text cannot drift from the rules), current cost, prerequisites, what it leads to, status, and why it cannot be researched now (missing prerequisites, or points still needed with the time at current research income). An available technology that is not yet affordable also shows a meter of how much of its cost is already banked.
+
+Layout (presentation only, no effect on the rules):
+
+- **Tiers.** Technologies are grouped into rows by prerequisite depth: no prerequisites = tier I, otherwise one more than the deepest prerequisite (`StarMapResearchTreeComponent.getTier`). The tier is derived from the technology data, not stored on it, so adding or re-wiring technologies needs no UI change.
+- **Header.** Current research points and income, and overall progress (researched / total).
+- **Filters.** All / Available / Researched / Locked, with counts. The filter is component state only; it is not saved.
+
+Visual styling follows the design system in [UI Styling](./ui-styling.md#design-system).
 
 ## Known limitations
 

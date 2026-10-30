@@ -2,47 +2,47 @@
   <div class="asteroid-info panel-style" (click)="$event.stopPropagation()">
     <div class="panel-style__title">
       <span class="asteroid-info__title asteroid-info__title--{{ vm.type }}">{{ vm.label }}</span>
-      <button class="close-btn" type="button" (click)="close.emit()">X</button>
+      <button class="close-btn" type="button" (click)="close.emit()" aria-label="Close">X</button>
     </div>
 
     <div class="system-info__content">
+      <div class="ui-label">Cargo</div>
       @for (item of vm.cargo; track item.label) {
-        <div class="asteroid-info__row">
-          <span>{{ item.label }}</span>
-          <span class="asteroid-info__value">+{{ item.amount }}</span>
+        <div class="ui-stat ui-stat--positive">
+          <span class="ui-stat__label">{{ item.label }}</span>
+          <span class="ui-stat__value">+{{ item.amount }}</span>
         </div>
       }
-      <div class="asteroid-info__row">
-        <span>LEAVES MAP IN</span>
-        <span class="asteroid-info__value">{{ formatSeconds(vm.secondsToExit) }}</span>
+      <div class="ui-stat">
+        <span class="ui-stat__label">Leaves map in</span>
+        <span class="ui-stat__value">{{ formatSeconds(vm.secondsToExit) }}</span>
       </div>
 
-      <hr class="fleet-section-divider" />
-      <div class="fleet-ships__title">INTERCEPT WITH</div>
+      <div class="ui-label">Intercept with</div>
 
       @for (fleet of vm.fleets; track fleet.fleetId) {
         <div class="asteroid-info__fleet">
           <span class="asteroid-info__fleet-name">{{ fleet.name }}</span>
           @if (fleet.intercepting) {
-            <span class="asteroid-info__status asteroid-info__status--active">EN ROUTE</span>
+            <span class="ui-chip ui-chip--success">EN ROUTE</span>
           } @else if (fleet.etaSeconds !== null) {
             <button
               type="button"
               class="action-btn"
               (click)="intercept.emit(fleet.fleetId); $event.stopPropagation()"
             >
-              INTERCEPT ({{ formatSeconds(fleet.etaSeconds) }})
+              INTERCEPT · {{ formatSeconds(fleet.etaSeconds) }}
             </button>
           } @else {
-            <span class="asteroid-info__status asteroid-info__status--blocked">OUT OF REACH</span>
+            <span class="ui-chip ui-chip--danger">OUT OF REACH</span>
           }
         </div>
       } @empty {
-        <div class="asteroid-info__status">NO FLEETS AVAILABLE</div>
+        <div class="asteroid-info__empty">No fleets available.</div>
       }
 
       @if (message) {
-        <div class="asteroid-info__message" role="status">{{ message }}</div>
+        <div class="ui-notice ui-notice--warning" role="status">{{ message }}</div>
       }
     </div>
   </div>

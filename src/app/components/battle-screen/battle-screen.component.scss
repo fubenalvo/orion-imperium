@@ -1,5 +1,6 @@
 @use 'hud-controls' as hud;
 @use 'space' as *;
+@use 'ui';
 
 @include space-keyframes;
 
@@ -33,8 +34,8 @@
   --battle-hud-top-h: var(--game-header-h);
   --battle-hud-bottom-h: calc(var(--hu) * 5.75);
   --battle-hud-max-w: calc(var(--hu) * 100);
-  --battle-panel-bg: rgba(2, 6, 9, 0.92);
-  --battle-panel-border: rgba(53, 134, 229, 0.28);
+  --battle-panel-bg: linear-gradient(180deg, rgba(4, 13, 18, 0.9), rgba(2, 7, 10, 0.96));
+  --battle-panel-border: var(--ui-line);
 
   position: relative;
   width: 100vw;
@@ -192,7 +193,21 @@
 }
 
 .battle-hud--bottom {
-  border-top: 1px solid var(--battle-panel-border);
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      rgba(var(--ui-accent-rgb), 0.08),
+      rgba(var(--ui-accent-rgb), 0.5) 35%,
+      rgba(var(--ui-accent-rgb), 0.5) 65%,
+      rgba(var(--ui-accent-rgb), 0.08)
+    );
+  }
 }
 
 /* Content is width-capped so on ultrawide screens the controls stay within
@@ -242,7 +257,7 @@
   font-size: calc(var(--gh-u) * 1);
   font-weight: 700;
   letter-spacing: 0.25em;
-  color: #ffcc66;
+  color: var(--ui-warm);
   animation: battle-paused-blink 1.6s ease-in-out infinite;
 }
 
@@ -290,7 +305,7 @@
 .battle-screen__planet-shield-text {
   font-size: calc(var(--gh-u) * 0.95);
   letter-spacing: 0.15em;
-  color: #7fd4ff;
+  color: var(--ui-shield);
   white-space: nowrap;
 }
 
@@ -350,40 +365,34 @@
   min-width: calc(var(--hu) * 9);
 }
 
+/* Carrier ability: shield-tinted so it reads as a shield action. */
 .carrier-boost-btn {
-  padding: calc(var(--hu) * 0.45) calc(var(--hu) * 1.1);
-  border: 1px solid #3ec8ff;
-  border-radius: 2px;
-  background: rgba(62, 200, 255, 0.12);
-  color: #8be9ff;
-  font-family: var(--font-primary);
-  font-size: calc(var(--hu) * 0.75);
-  font-weight: 600;
-  letter-spacing: 0.2em;
+  @include ui.button(sm);
+  padding: calc(var(--hu) * 0.5) calc(var(--hu) * 1.1);
+  border-color: color-mix(in srgb, var(--ui-shield) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ui-shield) 22%, transparent), color-mix(in srgb, var(--ui-shield) 6%, transparent));
+  color: #bfeaff;
+  font-size: calc(var(--hu) * 0.85);
+  letter-spacing: 0.22em;
   white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
 }
 
 .carrier-boost-btn:hover {
-  background: rgba(62, 200, 255, 0.3);
-  box-shadow: 0 0 12px rgba(62, 200, 255, 0.4);
+  border-color: var(--ui-shield);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--ui-shield) 45%, transparent);
 }
 
 /* Reserved line height so the error message appearing never moves the
  * buttons above it. */
 .battle-screen__hint {
   min-height: calc(var(--hu) * 1);
-  font-size: calc(var(--hu) * 0.65);
+  font-size: calc(var(--hu) * 0.85);
   letter-spacing: 0.2em;
   text-align: right;
 }
 
 .battle-screen__hint--error {
-  color: #d65757;
-  font-weight: 700;
+  color: var(--ui-danger-text);
   animation: hintPulse 0.3s ease-out;
 }
 
@@ -430,16 +439,16 @@
   gap: calc(var(--hu) * 0.25);
   border-left-color: var(--battle-panel-border);
   background: none;
-  font-size: calc(var(--hu) * 0.65);
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: var(--color-text-dim);
+  font-size: calc(var(--hu) * 1);
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  color: var(--ui-ink-dim);
 }
 
 .battle-screen__selection-help {
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  opacity: 0.8;
+  color: var(--ui-ink-faint);
+  font-size: 0.85em;
+  letter-spacing: 0.08em;
 }
 
 .selection-col {
@@ -457,9 +466,9 @@
   align-items: center;
   flex-wrap: wrap;
   gap: calc(var(--hu) * 0.4);
-  font-size: calc(var(--hu) * 0.75);
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-size: calc(var(--hu) * 1.05);
+  font-weight: 400;
+  letter-spacing: 0.14em;
 }
 
 .selection-type {
@@ -472,8 +481,8 @@
 .selection-tag {
   padding: calc(var(--hu) * 0.1) calc(var(--hu) * 0.35);
   border-radius: 2px;
-  font-size: calc(var(--hu) * 0.55);
-  font-weight: 700;
+  font-size: calc(var(--hu) * 0.75);
+  font-weight: 400;
   letter-spacing: 0.15em;
   white-space: nowrap;
 }
@@ -485,22 +494,22 @@
 }
 
 .selection-tag--immobile {
-  color: #ffb74d;
-  border: 1px solid rgba(255, 183, 77, 0.4);
-  background: rgba(255, 183, 77, 0.1);
+  color: var(--ui-warning);
+  border: 1px solid rgba(var(--ui-warning-rgb), 0.4);
+  background: rgba(var(--ui-warning-rgb), 0.1);
 }
 
 .selection-tag--moving {
   color: var(--color-blue-light);
-  border: 1px solid rgba(53, 134, 229, 0.4);
-  background: rgba(53, 134, 229, 0.1);
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.4);
+  background: rgba(var(--ui-accent-rgb), 0.1);
 }
 
 .selection-stats {
   display: flex;
   flex-wrap: wrap;
   gap: calc(var(--hu) * 0.2) calc(var(--hu) * 0.75);
-  font-size: calc(var(--hu) * 0.6);
+  font-size: calc(var(--hu) * 0.85);
   letter-spacing: 0.08em;
   color: var(--color-text-dim);
 }
@@ -510,8 +519,8 @@
 }
 
 .selection-stats b {
-  color: var(--color-text-bright);
-  font-weight: 700;
+  color: var(--ui-ink);
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
 
@@ -520,7 +529,7 @@
   grid-template-columns: calc(var(--hu) * 3.4) minmax(calc(var(--hu) * 2), 1fr) auto;
   align-items: center;
   gap: calc(var(--hu) * 0.45);
-  font-size: calc(var(--hu) * 0.6);
+  font-size: calc(var(--hu) * 0.8);
   letter-spacing: 0.08em;
   color: var(--color-text-dim);
 }
@@ -530,7 +539,7 @@
 }
 
 .selection-bar--shield .selection-bar__label {
-  color: #3ec8ff;
+  color: var(--ui-shield);
 }
 
 .selection-bar--hp .selection-bar__label {
@@ -538,10 +547,11 @@
 }
 
 .selection-bar__track {
-  height: 6px;
-  border-radius: 3px;
+  height: 5px;
+  border-radius: 5px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
 .selection-bar__fill {
@@ -551,7 +561,8 @@
 }
 
 .selection-bar--shield .selection-bar__fill {
-  background: linear-gradient(90deg, #3ec8ff, #8be9ff);
+  background: linear-gradient(90deg, #2f8fd6, var(--ui-shield));
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ui-shield) 60%, transparent);
 }
 
 .selection-bar--hp .selection-bar__fill {
@@ -565,10 +576,10 @@
 }
 
 .selection-order {
-  font-size: calc(var(--hu) * 0.65);
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: #ffcc66;
+  font-size: calc(var(--hu) * 0.9);
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--ui-warm);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -584,47 +595,22 @@
 }
 
 .selection-targeting__label {
-  font-size: calc(var(--hu) * 0.55);
-  font-weight: 700;
+  font-size: calc(var(--hu) * 0.75);
+  font-weight: 400;
   letter-spacing: 0.15em;
   color: var(--color-text-dim);
   margin-right: calc(var(--hu) * 0.2);
 }
 
 .selection-targeting__btn {
-  font-family: var(--font-primary);
-  font-size: calc(var(--hu) * 0.55);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--color-blue-light);
-  background: rgba(53, 134, 229, 0.12);
-  border: 1px solid rgba(53, 134, 229, 0.7);
-  border-radius: 2px;
-  padding: calc(var(--hu) * 0.2) calc(var(--hu) * 0.4);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
-
-  &:hover {
-    background: rgba(53, 134, 229, 0.3);
-    box-shadow: 0 0 8px rgba(53, 134, 229, 0.4);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-blue-bright);
-    outline-offset: 1px;
-  }
+  @include ui.button(sm);
+  padding: calc(var(--hu) * 0.25) calc(var(--hu) * 0.5);
+  font-size: calc(var(--hu) * 0.75);
+  letter-spacing: 0.12em;
 }
 
 .selection-targeting__btn--active {
-  background: var(--color-blue);
-  color: var(--color-black);
-  box-shadow: 0 0 10px rgba(53, 134, 229, 0.5);
-
-  &:hover {
-    background: var(--color-blue);
-  }
+  @include ui.button-selected;
 }
 
 /* =========================================================
@@ -688,132 +674,86 @@
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.76);
-  backdrop-filter: blur(2px);
+  @include ui.backdrop;
   animation: battleResultOverlayIn 160ms ease-out;
 }
 
+/* Glass dialog; --result-color is the outcome hue (winner = success). */
 .battle-screen__result-modal {
+  --result-color: var(--ui-success);
+  --result-rgb: var(--ui-success-rgb);
+
+  position: relative;
   display: flex;
   flex-direction: column;
-  width: min(92vw, 760px);
+  width: min(92vw, 780px);
   max-height: calc(100vh - 2rem);
   max-height: calc(100dvh - 2rem);
-  overflow: hidden;
-  border: 1px solid rgba(76, 175, 80, 0.55);
-  border-radius: 4px;
-  background: rgba(2, 6, 9, 0.97);
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.8),
-    0 0 28px rgba(76, 175, 80, 0.28),
-    0 18px 60px rgba(0, 0, 0, 0.7);
-  animation: battleResultModalIn 180ms ease-out;
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(24px);
+  animation: battleResultModalIn 220ms ease-out;
 }
 
 .result-modal__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.8rem;
+  gap: 1rem;
   flex-shrink: 0;
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid rgba(76, 175, 80, 0.28);
-  background: rgba(76, 175, 80, 0.07);
+  padding: 1.2rem 1.4rem 1rem;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, rgba(var(--result-rgb), 0.5), transparent) 1;
+  background: radial-gradient(ellipse 60% 160% at 0% 0%, rgba(var(--result-rgb), 0.14), transparent 70%);
 }
 
 .result-modal__winner {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.5rem;
   min-width: 0;
+}
+
+.result-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  color: var(--result-color);
+  font-size: var(--ui-fs-lg);
+  letter-spacing: 0.3em;
+  text-shadow: 0 0 16px rgba(var(--result-rgb), 0.4);
+
+  &::before {
+    @include ui.diamond;
+    background: var(--result-color);
+    box-shadow: 0 0 8px rgba(var(--result-rgb), 0.7);
+  }
 }
 
 .result-winner {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.45rem;
-  color: #b9f5c8;
-  font-size: 0.78rem;
+  gap: 0.55rem;
+  font-size: var(--ui-fs-sm);
   letter-spacing: 0.08em;
 }
 
 .result-winner__label {
-  color: var(--color-text-dim);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.16em;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
 }
 
 .result-winner__name {
-  color: #e8ffeD;
-  font-size: 0.92rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-md);
+  letter-spacing: 0.1em;
   overflow-wrap: anywhere;
 }
 
 .result-winner__side {
-  padding: 0.1rem 0.35rem;
-  border: 1px solid rgba(76, 175, 80, 0.5);
-  border-radius: 2px;
-  color: #4caf50;
-  background: rgba(76, 175, 80, 0.12);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-}
-
-.result-modal__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 0.9rem 1rem;
-}
-
-.result-modal__footer {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid rgba(76, 175, 80, 0.28);
-  background: rgba(0, 0, 0, 0.24);
-}
-
-.result-modal__back-btn {
-  min-width: 13rem;
-  padding: 0.55rem 1.6rem;
-  border: 1px solid #4caf50;
-  border-radius: 2px;
-  background: rgba(76, 175, 80, 0.18);
-  color: #b9f5c8;
-  font-family: var(--font-primary);
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.result-modal__back-btn:hover {
-  background: rgba(76, 175, 80, 0.32);
-  box-shadow: 0 0 14px rgba(76, 175, 80, 0.42);
-}
-
-.result-modal__back-btn:focus-visible {
-  outline: 2px solid var(--color-blue-bright);
-  outline-offset: 2px;
-}
-
-.result-title {
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  color: #4caf50;
+  @include ui.chip(var(--result-color));
 }
 
 .result-meta {
@@ -821,133 +761,116 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 0.45rem;
-  font-size: 0.62rem;
-  letter-spacing: 0.1em;
-  color: var(--color-text-dim);
+  gap: 0.5rem;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.14em;
 }
 
 .result-planet-label {
-  padding: 0.15rem 0.5rem;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 183, 77, 0.5);
-  color: #ffb74d;
-  background: rgba(255, 183, 77, 0.1);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  @include ui.chip(var(--ui-warning));
 }
 
 .result-planet-label--captured {
-  border-color: rgba(76, 175, 80, 0.5);
-  color: #4caf50;
-  background: rgba(76, 175, 80, 0.12);
+  @include ui.chip(var(--ui-success));
 }
 
 .result-planet-label--defended {
-  border-color: rgba(214, 87, 87, 0.5);
-  color: #ef9a9a;
-  background: rgba(214, 87, 87, 0.12);
+  @include ui.chip(var(--ui-danger-text));
+}
+
+.result-modal__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.1rem 1.4rem;
+  @include ui.scroll;
 }
 
 .result-sides {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
+/* Each side card: faction color on the left edge (inline border-left-color). */
 .result-side {
   min-width: 0;
-  padding: 0.75rem;
-  border: 1px solid rgba(53, 134, 229, 0.35);
-  border-radius: 3px;
-  background: rgba(53, 134, 229, 0.06);
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--ui-line-soft);
+  border-left-width: 3px;
+  border-radius: var(--ui-radius);
+  background: linear-gradient(160deg, rgba(14, 38, 48, 0.55), rgba(4, 12, 17, 0.6));
 }
 
 .result-side--winner {
-  border-color: rgba(76, 175, 80, 0.6);
-  background: rgba(76, 175, 80, 0.09);
-  box-shadow: inset 0 0 18px rgba(76, 175, 80, 0.08);
+  background: linear-gradient(160deg, rgba(var(--ui-success-rgb), 0.1), rgba(4, 12, 17, 0.6));
+  box-shadow: inset 0 0 22px rgba(var(--ui-success-rgb), 0.06);
 }
 
 .result-side__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.65rem;
+  gap: 0.6rem;
+  margin-bottom: 0.7rem;
 }
 
 .result-side__side {
   display: block;
-  margin-bottom: 0.2rem;
-  color: var(--color-text-dim);
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  margin-bottom: 0.25rem;
+  color: var(--ui-ink-faint);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
 }
 
 .result-side__name {
   display: block;
-  color: var(--color-text-bright);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-md);
+  letter-spacing: 0.08em;
   overflow-wrap: anywhere;
 }
 
 .result-side__badge {
   flex-shrink: 0;
-  padding: 0.18rem 0.4rem;
-  border-radius: 2px;
-  font-size: 0.58rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
 }
 
 .result-side__badge--winner {
-  border: 1px solid rgba(76, 175, 80, 0.55);
-  color: #4caf50;
-  background: rgba(76, 175, 80, 0.13);
+  @include ui.chip(var(--ui-success));
 }
 
 .result-side__badge--loser {
-  border: 1px solid rgba(214, 87, 87, 0.5);
-  color: #ef9a9a;
-  background: rgba(214, 87, 87, 0.1);
+  @include ui.chip(var(--ui-danger-text));
 }
 
 .result-side__stats {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid rgba(53, 134, 229, 0.18);
-  color: var(--color-text-dim);
-  font-size: 0.66rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--ui-line-soft);
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
   letter-spacing: 0.06em;
 }
 
-.back-btn {
-  padding: 0.5rem 2rem;
-  border: 1px solid #4caf50;
-  border-radius: 2px;
-  background: rgba(76, 175, 80, 0.15);
-  color: #4caf50;
-  font-family: var(--font-primary);
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.2em;
-  cursor: pointer;
+.result-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
+  padding: 0.9rem 1.4rem 1.2rem;
 }
 
-.back-btn:hover {
-  background: rgba(76, 175, 80, 0.3);
-  box-shadow: 0 0 12px rgba(76, 175, 80, 0.4);
+.result-modal__back-btn,
+.back-btn {
+  @include ui.button;
+  @include ui.button-primary;
+  min-width: 14rem;
+  flex-shrink: 0;
+  letter-spacing: 0.22em;
 }
 
 @keyframes battleResultOverlayIn {
@@ -1009,6 +932,12 @@
     width: 100%;
     min-width: 0;
   }
+
+  .result-modal__header,
+  .result-modal__body,
+  .result-modal__footer {
+    padding-inline: 0.8rem;
+  }
 }
 
 /* No HUD rows exist in this state, so span the whole layout grid. */
@@ -1022,5 +951,5 @@
   gap: 1.25rem;
   font-size: 1rem;
   letter-spacing: 0.3em;
-  color: #d65757;
+  color: var(--ui-danger-text);
 }

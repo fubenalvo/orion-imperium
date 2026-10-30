@@ -1,21 +1,17 @@
 @use '../_star-map-panels';
 
-.info-icon {
-  width: 14px;
-  height: 14px;
-  vertical-align: -3px;
-  margin-right: 4px;
+/* Fleet name in its faction color, so the panel is attributable at a glance. */
+.fleet-info__name {
+  overflow: hidden;
+  color: var(--fleet-color, var(--ui-ink));
+  text-overflow: ellipsis;
+  text-shadow: 0 0 12px color-mix(in srgb, var(--fleet-color, transparent) 45%, transparent);
 }
 
-/* Same treatment as the spaceport/production panel errors. */
+.fleet-info__status--active {
+  color: var(--ui-accent);
+}
+
 .fleet-info__move-error {
-  color: #f44336;
-  font-size: 0.8rem;
-  margin-top: 0.3vw;
-}
-
-/* Sensor/speed impairment while the fleet sits inside a nebula. */
-.fleet-info__nebula {
-  color: #c99cff;
-  font-size: 0.75rem;
+  margin-top: 0.3em;
 }

@@ -15,4 +15,8 @@ export class StarMapFleetButtonsComponent {
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
 
   @Output() selectFleet = new EventEmitter<Fleet>();
+
+  get playerFleets(): Fleet[] {
+    return this.fleets.filter((fleet) => fleet.factionId === 'player');
+  }
 }

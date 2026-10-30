@@ -4,67 +4,52 @@
 /* Sits right of the fleet panel so both can be open while choosing an interceptor. */
 .asteroid-info {
   position: absolute;
-  left: 28%;
-  bottom: 3%;
-  width: 22%;
-  min-width: 200px;
+  left: calc(var(--ui-edge) * 2 + clamp(270px, 24vw, 380px));
+  bottom: var(--ui-edge);
+  width: clamp(250px, 21vw, 340px);
   z-index: 30;
+  animation: panel-rise 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
   @include mobile-view {
     left: auto;
-    right: -2px;
-    bottom: -2px;
+    right: 4px;
+    bottom: 4px;
+    width: min(46vw, 280px);
   }
 }
 
+/* Title tinted by cargo type (matches the asteroid's map rendering). */
 .asteroid-info__title--ore {
-  color: #e0a060;
+  color: #e8b070;
 }
 
 .asteroid-info__title--crystal {
-  color: #6de5f0;
+  color: #7eeaf2;
 }
 
 .asteroid-info__title--mixed {
-  color: #d8a8ff;
+  color: #d8b0ff;
 }
 
-.asteroid-info__row,
 .asteroid-info__fleet {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5em;
-}
-
-.asteroid-info__value {
-  color: var(--color-text-bright);
+  gap: 0.6em;
+  padding: 0.15em 0;
 }
 
 .asteroid-info__fleet-name {
-  color: var(--color-text-bright);
-  font-size: 0.75rem;
+  overflow: hidden;
+  color: var(--ui-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .asteroid-info__fleet .action-btn {
   flex: 0 0 auto;
-  font-size: 0.65rem;
 }
 
-.asteroid-info__status {
-  font-size: 0.65rem;
-  color: var(--color-text-dim);
-}
-
-.asteroid-info__status--active {
-  color: var(--color-success);
-}
-
-.asteroid-info__status--blocked {
-  color: var(--color-danger);
-}
-
-.asteroid-info__message {
-  color: var(--color-warning);
-  font-size: 0.75rem;
+.asteroid-info__empty {
+  color: var(--ui-ink-dim);
 }

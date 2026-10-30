@@ -5,28 +5,29 @@
         <div class="landscape-overlay__icon">&#128241;</div>
         <div class="landscape-overlay__title">LANDSCAPE MODE REQUIRED</div>
         <div class="landscape-overlay__text">Please rotate your device to play</div>
-</div>
-@if (gameOutcome !== 'inProgress') {
-  <div class="game-end-overlay" role="dialog" aria-modal="true">
-    <div class="game-end-modal">
-      <div class="game-end-title" [class.game-end-title--victory]="gameOutcome === 'victory'" [class.game-end-title--defeat]="gameOutcome === 'defeat'">
-        {{ gameOutcome === 'victory' ? 'VICTORY' : 'DEFEAT' }}
-      </div>
-      <div class="game-end-message">
-        {{ gameOutcome === 'victory' ? 'Galactic conquest achieved. All inhabited systems are under player or allied control.' : 'The empire has fallen. No inhabited planets remain under player control and no surviving fleets remain.' }}
-      </div>
-      <div class="game-end-stats">
-        <div>Inhabited planets controlled by player/allies: {{ getAlliedInhabitedPlanetCount() }}</div>
-        <div>Total inhabited planets: {{ getTotalInhabitedPlanetCount() }}</div>
-      </div>
-      <div class="game-end-actions">
-        <button class="game-end-btn" type="button" (click)="returnToMainMenu()">RETURN TO MAIN MENU</button>
-        <button class="game-end-btn" type="button" (click)="startNewGameFromEnd()">START NEW GAME</button>
       </div>
     </div>
-  </div>
-}
-</div>
+  }
+
+  @if (gameOutcome !== 'inProgress') {
+    <div class="game-end-overlay" role="dialog" aria-modal="true">
+      <div class="game-end-modal">
+        <div class="game-end-title" [class.game-end-title--victory]="gameOutcome === 'victory'" [class.game-end-title--defeat]="gameOutcome === 'defeat'">
+          {{ gameOutcome === 'victory' ? 'VICTORY' : 'DEFEAT' }}
+        </div>
+        <div class="game-end-message">
+          {{ gameOutcome === 'victory' ? 'Galactic conquest achieved. All inhabited systems are under player or allied control.' : 'The empire has fallen. No inhabited planets remain under player control and no surviving fleets remain.' }}
+        </div>
+        <div class="game-end-stats">
+          <div>Inhabited planets controlled by player/allies: {{ getAlliedInhabitedPlanetCount() }}</div>
+          <div>Total inhabited planets: {{ getTotalInhabitedPlanetCount() }}</div>
+        </div>
+        <div class="game-end-actions">
+          <button class="game-end-btn" type="button" (click)="returnToMainMenu()">RETURN TO MAIN MENU</button>
+          <button class="game-end-btn" type="button" (click)="startNewGameFromEnd()">START NEW GAME</button>
+        </div>
+      </div>
+    </div>
   }
 
   <app-star-map-pause

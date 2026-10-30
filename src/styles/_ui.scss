@@ -1,0 +1,354 @@
+/* =========================================================
+   UI DESIGN SYSTEM — SCSS MIXINS
+   ---------------------------------------------------------
+   The shared visual language of every in-game screen, derived
+   from the main menu (see docs/ui-styling.md#design-system):
+   dark glass surfaces, a single turquoise accent, off-white
+   "ink" text, corner brackets instead of heavy borders, the
+   diamond marker and fading hairline rules.
+
+   Colors always come from the --ui-* custom properties defined
+   in styles.scss, never from literals, so a palette change is a
+   one-file edit.
+
+   This partial emits no CSS by itself (mixins only), so @use-ing
+   it does not count against the per-component stylesheet budget
+   until a mixin is included. Common building blocks also exist as
+   global classes in styles.scss (.panel-style, .ui-stat, .ui-label,
+   .btn-primary, ...); prefer those in templates and use these
+   mixins when a component needs the look on its own selector.
+   ========================================================= */
+
+/* Glass panel surface. `$strength` scales the opacity for panels that
+   float over busy scenery (1) versus over an already dimmed backdrop. */
+@mixin glass($strength: 1) {
+  background: linear-gradient(
+    160deg,
+    rgba(10, 30, 40, 0.86 * $strength),
+    rgba(3, 10, 15, 0.92 * $strength)
+  );
+  border: 1px solid var(--ui-line);
+  box-shadow: var(--ui-shadow-panel);
+  backdrop-filter: blur(8px);
+}
+
+/* Accent corner brackets (top-left + bottom-right). Owns ::before and
+   ::after, so only include it on elements that do not use them. The
+   element must be a containing block (position: relative/absolute). */
+@mixin brackets($size: 14px, $color: var(--ui-accent), $width: 2px) {
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: $size;
+    height: $size;
+    border-color: $color;
+    border-style: solid;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  &::before {
+    top: -1px;
+    left: -1px;
+    border-width: $width 0 0 $width;
+  }
+
+  &::after {
+    right: -1px;
+    bottom: -1px;
+    border-width: 0 $width $width 0;
+  }
+}
+
+/* The main-menu diamond marker, for use inside a ::before/::after. */
+@mixin diamond($size: 0.42em, $filled: true) {
+  content: '';
+  flex: 0 0 auto;
+  width: $size;
+  height: $size;
+  transform: rotate(45deg);
+  @if $filled {
+    background: var(--ui-accent);
+    box-shadow: 0 0 8px rgba(var(--ui-accent-rgb), 0.6);
+  } @else {
+    border: 1px solid var(--ui-ink-faint);
+  }
+}
+
+/* Hairline that fades out toward the end (or both ends). */
+@mixin hairline($direction: 90deg, $alpha: 0.45) {
+  background: linear-gradient($direction, rgba(var(--ui-accent-rgb), $alpha), transparent);
+}
+
+/* Small letter-spaced section label followed by a fading rule
+   (mirrors the main menu tagline). Owns ::after. */
+@mixin section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  &::after {
+    content: '';
+    flex: 1 1 auto;
+    min-width: 1em;
+    height: 1px;
+    @include hairline(90deg, 0.35);
+  }
+}
+
+/* Base for every control: resets the global button look so nothing
+   moves or resizes on hover/press. */
+@mixin control-reset {
+  min-height: 0;
+  margin: 0;
+  border-radius: var(--ui-radius);
+  font-family: var(--font-primary);
+  line-height: 1;
+  text-transform: uppercase;
+  filter: none;
+  cursor: pointer;
+  transform: none;
+}
+
+/* Secondary (default) button: ghost glass with an accent hairline. */
+@mixin button($size: md) {
+  @include control-reset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  @if $size == sm {
+    padding: 0.45em 0.9em;
+    font-size: var(--ui-fs-xs);
+  } @else {
+    padding: 0.6em 1.4em;
+    font-size: var(--ui-fs-sm);
+  }
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.38);
+  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.1), rgba(var(--ui-accent-rgb), 0.03));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--ui-ink);
+  letter-spacing: 0.16em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  transition:
+    background-color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--ui-accent);
+    background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.2), rgba(var(--ui-accent-rgb), 0.07));
+    box-shadow:
+      inset 0 0 12px rgba(var(--ui-accent-rgb), 0.08),
+      0 0 14px rgba(var(--ui-accent-rgb), 0.2);
+    color: var(--ui-ink-bright);
+    filter: none;
+  }
+
+  &:active:not(:disabled) {
+    transform: none;
+    filter: brightness(1.2);
+  }
+
+  &:focus-visible {
+    outline: 1px solid rgba(var(--ui-accent-rgb), 0.7);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    border-color: rgba(var(--ui-accent-rgb), 0.12);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: none;
+    color: var(--ui-ink-faint);
+    text-shadow: none;
+    cursor: not-allowed;
+    filter: none;
+  }
+}
+
+/* Primary call to action (one per panel at most). */
+@mixin button-primary {
+  border-color: var(--ui-accent);
+  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.34), rgba(22, 124, 112, 0.3));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 18px rgba(var(--ui-accent-rgb), 0.16);
+  color: var(--ui-ink-bright);
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.48), rgba(22, 124, 112, 0.42));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 0 22px rgba(var(--ui-accent-rgb), 0.35);
+  }
+}
+
+/* Destructive action. */
+@mixin button-danger {
+  border-color: rgba(var(--ui-danger-rgb), 0.55);
+  background: linear-gradient(180deg, rgba(var(--ui-danger-rgb), 0.14), rgba(var(--ui-danger-rgb), 0.04));
+  color: var(--ui-danger-text);
+
+  &:hover:not(:disabled) {
+    border-color: var(--ui-danger);
+    background: linear-gradient(180deg, rgba(var(--ui-danger-rgb), 0.26), rgba(var(--ui-danger-rgb), 0.08));
+    box-shadow: 0 0 14px rgba(var(--ui-danger-rgb), 0.25);
+    color: #fff;
+  }
+}
+
+/* Selected / toggled-on state for buttons, tabs and segmented controls. */
+@mixin button-selected {
+  border-color: var(--ui-accent);
+  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.3), rgba(var(--ui-accent-rgb), 0.12));
+  box-shadow:
+    inset 0 -2px 0 var(--ui-accent),
+    0 0 14px rgba(var(--ui-accent-rgb), 0.22);
+  color: var(--ui-ink-bright);
+}
+
+/* Square icon button (close, d-pad, steppers). */
+@mixin icon-button($size: 2.2em) {
+  @include button(sm);
+  width: $size;
+  height: $size;
+  padding: 0;
+  letter-spacing: 0;
+}
+
+/* Underline tab (sidebar tabs, category switches). */
+@mixin tab {
+  @include control-reset;
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.75em 0.6em 0.65em;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line-soft);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-align: center;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 15%;
+    right: 15%;
+    bottom: -1px;
+    height: 2px;
+    background: var(--ui-accent);
+    box-shadow: 0 0 10px rgba(var(--ui-accent-rgb), 0.7);
+    transform: scaleX(0);
+    transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(0deg, rgba(var(--ui-accent-rgb), 0.08), transparent);
+    box-shadow: none;
+    color: var(--ui-ink);
+    filter: none;
+  }
+}
+
+@mixin tab-active {
+  color: var(--ui-ink-bright);
+
+  &::after {
+    transform: scaleX(1);
+  }
+}
+
+/* Thin progress / condition meter. Use on the track; the fill is a child
+   with `width` set inline. */
+@mixin meter($height: 4px) {
+  position: relative;
+  display: block;
+  height: $height;
+  overflow: hidden;
+  border-radius: $height;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+@mixin meter-fill($color: var(--ui-accent)) {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, #{$color} 55%, transparent), #{$color});
+  box-shadow: 0 0 8px color-mix(in srgb, #{$color} 60%, transparent);
+}
+
+/* Small rounded tag (status badges, prerequisites). */
+@mixin chip($color: var(--ui-accent)) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.22em 0.6em;
+  border: 1px solid color-mix(in srgb, #{$color} 40%, transparent);
+  border-radius: var(--ui-radius);
+  background: color-mix(in srgb, #{$color} 10%, transparent);
+  color: $color;
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* Modal backdrop: dims and blurs the scene behind a dialog. */
+@mixin backdrop {
+  background:
+    radial-gradient(ellipse 80% 70% at 50% 45%, rgba(4, 16, 22, 0.55), rgba(1, 4, 7, 0.9)),
+    rgba(1, 4, 7, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+/* Modal title: wide-tracked accent text between two fading rules
+   (the main menu tagline, larger). Owns ::before/::after. */
+@mixin modal-title {
+  display: flex;
+  align-items: center;
+  gap: 0.9em;
+  width: 100%;
+  color: var(--ui-accent);
+  font-size: var(--ui-fs-lg);
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(var(--ui-accent-rgb), 0.35);
+  white-space: nowrap;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1 1 0;
+    min-width: 1em;
+    height: 1px;
+  }
+
+  &::before {
+    @include hairline(270deg, 0.45);
+  }
+
+  &::after {
+    @include hairline(90deg, 0.45);
+  }
+}
+
+/* Thin scrollbars for scrolling panels. */
+@mixin scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ui-accent-rgb), 0.3) transparent;
+}

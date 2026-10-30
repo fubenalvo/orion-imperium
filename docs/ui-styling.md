@@ -1,112 +1,150 @@
 # UI Styling Guide
 
-## Color Palette
+## Design system
 
-The project uses a sci-fi cyan-on-deep-navy color scheme defined in
-`src/styles.scss` as CSS custom properties:
+Every screen shares one visual language derived from the main menu: dark
+**glass** surfaces, a single **turquoise accent**, off-white **ink** text in
+three strengths, **corner brackets** instead of heavy borders, the menu's
+**diamond marker**, and **hairline rules** that fade out. Screens keep their
+own composition (see [Per screen](#screen-treatments)); they share tokens,
+surfaces and controls.
 
-| Variable | Value | Usage |
+Sources of truth:
+
+| File | Holds |
+|---|---|
+| `src/styles.scss` | Design tokens (`--ui-*` custom properties), global element styles (`button`, inputs, checkbox/radio, range, scrollbars) and the shared global classes listed below |
+| `src/styles/_ui.scss` | SCSS mixins for the same building blocks (`@use 'ui';`). Mixins only, so using the partial costs nothing until a mixin is included |
+| `src/styles/_hud-controls.scss` | Header-sized buttons (`hud-button`, `-active`, `-dimmed`), scaled by `--gh-u` |
+| `src/styles/_hud-panel.scss` | `hud-frame` / `hud-accent-notches` / `hud-panel`: aliases of `ui.glass` + `ui.brackets` for stylesheets that want the panel look on their own selector |
+
+### Tokens
+
+Colors (never use literals for UI chrome; use these):
+
+| Token | Value | Use |
 |---|---|---|
-| `--color-background` | `#030d1a` | Main background |
-| `--color-blue` | `#00f0ff` | Primary accent / borders |
-| `--color-blue-light` | `#5cd1ff` | Light accent / headers |
-| `--color-blue-bright` | `#8cfffe` | Bright highlights |
-| `--color-blue-dark` | `#005d8a` | Darker variants |
-| `--color-text` | `#a5f3fc` | Primary text |
-| `--color-text-bright` | `#ffffff` | Bright text |
-| `--color-text-dim` | `#3a9bb0` | Dim/secondary text |
-| `--color-text-disabled` | `#005d8a` | Disabled text |
+| `--ui-accent` / `--ui-accent-rgb` | `#6de5d3` | The one UI accent: borders, selection, markers, primary actions. Use `rgba(var(--ui-accent-rgb), a)` for tints |
+| `--ui-accent-text` | `#5fcfbf` | Accent for small text (section labels) |
+| `--ui-ink-bright` / `--ui-ink` / `--ui-ink-dim` / `--ui-ink-faint` | `#fff` / `#d8eef0` / `#7fa3ad` / `#46656f` | Text hierarchy: emphasis, primary, secondary, disabled/tertiary |
+| `--ui-warm` | `#ffd6a0` | Secondary accent, sparingly: costs, prices, pending orders (the main menu's sunlight) |
+| `--ui-success` / `--ui-warning` / `--ui-danger` (+ `-rgb`), `--ui-danger-text` | | Status |
+| `--ui-anomaly` | `#c39cff` | Nebula / sensor impairment notices |
+| `--ui-shield` | `#5cc8ff` | Shield bars and shield abilities |
+| `--ui-line` / `--ui-line-soft` / `--ui-line-strong` | accent at 22% / 12% / 45% | Hairlines and borders |
+| `--ui-surface-raised` / `--ui-surface-sunken` | | Inset cards inside a panel / trays (time controls, readout strips) |
 
-### Background grid
+Faction colors (game data) are the only other hues on screen, so UI chrome
+never competes with them. In particular the UI accent is not the player's
+blue.
 
-The star-map and game viewport feature a subtle animated grid pattern:
+Type scale: `--ui-fs-xs` … `--ui-fs-xl` (VT323 renders small, so the scale
+starts at 0.85rem), tracking `--ui-track` / `--ui-track-wide`. Below 900px
+width or 600px height the whole scale steps down once (media query on
+`:root`), so panels shrink as a unit; do not add per-component mobile font
+sizes for text that already uses the tokens. `--ui-edge` is the gap between
+floating HUD panels and the viewport edge.
 
-```scss
-background-image:
-  radial-gradient(circle at 50% 50%, #082747 0%, #030d1a 100%),
-  linear-gradient(rgba(0, 240, 255, 0.05) 1px, transparent 1px),
-  linear-gradient(90deg, rgba(0, 240, 255, 0.05) 1px, transparent 1px);
-background-size: 100% 100%, 20px 20px, 20px 20px;
-```
+Legacy tokens (`--color-blue*`, `--color-text*`, `--panel-*`,
+`--color-success` …) are aliases of the palette above — the `--color-blue*`
+names now carry the turquoise accent. Prefer `--ui-*` in new code.
+
+### Surfaces
+
+- **Glass panel** — `.panel-style` (global class) or `ui.glass` + `ui.brackets`:
+  dark gradient, 1px `--ui-line` border, deep shadow, 8px backdrop blur,
+  accent corner brackets top-left / bottom-right.
+- **Panel header** — `.panel-style__title`: diamond marker, wide-tracked
+  uppercase title, accent wash, fading bottom rule. A `button.close-btn`
+  inside it renders as a drawn cross at the right edge (its "X" text is
+  hidden), so close buttons look identical everywhere.
+- **Modal** — `ui.backdrop` (dimmed, blurred scene) + a glass sheet with
+  larger brackets and `ui.modal-title` (title between two fading rules).
+  Used by pause, options, research, production order, currency breakdown,
+  battle result and game end.
+
+Rules:
+
+- `ui.brackets` and `.panel-style` own `::before` / `::after`. Do not put
+  them on elements that use those pseudo-elements for something else (for
+  example `.planet-surface__atmosphere`).
+- `backdrop-filter`, `filter` and `transform` (also a lingering animation
+  end state) make an element the containing block of `position: fixed`
+  descendants. Panels that host fixed overlays (the planet sidebar hosts the
+  production dialog and currency breakdown) set `backdrop-filter: none`, and
+  entrance animations end on `transform: none`.
+
+### Controls
+
+| Control | Global class / element | Mixin |
+|---|---|---|
+| Secondary button (default) | any `<button>` | `ui.button($size)` |
+| Primary call to action (one per panel) | `.btn-primary` | `ui.button-primary` |
+| Destructive | `.btn-danger` | `ui.button-danger` |
+| Tertiary / text | `.btn-ghost` | |
+| Selected / toggled | | `ui.button-selected` (lit from below) |
+| Icon button (close, d-pad, steppers) | | `ui.icon-button($size)` |
+| Underline tab | | `ui.tab` + `ui.tab-active` |
+| Inputs, select, checkbox, radio, range | elements | |
+
+Component class selectors outrank the global element rules, but the global
+`button:hover:not(:disabled)` outranks a plain component class. A component
+that restyles a button therefore defines its own `:hover`, or includes a
+mixin that does. The global button inherits its font size (`1em`); the
+mixins use the rem tokens.
+
+List-style buttons (menu entries, context menu, fleet roster, save slots)
+are borderless rows with the diamond marker and an accent bar + wash on
+hover — the main menu's item style. They set `justify-content: flex-start`,
+since the global button centers its content.
+
+### Content classes
+
+| Class | Purpose |
+|---|---|
+| `.ui-label` | Section label followed by a fading rule ("ECONOMY ────") |
+| `.ui-stat` (`__label`, `__value`, `--positive` / `--warn` / `--danger`) | Label / value row |
+| `.ui-figure` (`__value`, `__caption`) | Headline number with caption |
+| `.ui-chip` (`--success` / `--warning` / `--danger` / `--muted`) | Small tag (type, status) |
+| `.ui-meter` + `__fill` | Thin progress / condition meter |
+| `.ui-notice` (`--danger` / `--warning` / `--anomaly` / `--success`) | Inline notice with a colored left bar |
+| `.ui-divider` | Hairline separator |
 
 ## Font
 
-The primary font stack is `'VT323'` (retro sci-fi monospace) with
-`'Segoe UI', Roboto, 'Courier New', sans-serif` as fallbacks:
+`--font-primary: 'VT323', monospace` everywhere, including the main menu.
+Hierarchy comes from size, tracking and ink strength rather than weight.
 
-```scss
---font-primary: 'VT323', 'Segoe UI', Roboto, 'Courier New', sans-serif;
-```
+## Screen overlay
 
-## HUD Panel Frame
+`.crt-overlay` (`app.html`, textured in `app.scss`) lays faint static
+scanlines and a soft vignette over the whole game. It is deliberately
+static: an earlier flicker animation repainted the full viewport several
+times a second and its RGB sub-pixel stripes blurred small text.
 
-### The `hud-frame()` mixin
+## Screen treatments
 
-Defined in `src/styles/_hud-panel.scss`, the `hud-frame()` (or the combined
-`hud-panel()` mixin) applies the signature sci-fi frame:
-
-- **Clipped corners** via `clip-path: polygon(...)` — cuts a 20px notch from
-  each corner.
-- **Accent notches** — a cyan line in the top-left corner (`::before`) and a
-  bright-cyan line in the bottom-right corner (`::after`).
-- **Glow** — outer `box-shadow` with cyan tint.
-- **Background** — semi-transparent dark-blue panel with `backdrop-filter`.
-
-### Usage rules
-
-**Only apply the frame to boxes that do NOT already use `::before`/`::after`
-for other visual purposes.** The following elements use their own
-pseudo-elements and must NOT receive the frame:
-
-- `.planet-surface__atmosphere` — uses `&::before` for drifting cloud shadows
-
-All other panel boxes — `.panel-style`, `.hud-overlay__panel`,
-`.pause-overlay__content`, `.production-panel__modal`, `.star-map-options__content`,
-`.context-menu`, `.spaceport-panel` — should use the frame.
-
-### Applying the mixin
-
-From any SCSS file (the `src/styles` include-path makes the partial
-globally importable):
-
-```scss
-@use 'hud-panel' as *;
-
-.my-panel {
-  @include hud-frame;
-  @include hud-accent-notches;
-}
-```
-
-### Close button accommodation
-
-When applying the frame to `.panel-style`, the `button.close-btn` in
-`.panel-style__title` is shifted to `right: 1.5em` so it sits inside the
-clipped corner rather than being cut off.
+| Screen | Treatment |
+|---|---|
+| Header (all in-game screens) | Glass bar, bottom hairline brightest under the centre; diamond-marked title; the time controls sit in one bracketed tray (see [Game Header](#game-header)) |
+| Star map | Fleet roster (top left, faction-colored diamond per fleet), bottom-left info cards (system, fleet, asteroid) with headline figures, one navigation console (d-pad + minimap) bottom right, context menu as a glass list |
+| System view | The planet info card uses identity chip, a three-figure strip (population, energy, tax) and grouped stat rows; the scene stays dominant |
+| Planet view | Opaque command sidebar: header, underline tabs, then the active tab. Details: headline block with a satisfaction meter, grouped stats, building list. Build: cards with warm cost text (unaffordable = warning edge, locked = faint). Production / assembly are sections of the sidebar, not nested boxes. Surface d-pad and zoom selector are small glass instruments |
+| Research | Full-screen dialog: header (points, income, progress meter), status filters, tier rows by prerequisite depth, cards with a status stripe and an affordability meter (see [Research](./research.md#ui)) |
+| Battle | Shared header in alert tone (danger-tinted title and rule); command bar with readable type, shield-tinted carrier ability, segmented targeting modes; glass result dialog with faction-edged side cards |
+| Pause / options / game end | Main menu language: glass sheet, ruled title, diamond menu entries, left-barred save slots and setting rows |
 
 ## HudDotsComponent
 
 A standalone Angular component (`app-hud-dots`) that renders a row of status
-LED indicators, inspired by the sci-fi system-status dots.
-
-### Inputs
+LED indicators. It is currently not used by any template; it follows the
+accent tokens if reintroduced.
 
 | Input | Type | Default | Description |
 |---|---|---|---|
 | `count` | `number` | `4` | Total number of dots |
 | `active` | `number` | `3` | Number of lit dots |
 | `size` | `'sm' \| 'md'` | `'md'` | Dot size |
-
-### Example
-
-```html
-<app-hud-dots [count]="4" [active]="3" size="sm"></app-hud-dots>
-```
-
-### Usage in the codebase
-
-- **Panel titles** — small status indicator next to the title text in
-  system-info, fleet-info, planet-info, and research-tree panels.
 
 ## Game Header
 
@@ -117,8 +155,9 @@ controls themselves — earlier, separately positioned back / menu buttons overl
 controls on narrow screens.
 
 **Layout.** A three-column grid: *start* (back button + title, optional subtitle) · *center*
-(⏸ and speed buttons, plus projected extras such as battle AUTO) · *end* (projected status
-content such as currencies / ship stock / planet shield, then the ☰ pause-menu button).
+(⏸ and speed buttons, plus projected extras such as battle AUTO, inside one bracketed tray) ·
+*end* (projected status content such as currencies / ship stock / planet shield, then the ☰
+pause-menu button). Currency readouts are separated by short vertical hairlines.
 The start column may shrink to zero (the title truncates with an ellipsis); the end column
 never shrinks below its content. When space is ample both side columns are equal, so the time
 controls sit exactly in the middle.
@@ -130,7 +169,7 @@ of `--gh-u`. Content that sits below the header (planet screen, fleet list, map 
 grid row) offsets itself by `--game-header-h`; never hard-code the header height.
 
 **Buttons.** All header buttons use the `hud-button` mixins in `src/styles/_hud-controls.scss`
-(`@use 'hud-controls' as hud;`), which also reset the global gradient `button` look so hover
+(`@use 'hud-controls' as hud;`), which also reset the global `button` look so hover
 and press never change a button's size or position.
 
 **Responsive rules** (viewport width): at ≤1100px the back button collapses to its arrow (the
@@ -209,11 +248,14 @@ only `@use` a partial in a component whose template contains its selectors
 
 ## Main Menu
 
-The main menu (`src/app/main-menu/`) intentionally departs from the beveled
-in-game button and panel look: it is the game's title screen and uses a
-cinematic backdrop with borderless navigation. Its styles are fully scoped in
-`main-menu.scss`; the shared global button styles are overridden there under
-`.main-menu`, so global button changes do not affect the menu (and vice versa).
+The main menu (`src/app/main-menu/`) is the origin of the [design system](#design-system):
+the in-game screens reuse its palette, glass sheet, diamond markers and
+borderless list items. It remains the game's title screen with a cinematic
+backdrop. Its styles are fully scoped in `main-menu.scss` (it predates the
+`--ui-*` tokens and keeps its own local `--accent` / `--ink` variables with
+the same values); the global button styles are overridden there under
+`.main-menu`, so global button changes do not affect the menu (and vice
+versa). The New Game form inside its sheet uses the design-system controls.
 
 ### Structure
 
@@ -276,8 +318,9 @@ see [Planet Surface](./planet-surface.md#building-sprites)).
 The planet surface (terrain canvas, tilted ground plane with streets and
 grid, sprite layer, atmosphere) is documented in
 [Planet Surface](./planet-surface.md#rendering). Its controls (d-pad, zoom
-selector with the NAMES toggle) use the same button language as the sidebar
-tabs.
+selector with the NAMES toggle) are small glass instruments using the
+design-system buttons; the sidebar is described under
+[Screen treatments](#screen-treatments).
 
 ## Related documentation
 

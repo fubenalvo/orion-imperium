@@ -220,7 +220,7 @@
     height: calc(var(--d, 2.5vw) * 1.55);
     border-radius: 50%;
     border: 1px solid color-mix(in srgb, var(--color-blue-bright) 70%, transparent);
-    box-shadow: 0 0 10px rgba(140, 196, 255, 0.25);
+    box-shadow: 0 0 10px rgba(var(--ui-accent-rgb), 0.25);
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.85);
     transition:

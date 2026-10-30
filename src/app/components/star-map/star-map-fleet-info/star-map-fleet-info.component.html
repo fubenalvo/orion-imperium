@@ -1,40 +1,42 @@
-<div class="fleet-info panel-style">
+<div class="fleet-info panel-style" [style.--fleet-color]="getFactionColor(fleet!.factionId)">
   <div class="panel-style__title">
-    <span [style.color]="getFactionColor(fleet!.factionId)">
-      {{ fleet!.name }} FLEET
-    </span>
-    <button class="close-btn" type="button" (click)="close.emit()">X</button>
+    <span class="fleet-info__name">{{ fleet!.name }} FLEET</span>
+    <button class="close-btn" type="button" (click)="close.emit()" aria-label="Close">X</button>
   </div>
 
   <div class="system-info__content">
-    <div>
-      STATUS:
-
-      @if (attackLabel) {
-        ATTACKING {{ attackLabel }}
-      } @else if (interceptLabel) {
-        INTERCEPTING {{ interceptLabel }}
-      } @else if (fleet!.targetX !== null) {
-        MOVING
-      } @else {
-        IDLE
-      }
+    <div class="ui-stat">
+      <span class="ui-stat__label">Status</span>
+      <span class="ui-stat__value fleet-info__status" [class.fleet-info__status--active]="!!attackLabel || !!interceptLabel || fleet!.targetX !== null">
+        @if (attackLabel) {
+          ATTACKING {{ attackLabel }}
+        } @else if (interceptLabel) {
+          INTERCEPTING {{ interceptLabel }}
+        } @else if (fleet!.targetX !== null) {
+          MOVING
+        } @else {
+          IDLE
+        }
+      </span>
     </div>
 
     @if (etaSeconds !== null) {
-      <div>ETA: {{ formatEta(etaSeconds) }}</div>
-    }
-
-    @if (inNebula) {
-      <div class="fleet-info__nebula" role="status">
-        IN NEBULA: SPEED -{{ nebulaSpeedPenaltyPercent }}%, SENSORS -{{ nebulaSensorPenaltyPercent }}%
+      <div class="ui-stat">
+        <span class="ui-stat__label">ETA</span>
+        <span class="ui-stat__value">{{ formatEta(etaSeconds) }}</span>
       </div>
     }
 
-    <div>
-      SPEED:
-      {{ fleet!.speed }}
+    <div class="ui-stat">
+      <span class="ui-stat__label">Speed</span>
+      <span class="ui-stat__value">{{ fleet!.speed }}</span>
     </div>
+
+    @if (inNebula) {
+      <div class="ui-notice ui-notice--anomaly fleet-info__nebula" role="status">
+        IN NEBULA: SPEED -{{ nebulaSpeedPenaltyPercent }}%, SENSORS -{{ nebulaSensorPenaltyPercent }}%
+      </div>
+    }
 
     @if (isPlayerFleet) {
       <div class="fleet-actions">
@@ -67,30 +69,31 @@
         }
       </div>
       @if (moveError) {
-        <div class="fleet-info__move-error" role="status">{{ moveError }}</div>
+        <div class="ui-notice ui-notice--danger fleet-info__move-error" role="status">{{ moveError }}</div>
       }
     }
 
-    <hr class="fleet-section-divider" />
+    <div class="fleet-power">
+      <div class="fleet-power__cell ui-figure">
+        <span class="ui-figure__value">{{ totalAttack }}</span>
+        <span class="ui-figure__caption">Attack</span>
+      </div>
+      <div class="fleet-power__cell ui-figure">
+        <span class="ui-figure__value">{{ totalDefense }}</span>
+        <span class="ui-figure__caption">Defense</span>
+      </div>
+    </div>
 
-    <div class="fleet-ships__title"><img src="icon-fleet.png" alt="" width="14" height="14" class="info-icon" /> SHIPS ({{ fleet!.ships.length }})</div>
+    <div class="fleet-ships__title">
+      <img src="icon-fleet.png" alt="" width="14" height="14" /> Ships ({{ fleet!.ships.length }})
+    </div>
 
     @for (entry of fleetSummary; track entry.typeId) {
       <div class="fleet-ships__row">
         <span class="fleet-ships__type">{{ entry.typeName }}</span>
-        <span class="fleet-ships__count">x{{ entry.count }}</span>
-        <span class="fleet-ships__stats">ATK {{ entry.attack }} / DEF {{ entry.defense }}</span>
+        <span class="fleet-ships__count">×{{ entry.count }}</span>
+        <span class="fleet-ships__stats">ATK {{ entry.attack }} · DEF {{ entry.defense }}</span>
       </div>
     }
-
-    <div class="fleet-ships__totals">
-      <span>ATTACK POINTS</span>
-      <span>{{ totalAttack }}</span>
-    </div>
-
-    <div class="fleet-ships__totals">
-      <span>DEFENSE POINTS</span>
-      <span>{{ totalDefense }}</span>
-    </div>
   </div>
 </div>

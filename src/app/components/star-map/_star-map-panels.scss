@@ -1,41 +1,124 @@
 /* =========================================================
    STAR MAP PANELS
+   ---------------------------------------------------------
+   Floating info panels of the galaxy map and system view
+   (system, fleet, planet, asteroid), the fleet roster and the
+   context menu. The glass card, header and close button come
+   from the global .panel-style classes (styles.scss); rows and
+   labels use the shared .ui-* classes. This partial only adds
+   placement and panel-specific layout.
    ========================================================= */
 
 @use 'mixins' as *;
+@use 'ui';
 
-.system-info {
+/* Bottom-left info card (system, fleet and planet panels share it). */
+@mixin info-card {
   position: absolute;
-  left: 2%;
-  bottom: 3%;
-  width: 24%;
-  min-width: 220px;
-  padding-bottom: 0.8em;
+  left: var(--ui-edge);
+  bottom: var(--ui-edge);
+  width: clamp(270px, 24vw, 380px);
+  max-height: calc(100dvh - var(--game-header-h) - var(--ui-edge) * 2);
+  display: flex;
+  flex-direction: column;
   z-index: 30;
+  animation: panel-rise 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
   @include mobile-view {
-    bottom: -2px;
-    left: -2px;
+    left: 4px;
+    bottom: 4px;
+    min-width: 0;
+    width: min(46vw, 300px);
   }
+}
+
+@keyframes panel-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  /* End on `none`: a lingering transform would make the panel the
+     containing block of any position: fixed descendant. */
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.system-info {
+  @include info-card;
 }
 
 .system-info__content {
   display: flex;
   flex-direction: column;
   gap: 0.35em;
-  padding: 0.8em;
-  font-size: 0.8rem;
-  line-height: 1.4;
+  min-height: 0;
+  padding: 0.8em 1em;
+  overflow-y: auto;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.35;
+  @include ui.scroll;
 
   @include mobile-view {
-    font-size: 0.5em;
+    padding: 0.5em 0.6em;
   }
 }
 
-.system-info button {
-  width: calc(100% - 1.6em);
+/* Headline block under the panel title: a large glyph and figures. */
+.panel-hero {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 0.2em 0 0.5em;
+}
 
-  margin: 0 0.8em;
+/* Star glyph tinted with the system color. */
+.panel-hero__star {
+  position: relative;
+  flex: 0 0 auto;
+  width: 2.6em;
+  height: 2.6em;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #fff 0 12%,
+    var(--star-color, var(--ui-warm)) 28%,
+    color-mix(in srgb, var(--star-color, var(--ui-warm)) 35%, transparent) 50%,
+    transparent 70%
+  );
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 18%;
+    border: 1px dashed color-mix(in srgb, var(--star-color, var(--ui-warm)) 55%, transparent);
+    border-radius: 50%;
+  }
+}
+
+.panel-hero__figures {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 1.4em;
+  min-width: 0;
+}
+
+/* Action row at the bottom of a panel. */
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  padding: 0.2em 1em 1em;
+
+  > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  @include mobile-view {
+    padding: 0.2em 0.6em 0.6em;
+  }
 }
 
 /* =========================================================
@@ -43,216 +126,219 @@
    ========================================================= */
 
 .fleet-info {
-  position: absolute;
-  left: 2%;
-  bottom: 3%;
-  width: 24%;
-  min-width: 220px;
-  z-index: 30;
-
-  @include mobile-view {
-    bottom: -2px;
-    left: -2px;
-  }
+  @include info-card;
 }
 
 .fleet-actions {
   display: flex;
-  gap: 0.5em;
-  margin-top: 0.8em;
+  gap: 0.45em;
+  margin-top: 0.5em;
 }
 
 .action-btn {
-  flex: 1;
-  padding: 0.4em 0.6em;
-  border: 1px solid var(--color-blue);
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--color-text);
-  font-family: var(--font-primary);
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  @include ui.button(sm);
+  flex: 1 1 0;
+  min-width: 0;
 
-  @include mobile-view {
-    padding: 0.2em 0.3em;
-    font-size: 1em;
+  &.active {
+    @include ui.button-selected;
   }
 }
 
-.action-btn:hover {
-  color: var(--color-blue-bright);
-  border-color: var(--color-blue-bright);
-  background: rgba(0, 20, 25, 0.9);
+.fleet-actions .action-btn.disband-btn {
+  @include ui.button-danger;
 }
 
-.action-btn.active {
-  border-color: var(--color-blue-bright);
-  color: var(--color-blue-bright);
-  background: rgba(53, 134, 229, 0.15);
-  box-shadow:
-    inset 0 0 10px rgba(53, 134, 229, 0.2),
-    0 0 10px rgba(53, 134, 229, 0.3);
+/* Fleet strength: two headline figures side by side. */
+.fleet-power {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5em;
+  margin-top: 0.4em;
 }
 
-.move-btn.active {
-  border-color: var(--color-green);
-
-  color: var(--color-green);
-
-  background: rgba(53, 229, 134, 0.15);
-
-  box-shadow:
-    inset 0 0 10px rgba(53, 229, 134, 0.2),
-    0 0 10px rgba(53, 229, 134, 0.3);
+.fleet-power__cell {
+  padding: 0.5em 0.7em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised);
 }
-
-/* =========================================================
-   FLEET SHIPS SUMMARY
-   ========================================================= */
 
 .fleet-section-divider {
-  border: none;
-  border-top: 1px solid var(--color-blue);
-  margin: 0.6em 0;
-  opacity: 0.35;
+  width: 100%;
+  height: 1px;
+  margin: 0.5em 0 0.2em;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--ui-line-strong) 20%, var(--ui-line-soft) 80%, transparent);
 }
 
 .fleet-ships__title {
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-blue-light);
+  @include ui.section-label;
 
-  @include mobile-view {
-    font-size: 0.5rem;
+  img {
+    width: 1em;
+    height: 1em;
   }
+
 }
 
 .fleet-ships__row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-
-  @include mobile-view {
-    font-size: 0.5rem;
-  }
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 0.8em;
+  padding: 0.25em 0.5em;
+  border-left: 2px solid var(--ui-line);
+  background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.06), transparent 80%);
+  font-size: var(--ui-fs-sm);
 }
 
 .fleet-ships__type {
-  color: var(--color-text-bright);
+  overflow: hidden;
+  color: var(--ui-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleet-ships__count {
+  color: var(--ui-accent);
 }
 
 .fleet-ships__stats {
-  color: var(--color-text-dim);
-}
-
-.fleet-ships__totals {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 0.4em;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-blue-bright);
-  border-top: 1px solid var(--panel-border-dark);
-
-  @include mobile-view {
-    font-size: 0.5rem;
-  }
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.06em;
 }
 
 /* =========================================================
-    PLANET BUILDINGS SUMMARY
-    ========================================================= */
+   PLANET BUILDINGS SUMMARY (planet info panel)
+   ========================================================= */
 
 .planet-buildings__title {
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-blue-light);
+  @include ui.section-label;
 }
 
 .planet-buildings__row {
   display: flex;
   justify-content: space-between;
-  font-size: 0.75rem;
+  gap: 0.8em;
+  font-size: var(--ui-fs-sm);
 }
 
 .planet-buildings__name {
-  color: var(--color-text-bright);
+  color: var(--ui-ink);
 }
 
-.planet-buildings__count {
-  color: var(--color-text-dim);
-}
-
+.planet-buildings__count,
 .planet-buildings__size {
-  color: var(--color-text-dim);
-  font-size: 0.65rem;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
 }
 
 /* =========================================================
-    SHIP BUTTONS
-    ========================================================= */
+   FLEET ROSTER (player fleets, top left)
+   ========================================================= */
 
 .fleet-buttons {
   position: absolute;
-  top: calc(var(--game-header-h) - 1px);
-  left: -2px;
-  width: 120px;
-  max-height: calc(100dvh - var(--game-header-h));
+  top: calc(var(--game-header-h) + var(--ui-edge));
+  left: var(--ui-edge);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  width: clamp(150px, 12vw, 210px);
+  max-height: calc(100dvh - var(--game-header-h) - var(--ui-edge) * 2 - 330px);
+  padding: 0.55em 0.45em 0.5em;
   overflow-y: auto;
   overflow-x: hidden;
   z-index: 50;
-  border: 0;
+  @include ui.scroll;
+
+  &:empty {
+    display: none;
+  }
 
   @include mobile-view {
-    width: 90px;
+    top: calc(var(--game-header-h) + 4px);
+    left: 4px;
+    width: 96px;
+    max-height: calc(100dvh - var(--game-header-h) - 140px);
+    padding: 0.3em;
+  }
+}
+
+.fleet-buttons__title {
+  @include ui.section-label;
+  padding: 0 0.35em 0.3em;
+
+  @include mobile-view {
+    display: none;
   }
 }
 
 .fleet-btn {
+  @include ui.control-reset;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6em;
   width: 100%;
-  padding: 0.5em 0.8em;
-  margin-bottom: 0.3em;
-  border: 1px solid var(--color-blue);
-  background: rgba(0, 0, 0, 0.7);
-  color: var(--color-text);
-  font-family: var(--font-primary);
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  cursor: pointer;
-  transition: all 0.2s ease;
+  padding: 0.5em 0.6em;
+  border: 1px solid transparent;
+  background: transparent;
   box-shadow: none;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.12em;
+  text-align: left;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+
+  /* Faction-colored marker: the main-menu diamond, tinted. */
+  &::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 0.42em;
+    height: 0.42em;
+    border: 1px solid var(--fleet-color, var(--ui-accent));
+    transform: rotate(45deg);
+    transition: background 0.2s ease;
+  }
+
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &:hover {
+    border-color: var(--ui-line-soft);
+    background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.12), transparent);
+    box-shadow: none;
+    filter: none;
+
+    &::before {
+      background: var(--fleet-color, var(--ui-accent));
+    }
+  }
+
+  &.selected {
+    border-color: var(--ui-line);
+    border-left: 2px solid var(--fleet-color, var(--ui-accent));
+    background: linear-gradient(90deg, color-mix(in srgb, var(--fleet-color, var(--ui-accent)) 22%, transparent), transparent);
+
+    &::before {
+      background: var(--fleet-color, var(--ui-accent));
+      box-shadow: 0 0 8px var(--fleet-color, var(--ui-accent));
+    }
+  }
 
   @include mobile-view {
-    padding: 0.2em 0.2em;
-    min-height: 0;
+    padding: 0.3em 0.35em;
   }
-}
-
-.fleet-btn:hover {
-  color: var(--color-blue-bright);
-
-  border-color: var(--color-blue-bright);
-
-  background: rgba(0, 20, 25, 0.9);
-}
-
-.fleet-btn:active {
-  transform: translateY(1px);
-}
-
-.fleet-btn.selected {
-  border-color: var(--color-blue-bright);
-
-  color: var(--color-blue-bright);
-
-  background: rgba(53, 134, 229, 0.15);
-
-  box-shadow:
-    inset 0 0 10px rgba(53, 134, 229, 0.2),
-    0 0 10px rgba(53, 134, 229, 0.3);
 }
 
 /* =========================================================
@@ -262,63 +348,71 @@
 .context-menu {
   position: fixed;
   z-index: 1000;
-  min-width: 220px;
-  background: rgba(0, 0, 0, 0.92);
-  border: 1px solid var(--color-blue);
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+  min-width: 230px;
+  padding: 0.35em;
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(10px);
+  animation: context-pop 0.14s ease-out both;
+}
+
+@keyframes context-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .context-menu-item {
-  display: block;
+  @include ui.control-reset;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7em;
   width: 100%;
-  padding: 0.6em 1em;
+  padding: 0.6em 0.8em;
+  border: 0;
+  border-left: 2px solid transparent;
   background: none;
-  border: none;
-  border-bottom: 1px solid rgba(100, 150, 255, 0.15);
-  color: var(--color-text);
-  font-family: var(--font-primary);
-  font-size: 0.8rem;
-  letter-spacing: 0.04em;
+  box-shadow: none;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.1em;
   text-align: left;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 
-  &:last-child {
-    border-bottom: none;
+  &::before {
+    @include ui.diamond(0.36em, false);
+    transition:
+      background 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  & + & {
+    margin-top: 1px;
   }
 
   &:hover {
-    color: var(--color-blue-bright);
-    background: rgba(53, 134, 229, 0.15);
+    border-left-color: var(--ui-accent);
+    background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.16), transparent);
+    box-shadow: none;
+    color: var(--ui-ink-bright);
+    filter: none;
+
+    &::before {
+      border-color: var(--ui-accent);
+      background: var(--ui-accent);
+    }
   }
 
   &:active {
-    background: rgba(53, 134, 229, 0.25);
+    background: rgba(var(--ui-accent-rgb), 0.24);
   }
-}
-
-/* =========================================================
-   PRODUCTION / SPACEPORT PANELS (planet view)
-   =========================================================
-   The production and spaceport panels are now mounted inside the
-   planet sidebar (see star-map-planet-screen.component.html), so
-   they no longer need their own absolute-positioning rules here.
-*/
-
-.fleet-actions .action-btn.disband-btn {
-  border-color: #d65757;
-  color: #d65757;
-}
-
-.fleet-actions .action-btn.disband-btn:hover {
-  background: rgba(214, 87, 87, 0.15);
-}
-
-.fleet-actions .action-btn.reinforce-btn {
-  border-color: var(--color-blue-light);
-  color: var(--color-blue-light);
-}
-
-.fleet-actions .action-btn.reinforce-btn:hover {
-  background: rgba(140, 196, 255, 0.15);
 }

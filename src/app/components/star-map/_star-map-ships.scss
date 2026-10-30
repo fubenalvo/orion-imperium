@@ -261,11 +261,11 @@
 
   border-radius: 50%;
 
-  background: radial-gradient(circle, rgba(140, 196, 255, 0.16), transparent 70%);
+  background: radial-gradient(circle, rgba(var(--ui-accent-rgb), 0.16), transparent 70%);
 
   box-shadow:
-    0 0 10px rgba(140, 196, 255, 0.35),
-    inset 0 0 8px rgba(140, 196, 255, 0.2);
+    0 0 10px rgba(var(--ui-accent-rgb), 0.35),
+    inset 0 0 8px rgba(var(--ui-accent-rgb), 0.2);
 
   color: var(--color-blue-bright);
 
@@ -273,7 +273,7 @@
 
   font-size: 1.2rem;
 
-  text-shadow: 0 0 6px rgba(140, 196, 255, 0.8);
+  text-shadow: 0 0 6px rgba(var(--ui-accent-rgb), 0.8);
 
   animation: target-pulse 1.6s ease-in-out infinite;
 }

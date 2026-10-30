@@ -1,15 +1,16 @@
 /* =========================================================
    HUD CONTROLS
-   Shared look for the small square HUD buttons used in the
-   game header (back, pause, speed, menu, battle AUTO toggle).
+   Shared look for the small HUD buttons used in the game
+   header (back, pause, speed, menu, ship stock, battle AUTO).
+   Same visual language as the design-system buttons
+   (_ui.scss), sized for the header.
 
    Sizes are multiples of --gh-u, the header unit defined by
    GameHeaderComponent, so every control scales with the header
    height. The fallback keeps the mixin usable outside a header.
 
    The global `button` rule in styles.scss gives every button a
-   large gradient look (min-height, padding, hover filter, active
-   translate); the mixin resets those so HUD buttons never change
+   padded look; the mixin resets it so HUD buttons never change
    size or position on hover/press and cannot push neighbours.
    ========================================================= */
 
@@ -26,62 +27,70 @@
   margin: 0;
   padding: 0;
 
-  color: var(--color-blue-light);
+  color: var(--ui-ink-dim);
   font-family: var(--font-primary);
   font-size: calc(var(--gh-u, 14px) * 1.1);
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
+  text-shadow: none;
 
-  background: rgba(53, 134, 229, 0.15);
-  border: 1px solid var(--color-blue);
-  border-radius: 2px;
-  box-shadow: none;
+  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.08), rgba(var(--ui-accent-rgb), 0.02));
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   filter: none;
   cursor: pointer;
 
   transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease,
-    color 0.15s ease,
-    opacity 0.15s ease;
+    background 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
 
   &:hover {
-    color: var(--color-blue-bright);
-    background: rgba(53, 134, 229, 0.3);
-    box-shadow: 0 0 10px rgba(53, 134, 229, 0.4);
+    color: var(--ui-ink-bright);
+    border-color: var(--ui-line-strong);
+    background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.18), rgba(var(--ui-accent-rgb), 0.05));
+    box-shadow: 0 0 12px rgba(var(--ui-accent-rgb), 0.18);
     filter: none;
   }
 
   &:active {
     transform: none;
-    filter: brightness(0.9);
+    filter: brightness(1.2);
   }
 
   &:focus-visible {
-    outline: 2px solid var(--color-blue-bright);
+    outline: 1px solid rgba(var(--ui-accent-rgb), 0.7);
     outline-offset: 2px;
   }
 }
 
+/* Selected state: lit from below like a powered key, not a solid fill. */
 @mixin hud-button-active {
-  color: var(--color-black);
-  background: var(--color-blue);
-  box-shadow: 0 0 12px rgba(53, 134, 229, 0.55);
+  color: var(--ui-ink-bright);
+  border-color: var(--ui-accent);
+  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.12), rgba(var(--ui-accent-rgb), 0.32));
+  box-shadow:
+    inset 0 -2px 0 var(--ui-accent),
+    0 0 14px rgba(var(--ui-accent-rgb), 0.3);
+  text-shadow: 0 0 8px rgba(var(--ui-accent-rgb), 0.6);
 
   &:hover {
-    color: var(--color-black);
-    background: var(--color-blue);
+    color: var(--ui-ink-bright);
+    background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.16), rgba(var(--ui-accent-rgb), 0.38));
   }
 }
 
 @mixin hud-button-dimmed {
-  opacity: 0.4;
+  opacity: 0.45;
 
   &:hover {
-    background: rgba(53, 134, 229, 0.15);
+    opacity: 0.8;
     box-shadow: none;
   }
 }

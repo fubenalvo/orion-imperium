@@ -1,82 +1,255 @@
+@use 'mixins' as *;
+@use 'ui';
+
+/* =========================================================
+   RESEARCH SCREEN
+   ---------------------------------------------------------
+   Full-screen dialog: a fixed header (points, progress,
+   filters) over a scrolling body of tier rows. Each card's
+   left stripe carries its status: success = researched,
+   accent = available, faint = locked.
+   ========================================================= */
+
 .research-tree-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
-  padding: 2vw;
+  padding: clamp(8px, 2.5vw, 40px);
+  @include ui.backdrop;
 }
 
 .research-tree-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 1200px;
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 2vw;
+  max-width: 1320px;
+  height: min(92vh, 1100px);
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(26px);
+  animation: research-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
+@keyframes research-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Header ---------- */
+
 .research-tree__header {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: clamp(12px, 3vw, 48px);
+  padding: clamp(14px, 2.6vh, 28px) clamp(16px, 2.4vw, 36px) clamp(10px, 1.6vh, 18px);
+  background:
+    radial-gradient(ellipse 50% 140% at 0% 0%, rgba(var(--ui-accent-rgb), 0.1), transparent 70%),
+    linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.04), transparent);
+}
+
+.research-tree__eyebrow {
+  display: block;
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.research-tree__title {
+  margin: 0.1em 0 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xl);
+  font-weight: 400;
+  letter-spacing: 0.32em;
+  line-height: 1;
+  text-transform: uppercase;
+  text-shadow: 0 0 22px rgba(var(--ui-accent-rgb), 0.25);
+}
+
+.research-tree__summary {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2vw;
-  padding-bottom: 1vw;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  justify-content: flex-end;
+  gap: clamp(16px, 3vw, 48px);
+  min-width: 0;
 }
 
 .research-tree__points {
   display: flex;
   align-items: center;
-  gap: 0.5vw;
-  font-size: 1.2vw;
-  color: #fff;
+  gap: 0.7em;
+
+  img {
+    filter: drop-shadow(0 0 6px rgba(var(--ui-accent-rgb), 0.5));
+  }
+}
+
+.research-tree__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  width: clamp(140px, 16vw, 240px);
+}
+
+.research-tree__progress-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+  white-space: nowrap;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-transform: uppercase;
+
+  b {
+    color: var(--ui-ink);
+    font-weight: 400;
+  }
 }
 
 .research-tree__close-btn {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: #fff;
-  padding: 0.4vw 1vw;
-  cursor: pointer;
-  font-size: 0.9vw;
-  text-transform: uppercase;
-  transition: background 0.2s;
+  @include ui.button(sm);
+  letter-spacing: 0.24em;
+}
 
-  &:hover {
-    background: rgba(255, 255, 255, 0.1);
+/* ---------- Filters ---------- */
+
+.research-tree__filters {
+  display: flex;
+  gap: 0.2em;
+  padding: 0 clamp(16px, 2.4vw, 36px);
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+
+.research-tree__filter {
+  @include ui.tab;
+  flex: 0 0 auto;
+  padding-inline: 1.2em;
+}
+
+.research-tree__filter--active {
+  @include ui.tab-active;
+}
+
+.research-tree__filter-count {
+  margin-left: 0.5em;
+  color: var(--ui-ink-faint);
+}
+
+.research-tree__filter--active .research-tree__filter-count {
+  color: var(--ui-accent);
+}
+
+/* ---------- Body ---------- */
+
+.research-tree__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: clamp(12px, 2vh, 24px) clamp(16px, 2.4vw, 36px) clamp(18px, 3vh, 36px);
+  overflow-y: auto;
+  @include ui.scroll;
+}
+
+.research-tree__tier + .research-tree__tier {
+  margin-top: clamp(16px, 3vh, 32px);
+}
+
+.research-tree__tier-label {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  margin-bottom: 0.8em;
+
+  &::after {
+    content: '';
+    flex: 1 1 auto;
+    height: 1px;
+    @include ui.hairline(90deg, 0.35);
   }
+}
+
+.research-tree__tier-numeral {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  color: var(--ui-accent);
+  font-size: var(--ui-fs-md);
+  letter-spacing: 0.3em;
+
+  &::before {
+    @include ui.diamond;
+  }
+}
+
+.research-tree__tier-count {
+  color: var(--ui-ink-faint);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .research-tree__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5vw;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: clamp(8px, 1.2vw, 16px);
 }
 
+.research-tree__empty {
+  padding: 3em 0;
+  color: var(--ui-ink-dim);
+  text-align: center;
+}
+
+/* ---------- Card ---------- */
+
 .research-tree__card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  padding: 1.2vw;
+  --status-color: var(--ui-ink-faint);
+
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.6vw;
-  transition: border-color 0.2s, background 0.2s;
+  gap: 0.55em;
+  padding: 0.95em 1.05em 0.85em 1.2em;
+  border: 1px solid var(--ui-line-soft);
+  border-left: 2px solid var(--status-color);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(160deg, rgba(14, 38, 48, 0.55), rgba(4, 12, 17, 0.6));
+  font-size: var(--ui-fs-sm);
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 
   &--researched {
-    border-color: rgba(80, 200, 120, 0.4);
-    background: rgba(80, 200, 120, 0.08);
+    --status-color: var(--ui-success);
+    background: linear-gradient(160deg, rgba(var(--ui-success-rgb), 0.08), rgba(4, 12, 17, 0.6));
   }
 
   &--available {
-    border-color: rgba(140, 196, 255, 0.5);
-    background: rgba(140, 196, 255, 0.08);
+    --status-color: var(--ui-accent);
+    border-color: var(--ui-line);
+    background: linear-gradient(160deg, rgba(var(--ui-accent-rgb), 0.1), rgba(4, 12, 17, 0.6));
+    box-shadow: 0 0 22px rgba(var(--ui-accent-rgb), 0.06);
+
+    &:hover {
+      border-color: var(--ui-line-strong);
+      box-shadow: 0 0 26px rgba(var(--ui-accent-rgb), 0.14);
+    }
   }
 
   &--locked {
-    opacity: 0.6;
+    opacity: 0.62;
   }
 }
 
@@ -84,170 +257,148 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  gap: 1vw;
+  gap: 1em;
 }
 
 .research-tree__card-name {
-  font-size: 1.1vw;
-  font-weight: 700;
-  color: #fff;
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-md);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .research-tree__card-cost {
-  font-size: 0.9vw;
-  color: #aaa;
+  flex: 0 0 auto;
+  color: var(--ui-warm);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.08em;
+}
+
+.research-tree__card--researched .research-tree__card-cost {
+  color: var(--ui-ink-faint);
 }
 
 .research-tree__card-desc {
-  font-size: 0.85vw;
-  color: #ccc;
-  line-height: 1.4;
+  color: var(--ui-ink-dim);
+  line-height: 1.35;
 }
 
-.research-tree__card-prereqs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4vw;
-  font-size: 0.8vw;
-  color: #888;
-}
-
-.research-tree__card-prereqs-label {
-  color: #666;
-}
-
-.research-tree__card-prereq {
-  background: rgba(255, 255, 255, 0.08);
-  padding: 0.2vw 0.5vw;
-  border-radius: 2px;
-  color: #bbb;
-}
-
-// Mechanical effects are set apart from the flavour description.
+/* Mechanical effects are set apart from the flavour description. */
 .research-tree__card-effects {
   display: flex;
   flex-direction: column;
-  gap: 0.2vw;
-  font-size: 0.8vw;
-  color: #9fd8a8;
-  border-left: 2px solid rgba(159, 216, 168, 0.5);
-  padding-left: 0.5vw;
+  gap: 0.25em;
+  margin: 0;
+  padding: 0.5em 0.65em;
+  border: 1px solid var(--ui-line-soft);
+  background: var(--ui-surface-sunken);
+  list-style: none;
 }
 
-.research-tree__card-effects-label {
-  color: #666;
+.research-tree__card-effect {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55em;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.3;
+
+  &::before {
+    content: '';
+    flex: 0 0 auto;
+    width: 0.32em;
+    height: 0.32em;
+    margin-top: 0.35em;
+    background: var(--status-color);
+    transform: rotate(45deg);
+  }
+}
+
+.research-tree__card-prereqs,
+.research-tree__card-leads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.3;
+}
+
+.research-tree__card-prereqs-label {
+  margin-right: 0.3em;
+  color: var(--ui-ink-faint);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.research-tree__card-prereq {
+  @include ui.chip(var(--ui-ink-dim));
+  letter-spacing: 0.04em;
 }
 
 .research-tree__card-blocker {
-  font-size: 0.8vw;
-  color: #e0a060;
+  color: var(--ui-warning);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.3;
 }
 
 .research-tree__card-footer {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.8em;
   margin-top: auto;
-  padding-top: 0.6vw;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 0.6em;
+  border-top: 1px solid var(--ui-line-soft);
 }
 
 .research-tree__status-badge {
-  font-size: 0.75vw;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 0.3vw 0.6vw;
-  border-radius: 2px;
+  @include ui.chip(var(--status-color));
+}
 
-  &--researched {
-    background: rgba(80, 200, 120, 0.2);
-    color: #50c878;
-  }
+.research-tree__card--locked .research-tree__status-badge {
+  @include ui.chip(var(--ui-ink-dim));
+}
 
-  &--available {
-    background: rgba(140, 196, 255, 0.2);
-    color: #8cc4ff;
-  }
-
-  &--locked {
-    background: rgba(255, 255, 255, 0.08);
-    color: #777;
-  }
+.research-tree__afford {
+  flex: 1 1 auto;
 }
 
 .research-tree__btn {
-  background: rgba(140, 196, 255, 0.15);
-  border: 1px solid rgba(140, 196, 255, 0.4);
-  color: #8cc4ff;
-  padding: 0.4vw 1vw;
-  font-size: 0.85vw;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background 0.2s;
+  @include ui.button(sm);
+  @include ui.button-primary;
+  margin-left: auto;
+  letter-spacing: 0.2em;
+}
 
-  &:hover:not(:disabled) {
-    background: rgba(140, 196, 255, 0.3);
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 900px) {
+  .research-tree__header {
+    grid-template-columns: 1fr auto;
   }
 
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+  .research-tree__summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: space-between;
+  }
+
+  .research-tree__filters {
+    overflow-x: auto;
   }
 }
 
 @media (max-width: 768px) {
   .research-tree-overlay {
-    padding: 4vw;
-    align-items: flex-start;
-    overflow-y: auto;
+    padding: 2vw;
   }
 
   .research-tree-panel {
-    max-width: 100%;
-    max-height: none;
-    padding: 4vw;
-  }
-
-  .research-tree__points {
-    font-size: 4vw;
+    height: 96dvh;
   }
 
   .research-tree__grid {
     grid-template-columns: 1fr;
-    gap: 4vw;
-  }
-
-  .research-tree__card-name {
-    font-size: 4vw;
-  }
-
-  .research-tree__card-cost {
-    font-size: 3.5vw;
-  }
-
-  .research-tree__card-desc {
-    font-size: 3.2vw;
-  }
-
-  .research-tree__card-prereqs,
-  .research-tree__card-effects,
-  .research-tree__card-blocker {
-    font-size: 3vw;
-  }
-
-  .research-tree__status-badge {
-    font-size: 3vw;
-  }
-
-  .research-tree__btn {
-    font-size: 3.2vw;
-    padding: 2vw 4vw;
-  }
-
-  .research-tree__close-btn {
-    font-size: 3.5vw;
-    padding: 2vw 4vw;
   }
 }

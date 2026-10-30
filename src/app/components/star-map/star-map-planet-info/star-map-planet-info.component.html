@@ -1,81 +1,94 @@
 @if (!planet?.explored) {
   <div class="planet-info panel-style">
-    <div
-      class="panel-style__title"
-      style="display: flex; justify-content: space-between; align-items: center"
-    >
+    <div class="panel-style__title">
       <span>UNEXPLORED PLANET</span>
-      <button class="close-btn" type="button" (click)="close.emit()">X</button>
+      <button class="close-btn" type="button" (click)="close.emit()" aria-label="Close">X</button>
     </div>
     <div class="system-info__content">
-      <div>This planet has not been explored yet.</div>
+      <div class="planet-info__empty">This planet has not been explored yet.</div>
     </div>
   </div>
 } @else {
   <div class="planet-info panel-style">
-    <div
-      class="panel-style__title"
-      style="display: flex; justify-content: space-between; align-items: center"
-    >
-      <span>{{ planet?.name }} Details</span>
-      <button class="close-btn" type="button" (click)="close.emit()">X</button>
+    <div class="panel-style__title">
+      <span class="planet-info__name">{{ planet?.name }}</span>
+      <button class="close-btn" type="button" (click)="close.emit()" aria-label="Close">X</button>
     </div>
 
     <div class="system-info__content">
-      <div><img src="icon-faction.png" alt="" width="16" height="16" class="info-icon" /> TYPE: {{ planet?.type | uppercase }}</div>
-      <div><img src="icon-faction.png" alt="" width="16" height="16" class="info-icon" /> FACTION: {{ getFactionName(planet!.factionId) }}</div>
-      <div><img src="icon-popuilation.png" alt="" width="16" height="16" class="info-icon" /> POPULATION: {{ planet?.population | number:'1.0-0' }}</div>
-      <div><img src="icon-energy.png" alt="" width="16" height="16" class="info-icon" /> ENERGY: {{ getEnergyForPlanet(planet!) }}</div>
-      <div><img src="icon-taxes.png" alt="" width="16" height="16" class="info-icon" /> DAILY TAX: {{ getTaxForPlanet(planet!) }}</div>
+      <div class="planet-info__identity">
+        <span class="ui-chip">{{ planet?.type | uppercase }}</span>
+        <span class="planet-info__faction">{{ getFactionName(planet!.factionId) }}</span>
+      </div>
+
+      <div class="planet-info__figures">
+        <div class="ui-figure">
+          <span class="ui-figure__value">{{ planet?.population | number: '1.0-0' }}</span>
+          <span class="ui-figure__caption">Population</span>
+        </div>
+        <div class="ui-figure">
+          <span class="ui-figure__value">{{ getEnergyForPlanet(planet!) }}</span>
+          <span class="ui-figure__caption">Energy</span>
+        </div>
+        <div class="ui-figure">
+          <span class="ui-figure__value">{{ getTaxForPlanet(planet!) }}</span>
+          <span class="ui-figure__caption">Daily tax</span>
+        </div>
+      </div>
+
       @if (planetEconomy) {
-        <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
-        <div class="planet-economy__title">ECONOMY</div>
+        <div class="ui-label">Economy</div>
         @for (resource of ['credits', 'rawmaterials', 'research']; track resource) {
-          <div class="planet-economy__row">
-            <span><img src="icon-{{ resource === 'credits' ? 'credits' : resource === 'rawmaterials' ? 'rawmaterial' : 'research' }}.png" alt="" width="14" height="14" class="info-icon" /> {{ resource | uppercase }}</span>
-            <span>{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : '' }}{{ $any(planetEconomy.netRates)[resource] | number:'1.0-0' }}/s</span>
+          <div class="ui-stat" [class.ui-stat--positive]="$any(planetEconomy.netRates)[resource] > 0">
+            <span class="ui-stat__label">
+              <img src="icon-{{ resource === 'credits' ? 'credits' : resource === 'rawmaterials' ? 'rawmaterial' : 'research' }}.png" alt="" width="14" height="14" />
+              {{ resource === 'rawmaterials' ? 'Raw materials' : resource }}
+            </span>
+            <span class="ui-stat__value">{{ $any(planetEconomy.netRates)[resource] >= 0 ? '+' : '' }}{{ $any(planetEconomy.netRates)[resource] | number: '1.0-0' }}/s</span>
           </div>
         }
-        <div class="planet-economy__row">
-          <span><img src="icon-efficiency.png" alt="" width="14" height="14" class="info-icon" /> EFFICIENCY</span>
-          <span>{{ (planetEconomy.efficiency * 100) | number:'1.0-0' }}%</span>
+        <div class="ui-stat">
+          <span class="ui-stat__label"><img src="icon-efficiency.png" alt="" width="14" height="14" /> Efficiency</span>
+          <span class="ui-stat__value">{{ (planetEconomy.efficiency * 100) | number: '1.0-0' }}%</span>
         </div>
-        <div class="planet-economy__row">
-          <span><img src="icon-popuilation.png" alt="" width="14" height="14" class="info-icon" /> WORKFORCE</span>
-          <span>{{ planetEconomy.workforceAvailable }} / {{ planetEconomy.workforceRequired }}</span>
+        <div class="ui-stat">
+          <span class="ui-stat__label"><img src="icon-popuilation.png" alt="" width="14" height="14" /> Workforce</span>
+          <span class="ui-stat__value">{{ planetEconomy.workforceAvailable }} / {{ planetEconomy.workforceRequired }}</span>
         </div>
-        <div class="planet-economy__row">
-          <span><img src="icon-efficiency.png" alt="" width="14" height="14" class="info-icon" /> WORKFORCE EFF</span>
-          <span>{{ (planetEconomy.workforceEfficiency * 100) | number:'1.0-0' }}%</span>
+        <div class="ui-stat" [class.ui-stat--warn]="planetEconomy.workforceEfficiency < 0.75">
+          <span class="ui-stat__label"><img src="icon-efficiency.png" alt="" width="14" height="14" /> Workforce eff.</span>
+          <span class="ui-stat__value">{{ (planetEconomy.workforceEfficiency * 100) | number: '1.0-0' }}%</span>
         </div>
         @if (planetEconomy.habitabilityDrift !== 0) {
-          <div class="planet-economy__row">
-            <span>HABITABILITY</span>
-            <span>{{ planetEconomy.habitabilityDrift | number:'1.2-2' }}</span>
+          <div class="ui-stat">
+            <span class="ui-stat__label">Habitability</span>
+            <span class="ui-stat__value">{{ planetEconomy.habitabilityDrift | number: '1.2-2' }}</span>
           </div>
         }
         @if (planetEconomy.buildingMoraleBonus !== 0) {
-          <div class="planet-economy__row">
-            <span>ENTERTAINMENT</span>
-            <span>{{ planetEconomy.buildingMoraleBonus >= 0 ? '+' : '' }}{{ planetEconomy.buildingMoraleBonus | number:'1.2-2' }}</span>
+          <div class="ui-stat">
+            <span class="ui-stat__label">Entertainment</span>
+            <span class="ui-stat__value">{{ planetEconomy.buildingMoraleBonus >= 0 ? '+' : '' }}{{ planetEconomy.buildingMoraleBonus | number: '1.2-2' }}</span>
           </div>
         }
       }
-      <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
-      <div class="planet-buildings__title">
-        <img src="icon-build.png" alt="" width="16" height="16" class="info-icon" /> BUILDINGS ({{ groupedBuildings.length }})
+
+      <div class="ui-label">
+        <img src="icon-build.png" alt="" width="14" height="14" /> Buildings ({{ groupedBuildings.length }})
       </div>
       @for (group of groupedBuildings; track group.name) {
         <div class="planet-buildings__row">
           <span class="planet-buildings__name">{{ group.name }}</span>
-          <span class="planet-buildings__size">x{{ group.count }}</span>
+          <span class="planet-buildings__size">×{{ group.count }}</span>
         </div>
+      } @empty {
+        <div class="planet-info__empty">No buildings yet.</div>
       }
+    </div>
 
-      <hr style="border-color: var(--color-blue); opacity: 0.5; margin: 0.5em 0" />
-
+    <div class="panel-actions">
       <button
-        class="planet-info__open-btn"
+        class="btn-primary"
         type="button"
         (click)="openPlanet.emit(); $event.stopPropagation()"
       >

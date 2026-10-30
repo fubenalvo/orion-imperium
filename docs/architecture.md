@@ -10,9 +10,9 @@ Orion Imperium is an Angular 22 standalone 4X strategy game. The application use
 
 The app is fully client-side. All state is held in memory; the only persistence layer is `localStorage` via `SaveGameService`. There is no backend and no external API.
 
-The shell (`App` in `src/app/app.ts`) renders a CRT-styled viewport with a single `<router-outlet>`. Global Angular providers live in `app.config.ts` (`provideBrowserGlobalErrorListeners`, `provideRouter`).
+The shell (`App` in `src/app/app.ts`) renders the game viewport (with a static scanline/vignette overlay) and a single `<router-outlet>`. Global Angular providers live in `app.config.ts` (`provideBrowserGlobalErrorListeners`, `provideRouter`).
 
-Global styles live in `src/styles.scss`; shared SCSS partials in `src/styles/` (on the include path) provide the mixins every component reuses: `_mixins.scss` (breakpoints), `_hud-panel.scss` / `_hud-controls.scss` (HUD frame and controls), and `_space.scss` / `_planets.scss` (space scenery and lit planets, see [UI Styling](./ui-styling.md#space-scenery)).
+Global styles live in `src/styles.scss`; shared SCSS partials in `src/styles/` (on the include path) provide the mixins every component reuses: `_ui.scss` (the design system: glass surfaces, corner brackets, buttons, tabs, meters, chips, labels), `_mixins.scss` (breakpoints), `_hud-panel.scss` / `_hud-controls.scss` (panel frame and header controls), and `_space.scss` / `_planets.scss` (space scenery and lit planets). `styles.scss` defines the `--ui-*` design tokens and the shared global classes (`.panel-style`, `.ui-stat`, `.ui-label`, `.btn-primary`, ...). See [UI Styling](./ui-styling.md#design-system).
 
 ## Application Structure
 

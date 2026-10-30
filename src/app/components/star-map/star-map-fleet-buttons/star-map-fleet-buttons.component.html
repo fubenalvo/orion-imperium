@@ -1,16 +1,16 @@
-<div class="fleet-buttons panel-style">
-  @for (fleet of fleets; track fleet.id) {
-    @if (fleet.factionId === 'player') {
+@if (playerFleets.length > 0) {
+  <nav class="fleet-buttons panel-style" aria-label="Your fleets">
+    <div class="fleet-buttons__title">Fleets</div>
+    @for (fleet of playerFleets; track fleet.id) {
       <button
         class="fleet-btn"
         [class.selected]="selectedFleetId === fleet.id"
+        [style.--fleet-color]="getFactionColor(fleet.factionId)"
         type="button"
         (click)="selectFleet.emit(fleet); $event.stopPropagation()"
       >
-        <span [style.color]="getFactionColor(fleet.factionId)">
-          {{ fleet.name }}
-        </span>
+        <span>{{ fleet.name }}</span>
       </button>
     }
-  }
-</div>
+  </nav>
+}

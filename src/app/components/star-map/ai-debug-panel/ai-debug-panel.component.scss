@@ -7,9 +7,11 @@
   max-height: 80vh;
   overflow-y: auto;
   padding: 0.6vw;
-  background: rgba(4, 28, 50, 0.9);
-  border: 1px solid var(--color-blue);
-  color: #cfefff;
+  background: linear-gradient(160deg, rgba(10, 30, 40, 0.94), rgba(3, 10, 15, 0.96));
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  box-shadow: var(--ui-shadow-panel);
+  color: var(--ui-ink);
   font: 11px/1.35 monospace;
 
   header {
@@ -35,7 +37,7 @@
   section {
     margin-top: 0.5vw;
     padding-top: 0.4vw;
-    border-top: 1px solid rgba(0, 240, 255, 0.3);
+    border-top: 1px solid rgba(var(--ui-accent-rgb), 0.3);
   }
 
   h4 {

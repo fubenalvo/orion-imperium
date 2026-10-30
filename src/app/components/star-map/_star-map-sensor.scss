@@ -36,8 +36,8 @@
   height: var(--cell-size-vw, 5vw);
   /* A soft field rather than a grid of boxes: no per-cell border, and a
      blurred spread that merges neighbouring cells into one glow. */
-  background: color-mix(in srgb, var(--sensor-color, #3586e5) 22%, transparent);
-  box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.3) color-mix(in srgb, var(--sensor-color, #3586e5) 18%, transparent);
+  background: color-mix(in srgb, var(--sensor-color, var(--ui-accent)) 22%, transparent);
+  box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.3) color-mix(in srgb, var(--sensor-color, var(--ui-accent)) 18%, transparent);
   z-index: 6;
   pointer-events: none;
   animation: sensor-pulse 2.5s ease-in-out infinite;
@@ -57,8 +57,8 @@
   position: relative;
   width: var(--cell-size-vw, 5vw);
   height: var(--cell-size-vw, 5vw);
-  background: color-mix(in srgb, var(--sensor-color, #3586e5) 12%, transparent 88%);
-  //border: 1px dashed color-mix(in srgb, var(--sensor-color, #3586e5) 35%, transparent 65%);
+  background: color-mix(in srgb, var(--sensor-color, var(--ui-accent)) 12%, transparent 88%);
+  //border: 1px dashed color-mix(in srgb, var(--sensor-color, var(--ui-accent)) 35%, transparent 65%);
   border-radius: 2px;
   z-index: 5;
   pointer-events: none;
@@ -114,10 +114,10 @@
 .sensor-toggle-btn--active {
   color: var(--color-blue-bright);
   border-color: var(--color-blue-bright);
-  background: rgba(53, 134, 229, 0.15);
+  background: rgba(var(--ui-accent-rgb), 0.15);
   box-shadow:
-    inset 0 0 10px rgba(53, 134, 229, 0.2),
-    0 0 10px rgba(53, 134, 229, 0.3);
+    inset 0 0 10px rgba(var(--ui-accent-rgb), 0.2),
+    0 0 10px rgba(var(--ui-accent-rgb), 0.3);
 }
 
 .sensor-toggle__icon {

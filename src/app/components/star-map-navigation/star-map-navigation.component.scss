@@ -1,30 +1,38 @@
 /* =========================================================
-   MAP NAVIGATION
+   MAP NAVIGATION CONSOLE
+   D-pad and minimap share one glass instrument panel in the
+   bottom-right corner.
    ========================================================= */
 
 @use 'mixins' as *;
+@use 'ui';
 
 .map-navigation {
   position: fixed;
-  right: 2%;
-  bottom: 3%;
+  right: var(--ui-edge);
+  bottom: var(--ui-edge);
   display: flex;
   flex-direction: row;
-  align-items: flex-end;
-  gap: 0.5em;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em;
+  border-radius: var(--ui-radius);
   z-index: 30;
+  @include ui.glass;
+  @include ui.brackets(12px);
 
   @include mobile-view {
-    bottom: 5px;
-    right: 5px;
+    right: 4px;
+    bottom: 4px;
+    padding: 3px;
   }
 }
 
 .map-navigation__dpad {
   display: grid;
-  grid-template-columns: repeat(3, 3em);
-  grid-template-rows: repeat(3, 3em);
-  gap: 0.3em;
+  grid-template-columns: repeat(3, 2.4em);
+  grid-template-rows: repeat(3, 2.4em);
+  gap: 0.25em;
 
   @include mobile-view {
     display: none;
@@ -32,16 +40,36 @@
 }
 
 .map-navigation__dpad button {
-  width: 3em;
-  min-height: 3em;
-  padding: 0;
-  font-size: 1rem;
+  @include ui.icon-button(2.4em);
+  font-size: 0.85rem;
+  color: var(--ui-ink-dim);
 
-  @include mobile-view {
-    display: block;
-    width: 2rem;
-    min-height: 2rem;
-    font-size: 0.8rem;
+  &:hover:not(:disabled) {
+    color: var(--ui-ink-bright);
+  }
+}
+
+/* The center button recenters the camera: a lit diamond instead of a dot. */
+.map-navigation__center {
+  color: transparent !important;
+  text-shadow: none !important;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.5rem;
+    height: 0.5rem;
+    border: 1px solid var(--ui-accent);
+    transform: translate(-50%, -50%) rotate(45deg);
+    transition: background 0.2s ease;
+  }
+
+  &:hover::before {
+    background: var(--ui-accent);
+    box-shadow: 0 0 8px rgba(var(--ui-accent-rgb), 0.7);
   }
 }
 

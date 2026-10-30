@@ -1,113 +1,120 @@
 /* =========================================================
-   STAR EMPIRES
-   Global Styles
-   Pixel / Retro Sci-Fi UI
+   ORION IMPERIUM — GLOBAL STYLES
+   ---------------------------------------------------------
+   Design tokens, global element styles and the shared UI
+   classes every screen uses. The visual language is described
+   in docs/ui-styling.md#design-system; the SCSS mixin side of
+   it lives in src/styles/_ui.scss.
    ========================================================= */
 
 @use 'mixins' as *;
-
-/* =========================================================
-   PIXELIFY SANS
-   ========================================================= */
+@use 'ui';
 
 @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
 /* =========================================================
-   COLOR PALETTE
+   DESIGN TOKENS
    ========================================================= */
 
 :root {
   /* -------------------------------------------------------
-     Base
+     UI palette (source of truth). Derived from the main menu:
+     one turquoise accent, off-white "ink" in three strengths,
+     and the warm sunlight tone as a sparing secondary accent.
+     Faction colors (game data) are the only other hues on
+     screen, so UI chrome never competes with them.
+     ------------------------------------------------------- */
+
+  --ui-accent: #6de5d3;
+  --ui-accent-rgb: 109, 229, 211;
+  /* Accent tuned for small text (labels, section titles). */
+  --ui-accent-text: #5fcfbf;
+  --ui-accent-deep: #167c70;
+
+  --ui-ink-bright: #ffffff;
+  --ui-ink: #d8eef0;
+  --ui-ink-dim: #7fa3ad;
+  --ui-ink-faint: #46656f;
+
+  --ui-warm: #ffd6a0;
+  --ui-warm-rgb: 255, 214, 160;
+
+  --ui-success: #5fd39a;
+  --ui-success-rgb: 95, 211, 154;
+  --ui-warning: #f0c96a;
+  --ui-warning-rgb: 240, 201, 106;
+  --ui-danger: #ef6f6c;
+  --ui-danger-rgb: 239, 111, 108;
+  --ui-danger-text: #ff9a96;
+  /* Nebula / sensor impairment notices. */
+  --ui-anomaly: #c39cff;
+  /* Shields (battle bars, planetary shield). */
+  --ui-shield: #5cc8ff;
+
+  /* Lines and surfaces. */
+  --ui-line: rgba(109, 229, 211, 0.22);
+  --ui-line-soft: rgba(109, 229, 211, 0.12);
+  --ui-line-strong: rgba(109, 229, 211, 0.45);
+  --ui-surface: rgba(6, 18, 25, 0.9);
+  --ui-surface-raised: rgba(14, 38, 48, 0.55);
+  --ui-surface-sunken: rgba(1, 6, 9, 0.55);
+  --ui-shadow-panel:
+    0 18px 48px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  --ui-radius: 2px;
+
+  /* Type scale (VT323 renders small, so the scale starts high). */
+  --ui-fs-xs: 0.85rem;
+  --ui-fs-sm: 0.95rem;
+  --ui-fs-md: 1.08rem;
+  --ui-fs-lg: 1.35rem;
+  --ui-fs-xl: 1.8rem;
+  --ui-track: 0.08em;
+  --ui-track-wide: 0.22em;
+
+  /* -------------------------------------------------------
+     Legacy tokens. Older stylesheets use these names; they are
+     aliases of the UI palette above (the "blue" names now carry
+     the turquoise accent). Prefer --ui-* in new code.
      ------------------------------------------------------- */
 
   --color-black: #000000;
-
   --color-background: #050b10;
-
   --color-background-dark: #071118;
-
-  /* -------------------------------------------------------
-     Fonts
-     ------------------------------------------------------- */
 
   --font-primary: 'VT323', monospace;
 
-  /* -------------------------------------------------------
-     Main text
-     ------------------------------------------------------- */
+  --color-text: #b9d6da;
+  --color-text-bright: var(--ui-ink);
+  --color-text-dim: var(--ui-ink-dim);
+  --color-text-disabled: var(--ui-ink-faint);
 
-  --color-text: #3586e5;
-
-  --color-text-bright: #5ca8ff;
-
-  --color-text-dim: #235a9c;
-
-  --color-text-disabled: #18385f;
-
-  /* -------------------------------------------------------
-     Blue
-     ------------------------------------------------------- */
-
-  --color-blue-dark: #12315c;
-
-  --color-blue: #3586e5;
-
-  --color-blue-light: #5ca8ff;
-
-  --color-blue-bright: #8cc4ff;
-
-  /* -------------------------------------------------------
-     Turquoise
-     ------------------------------------------------------- */
+  --color-blue-dark: #1b4a50;
+  --color-blue: var(--ui-accent);
+  --color-blue-light: #8fe3d7;
+  --color-blue-bright: #c8fff6;
 
   --color-turquoise-dark: #0b4940;
-
   --color-turquoise: #167c70;
-
   --color-turquoise-light: #39b8a8;
-
   --color-turquoise-bright: #6de5d3;
 
-  /* -------------------------------------------------------
-     Buttons
-     ------------------------------------------------------- */
-
-  --button-light: #f3f3f3;
-
-  --button-dark: #0b4940;
-
-  --button-middle: #508d85;
-
-  --button-border: #000000;
-
-  --button-text: #000000;
-
-  --button-text-hover: #ffffff;
-
-  /* -------------------------------------------------------
-     Panels
-     ------------------------------------------------------- */
-
-  --panel-background: #07151d;
-
-  --panel-background-dark: #040b10;
-
+  --panel-background: #07161d;
+  --panel-background-dark: #030b10;
   --panel-background-light: #102a34;
+  --panel-border: var(--ui-line-strong);
+  --panel-border-dark: var(--ui-line-soft);
 
-  --panel-border: #3586e5;
-
-  --panel-border-dark: #12315c;
-
-  /* -------------------------------------------------------
-     Status
-     ------------------------------------------------------- */
-
-  --color-success: #39c96f;
-
-  --color-warning: #e6d85c;
-
-  --color-danger: #d65757;
+  --color-success: var(--ui-success);
+  --color-warning: var(--ui-warning);
+  --color-danger: var(--ui-danger);
+  /* Names some components used without them ever being defined. */
+  --color-green: var(--ui-success);
+  --color-green-bright: #9af0c4;
+  --color-red: var(--ui-danger);
+  --color-border: var(--ui-line);
+  --color-bg-panel: var(--ui-surface);
 
   /* -------------------------------------------------------
      Layout
@@ -119,6 +126,23 @@
      so change it here only. The clamp keeps the header tappable on
      short landscape phones and stops it growing on tall monitors. */
   --game-header-h: clamp(44px, 8dvh, 76px);
+
+  /* Gap between floating HUD panels and the viewport edge. */
+  --ui-edge: clamp(10px, 1.6vw, 28px);
+}
+
+/* Small or short viewports (phones, landscape phones, small windows): one
+   step down the type scale. Every design-system text size reads these
+   tokens, so panels shrink as a whole instead of per component. */
+@media (max-width: 900px), (max-height: 600px) {
+  :root {
+    --ui-fs-xs: 0.68rem;
+    --ui-fs-sm: 0.76rem;
+    --ui-fs-md: 0.86rem;
+    --ui-fs-lg: 1.05rem;
+    --ui-fs-xl: 1.35rem;
+    --ui-edge: 6px;
+  }
 }
 
 /* =========================================================
@@ -139,18 +163,12 @@ html,
 body {
   width: 100%;
   height: 100%;
-
   margin: 0;
   padding: 0;
-
   overflow: hidden;
-
   background: var(--color-black);
-
   color: var(--color-text);
-
   font-family: var(--font-primary);
-
   font-weight: 400;
 }
 
@@ -166,152 +184,70 @@ select {
   font-family: inherit;
 }
 
-/* =========================================================
-   ANGULAR ROOT
-   ========================================================= */
-
 app-root {
   display: block;
-
   width: 100vw;
   height: 100dvh;
 }
 
-/* =========================================================
-   GAME VIEWPORT
-   ========================================================= */
-
 .game-viewport {
   position: absolute;
-
   top: 0;
   left: 0;
-
   width: 100dvw;
   height: 100dvh;
-
   overflow: hidden;
-
   background: var(--color-background);
-
   color: var(--color-text);
 }
 
 /* =========================================================
    BUTTONS
+   Every <button> gets the secondary look. Components restyle
+   their own buttons with class selectors, which outrank these
+   element selectors. Variants: .btn-primary, .btn-danger,
+   .btn-ghost.
    ========================================================= */
 
 button,
 .button-style {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 3em;
-  padding: 0.5em 1.5em;
-  border: 2px solid var(--button-border);
-  border-radius: 0;
-  background: linear-gradient(
-    135deg,
-    var(--button-light) 0%,
-    var(--button-light) 2%,
-
-    #b9c9c7 11%,
-
-    var(--button-middle) 65%,
-
-    var(--button-dark) 100%
-  );
-
-  color: var(--button-text);
-  font-family: var(--font-primary);
+  @include ui.button;
+  min-height: 2.6em;
+  /* Inherit the container's size (several panels scale their buttons
+     through em); the mixin's rem size is for component controls. */
   font-size: 1em;
-  font-weight: 600;
-  line-height: 1;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
-  box-shadow:
-    inset 2px 2px 0 rgba(255, 255, 255, 0.45),
-    inset -3px -3px 0 rgba(0, 0, 0, 0.45);
-
-  transition:
-    filter 70ms linear,
-    transform 40ms linear,
-    box-shadow 40ms linear;
 
   @include mobile-view {
     min-height: 1.5em;
     padding: 0.7em 0.75em;
-    font-size: 0.5em;
+    font-size: var(--ui-fs-xs);
+  }
+}
+
+.btn-primary {
+  @include ui.button-primary;
+}
+
+.btn-danger {
+  @include ui.button-danger;
+}
+
+/* Text-only action (tertiary). */
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-ink-dim);
+
+  &:hover:not(:disabled) {
+    border-color: var(--ui-line);
+    background: rgba(var(--ui-accent-rgb), 0.06);
+    box-shadow: none;
   }
 }
 
 /* =========================================================
-   BUTTON HOVER
-   ========================================================= */
-
-button:hover,
-.button-style:hover {
-  color: var(--button-text-hover);
-
-  filter: brightness(1.15);
-
-  box-shadow:
-    inset 2px 2px 0 rgba(255, 255, 255, 0.65),
-    inset -3px -3px 0 rgba(0, 0, 0, 0.5),
-    0 0 8px rgba(53, 134, 229, 0.35);
-}
-
-/* =========================================================
-   BUTTON ACTIVE / PRESSED
-   ========================================================= */
-
-button:active,
-.button-style:active {
-  transform: translate(1px, 1px);
-
-  filter: brightness(0.9);
-
-  box-shadow:
-    inset 3px 3px 0 rgba(0, 0, 0, 0.4),
-    inset -2px -2px 0 rgba(255, 255, 255, 0.15);
-}
-
-/* =========================================================
-   BUTTON FOCUS
-   ========================================================= */
-
-button:focus-visible,
-.button-style:focus-visible {
-  outline: 2px solid var(--color-blue-bright);
-
-  outline-offset: 2px;
-}
-
-/* =========================================================
-   BUTTON DISABLED
-   ========================================================= */
-
-button:disabled,
-.button-style:disabled,
-button.disabled,
-.button-style.disabled {
-  color: var(--color-text-disabled);
-
-  background: #182326;
-
-  cursor: not-allowed;
-
-  filter: grayscale(0.8);
-
-  box-shadow:
-    inset 2px 2px 0 rgba(255, 255, 255, 0.08),
-    inset -2px -2px 0 rgba(0, 0, 0, 0.5);
-}
-
-/* =========================================================
-   TEXT INPUTS
+   FORM CONTROLS
    ========================================================= */
 
 input[type='text'],
@@ -322,380 +258,432 @@ input[type='search'],
 textarea,
 select {
   width: 100%;
-
   min-height: 2.5em;
-
-  padding: 0.4em 0.6em;
-
-  border: 2px solid var(--color-blue);
-
-  border-radius: 0;
-
+  padding: 0.4em 0.7em;
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.28);
+  border-radius: var(--ui-radius);
   outline: none;
-
-  /*
-   * Inputs are completely black.
-   */
-
-  background: var(--color-black);
-
-  color: var(--color-text);
-
+  background: linear-gradient(180deg, rgba(1, 6, 9, 0.85), rgba(4, 14, 19, 0.7));
+  color: var(--ui-ink);
   font-family: var(--font-primary);
-
   font-size: 1em;
+  letter-spacing: 0.04em;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 
-  box-shadow:
-    inset 2px 2px 0 rgba(0, 0, 0, 0.9),
-    inset -1px -1px 0 rgba(53, 134, 229, 0.15);
+  &:hover {
+    border-color: rgba(var(--ui-accent-rgb), 0.45);
+  }
+
+  &:focus {
+    border-color: var(--ui-accent);
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.6),
+      0 0 0 1px rgba(var(--ui-accent-rgb), 0.25),
+      0 0 12px rgba(var(--ui-accent-rgb), 0.18);
+  }
 }
 
-/* ---------------------------------------------------------
-   Input focus
-   --------------------------------------------------------- */
-
-input[type='text']:focus,
-input[type='number']:focus,
-input[type='password']:focus,
-input[type='email']:focus,
-input[type='search']:focus,
-textarea:focus,
-select:focus {
-  border-color: var(--color-blue-bright);
-
-  box-shadow:
-    inset 2px 2px 0 rgba(0, 0, 0, 0.9),
-    0 0 8px rgba(53, 134, 229, 0.25);
+select option {
+  background: #061218;
+  color: var(--ui-ink);
 }
-
-/* ---------------------------------------------------------
-   Placeholder
-   --------------------------------------------------------- */
 
 input::placeholder,
 textarea::placeholder {
-  color: var(--color-text-dim);
-
+  color: var(--ui-ink-faint);
   opacity: 1;
 }
 
-/* =========================================================
-   CHECKBOX
-   ========================================================= */
-
-input[type='checkbox'] {
+input[type='checkbox'],
+input[type='radio'] {
   appearance: none;
-
   position: relative;
-
-  width: 1.25em;
-  height: 1.25em;
-
-  margin: 0;
-
   flex: 0 0 auto;
-
-  border: 2px solid var(--color-blue);
-
-  border-radius: 0;
-
-  background: var(--color-black);
-
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0;
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.5);
+  border-radius: var(--ui-radius);
+  background: rgba(1, 6, 9, 0.8);
   cursor: pointer;
-}
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
 
-input[type='checkbox']:hover {
-  border-color: var(--color-blue-bright);
-}
+  &:hover {
+    border-color: var(--ui-accent);
+  }
 
-input[type='checkbox']:checked {
-  border-color: var(--color-blue-bright);
+  &:checked {
+    border-color: var(--ui-accent);
+    background: rgba(var(--ui-accent-rgb), 0.18);
+    box-shadow: 0 0 10px rgba(var(--ui-accent-rgb), 0.3);
+  }
 
-  background: var(--color-black);
+  &:focus-visible {
+    outline: 1px solid rgba(var(--ui-accent-rgb), 0.7);
+    outline-offset: 2px;
+  }
 }
 
 input[type='checkbox']:checked::after {
   content: '';
-
   position: absolute;
-
-  left: 22%;
-  top: 4%;
-
-  width: 38%;
-  height: 68%;
-
-  border-right: 3px solid var(--color-blue-bright);
-
-  border-bottom: 3px solid var(--color-blue-bright);
-
+  left: 32%;
+  top: 10%;
+  width: 32%;
+  height: 58%;
+  border-right: 2px solid var(--ui-accent);
+  border-bottom: 2px solid var(--ui-accent);
   transform: rotate(45deg);
 }
 
-/* =========================================================
-   RADIO
-   ========================================================= */
-
 input[type='radio'] {
-  appearance: none;
-
-  position: relative;
-
-  width: 1.25em;
-  height: 1.25em;
-
-  margin: 0;
-
-  flex: 0 0 auto;
-
-  border: 2px solid var(--color-blue);
-
-  border-radius: 0;
-
-  background: var(--color-black);
-
-  cursor: pointer;
-}
-
-input[type='radio']:hover {
-  border-color: var(--color-blue-bright);
-}
-
-input[type='radio']:checked {
-  border-color: var(--color-blue-bright);
-
-  background: var(--color-black);
+  border-radius: 50%;
 }
 
 input[type='radio']:checked::after {
   content: '';
-
   position: absolute;
-
-  left: 4px;
-  top: 4px;
-  right: 4px;
-  bottom: 4px;
-
-  background: var(--color-blue-bright);
+  inset: 25%;
+  border-radius: 50%;
+  background: var(--ui-accent);
 }
-
-/* =========================================================
-   LABELS
-   ========================================================= */
 
 label {
   color: var(--color-text);
-
   font-family: var(--font-primary);
-
   cursor: pointer;
 }
 
 .checkbox-style,
 .radio-style {
   display: inline-flex;
-
   align-items: center;
-
   gap: 0.6em;
-
   color: var(--color-text);
-
   cursor: pointer;
-}
 
-.checkbox-style:hover,
-.radio-style:hover {
-  color: var(--color-text-bright);
-}
-
-/* =========================================================
-   SCI-FI PANEL
-   ========================================================= */
-
-.panel-style {
-  position: relative;
-  border: 2px solid var(--panel-border);
-  border-radius: 0;
-  background: color-mix(in srgb, var(--panel-background) 70%, transparent);
-  color: var(--color-text);
-  box-shadow:
-    inset 2px 2px 0 rgba(53, 134, 229, 0.08),
-    inset -2px -2px 0 rgba(0, 0, 0, 0.8);
-}
-
-/* =========================================================
-   PANEL TITLE
-   ========================================================= */
-
-.panel-style__title {
-  padding: 0.45em 0.8em;
-  border-bottom: 2px solid var(--panel-border);
-  background: var(--panel-background-dark);
-  color: var(--color-blue-light);
-  font-size: 1em;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  position: relative;
-
-  @include mobile-view {
-    font-size: 0.5em;
-  }
-
-  button.close-btn {
-    color: var(--color-blue-light);
-    background: transparent;
-    border: none;
-    border-left: 2px solid var(--color-blue-light);
-    box-shadow: none;
-    position: absolute;
-    top: 0;
-    right: 0;
-    height: 100%;
-    min-height: 0;
-    padding: 0 0.8rem;
-    margin: 0 !important;
-    width: auto !important;
+  &:hover {
+    color: var(--ui-ink);
   }
 }
-
-/* =========================================================
-   SCI-FI HEADER
-   ========================================================= */
-
-.scifi-header {
-  display: flex;
-
-  align-items: center;
-
-  min-height: 2.5em;
-
-  padding: 0.4em 0.8em;
-
-  border-top: 2px solid var(--panel-border);
-
-  border-bottom: 2px solid var(--panel-border);
-
-  background: var(--panel-background-dark);
-
-  color: var(--color-blue-light);
-
-  font-size: 1em;
-
-  font-weight: 600;
-
-  letter-spacing: 0.1em;
-
-  text-transform: uppercase;
-}
-
-/* =========================================================
-   PIXEL DIVIDER
-   ========================================================= */
-
-.pixel-divider {
-  width: 100%;
-
-  height: 2px;
-
-  margin: 1em 0;
-
-  background: var(--color-blue);
-}
-
-/* =========================================================
-   RANGE SLIDER
-   ========================================================= */
 
 input[type='range'] {
   appearance: none;
-
   width: 100%;
-
   height: 1.5em;
-
   background: transparent;
-
   cursor: pointer;
 }
 
 input[type='range']::-webkit-slider-runnable-track {
-  height: 6px;
-
-  border: 2px solid var(--color-blue);
-
-  background: var(--color-black);
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.6), rgba(var(--ui-accent-rgb), 0.15));
 }
 
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
-
-  width: 14px;
-  height: 22px;
-
-  margin-top: -9px;
-
-  border: 2px solid var(--color-blue-bright);
-
-  border-radius: 0;
-
-  background: var(--color-turquoise-dark);
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+  border: 1px solid var(--ui-accent);
+  background: #0a2a2e;
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(var(--ui-accent-rgb), 0.5);
 }
 
 input[type='range']::-moz-range-track {
-  height: 6px;
-
-  border: 2px solid var(--color-blue);
-
-  background: var(--color-black);
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.6), rgba(var(--ui-accent-rgb), 0.15));
 }
 
 input[type='range']::-moz-range-thumb {
-  width: 14px;
-  height: 22px;
-
-  border: 2px solid var(--color-blue-bright);
-
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--ui-accent);
   border-radius: 0;
-
-  background: var(--color-turquoise-dark);
+  background: #0a2a2e;
+  transform: rotate(45deg);
 }
 
 /* =========================================================
-   CRT SCANLINES
+   PANELS
+   .panel-style is the glass card used by every floating HUD
+   panel. Its corner brackets use ::before/::after, so panels
+   must not use those pseudo-elements themselves.
+   ========================================================= */
+
+.panel-style {
+  position: relative;
+  border-radius: var(--ui-radius);
+  color: var(--color-text);
+  @include ui.glass;
+  @include ui.brackets;
+}
+
+/* Panel header: diamond marker, wide-tracked title, fading rule. The
+   close button sits at the right edge inside the header. */
+.panel-style__title {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.65em;
+  min-height: 2.6em;
+  padding: 0.55em 3em 0.55em 1em;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.5), rgba(var(--ui-accent-rgb), 0.06)) 1;
+  background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.12), transparent 75%);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-md);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  &::before {
+    @include ui.diamond;
+  }
+
+  @include mobile-view {
+    min-height: 2.2em;
+    font-size: var(--ui-fs-sm);
+  }
+
+  /* Close control: a drawn cross, so every panel's "X" text renders the
+     same regardless of font glyphs. */
+  button.close-btn {
+    position: absolute;
+    top: 50%;
+    right: 0.55em;
+    width: 1.9em;
+    height: 1.9em;
+    min-height: 0;
+    margin: 0 !important;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--ui-radius);
+    background: transparent;
+    box-shadow: none;
+    color: var(--ui-ink-dim);
+    font-size: 0;
+    transform: translateY(-50%);
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 0.95rem;
+      height: 1px;
+      background: currentColor;
+    }
+
+    &::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+
+    &::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+
+    &:hover {
+      border-color: var(--ui-line);
+      background: rgba(var(--ui-accent-rgb), 0.1);
+      box-shadow: none;
+      color: var(--ui-ink-bright);
+    }
+
+    @include mobile-view {
+      width: 1.6rem;
+      height: 1.6rem;
+    }
+  }
+}
+
+.scifi-header {
+  @include ui.section-label;
+  min-height: 2.2em;
+}
+
+/* =========================================================
+   SHARED CONTENT CLASSES
+   ========================================================= */
+
+/* Section label with a fading rule ("ECONOMY ────"). */
+.ui-label {
+  @include ui.section-label;
+  margin-top: 0.35em;
+
+  img {
+    width: 1em;
+    height: 1em;
+  }
+}
+
+/* Label / value row. Optional modifiers tint the whole row. */
+.ui-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8em;
+  padding: 0.12em 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.25;
+
+  &__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    min-width: 0;
+    color: var(--ui-ink-dim);
+    letter-spacing: var(--ui-track);
+    text-transform: uppercase;
+
+    img {
+      width: 1em;
+      height: 1em;
+      opacity: 0.85;
+    }
+  }
+
+  &__value {
+    color: var(--ui-ink);
+    letter-spacing: 0.04em;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  &--positive &__value {
+    color: var(--ui-success);
+  }
+
+  &--warn &__label,
+  &--warn &__value {
+    color: var(--ui-warning);
+  }
+
+  &--danger &__label,
+  &--danger &__value {
+    color: var(--ui-danger-text);
+  }
+}
+
+/* Hero value: one prominent number with a caption (fleet power, etc.). */
+.ui-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  min-width: 0;
+
+  &__value {
+    color: var(--ui-ink-bright);
+    font-size: var(--ui-fs-lg);
+    line-height: 1;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__caption {
+    color: var(--ui-ink-dim);
+    font-size: var(--ui-fs-xs);
+    letter-spacing: var(--ui-track-wide);
+    text-transform: uppercase;
+  }
+}
+
+.ui-divider {
+  width: 100%;
+  height: 1px;
+  margin: 0.45em 0;
+  border: 0;
+  background: linear-gradient(90deg, transparent, var(--ui-line-strong) 20%, var(--ui-line-soft) 80%, transparent);
+}
+
+.ui-chip {
+  @include ui.chip;
+
+  &--success {
+    @include ui.chip(var(--ui-success));
+  }
+
+  &--warning {
+    @include ui.chip(var(--ui-warning));
+  }
+
+  &--danger {
+    @include ui.chip(var(--ui-danger-text));
+  }
+
+  &--muted {
+    @include ui.chip(var(--ui-ink-dim));
+  }
+}
+
+.ui-meter {
+  @include ui.meter;
+
+  &__fill {
+    @include ui.meter-fill;
+  }
+}
+
+/* Inline notice line inside panels. */
+.ui-notice {
+  padding: 0.4em 0.6em;
+  border-left: 2px solid currentColor;
+  background: linear-gradient(90deg, color-mix(in srgb, currentColor 12%, transparent), transparent);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.06em;
+  line-height: 1.3;
+
+  &--danger {
+    color: var(--ui-danger-text);
+  }
+
+  &--warning {
+    color: var(--ui-warning);
+  }
+
+  &--anomaly {
+    color: var(--ui-anomaly);
+  }
+
+  &--success {
+    color: var(--ui-success);
+  }
+}
+
+.pixel-divider {
+  width: 100%;
+  height: 1px;
+  margin: 1em 0;
+  background: linear-gradient(90deg, transparent, var(--ui-line-strong), transparent);
+}
+
+/* =========================================================
+   SCREEN OVERLAY
+   Static scanlines + vignette over the whole game (the element
+   lives in app.html; app.scss sets its texture).
    ========================================================= */
 
 .crt-overlay {
   pointer-events: none;
-
   position: absolute;
-
   inset: 0;
-
   z-index: 9999;
-
-  background: repeating-linear-gradient(
-    to bottom,
-
-    rgba(255, 255, 255, 0.02) 0,
-    rgba(255, 255, 255, 0.02) 1px,
-
-    transparent 1px,
-    transparent 4px
-  );
-
-  opacity: 0.25;
 }
 
-/* =========================================================
-   TEXT SELECTION
-   ========================================================= */
-
 ::selection {
-  background: var(--color-blue);
-
+  background: var(--ui-accent);
   color: var(--color-black);
 }
 
@@ -703,27 +691,29 @@ input[type='range']::-moz-range-thumb {
    SCROLLBARS
    ========================================================= */
 
-::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--ui-accent-rgb), 0.3) transparent;
+}
 
-  background: var(--color-black);
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-black);
-
-  border-left: 2px solid var(--panel-border-dark);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  border: 2px solid var(--color-black);
-
-  background: var(--color-blue-dark);
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: rgba(var(--ui-accent-rgb), 0.28) padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-blue);
+  background: rgba(var(--ui-accent-rgb), 0.5) padding-box;
 }
 
 .debugConsoleTemp {
@@ -735,4 +725,3 @@ input[type='range']::-moz-range-thumb {
   padding: 10px;
   z-index: 9999;
 }
-

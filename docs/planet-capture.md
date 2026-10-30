@@ -83,6 +83,8 @@ Rules 2 and 3 are mutually exclusive. An AI faction without planets but with a f
 
 Outcome checks run on battle return, on load, and in the frame loop whenever `PlanetOwnershipService.revision` changed.
 
+A terminal outcome shows the victory / defeat dialog (`.game-end-overlay` in `star-map.html`) in every orientation. It is a top-level sibling of the portrait "rotate your device" overlay; it was once nested inside that overlay by mistake and so never appeared in landscape.
+
 ## Tests
 
 - `planet-ownership.service.spec.ts`, `battle-outcome` behavior through `battle-screen.component.spec.ts`, `battle-auto-resolve.spec.ts` (win, loss, losses on both sides, draw, determinism), `enemy-invasion.service.spec.ts`, `game-outcome.service.spec.ts`, `star-map.spec.ts` (AI planet battle opens the battle screen; in-loop defeat).

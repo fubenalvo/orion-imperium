@@ -1,49 +1,37 @@
-@use '../_star-map-panels';
+@use '../_star-map-panels' as panels;
 
-@use 'mixins' as *;
-
+/* Same bottom-left card as the system/fleet panels, above the system
+   scene's planets (z-index) because it opens over them. */
 .planet-info {
-  position: absolute;
-  left: 2%;
-  bottom: 3%;
-  width: 24%;
-  min-width: 220px;
-  padding-bottom: 0.8em;
+  @include panels.info-card;
   z-index: 120;
-
-  @include mobile-view {
-    bottom: -2px;
-    left: -2px;
-  }
 }
 
-.planet-info__open-btn {
-  width: calc(100% - 1.6em);
-  margin: 0 0.8em;
-  padding: 0.5em 0.8em;
-  border: 1px solid var(--color-blue);
-  background: rgba(53, 134, 229, 0.15);
-  color: var(--color-text);
-  font-family: var(--font-primary);
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-  text-align: center;
-  text-transform: uppercase;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
-
-  &:hover {
-    background: rgba(53, 134, 229, 0.3);
-    box-shadow: 0 0 12px rgba(53, 134, 229, 0.4);
-  }
+.planet-info__identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
 }
 
-.info-icon {
-  width: 14px;
-  height: 14px;
-  vertical-align: -3px;
-  margin-right: 4px;
+.planet-info__faction {
+  overflow: hidden;
+  color: var(--ui-ink-dim);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planet-info__figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5em;
+  margin: 0.4em 0 0.2em;
+  padding: 0.6em 0.7em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised);
+}
+
+.planet-info__empty {
+  color: var(--ui-ink-dim);
 }

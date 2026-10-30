@@ -1,19 +1,31 @@
 <div class="system-info panel-style">
   <div class="panel-style__title">
     {{ system?.name }}
-    <button class="close-btn" type="button" (click)="close.emit()">X</button>
+    <button class="close-btn" type="button" (click)="close.emit()" aria-label="Close">X</button>
   </div>
 
   <div class="system-info__content">
-    <div>
-      <img src="icon-star-map.png" alt="" width="14" height="14" class="info-icon" /> PLANETS:
-      {{ system?.planets }}
+    <div class="panel-hero">
+      <span class="panel-hero__star" [style.--star-color]="system?.color" aria-hidden="true"></span>
+      <div class="panel-hero__figures">
+        <div class="ui-figure">
+          <span class="ui-figure__value">{{ system?.planets }}</span>
+          <span class="ui-figure__caption">Planets</span>
+        </div>
+      </div>
     </div>
 
-    <div>STATUS: UNEXPLORED</div>
+    <div class="ui-stat">
+      <span class="ui-stat__label">
+        <img src="icon-star-map.png" alt="" width="14" height="14" /> Status
+      </span>
+      <span class="ui-stat__value">UNEXPLORED</span>
+    </div>
   </div>
 
-  <button type="button" (click)="enterSystem.emit(); $event.stopPropagation()">
-    ENTER SYSTEM
-  </button>
+  <div class="panel-actions">
+    <button type="button" class="btn-primary" (click)="enterSystem.emit(); $event.stopPropagation()">
+      ENTER SYSTEM
+    </button>
+  </div>
 </div>
