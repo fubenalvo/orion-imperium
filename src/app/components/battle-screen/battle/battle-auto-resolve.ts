@@ -40,7 +40,9 @@ import { buildBattleOutcome } from './battle-result';
  *  - No grid movement or range: every stack is treated as engaged with
  *    every enemy stack from the start (the minigame AI closes to range
  *    quickly; positioning skill is not modelled).
- *  - No animation time between projectile and impact.
+ *  - No laser bolts: every volley hits instantly. In the interactive battle
+ *    bolts are aimed once and can miss a target that moves out of their
+ *    path, so fast stacks at long range fare slightly better there.
  *  - Carrier Shield Pulse is not used.
  *  - A battle still undecided after `maxBattleMs` is a draw: the
  *    defender holds (winner 'defender', attacker not wiped out). The

@@ -102,7 +102,11 @@ MAX_STACK_SIZE = 5                 // Max ships per stack
 ATTACKER_DEPLOY_COLS = [1, 3, 5, 7]       // Attacker slot columns (outer edge first)
 DEFENDER_DEPLOY_COLS = [38, 36, 34, 32]   // Defender slot columns (outer edge first)
 DEPLOY_ROW_ORDER = [8, 6, 10, 4, 12, 2, 14]
-ANIMATION_MS = { move: 90, projectile: 160, hit: 100, explosion: 210 }
+ANIMATION_MS = { move: 90, muzzle: 120, hit: 100, explosion: 210 }
+PROJECTILE_SPEED_VW_PER_S = 45   // Laser bolt speed
+PROJECTILE_LENGTH_VW = 1.2       // Visual bolt length
+PROJECTILE_OVERSHOOT_VW = 6      // Flight past reach before a missed bolt fizzles
+PROJECTILE_HITBOX_SCALE = 0.925  // Hitbox = drawn stack box
 AI_ACTION_INTERVAL_MS = 400        // AI / AUTO decision tick
 AI_ACTION_COOLDOWN_MS = 1000       // Per-stack AI re-plan cooldown
 MOVE_REPLAN_INTERVAL_MS = 150      // Chase re-planning + manual order upkeep
@@ -168,7 +172,8 @@ interface BattleModelState {
   round: number;             // Shield-regen tick counter
   stacks: BattleStack[];
   log: BattleLogEntry[];
-  effects: BattleAttackEffect[];      // In-flight projectile/impact/explosion, one per firing stack
+  effects: BattleAttackEffect[];      // Impact/explosion effects with remainingMs lifetimes
+  projectiles: BattleProjectile[];    // Laser bolts in flight (position, fixed direction, volley snapshot)
   winner: 'attacker' | 'defender' | null;
   // Fleet identity for result mapping
   attackerFleetId: number;
@@ -336,26 +341,20 @@ for each living stack (both sides, turrets included):
   target = selectFireTarget(state, stack)   // battle-targeting.ts
   if target: attackCooldownUntil = now + 1000 / fireRate; attackStack(...)
 
-async attackStack(state, attackerStackId, targetStackId): Promise<boolean>
+attackStack(state, attackerStackId, targetStackId): Promise<boolean>
 1. Validate: both stacks exist, alive, opposite sides, no winner yet
 2. Reach check: canAttack() — absolute x/y distance ≤ (attackRange + 1) × BATTLE_RANGE_UNIT_VW
-3. Animation sequence via anim.run():
-   a) PROJECTILE (320ms): state.effect = { phase: 'projectile', from, to, targetStackId }
-      attacker.firing = true; tick(); wait(320ms);
-   b) DAMAGE CALCULATION:
-      totalAttack = Σ alive ships in attacker stack .attack
-      front = first alive ship in target stack
-      damage = max(1, totalAttack - front.defense)
-      for (ship of target.ships) if alive:
-         applied = min(ship.hp, remaining)
-         ship.hp -= applied; remaining -= applied
-         if ship.hp ≤ 0: ship.hp = 0; ship.alive = false; kills++
-      if all ships dead: target.destroyed = true
-   c) LOG: push BattleLogEntry { round, side, attackerStack, defenderStack, damage, kills }
-   d) IMPACT/EXPLOSION (200/420ms): state.effect = { phase: 'impact'|'explosion', ... }
-      tick(); wait(200 or 420ms);
-   e) CLEANUP: state.effect = null; attacker.firing = false; checkVictory(); tick()
-4. Return true
+3. Launch a BattleProjectile: tip at the attacker's x/y, unit direction toward the target's
+   current x/y (fixed forever), volley snapshot of the attacker's ships, faction color
+4. Resolve true once the bolt has hit or fizzled (false immediately if not fired)
+
+updateProjectiles(state, deltaSec)   // every unpaused frame, also after victory
+- age impact/explosion effects (remainingMs) and drop expired ones
+- move each bolt PROJECTILE_SPEED_VW_PER_S × deltaSec along its direction
+- swept segment vs intended target's hitbox (segmentHitsStack) and no winner yet →
+    applyVolleyDamage(state, snapshot, target); log; impact/explosion effect; checkVictory
+- traveled ≥ reach + PROJECTILE_OVERSHOOT_VW or out of the field → miss, removed
+- stack.firing = has a bolt younger than ANIMATION_MS.muzzle
 ```
 
 **Damage Model:**
@@ -363,7 +362,10 @@ async attackStack(state, attackerStackId, targetStackId): Promise<boolean>
 - **Defense**: Only the front (first alive) target ship's defense applies
 - **Formula**: `damage = max(1, totalAttack - front.defense)`
 - **Spillover**: Remaining damage continues to next ship in stack
-- **No RNG**: Fully deterministic
+- **No RNG**: Fully deterministic (misses come only from geometry: the target moving out of
+  the bolt's path)
+- **Shared rule**: `applyVolleyDamage()` is also used by the auto-resolver, which has no
+  projectiles (every volley hits)
 - **Shields/weapon types**: Loaded from data and applied in `BattleCombatService.attackStack()` and `BattleAiService`. Shield absorbs before hull for immobile targets; weapon effectiveness scales via `attackType` vs `weakness`. See [Battle Rules](./battle-rules.md) §Combat.
 
 ### 7. Animation Lock (`BattleAnimationService`)
@@ -372,10 +374,13 @@ Animations are tracked **per stack** (`begin(stackId)` / `end(stackId)` / `isSta
 global `isBusy` count. `run(fn, stackId)` balances begin/end even if `fn` throws.
 `wait(ms)` delegates to `BattleTimeService.wait()` (battle time: frozen while paused).
 
-- `isStackBusy` keeps a stack from starting a second volley while one is in flight, and blocks
-  Shield Pulse for that Carrier only.
-- `isBusy` (any animation) is used only by `showBattleResult`, so the result overlay appears
-  after the final volley's animation. Player input is never blocked by animations.
+- Volleys do not use the lock (bolts and effects are battle state, see §6). `isStackBusy` is
+  still respected by fire control and Shield Pulse.
+- `showBattleResult` requires a winner, `!isBusy`, and empty `state.projectiles` and
+  `state.effects`, so the overlay appears after the final hit has played out. Player input is
+  never blocked by animations.
+- `ngOnDestroy` calls `combat.clearProjectiles()` so no bolt or pending `attackStack()` promise
+  outlives the screen.
 
 ### 8. AI (`BattleAiService.playAction`)
 
@@ -578,7 +583,8 @@ reset(): void                                      // speed=1, isPaused=false, e
 - **Manual attack target**: Gold outline; red dashed line from the stack
 - **Move destination**: Blue dashed line
 - **Order status** (panel): ATTACKING / CHASING / MOVING / AUTO TARGET
-- **Firing**: recoil animation; **Projectile**: red line; **Impact**: white/red flash;
+- **Firing**: recoil animation; **Laser bolt**: short white-core bolt glowing in the shooter's
+  faction color, drawn every frame from the projectile state; **Impact**: white/red flash;
   **Explosion**: yellow/orange ring
 
 ---
@@ -590,14 +596,15 @@ reset(): void                                      // speed=1, isPaused=false, e
 | `battle-state.spec.ts` | No input mutation, stack grouping, slot deployment (38×16), centre-out rows, no overlap of wide stacks on either side, turrets outermost, stat resolution |
 | `battle-grid.spec.ts` | Grid bounds (38×16), physical range unit, reach tolerance, linePath, occupancy / reservations, reachable cells, attack targets, move-to-attack cells, approach fallback |
 | `battle-targeting.spec.ts` | All four modes, tie-breaks, invalid targets, manual priority, opportunistic fire, sticky target, mode change, planetary shield durability |
-| `battle-combat.service.spec.ts` | Damage formula, shields, weapon matchup, effects lifecycle, fire-control cadence (both sides), turrets fire, dead-order cleanup, simultaneous kills, no fire after victory, pause freezes cooldowns, Shield Pulse gating/cooldown |
+| `battle-combat.service.spec.ts` | Damage formula, shields, weapon matchup, bolt lifecycle, fixed aim, straight constant-speed flight, natural misses, target-only hits, volley snapshot, no damage after victory, swept hitbox test, fire-control cadence (both sides), turrets fire, dead-order cleanup, simultaneous kills, no fire after victory, pause freezes cooldowns, Shield Pulse gating/cooldown |
 | `battle-ai.service.spec.ts` | Holds when in reach (never fires), moves toward enemies, every idle stack per tick, determinism, immobile skipped, AUTO drives player side only and skips manual orders |
 | `battle-movement.service.spec.ts` | Moves, bounds/occupancy, re-planning while chasing |
 | `battle-screen.component.spec.ts` | Frame-stepped integration: equal cadence, order persistence across selection, chase + opportunistic fire, order cleared on kill, order replacement, AUTO vs manual, pause, targeting mode UI, turrets fire, full battles complete (AUTO on/off), persistence/outcome |
 | `battle-animation`, `battle-ship-stats`, `battle-result`, grid/planet component specs | Lock balance, stat resolution, outcome mapping, rendering helpers |
 
 Specs that use fake timers must drive the battle clock: service specs use
-`startBattleTestClock()`; component specs stop the RAF loop and step `gameLoopCallback`
+`startBattleTestClock(time, onFrame?)` (combat specs pass an `onFrame` that calls
+`updateProjectiles` for the states under test); component specs stop the RAF loop and step `gameLoopCallback`
 frame by frame (`runFrames`).
 
 ---

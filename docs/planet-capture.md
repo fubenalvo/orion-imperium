@@ -43,12 +43,12 @@ Both paths end in `BattleOutcomeService.applyPlanetBattleOutcome`: ownership on 
 
 ### Auto-resolver (`battle-auto-resolve.ts`)
 
-Same setup and rules as the minigame where they do not depend on the grid: `createBattleState` (stacks, ship and turret stats, shared planetary shield pool), per-stack fire cadence (`1 / fireRate × FIRE_RATE_MULTIPLIER`), target choice by the stack's targeting mode (`compareTargets`, sticky target), shield regeneration every `SHIELD_REGEN_INTERVAL_MS`, `checkVictory`, `buildBattleOutcome`. Volley damage is `applyVolleyDamage`, the exact function the animated `BattleCombatService.attackStack` uses.
+Same setup and rules as the minigame where they do not depend on the grid: `createBattleState` (stacks, ship and turret stats, shared planetary shield pool), per-stack fire cadence (`1 / fireRate × FIRE_RATE_MULTIPLIER`), target choice by the stack's targeting mode (`compareTargets`, sticky target), shield regeneration every `SHIELD_REGEN_INTERVAL_MS`, `checkVictory`, `buildBattleOutcome`. Volley damage is `applyVolleyDamage`, the exact function the interactive battle applies when a laser bolt hits.
 
 Simplifications (results can differ from a battle the player would fight):
 
 - no grid movement or range — every stack is engaged with every enemy from the start;
-- no animation delay between firing and impact;
+- no laser bolts: every volley hits instantly, while in the interactive battle a bolt is aimed once and misses a target that moves out of its path (see [Battle Rules](./battle-rules.md#combat));
 - the Carrier Shield Pulse is not used;
 - a battle undecided after 300 s of battle time is a **draw**: the defender holds the planet and neither side is wiped out (the minigame has no time limit).
 

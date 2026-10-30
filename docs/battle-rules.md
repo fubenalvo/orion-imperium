@@ -104,8 +104,24 @@ Virtual defense buildings (turrets) are immobile (speed 0), use their building d
   `(attackRange + ATTACK_RANGE_TOLERANCE) × BATTLE_RANGE_UNIT_VW` when the volley starts
   (`ATTACK_RANGE_TOLERANCE = 1`, so every ship effectively reaches `range + 1`). Euclidean,
   inclusive at the boundary. The selected stack's range ring shows exactly this reach.
-- A projectile captures the attacker and target `x/y` positions when firing starts. It does not
-  track a target that moves during the animation.
+- **Laser bolts.** Every volley is a real projectile (`BattleProjectile` in
+  `state.projectiles`), simulated on battle time by `BattleCombatService.updateProjectiles`:
+  - At launch it is aimed once at the target's **current** `x/y` and then flies in a straight
+    line at a constant `PROJECTILE_SPEED_VW_PER_S = 45`. It never changes direction or tracks.
+  - It **hits only its intended target**, and only when its path (swept segment, so fast bolts
+    cannot tunnel) crosses that target's hitbox: the drawn stack box, `size` cells × 1 cell,
+    scaled by `PROJECTILE_HITBOX_SCALE = 0.925`, at the target's live position. Other stacks
+    in the way are passed through.
+  - If the target moved out of the line of fire, the bolt flies on and fizzles after
+    `reach + PROJECTILE_OVERSHOOT_VW` (6vw) or when it leaves the battlefield: a **miss**, with no
+    damage and no log entry. Misses are rare at short range and against slow ships; fast ships
+    at long range can dodge.
+  - Damage uses a snapshot of the firing stack taken at launch, so a bolt already in flight keeps
+    its damage if the shooter is destroyed. The target's defense/shields are those at impact.
+  - After a winner is decided, remaining bolts fly off without dealing damage, so the outcome is
+    fixed at the moment of victory.
+  - The fire cooldown is independent of flight time; a stack may have more than one bolt in
+    flight.
 - **Damage = whole-stack volley:** `totalAttack = Σ attack of alive ships in the firing
   stack`; `raw = max(1, totalAttack − frontTargetShip.defense)`. Defense is per-ship (the
   front target ship's `defense`), not summed.
@@ -115,9 +131,9 @@ Virtual defense buildings (turrets) are immobile (speed 0), use their building d
   own `weakness` type is the resisted matchup. `max(1, floor(...))` keeps the damage floor.
 - Shield absorbs damage before hull: each ship's own `shield` absorbs first; only overflow
   reaches hull HP. A stack with no alive ships is destroyed.
-- **Simultaneous fire on one target:** damage is applied when a projectile lands. If the target
-  was already destroyed by another volley in flight, the later volley is wasted (no damage, no
-  log entry). Victory is checked after every volley.
+- **Simultaneous fire on one target:** damage is applied when a bolt hits. If the target was
+  already destroyed by another bolt, the later bolt flies on as a miss (no damage, no log entry).
+  Victory is checked after every hit.
 - Each damaging volley appends a `BattleLogEntry` (round, side, stacks, gross volley damage,
   kills).
 
@@ -195,10 +211,12 @@ paused; the star-map `GameTimeService` stays paused during battle. Each frame
 4. **Fire control** for every stack (see [Combat](#combat)).
 5. **Shield regen** every `SHIELD_REGEN_INTERVAL_MS = 2000` ms for all living ships on both sides,
    plus the shared planetary shield pool. The `round` counter increments per regen tick.
-6. **Victory check** (also after every volley): the side with zero alive stacks loses.
+6. **Laser bolts and effects** advance (`updateProjectiles`) — also after victory, without
+   damage, so the last bolts and explosion play out.
+7. **Victory check** (also after every hit): the side with zero alive stacks loses.
 
-While paused nothing in steps 1–5 advances: positions, cooldowns and in-flight animation waits
-are all on battle time. Player orders can still be given and take effect on resume.
+While paused nothing in steps 1–6 advances: positions, cooldowns, bolts and effects are all on
+battle time. Player orders can still be given and take effect on resume.
 
 ## Tactical AI and AUTO Battle
 
@@ -227,15 +245,17 @@ be spammed. Other stacks animating elsewhere do not block it.
 
 ## Animation / State Locking
 
-`BattleAnimationService` tracks in-flight animations **per stack** (plus a global count used only
-by the result overlay, which waits until all animations finished):
-
-- Every volley is wrapped in `anim.run(fn, stackId)`, which balances `begin()`/`end()` even if
-  `fn` throws. A stack never has two volleys in flight; different stacks animate concurrently.
-- Animation waits use the battle clock, so they freeze on pause and run faster at 2x.
+- Volleys no longer use the animation lock: bolts (`state.projectiles`) and impact /
+  explosion effects (`state.effects`, each with a `remainingMs` lifetime) are plain battle
+  state advanced by `updateProjectiles` on battle time, so they freeze on pause and run faster
+  at 2x. The firing stack's `firing` flag (recoil highlight) is derived from its bolts during
+  the first `ANIMATION_MS.muzzle` of flight.
+- `BattleAnimationService` keeps its per-stack lock and battle-time `wait()`; fire control and
+  Shield Pulse still respect `isStackBusy`.
+- The result overlay appears once a winner is set **and** no bolt or effect remains, so the
+  final hit is visible.
 - Movement is never blocked by animations.
-- `ticks$` emits after every mid-animation state change (projectile → impact → explosion) and
-  every frame, which triggers change detection on the battle screen.
+- `ticks$` emits every frame, which triggers change detection on the battle screen.
 
 ## Outcome
 

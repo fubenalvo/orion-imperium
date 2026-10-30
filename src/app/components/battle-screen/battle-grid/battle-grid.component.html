@@ -90,14 +90,15 @@
     </div>
   }
 
-  <!-- ATTACK EFFECTS -->
-  @for (line of getProjectileLines(); track line.x + '-' + line.y + '-' + line.angleDeg) {
+  <!-- LASER BOLTS (simulation-driven; position comes from the projectile state) -->
+  @for (bolt of getBolts(); track bolt.id) {
     <div
       class="projectile"
-      [style.left]="line.x + 'vw'"
-      [style.top]="line.y + 'vw'"
-      [style.width]="line.length + 'vw'"
-      [style.--projectile-angle]="line.angleDeg + 'deg'"
+      [style.left]="bolt.x + 'vw'"
+      [style.top]="bolt.y + 'vw'"
+      [style.width]="bolt.length + 'vw'"
+      [style.--projectile-angle]="bolt.angleDeg + 'deg'"
+      [style.--bolt-color]="bolt.color"
     ></div>
   }
   @for (impact of getImpacts(); track impact.x + '-' + impact.y + '-' + impact.isExplosion) {

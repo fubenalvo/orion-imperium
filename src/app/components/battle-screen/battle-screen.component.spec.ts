@@ -247,7 +247,10 @@ describe('BattleScreenComponent', () => {
   it('fires every stack of both sides at the same fire-rate cadence', async () => {
     const { state, a, e1 } = standardSetup();
     await runFrames(16);
-    expect(anim.isBusy).toBe(true);
+    // A, E1 and E2 fired on the first frame (B starts out of reach); their
+    // bolts are in flight.
+    expect(state.projectiles).toHaveLength(3);
+    expect(component.projectiles).toBe(state.projectiles);
 
     // fireRate 1.5 → one volley per ~667 battle-ms: t≈0 and t≈667.
     await runFrames(1000);

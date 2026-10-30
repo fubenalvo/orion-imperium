@@ -7,7 +7,7 @@ import { PlanetBattleService } from '../../../services/planet-battle.service';
 import { Battle, FleetShip } from './battle.types';
 import { BattleModelState, BattleStack } from './battle.types';
 import { createBattleState, getStacks } from './battle-state';
-import { BattleCombatService } from './battle-combat.service';
+import { BattleCombatService, segmentHitsStack } from './battle-combat.service';
 import { BattleAnimationService } from './battle-animation.service';
 import { ANIMATION_MS } from './battle.types';
 import { stackCenterVw } from './battle-grid';
@@ -18,15 +18,27 @@ describe('BattleCombatService', () => {
   let anim: BattleAnimationService;
   let shipService: ShipService;
   let planetBattleService: PlanetBattleService;
+  /* States whose laser bolts the test clock advances (stands in for the game loop). */
+  let tracked: BattleModelState[] = [];
+  /* Upper bound for a bolt to cross the short distances used below. */
+  const FLIGHT_MS = 200;
+  /* Lets the clock run long enough for a bolt to hit or fizzle, then awaits it. */
+  const land = async <T>(p: Promise<T>): Promise<T> => {
+    await vi.advanceTimersByTimeAsync(1000);
+    return p;
+  };
 
   beforeEach(() => {
+    tracked = [];
     TestBed.configureTestingModule({});
     combat = TestBed.inject(BattleCombatService);
     anim = TestBed.inject(BattleAnimationService);
     shipService = TestBed.inject(ShipService);
     planetBattleService = TestBed.inject(PlanetBattleService);
     vi.useFakeTimers();
-    stopClock = startBattleTestClock(TestBed.inject(BattleTimeService));
+    stopClock = startBattleTestClock(TestBed.inject(BattleTimeService), (dt) => {
+      for (const s of tracked) combat.updateProjectiles(s, dt);
+    });
   });
 
   afterEach(() => {
@@ -51,6 +63,7 @@ describe('BattleCombatService', () => {
   const setup = (attacker: FleetShip[], defender: FleetShip[]): BattleModelState => {
     const state = createBattleState(battle(attacker, defender), shipService, planetBattleService);
     anim.reset();
+    tracked.push(state);
     return state;
   };
 
@@ -145,7 +158,7 @@ describe('BattleCombatService', () => {
     placeAdjacent(atk, def);
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
     await p;
 
@@ -154,7 +167,7 @@ describe('BattleCombatService', () => {
     expect(state.log[0].kills).toBe(1);
   });
 
-  it('runs the projectile -> impact -> clear effect lifecycle with ticks', async () => {
+  it('runs the bolt -> impact -> clear lifecycle', async () => {
     const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
@@ -164,13 +177,22 @@ describe('BattleCombatService', () => {
     const sub = anim.ticks$.subscribe(() => tickCount++);
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
-    expect(state.effects.length).toBe(1);
-    expect(state.effects[0].phase).toBe('impact');
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
-    expect(state.effects.length).toBe(0);
-    await p;
+    // In flight: a bolt, no damage yet, shooter shows its muzzle flash.
+    expect(state.projectiles).toHaveLength(1);
+    expect(state.log).toHaveLength(0);
+    expect(atk.firing).toBe(true);
 
+    // Contact after ~65 ms (3.8vw minus the hitbox at 45 vw/s); impact lasts 100 ms.
+    await vi.advanceTimersByTimeAsync(100);
+    expect(state.projectiles).toHaveLength(0);
+    expect(state.log).toHaveLength(1);
+    expect(state.effects).toHaveLength(1);
+    expect(state.effects[0].phase).toBe('impact');
+
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit + 20);
+    await p;
+    expect(state.effects).toHaveLength(0);
+    expect(atk.firing).toBe(false);
     expect(tickCount).toBeGreaterThan(0);
     sub.unsubscribe();
   });
@@ -205,12 +227,12 @@ describe('BattleCombatService', () => {
     placeAdjacent(atk, def);
 
     const inFlight = combat.attackStack(state, atk.stackId, def.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
     await inFlight;
 
     const result = combat.attackStack(state, atk.stackId, def.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
     expect(await result).toBe(true);
   });
@@ -232,7 +254,7 @@ describe('BattleCombatService', () => {
     const attack1 = combat.attackStack(state, atk1.stackId, def.stackId);
     const attack2 = combat.attackStack(state, atk2.stackId, def.stackId);
 
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
     await attack1;
     await attack2;
@@ -252,7 +274,7 @@ describe('BattleCombatService', () => {
     const shieldBefore = def.ships[0].shield ?? 0;
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
     const result = await p;
 
@@ -291,7 +313,7 @@ describe('BattleCombatService', () => {
     def.ships[0].maxHp = 40;
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
     await p;
 
@@ -315,7 +337,7 @@ describe('BattleCombatService', () => {
     def.ships[0].maxHp = 40;
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
     await p;
 
@@ -427,18 +449,13 @@ describe('BattleCombatService', () => {
     expect(state.log[0].damage).toBe(5);
   });
 
-  it('projectile targets the target current visual position, not stale col/row', async () => {
+  it('aims the bolt at the target current visual position, not stale col/row', async () => {
     const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
     placeAdjacent(atk, def);
 
-    /*
-     * Simulate the defender being mid-movement: its x/y have moved
-     * away from its col/row grid cell center. The projectile should
-     * aim at the current visual position (def.x/def.y), not the
-     * stale cell center (stackCenterVw output).
-     */
+    // Defender mid-movement: x/y away from its col/row cell centre.
     def.col = atk.col + 1;
     def.row = atk.row;
     syncPosition(def);
@@ -448,15 +465,121 @@ describe('BattleCombatService', () => {
     def.y = movedY;
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
-    /* Advance past the projectile phase so the effect is active,
-     * but before the animation clears it. */
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile + 1);
-    expect(state.effects.length).toBe(1);
-    expect(state.effects[0].phase).toBe('impact');
-    expect(state.effects[0].to.x).toBe(movedX);
-    expect(state.effects[0].to.y).toBe(movedY);
-    await vi.advanceTimersByTimeAsync(5000);
-    await p;
+    const bolt = state.projectiles[0];
+    const dist = Math.hypot(movedX - atk.x, movedY - atk.y);
+    expect(bolt.dirX).toBeCloseTo((movedX - atk.x) / dist);
+    expect(bolt.dirY).toBeCloseTo((movedY - atk.y) / dist);
+    await vi.advanceTimersByTimeAsync(120);
+    expect(state.log).toHaveLength(1);
+    expect(state.effects[0].to).toEqual({ x: movedX, y: movedY });
+    await land(p);
+  });
+
+  /*
+   * Laser bolts are real projectiles: aimed once, straight flight at
+   * constant speed, damage only on an actual hitbox crossing.
+   */
+  describe('laser bolts', () => {
+    it('flies in a straight line at constant speed and never re-aims', async () => {
+      const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
+      const atk = getStacks(state, 'attacker')[0];
+      const def = getStacks(state, 'defender')[0];
+      placeAdjacent(atk, def);
+      def.col = atk.col + 5;
+      syncPosition(def);
+
+      void combat.attackStack(state, atk.stackId, def.stackId);
+      const bolt = state.projectiles[0];
+      const dir = { x: bolt.dirX, y: bolt.dirY };
+      const start = { x: bolt.x, y: bolt.y };
+      // Target moves sideways after the shot: the bolt must not follow.
+      def.y += 0.3;
+      combat.updateProjectiles(state, 0.05);
+      expect(bolt.dirX).toBe(dir.x);
+      expect(bolt.dirY).toBe(dir.y);
+      expect(bolt.traveledVw).toBeCloseTo(45 * 0.05);
+      expect(bolt.x).toBeCloseTo(start.x + dir.x * bolt.traveledVw);
+      expect(bolt.y).toBeCloseTo(start.y + dir.y * bolt.traveledVw);
+    });
+
+    it('misses when the target leaves the line of fire, and deals no damage', async () => {
+      const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
+      const atk = getStacks(state, 'attacker')[0];
+      const def = getStacks(state, 'defender')[0];
+      placeAdjacent(atk, def);
+      def.col = atk.col + 5;
+      syncPosition(def);
+      const hp = def.ships[0].hp;
+      const shield = def.ships[0].shield;
+
+      const p = combat.attackStack(state, atk.stackId, def.stackId);
+      def.y += 3; // dodges well outside its hitbox before the bolt arrives
+      await land(p);
+
+      expect(state.log).toHaveLength(0);
+      expect(state.effects).toHaveLength(0);
+      expect(state.projectiles).toHaveLength(0);
+      expect(def.ships[0].hp).toBe(hp);
+      expect(def.ships[0].shield).toBe(shield);
+    });
+
+    it('only hits its intended target, passing through other stacks', async () => {
+      const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate'), fleetShip(101, 'frigate')]);
+      const atk = getStacks(state, 'attacker')[0];
+      const [blocker, target] = getStacks(state, 'defender');
+      placeAdjacent(atk, blocker);
+      blocker.col = atk.col + 2;
+      syncPosition(blocker);
+      target.col = atk.col + 4;
+      target.row = atk.row;
+      syncPosition(target);
+
+      await land(combat.attackStack(state, atk.stackId, target.stackId));
+      expect(state.log).toHaveLength(1);
+      expect(state.log[0].defenderStack).toBe(target.stackId);
+    });
+
+    it('keeps the damage of its volley if the shooter dies in flight', async () => {
+      const state = setup(Array.from({ length: 5 }, (_, i) => fleetShip(i, 'fighter')), [fleetShip(100, 'frigate')]);
+      const atk = mergeSameTypeStacks(state, 'attacker');
+      const def = getStacks(state, 'defender')[0];
+      placeAdjacent(atk, def);
+      const shieldBefore = def.ships[0].shield!;
+
+      const p = combat.attackStack(state, atk.stackId, def.stackId);
+      for (const ship of atk.ships) {
+        ship.alive = false;
+        ship.hp = 0;
+      }
+      atk.destroyed = true;
+      await land(p);
+
+      // Same 67 damage as the live 5-fighter volley in the formula test.
+      expect(def.ships[0].shield).toBe(shieldBefore - 67);
+    });
+
+    it('stops dealing damage once the battle has a winner', async () => {
+      const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
+      const atk = getStacks(state, 'attacker')[0];
+      const def = getStacks(state, 'defender')[0];
+      placeAdjacent(atk, def);
+      const p = combat.attackStack(state, atk.stackId, def.stackId);
+      state.winner = 'defender';
+      await land(p);
+      expect(state.log).toHaveLength(0);
+    });
+
+    it('segmentHitsStack tests the swept segment against the drawn footprint', () => {
+      const target = { x: 10, y: 10, size: 2 };
+      // Passes straight through the box.
+      expect(segmentHitsStack(5, 10, 15, 10, target)).toBe(true);
+      // Tunnelling case: both end points outside, segment crosses the box.
+      expect(segmentHitsStack(8, 10, 12, 10, target)).toBe(true);
+      // Parallel, just above the box (half height ≈ 0.81vw).
+      expect(segmentHitsStack(5, 9, 15, 9, target)).toBe(false);
+      // Stops short of the box.
+      expect(segmentHitsStack(0, 10, 7, 10, target)).toBe(false);
+    });
   });
 
   it('still floors damage to at least 1 after applying the multiplier', async () => {
@@ -614,6 +737,7 @@ describe('BattleCombatService', () => {
       planetBattleService,
     );
     anim.reset();
+    tracked.push(state);
     return state;
   };
 
@@ -675,7 +799,7 @@ describe('BattleCombatService', () => {
     expect(state.defenderShieldPool?.current).toBe(30);
 
     const p1 = combat.attackStack(state, atk.stackId, turret.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
     await p1;
 
@@ -683,7 +807,7 @@ describe('BattleCombatService', () => {
     expect(shieldAfterFirst).toBeLessThan(30);
 
     const p2 = combat.attackStack(state, atk.stackId, turret.stackId);
-    await vi.advanceTimersByTimeAsync(ANIMATION_MS.projectile);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
     await vi.advanceTimersByTimeAsync(ANIMATION_MS.hit);
     await p2;
 
@@ -765,7 +889,8 @@ describe('BattleCombatService', () => {
       syncPosition(atk);
       tank(atk);
 
-      await runFor(state, 200);
+      // Bolt flight over ~10vw ≈ 200 ms; next volley only after ~667 ms.
+      await runFor(state, 500);
       expect(volleys(state, turret.stackId)).toBe(1);
     });
 

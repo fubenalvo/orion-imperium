@@ -3,6 +3,7 @@ import { NgClass } from '@angular/common';
 import {
   BattleAttackEffect,
   BattlePlanetVisual,
+  BattleProjectile,
   BattleSide,
   BattleStack,
   GridCell,
@@ -10,6 +11,7 @@ import {
 import {
   BATTLE_CELL_WIDTH_VW,
   BATTLE_CELL_HEIGHT_VW,
+  PROJECTILE_LENGTH_VW,
 } from '../battle/battle.types';
 import { BattlePlanetComponent } from '../battle-planet/battle-planet.component';
 
@@ -20,8 +22,8 @@ import { BattlePlanetComponent } from '../battle-planet/battle-planet.component'
  *
  * Presentational child of the battle screen: renders the tactical grid
  * (BATTLE_GRID_COLUMNS x BATTLE_GRID_ROWS), the stacked ship units, the
- * selected stack's range ring and order marker, and attack effects
- * (projectile / impact / explosion). All rules live in the battle
+ * selected stack's range ring and order marker, laser bolts in flight, and
+ * impact / explosion effects. All rules live in the battle
  * services; this component only maps state to pixels and forwards clicks.
  *
  * Stack positions are driven by the real-time game loop (BattleGameLoopService),
@@ -51,6 +53,7 @@ export class BattleGridComponent {
    * near-identical colors, and the player may be attacker or defender). */
   @Input() playerSides: BattleSide[] = [];
   @Input() effects: BattleAttackEffect[] = [];
+  @Input() projectiles: BattleProjectile[] = [];
   @Input() canSelect = true;
   @Input() connectionLine: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
   @Input() attackConnectionLine: { from: { x: number; y: number }; to: { x: number; y: number } } | null = null;
@@ -177,21 +180,23 @@ export class BattleGridComponent {
     return classes;
   }
 
-  /* Projectile line geometry (same pattern as the fleet movement trails). */
-  getProjectileLines(): { x: number; y: number; length: number; angleDeg: number }[] {
-    const lines: { x: number; y: number; length: number; angleDeg: number }[] = [];
-    for (const effect of this.effects) {
-      if (effect.phase !== 'projectile') continue;
-      const from = effect.from;
-      const to = effect.to;
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-      const length = Math.sqrt(dx * dx + dy * dy);
-      if (length < 0.0001) continue;
-      const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-      lines.push({ x: from.x, y: from.y, length, angleDeg });
-    }
-    return lines;
+  /*
+   * Laser bolt geometry: a fixed-length segment ending at the bolt tip.
+   * Right after launch the bolt is shorter than PROJECTILE_LENGTH_VW so it
+   * never appears to start behind the firing ship.
+   */
+  getBolts(): { id: number; x: number; y: number; length: number; angleDeg: number; color: string }[] {
+    return this.projectiles.map((p) => {
+      const length = Math.min(PROJECTILE_LENGTH_VW, p.traveledVw);
+      return {
+        id: p.id,
+        x: p.x - p.dirX * length,
+        y: p.y - p.dirY * length,
+        length,
+        angleDeg: (Math.atan2(p.dirY, p.dirX) * 180) / Math.PI,
+        color: p.color,
+      };
+    });
   }
 
   /* Impact/explosion effects for rendering. */

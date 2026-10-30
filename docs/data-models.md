@@ -193,7 +193,11 @@ by `createBattleState()` (in `battle/battle-state.ts`), **not** by `BattleServic
 - `defenderShieldPool?`: `{ current, max, regen } | null` — shared planetary shield that
   absorbs damage for immobile turret stacks only and regenerates on every shield-regen tick
 - `stacks`: `BattleStack[]` — the tactical units on the grid
-- `effects`: in-flight `BattleAttackEffect`s (projectile / impact / explosion), at most one per firing stack
+- `effects`: `BattleAttackEffect`s (impact / explosion) at hit positions, each with a battle-time `remainingMs`
+- `projectiles`: `BattleProjectile`s — laser bolts in flight: tip position, unit direction fixed
+  at launch, distance travelled / max travel, intended target id, a snapshot of the firing
+  stack (`volley`) used for damage on impact, and the shooter's faction color. See
+  [Battle Rules](./battle-rules.md#combat).
 - `winner`: the battle side with surviving stacks, or `null`
 - `attackerFleetId`, `defenderFleetId`, faction ids, and display names/colors
 - `attackerShips`, `defenderShips`: full rosters in input order (used to build the outcome)

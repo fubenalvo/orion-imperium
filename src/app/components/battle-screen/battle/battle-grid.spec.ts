@@ -76,6 +76,7 @@ function makeState(stacks: BattleStack[]): BattleModelState {
     stacks,
     log: [],
     effects: [],
+    projectiles: [],
     winner: null,
     attackerFleetId: 1,
     defenderFleetId: 2,

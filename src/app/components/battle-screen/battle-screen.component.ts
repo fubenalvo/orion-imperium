@@ -21,6 +21,7 @@ import { BattleTimeService, BattleSpeed } from './battle/battle-time.service';
 import {
   Battle,
   BattleAttackEffect,
+  BattleProjectile,
   BattleFleetOutcome,
   BattleModelState,
   BattleOutcome,
@@ -189,8 +190,16 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return this.state?.winner != null;
   }
 
+  /* The overlay waits until the last bolts and impact effects are gone so
+   * the final hit is visible. Bolts deal no damage once a winner is set, so
+   * the outcome shown cannot change while waiting. */
   get showBattleResult(): boolean {
-    return this.battleOver && !this.anim.isBusy;
+    return (
+      this.battleOver &&
+      !this.anim.isBusy &&
+      (this.state?.projectiles.length ?? 0) === 0 &&
+      (this.state?.effects.length ?? 0) === 0
+    );
   }
 
   get resultWinnerName(): string {
@@ -343,6 +352,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return this.state?.effects ?? [];
   }
 
+  get projectiles(): BattleProjectile[] {
+    return this.state?.projectiles ?? [];
+  }
+
   /*
    * Planet-battle presentation data. planetVisual is null in fleet battles,
    * which keeps the planet component and its shared-shield bar out of that
@@ -461,6 +474,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.battleTimeSub.unsubscribe();
     this.movement.cancelPendingMovementWaits();
     this.gameLoop.stopGameLoop();
+    this.combat.clearProjectiles(this.state);
     this.anim.reset();
     this.battleTime.reset();
     this.gameTimeService.resume();
@@ -757,6 +771,13 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
         regenerateAllShields(state);
         state.round++;
       }
+    }
+
+    // Bolts fly on battle time, after movement so hit tests see this
+    // frame's positions. Runs after victory too (no damage then), so the
+    // last bolts and explosion finish before the result overlay appears.
+    if (!this.battleTime.isPaused && deltaTime > 0) {
+      this.combat.updateProjectiles(state, deltaTime);
     }
 
     checkVictory(state);

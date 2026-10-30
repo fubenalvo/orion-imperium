@@ -116,14 +116,33 @@ export const DEPLOY_ROW_ORDER = [8, 6, 10, 4, 12, 2, 14];
 export type BattleTargetingMode = 'balanced' | 'strongest' | 'weakest' | 'firepower';
 export const DEFAULT_TARGETING_MODE: BattleTargetingMode = 'balanced';
 
-/* Animation durations in ms. State commits after the animation resolves,
- * so the visible grid never shows a half-resolved action. */
+/* Visual effect durations in battle ms (impact flash, explosion, and the
+ * muzzle flash during which the firing stack shows its recoil). */
 export const ANIMATION_MS = {
   move: 90,
-  projectile: 160,
+  muzzle: 120,
   hit: 100,
   explosion: 210,
 } as const;
+
+/*
+ * Laser bolts (see BattleCombatService.updateProjectiles). Values are in
+ * the same physical units as stack movement (vw, vw/s), so they do not
+ * depend on grid density.
+ *
+ * PROJECTILE_SPEED_VW_PER_S is deliberately fast compared to ship speeds
+ * (1–5 vw/s): at point-blank range bolts practically always land, but a
+ * fast ship crossing the line of fire at long range can be missed.
+ * Raising it makes misses rarer; lowering it makes speed a stronger defence.
+ */
+export const PROJECTILE_SPEED_VW_PER_S = 45;
+/* Visible length of a bolt. Purely visual; hits are tested on the bolt tip. */
+export const PROJECTILE_LENGTH_VW = 1.2;
+/* How far a bolt keeps flying past the shooter's reach before it fizzles. */
+export const PROJECTILE_OVERSHOOT_VW = 6;
+/* Fraction of a stack's drawn cell box that counts as its hitbox
+ * (the stack-cell is drawn at 92.5% of its footprint). */
+export const PROJECTILE_HITBOX_SCALE = 0.925;
 
 export interface GridCell {
   col: number;
@@ -236,14 +255,43 @@ export interface BattleStack {
   actionCooldownUntil?: number;
 }
 
-/* Visual effect active during an attack animation. Multiple effects can run
- * concurrently (different stacks attacking simultaneously). */
+/*
+ * A laser bolt in flight. Real simulation state, not just a visual: the
+ * bolt is aimed once at launch (at the target's position at that moment)
+ * and then flies in a straight line at PROJECTILE_SPEED_VW_PER_S. It never
+ * tracks. Damage is applied only if its tip crosses the intended target's
+ * hitbox; otherwise it flies on and fizzles after maxTravelVw (a miss).
+ *
+ * `volley` is a snapshot of the firing stack's ships taken at launch, so a
+ * bolt already in flight keeps its damage even if the shooter is destroyed
+ * before it lands.
+ */
+export interface BattleProjectile {
+  id: number;
+  side: BattleSide;
+  attackerStackId: string;
+  targetStackId: string;
+  volley: BattleStack;
+  /* Bolt tip, absolute vw. */
+  x: number;
+  y: number;
+  /* Unit direction, fixed at launch. */
+  dirX: number;
+  dirY: number;
+  traveledVw: number;
+  maxTravelVw: number;
+  /* Faction color of the shooter's side, for rendering. */
+  color: string;
+}
+
+/* Impact flash or explosion at a hit. Lives for remainingMs of battle time.
+ * Multiple effects can run concurrently. */
 export interface BattleAttackEffect {
-  phase: 'projectile' | 'impact' | 'explosion';
-  from: { x: number; y: number };
+  phase: 'impact' | 'explosion';
   to: { x: number; y: number };
   targetStackId: string;
   attackerStackId: string;
+  remainingMs: number;
 }
 
 export interface BattleLogEntry {
@@ -278,6 +326,8 @@ export interface BattleModelState {
   stacks: BattleStack[];
   log: BattleLogEntry[];
   effects: BattleAttackEffect[];
+  /* Laser bolts in flight. */
+  projectiles: BattleProjectile[];
   winner: BattleSide | null;
   attackerFleetId: number;
   defenderFleetId: number;

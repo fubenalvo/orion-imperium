@@ -1,16 +1,25 @@
 import { Injectable } from '@angular/core';
 import {
   ANIMATION_MS,
+  BATTLE_CELL_HEIGHT_VW,
+  BATTLE_CELL_WIDTH_VW,
+  BATTLE_FIELD_HEIGHT_VW,
+  BATTLE_FIELD_WIDTH_VW,
+  BATTLE_RANGE_UNIT_VW,
   BattleModelState,
-  BattleAttackEffect,
+  BattleProjectile,
   BattleStack,
   FIRE_RATE_MULTIPLIER,
+  PROJECTILE_HITBOX_SCALE,
+  PROJECTILE_OVERSHOOT_VW,
+  PROJECTILE_SPEED_VW_PER_S,
   battleDebug,
 } from './battle.types';
 import {
   checkVictory,
   computeCarrierBoostTargets,
   canAttack,
+  effectiveAttackRange,
   weaponMultiplier,
   applyShieldRegen,
   absoluteDistanceRangeUnits,
@@ -38,6 +47,13 @@ import { BattleTimeService } from './battle-time.service';
  * battle-targeting.ts. Player commands and the AI only set orders/movement.
  *
  * Planet-defense turrets are immobile but DO fire.
+ *
+ * Every volley is a laser bolt (BattleProjectile) that is aimed once at
+ * launch and flies straight at constant speed (updateProjectiles, driven by
+ * the game loop on battle time). Damage is applied only when the bolt
+ * actually crosses the target's hitbox, so a target that moves out of the
+ * line of fire is missed. The damage rule itself (applyVolleyDamage) is
+ * unchanged and shared with the auto-resolver, which has no projectiles.
  *
  * The Carrier has one special action: Shield Pulse. It restores the
  * Carrier's shieldRegen to every friendly stack within its reach (capped at
@@ -114,12 +130,60 @@ export function applyVolleyDamage(
   return { damage, kills, targetDestroyed };
 }
 
+/*
+ * Hitbox of a stack: the drawn stack-cell box (size cells wide, one cell
+ * high, scaled by PROJECTILE_HITBOX_SCALE) centred on its live x/y.
+ * Returns true when the segment (x0,y0)→(x1,y1) touches it. Testing the
+ * swept segment rather than only the end point keeps fast bolts from
+ * tunnelling through small targets on long frames.
+ */
+export function segmentHitsStack(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  stack: Pick<BattleStack, 'x' | 'y' | 'size'>,
+): boolean {
+  const halfW = (stack.size * BATTLE_CELL_WIDTH_VW * PROJECTILE_HITBOX_SCALE) / 2;
+  const halfH = (BATTLE_CELL_HEIGHT_VW * PROJECTILE_HITBOX_SCALE) / 2;
+  // Liang–Barsky clipping of the segment against the axis-aligned box.
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  let tMin = 0;
+  let tMax = 1;
+  const clip = (p: number, q: number): boolean => {
+    if (p === 0) {
+      return q >= 0;
+    }
+    const t = q / p;
+    if (p < 0) {
+      if (t > tMax) return false;
+      if (t > tMin) tMin = t;
+    } else {
+      if (t < tMin) return false;
+      if (t < tMax) tMax = t;
+    }
+    return true;
+  };
+  return (
+    clip(-dx, x0 - (stack.x - halfW)) &&
+    clip(dx, stack.x + halfW - x0) &&
+    clip(-dy, y0 - (stack.y - halfH)) &&
+    clip(dy, stack.y + halfH - y0)
+  );
+}
+
 @Injectable({ providedIn: 'root' })
 export class BattleCombatService {
   constructor(
     private anim: BattleAnimationService,
     private time: BattleTimeService,
   ) {}
+
+  private nextProjectileId = 1;
+  /* Completion callbacks for attackStack() promises, keyed by projectile id.
+   * Kept out of BattleModelState so the state stays plain data. */
+  private readonly projectileResolvers = new Map<number, () => void>();
 
   /* Milliseconds (battle time) between two volleys of a stack. */
   fireIntervalMs(stack: BattleStack): number {
@@ -180,77 +244,148 @@ export class BattleCombatService {
   }
 
   /*
-   * Resolves one volley with its projectile → impact/explosion animation.
-   * Validates range at fire time only; the projectile does not track a
-   * target that moves during the animation. Callers are responsible for
-   * the fire cooldown (runFireControl sets it).
+   * Fires one volley as a laser bolt aimed at the target's current
+   * position. Validates reach at fire time only. Callers are responsible
+   * for the fire cooldown (runFireControl sets it).
+   *
+   * Resolves to true once the bolt has resolved (hit or miss) — useful for
+   * tests and callers that want to await the outcome — or false
+   * immediately when the volley could not be fired.
    */
-  async attackStack(
+  attackStack(
     state: BattleModelState,
     attackerStackId: string,
     targetStackId: string,
   ): Promise<boolean> {
     const attacker = state.stacks.find((s) => s.stackId === attackerStackId && !s.destroyed);
     const target = state.stacks.find((s) => s.stackId === targetStackId && !s.destroyed);
-    if (!attacker || !target || state.winner) {
-      return false;
-    }
-    if (attacker.side === target.side) {
-      return false;
+    if (!attacker || !target || state.winner || attacker.side === target.side) {
+      return Promise.resolve(false);
     }
 
-    const from = { x: attacker.x, y: attacker.y };
-    const to = { x: target.x, y: target.y };
     const canAttackNow = canAttack(attacker, target);
     battleDebug(`[ATTACK] ${attackerStackId} -> ${targetStackId} | canAttack=${canAttackNow} | dist=${absoluteDistanceRangeUnits(attacker, target).toFixed(2)} | range=${attacker.attackRange}`);
-
     if (!canAttackNow) {
-      return false;
+      return Promise.resolve(false);
     }
 
-    await this.anim.run(async () => {
-      attacker.firing = true;
-      const effect: BattleAttackEffect = { phase: 'projectile', from, to, targetStackId: target.stackId, attackerStackId: attacker.stackId };
-      state.effects.push(effect);
-      this.anim.tick();
-      await this.anim.wait(ANIMATION_MS.projectile);
+    const dx = target.x - attacker.x;
+    const dy = target.y - attacker.y;
+    const dist = Math.hypot(dx, dy);
+    const projectile: BattleProjectile = {
+      id: this.nextProjectileId++,
+      side: attacker.side,
+      attackerStackId: attacker.stackId,
+      targetStackId: target.stackId,
+      volley: { ...attacker, ships: attacker.ships.map((s) => ({ ...s })) },
+      x: attacker.x,
+      y: attacker.y,
+      // Degenerate zero distance cannot happen (footprints never overlap);
+      // the fallback direction only keeps the maths finite.
+      dirX: dist > 0 ? dx / dist : 1,
+      dirY: dist > 0 ? dy / dist : 0,
+      traveledVw: 0,
+      maxTravelVw: effectiveAttackRange(attacker) * BATTLE_RANGE_UNIT_VW + PROJECTILE_OVERSHOOT_VW,
+      color: attacker.side === 'attacker' ? state.attackerColor : state.defenderColor,
+    };
+    state.projectiles.push(projectile);
+    attacker.firing = true;
+    this.anim.tick();
+    return new Promise((resolve) => {
+      this.projectileResolvers.set(projectile.id, () => resolve(true));
+    });
+  }
 
-      // The target may have been destroyed by another stack while this
-      // projectile was in flight; then there is no front ship and the
-      // volley is wasted (no damage, no log entry).
-      const front = target.ships.find((s) => s.alive);
+  /*
+   * Advances every bolt and visual effect by deltaSec of battle time.
+   * Called every unpaused frame by the game loop — also after the battle is
+   * decided, so bolts still in flight fly off and the last explosion plays
+   * out before the result overlay (which waits for both lists to empty).
+   * After a winner is set, bolts no longer deal damage, so the outcome is
+   * fixed at the moment of victory.
+   */
+  updateProjectiles(state: BattleModelState, deltaSec: number): void {
+    if (deltaSec <= 0) {
+      return;
+    }
+    const deltaMs = deltaSec * 1000;
+    state.effects = state.effects.filter((e) => (e.remainingMs -= deltaMs) > 0);
 
-      if (front) {
-        const { damage, kills, targetDestroyed } = applyVolleyDamage(state, attacker, target);
-        state.log.push({
-          round: state.round,
-          side: attacker.side,
-          attackerStack: attacker.stackId,
-          defenderStack: target.stackId,
-          damage,
-          kills,
-        });
+    const step = PROJECTILE_SPEED_VW_PER_S * deltaSec;
+    const inFlight: BattleProjectile[] = [];
+    for (const p of state.projectiles) {
+      const advance = Math.min(step, p.maxTravelVw - p.traveledVw);
+      const x0 = p.x;
+      const y0 = p.y;
+      p.x += p.dirX * advance;
+      p.y += p.dirY * advance;
+      p.traveledVw += advance;
 
-        const effectIdx = state.effects.findIndex(e => e.attackerStackId === attacker.stackId);
-        if (effectIdx >= 0) {
-          state.effects[effectIdx] = {
-            ...state.effects[effectIdx],
-            phase: targetDestroyed ? 'explosion' : 'impact',
-          };
-        }
-        this.anim.tick();
-        await this.anim.wait(targetDestroyed ? ANIMATION_MS.explosion : ANIMATION_MS.hit);
+      const target = state.stacks.find((s) => s.stackId === p.targetStackId && !s.destroyed);
+      if (target && !state.winner && segmentHitsStack(x0, y0, p.x, p.y, target)) {
+        this.resolveHit(state, p, target);
+        this.finishProjectile(p.id);
+        continue;
       }
-
-      const effectIdx = state.effects.findIndex(e => e.attackerStackId === attacker.stackId);
-      if (effectIdx >= 0) {
-        state.effects.splice(effectIdx, 1);
+      const outOfField =
+        p.x < -PROJECTILE_OVERSHOOT_VW ||
+        p.y < -PROJECTILE_OVERSHOOT_VW ||
+        p.x > BATTLE_FIELD_WIDTH_VW + PROJECTILE_OVERSHOOT_VW ||
+        p.y > BATTLE_FIELD_HEIGHT_VW + PROJECTILE_OVERSHOOT_VW;
+      if (p.traveledVw >= p.maxTravelVw || outOfField) {
+        // Miss: the target moved out of the line of fire (or died first).
+        this.finishProjectile(p.id);
+        continue;
       }
-      attacker.firing = false;
-      checkVictory(state);
-      this.anim.tick();
-    }, attacker.stackId);
-    return true;
+      inFlight.push(p);
+    }
+    state.projectiles = inFlight;
+
+    // The recoil highlight lasts for the first ANIMATION_MS.muzzle of each
+    // bolt's flight.
+    const muzzleVw = (PROJECTILE_SPEED_VW_PER_S * ANIMATION_MS.muzzle) / 1000;
+    for (const stack of state.stacks) {
+      stack.firing = inFlight.some((p) => p.attackerStackId === stack.stackId && p.traveledVw < muzzleVw);
+    }
+  }
+
+  /* Bolts, effects and pending attackStack() promises are battle-local;
+   * drop them when the battle screen is torn down. */
+  clearProjectiles(state: BattleModelState | null): void {
+    if (state) {
+      state.projectiles = [];
+      state.effects = [];
+    }
+    for (const resolve of this.projectileResolvers.values()) {
+      resolve();
+    }
+    this.projectileResolvers.clear();
+  }
+
+  private resolveHit(state: BattleModelState, p: BattleProjectile, target: BattleStack): void {
+    const { damage, kills, targetDestroyed } = applyVolleyDamage(state, p.volley, target);
+    state.log.push({
+      round: state.round,
+      side: p.side,
+      attackerStack: p.attackerStackId,
+      defenderStack: target.stackId,
+      damage,
+      kills,
+    });
+    state.effects.push({
+      phase: targetDestroyed ? 'explosion' : 'impact',
+      to: { x: target.x, y: target.y },
+      targetStackId: target.stackId,
+      attackerStackId: p.attackerStackId,
+      remainingMs: targetDestroyed ? ANIMATION_MS.explosion : ANIMATION_MS.hit,
+    });
+    checkVictory(state);
+  }
+
+  private finishProjectile(id: number): void {
+    const resolve = this.projectileResolvers.get(id);
+    this.projectileResolvers.delete(id);
+    resolve?.();
   }
 
   /*
