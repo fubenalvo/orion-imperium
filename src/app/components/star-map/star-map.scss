@@ -1,11 +1,12 @@
+/* Only partials whose selectors appear in star-map.html belong here. Map
+   objects (systems, fleets, sensor cells, the system scene) are styled in
+   the child components that render them; with emulated encapsulation a
+   copy here could never match and only inflates this stylesheet. */
 @use './_star-map-base';
-@use './_star-map-grid';
-@use './_star-map-star-system';
-@use './_star-map-ships';
+@use './_star-map-backdrop';
 @use './_star-map-panels';
 @use './_star-map-system-view';
 @use './_star-map-planet-screen';
-@use './_star-map-sensor';
 @use './_star-map-utilities';
 
 .game-end-overlay {

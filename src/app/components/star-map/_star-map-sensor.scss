@@ -11,14 +11,19 @@
   width: var(--cell-size-vw, 5vw);
   height: var(--cell-size-vw, 5vw);
   /* Unexplored space: nearly black, so hidden terrain only faintly shows through. */
-  background: rgba(0, 0, 0, 0.88);
+  background: rgba(1, 4, 8, 0.82);
+  /* The spread shadow overlaps neighbouring cells, turning the hard cell
+     staircase at the edge of explored space into a soft falloff. Inside a
+     fogged region the overlap is invisible (same color). */
+  box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.45) calc(var(--cell-size-vw, 5vw) * 0.12) rgba(1, 4, 8, 0.7);
   z-index: 5;
   pointer-events: none;
 }
 
 .fog-cell--explored {
   /* Explored but currently out of sensor range. */
-  background: rgba(0, 0, 0, 0.55);
+  background: rgba(1, 4, 8, 0.5);
+  box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.4) calc(var(--cell-size-vw, 5vw) * 0.08) rgba(1, 4, 8, 0.35);
 }
 
 /* =========================================================
@@ -29,9 +34,10 @@
   position: relative;
   width: var(--cell-size-vw, 5vw);
   height: var(--cell-size-vw, 5vw);
-  background: color-mix(in srgb, var(--sensor-color, #3586e5) 30%, transparent 70%);
-  border: 1px solid color-mix(in srgb, var(--sensor-color, #3586e5) 50%, transparent 50%);
-  border-radius: 2px;
+  /* A soft field rather than a grid of boxes: no per-cell border, and a
+     blurred spread that merges neighbouring cells into one glow. */
+  background: color-mix(in srgb, var(--sensor-color, #3586e5) 22%, transparent);
+  box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.3) color-mix(in srgb, var(--sensor-color, #3586e5) 18%, transparent);
   z-index: 6;
   pointer-events: none;
   animation: sensor-pulse 2.5s ease-in-out infinite;

@@ -143,6 +143,72 @@ tighten; at ≤820px the subtitle is hidden and the title shrinks.
 header or its ancestors: they would become the containing block for the `position: fixed`
 currency / ship-stock detail overlays rendered inside it.
 
+## Space Scenery
+
+Every screen draws its space backdrop from the same building blocks, so the
+game reads as one universe while each screen keeps its own composition. The
+main menu set the visual language; the star map, system view and battle
+screen follow it.
+
+### Shared partials (`src/styles/`, on the SCSS include path)
+
+| Partial | Provides |
+|---|---|
+| `_space.scss` | `space-base` (deep navy base with cool/warm washes), `starfield-far` (procedural star tiles + `stars.png`), `starfield-twinkle`, `nebula-cloud($hue, $opacity, $saturate)` (the `nebula.png` art hue-shifted and radially masked), `space-dust`, `space-vignette`, `star-corona($color)`, `star-spikes($color)`, `space-keyframes` |
+| `_planets.scss` | `planet-sphere($light-x, $light-y)` (lit sphere: gradient + bands + surface noise, scrolling cloud layer on `::before`, terminator / specular / atmosphere rim on `::after`), `$planet-palettes` and `planet-palette($type)` / `planet-palettes($prefix, $suffix)` per `PlanetType`, `planet-keyframes` |
+
+Rules:
+
+- Backdrop elements are decorative: `aria-hidden`, `pointer-events: none`,
+  below every interactive layer (one exception, see below).
+- Animate only `transform` / `opacity`; filtered layers (nebulae) never
+  animate a property that forces re-filtering.
+- Keyframes are emitted by `space-keyframes` / `planet-keyframes`; include
+  them at the top level of each stylesheet that uses an animated mixin
+  (Angular scopes keyframes per component).
+- `planet-sphere` owns the element's `::before` / `::after`, and sizes its
+  rim and glow in `em`: set `font-size` to 10% of the planet's diameter.
+- Hue-rotating the one nebula image gives all nebula colors: ~185deg
+  teal/amber (main palette), ~250deg violet/rose, ~150deg cyan/green.
+- Sass interpolates `#{...}` even inside `/* */` comments; use `//`
+  comments when describing interpolation in these partials.
+
+### Per screen
+
+| Screen | Composition |
+|---|---|
+| Main menu | See [Main Menu](#main-menu). |
+| Star map (galaxy) | Static deep stars + twinkle (`.star-map-deep`), wrapping nebula field (`SpaceNebulaFieldComponent`, 0.12x camera), the star-texture parallax layer (`.star-map-background`, 0.3x camera), faint dust in front (`.star-map-foreground`, 0.6x). Stars are light sources (corona, diffraction spikes, hot core; a rotating dashed ring when selected). Sensor range is a soft borderless field; fog cells have soft spread edges; the navigation grid is a hairline. Movement paths have a soft beam under the dashes. Styles: `_star-map-backdrop.scss`, `_star-map-star-system.scss`. |
+| System view | The system's star at the right edge is the single light source: light wash, slowly turning soft corona rays, glow, granulated disc. Planets use `planet-sphere` lit from the right with per-type palettes; faint orbit rings (`orbitDiameterVw`) connect each planet to the star; hover shows a halo ring. A nebula sits opposite the star. Styles: `star-map-system-grid.component.scss` (scene) and `_star-map-system-view.scss` (wrapper). |
+| Battle | Deep stars with a distant star in the band above the field, two nebula formations framing the left and lower right (the middle stays calm behind the units), twinkling dust and a vignette. The field is a fading hairline grid with corner brackets. Ships carry a faction-colored glow and engine light; explosions add a shockwave ring. The planet in planet battles uses `planet-sphere` with a deep palette derived from `--planet-color`. |
+
+### Galaxy view: backdrop over the fog
+
+At the start of a game nearly the whole galaxy is fogged, which would hide
+the backdrop entirely. In the map view only, the deep stars and the nebula
+field get `.star-map-backdrop--front`: they are drawn above the map viewport
+with `mix-blend-mode: screen`. Screen blending only adds light, so it cannot
+hide or darken anything, and gameplay terrain (SVG nebulae, belts) stays
+under the fog. These decorative nebulae are deliberately faint and edgeless,
+unlike gameplay nebulae (dashed edge, on the grid). Never apply the modifier
+in the system / planet views, where it would draw over opaque scenery.
+
+### Wrapping nebula field
+
+`SpaceNebulaFieldComponent` (`src/app/components/space-nebula-field/`) draws
+a 180 x 130 vw tile of three nebula formations 2 x 2 times in a
+viewport-pinned layer and translates it by the camera pan modulo one tile.
+Panning only changes a compositor transform, and nebulae are always on
+screen however large the galaxy is. Every formation must stay inside its
+tile (see the SCSS) or it is cut where the tiles wrap.
+
+### Stylesheet budgets
+
+Angular enforces a 20 kB error budget per component stylesheet. Partials
+shared through `@use` are copied into every stylesheet that uses them, so
+only `@use` a partial in a component whose template contains its selectors
+(see the note at the top of `star-map.scss`).
+
 ## Main Menu
 
 The main menu (`src/app/main-menu/`) intentionally departs from the beveled
@@ -154,8 +220,9 @@ cinematic backdrop with borderless navigation. Its styles are fully scoped in
 ### Structure
 
 - **`.scene`** — decorative, `aria-hidden`, `pointer-events: none`. Layers,
-  back to front: procedural star tiles + `stars.png`, the hue-shifted
-  `nebula.png`, the sun (single light source, upper right), the planet (static
+  back to front (stars, nebula and dust come from the shared
+  [space mixins](#space-scenery)): procedural star tiles + `stars.png`, the
+  hue-shifted `nebula.png`, the sun (single light source, upper right), the planet (static
   banded base, a drifting `planet-clouds.png` layer, a terminator shade, an
   atmosphere rim), the moon, a ship convoy (`ship.svg`) that crosses about once
   every 75 s, foreground dust, and a readability veil.

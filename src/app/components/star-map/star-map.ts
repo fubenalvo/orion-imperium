@@ -115,6 +115,7 @@ import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
 import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
 import { StarMapGalaxyViewComponent } from './star-map-galaxy-view/star-map-galaxy-view.component';
+import { SpaceNebulaFieldComponent } from '../space-nebula-field/space-nebula-field.component';
 import { StarMapSystemGridViewComponent } from './star-map-system-grid/star-map-system-grid.component';
 import { ShipStockEntryDisplay } from './star-map-ship-stock/star-map-ship-stock.component';
 import {
@@ -153,6 +154,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
   selector: 'app-star-map',
   imports: [
     AiDebugPanelComponent,
+    SpaceNebulaFieldComponent,
     StarMapPauseComponent,
     StarMapNavigationComponent,
     StarMapFleetInfoComponent,

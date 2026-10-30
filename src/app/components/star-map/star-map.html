@@ -43,8 +43,28 @@
   >
   </app-star-map-pause>
 
+  <!--
+    SPACE BACKDROP (decorative, see docs/ui-styling.md#space-scenery).
+    Depths, far to near: a static deep starfield, wrapping nebula
+    formations (0.12x the camera), the star-texture parallax layer (0.3x),
+    and faint foreground dust (0.6x, map view only). In the map view the deep
+    stars and nebulae are lifted over the fog (--front), see the SCSS.
+  -->
+  <div class="star-map-deep" aria-hidden="true" [class.star-map-backdrop--front]="currentView === 'map'">
+    <div class="star-map-deep__stars"></div>
+    <div class="star-map-deep__twinkle"></div>
+  </div>
+
+  <app-space-nebula-field
+    class="star-map-nebulae"
+    [class.star-map-backdrop--front]="currentView === 'map'"
+    [panX]="cameraX"
+    [panY]="cameraY"
+  ></app-space-nebula-field>
+
   <div
     class="star-map-background"
+    aria-hidden="true"
     [style.width.vw]="bgWidthVw"
     [style.height.vw]="bgHeightVw"
     [style.left.vw]="bgLeftVw"
@@ -55,7 +75,8 @@
   @if (currentView === 'map') {
     <div
       class="star-map-foreground"
-      [style.backgroundPosition]="-cameraX * 0.1 + 'vw ' + -cameraY * 0.1 + 'vw'"
+      aria-hidden="true"
+      [style.backgroundPosition]="-cameraX * 0.6 + 'vw ' + -cameraY * 0.6 + 'vw'"
     ></div>
   }
 

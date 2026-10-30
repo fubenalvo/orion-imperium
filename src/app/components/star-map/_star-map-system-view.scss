@@ -1,232 +1,40 @@
+@use 'space' as *;
+
 /* =========================================================
    STAR MAP SYSTEM VIEW
+   ---------------------------------------------------------
+   Composition: the system's star dominates the right edge and is the only
+   light source. Its color (--sun-color = the system's color) washes over
+   the scene, planets are lit from the right (planet-sphere light at 82%),
+   and faint orbit rings tie every planet to the star. The movement grid
+   stays, but as hairlines, so the scene reads as space first.
+   The shared space backdrop of StarMap shows through the translucent
+   .system-view background.
+
+   This partial only holds the .system-view wrapper (StarMap template).
+   The scene itself (star, orbits, planets) is styled in
+   star-map-system-grid.component.scss, its only consumer.
    ========================================================= */
 
 .system-view {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 80% 50%, rgba(53, 134, 229, 0.05), transparent 60%),
-    rgba(2, 6, 9, 0.85);
+  background: radial-gradient(ellipse 80% 90% at 0% 50%, rgba(2, 6, 10, 0.55), rgba(2, 6, 10, 0.2) 70%);
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-}
-
-.system-grid {
-  position: relative;
-  width: 90vw;
-  height: 35vw;
-  margin: auto;
-  display: grid;
-  grid-template-columns: repeat(18, 5vw);
-  grid-template-rows: repeat(7, 5vw);
-  background-image:
-    linear-gradient(to right, rgba(53, 134, 229, 0.1) 2px, transparent 1px),
-    linear-gradient(to bottom, rgba(53, 134, 229, 0.1) 2px, transparent 1px);
-  background-size: 5vw 5vw;
-  border-bottom: rgba(53, 134, 229, 0.1) 2px solid;
-}
-
-.sun {
-  /* 6 cells wide (30vw) on the right side, vertically centered */
-  grid-column: 19 / 19;
-  grid-row: 3 / 6;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  left: 5vw;
-}
-
-.sun-core {
-  width: 30vw;
-  height: 30vw;
-  border-radius: 50%;
-  background: url('planet-surface-noise-light.png'), var(--sun-color);
-  box-shadow:
-    0 0 60px var(--sun-color),
-    inset 0 0 20px rgba(255, 255, 255, 0.7);
-  z-index: 2;
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-
-  background-size: 8vw 8vw;
-  background-blend-mode: multiply, normal;
-  background-position:
-    0% 0%,
-    0% 0%;
-  position: absolute;
   overflow: hidden;
-  animation: rotate-planet-surface 55s linear infinite;
-}
 
-.sun-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 130%;
-  height: 130%;
-  border-radius: 50%;
-  background: var(--sun-color);
-  opacity: 0.15;
-  filter: blur(30px);
-  z-index: 1;
-  animation: sun-pulse 4s infinite alternate;
-}
-
-@keyframes sun-pulse {
-  0% {
-    transform: translate(-50%, -50%) scale(0.9);
-    opacity: 0.1;
+  /* A nebula on the far side of the system, opposite the star. */
+  &::before {
+    content: '';
+    position: absolute;
+    left: -14vw;
+    top: -18vw;
+    width: 72vw;
+    aspect-ratio: 1;
+    @include nebula-cloud(205deg, 0.3, 0.9);
+    pointer-events: none;
   }
-  100% {
-    transform: translate(-50%, -50%) scale(1.1);
-    opacity: 0.25;
-  }
-}
-
-.planet {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5em;
-  position: relative;
-  box-shadow: none;
-  transition: 0.3s ease all;
-  outline: 3px solid rgba(0, 0, 0, 0);
-
-  &:hover {
-    transform: scale(1.5);
-    background: rgba(0, 0, 0, 0.8);
-    outline: 2px solid color-mix(in srgb, var(--color-text) 50%, transparent);
-    box-shadow: none;
-  }
-}
-
-.planet-body {
-  width: 3vw;
-  height: 3vw;
-  border-radius: 50%;
-  background-image:
-    url('planet-surface-noise.png'), radial-gradient(circle at 100% 50%, var(--planet-color), #111);
-  background-size:
-    200% 100%,
-    100% 100%;
-  background-blend-mode: overlay, normal;
-  background-position:
-    0% 0%,
-    0% 0%;
-  box-shadow:
-    inset 11px 0 8px rgba(0, 0, 0, 0.5),
-    0 0 10px rgba(0, 0, 0, 0.2);
-  position: absolute;
-  overflow: hidden;
-  animation: rotate-planet-surface 15s linear infinite;
-}
-
-.planet-name {
-  position: absolute;
-  color: var(--color-text);
-  font-family: var(--font-primary);
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  padding: 0.2em 0.5em;
-  top: 100%;
-  width: 200%;
-  left: -50%;
-  text-align: center;
-  display: block;
-}
-
-.planet.ice .planet-body {
-  --planet-color: rgb(121, 218, 218);
-}
-
-.planet.venuslike .planet-body {
-  --planet-color: rgb(161, 103, 27);
-}
-
-.planet.desert .planet-body {
-  --planet-color: rgb(145, 132, 107);
-}
-
-.planet.earthlike .planet-body {
-  --planet-color: rgb(12, 173, 60);
-}
-
-.planet.marslike .planet-body {
-  --planet-color: rgb(129, 32, 32);
-}
-
-.planet.gasgiant .planet-body {
-  --planet-color: rgb(120, 70, 160);
-}
-
-.planet.huge .planet-body {
-  width: 3.1vw;
-  height: 3.1vw;
-}
-
-.planet.big .planet-body {
-  width: 2.9vw;
-  height: 2.9vw;
-}
-
-.planet.medium .planet-body {
-  width: 2.5vw;
-  height: 2.5vw;
-}
-
-.planet.small .planet-body {
-  width: 2vw;
-  height: 2vw;
-}
-
-.planet.tiny .planet-body {
-  width: 1.5vw;
-  height: 1.5vw;
-}
-
-@keyframes rotate-planet-surface {
-  0% {
-    background-position:
-      0% 0%,
-      0% 0%;
-  }
-  100% {
-    background-position:
-      200% 0%,
-      0% 0%;
-  }
-}
-
-.system-target {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  z-index: 12;
-}
-
-.planet {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-}
-
-.planet:hover .planet-body {
-  transform: scale(1.1);
-}
-
-.planet--unexplored .planet-body {
-  filter: grayscale(100%) opacity(0.4);
-}
-
-.planet--unexplored .planet-name {
-  opacity: 0.3;
 }

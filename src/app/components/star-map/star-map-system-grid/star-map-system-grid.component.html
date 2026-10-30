@@ -1,10 +1,22 @@
 <div class="system-grid" (click)="onSystemGridClick($event)" (contextmenu)="onSystemGridContextMenu($event)">
   @if (selectedSystem) {
-    <!-- SUN -->
+    <!-- SUN: light wash over the system, slow corona rays, glow, star disc -->
     <div class="sun" [style.--sun-color]="selectedSystem.color">
+      <div class="sun-wash"></div>
+      <div class="sun-rays"></div>
       <div class="sun-glow"></div>
       <div class="sun-core"></div>
     </div>
+
+    <!-- ORBITS (decorative rings through each planet, centered on the star) -->
+    @for (planet of selectedSystem.planetsTiles; track planet.id) {
+      <div
+        class="orbit"
+        [class.orbit--unexplored]="!planet.explored"
+        [style.width.vw]="orbitDiameterVw(planet)"
+        [style.height.vw]="orbitDiameterVw(planet)"
+      ></div>
+    }
 
     <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
     @if (sensorRangeEnabled) {

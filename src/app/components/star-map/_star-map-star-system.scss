@@ -1,8 +1,21 @@
+@use 'space' as *;
+
 /* =========================================================
    STAR MAP STAR SYSTEM
+   ---------------------------------------------------------
+   A system is drawn as a light source rather than a glyph: a colored
+   corona (--star-color), thin diffraction spikes and a white-hot core.
+   Sizes derive from the map cell size, so stars scale with zoom like every
+   other map object. Hover brightens the star; selection adds a slowly
+   rotating ring and a framed name plate, so the two states never look
+   alike. Only transform / opacity are animated.
    ========================================================= */
 
+@include space-keyframes;
+
 .star-system {
+  --star-size: calc(var(--cell-size-vw, 5vw) * 0.62);
+
   position: absolute;
 
   left: 50%;
@@ -19,11 +32,13 @@
 
   justify-content: center;
 
-  gap: 0.2em;
+  gap: 0.1em;
 
   width: auto;
 
   min-width: 80px;
+
+  min-height: 0;
 
   padding: 0.3em;
 
@@ -43,9 +58,9 @@
 .star-system:hover {
   filter: none;
 
-  box-shadow: none;
+  background: transparent;
 
-  color: var(--color-blue-bright);
+  box-shadow: none;
 }
 
 .star-system:active {
@@ -59,19 +74,93 @@
    ========================================================= */
 
 .star-system__star {
+  position: relative;
+
   display: block;
 
-  font-family: monospace;
+  width: var(--star-size);
 
-  font-size: 2rem;
+  height: var(--star-size);
+}
 
-  line-height: 1;
+.star-system__corona,
+.star-system__spikes,
+.star-system__core {
+  position: absolute;
 
-  color: var(--star-color);
+  pointer-events: none;
+}
 
-  text-shadow:
-    0 0 5px var(--star-color),
-    0 0 12px var(--star-color);
+/* Wide, faint halo: the star's light spilling into space. */
+.star-system__corona {
+  inset: -95%;
+
+  @include star-corona(var(--star-color));
+
+  opacity: 0.9;
+
+  animation: space-shimmer 5.5s ease-in-out infinite;
+}
+
+.star-system__spikes {
+  inset: -120%;
+
+  @include star-spikes(var(--star-color), 0.75);
+
+  opacity: 0.85;
+
+  animation: space-shimmer 4s ease-in-out infinite reverse;
+}
+
+.star-system__core {
+  inset: 36%;
+
+  border-radius: 50%;
+
+  background: #fff;
+
+  box-shadow:
+    0 0 calc(var(--star-size) * 0.12) calc(var(--star-size) * 0.04) #fff,
+    0 0 calc(var(--star-size) * 0.3) calc(var(--star-size) * 0.08) var(--star-color);
+}
+
+/* Selection ring (hidden until selected). */
+.star-system__star::after {
+  content: '';
+
+  position: absolute;
+
+  inset: -55%;
+
+  border-radius: 50%;
+
+  border: 1px dashed color-mix(in srgb, var(--color-blue-bright) 80%, transparent);
+
+  opacity: 0;
+
+  transform: scale(0.8);
+
+  transition:
+    opacity 0.25s ease,
+    transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  pointer-events: none;
+}
+
+.star-system:hover .star-system__corona {
+  opacity: 1;
+
+  filter: brightness(1.35);
+}
+
+.star-system:hover .star-system__spikes {
+  opacity: 1;
+}
+
+.star-system:hover .star-system__star::after {
+  opacity: 0.45;
+
+  transform: scale(0.92);
 }
 
 /* =========================================================
@@ -81,17 +170,36 @@
 .star-system__name {
   display: block;
 
-  padding: 0.1em 0.35em;
+  /* Clears the selection ring (inset -55% of the star). */
+  margin-top: calc(var(--star-size) * 0.4);
 
-  color: var(--color-text);
+  padding: 0.1em 0.45em;
+
+  border: 1px solid transparent;
+
+  color: var(--color-text-bright);
 
   font-size: 0.75rem;
 
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
 
   white-space: nowrap;
 
-  opacity: 0.8;
+  opacity: 0.85;
+
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(0, 0, 0, 0.8);
+
+  transition:
+    opacity 0.2s ease,
+    color 0.2s ease;
+}
+
+.star-system:hover .star-system__name {
+  opacity: 1;
+
+  color: #fff;
 }
 
 /* =========================================================
@@ -102,19 +210,38 @@
   z-index: 10;
 }
 
-.star-system.selected .star-system__star {
-  //color: var(--color-blue-bright);
+.star-system.selected .star-system__star::after {
+  opacity: 1;
 
-  text-shadow:
-    0 0 15px var(--color-blue-bright),
-    0 0 25px var(--color-blue-bright),
-    0 0 35px var(--color-blue);
+  transform: scale(1);
+
+  animation: star-ring-spin 18s linear infinite;
+}
+
+.star-system.selected .star-system__corona {
+  filter: brightness(1.4);
 }
 
 .star-system.selected .star-system__name {
   color: var(--color-blue-bright);
 
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(2, 8, 14, 0.8);
 
-  border: 1px solid var(--color-blue);
+  border-color: color-mix(in srgb, var(--color-blue) 70%, transparent);
+
+  opacity: 1;
+}
+
+@keyframes star-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star-system__corona,
+  .star-system__spikes,
+  .star-system.selected .star-system__star::after {
+    animation: none;
+  }
 }

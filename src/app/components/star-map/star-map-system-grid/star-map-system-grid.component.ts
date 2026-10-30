@@ -5,6 +5,17 @@ import { StarMapMovementService } from '../star-map-movement.service';
 import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
 
 /*
+ * Center of the system's star in system-grid coordinates (vw). It follows
+ * from the .sun placement in _star-map-system-view.scss: an implicit 19th
+ * column at x = 18 * 5vw, shifted right by `left: 5vw`, spanning rows 3-5
+ * (y 10vw..25vw). Keep both in sync if the sun is moved.
+ */
+export const SYSTEM_SUN_CENTER_X_VW = 95;
+export const SYSTEM_SUN_CENTER_Y_VW = 17.5;
+/* System grid cell size (vw); matches grid-template-columns in the SCSS. */
+const SYSTEM_CELL_VW = 5;
+
+/*
  * =========================================================
  * STAR MAP SYSTEM GRID VIEW COMPONENT
  * =========================================================
@@ -41,6 +52,18 @@ export class StarMapSystemGridViewComponent {
   /* Screen heading of a fleet's ship in this view (CSS rotate degrees); see fleet-heading.ts. */
   @Input() fleetHeading: (fleet: Fleet) => number = () => 0;
   @Input() getPlanetClassNames: (planet: PlanetTile) => string[] = () => [];
+
+  /*
+   * Diameter (vw) of the decorative orbit ring that passes through a
+   * planet's cell center around the star. Purely visual: planets do not
+   * move along it.
+   */
+  orbitDiameterVw(planet: PlanetTile): number {
+    const cell = this.movementService.getPlanetGridPosition(planet);
+    const x = (cell.col - 0.5) * SYSTEM_CELL_VW;
+    const y = (cell.row - 0.5) * SYSTEM_CELL_VW;
+    return 2 * Math.hypot(SYSTEM_SUN_CENTER_X_VW - x, SYSTEM_SUN_CENTER_Y_VW - y);
+  }
   @Input() trails: FleetTrail[] = [];
 
   /*

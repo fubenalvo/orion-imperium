@@ -1,3 +1,7 @@
+@use 'planets' as *;
+
+@include planet-keyframes;
+
 /*
  * Planet marker for planet battles. The host is absolutely positioned over
  * the defender's outermost column so the planet reads as the objective the
@@ -20,38 +24,42 @@
   height: 100%;
 }
 
+/* Shared lit sphere (src/styles/_planets.scss). Only --planet-color is known
+ * here, so a deliberately DEEP palette is derived from it: the defending
+ * ships are drawn on top of the planet, and a bright, saturated disc would
+ * swallow them. Light falls from above (toward the backdrop's distant star),
+ * leaving the band where the defenders stand in mid-shadow.
+ * font-size = 10% of the diameter (u * 20) so rim and glow scale with it. */
 .battle-planet__body {
+  --p-base: color-mix(in srgb, var(--planet-color) 50%, #0b1824);
+  --p-light: color-mix(in srgb, var(--planet-color) 55%, #d8f2ff);
+  --p-dark: #02070c;
+  --p-band: color-mix(in srgb, var(--planet-color) 60%, #fff);
+  --p-atmo: color-mix(in srgb, var(--planet-color) 45%, rgba(170, 230, 255, 0.9));
+  --p-clouds: 0.5;
+  --p-bands: 0.5;
+
+  @include planet-sphere(45%, 10%, 1.2em);
+
   position: absolute;
   inset: 0;
-  border-radius: 50%;
-  background-color: color-mix(in srgb, var(--planet-color) 65%, #111 35%);
-  background-image: url('planet-surface-noise-light.png');
-  background-size: 130% 130%;
-  background-blend-mode: overlay;
-  box-shadow:
-    inset calc(var(--u) * -1.4) calc(var(--u) * -1.4) calc(var(--u) * 2.4) rgba(0, 0, 0, 0.6),
-    0 0 calc(var(--u) * 2) rgba(140, 196, 255, 0.12);
+  font-size: calc(var(--u) * 2);
 }
 
-.battle-planet__body::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.28), transparent 55%);
-  pointer-events: none;
-}
-
-/* Cloud layer reuses the existing planet-clouds asset so the battle marker
- * matches the system-view planet rendering without a new art dependency. */
+/* Outer atmosphere halo: a thin bright rim fading into space, strongest on
+ * the sunlit (upper) side. */
 .battle-planet__clouds {
   position: absolute;
-  inset: 0;
+  inset: -6%;
   border-radius: 50%;
-  background-image: url('planet-clouds.png');
-  background-size: 130% 130%;
-  mix-blend-mode: screen;
-  opacity: 0.14;
+  background: radial-gradient(
+    closest-side,
+    transparent 86%,
+    color-mix(in srgb, var(--planet-color) 45%, rgba(170, 230, 255, 0.6)) 89.5%,
+    color-mix(in srgb, var(--planet-color) 15%, transparent) 93%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(180deg, #000 20%, rgba(0, 0, 0, 0.25) 60%);
   pointer-events: none;
 }
 

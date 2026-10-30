@@ -1,4 +1,7 @@
 @use 'hud-controls' as hud;
+@use 'space' as *;
+
+@include space-keyframes;
 
 /*
  * =========================================================
@@ -39,14 +42,19 @@
   height: 100dvh;
   color: var(--color-text);
   overflow: hidden;
-  background: #000;
+  background: #020509;
 }
 
 /* =========================================================
-   PARALLAX BACKGROUND
+   PARALLAX BACKGROUND (docs/ui-styling.md#space-scenery)
    Each layer is oversized by more than its maximum travel (see the
    amplitudes in BattleScreenComponent.bg*Transform) so its edges never
    become visible.
+
+   Composition: a distant star in the upper right is the scene's light,
+   two recolored nebula formations frame the left and lower right, and the
+   middle of the battlefield is kept calm (no bright gas behind the units)
+   so ships, bolts and markers stay the most contrasted things on screen.
    ========================================================= */
 
 .battle-bg-deep,
@@ -57,15 +65,38 @@
   will-change: transform;
 }
 
+/* 200vw x 200vh, offset -50vw/-50vh: the viewport covers 25%-75% of it on
+   both axes, which the distant-star position below is based on. */
 .battle-bg-deep {
   width: 200vw;
   height: 200vh;
   left: -50vw;
   top: -50vh;
-  background-image: url('stars-background-a.jpg');
-  background-size: 200vw;
-  background-position: center;
   z-index: 0;
+  @include space-base(30%, 35%, 70%, 70%);
+
+  /* Star field on its own pseudo so the mixin's opacity does not dim the
+     base gradient. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    @include starfield-far(0.8);
+  }
+
+  /* Distant star, upper right, in the band above the battlefield: kept
+     off the deployment columns so no ship ever sits on a bright glow. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: 59%;
+    top: 30%;
+    width: clamp(90px, 9vw, 210px);
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    @include star-corona(#ffd9a0);
+    animation: space-shimmer 7s ease-in-out infinite;
+  }
 }
 
 .battle-bg-nebula {
@@ -73,20 +104,61 @@
   height: 120vh;
   left: -10vw;
   top: -10vh;
-  background-image: url('/nebula.png');
-  background-size: cover;
-  background-position: center;
-  opacity: 0.75;
   z-index: 1;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    aspect-ratio: 1;
+  }
+
+  /* Teal / amber formation, upper left. */
+  &::before {
+    left: -6vw;
+    top: -32vh;
+    width: max(62vw, 90vh);
+    @include nebula-cloud(185deg, 0.42, 0.95);
+    animation: space-drift 160s ease-in-out infinite alternate;
+  }
+
+  /* Violet / rose formation, lower right, rotated so it is not a copy. */
+  &::after {
+    right: -12vw;
+    bottom: -40vh;
+    width: max(58vw, 85vh);
+    @include nebula-cloud(250deg, 0.3, 0.85);
+    transform: rotate(160deg);
+  }
 }
 
 .battle-bg-foreground {
   inset: -5vh -5vw;
-  background-image: url('stars.png');
-  background-repeat: repeat;
-  background-size: 100vw;
-  opacity: 0.5;
   z-index: 2;
+  @include space-dust(0.4);
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    @include starfield-twinkle(6s);
+  }
+
+  /* Vignette framing the battlefield. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    @include space-vignette(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-bg-deep::after,
+  .battle-bg-nebula::before,
+  .battle-bg-foreground::before {
+    animation: none;
+  }
 }
 
 .battle-screen__ui {

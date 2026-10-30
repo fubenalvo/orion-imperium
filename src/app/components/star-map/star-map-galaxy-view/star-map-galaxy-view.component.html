@@ -100,7 +100,13 @@
           (click)="onSystemClick(system, $event)"
           (contextmenu)="onSystemContextMenu(system, $event)"
         >
-          <span class="star-system__star">&#10022;</span>
+          <!-- Star as a light source: corona glow, diffraction spikes, hot core.
+               Selection ring is the star element's ::after. -->
+          <span class="star-system__star" aria-hidden="true">
+            <span class="star-system__corona"></span>
+            <span class="star-system__spikes"></span>
+            <span class="star-system__core"></span>
+          </span>
           <span class="star-system__name">{{ system.name }}</span>
         </button>
       </div>

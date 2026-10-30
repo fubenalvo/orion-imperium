@@ -1,0 +1,197 @@
+@use 'sass:math';
+
+/* =========================================================
+   PLANET RENDERING MIXINS
+   ---------------------------------------------------------
+   One lit-sphere recipe for every planet drawn outside the planet surface
+   screen (system view planets, the battle-screen planet). It follows the
+   main-menu planet: a colored sphere gradient, surface texture, a drifting
+   cloud layer, a terminator shade on the side facing away from the light,
+   a rim of atmosphere on the lit side, and a soft outer glow.
+
+   Structure (all on ONE element, so templates stay a single div):
+     element      sphere gradient + bands + surface noise, outer glow
+     ::before     cloud layer (scrolls; opacity from --p-clouds)
+     ::after      terminator shade, specular highlight, atmospheric rim
+
+   The element must therefore not use ::before / ::after for anything else,
+   and must not be `overflow: visible`-dependent (it clips to the circle).
+
+   Color comes from CSS custom properties:
+     --p-base, --p-dark, --p-light  sphere gradient
+     --p-band                       band tint (gas giants, storms)
+     --p-atmo                       atmosphere rim / glow color
+     --p-clouds                     cloud layer opacity (0..1)
+     --p-bands                      band layer opacity (0..1)
+   `planet-palette($type)` sets them for a game planet type; without a
+   palette they derive from --planet-color, so any colored planet works.
+
+   Light direction is a parameter so the shading matches each scene's light
+   source (the system view's star sits to the right, for example).
+
+   Sizing: rim, glow and shading widths are in em. Set the element's
+   font-size to 10% of its diameter (e.g. font-size: calc(var(--d) / 10)) so
+   every planet, from a 1.5vw dot to the battle planet, is lit the same.
+   ========================================================= */
+
+/* Palettes per PlanetType (star-map.models.ts). Kept close to the original
+   per-type colors so planets stay recognisable after the redesign. */
+$planet-palettes: (
+  earthlike: (
+    base: #1f6fa6,
+    dark: #06182c,
+    light: #7fd3f0,
+    band: #3f9a52,
+    atmo: rgba(130, 205, 255, 0.85),
+    clouds: 0.75,
+    bands: 0.55,
+  ),
+  ice: (
+    base: #8fcfdf,
+    dark: #1d4357,
+    light: #f2ffff,
+    band: #d9f6fb,
+    atmo: rgba(205, 245, 255, 0.85),
+    clouds: 0.45,
+    bands: 0.35,
+  ),
+  desert: (
+    base: #b8935e,
+    dark: #3a2814,
+    light: #f1d7a2,
+    band: #8c6436,
+    atmo: rgba(255, 220, 170, 0.55),
+    clouds: 0.15,
+    bands: 0.6,
+  ),
+  venuslike: (
+    base: #c97d2e,
+    dark: #3f1d07,
+    light: #ffd394,
+    band: #e7a654,
+    atmo: rgba(255, 196, 120, 0.8),
+    clouds: 0.9,
+    bands: 0.5,
+  ),
+  marslike: (
+    base: #9a3b24,
+    dark: #2a0c06,
+    light: #e7916a,
+    band: #6d2414,
+    atmo: rgba(255, 160, 130, 0.45),
+    clouds: 0.12,
+    bands: 0.45,
+  ),
+  gasgiant: (
+    base: #7d58ae,
+    dark: #1d0d33,
+    light: #dcc2f6,
+    band: #b48ad8,
+    atmo: rgba(205, 175, 255, 0.75),
+    clouds: 0.3,
+    bands: 1,
+  ),
+);
+
+@mixin planet-palette($type) {
+  $p: map-get($planet-palettes, $type);
+  --p-base: #{map-get($p, base)};
+  --p-dark: #{map-get($p, dark)};
+  --p-light: #{map-get($p, light)};
+  --p-band: #{map-get($p, band)};
+  --p-atmo: #{map-get($p, atmo)};
+  --p-clouds: #{map-get($p, clouds)};
+  --p-bands: #{map-get($p, bands)};
+}
+
+// Emits one rule per planet type: selector = prefix + type + ' ' + suffix,
+// e.g. planet-palettes('.planet.', '.planet-body') gives
+// '.planet.earthlike .planet-body { ...palette }'.
+@mixin planet-palettes($prefix, $suffix: '') {
+  @each $type, $p in $planet-palettes {
+    #{$prefix}#{$type} #{$suffix} {
+      @include planet-palette($type);
+    }
+  }
+}
+
+/*
+ * $light-x / $light-y: where the light hits the sphere (percent of the box).
+ * $glow: outer glow radius (any length; scales with the planet when em/%
+ *        units of the caller are used).
+ */
+@mixin planet-sphere($light-x: 72%, $light-y: 30%, $glow: 1.6em) {
+  /* Rim-light offset toward the light, in em (box-shadow takes no %). */
+  $rim-x: math.div($light-x - 50%, 100%) * 1.4em;
+  $rim-y: math.div($light-y - 50%, 100%) * 1.4em;
+
+  --p-base-fallback: var(--planet-color, #3f7fa8);
+
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
+  image-rendering: auto;
+  background:
+    repeating-linear-gradient(
+      168deg,
+      transparent 0,
+      color-mix(in srgb, var(--p-band, var(--p-base-fallback)) calc(var(--p-bands, 0.4) * 55%), transparent) 4%,
+      transparent 9%,
+      color-mix(in srgb, var(--p-dark, #000) calc(var(--p-bands, 0.4) * 45%), transparent) 13%,
+      transparent 17%
+    ),
+    url('planet-surface-noise.png') 0 0 / 34% 34%,
+    radial-gradient(
+      circle at $light-x $light-y,
+      var(--p-light, color-mix(in srgb, var(--p-base-fallback) 45%, white)) 0%,
+      var(--p-base, var(--p-base-fallback)) 38%,
+      var(--p-dark, color-mix(in srgb, var(--p-base-fallback) 25%, black)) 100%
+    );
+  background-blend-mode: normal, soft-light, normal;
+  box-shadow: 0 0 $glow color-mix(in srgb, var(--p-atmo, var(--p-base-fallback)) 45%, transparent);
+
+  /* Cloud layer: twice as wide as the planet and scrolled by exactly one
+     tile (planet-cloud-drift), so the loop is seamless. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url('planet-clouds.png') 0 0 / 50% 100% repeat-x;
+    opacity: var(--p-clouds, 0.4);
+    animation: planet-cloud-drift 40s linear infinite;
+    pointer-events: none;
+  }
+
+  /* Terminator, specular highlight and atmospheric rim. Static. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle at $light-x $light-y, rgba(255, 255, 255, 0.3) 0%, transparent 26%),
+      radial-gradient(
+        circle at $light-x $light-y,
+        transparent 30%,
+        rgba(2, 6, 12, 0.5) 56%,
+        rgba(1, 3, 8, 0.9) 80%
+      );
+    box-shadow:
+      inset (-$rim-x) (-$rim-y) 0.6em (-0.2em)
+        color-mix(in srgb, var(--p-atmo, var(--p-base-fallback)) 80%, transparent),
+      inset 0 0 0.8em rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+  }
+}
+
+@mixin planet-keyframes {
+  @keyframes planet-cloud-drift {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
+}

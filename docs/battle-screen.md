@@ -166,6 +166,13 @@ with the tokens. Hover is a quiet outline; selection is a bright border, a glow 
 (so it never spills over neighbouring cells) and a soft ground light. Reach and Shield Pulse
 highlights pulse the frame's glow, never the ship's opacity.
 
+**Backdrop.** The three parallax layers (`.battle-bg-deep` / `-nebula` / `-foreground`) are built
+from the shared space mixins (see [UI Styling](./ui-styling.md#space-scenery)): deep stars and a
+distant star kept in the band above the field, two nebula formations framing the left and lower
+right so the middle of the field stays calm behind the units, then twinkling dust and a vignette.
+The field itself draws a fading hairline grid (`::before`) and corner brackets (`::after`) under
+every grid layer. Ships are drawn at up to 80% of their cell (capped at the cell for large stacks).
+
 **Background parallax** (`battle/battle-parallax.ts`): the pointer (or device tilt) only sets a
 target offset in [-1, 1], normalised against the bounding rect of the element that owns the
 listener. The visible offset eases toward it with a frame-rate-independent exponential filter

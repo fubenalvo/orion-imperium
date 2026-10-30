@@ -110,7 +110,9 @@
   width: 74%;
   aspect-ratio: 1;
   color: var(--color-blue-bright);
-  filter: drop-shadow(0 0 4px rgba(120, 200, 255, 0.55));
+  /* Lit in the owning faction's color so fleets read as part of the scene
+     and are identifiable before the name label is read. */
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--fleet-color, #78c8ff) 65%, transparent));
 }
 
 .fleet__name {
@@ -189,6 +191,24 @@
     opacity: 0.85;
     filter: drop-shadow(0 0 3px var(--trail-color, var(--color-blue)));
     animation: trail-dash-move 0.5s linear infinite;
+
+    /* Soft beam under the dashes: strongest at the fleet, fading toward the
+       destination, so the path reads as a projected course. */
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -2px;
+      bottom: -2px;
+      border-radius: 999px;
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--trail-color, var(--color-blue)) 45%, transparent),
+        transparent
+      );
+      filter: blur(2px);
+    }
   }
 
   .fleet-trail--player {
@@ -237,9 +257,15 @@
 
   height: 35px;
 
-  border: 1px solid var(--color-blue);
+  border: 1px solid color-mix(in srgb, var(--color-blue-bright) 70%, transparent);
 
   border-radius: 50%;
+
+  background: radial-gradient(circle, rgba(140, 196, 255, 0.16), transparent 70%);
+
+  box-shadow:
+    0 0 10px rgba(140, 196, 255, 0.35),
+    inset 0 0 8px rgba(140, 196, 255, 0.2);
 
   color: var(--color-blue-bright);
 
@@ -247,7 +273,9 @@
 
   font-size: 1.2rem;
 
-  animation: target-pulse 1s infinite;
+  text-shadow: 0 0 6px rgba(140, 196, 255, 0.8);
+
+  animation: target-pulse 1.6s ease-in-out infinite;
 }
 
 .ship-target__line {

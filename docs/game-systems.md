@@ -122,7 +122,7 @@ responsive. `stopGameLoop()` is used on component destroy.
 - Every screen→world conversion (map click, drag, arrow/d-pad pan step, fog culling, minimap viewport rectangle and click-to-center) divides screen vw by `zoom`. The minimap receives the visible extent through `viewportWidthVw`/`viewportHeightVw`.
 - Zoom is a view preference and is not saved; the saved camera is in world units, so it is valid at any zoom. Parallax background layers stay in screen space and are not scaled.
 - More visible area means more viewport-culled fog cells are rendered at far zoom levels.
-- Background is rendered at 200% of the grid extent and translated at `0.3 * cameraX/Y` for parallax. The `bgWidthVw`, `bgHeightVw`, `bgLeftVw`, `bgTopVw` getters on `StarMap` keep the background centered on the viewport at all times.
+- Background is rendered at 200% of the grid extent and translated at `0.3 * cameraX/Y` for parallax. The `bgWidthVw`, `bgHeightVw`, `bgLeftVw`, `bgTopVw` getters on `StarMap` keep the background centered on the viewport at all times. It only carries the star texture; the other backdrop layers (static deep stars, the wrapping nebula field at `0.12 *` camera, foreground dust at `0.6 *` camera) are viewport-sized. See [UI Styling](./ui-styling.md#space-scenery).
 
 ### Selection
 

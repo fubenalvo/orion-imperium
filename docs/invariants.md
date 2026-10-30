@@ -153,6 +153,8 @@ Conditions that must remain true across the codebase. When changing any code tha
 - The camera is clamped to the map bounds after every move (`clampCamera`) using the **current** cell size and viewport aspect ratio, not the values present at component init.
 - On viewport resize, the camera is scaled by `newCellSize / oldCellSize` so the same grid area remains under the same viewport point.
 - The background is sized to 200% of the map grid extent and translated at `0.3 * cameraX/Y` for parallax; the getters `bgWidthVw`, `bgHeightVw`, `bgLeftVw`, `bgTopVw` keep it centered on the viewport at all times.
+- Decorative backdrop layers never intercept pointer events and never hide game information. The only layers drawn above the galaxy map (`.star-map-backdrop--front`, map view only) use `mix-blend-mode: screen`, which can only add light; gameplay terrain stays under the fog of war. See [UI Styling](./ui-styling.md#space-scenery).
+- The system view's star center (`SYSTEM_SUN_CENTER_X_VW` / `_Y_VW` in `star-map-system-grid.component.ts`) must match the `.sun` grid placement in its SCSS; the orbit rings are computed from it.
   - Camera speed is `2` vw per arrow-key press or navigation-component event, not time-based.
 
 ## Sensor Range & Fog-of-War Invariants

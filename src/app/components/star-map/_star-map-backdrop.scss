@@ -1,0 +1,87 @@
+@use 'space' as *;
+
+/* Star map space backdrop. Used only by star-map.scss (the elements live in
+   star-map.html); kept out of _star-map-base so the child components that
+   share the base partial do not carry copies of it. */
+
+@include space-keyframes;
+
+/* =========================================================
+   SPACE BACKDROP (docs/ui-styling.md#space-scenery)
+   Decorative only; every layer is pointer-events: none and sits below
+   the map viewport (z 1), except the faint dust (z 3).
+   ========================================================= */
+
+/* Infinitely distant stars: static, so panning never repaints them. */
+.star-map-deep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.star-map-deep__stars {
+  position: absolute;
+  inset: 0;
+  @include starfield-far(0.7, false);
+}
+
+.star-map-deep__twinkle {
+  position: absolute;
+  inset: 0;
+  @include starfield-twinkle(7s);
+}
+
+/* Camera-parallax layer (0.3x). Width, height, left and top are set from
+   StarMap.bg*Vw: 200% of the map grid, centered on the viewport, so the
+   parallax shift never runs out of background. It only carries the star
+   texture: it can be many screens wide, so anything placed on it would
+   rarely be on screen (nebulae live in the wrapping nebula field instead). */
+.star-map-background {
+  position: absolute;
+
+  background-image: url('stars.png');
+
+  background-size: 1254px 706px;
+
+  opacity: 0.9;
+
+  pointer-events: none;
+
+  z-index: 0;
+
+  will-change: transform;
+}
+
+/* Wrapping nebula formations (SpaceNebulaFieldComponent), between the deep
+   stars and the star-texture layer. */
+.star-map-nebulae {
+  z-index: 0;
+}
+
+/* Galaxy view only: distant stars and nebulae are drawn OVER the map
+   viewport (fog of war included) with screen blending. Fog hides local
+   terrain, not the distant sky, and at the start of a game almost the whole
+   map is fogged, so without this the backdrop would be invisible. Screen
+   blending only adds light: it cannot darken or hide anything, and the
+   gameplay terrain (SVG nebulae, belts) still sits under the fog. Never
+   apply this in the system / planet views, where it would draw stars over
+   opaque scenery. */
+.star-map-backdrop--front {
+  z-index: 2;
+  mix-blend-mode: screen;
+}
+
+/* Out-of-focus dust in front of the map (0.6x parallax). Very faint and
+   click-through; it adds depth without hiding anything. */
+.star-map-foreground {
+  position: absolute;
+
+  inset: 0;
+
+  @include space-dust(0.32);
+
+  pointer-events: none;
+
+  z-index: 3;
+}

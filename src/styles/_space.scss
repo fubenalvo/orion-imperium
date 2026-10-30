@@ -1,0 +1,170 @@
+/* =========================================================
+   SPACE BACKDROP MIXINS
+   ---------------------------------------------------------
+   Shared building blocks for the game's space scenery. The main menu
+   established the visual language (deep layered starfield, recolored
+   nebula art, soft star coronas); the star map, system view and battle
+   screen compose their own backdrops from these same pieces so every
+   screen belongs to the same universe without copying one background.
+
+   Rules every user must keep:
+   - Backdrop elements are decorative: pointer-events: none, and they sit
+     below every interactive layer.
+   - Animate only transform / opacity. Static layers are rasterized once.
+   - Keyframes used by these mixins are emitted by `space-keyframes`; include
+     it once at the top level of each stylesheet that uses an animated
+     mixin (Angular scopes keyframes per component).
+
+   See docs/ui-styling.md#space-scenery for where each screen uses what.
+   ========================================================= */
+
+/* Deep space base: near-black navy with faint cool/warm washes so large
+   empty areas never read as flat black. */
+@mixin space-base($cool-x: 15%, $cool-y: 25%, $warm-x: 85%, $warm-y: 80%) {
+  background:
+    radial-gradient(ellipse 70% 60% at $cool-x $cool-y, rgba(13, 40, 58, 0.55) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 55% at $warm-x $warm-y, rgba(40, 22, 52, 0.35) 0%, transparent 70%),
+    linear-gradient(180deg, #03080e 0%, #020509 100%);
+}
+
+/* Distant star tiles. Each gradient uses a different, non-multiple tile size
+   so the repetition is not noticeable; stars.png adds natural clustering.
+   Static: rasterized once, so it is cheap even on very large elements. */
+@mixin starfield-far($opacity: 0.85, $with-texture: true) {
+  $texture: none;
+  @if $with-texture {
+    $texture: url('stars.png');
+  }
+  opacity: $opacity;
+  background-image:
+    $texture,
+    radial-gradient(1px 1px at 23% 37%, #fff 50%, transparent 100%),
+    radial-gradient(1px 1px at 71% 12%, #cfe6ff 50%, transparent 100%),
+    radial-gradient(1px 1px at 46% 81%, #fff 50%, transparent 100%),
+    radial-gradient(1px 1px at 88% 64%, #ffe9cf 50%, transparent 100%),
+    radial-gradient(1px 1px at 9% 92%, #bfe4ff 50%, transparent 100%),
+    radial-gradient(1px 1px at 57% 49%, #fff 50%, transparent 100%);
+  background-size:
+    1672px 941px,
+    173px 151px,
+    211px 239px,
+    263px 197px,
+    311px 283px,
+    149px 331px,
+    379px 293px;
+}
+
+/* Fewer, brighter stars whose opacity breathes. Kept on its own element so
+   the animation is a compositor-only opacity change. */
+@mixin starfield-twinkle($duration: 6s) {
+  background-image:
+    radial-gradient(1.6px 1.6px at 31% 44%, #fff 40%, transparent 100%),
+    radial-gradient(1.4px 1.4px at 77% 21%, #d9f3ff 40%, transparent 100%),
+    radial-gradient(2px 2px at 12% 71%, #fff4e0 40%, transparent 100%),
+    radial-gradient(1.4px 1.4px at 63% 88%, #e6f8ff 40%, transparent 100%);
+  background-size:
+    523px 467px,
+    619px 541px,
+    733px 659px,
+    457px 701px;
+  animation: space-twinkle $duration ease-in-out infinite alternate;
+}
+
+/* A single nebula formation from the shared nebula art, hue-shifted toward
+   the game palette and faded out with a radial mask so it has no edge.
+   $hue 185deg gives the teal/amber look of the main menu; ~250deg gives
+   violet/rose, ~150deg cyan/green. Size and position belong to the caller. */
+@mixin nebula-cloud($hue: 185deg, $opacity: 0.32, $saturate: 1) {
+  background: url('/nebula.png') center / contain no-repeat;
+  opacity: $opacity;
+  filter: hue-rotate($hue) saturate($saturate) brightness(0.9);
+  mask-image: radial-gradient(closest-side, #000 25%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
+  /* Smooth art: undo the global pixelated image rendering. */
+  image-rendering: auto;
+}
+
+/* Out-of-focus foreground particles. */
+@mixin space-dust($opacity: 0.45) {
+  opacity: $opacity;
+  background-image:
+    radial-gradient(2px 2px at 14% 22%, rgba(180, 235, 240, 0.5) 30%, transparent 100%),
+    radial-gradient(3px 3px at 61% 67%, rgba(180, 235, 240, 0.3) 30%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 83% 31%, rgba(255, 225, 190, 0.45) 30%, transparent 100%),
+    radial-gradient(2.5px 2.5px at 37% 88%, rgba(180, 235, 240, 0.35) 30%, transparent 100%);
+  background-size: 640px 520px;
+}
+
+/* Edge darkening that frames a scene and pulls focus to the middle. */
+@mixin space-vignette($strength: 0.55) {
+  background: radial-gradient(ellipse 120% 90% at 50% 50%, transparent 55%, rgba(0, 0, 0, $strength) 100%);
+}
+
+/* Soft light-source glow for a star of color $color (any CSS color or
+   var()). Used as the background of a circle; the white-hot center and the
+   colored falloff make small stars read as light rather than as dots. */
+@mixin star-corona($color) {
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #fff 0 7%,
+    color-mix(in srgb, #{$color} 45%, white) 13%,
+    color-mix(in srgb, #{$color} 60%, transparent) 24%,
+    color-mix(in srgb, #{$color} 18%, transparent) 45%,
+    transparent 70%
+  );
+}
+
+/* Thin cross-shaped diffraction spikes for an element centered on a star. */
+@mixin star-spikes($color, $alpha: 0.8) {
+  background:
+    linear-gradient(
+        90deg,
+        transparent,
+        color-mix(in srgb, #{$color} #{$alpha * 100%}, transparent) 42%,
+        #fff 50%,
+        color-mix(in srgb, #{$color} #{$alpha * 100%}, transparent) 58%,
+        transparent
+      )
+      center / 100% 1px no-repeat,
+    linear-gradient(
+        0deg,
+        transparent,
+        color-mix(in srgb, #{$color} #{$alpha * 100%}, transparent) 42%,
+        #fff 50%,
+        color-mix(in srgb, #{$color} #{$alpha * 100%}, transparent) 58%,
+        transparent
+      )
+      center / 1px 100% no-repeat;
+}
+
+@mixin space-keyframes {
+  @keyframes space-twinkle {
+    0% {
+      opacity: 0.35;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes space-drift {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    }
+    100% {
+      transform: translate3d(2%, 1.5%, 0) scale(1.06) rotate(3deg);
+    }
+  }
+
+  @keyframes space-shimmer {
+    0%,
+    100% {
+      opacity: 0.75;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.12);
+    }
+  }
+}

@@ -12,6 +12,8 @@ The app is fully client-side. All state is held in memory; the only persistence 
 
 The shell (`App` in `src/app/app.ts`) renders a CRT-styled viewport with a single `<router-outlet>`. Global Angular providers live in `app.config.ts` (`provideBrowserGlobalErrorListeners`, `provideRouter`).
 
+Global styles live in `src/styles.scss`; shared SCSS partials in `src/styles/` (on the include path) provide the mixins every component reuses: `_mixins.scss` (breakpoints), `_hud-panel.scss` / `_hud-controls.scss` (HUD frame and controls), and `_space.scss` / `_planets.scss` (space scenery and lit planets, see [UI Styling](./ui-styling.md#space-scenery)).
+
 ## Application Structure
 
 ```
@@ -31,6 +33,9 @@ src/app/
     → New Game configuration screen (galaxy size, players, seed, slot)
 
   components/
+    space-nebula-field/
+      → Decorative, endlessly wrapping nebula backdrop for scrolling scenes
+        (galaxy map); see ui-styling.md#space-scenery
     star-map/
       star-map.ts / .html / .scss / .models.ts
         → Central gameplay component; orchestrates services and child UI components
@@ -65,8 +70,8 @@ src/app/
         → Presentational galaxy map viewport (fog, sensor highlights, systems,
           fleets, movement target); forwards events to StarMap handler inputs
       star-map-system-grid/
-        → Presentational system view grid (sun, system sensor highlights,
-          planets, fleets in system, movement target)
+        → Presentational system view grid (sun, decorative orbit rings,
+          system sensor highlights, planets, fleets in system, movement target)
       fleet-ship/ + fleet-heading.ts
         → Shared fleet marker ship glyph (rotating hull + engine trail) used by
           both views; render-only heading trackers updated by StarMap's loop

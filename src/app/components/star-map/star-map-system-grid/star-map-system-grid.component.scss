@@ -1,7 +1,8 @@
 @use '../_star-map-grid';
 @use '../_star-map-ships';
 @use '../_star-map-sensor';
-@use '../_star-map-system-view';
+@use 'space' as *;
+@use 'planets' as *;
 
 /*
  * The host must not generate a layout box: .system-grid is a flex item of
@@ -10,4 +11,323 @@
  */
 :host {
   display: contents;
+}
+
+@include space-keyframes;
+@include planet-keyframes;
+
+/* =========================================================
+   SYSTEM SCENE (see the composition notes in _star-map-system-view.scss)
+   ========================================================= */
+
+.system-grid {
+  position: relative;
+  width: 90vw;
+  height: 35vw;
+  margin: auto;
+  display: grid;
+  grid-template-columns: repeat(18, 5vw);
+  grid-template-rows: repeat(7, 5vw);
+  background-image:
+    linear-gradient(to right, rgba(90, 160, 220, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(90, 160, 220, 0.06) 1px, transparent 1px);
+  background-size: 5vw 5vw;
+}
+
+/* =========================================================
+   STAR
+   The center must stay at SYSTEM_SUN_CENTER_X_VW / _Y_VW
+   (star-map-system-grid.component.ts), which the orbit rings use.
+   ========================================================= */
+
+.sun {
+  /* Implicit 19th column, vertically centered on rows 3-5. */
+  grid-column: 19 / 19;
+  grid-row: 3 / 6;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  left: 5vw;
+}
+
+.sun-wash,
+.sun-rays,
+.sun-glow,
+.sun-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* The star's light over the whole system (static). */
+.sun-wash {
+  width: 190vw;
+  height: 150vw;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--sun-color) 16%, transparent) 0%,
+    color-mix(in srgb, var(--sun-color) 6%, transparent) 45%,
+    transparent 100%
+  );
+  z-index: 0;
+}
+
+/* Long, slowly turning corona rays. A masked conic gradient: one composited
+   layer, animated by transform only. */
+.sun-rays {
+  width: 54vw;
+  height: 54vw;
+  /* Soft-edged rays of uneven width (ramps, no hard stops), so they read as
+     scattered light rather than drawn spokes. */
+  background: repeating-conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    color-mix(in srgb, var(--sun-color) 10%, transparent) 1.2deg,
+    transparent 2.6deg,
+    transparent 5deg,
+    color-mix(in srgb, white 6%, transparent) 5.7deg,
+    transparent 6.4deg,
+    transparent 11deg
+  );
+  mask-image: radial-gradient(circle, #000 42%, rgba(0, 0, 0, 0.35) 54%, transparent 68%);
+  z-index: 1;
+  animation: sun-rays-turn 240s linear infinite;
+}
+
+.sun-glow {
+  width: 46vw;
+  height: 46vw;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--sun-color) 55%, white) 30%,
+    color-mix(in srgb, var(--sun-color) 35%, transparent) 46%,
+    color-mix(in srgb, var(--sun-color) 10%, transparent) 60%,
+    transparent 70%
+  );
+  z-index: 1;
+  animation: sun-pulse 6s ease-in-out infinite alternate;
+}
+
+/* Star disc: white-hot center, colored body, darker limb, and slowly
+   drifting granulation (the ::before texture moves by exactly one tile). */
+.sun-core {
+  width: 30vw;
+  height: 30vw;
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle, transparent 58%, color-mix(in srgb, var(--sun-color) 55%, black) 100%),
+    radial-gradient(
+      circle at 50% 50%,
+      #fff 0%,
+      color-mix(in srgb, var(--sun-color) 30%, white) 28%,
+      var(--sun-color) 62%,
+      color-mix(in srgb, var(--sun-color) 80%, black) 100%
+    );
+  box-shadow:
+    0 0 1.5vw 0.4vw color-mix(in srgb, var(--sun-color) 70%, white),
+    0 0 6vw 1.5vw color-mix(in srgb, var(--sun-color) 45%, transparent);
+  z-index: 2;
+  image-rendering: auto;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: calc(100% + 2.4vw);
+    height: 100%;
+    background: url('planet-surface-noise-light.png') 0 0 / 2.4vw 2.4vw;
+    mix-blend-mode: soft-light;
+    opacity: 0.55;
+    animation: sun-granulation 50s linear infinite;
+  }
+}
+
+@keyframes sun-pulse {
+  0% {
+    transform: translate(-50%, -50%) scale(0.96);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.04);
+    opacity: 1;
+  }
+}
+
+@keyframes sun-rays-turn {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes sun-granulation {
+  to {
+    transform: translateX(-2.4vw);
+  }
+}
+
+/* =========================================================
+   ORBITS
+   ========================================================= */
+
+.orbit {
+  position: absolute;
+  left: 95vw;
+  top: 17.5vw;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1px solid rgba(140, 200, 230, 0.13);
+  pointer-events: none;
+  z-index: 0;
+
+  &--unexplored {
+    border-style: dashed;
+    border-color: rgba(140, 200, 230, 0.07);
+  }
+}
+
+/* =========================================================
+   PLANETS
+   ========================================================= */
+
+.planet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  position: relative;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  outline: none;
+
+  /* Hover / focus halo ring around the planet (replaces the old box). */
+  &::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(var(--d, 2.5vw) * 1.55);
+    height: calc(var(--d, 2.5vw) * 1.55);
+    border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--color-blue-bright) 70%, transparent);
+    box-shadow: 0 0 10px rgba(140, 196, 255, 0.25);
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85);
+    transition:
+      opacity 0.25s ease,
+      transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+    pointer-events: none;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: transparent;
+    box-shadow: none;
+    filter: none;
+
+    &::before {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1);
+    }
+
+    .planet-body {
+      transform: scale(1.12);
+    }
+
+    .planet-name {
+      color: #fff !important;
+      opacity: 1;
+    }
+  }
+
+  &:active {
+    transform: none;
+    box-shadow: none;
+  }
+}
+
+/* Size classes set the diameter; font-size = 10% of it so the shared
+   sphere's rim and glow scale with the planet (see _planets.scss). */
+.planet {
+  --d: 2.5vw;
+
+  &.huge {
+    --d: 3.1vw;
+  }
+  &.big {
+    --d: 2.9vw;
+  }
+  &.medium {
+    --d: 2.5vw;
+  }
+  &.small {
+    --d: 2vw;
+  }
+  &.tiny {
+    --d: 1.5vw;
+  }
+}
+
+.planet-body {
+  @include planet-sphere(82%, 42%);
+
+  position: absolute;
+  width: var(--d);
+  height: var(--d);
+  font-size: calc(var(--d) / 10);
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@include planet-palettes('.planet.', '.planet-body');
+
+.planet-name {
+  position: absolute;
+  color: var(--color-text);
+  font-family: var(--font-primary);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  padding: 0.2em 0.5em;
+  top: calc(50% + var(--d) * 0.5 + 0.2em);
+  width: 200%;
+  left: -50%;
+  text-align: center;
+  display: block;
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.95),
+    0 0 10px rgba(0, 0, 0, 0.8);
+  transition: color 0.2s ease;
+}
+
+.planet--unexplored .planet-body {
+  filter: grayscale(0.9) brightness(0.55);
+}
+
+.planet--unexplored .planet-name {
+  opacity: 0.4;
+}
+
+.system-target {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 12;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sun-rays,
+  .sun-glow,
+  .sun-core::before,
+  .planet-body::before {
+    animation: none;
+  }
 }

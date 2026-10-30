@@ -1,0 +1,58 @@
+@use 'space' as *;
+
+/* Tile geometry must match NEBULA_TILE_W_VW / NEBULA_TILE_H_VW in the
+   component. Every cloud stays fully inside its 180 x 130 vw tile
+   (left + width <= 180, top + width <= 130), otherwise a cloud would be
+   cut off where the tiles wrap. */
+
+:host {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.field {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 360vw;
+  height: 260vw;
+  will-change: transform;
+}
+
+.tile {
+  position: absolute;
+  width: 180vw;
+  height: 130vw;
+}
+
+.cloud {
+  position: absolute;
+  aspect-ratio: 1;
+
+  /* Teal / amber: the main-menu palette. */
+  &--a {
+    left: 4vw;
+    top: 2vw;
+    width: 72vw;
+    @include nebula-cloud(185deg, 0.3, 0.95);
+  }
+
+  /* Violet / rose. */
+  &--b {
+    left: 100vw;
+    top: 36vw;
+    width: 58vw;
+    @include nebula-cloud(250deg, 0.22, 0.85);
+  }
+
+  /* Cyan / green, rotated so the repeat is less recognisable. */
+  &--c {
+    left: 34vw;
+    top: 70vw;
+    width: 56vw;
+    transform: rotate(140deg);
+    @include nebula-cloud(150deg, 0.2, 0.8);
+  }
+}

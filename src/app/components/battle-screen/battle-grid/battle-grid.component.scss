@@ -41,14 +41,44 @@
   z-index: 0;
   width: calc(var(--u) * 72);
   height: calc(var(--u) * 28);
-  background-image:
-    linear-gradient(to right, rgba(53, 134, 229, 0.08) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(53, 134, 229, 0.08) 1px, transparent 1px);
-  background-size: var(--cell-w) var(--cell-h);
-  background-color: rgba(0, 4, 10, 0.25);
-  outline: 1px solid rgba(53, 134, 229, 0.22);
-  box-shadow: 0 0 calc(var(--u) * 1.5) rgba(0, 0, 0, 0.6);
   cursor: crosshair;
+
+  /* The field is a region of space, not a board: a faint tactical glow
+     and a hairline cell grid that fades toward the edges (the cells there
+     are still valid targets; only the lines get quieter). Painted at the
+     bottom of the grid's stacking context, under every layer above. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to right, rgba(90, 170, 230, 0.1) 1px, transparent 1px) 0 0 / var(--cell-w) var(--cell-h),
+      linear-gradient(to bottom, rgba(90, 170, 230, 0.1) 1px, transparent 1px) 0 0 / var(--cell-w) var(--cell-h),
+      radial-gradient(ellipse 60% 70% at 50% 50%, rgba(12, 36, 58, 0.28), transparent 75%);
+    mask-image: radial-gradient(ellipse 70% 80% at 50% 50%, #000 55%, rgba(0, 0, 0, 0.35) 100%);
+    pointer-events: none;
+  }
+
+  /* Field bounds as four corner brackets instead of a full outline. */
+  &::after {
+    --b: calc(var(--u) * 1.6);
+    --c: rgba(109, 229, 211, 0.4);
+
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(var(--c), var(--c)) top left / var(--b) 1px,
+      linear-gradient(var(--c), var(--c)) top left / 1px var(--b),
+      linear-gradient(var(--c), var(--c)) top right / var(--b) 1px,
+      linear-gradient(var(--c), var(--c)) top right / 1px var(--b),
+      linear-gradient(var(--c), var(--c)) bottom left / var(--b) 1px,
+      linear-gradient(var(--c), var(--c)) bottom left / 1px var(--b),
+      linear-gradient(var(--c), var(--c)) bottom right / var(--b) 1px,
+      linear-gradient(var(--c), var(--c)) bottom right / 1px var(--b);
+    background-repeat: no-repeat;
+    pointer-events: none;
+  }
 }
 
 /* =========================================================
@@ -424,11 +454,50 @@
 }
 
 .stack__ship {
+  /* Hull box as a share of the cell: grows with stack size, capped at the
+     cell so a big stack never spills into its neighbours. */
+  --hull: min(calc(80% * var(--stack-scale, 1)), 100%);
+
   position: absolute;
   inset: 0;
   background: url('ship.svg') no-repeat center;
-  background-size: calc(60% * var(--stack-scale, 1)) calc(60% * var(--stack-scale, 1));
+  background-size: var(--hull) var(--hull);
+  /* Hull lit in the faction color so ships separate from the backdrop.
+     Static filter (no animation), so it is rasterized once per frame of
+     movement only. */
+  filter: drop-shadow(0 0 calc(var(--u) * 0.18) color-mix(in srgb, var(--faction-color, #8cc4ff) 75%, transparent))
+    brightness(1.08);
   pointer-events: none;
+
+  /* Engine glow at the stern. The hull is --hull wide and centered, so
+     the stern is at 50% - --hull / 2; the defender's flip (scaleX(-1)
+     below) mirrors this pseudo with the hull. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: calc(50% - var(--hull) / 2);
+    top: 50%;
+    width: calc(var(--hull) * 0.22);
+    height: calc(var(--hull) * 0.12);
+    transform: translate(-60%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(
+      ellipse at 70% 50%,
+      #fff 0%,
+      color-mix(in srgb, var(--faction-color, #8cc4ff) 70%, white) 30%,
+      transparent 70%
+    );
+    animation: engine-flicker 0.9s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes engine-flicker {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .stack {
@@ -532,6 +601,28 @@
 .impact--explosion {
   background: radial-gradient(circle, #fff, #ffcc00 25%, #d65757 55%, transparent 75%);
   animation: impact-explosion 420ms ease-out forwards;
+
+  /* Expanding shockwave ring, outliving the fireball slightly. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 10%;
+    border-radius: 50%;
+    border: max(1px, calc(var(--u) * 0.08)) solid rgba(255, 214, 150, 0.85);
+    box-shadow: 0 0 calc(var(--u) * 0.4) rgba(255, 180, 90, 0.6);
+    animation: impact-shockwave 520ms ease-out forwards;
+  }
+}
+
+@keyframes impact-shockwave {
+  0% {
+    opacity: 1;
+    transform: scale(0.3);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
 }
 
 @keyframes impact-flash {
@@ -570,6 +661,7 @@
   .stack.attack-target,
   .stack.carrier-boost-target,
   .stack.firing,
+  .stack__ship::after,
   .connection-line {
     animation: none;
   }
