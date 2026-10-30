@@ -23,6 +23,7 @@ Related: [Data Models](./data-models.md) (`PlanetTile.surface`),
 | `star-map/planet-surface/planet-settlement.ts` | Street network, plots and street lights (visual only). |
 | `star-map/star-map-planet-screen/` | The planet view component (scene layers, build mode, camera). |
 | `public/planet-surface/ore-deposit.svg` | Raw-material deposit sprite. |
+| `scripts/building-sprites/` | Generator of the building sprites (`npm run sprites:buildings`) → `public/buildings-svg/<id>.svg`. |
 
 ## Grid
 
@@ -182,7 +183,7 @@ Layers, back to front:
    (worn ground, deposit glow, paved plots, streets, cast building shadows,
    street lights, buildable-zone outline in build mode, hover highlight) and
    the interactive CSS grid of cells (contiguous, no gaps).
-3. **Sprites** — buildings (`public/buildings-isometric/original-size/`),
+3. **Sprites** — buildings (`public/buildings-svg/`, see [Building sprites](#building-sprites)),
    deposits and the build ghost, positioned with the same projection. A
    sprite's bottom center is its footprint's front corner (inset 0.15 cells,
    where the streets run) and its width is the footprint diamond's width.
@@ -208,6 +209,31 @@ edges, never through cells, so they never consume buildable space:
   fading out;
 - an edge is usable only if a buildable cell is on at least one side and it
   is not inside a single building.
+
+### Building sprites
+
+Every building has one SVG in `public/buildings-svg/` (file name = building
+id with dashes), generated from geometry by `scripts/building-sprites/`:
+
+- `iso-svg.mjs` — the painter: the planet-view projection (same formula as
+  the terrain renderer and the CSS ground plane), the shared light
+  (top / left-front / right-front face brightness), and primitives (boxes
+  with ambient-occluded faces, window grids, glowing light strips,
+  cylinders and cooling-tower shells, domes, discs, glows, trees).
+- `buildings.mjs` — one design per building id (Imperium Galactica-like
+  colony architecture: concrete and steel volumes on a bevelled base slab,
+  lit windows, cyan light strips, red beacons, hazard-yellow markings).
+  Each design draws back to front, since SVG paints in document order.
+- `generate.mjs` — writes one file per building in `planet-data.json` and
+  fails if a building has no design, so a new building cannot ship without
+  a sprite.
+
+Sprite contract: the SVG is exactly as wide as the footprint diamond of
+`size − 2 × 0.15` cells and its bottom edge is that footprint's front corner
+(the component's `SPRITE_INSET`; the generator has its own copy that must
+match). Re-run `npm run sprites:buildings` after changing a design, the
+inset or the projection. The old raster sprites in
+`public/buildings-isometric/` and `public/buildings/` are no longer used.
 
 ### Camera
 

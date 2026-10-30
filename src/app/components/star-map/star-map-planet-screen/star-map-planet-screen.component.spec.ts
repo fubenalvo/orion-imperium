@@ -278,7 +278,7 @@ describe('StarMapPlanetScreenComponent', () => {
       component.selectBuildingType('small_residential');
       component.onCellClick(4, 4);
       const ghost = component.sprites.find((s) => s.kind === 'ghost');
-      expect(ghost?.src).toContain('small-residential.png');
+      expect(ghost?.src).toBe('buildings-svg/small-residential.svg');
       component.exitBuildMode();
       expect(component.sprites.some((s) => s.kind === 'ghost')).toBe(false);
     });

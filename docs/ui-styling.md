@@ -267,9 +267,9 @@ root-absolute path (the menu uses `url('/nebula.png')`).
 
 Images use the browser's default smooth filtering everywhere. The project
 moved away from the pixel-art look, so there is no global
-`image-rendering: pixelated` reset and components must not add one; the
-building sprites in the planet view use the high-resolution
-`buildings-isometric/original-size/` images and are scaled down smoothly.
+`image-rendering: pixelated` reset and components must not add one. The
+planet-view building sprites are generated SVGs (`public/buildings-svg/`,
+see [Planet Surface](./planet-surface.md#building-sprites)).
 
 ## Planet view
 
