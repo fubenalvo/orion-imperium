@@ -25,7 +25,8 @@ src/app/
 
   main-menu/
     main-menu.ts / .html / .scss
-    → New-game setup host / slot-based load-game UI
+    → Title screen: decorative animated space scene, navigation,
+      New Game setup host, slot-based load-game UI (see ui-styling.md)
     new-game-setup/
     → New Game configuration screen (galaxy size, players, seed, slot)
 

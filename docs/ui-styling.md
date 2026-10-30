@@ -143,6 +143,61 @@ tighten; at ≤820px the subtitle is hidden and the title shrinks.
 header or its ancestors: they would become the containing block for the `position: fixed`
 currency / ship-stock detail overlays rendered inside it.
 
+## Main Menu
+
+The main menu (`src/app/main-menu/`) intentionally departs from the beveled
+in-game button and panel look: it is the game's title screen and uses a
+cinematic backdrop with borderless navigation. Its styles are fully scoped in
+`main-menu.scss`; the shared global button styles are overridden there under
+`.main-menu`, so global button changes do not affect the menu (and vice versa).
+
+### Structure
+
+- **`.scene`** — decorative, `aria-hidden`, `pointer-events: none`. Layers,
+  back to front: procedural star tiles + `stars.png`, the hue-shifted
+  `nebula.png`, the sun (single light source, upper right), the planet (static
+  banded base, a drifting `planet-clouds.png` layer, a terminator shade, an
+  atmosphere rim), the moon, a ship convoy (`ship.svg`) that crosses about once
+  every 75 s, foreground dust, and a readability veil.
+- **`.menu`** — logo, tagline and the navigation. Load Game replaces the
+  navigation inside the same column, so the logo stays visible.
+- **`.sheet`** — framed glass panel that hosts `app-new-game-setup`; the scene
+  is dimmed behind it.
+
+### Single-viewport rule
+
+The menu must always fit one viewport with no page scrolling. All sizes are
+derived from `dvh`/`vw` through `clamp()`/`min()` tokens on `.main-menu`
+(`--col-w`, `--logo-w`, `--label-size`, `--item-pad`, `--planet-size`, ...).
+Three layout modes reorganise the UI rather than scaling it:
+
+| Mode | Trigger | Layout |
+|---|---|---|
+| Default | landscape | Left column; on ultrawide the column is anchored to a centered 16:9 safe area. Planet lower right. |
+| Short landscape | `max-height: 560px` and aspect ≥ 5/4 | Logo and navigation side by side; hints, Load Game title and moon hidden. |
+| Portrait | aspect ≤ 4/5 or width ≤ 560px | Centered column; planet rises from the bottom edge; moon hidden. |
+
+The only internal scroll area is the New Game setup form itself, which is
+long by nature and bounded by its own `max-height`.
+
+### Motion
+
+- Only `transform` and `opacity` are animated. The planet cloud layer and the
+  dust plane loop by exactly one texture tile; the geometry notes in
+  `main-menu.scss` explain the ratios that keep those loops seamless.
+- Pointer parallax: `main-menu.ts` writes `--px`/`--py` (-1..1) on the host
+  from a plain `window` `pointermove` listener, which deliberately does not
+  trigger change detection. Each `.scene__depth` plane maps them to its own
+  offset. Disabled for `prefers-reduced-motion` and coarse pointers.
+- `prefers-reduced-motion: reduce` stops all menu animations and hides the
+  convoy.
+
+### Assets
+
+Bare `url('x.png')` references in component SCSS only resolve if the file is
+listed under `externalDependencies` in `angular.json`; otherwise use a
+root-absolute path (the menu uses `url('/nebula.png')`).
+
 ## Related documentation
 
 - [Architecture](./architecture.md)

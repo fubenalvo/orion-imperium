@@ -41,13 +41,16 @@
 .main-menu {
   /* Layout tokens. Height-based units (dvh) drive vertical rhythm so a
      short window compresses the stack instead of overflowing it. */
-  --gutter-x: clamp(20px, 7vw, 168px);
+  /* On ultrawide screens the column is anchored to a centered 16:9 safe
+     area instead of the far-left edge, so the UI does not drift away from
+     the composition. */
+  --gutter-x: max(clamp(20px, 7vw, 168px), calc((100vw - 177.78dvh) / 2 + 7vw));
   --gutter-y: clamp(12px, 5dvh, 72px);
-  --col-w: clamp(250px, 25vw, 440px);
+  --col-w: clamp(250px, min(25vw, 40dvh), 560px);
   --logo-w: min(calc(var(--col-w) * 1.08), 44dvh);
   --item-pad: clamp(5px, 1.15dvh, 14px);
-  --label-size: clamp(1.2rem, 3.4dvh, 2.25rem);
-  --hint-size: clamp(0.85rem, 1.9dvh, 1.2rem);
+  --label-size: clamp(1.2rem, 3.4dvh, 2.75rem);
+  --hint-size: clamp(0.85rem, 1.9dvh, 1.4rem);
   --nav-gap: clamp(0px, 0.6dvh, 8px);
 
   /* Scene tokens. */
@@ -165,8 +168,8 @@
   width: max(105vw, 150dvh);
   aspect-ratio: 1;
   background: url('/nebula.png') center / cover no-repeat;
-  opacity: 0.3;
-  filter: hue-rotate(160deg) saturate(0.7) brightness(0.85);
+  opacity: 0.36;
+  filter: hue-rotate(185deg) saturate(1.05) brightness(0.9);
   mask-image: radial-gradient(closest-side, #000 25%, rgba(0, 0, 0, 0.5) 60%, transparent 100%);
   animation: nebula-drift 140s ease-in-out infinite alternate;
   will-change: transform;
@@ -196,7 +199,7 @@
     left: 50%;
     top: 50%;
     width: 1px;
-    height: clamp(60px, 18dvh, 260px);
+    height: clamp(40px, 11dvh, 160px);
     transform: translate(-50%, -50%);
     background: linear-gradient(
       180deg,
@@ -213,19 +216,20 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: clamp(240px, 46vw, 1300px);
-  height: 2px;
+  width: clamp(180px, 28vw, 820px);
+  height: 1px;
   transform: translate(-50%, -50%);
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(120, 210, 230, 0.12) 30%,
-    rgba(var(--sun-warm), 0.45) 48%,
-    rgba(255, 255, 255, 0.8) 50%,
-    rgba(var(--sun-warm), 0.45) 52%,
-    rgba(120, 210, 230, 0.12) 70%,
+    rgba(120, 210, 230, 0.06) 25%,
+    rgba(var(--sun-warm), 0.3) 44%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(var(--sun-warm), 0.3) 56%,
+    rgba(120, 210, 230, 0.06) 75%,
     transparent
   );
+  box-shadow: 0 0 6px 1px rgba(var(--sun-warm), 0.12);
   animation: flare-breathe 9s ease-in-out infinite;
 }
 
@@ -248,13 +252,16 @@
   background:
     repeating-linear-gradient(
       166deg,
-      rgba(140, 220, 225, 0.06) 0 1.6%,
-      transparent 1.6% 4.4%,
-      rgba(4, 30, 46, 0.22) 4.4% 6.1%,
-      transparent 6.1% 9.3%
+      transparent 0,
+      rgba(140, 220, 225, 0.07) 2.5%,
+      transparent 5%,
+      rgba(4, 26, 44, 0.2) 8.5%,
+      transparent 12%,
+      rgba(90, 160, 190, 0.05) 15%,
+      transparent 19%
     ),
     url('planet-surface-noise.png') 0 0 / 3.2% 3.2%,
-    radial-gradient(circle at 62% 16%, #4fb1b0 0%, #1d717c 24%, #0e4155 48%, #072133 72%, #040f1a 100%);
+    radial-gradient(circle at 70% 12%, #5bb7b0 0%, #22788a 20%, #124a66 42%, #0a2840 66%, #050f1c 100%);
   background-blend-mode: normal, soft-light, normal;
   /* Own compositing layer so the rounded clip is not re-rasterized while
      the cloud layer inside it moves. */
@@ -277,7 +284,7 @@
   width: 180%;
   height: 120%;
   background: url('planet-clouds.png') 0 0 / calc(100% / 3.6) calc(100% / 2.4) repeat;
-  opacity: 0.6;
+  opacity: 0.5;
   transform-origin: 33.333% 50%;
   animation: cloud-drift 220s linear infinite;
   will-change: transform;
@@ -290,13 +297,13 @@
   inset: 0;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 63% 6%, rgba(var(--sun-warm), 0.22) 0%, transparent 22%),
+    radial-gradient(circle at 74% 5%, rgba(var(--sun-warm), 0.2) 0%, transparent 20%),
     radial-gradient(
-      ellipse 92% 82% at 64% 4%,
-      transparent 0 26%,
-      rgba(3, 10, 18, 0.5) 46%,
-      rgba(2, 6, 12, 0.9) 64%,
-      #01040a 80%
+      ellipse 88% 80% at 76% 0%,
+      transparent 0 22%,
+      rgba(3, 10, 18, 0.42) 44%,
+      rgba(2, 6, 12, 0.74) 64%,
+      rgba(1, 4, 10, 0.86) 84%
     );
   box-shadow: inset 0 0 calc(var(--planet-size) * 0.05) rgba(0, 0, 0, 0.7);
 }
@@ -320,29 +327,6 @@
   mask-image: linear-gradient(200deg, #000 22%, rgba(0, 0, 0, 0.3) 52%, rgba(0, 0, 0, 0.12) 70%);
 }
 
-/* Orbit ring. Drawn twice: the back half below the planet body and the
-   front half above it, so the planet occludes the far side of the ring. */
-.planet__orbit {
-  position: absolute;
-  left: -34%;
-  top: 22%;
-  width: 168%;
-  height: 56%;
-  border-radius: 50%;
-  border: 1px solid rgba(109, 229, 211, 0.16);
-  transform: rotate(-14deg);
-
-  &--back {
-    clip-path: inset(0 0 50% 0);
-    opacity: 0.6;
-  }
-
-  &--front {
-    clip-path: inset(50% 0 0 0);
-    border-color: rgba(140, 235, 225, 0.22);
-  }
-}
-
 /* ---------- Moon ----------
    Sits in the gap between the menu column and the planet. Its position is
    expressed in planet units so it keeps its relationship with the planet
@@ -351,13 +335,13 @@
   position: absolute;
   right: calc(var(--planet-right) + var(--planet-size) * 0.95 + 40px);
   bottom: calc(var(--planet-bottom) + var(--planet-size) * 0.92 + 40px);
-  width: calc(var(--planet-size) * 0.055);
+  width: calc(var(--planet-size) * 0.045);
   aspect-ratio: 1;
   border-radius: 50%;
   background:
-    radial-gradient(circle at 70% 24%, rgba(255, 244, 225, 0.55) 0%, transparent 46%),
+    radial-gradient(circle at 74% 22%, rgba(255, 238, 212, 0.4) 0%, transparent 38%),
     url('planet-surface-noise.png') 0 0 / 22% 22%,
-    radial-gradient(circle at 66% 30%, #9aa9ad 0%, #4a5a62 40%, #18222a 72%, #070b10 100%);
+    radial-gradient(circle at 72% 24%, #8e999c 0%, #4d5b62 26%, #1c262d 54%, #080c11 78%);
   background-blend-mode: normal, soft-light, normal;
   box-shadow: 0 0 calc(var(--planet-size) * 0.02) rgba(var(--sun-warm), 0.08);
   animation: moon-bob 26s ease-in-out infinite alternate;
@@ -474,8 +458,8 @@
   width: 100%;
   margin: clamp(2px, 0.6dvh, 10px) 0 0;
   color: var(--color-turquoise-light);
-  font-size: clamp(0.85rem, 1.9dvh, 1.25rem);
-  letter-spacing: 0.42em;
+  font-size: clamp(0.8rem, 1.75dvh, 1.15rem);
+  letter-spacing: 0.32em;
   white-space: nowrap;
   animation: fade-in 1.2s 0.35s ease both;
 
@@ -483,6 +467,7 @@
   &::after {
     content: '';
     flex: 1 1 0;
+    min-width: 0;
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(109, 229, 211, 0.45));
   }
@@ -945,6 +930,11 @@
     display: none;
   }
 
+  /* The moon would sit behind the navigation in this layout. */
+  .moon {
+    display: none;
+  }
+
   .scene__veil {
     background:
       linear-gradient(90deg, rgba(2, 6, 10, 0.7) 0%, rgba(2, 6, 10, 0.45) 55%, rgba(2, 6, 10, 0.15) 80%),
@@ -977,12 +967,6 @@
   }
 
   .moon {
-    right: calc(100vw * 0.14 + 40px);
-    bottom: calc(26dvh + 40px);
-    width: clamp(18px, 7vw, 44px);
-  }
-
-  .planet__orbit {
     display: none;
   }
 
