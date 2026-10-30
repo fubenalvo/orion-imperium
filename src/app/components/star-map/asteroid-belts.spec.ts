@@ -170,10 +170,9 @@ describe('asteroid belt generation', () => {
     // Varied sizes and rotations, deterministic.
     expect(new Set(fragments.map((f) => f.size.toFixed(2))).size).toBeGreaterThan(10);
     expect(buildBeltFragments(b)).toEqual(fragments);
-    // Bounded DOM cost: three merged rock paths + a capped set of spinning rocks.
+    // Bounded DOM cost: every rock is merged into at most three paths.
     const view = buildBeltView(b);
     expect(view.rocks.length).toBeLessThanOrEqual(3);
-    expect(view.spinning.length).toBeLessThanOrEqual(ASTEROID_BELT_CONFIG.maxSpinningPerBelt);
   });
 });
 

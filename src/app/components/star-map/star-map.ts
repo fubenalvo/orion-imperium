@@ -766,6 +766,11 @@ loadError = '';
       halo: nebulaSvgPath(nebula, 1.15),
       body: nebulaSvgPath(nebula, 1),
       core: nebulaSvgPath(nebula, 0.55),
+      cx: nebula.x - 0.5,
+      cy: nebula.y - 0.5,
+      // Covers the halo (scale 1.15 x the largest lobe, <= ~1.26) on every side.
+      textureSize: nebula.radius * 3,
+      rotationDeg: (nebula.rotation * 180) / Math.PI,
     }));
     this.beltViews = this.asteroidBelts.map((belt) => buildBeltView(belt));
     this.blackHoleRings = this.terrainService.obstacles.filter((o) => o.kind === 'blackhole').map((o) => ({

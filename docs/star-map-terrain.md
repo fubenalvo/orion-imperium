@@ -40,7 +40,7 @@ The existing `SpecialObject` with `type: 'blackhole'` is the obstacle; no second
   - An already accepted order that becomes unreachable is dropped by the movement step (target cleared, fleet stays), reported through `onRouteBlocked` (fleet panel or map notice for player fleets).
   - A fleet whose position is already inside a disc (only possible in saves older than this feature) ignores that disc so it can leave.
 - **Route cache:** the route is cached per fleet object in a `WeakMap` and never saved; it is re-planned whenever the target differs, so moving targets (pursuits, intercepts) are always routed from the fleet's current position.
-- **Visuals:** fleet trails are drawn per route leg (`getGalaxyTrailSegmentsVw`), so the line shown is the path flown. The black hole visual is centered on its cell span and sized from the no-fly radius (`--bh-radius-vw`, photon ring ≈ radius); a dashed ring marks the exact forbidden area.
+- **Visuals:** fleet trails are drawn per route leg (`getGalaxyTrailSegmentsVw`), so the line shown is the path flown. The black hole visual (`blackhole/`, pure CSS) is centered on its cell span and sized from the no-fly radius (`--bh-radius-vw`): its thin bright photon ring lies exactly on the no-fly edge, so the visual itself shows the forbidden area. Around it: a full Einstein ring hugging the shadow with a thick lensed arc on top, a wide tilted accretion disk (2D rotate + `scaleY`, streaks spinning by transform only) whose far half sits behind the shadow and near half crosses in front of it (two `clip-path` halves), Doppler brightening on the left, a warm bloom and a horizontal light streak along the disk plane. All ring gradients use `closest-side` so stops are fractions of each element's own radius. The exact dashed no-fly outline (`.no-fly-ring`, UI teal) is drawn only while a fleet is selected, when the player is planning a route.
 - **Speed / travel time:** unchanged except for the detour length.
 
 ## Nebulae
@@ -72,7 +72,7 @@ The existing `SpecialObject` with `type: 'blackhole'` is the obstacle; no second
 
 ### Rendering
 
-One SVG in grid units inside the transformed world (scales with zoom), under the fog layer (z 4), `pointer-events: none`, `mix-blend-mode: screen`: halo, gradient body and breathing core layers softened by a blur filter, plus a faint dashed edge marking where the penalties start. Paths are built once per load (`StarMap.rebuildTerrainViews`). The minimap draws the same body outlines as soft translucent patches under systems and fleets (scaled into minimap pixels; shown for the whole map, like star positions).
+One SVG in grid units inside the transformed world (scales with zoom), under the fog layer (z 4), `pointer-events: none`, `mix-blend-mode: screen`. Per nebula: a faint colored glow (halo, gradient body, core; blurred), then the gas structure — the shared `nebula.png` texture (rotated by the nebula's `rotation`, sized `3 x radius`) on an opaque black backing, grayscaled and multiplied by the nebula color, plus a pale untinted wisp copy, cut to the nebula shape by a blurred mask with a center-to-edge falloff and screened over the glow — and finally the dashed edge marking where the penalties start. The black backing matters: `nebula.png` is mostly transparent, and the multiply tint over transparency would produce a flat fill. Everything is static (no animation), so the layer is rasterized once per zoom level. `NebulaView.cx / cy / textureSize / rotationDeg` carry the texture placement. Paths are built once per load (`StarMap.rebuildTerrainViews`). The minimap draws the same body outlines as soft translucent patches under systems and fleets (scaled into minimap pixels; shown for the whole map, like star positions).
 
 ## Drifting asteroids
 
@@ -138,7 +138,7 @@ Long, narrow, permanent walls of rock — the strategic equivalent of cliffs: th
 
 ### Rendering
 
-One SVG layer in grid units inside the transformed world (scales with zoom) at z 4: under the fog like all terrain (unexplored belts are strongly dimmed), below asteroids, trails (14) and fleets (15), so routes and fleets stay readable; `pointer-events: none`. The layer is drawn at 55% opacity so belts read as subdued background terrain. Per belt: a blurred dust haze along the axis (shows the direction), three merged rock paths (dark/mid/light, faint rim highlight) and at most 24 individually spinning rocks (60–150 s per turn, CSS). Render data is built once per load (`buildBeltView` in `StarMap.rebuildTerrainViews`). The minimap draws each belt axis as a thick rock-colored line.
+One SVG layer in grid units inside the transformed world (scales with zoom) at z 4: under the fog like all terrain (unexplored belts are strongly dimmed), below asteroids, trails (14) and fleets (15), so routes and fleets stay readable; `pointer-events: none`. Per belt: a wide blurred dust haze and a narrower brighter dust core along the axis (shows the direction), and the rocks merged into at most three paths (dark/mid/light). Belts are static — no rock spins. The rocks are lit by one SVG lighting filter (`#belt-rock-light`: blurred alpha as a height map, `feDiffuseLighting` from the upper left, multiplied into the rock colors), which gives every rock its own rounded shading without per-rock elements; a noise-texture overlay adds surface grain. The dust and lighting filters use `userSpaceOnUse` regions spanning the whole map: a bbox-relative region would clip the blur of a nearly straight belt into a hard-edged band. Render data is built once per load (`buildBeltView` in `StarMap.rebuildTerrainViews`). The minimap draws each belt axis as a thick rock-colored line.
 
 ## Balance values
 
@@ -150,7 +150,7 @@ One SVG layer in grid units inside the transformed world (scales with zoom) at z
 | Nebula count / size / shape | `NEBULA_CONFIG` | 3/4/5; 12–19% of map height |
 | Belt count / length / thickness / bend | `ASTEROID_BELT_CONFIG` | 2/3/4; 20–36% of map width; half width 0.9–1.7; 45% arcs, sag 6–14% |
 | Belt safety margin / min passage / system clearance | `ASTEROID_BELT_CONFIG` | 0.5 / 6 / 4 cells |
-| Belt visual density | `ASTEROID_BELT_CONFIG.fragmentsPerCell`, `maxFragmentsPerBelt`, `maxSpinningPerBelt` | 1.6 / 320 / 24 |
+| Belt visual density | `ASTEROID_BELT_CONFIG.fragmentsPerCell`, `maxFragmentsPerBelt` | 1.6 / 320 |
 | Asteroid timing, speed, limit, radius | `ASTEROID_CONFIG` | see tables above |
 | Asteroid cargo | `ASTEROID_CONFIG.types` | see tables above |
 | AI salvage limits | `EnemyFleetService.SALVAGE_MAX_ETA` / `SALVAGE_TERRITORY_RANGE` | 150 s / 45 cells |

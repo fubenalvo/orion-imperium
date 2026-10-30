@@ -1,17 +1,25 @@
-<!-- Ambient Gravitational Distortion Halo -->
-<div class="gravitational-lens"></div>
+<!--
+  Layer order (back to front), see blackhole.component.scss:
+  bloom + light streak, far half of the accretion disk, Einstein ring and
+  its thick upper arc (the lensed far disk), shadow, photon ring, near half
+  of the disk crossing in front of the shadow.
+-->
+<div class="bloom"></div>
+<div class="streak"></div>
 
-<!-- Outer Swirling Accretion Disk Layer -->
-<div class="accretion-disk-outer"></div>
+<div class="disk disk--back">
+  <div class="disk__glow"></div>
+  <div class="disk__swirl"></div>
+</div>
 
-<!-- Inner Counter-Rotating Plasma Layer -->
-<div class="accretion-disk-inner"></div>
+<div class="einstein-ring"></div>
+<div class="lensed-arc"></div>
 
-<!-- Dust Particle Stream -->
-<div class="particle-ring"></div>
+<div class="event-horizon"></div>
 
-<!-- Bright Photon Ring -->
 <div class="photon-ring"></div>
 
-<!-- Pitch Black Central Event Horizon (Singularity) -->
-<div class="event-horizon"></div>
+<div class="disk disk--front">
+  <div class="disk__glow"></div>
+  <div class="disk__swirl"></div>
+</div>

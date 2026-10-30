@@ -11,7 +11,19 @@ describe('StarMapMinimapComponent nebulae', () => {
     const minimap = fixture.componentInstance;
     minimap.gridColumns = 120;
     minimap.gridRows = 72;
-    minimap.nebulae = [{ id: 3, color: nebula.color, halo: '', body: nebulaSvgPath(nebula), core: '' }];
+    minimap.nebulae = [
+      {
+        id: 3,
+        color: nebula.color,
+        halo: '',
+        body: nebulaSvgPath(nebula),
+        core: '',
+        cx: nebula.x - 0.5,
+        cy: nebula.y - 0.5,
+        textureSize: nebula.radius * 3,
+        rotationDeg: 0,
+      },
+    ];
     fixture.detectChanges();
 
     const paths = fixture.nativeElement.querySelectorAll('.minimap__nebula');

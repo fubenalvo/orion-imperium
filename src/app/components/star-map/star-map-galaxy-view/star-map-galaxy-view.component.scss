@@ -46,32 +46,52 @@
 }
 
 .nebula__halo {
-  opacity: 0.12;
+  opacity: 0.05;
 }
 
+/* The flat glow is now only the base light; the gas texture carries the
+   detail, so the body is much fainter than before. */
 .nebula__body {
-  opacity: 0.85;
+  opacity: 0.16;
 }
 
 .nebula__core {
-  opacity: 0.16;
-  animation: nebula-breathe 9s ease-in-out infinite alternate;
+  opacity: 0.14;
+}
+
+/* Gas structure: an isolated group (it is masked) screened over the glow,
+   so its black areas add nothing and only the lit filaments show. */
+.nebula__gas {
+  mix-blend-mode: screen;
+  opacity: 0.95;
+}
+
+/* Grayscale + contrast turns the shared art into a neutral luminance map;
+   the tint rect below colors it per nebula. */
+.nebula__texture {
+  /* High contrast: dark lanes go fully black (transparent after the
+     screen blend), so the gas shows as filaments, not as a flat fill. */
+  filter: grayscale(1) contrast(1.6) brightness(1.5);
+  image-rendering: auto;
+}
+
+/* Pale wisps on top of the tinted gas (see the template). */
+.nebula__texture--wisps {
+  mix-blend-mode: screen;
+  opacity: 0.22;
+}
+
+.nebula__tint {
+  mix-blend-mode: multiply;
 }
 
 .nebula__edge {
   fill: none;
   stroke-width: 0.15;
   stroke-dasharray: 0.6 0.8;
-  opacity: 0.35;
-}
-
-@keyframes nebula-breathe {
-  from {
-    opacity: 0.1;
-  }
-  to {
-    opacity: 0.22;
-  }
+  /* The gameplay boundary (movement / sensor penalty): kept clearly
+     readable over the textured gas. */
+  opacity: 0.5;
 }
 
 /* Fleet inside a nebula: hazy outline signals slowed movement and impaired sensors. */
@@ -85,13 +105,21 @@
 
 .no-fly-layer {
   z-index: 4;
+  /* Hidden unless a fleet is selected (see the template note). */
+  display: none;
 }
 
+.no-fly-layer--planning {
+  display: block;
+}
+
+/* UI teal, not the black hole's gold: it is a planning overlay and must
+   stay distinguishable from the photon ring it lies on. */
 .no-fly-ring {
   fill: none;
-  stroke: rgba(255, 120, 60, 0.55);
-  stroke-width: 0.12;
-  stroke-dasharray: 0.5 0.5;
+  stroke: rgba(109, 229, 211, 0.75);
+  stroke-width: 0.1;
+  stroke-dasharray: 0.35 0.45;
 }
 
 .special-object-cell.blackhole {
@@ -229,51 +257,40 @@
   pointer-events: none;
   /* Under the fog layer (z 5), so unexplored belts are dimmed too. */
   z-index: 4;
-  /* Kept subdued so the belts read as background terrain, not foreground objects. */
-  opacity: 0.55;
+  opacity: 0.9;
 }
 
-/* Faint dust haze along the belt axis: shows the overall direction. */
+/* Dust: a wide, faint haze along the axis plus a brighter, narrower core,
+   so the belt reads as a band of debris and not only as loose rocks. */
 .belt__dust {
   fill: none;
-  stroke: rgba(150, 128, 104, 0.1);
+  stroke: rgba(150, 132, 120, 0.12);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-/* Rocks: varied brightness with a restrained rim highlight. */
-.belt__rock {
-  stroke: rgba(255, 228, 196, 0.14);
-  stroke-width: 0.05;
-  stroke-linejoin: round;
+.belt__dust--core {
+  stroke: rgba(196, 170, 140, 0.14);
 }
 
+/* Rock base colors before the relief lighting filter multiplies them
+   (see the template note). The filter darkens flat areas to ~70%, so these
+   are a touch lighter than the final look: slate bodies with a warm cast. */
 .belt__rock--0 {
-  fill: #4a433c;
+  fill: #4a4950;
 }
 
 .belt__rock--1 {
-  fill: #6b6053;
+  fill: #605b5d;
 }
 
 .belt__rock--2 {
-  fill: #8f8270;
+  fill: #7a716a;
 }
 
-.belt__rock--spin {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation-name: belt-spin;
-  animation-timing-function: linear;
-  animation-iteration-count: infinite;
-}
-
-.belt__rock--reverse {
-  animation-direction: reverse;
-}
-
-@keyframes belt-spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* Grain: the noise texture blended into the rock color. */
+.belt__rock-texture {
+  fill: url(#belt-rock-texture);
+  mix-blend-mode: overlay;
+  opacity: 0.55;
 }

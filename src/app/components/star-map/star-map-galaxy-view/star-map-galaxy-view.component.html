@@ -21,6 +21,13 @@
       NEBULAE: one SVG in grid units (1 unit = 1 cell) under the fog layer,
       so it scales with the map transform and is dimmed by fog like other
       terrain. pointer-events: none keeps every object underneath clickable.
+      Per nebula: a soft colored glow (halo + body + core), then the gas
+      structure — the shared nebula texture, grayscaled and multiplied by the
+      nebula color, plus a pale untinted wisp layer, cut to the nebula shape
+      by a blurred mask and screened over the glow — and finally the dashed
+      edge (where the movement and
+      sensor penalty starts). Everything is static: the layer is rasterized
+      once per zoom level.
     -->
     @if (nebulae.length > 0) {
       <svg
@@ -35,12 +42,28 @@
           <filter id="nebula-soften" x="-20%" y="-20%" width="140%" height="140%">
             <feGaussianBlur stdDeviation="1.2" />
           </filter>
+          <filter id="nebula-mask-soften" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2.4" />
+          </filter>
+          <!-- Mask falloff: dense center, thinning toward the edge (volume). -->
+          <radialGradient id="nebula-mask-falloff">
+            <stop offset="0%" stop-color="#fff" />
+            <stop offset="55%" stop-color="#c8c8c8" />
+            <stop offset="100%" stop-color="#5a5a5a" />
+          </radialGradient>
           @for (nebula of nebulae; track nebula.id) {
             <radialGradient [attr.id]="'nebula-grad-' + nebula.id">
               <stop offset="0%" [attr.stop-color]="nebula.color" stop-opacity="0.55" />
               <stop offset="65%" [attr.stop-color]="nebula.color" stop-opacity="0.3" />
               <stop offset="100%" [attr.stop-color]="nebula.color" stop-opacity="0.06" />
             </radialGradient>
+            <!-- Soft-edged nebula shape: dim at the halo, full inside the body. -->
+            <mask [attr.id]="'nebula-mask-' + nebula.id">
+              <g filter="url(#nebula-mask-soften)">
+                <path [attr.d]="nebula.halo" fill="#3a3a3a" />
+                <path [attr.d]="nebula.body" fill="url(#nebula-mask-falloff)" />
+              </g>
+            </mask>
           }
         </defs>
         @for (nebula of nebulae; track nebula.id) {
@@ -48,6 +71,49 @@
             <path class="nebula__halo" [attr.d]="nebula.halo" [attr.fill]="nebula.color" />
             <path class="nebula__body" [attr.d]="nebula.body" [attr.fill]="'url(#nebula-grad-' + nebula.id + ')'" />
             <path class="nebula__core" [attr.d]="nebula.core" [attr.fill]="nebula.color" />
+          </g>
+          <g class="nebula__gas" [attr.mask]="'url(#nebula-mask-' + nebula.id + ')'">
+            <g [attr.transform]="'rotate(' + nebula.rotationDeg + ' ' + nebula.cx + ' ' + nebula.cy + ')'">
+              <!-- Opaque black backing: nebula.png is mostly transparent, and
+                   the multiply tint over transparency would give a flat fill.
+                   Black adds nothing under the group's screen blend. -->
+              <rect
+                fill="#000"
+                [attr.x]="nebula.cx - nebula.textureSize / 2"
+                [attr.y]="nebula.cy - nebula.textureSize / 2"
+                [attr.width]="nebula.textureSize"
+                [attr.height]="nebula.textureSize"
+              />
+              <image
+                class="nebula__texture"
+                href="/nebula.png"
+                preserveAspectRatio="xMidYMid slice"
+                [attr.x]="nebula.cx - nebula.textureSize / 2"
+                [attr.y]="nebula.cy - nebula.textureSize / 2"
+                [attr.width]="nebula.textureSize"
+                [attr.height]="nebula.textureSize"
+              />
+              <rect
+                class="nebula__tint"
+                [attr.fill]="nebula.color"
+                [attr.x]="nebula.cx - nebula.textureSize / 2"
+                [attr.y]="nebula.cy - nebula.textureSize / 2"
+                [attr.width]="nebula.textureSize"
+                [attr.height]="nebula.textureSize"
+              />
+              <!-- Untinted, smaller and rotated copy on top: pale hot wisps
+                   that add depth and break up the repeated texture. -->
+              <image
+                class="nebula__texture nebula__texture--wisps"
+                href="/nebula.png"
+                preserveAspectRatio="xMidYMid slice"
+                [attr.transform]="'rotate(137 ' + nebula.cx + ' ' + nebula.cy + ')'"
+                [attr.x]="nebula.cx - nebula.textureSize * 0.35"
+                [attr.y]="nebula.cy - nebula.textureSize * 0.35"
+                [attr.width]="nebula.textureSize * 0.7"
+                [attr.height]="nebula.textureSize * 0.7"
+              />
+            </g>
           </g>
           <!-- Crisp, faint edge: where the movement/sensor penalty starts. -->
           <path class="nebula__edge" [attr.d]="nebula.body" [attr.stroke]="nebula.color" />
@@ -162,11 +228,15 @@
     }
 
     <!--
-      ASTEROID BELTS: impassable walls of rock. One SVG for all belts; static
-      rocks are merged into a few paths per belt and only a capped subset
-      spins, so hundreds of fragments cost a handful of DOM nodes. Above fog
-      (they are major terrain the player plans around), below fleets, trails
-      and markers; never intercepts clicks.
+      ASTEROID BELTS: impassable walls of rock. One SVG for all belts; rocks
+      are merged into at most three paths per belt (one per shade), so
+      hundreds of fragments cost a handful of DOM nodes. The rocks are lit by
+      an SVG lighting filter (#belt-rock-light): it derives a bump map from
+      the blurred alpha edge of every shape, so each rock gets its own
+      rounded, upper-left-lit shading without per-rock elements; a
+      noise-texture copy adds surface grain. Static (no animation), so the
+      filter is rasterized once per zoom level. Under the fog like all terrain,
+      below fleets, trails and markers; never intercepts clicks.
     -->
     @if (belts.length > 0) {
       <svg
@@ -178,33 +248,79 @@
         aria-hidden="true"
       >
         <defs>
-          <filter id="belt-dust" x="-20%" y="-20%" width="140%" height="140%">
+          <!-- Filter regions in grid units over the whole map: a bbox-relative
+               region would clip the blur of a nearly straight belt (its
+               bounding box is almost flat) into a hard-edged band. -->
+          <filter
+            id="belt-dust"
+            filterUnits="userSpaceOnUse"
+            x="-10"
+            y="-10"
+            [attr.width]="gridColumns + 20"
+            [attr.height]="gridRows + 20"
+          >
             <feGaussianBlur stdDeviation="0.7" />
           </filter>
+          <filter
+            id="belt-dust-core"
+            filterUnits="userSpaceOnUse"
+            x="-10"
+            y="-10"
+            [attr.width]="gridColumns + 20"
+            [attr.height]="gridRows + 20"
+          >
+            <feGaussianBlur stdDeviation="0.3" />
+          </filter>
+          <!-- Per-rock relief lighting: blurred alpha = height map, light from
+               the upper left, multiplied into the rock colors. -->
+          <filter
+            id="belt-rock-light"
+            filterUnits="userSpaceOnUse"
+            x="-10"
+            y="-10"
+            [attr.width]="gridColumns + 20"
+            [attr.height]="gridRows + 20"
+          >
+            <feGaussianBlur in="SourceAlpha" stdDeviation="0.1" result="bump" />
+            <feDiffuseLighting in="bump" surfaceScale="4" diffuseConstant="1.25" lighting-color="#e6d6c0" result="light">
+              <feDistantLight azimuth="225" elevation="38" />
+            </feDiffuseLighting>
+            <feComposite in="light" in2="SourceAlpha" operator="in" result="lit" />
+            <feBlend in="SourceGraphic" in2="lit" mode="multiply" />
+          </filter>
+          <!-- Surface grain for the rocks (the shared planet noise texture). -->
+          <pattern id="belt-rock-texture" patternUnits="userSpaceOnUse" width="0.9" height="0.9">
+            <image href="planet-surface-noise.png" width="0.9" height="0.9" preserveAspectRatio="none" />
+          </pattern>
         </defs>
         @for (belt of belts; track belt.id) {
           <path class="belt__dust" [attr.d]="belt.axis" [attr.stroke-width]="belt.haloWidth" filter="url(#belt-dust)" />
-          @for (rock of belt.rocks; track rock.shade) {
-            <path class="belt__rock belt__rock--{{ rock.shade }}" [attr.d]="rock.d" />
-          }
-          @for (rock of belt.spinning; track $index) {
-            <g [attr.transform]="rock.transform">
-              <path
-                class="belt__rock belt__rock--{{ rock.shade }} belt__rock--spin"
-                [class.belt__rock--reverse]="rock.reverse"
-                [attr.d]="rock.shape"
-                [style.animation-duration]="rock.duration"
-              />
-            </g>
-          }
+          <path
+            class="belt__dust belt__dust--core"
+            [attr.d]="belt.axis"
+            [attr.stroke-width]="belt.haloWidth * 0.4"
+            filter="url(#belt-dust-core)"
+          />
+          <g class="belt__rocks" filter="url(#belt-rock-light)">
+            @for (rock of belt.rocks; track rock.shade) {
+              <path class="belt__rock belt__rock--{{ rock.shade }}" [attr.d]="rock.d" />
+              <path class="belt__rock-texture" [attr.d]="rock.d" />
+            }
+          </g>
         }
       </svg>
     }
 
-    <!-- BLACK HOLE NO-FLY ZONES (navigation obstacle outline) -->
+    <!--
+      BLACK HOLE NO-FLY ZONES (navigation obstacle outline). The black hole
+      visual already shows the zone (its photon ring lies on the edge), so the
+      exact dashed outline is only drawn while a fleet is selected, i.e. while
+      the player is planning a route and the precise boundary matters.
+    -->
     @if (blackHoleRings.length > 0) {
       <svg
         class="no-fly-layer"
+        [class.no-fly-layer--planning]="!!selectedFleet"
         [attr.viewBox]="'0 0 ' + gridColumns + ' ' + gridRows"
         preserveAspectRatio="none"
         [style.width]="gridColumns * cellSizeVw + 'vw'"

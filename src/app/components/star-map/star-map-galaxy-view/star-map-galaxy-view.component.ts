@@ -15,6 +15,13 @@ export interface NebulaView {
   halo: string;
   body: string;
   core: string;
+  /* Center (SVG grid units) and side of the square gas-texture image. */
+  cx: number;
+  cy: number;
+  textureSize: number;
+  /* Texture rotation in degrees (from the nebula's shape rotation), so
+     nebulae sharing the one texture still look different. */
+  rotationDeg: number;
 }
 
 /* Black hole no-fly zone outline in SVG grid units. */

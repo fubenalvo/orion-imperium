@@ -1,221 +1,250 @@
 /* =========================================================
-   BLACKHOLE COMPONENT — Pure CSS Singularity Visual
+   BLACK HOLE — pure CSS singularity (galaxy map terrain)
+   ---------------------------------------------------------
+   The classic image: a pitch-black shadow wrapped in a glowing ring of
+   lensed light (the far side of the accretion disk bent over and under the
+   hole, thick on top, thin below), a wide tilted disk whose near half
+   crosses IN FRONT of the shadow, Doppler brightening on the approaching
+   (left) side, and a warm bloom with a horizontal light streak along the
+   disk plane so it reads as a dominant light source on the map.
+
+   Sizing (gameplay contract): --blackhole-size (B) is the event horizon;
+   the photon ring is exactly 1.25 B and spans the navigation no-fly disc
+   (--bh-radius-vw is set by the galaxy view), so the bright edge around the
+   shadow is what fleets must avoid. The galaxy view draws the exact dashed
+   no-fly outline only while a fleet is selected. Every other layer is
+   decoration around that core and may extend past the host box.
+
+   Tilted disk without 3D: each .disk is a square rotated and squashed with
+   scaleY (2D transforms only); its .disk__swirl child spins inside the
+   squashed parent, a compositor-only rotation that reads as motion in the
+   tilted plane. Two copies split by clip-path (local space, before the
+   squash) give the far half behind the shadow and the near half in front.
+
+   Ring gradients use `closest-side`, so their stops are fractions of each
+   element's own radius. Only transform / opacity animate.
    ========================================================= */
 
 :host {
-  /*
-   * Sized from the navigation no-fly radius (--bh-radius-vw, set by the
-   * galaxy view): the photon ring (1.25 × event horizon) spans exactly the
-   * forbidden disc, so what the player sees is what fleets must avoid.
-   * The 260px/680px fallbacks are the original fixed sizes.
-   */
   --blackhole-size: calc(var(--bh-radius-vw, 162.5px) * 1.6);
   --disk-size: calc(var(--blackhole-size) * 2.615);
+  --disk-squash: 0.2;
+  --disk-roll: -8deg;
+
+  /* Palette: hot white -> gold -> amber -> ember. */
+  --bh-white: #fff8ec;
+  --bh-gold: #ffd27a;
+  --bh-amber: #ff9a3d;
+  --bh-ember: #d1501a;
+
   flex: 0 0 auto;
-
   display: flex;
   justify-content: center;
   align-items: center;
   position: relative;
   width: var(--disk-size);
   height: var(--disk-size);
+  pointer-events: none;
 }
 
-/* Starfield background rendered using pure CSS radial gradients */
-.starfield {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1.5px 1.5px at 12% 18%, rgba(255, 235, 180, 0.8) 100%, transparent),
-    radial-gradient(2px 2px at 24% 72%, rgba(255, 255, 255, 0.9) 100%, transparent),
-    radial-gradient(1px 1px at 38% 28%, rgba(255, 200, 120, 0.6) 100%, transparent),
-    radial-gradient(2.5px 2.5px at 52% 88%, rgba(255, 240, 200, 0.85) 100%, transparent),
-    radial-gradient(1.5px 1.5px at 68% 22%, rgba(255, 255, 255, 0.7) 100%, transparent),
-    radial-gradient(2px 2px at 82% 64%, rgba(255, 215, 140, 0.8) 100%, transparent),
-    radial-gradient(1px 1px at 92% 14%, rgba(255, 255, 255, 0.9) 100%, transparent),
-    radial-gradient(2px 2px at 96% 92%, rgba(255, 180, 80, 0.5) 100%, transparent),
-    radial-gradient(1.5px 1.5px at 44% 54%, rgba(255, 235, 190, 0.75) 100%, transparent),
-    radial-gradient(2px 2px at 74% 38%, rgba(255, 255, 255, 0.65) 100%, transparent);
-  background-size: 100% 100%;
-  animation: starTwinkle 7s ease-in-out infinite alternate;
-}
-
-@keyframes starTwinkle {
-  0% { opacity: 0.4; transform: scale(1); }
-  100% { opacity: 0.9; transform: scale(1.015); }
-}
-
-.black-hole-container {
-  position: relative;
-  width: var(--disk-size);
-  height: var(--disk-size);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transform-style: preserve-3d;
-}
-
-/* Ambient Gravitational Lens Halo in Amber/Gold */
-.gravitational-lens {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    transparent 30%,
-    rgba(255, 183, 3, 0.08) 52%,
-    rgba(251, 133, 0, 0.04) 68%,
-    transparent 82%
-  );
-  filter: blur(25px);
-  animation: pulseLens 6s ease-in-out infinite alternate;
-}
-
-@keyframes pulseLens {
-  0% { transform: scale(0.96); opacity: 0.7; }
-  100% { transform: scale(1.05); opacity: 1; }
-}
-
-/* Outer Rotating Accretion Disk with 3D Perspective */
-.accretion-disk-outer {
-  position: absolute;
-  width: var(--disk-size);
-  height: var(--disk-size);
-  border-radius: 50%;
-  transform: rotateX(75deg) rotateY(-12deg);
-  transform-style: preserve-3d;
-  animation: rotateDisk 14s linear infinite;
-}
-
-@keyframes rotateDisk {
-  from { transform: rotateX(75deg) rotateY(-12deg) rotateZ(0deg); }
-  to { transform: rotateX(75deg) rotateY(-12deg) rotateZ(360deg); }
-}
-
-/* Primary Plasma Swirl Gradient */
-.accretion-disk-outer::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    #ffea00 0deg,
-    #ffb703 35deg,
-    #fb8500 75deg,
-    #e05600 110deg,
-    transparent 160deg,
-    rgba(15, 6, 0, 0.95) 210deg,
-    #fb8500 270deg,
-    #ffb703 320deg,
-    #ffea00 360deg
-  );
-  filter: blur(14px);
-  mask-image: radial-gradient(circle, transparent 22%, black 34%, black 62%, transparent 72%);
-  -webkit-mask-image: radial-gradient(circle, transparent 22%, black 34%, black 62%, transparent 72%);
-}
-
-/* Secondary Counter-Rotating Disk Layer for Swirling Texture */
-.accretion-disk-inner {
-  position: absolute;
-  width: calc(var(--disk-size) * 0.85);
-  height: calc(var(--disk-size) * 0.85);
-  border-radius: 50%;
-  transform: rotateX(75deg) rotateY(-12deg);
-  animation: rotateDiskCounter 9s linear infinite;
-}
-
-@keyframes rotateDiskCounter {
-  from { transform: rotateX(75deg) rotateY(-12deg) rotateZ(360deg); }
-  to { transform: rotateX(75deg) rotateY(-12deg) rotateZ(0deg); }
-}
-
-.accretion-disk-inner::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: conic-gradient(
-    from 180deg,
-    #ffffff 0deg,
-    #ffea00 45deg,
-    #ffb703 90deg,
-    #e05600 140deg,
-    transparent 200deg,
-    #fb8500 280deg,
-    #ffffff 360deg
-  );
-  filter: blur(8px);
-  opacity: 0.9;
-  mask-image: radial-gradient(circle, transparent 26%, black 40%, black 58%, transparent 68%);
-  -webkit-mask-image: radial-gradient(circle, transparent 26%, black 40%, black 58%, transparent 68%);
-}
-
-/* Relativistic Thin Photon Ring Outer Light Boundary */
+.bloom,
+.streak,
+.disk,
+.einstein-ring,
+.lensed-arc,
+.event-horizon,
 .photon-ring {
   position: absolute;
-  width: calc(var(--blackhole-size) * 1.25);
-  height: calc(var(--blackhole-size) * 1.25);
+  left: 50%;
+  top: 50%;
   border-radius: 50%;
+}
+
+/* ---------- Light around the hole ---------- */
+
+/* Warm bloom: the whole system glows, strongest near the ring. */
+.bloom {
+  width: calc(var(--blackhole-size) * 3.6);
+  height: calc(var(--blackhole-size) * 3.6);
+  transform: translate(-50%, -50%);
   background: radial-gradient(
-    circle,
-    transparent 48%,
-    rgba(255, 255, 255, 0.95) 52%,
-    #ffea00 58%,
-    #ffb703 66%,
-    #e05600 74%,
-    transparent 85%
+    circle closest-side,
+    rgba(255, 190, 110, 0.32) 20%,
+    rgba(255, 150, 70, 0.14) 38%,
+    rgba(230, 110, 50, 0.05) 60%,
+    transparent 100%
   );
-  filter: blur(4px);
-  box-shadow:
-    0 0 25px #ffea00,
-    0 0 50px #ffb703,
-    0 0 90px #e05600;
-  animation: photonPulsate 4s ease-in-out infinite alternate;
+  animation: bh-breathe 7s ease-in-out infinite alternate;
 }
 
-@keyframes photonPulsate {
-  0% { transform: scale(0.99); opacity: 0.85; }
-  100% { transform: scale(1.02); opacity: 1; filter: blur(3px); }
+/* Horizontal light streak along the disk plane (lens flare of the disk). */
+.streak {
+  width: calc(var(--blackhole-size) * 4.6);
+  height: calc(var(--blackhole-size) * 0.5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(var(--disk-roll));
+  background: radial-gradient(
+    closest-side,
+    rgba(255, 236, 200, 0.4) 0%,
+    rgba(255, 180, 100, 0.16) 40%,
+    transparent 100%
+  );
 }
 
-/* Event Horizon: PURE PITCH BLACK CENTER */
-.event-horizon {
+/* ---------- Accretion disk ---------- */
+
+.disk {
+  width: var(--disk-size);
+  height: var(--disk-size);
+  transform: translate(-50%, -50%) rotate(var(--disk-roll)) scaleY(var(--disk-squash));
+}
+
+.disk--back {
+  clip-path: inset(0 0 50% 0);
+}
+
+.disk--front {
+  clip-path: inset(50% 0 0 0);
+}
+
+.disk__glow,
+.disk__swirl {
   position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+
+/* Hot inner edge on the photon ring (0.625 B = 47.8% of the disk radius;
+   any gap there would show the horizon's dark edge as notches),
+   cooling outward. Doppler beaming as a horizontal mask: full strength on
+   the approaching left side, fading toward the receding right. */
+.disk__glow {
+  background: radial-gradient(
+    circle closest-side,
+    transparent 47.5%,
+    var(--bh-white) 48.5%,
+    var(--bh-gold) 54%,
+    var(--bh-amber) 63%,
+    color-mix(in srgb, var(--bh-ember) 80%, transparent) 75%,
+    color-mix(in srgb, var(--bh-ember) 30%, transparent) 88%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(90deg, #000 0%, #000 35%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* Infalling streaks rotating with the disk. */
+.disk__swirl {
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(255, 248, 230, 0.45) 0deg,
+    transparent 3deg,
+    rgba(110, 25, 0, 0.4) 8deg,
+    transparent 12deg,
+    rgba(255, 215, 160, 0.3) 16deg,
+    transparent 21deg
+  );
+  mask-image: radial-gradient(circle closest-side, transparent 48%, #000 53%, #000 72%, transparent 95%);
+  mix-blend-mode: overlay;
+  animation: bh-swirl 34s linear infinite;
+}
+
+/* ---------- Lensed light around the shadow ---------- */
+
+/* Full Einstein ring hugging the shadow: the far disk seen over AND under
+   the hole. Radius 0.82 B; the bright band spans ~0.6-0.74 B. */
+.einstein-ring {
+  width: calc(var(--blackhole-size) * 1.64);
+  height: calc(var(--blackhole-size) * 1.64);
+  transform: translate(-50%, -50%) rotate(var(--disk-roll));
+  background: radial-gradient(
+    circle closest-side,
+    transparent 72%,
+    var(--bh-white) 76%,
+    var(--bh-gold) 80%,
+    color-mix(in srgb, var(--bh-amber) 70%, transparent) 86%,
+    color-mix(in srgb, var(--bh-ember) 25%, transparent) 93%,
+    transparent 100%
+  );
+  /* Doppler: brighter on the left. */
+  mask-image: linear-gradient(90deg, #000 0%, #000 40%, rgba(0, 0, 0, 0.6) 100%);
+  animation: bh-shimmer 6s ease-in-out infinite alternate;
+}
+
+/* The thick upper arc: most of the lensed far disk piles up above the
+   shadow. Radius 1.05 B, faded out below the equator. */
+.lensed-arc {
+  width: calc(var(--blackhole-size) * 2.1);
+  height: calc(var(--blackhole-size) * 2.1);
+  transform: translate(-50%, -50%) rotate(var(--disk-roll));
+  background: radial-gradient(
+    circle closest-side,
+    transparent 56%,
+    color-mix(in srgb, var(--bh-white) 90%, transparent) 60%,
+    var(--bh-gold) 66%,
+    var(--bh-amber) 74%,
+    color-mix(in srgb, var(--bh-ember) 45%, transparent) 84%,
+    transparent 96%
+  );
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0, 0, 0, 0.9) 25%, rgba(0, 0, 0, 0.35) 42%, transparent 50%);
+}
+
+/* ---------- Shadow ---------- */
+
+.event-horizon {
   width: var(--blackhole-size);
   height: var(--blackhole-size);
-  background-color: #000000;
-  border-radius: 50%;
-  box-shadow:
-    0 0 15px 4px #000000,
-    0 0 35px rgba(255, 234, 0, 0.35),
-    0 0 70px rgba(255, 183, 3, 0.25);
-  z-index: 10;
+  transform: translate(-50%, -50%);
+  background: #000;
+  box-shadow: inset 0 0 calc(var(--blackhole-size) * 0.1) rgba(255, 170, 90, 0.08);
 }
 
-/* Swirling Dust & Particles Layer */
-.particle-ring {
-  position: absolute;
-  width: calc(var(--disk-size) * 0.92);
-  height: calc(var(--disk-size) * 0.92);
-  border-radius: 50%;
-  transform: rotateX(75deg) rotateY(-12deg);
-  border: 2px dashed rgba(255, 234, 0, 0.35);
-  filter: drop-shadow(0 0 8px #ffb703);
-  mask-image: radial-gradient(circle, transparent 42%, black 52%);
-  -webkit-mask-image: radial-gradient(circle, transparent 42%, black 52%);
-  animation: rotateDisk 6s linear infinite;
+/* Photon ring: a thin, very bright line at exactly 1.25 B (the no-fly
+   edge), with the dark gap down to the horizon inside it. */
+.photon-ring {
+  width: calc(var(--blackhole-size) * 1.25);
+  height: calc(var(--blackhole-size) * 1.25);
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    circle closest-side,
+    #000 79%,
+    transparent 88%,
+    color-mix(in srgb, var(--bh-gold) 80%, transparent) 94%,
+    #fff 97%,
+    color-mix(in srgb, var(--bh-gold) 60%, transparent) 99%,
+    transparent 100%
+  );
 }
 
-/* Minimal Minimalist Label */
-.title-badge {
-  position: absolute;
-  bottom: 30px;
-  color: rgba(255, 235, 180, 0.35);
-  font-size: 11px;
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
-  user-select: none;
-  pointer-events: none;
+@keyframes bh-swirl {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bh-breathe {
+  0% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.03);
+  }
+}
+
+@keyframes bh-shimmer {
+  0% {
+    opacity: 0.88;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bloom,
+  .disk__swirl,
+  .einstein-ring {
+    animation: none;
+  }
 }

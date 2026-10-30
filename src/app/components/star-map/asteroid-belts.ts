@@ -64,9 +64,6 @@ export const ASTEROID_BELT_CONFIG = {
   /* Visual density: fragments per cell² of band area, capped per belt. */
   fragmentsPerCell: 1.6,
   maxFragmentsPerBelt: 320,
-  /* Share of fragments that slowly spin (individual SVG elements); the rest are merged. */
-  spinningShare: 0.08,
-  maxSpinningPerBelt: 24,
 };
 
 /* Radius of a belt's navigation capsules. */
@@ -314,8 +311,6 @@ export interface BeltFragment {
   /* 0..2: dark, mid, light rock. */
   shade: number;
   shape: number;
-  /* Seconds per turn for spinning rocks (negative = counter-clockwise); 0 = static. */
-  spin: number;
 }
 
 const ROCK_SHAPE_COUNT = 6;
@@ -335,10 +330,6 @@ export const ROCK_SHAPES: readonly NavPoint[][] = (() => {
     });
   });
 })();
-
-export const ROCK_SHAPE_PATHS: readonly string[] = ROCK_SHAPES.map(
-  (pts) => `M${pts.map((p) => `${fmt(p.x)} ${fmt(p.y)}`).join(' L')} Z`,
-);
 
 function fmt(v: number): string {
   return (Math.round(v * 100) / 100).toString();
@@ -383,7 +374,6 @@ export function buildBeltFragments(belt: AsteroidBelt): BeltFragment[] {
     (0.45 * waves.reduce((sum, w) => sum + Math.sin(t * w.freq + w.phase), 0)) / waves.length;
 
   const fragments: BeltFragment[] = [];
-  let spinning = 0;
   for (let attempt = 0; fragments.length < target && attempt < target * 3; attempt++) {
     const t = rng() * length;
     if (rng() > density(t)) {
@@ -398,10 +388,6 @@ export function buildBeltFragments(belt: AsteroidBelt): BeltFragment[] {
     if (size < 0.08) {
       continue;
     }
-    const spins = spinning < cfg.maxSpinningPerBelt && size > 0.25 && rng() < cfg.spinningShare * 3;
-    if (spins) {
-      spinning++;
-    }
     fragments.push({
       x: p.x - dir.y * lateral,
       y: p.y + dir.x * lateral,
@@ -409,7 +395,6 @@ export function buildBeltFragments(belt: AsteroidBelt): BeltFragment[] {
       rotation: rng() * 360,
       shade: Math.min(2, Math.floor(rng() * 3)),
       shape: Math.floor(rng() * ROCK_SHAPE_COUNT),
-      spin: spins ? (60 + rng() * 90) * (rng() < 0.5 ? -1 : 1) : 0,
     });
   }
   return fragments;
@@ -420,40 +405,22 @@ export interface BeltView {
   /* Axis polyline (SVG units) for the dust haze and the minimap. */
   axis: string;
   haloWidth: number;
-  /* Static rocks merged into one path per shade. */
+  /* Rocks merged into one path per shade (static; belts do not animate). */
   rocks: { shade: number; d: string }[];
-  /* Individually spinning rocks. */
-  spinning: {
-    transform: string;
-    shape: string;
-    shade: number;
-    duration: string;
-    reverse: boolean;
-  }[];
 }
 
 /*
  * Render data of a belt in SVG units (1 unit = 1 cell; grid coordinate N
- * is drawn at N - 0.5, the galaxy view's cell center). Static rocks are
- * merged into three paths so a belt with hundreds of rocks costs a handful
- * of DOM nodes; only a small capped subset spins.
+ * is drawn at N - 0.5, the galaxy view's cell center). Rocks are merged
+ * into three paths (one per shade) so a belt with hundreds of rocks costs a
+ * handful of DOM nodes; the galaxy view lights each merged path with a
+ * clipped rim/shadow trick instead of per-rock elements.
  */
 export function buildBeltView(belt: AsteroidBelt): BeltView {
   const shades: string[][] = [[], [], []];
-  const spinning: BeltView['spinning'] = [];
   for (const f of buildBeltFragments(belt)) {
     const cx = f.x - 0.5;
     const cy = f.y - 0.5;
-    if (f.spin !== 0) {
-      spinning.push({
-        transform: `translate(${fmt(cx)} ${fmt(cy)}) scale(${fmt(f.size)})`,
-        shape: ROCK_SHAPE_PATHS[f.shape],
-        shade: f.shade,
-        duration: `${Math.abs(f.spin).toFixed(0)}s`,
-        reverse: f.spin < 0,
-      });
-      continue;
-    }
     const rad = (f.rotation * Math.PI) / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
@@ -470,6 +437,5 @@ export function buildBeltView(belt: AsteroidBelt): BeltView {
     rocks: shades
       .map((paths, shade) => ({ shade, d: paths.join(' ') }))
       .filter((r) => r.d.length > 0),
-    spinning,
   };
 }
