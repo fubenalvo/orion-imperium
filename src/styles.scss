@@ -7,6 +7,7 @@
    it lives in src/styles/_ui.scss.
    ========================================================= */
 
+@use 'sass:meta';
 @use 'mixins' as *;
 @use 'ui';
 
@@ -725,3 +726,11 @@ input[type='range']::-moz-range-thumb {
   padding: 10px;
   z-index: 9999;
 }
+
+/* =========================================================
+   HUD PANELS
+   Loaded last so its placement rules (e.g. position: absolute
+   on the info cards) win over the generic .panel-style above.
+   ========================================================= */
+
+@include meta.load-css('hud-panels');

@@ -5,7 +5,7 @@
       <div class="planet-sidebar__content">
         <div class="planet-sidebar__empty">This planet has not been explored yet.</div>
       </div>
-      <button class="planet-sidebar__back-btn" type="button" (click)="backToStarMap.emit()">
+      <button class="planet-sidebar__back-btn btn-primary" type="button" (click)="backToStarMap.emit()">
         BACK TO STAR MAP
       </button>
     </div>
@@ -382,7 +382,7 @@
                 @if (selectedCell) {
                   @if (isPreviewValid) {
                     <button
-                      class="planet-sidebar__btn planet-sidebar__btn--build"
+                      class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
                       type="button"
                       (click)="confirmBuild()"
                     >

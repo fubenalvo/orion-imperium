@@ -456,6 +456,8 @@
   grid-template-columns: auto 1fr;
   grid-template-rows: auto auto;
   column-gap: clamp(10px, 1.1vw, 18px);
+  /* The global button rule sets a gap; the label/hint rows must stay tight. */
+  row-gap: 0;
   align-items: center;
   justify-content: stretch;
   width: 100%;

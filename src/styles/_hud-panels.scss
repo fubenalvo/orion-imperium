@@ -1,19 +1,30 @@
 /* =========================================================
-   STAR MAP PANELS
+   HUD PANELS (global)
    ---------------------------------------------------------
    Floating info panels of the galaxy map and system view
-   (system, fleet, planet, asteroid), the fleet roster and the
-   context menu. The glass card, header and close button come
-   from the global .panel-style classes (styles.scss); rows and
-   labels use the shared .ui-* classes. This partial only adds
-   placement and panel-specific layout.
+   (system, fleet, planet, asteroid cards), the fleet roster,
+   the context menu and the header detail overlay (currency
+   breakdown, ship stock).
+
+   These rules are global on purpose: several components render
+   these classes, and a partial @use'd from component styles is
+   copied into every one of them (with encapsulation attributes),
+   which inflated the bundle past its budget. Written once here,
+   they cost nothing per component. Component stylesheets only
+   add what is specific to them (e.g. a z-index).
+
+   In global scope the `button:hover:not(:disabled)` rule of
+   styles.scss outranks `.x:hover`, so button hovers here are
+   written as `:hover:not(:disabled)`.
    ========================================================= */
 
 @use 'mixins' as *;
 @use 'ui';
 
 /* Bottom-left info card (system, fleet and planet panels share it). */
-@mixin info-card {
+.system-info,
+.fleet-info,
+.planet-info {
   position: absolute;
   left: var(--ui-edge);
   bottom: var(--ui-edge);
@@ -43,10 +54,6 @@
     opacity: 1;
     transform: none;
   }
-}
-
-.system-info {
-  @include info-card;
 }
 
 .system-info__content {
@@ -125,27 +132,26 @@
    FLEET INFO
    ========================================================= */
 
-.fleet-info {
-  @include info-card;
-}
-
 .fleet-actions {
   display: flex;
   gap: 0.45em;
   margin-top: 0.5em;
 }
 
+/* The global button rule supplies the look; only the small size here. */
 .action-btn {
-  @include ui.button(sm);
   flex: 1 1 0;
   min-width: 0;
+  min-height: 0;
+  padding: 0.45em 0.9em;
+  font-size: var(--ui-fs-xs);
 
   &.active {
     @include ui.button-selected;
   }
 }
 
-.fleet-actions .action-btn.disband-btn {
+.action-btn.disband-btn {
   @include ui.button-danger;
 }
 
@@ -314,7 +320,7 @@
     white-space: nowrap;
   }
 
-  &:hover {
+  &:hover:not(:disabled) {
     border-color: var(--ui-line-soft);
     background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.12), transparent);
     box-shadow: none;
@@ -325,7 +331,8 @@
     }
   }
 
-  &.selected {
+  &.selected,
+  &.selected:hover:not(:disabled) {
     border-color: var(--ui-line);
     border-left: 2px solid var(--fleet-color, var(--ui-accent));
     background: linear-gradient(90deg, color-mix(in srgb, var(--fleet-color, var(--ui-accent)) 22%, transparent), transparent);
@@ -399,7 +406,7 @@
     margin-top: 1px;
   }
 
-  &:hover {
+  &:hover:not(:disabled) {
     border-left-color: var(--ui-accent);
     background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.16), transparent);
     box-shadow: none;
@@ -415,4 +422,100 @@
   &:active {
     background: rgba(var(--ui-accent-rgb), 0.24);
   }
+}
+
+/* =========================================================
+   HEADER DETAIL OVERLAY (currency breakdown, ship stock)
+   Markup: .hud-overlay > .hud-overlay__panel, heading
+   .hud-overlay__title.
+   ========================================================= */
+
+.hud-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 14vh 16px 16px;
+  @include ui.backdrop;
+}
+
+.hud-overlay__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: min(440px, 100%);
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 1.1rem 1.3rem 1.3rem;
+  border-radius: var(--ui-radius);
+  color: var(--color-text);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.04em;
+  @include ui.glass;
+  @include ui.brackets(18px);
+  @include ui.scroll;
+}
+
+.hud-overlay__title {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.5), transparent) 1;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-md);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+
+  &::before {
+    @include ui.diamond;
+  }
+
+  img {
+    width: 1em;
+    height: 1em;
+  }
+}
+
+.hud-overlay__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.hud-overlay__section-title {
+  @include ui.section-label;
+  margin: 0.3rem 0 0.15rem;
+}
+
+.hud-overlay__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--ui-ink);
+
+  > span:last-child {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+}
+
+.hud-overlay__row--income {
+  color: var(--ui-success);
+}
+
+.hud-overlay__row--expense {
+  color: var(--ui-danger-text);
+}
+
+.hud-overlay__row--net {
+  margin-top: 0.2rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--ui-line);
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-md);
 }

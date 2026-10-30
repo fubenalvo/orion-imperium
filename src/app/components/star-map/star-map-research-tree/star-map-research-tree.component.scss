@@ -119,11 +119,19 @@
 }
 
 .research-tree__close-btn {
-  @include ui.button(sm);
+  @include ui.button-size(sm);
   letter-spacing: 0.24em;
 }
 
 /* ---------- Filters ---------- */
+
+/* Header and filters never shrink: only the body scrolls. (With
+   overflow-x: auto on narrow screens the filters' min-height would
+   otherwise drop to 0 and the fixed-height panel would squeeze them away.) */
+.research-tree__header,
+.research-tree__filters {
+  flex-shrink: 0;
+}
 
 .research-tree__filters {
   display: flex;
@@ -364,9 +372,9 @@
   flex: 1 1 auto;
 }
 
+/* Look from the global button + .btn-primary (template). */
 .research-tree__btn {
-  @include ui.button(sm);
-  @include ui.button-primary;
+  @include ui.button-size(sm);
   margin-left: auto;
   letter-spacing: 0.2em;
 }

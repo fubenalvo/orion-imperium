@@ -132,7 +132,7 @@
 
   <div class="setup-actions">
     <button type="button" (click)="cancel.emit()">BACK</button>
-    <button type="button" class="setup-actions__start" [disabled]="starting || validationErrors.length > 0" (click)="onStart()">
+    <button type="button" class="setup-actions__start btn-primary" [disabled]="starting || validationErrors.length > 0" (click)="onStart()">
       {{ starting ? 'GENERATING…' : 'START GAME' }}
     </button>
   </div>

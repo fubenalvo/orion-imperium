@@ -7,7 +7,7 @@
     </span>
   </div>
 
-  <button class="production-panel__add" type="button" (click)="openBuildMenu.emit()">
+  <button class="production-panel__add btn-primary" type="button" (click)="openBuildMenu.emit()">
     + QUEUE NEW ORDER
   </button>
 
@@ -30,7 +30,7 @@
           <div class="production-panel__row-bar">
             <div class="production-panel__row-bar-fill" [style.width.%]="(order.progress * 100) | number:'1.0-0'"></div>
           </div>
-          <button class="production-panel__row-cancel" type="button" (click)="cancelOrderClick(order.id)">X</button>
+          <button class="production-panel__row-cancel btn-danger" type="button" (click)="cancelOrderClick(order.id)">X</button>
         </div>
       }
     }
@@ -79,6 +79,7 @@
             <button type="button" (click)="closeBuildMenu.emit()">CANCEL</button>
             <button
               type="button"
+              class="btn-primary"
               [disabled]="!canQueue()"
               (click)="confirmQueue()"
             >QUEUE</button>

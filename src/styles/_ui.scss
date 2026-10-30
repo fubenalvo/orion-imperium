@@ -352,3 +352,29 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(var(--ui-accent-rgb), 0.3) transparent;
 }
+
+/* Size-only variants for <button> elements. Buttons already get the full
+   look from the global `button` rule (styles.scss), so a component only
+   needs to adjust size; variants come from the global classes
+   (.btn-primary, .btn-danger) in the template. This is far cheaper than
+   re-including ui.button in a component stylesheet, which copies the
+   whole rule set (with encapsulation attributes) into the bundle. */
+@mixin button-size($size: sm) {
+  min-height: 0;
+
+  @if $size == sm {
+    padding: 0.45em 0.9em;
+    font-size: var(--ui-fs-xs);
+  } @else {
+    padding: 0.6em 1.4em;
+    font-size: var(--ui-fs-sm);
+  }
+}
+
+@mixin icon-size($size: 2.2em) {
+  width: $size;
+  height: $size;
+  min-height: 0;
+  padding: 0;
+  letter-spacing: 0;
+}

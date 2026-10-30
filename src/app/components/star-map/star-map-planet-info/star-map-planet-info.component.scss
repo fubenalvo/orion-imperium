@@ -1,9 +1,6 @@
-@use '../_star-map-panels' as panels;
-
-/* Same bottom-left card as the system/fleet panels, above the system
-   scene's planets (z-index) because it opens over them. */
+/* Placement is the shared bottom-left card (styles/_hud-panels.scss); it
+   sits above the system scene's planets because it opens over them. */
 .planet-info {
-  @include panels.info-card;
   z-index: 120;
 }
 

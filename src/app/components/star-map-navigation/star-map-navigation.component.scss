@@ -40,7 +40,7 @@
 }
 
 .map-navigation__dpad button {
-  @include ui.icon-button(2.4em);
+  @include ui.icon-size(2.4em);
   font-size: 0.85rem;
   color: var(--ui-ink-dim);
 

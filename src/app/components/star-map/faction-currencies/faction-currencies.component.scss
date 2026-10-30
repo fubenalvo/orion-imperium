@@ -1,4 +1,3 @@
-@use '../_hud-overlay';
 
 /* Sizes use --gh-u (set by GameHeaderComponent) so the row scales with
    the header; the fallbacks apply if it is ever rendered outside one. */

@@ -90,9 +90,9 @@
     <div class="spaceport-panel__actions">
       <button type="button" (click)="close.emit()">CANCEL</button>
       @if (mode === 'reinforce' && targetFleetId != null) {
-        <button type="button" class="spaceport-panel__disband" (click)="disband.emit()">DISBAND FLEET</button>
+        <button type="button" class="spaceport-panel__disband btn-danger" (click)="disband.emit()">DISBAND FLEET</button>
       }
-      <button type="button" [disabled]="!canConfirm()" (click)="confirmClick()">
+      <button type="button" class="btn-primary" [disabled]="!canConfirm()" (click)="confirmClick()">
         @if (mode === 'create') {
           CREATE FLEET ({{ totalSelected() }})
         } @else {

@@ -17,6 +17,7 @@ Sources of truth:
 | `src/styles/_ui.scss` | SCSS mixins for the same building blocks (`@use 'ui';`). Mixins only, so using the partial costs nothing until a mixin is included |
 | `src/styles/_hud-controls.scss` | Header-sized buttons (`hud-button`, `-active`, `-dimmed`), scaled by `--gh-u` |
 | `src/styles/_hud-panel.scss` | `hud-frame` / `hud-accent-notches` / `hud-panel`: aliases of `ui.glass` + `ui.brackets` for stylesheets that want the panel look on their own selector |
+| `src/styles/_hud-panels.scss` | Global rules for the star map's floating panels (system / fleet / planet info cards, fleet roster, context menu) and the header detail overlay (`.hud-overlay`). Loaded at the end of `styles.scss` with `meta.load-css`, so its placement rules win over `.panel-style` |
 
 ### Tokens
 
@@ -86,6 +87,22 @@ Rules:
 | Icon button (close, d-pad, steppers) | | `ui.icon-button($size)` |
 | Underline tab | | `ui.tab` + `ui.tab-active` |
 | Inputs, select, checkbox, radio, range | elements | |
+
+**Bundle budget rule.** Anything a component stylesheet `@use`s or
+`@include`s is copied into that component's CSS, with Angular's
+encapsulation attributes on every selector, and that CSS ships inside
+`main.js`. So:
+
+- A `<button>` already has the full look from the global rule. In a
+  component, adjust only its size (`ui.button-size`, `ui.icon-size`) and put
+  the variant in the template (`class="btn-primary"`, `btn-danger`,
+  `ui-chip ui-chip--success`). Do not re-include `ui.button` /
+  `ui.icon-button` on a `<button>`; keep the full mixins for non-button
+  elements and for selected states (`ui.button-selected`, small).
+- Styles rendered by several components belong in a global partial
+  (`_hud-panels.scss`), not in a partial each component `@use`s. The star
+  map panels used to be such a shared partial and pushed the initial bundle
+  over its 1 MB error budget.
 
 Component class selectors outrank the global element rules, but the global
 `button:hover:not(:disabled)` outranks a plain component class. A component

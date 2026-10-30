@@ -34,9 +34,8 @@
   text-transform: none;
 }
 
+/* Look from the global button + .btn-primary (template). */
 .production-panel__add {
-  @include ui.button;
-  @include ui.button-primary;
   width: 100%;
 }
 
@@ -106,8 +105,8 @@
 }
 
 .production-panel__row-cancel {
-  @include ui.icon-button(1.9rem);
-  @include ui.button-danger;
+  @include ui.icon-size(1.9rem);
+  font-size: var(--ui-fs-xs);
   grid-row: 1 / 3;
   grid-column: 2 / 3;
   align-self: center;
@@ -204,7 +203,7 @@
 }
 
 .production-panel__quantity button {
-  @include ui.icon-button(2.2rem);
+  @include ui.icon-size(2.2rem);
   font-size: 1.1rem;
 }
 
@@ -229,11 +228,7 @@
 }
 
 .production-panel__modal-actions button {
-  @include ui.button(sm);
-}
-
-.production-panel__modal-actions button:last-child {
-  @include ui.button-primary;
+  @include ui.button-size(sm);
 }
 
 .info-icon {

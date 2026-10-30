@@ -158,7 +158,7 @@
               <button class="carrier-boost-btn" type="button" (click)="doCarrierBoost()">SHIELD PULSE</button>
             }
           } @else {
-            <button class="back-btn" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
+            <button class="back-btn btn-primary" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
           }
           <div class="battle-screen__hint" aria-live="polite">
             @if (!battleOver && isMoveBlocked) {
@@ -172,7 +172,7 @@
   } @else {
     <div class="battle-screen__error">
       <div>NO ACTIVE BATTLE</div>
-      <button class="back-btn" type="button" (click)="backToStarMap()">
+      <button class="back-btn btn-primary" type="button" (click)="backToStarMap()">
         BACK TO STAR MAP
       </button>
     </div>
@@ -194,7 +194,7 @@
             <div class="result-winner">
               <span class="result-winner__label">WINNER</span>
               <span class="result-winner__name">{{ resultWinnerName }}</span>
-              <span class="result-winner__side">{{ resultWinnerSideLabel }}</span>
+              <span class="result-winner__side ui-chip ui-chip--success">{{ resultWinnerSideLabel }}</span>
             </div>
           </div>
           <div class="result-meta">
@@ -202,9 +202,10 @@
             <span>ROUNDS: {{ outcome.rounds }}</span>
             @if (getPlanetResultLabel()) {
               <span
-                class="result-planet-label"
-                [class.result-planet-label--captured]="getPlanetResultLabel() === 'CAPTURED'"
-                [class.result-planet-label--defended]="getPlanetResultLabel() === 'DEFENDED'"
+                class="result-planet-label ui-chip"
+                [class.ui-chip--warning]="getPlanetResultLabel() !== 'CAPTURED' && getPlanetResultLabel() !== 'DEFENDED'"
+                [class.ui-chip--success]="getPlanetResultLabel() === 'CAPTURED'"
+                [class.ui-chip--danger]="getPlanetResultLabel() === 'DEFENDED'"
               >{{ getPlanetResultLabel() }}</span>
             }
           </div>
@@ -224,9 +225,9 @@
                     <span class="result-side__name">{{ summary.name }}</span>
                   </div>
                   <span
-                    class="result-side__badge"
-                    [class.result-side__badge--winner]="summary.result === 'winner'"
-                    [class.result-side__badge--loser]="summary.result === 'loser'"
+                    class="result-side__badge ui-chip"
+                    [class.ui-chip--success]="summary.result === 'winner'"
+                    [class.ui-chip--danger]="summary.result === 'loser'"
                   >{{ summary.result === 'winner' ? 'VICTORY' : 'DEFEAT' }}</span>
                 </div>
                 <div class="result-side__stats">
@@ -241,7 +242,7 @@
         <footer class="result-modal__footer">
           <button
             #resultBackButton
-            class="result-modal__back-btn"
+            class="result-modal__back-btn btn-primary"
             type="button"
             (click)="backToStarMap()"
           >BACK TO STAR MAP</button>

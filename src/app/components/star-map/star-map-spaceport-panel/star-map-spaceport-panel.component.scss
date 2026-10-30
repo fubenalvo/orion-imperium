@@ -46,7 +46,7 @@
 
 .spaceport-panel__system,
 .spaceport-panel__planet {
-  @include ui.button(sm);
+  @include ui.button-size(sm);
   letter-spacing: 0.1em;
 }
 
@@ -84,7 +84,7 @@
 }
 
 .spaceport-panel__row-controls button {
-  @include ui.icon-button(1.8rem);
+  @include ui.icon-size(1.8rem);
   font-size: 1rem;
 }
 
@@ -114,12 +114,8 @@
 }
 
 .spaceport-panel__actions button {
-  @include ui.button(sm);
+  @include ui.button-size(sm);
   flex: 1 1 auto;
-}
-
-.spaceport-panel__actions button:last-child {
-  @include ui.button-primary;
 }
 
 .info-icon {
@@ -127,8 +123,4 @@
   height: 1em;
   vertical-align: -2px;
   margin-right: 0.3em;
-}
-
-.spaceport-panel__actions .spaceport-panel__disband {
-  @include ui.button-danger;
 }

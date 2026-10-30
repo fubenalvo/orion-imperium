@@ -4,7 +4,6 @@
    copy here could never match and only inflates this stylesheet. */
 @use './_star-map-base';
 @use './_star-map-backdrop';
-@use './_star-map-panels';
 @use './_star-map-system-view';
 @use './_star-map-planet-screen';
 @use './_star-map-utilities';
@@ -96,14 +95,10 @@
   margin-top: 0.4rem;
 }
 
+/* Look from the global button; the first action adds .btn-primary. */
 .game-end-btn {
-  @include ui.button;
   flex: 1 1 12em;
   letter-spacing: 0.2em;
-
-  &:first-child {
-    @include ui.button-primary;
-  }
 }
 
 /* Transient galaxy notice (asteroid rewards, cancelled routes). */
