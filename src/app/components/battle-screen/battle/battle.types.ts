@@ -215,6 +215,11 @@ export interface BattleStack {
   y: number;
   targetX: number | null;
   targetY: number | null;
+  /* Presentation only: icon facing in degrees (0 = right, 90 = down), turned
+   * gradually toward the movement direction by battle-heading.ts. Undefined
+   * until the first running frame (= the side's default facing). Never read
+   * by movement, range or targeting. */
+  heading?: number;
   /* Shots per second (from ship-data.json fireRate). */
   fireRate: number;
 

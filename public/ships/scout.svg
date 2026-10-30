@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ship" viewBox="0 0 106 46" preserveAspectRatio="xMidYMid meet">
+  <!-- Scout (Recon): needle hull with outrigger sensor pods. Top-down, bow pointing right. Scale: 100 units = 1 battlefield unit.
+       Faction accents use currentColor; the engine glow group reads the ship-engine and
+       engine-glow CSS custom properties set by the battle grid. See docs/battle-screen.md. -->
+  <g style="fill: var(--ship-engine, #bff4ff); opacity: var(--engine-glow, 1)">
+    <ellipse cx="8" cy="23" rx="6" ry="3" opacity="0.45"/>
+    <ellipse cx="10.5" cy="23" rx="3.5" ry="1.7" fill="#ffffff"/>
+  </g>
+  <rect x="12" y="20" width="4" height="6" rx="1" fill="#3d6662" stroke="#08131c" stroke-width="1.2"/>
+  <polygon points="38,17 42,8 48,8 50,17" fill="#3d6662" stroke="#08131c" stroke-width="1.2" stroke-linejoin="round"/>
+  <polygon points="38,29 42,38 48,38 50,29" fill="#3d6662" stroke="#08131c" stroke-width="1.2" stroke-linejoin="round"/>
+  <rect x="28" y="2.9" width="34" height="7.2" rx="3.6" fill="#9ac9c2" stroke="#08131c" stroke-width="1.6"/>
+  <circle cx="58" cy="6.5" r="2" fill="currentColor"/>
+  <rect x="28" y="35.9" width="34" height="7.2" rx="3.6" fill="#9ac9c2" stroke="#08131c" stroke-width="1.6"/>
+  <circle cx="58" cy="39.5" r="2" fill="currentColor"/>
+  <rect x="88" y="22.1" width="15" height="1.8" fill="#c9ebe5" stroke="#08131c" stroke-width="0.8"/>
+  <circle cx="103" cy="23" r="2" fill="currentColor"/>
+  <polygon points="14,18 24,15 60,15 74,17 90,20 95,23 90,26 74,29 60,31 24,31 14,28" fill="#9ac9c2" stroke="#08131c" stroke-width="2.4" stroke-linejoin="round"/>
+  <circle cx="42" cy="23" r="5.2" fill="#73a49e" stroke="#08131c" stroke-width="1.4"/>
+  <circle cx="42" cy="23" r="2" fill="currentColor"/>
+  <rect x="66" y="21.5" width="12" height="3" rx="1.5" fill="currentColor"/>
+</svg>

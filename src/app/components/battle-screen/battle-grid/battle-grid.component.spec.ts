@@ -137,6 +137,29 @@ describe('BattleGridComponent', () => {
     expect(button.classList).toContain('stack--enemy');
   });
 
+  it('draws each stack with its own class icon on both sides', () => {
+    const fighter = makeStack(1);
+    const enemyDread: BattleStack = {
+      ...makeStack(3),
+      stackId: 'defender:dreadnought:0',
+      side: 'defender',
+      typeId: 'dreadnought',
+      typeName: 'Dreadnought',
+    };
+    fixture.componentRef.setInput('stacks', [fighter, enemyDread]);
+    fixture.componentRef.setInput('playerSides', ['attacker']);
+    fixture.componentRef.setInput('selectedStackId', fighter.stackId);
+    fixture.detectChanges();
+
+    const uses = fixture.nativeElement.querySelectorAll('.stack__ship use') as NodeListOf<SVGUseElement>;
+    expect(uses[0].getAttribute('href')).toBe('ships/fighter.svg#ship');
+    expect(uses[1].getAttribute('href')).toBe('ships/dreadnought.svg#ship');
+
+    const hulls = fixture.nativeElement.querySelectorAll('.stack__hull') as NodeListOf<SVGSVGElement>;
+    const width = (el: SVGSVGElement) => parseFloat(el.style.width.replace(/[^\d.]+/g, ' ').trim().split(' ').pop()!);
+    expect(width(hulls[1])).toBeGreaterThan(width(hulls[0]) * 3);
+  });
+
   it('renders the separate planet marker only when a planet is provided', () => {
     expect(fixture.nativeElement.querySelector('app-battle-planet')).toBeNull();
 

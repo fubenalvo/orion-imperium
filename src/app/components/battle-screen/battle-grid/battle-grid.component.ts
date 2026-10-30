@@ -23,6 +23,8 @@ import {
 const STACK_Z_BASE = 10;
 const STACK_Z_SELECTED = 50;
 import { BattlePlanetComponent } from '../battle-planet/battle-planet.component';
+import { shipIconFor, shipIconSize } from './ship-icons';
+import { stackHeading } from '../battle/battle-heading';
 
 /*
  * =========================================================
@@ -163,6 +165,18 @@ export class BattleGridComponent {
 
   stackSize(stack: BattleStack): number {
     return stack.size;
+  }
+
+  /* Icon facing in degrees (turned toward the movement direction by
+   * battle-heading.ts; the side's default facing until the first frame). */
+  heading(stack: BattleStack): number {
+    return Math.round(stackHeading(stack) * 10) / 10;
+  }
+
+  /* Class-specific icon and its rendered size (field units); see ship-icons.ts. */
+  shipIcon(stack: BattleStack): { href: string; width: number; height: number } {
+    const size = shipIconSize(stack.typeId, stack.size, stack.ships.length);
+    return { href: shipIconFor(stack.typeId).href, ...size };
   }
 
   /* Attack-available indicator: bottom-right corner of the stack sprite.

@@ -54,6 +54,7 @@ import {
   setTargetingMode,
 } from './battle/battle-targeting';
 import { buildBattleOutcome } from './battle/battle-result';
+import { updateStackHeadings } from './battle/battle-heading';
 import { BattleMovementService } from './battle/battle-movement.service';
 import { BattleCombatService } from './battle/battle-combat.service';
 import { BattleGameLoopService } from './battle/battle-game-loop.service';
@@ -754,6 +755,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (running) {
       const deltaMs = deltaTime * 1000;
       updateStackPositions(state, deltaTime, (stackId) => this.movement.completeMovement(stackId));
+      updateStackHeadings(state, deltaTime);
 
       this.aiTickAccumulator += deltaMs;
       if (this.aiTickAccumulator >= AI_ACTION_INTERVAL_MS) {

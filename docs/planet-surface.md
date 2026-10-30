@@ -192,8 +192,8 @@ Layers, back to front:
    Painter's order is a topological sort of the "behind" relation between
    footprints, applied only to sprites that overlap horizontally on screen;
    sorting by the front corner alone is wrong for mixed sizes.
-4. **Labels** — building names on hover, or for all buildings with the NAMES
-   toggle. Sprites and labels never take pointer input; hover and clicks
+4. **Labels** — building names for all buildings while the NAMES toggle is on (the
+   default), otherwise only on hover. Sprites and labels never take pointer input; hover and clicks
    always reach the cells.
 
 ### Streets (`computeSettlementLayout`)

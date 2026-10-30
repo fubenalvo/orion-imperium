@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ship" viewBox="0 0 220 96" preserveAspectRatio="xMidYMid meet">
+  <!-- Cruiser (Line Ship): arrowhead warship with three centreline turrets. Top-down, bow pointing right. Scale: 100 units = 1 battlefield unit.
+       Faction accents use currentColor; the engine glow group reads the ship-engine and
+       engine-glow CSS custom properties set by the battle grid. See docs/battle-screen.md. -->
+  <g style="fill: var(--ship-engine, #bff4ff); opacity: var(--engine-glow, 1)">
+    <ellipse cx="1" cy="48" rx="11" ry="6.5" opacity="0.45"/>
+    <ellipse cx="6" cy="48" rx="6" ry="3.6" fill="#ffffff"/>
+    <ellipse cx="5.5" cy="33" rx="8.5" ry="4.5" opacity="0.45"/>
+    <ellipse cx="9.3" cy="33" rx="4.8" ry="2.5" fill="#ffffff"/>
+    <ellipse cx="5.5" cy="63" rx="8.5" ry="4.5" opacity="0.45"/>
+    <ellipse cx="9.3" cy="63" rx="4.8" ry="2.5" fill="#ffffff"/>
+  </g>
+  <rect x="10" y="41.5" width="7.8" height="13" rx="1" fill="#3d6662" stroke="#08131c" stroke-width="1.2"/>
+  <rect x="12" y="28.5" width="5.4" height="9" rx="1" fill="#3d6662" stroke="#08131c" stroke-width="1.2"/>
+  <rect x="12" y="58.5" width="5.4" height="9" rx="1" fill="#3d6662" stroke="#08131c" stroke-width="1.2"/>
+  <polygon points="24,27 14,10 28,7 62,23" fill="#73a49e" stroke="#08131c" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="24,69 14,86 28,89 62,73" fill="#73a49e" stroke="#08131c" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="18,12.5 28,7 36,10.5 22,14" fill="currentColor"/>
+  <polygon points="18,83.5 28,89 36,85.5 22,82" fill="currentColor"/>
+  <polygon points="14,32 26,26 72,21 104,19.5 142,23 182,32 208,41 216,48 208,55 182,64 142,73 104,76.5 72,75 26,70 14,64" fill="#9ac9c2" stroke="#08131c" stroke-width="2.4" stroke-linejoin="round"/>
+  <polygon points="64,27 72,21 104,19.5 142,23 150,29 70,29" fill="#73a49e" stroke="#08131c" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="64,69 72,75 104,76.5 142,73 150,67 70,67" fill="#73a49e" stroke="#08131c" stroke-width="1.4" stroke-linejoin="round"/>
+  <polygon points="30,40 176,40 196,48 176,56 30,56" fill="#73a49e" stroke="#08131c" stroke-width="1.4"/>
+  <line x1="30" y1="48" x2="176" y2="48" stroke="#08131c" stroke-width="1" stroke-linecap="round"/>
+  <rect x="112" y="41" width="22" height="14" rx="2" fill="#9ac9c2" stroke="#08131c" stroke-width="1.6"/>
+  <rect x="126" y="43" width="5" height="10" rx="1" fill="currentColor"/>
+  <rect x="162" y="44.6" width="23.5" height="2.9" fill="#c9ebe5" stroke="#08131c" stroke-width="1.2"/>
+  <rect x="162" y="48.5" width="23.5" height="2.9" fill="#c9ebe5" stroke="#08131c" stroke-width="1.2"/>
+  <circle cx="162" cy="48" r="8.5" fill="#73a49e" stroke="#08131c" stroke-width="1.7"/>
+  <circle cx="159.9" cy="48" r="3.2" fill="#3d6662"/>
+  <rect x="144" y="45" width="19.5" height="2.6" fill="#c9ebe5" stroke="#08131c" stroke-width="1"/>
+  <rect x="144" y="48.4" width="19.5" height="2.6" fill="#c9ebe5" stroke="#08131c" stroke-width="1"/>
+  <circle cx="144" cy="48" r="7.5" fill="#73a49e" stroke="#08131c" stroke-width="1.5"/>
+  <circle cx="142.1" cy="48" r="2.9" fill="#3d6662"/>
+  <rect x="70" y="45" width="19.5" height="2.6" fill="#c9ebe5" stroke="#08131c" stroke-width="1"/>
+  <rect x="70" y="48.4" width="19.5" height="2.6" fill="#c9ebe5" stroke="#08131c" stroke-width="1"/>
+  <circle cx="70" cy="48" r="7.5" fill="#73a49e" stroke="#08131c" stroke-width="1.5"/>
+  <circle cx="68.1" cy="48" r="2.9" fill="#3d6662"/>
+  <rect x="98" y="25.3" width="11.2" height="1.4" fill="#c9ebe5" stroke="#08131c" stroke-width="0.6"/>
+  <circle cx="98" cy="26" r="4.2" fill="#73a49e" stroke="#08131c" stroke-width="1.2"/>
+  <circle cx="97" cy="26" r="1.6" fill="#3d6662"/>
+  <rect x="98" y="69.3" width="11.2" height="1.4" fill="#c9ebe5" stroke="#08131c" stroke-width="0.6"/>
+  <circle cx="98" cy="70" r="4.2" fill="#73a49e" stroke="#08131c" stroke-width="1.2"/>
+  <circle cx="97" cy="70" r="1.6" fill="#3d6662"/>
+  <rect x="128" y="26.3" width="11.2" height="1.4" fill="#c9ebe5" stroke="#08131c" stroke-width="0.6"/>
+  <circle cx="128" cy="27" r="4.2" fill="#73a49e" stroke="#08131c" stroke-width="1.2"/>
+  <circle cx="127" cy="27" r="1.6" fill="#3d6662"/>
+  <rect x="128" y="68.3" width="11.2" height="1.4" fill="#c9ebe5" stroke="#08131c" stroke-width="0.6"/>
+  <circle cx="128" cy="69" r="4.2" fill="#73a49e" stroke="#08131c" stroke-width="1.2"/>
+  <circle cx="127" cy="69" r="1.6" fill="#3d6662"/>
+</svg>

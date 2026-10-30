@@ -279,10 +279,6 @@
   }
 }
 
-.stack--defender .stack__ship {
-  transform: scaleX(-1);
-}
-
 .stack__icons {
   display: flex;
   flex-direction: row;
@@ -401,101 +397,52 @@
     box-shadow 0.15s ease;
 }
 
-.stack-1 {
-  --stack-scale: 0.7;
-}
-.stack-2 {
-  --stack-scale: 0.8;
-}
-.stack-3 {
-  --stack-scale: 0.9;
-}
-.stack-4,
-.stack-5 {
-  --stack-scale: 1;
-}
-.stack-6,
-.stack-7,
-.stack-8 {
-  --stack-scale: 1.1;
-}
-.stack-9,
-.stack-10 {
-  --stack-scale: 1.2;
-}
-.stack-11,
-.stack-12,
-.stack-13,
-.stack-14,
-.stack-15 {
-  --stack-scale: 1.3;
-}
-.stack-16,
-.stack-17,
-.stack-18,
-.stack-19,
-.stack-20 {
-  --stack-scale: 1.4;
-}
-.stack-21,
-.stack-22,
-.stack-23,
-.stack-24,
-.stack-25 {
-  --stack-scale: 1.5;
-}
-.stack-26,
-.stack-27,
-.stack-28,
-.stack-29,
-.stack-30 {
-  --stack-scale: 1.6;
+/* Registered so the engine flicker below interpolates smoothly. It is
+ * inherited into the <use> shadow tree, where each ship SVG's engine-glow
+ * group reads it as its opacity. */
+@property --engine-glow {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 1;
 }
 
+/*
+ * Ship icon. The class-specific SVG (public/ships/<typeId>.svg, chosen and
+ * sized in ship-icons.ts) is drawn via <use>, so these inherited values
+ * theme it from outside:
+ *   color          -> faction accents (stripes, bridge windows, lights)
+ *   --ship-engine  -> engine plume color
+ *   --engine-glow  -> engine plume opacity (animated)
+ * Facing (both sides) is the per-stack `rotate` bound on .stack__hull, see
+ * battle-heading.ts: defenders face left by a 180° turn, not a mirror.
+ */
 .stack__ship {
-  /* Hull box as a share of the cell: grows with stack size, capped at the
-     cell so a big stack never spills into its neighbours. */
-  --hull: min(calc(80% * var(--stack-scale, 1)), 100%);
+  --ship-engine: color-mix(in srgb, var(--faction-color, #8cc4ff) 45%, white);
 
   position: absolute;
   inset: 0;
-  background: url('ship.svg') no-repeat center;
-  background-size: var(--hull) var(--hull);
-  /* Hull lit in the faction color so ships separate from the backdrop.
-     Static filter (no animation), so it is rasterized once per frame of
-     movement only. */
-  filter: drop-shadow(0 0 calc(var(--u) * 0.18) color-mix(in srgb, var(--faction-color, #8cc4ff) 75%, transparent))
-    brightness(1.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faction-color, #8cc4ff);
+  /* Hull lit in the faction color so ships separate from the backdrop. */
+  filter: drop-shadow(0 0 calc(var(--u) * 0.14) color-mix(in srgb, var(--faction-color, #8cc4ff) 70%, transparent));
   pointer-events: none;
+  animation: engine-flicker 0.9s ease-in-out infinite alternate;
+}
 
-  /* Engine glow at the stern. The hull is --hull wide and centered, so
-     the stern is at 50% - --hull / 2; the defender's flip (scaleX(-1)
-     below) mirrors this pseudo with the hull. */
-  &::after {
-    content: '';
-    position: absolute;
-    left: calc(50% - var(--hull) / 2);
-    top: 50%;
-    width: calc(var(--hull) * 0.22);
-    height: calc(var(--hull) * 0.12);
-    transform: translate(-60%, -50%);
-    border-radius: 50%;
-    background: radial-gradient(
-      ellipse at 70% 50%,
-      #fff 0%,
-      color-mix(in srgb, var(--faction-color, #8cc4ff) 70%, white) 30%,
-      transparent 70%
-    );
-    animation: engine-flicker 0.9s ease-in-out infinite alternate;
-  }
+.stack__hull {
+  display: block;
+  flex: none;
+  overflow: visible;
 }
 
 @keyframes engine-flicker {
   from {
-    opacity: 0.65;
+    --engine-glow: 0.6;
   }
   to {
-    opacity: 1;
+    --engine-glow: 1;
   }
 }
 

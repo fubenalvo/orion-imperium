@@ -242,7 +242,8 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @ViewChild('surfaceViewport') surfaceViewport: ElementRef<HTMLElement> | null = null;
   @ViewChild('terrainHost') terrainHost: ElementRef<HTMLElement> | null = null;
 
-  showLabels = false;
+  // Building names are shown by default; the NAMES toggle hides them.
+  showLabels = true;
   terrainReady = false;
   terrainBox: { left: number; top: number; width: number; height: number } | null = null;
   settlement: SettlementLayout = EMPTY_SETTLEMENT;

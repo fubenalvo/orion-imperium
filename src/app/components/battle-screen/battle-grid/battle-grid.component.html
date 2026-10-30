@@ -72,7 +72,17 @@
            <!-- Friend/foe marker: corner brackets on own stacks, red chevron
                 above enemies. Shape-based so it also works without color. -->
            <span class="stack__marker" aria-hidden="true"></span>
-           <span class="stack__ship" aria-hidden="true"></span>
+           <span class="stack__ship" aria-hidden="true">
+             @let icon = shipIcon(stack);
+             <svg
+               class="stack__hull"
+               [style.width]="u(icon.width)"
+               [style.height]="u(icon.height)"
+               [style.rotate]="heading(stack) + 'deg'"
+             >
+               <use [attr.href]="icon.href" width="100%" height="100%"></use>
+             </svg>
+           </span>
            <span class="stack__count" [style.color]="factionColor(stack)">{{ stack.ships.length }}</span>
         <span class="stack__hp">
           <span class="stack__hp-bar" [style.width.%]="hullFraction(stack) * 100" [style.background]="factionColor(stack)"></span>

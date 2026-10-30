@@ -64,7 +64,9 @@ src/app/components/battle-screen/
 │   ├── battle-grid.component.ts    # Grid view (clicks, highlights, effects)
 │   ├── battle-grid.component.html
 │   ├── battle-grid.component.scss
-│   └── battle-grid.component.spec.ts
+│   ├── battle-grid.component.spec.ts
+│   ├── ship-icons.ts               # Ship class → SVG icon mapping and rendered size
+│   └── ship-icons.spec.ts
 ├── battle-fleet-panel/
 │   ├── battle-fleet-panel.component.ts   # Side roster panel
 │   ├── battle-fleet-panel.component.html
@@ -83,6 +85,7 @@ src/app/components/battle-screen/
     ├── battle-ai.service.ts        # Tactical AI (movement + Shield Pulse) for enemy side / AUTO
     ├── battle-test-clock.ts        # Test-only: drives the battle clock from fake timers
     ├── battle-result.ts            # BattleOutcome builder
+    ├── battle-heading.ts           # Presentation-only ship facing (turns toward movement)
     ├── battle-ship-stats.ts        # Ship stats from ShipService
     ├── *.spec.ts                   # Tests for each module
 ```
@@ -171,7 +174,46 @@ from the shared space mixins (see [UI Styling](./ui-styling.md#space-scenery)): 
 distant star kept in the band above the field, two nebula formations framing the left and lower
 right so the middle of the field stays calm behind the units, then twinkling dust and a vignette.
 The field itself draws a fading hairline grid (`::before`) and corner brackets (`::after`) under
-every grid layer. Ships are drawn at up to 80% of their cell (capped at the cell for large stacks).
+every grid layer. Each ship is drawn with its class icon (see [Ship icons](#ship-icons)).
+
+### Ship icons
+
+Every ship class has its own top-down SVG in `public/ships/<typeId>.svg` (bow pointing right).
+The two turret buildings that fight as virtual ships (`laser_turret`, `missile_turret`) have
+icons too. `battle-grid/ship-icons.ts` is the single source of truth for the class → icon
+mapping and the rendered size. Unknown type ids fall back to the frigate icon, and
+`ship-icons.spec.ts` checks that every `ship-data.json` class and every turret has its own icon.
+
+- **Shared scale.** All files are drawn at 100 SVG units = 1 battlefield unit (`--u`), so the
+  relative size of classes comes from the artwork: fighter ≈ 0.95 u long, frigate 1.4, destroyer
+  1.55, cruiser 2.2, carrier 2.55, battlecruiser 2.85, battleship 2.9, dreadnought 4.4. The
+  `width`/`height` entries in `SHIP_ICONS` must equal each file's `viewBox` / 100.
+- **Size.** `shipIconSize()` scales the natural size by stack fill (0.88 for one ship → 1.0 at
+  `MAX_STACK_SIZE`), then shrinks uniformly only if the icon would leave the stack's cell box
+  (94% of its width, 84% of its height, leaving room for the HP/shield bars). The box sizes mirror
+  `.stack-cell--size-N` in the SCSS. Icons are purely visual: the stack's button still covers the
+  whole cell box, so selection, clicks, collision and targeting are unchanged.
+- **Rendering.** The grid draws `<svg class="stack__hull"><use href="ships/<id>.svg#ship"></svg>`.
+  Each file's root `<svg>` has `id="ship"`. Inline `<use>` (not a CSS background) lets inherited
+  styles reach the artwork: `color` (= faction color) paints the accents through `currentColor`,
+  `--ship-engine` colors the engine plumes, and the registered `--engine-glow` property animates
+  their opacity (the engine flicker).
+- **Facing.** The icon is rotated by `BattleStack.heading` (CSS `rotate` on `.stack__hull`), so
+  defenders face left via a 180° turn, not a mirror. `battle/battle-heading.ts`
+  (`updateStackHeadings`, called in the game loop right after `updateStackPositions`) turns the
+  heading toward the current movement target at a tier-based rate. Light ships turn at 240°/s,
+  the dreadnought at 75°/s, all in battle seconds, so pause and speed apply. Idle stacks ease back
+  to their side's default facing (toward the enemy), and immobile turrets never turn. Final
+  approaches under 0.3 u keep the current heading, so grid snapping doesn't twitch the ship.
+  Heading is presentation only: movement, collision, range and targeting never read it. Only the
+  icon rotates (the selection frame, bars and markers stay axis-aligned), and a long ship flying
+  vertically can briefly overlap the rows above and below.
+- **Visual language.** One palette for every class: hull `#9ac9c2` (the legacy `ship.svg` color,
+  still used by the main-menu convoy), plating `#73a49e`, deep panels `#3d6662`, barrels
+  `#c9ebe5`, outlines `#08131c`. Faction color is used only for accents. Don't use gradients,
+  `<style>` blocks or `--` sequences in XML comments in these files: external `<use>` content
+  can't rely on the referenced document's stylesheets, and `--` inside a comment makes the file
+  invalid XML, which makes the icon disappear silently.
 
 **Background parallax** (`battle/battle-parallax.ts`): the pointer (or device tilt) only sets a
 target offset in [-1, 1], normalised against the bounding rect of the element that owns the
@@ -209,6 +251,7 @@ interface BattleStack {
   y: number;
   targetX: number | null;    // Target VW position (null = stationary)
   targetY: number | null;
+  heading?: number;          // Presentation only: icon facing in degrees (battle-heading.ts)
   // Orders and targeting (battle-local, never persisted)
   explicitAttackTargetId?: string | null; // Manual attack order
   manualMoveOrder?: boolean;              // Manual move in flight (AUTO keeps out)
@@ -734,6 +777,8 @@ several sit in per-frame paths.
 1. Add to `ship-data.json` (speed field 1-5 automatically becomes movement speed)
 2. Add tier to `TIER_LOOKUP` in `battle-ship-stats.ts`
 3. Stats auto-resolved via `ShipService`
+4. Add `public/ships/<id>.svg` (shared scale, root `id="ship"`) and its entry in `SHIP_ICONS`
+   (`battle-grid/ship-icons.ts`); see [Ship icons](#ship-icons)
 
 ### Add New Combat Mechanic
 1. Modify `BattleCombatService.attackStack()` damage calculation

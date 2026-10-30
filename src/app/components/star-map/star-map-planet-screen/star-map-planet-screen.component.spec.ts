@@ -188,7 +188,10 @@ describe('StarMapPlanetScreenComponent', () => {
         for (const label of [...labels, ...[...labels].reverse()]) {
           zoomButtons().find((b) => b.textContent!.trim() === label)!.click();
           fixture.detectChanges();
-          const active = fixture.nativeElement.querySelectorAll('.planet-surface__zoom-btn--active');
+          // Only the zoom-level buttons; the NAMES toggle in the same group is on by default.
+          const active = [
+            ...fixture.nativeElement.querySelectorAll('.planet-surface__zoom-btn--active'),
+          ].filter((b: Element) => labels.includes(b.textContent!.trim()));
           expect(active.length).toBe(1);
           expect(active[0].textContent.trim()).toBe(label);
           expect(component.zoomLevel).toBe(label.toLowerCase());

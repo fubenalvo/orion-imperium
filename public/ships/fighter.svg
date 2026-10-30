@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ship" viewBox="0 0 95 66" preserveAspectRatio="xMidYMid meet">
+  <!-- Fighter (Interceptor): delta-wing dart with canards. Top-down, bow pointing right. Scale: 100 units = 1 battlefield unit.
+       Faction accents use currentColor; the engine glow group reads the ship-engine and
+       engine-glow CSS custom properties set by the battle grid. See docs/battle-screen.md. -->
+  <g style="fill: var(--ship-engine, #bff4ff); opacity: var(--engine-glow, 1)">
+    <ellipse cx="6.5" cy="28.5" rx="5.5" ry="2.5" opacity="0.45"/>
+    <ellipse cx="8.8" cy="28.5" rx="3.3" ry="1.4" fill="#ffffff"/>
+    <ellipse cx="6.5" cy="37.5" rx="5.5" ry="2.5" opacity="0.45"/>
+    <ellipse cx="8.8" cy="37.5" rx="3.3" ry="1.4" fill="#ffffff"/>
+  </g>
+  <rect x="10" y="26" width="4" height="5" rx="1" fill="#3d6662" stroke="#08131c" stroke-width="1.2"/>
+  <rect x="10" y="35" width="4" height="5" rx="1" fill="#3d6662" stroke="#08131c" stroke-width="1.2"/>
+  <polygon points="22,27 16,11 22,4 33,4 62,25" fill="#73a49e" stroke="#08131c" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="22,39 16,55 22,62 33,62 62,41" fill="#73a49e" stroke="#08131c" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="19,9 22,4 33,4 30,9" fill="currentColor"/>
+  <polygon points="19,57 22,62 33,62 30,57" fill="currentColor"/>
+  <polygon points="12,27 28,24 58,24.5 78,28 92,33 78,38 58,41.5 28,42 12,39" fill="#9ac9c2" stroke="#08131c" stroke-width="2.4" stroke-linejoin="round"/>
+  <polygon points="64,26 62,19 69,19 76,27" fill="#73a49e" stroke="#08131c" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="64,40 62,47 69,47 76,39" fill="#73a49e" stroke="#08131c" stroke-width="1.6" stroke-linejoin="round"/>
+  <line x1="30" y1="33" x2="56" y2="33" stroke="#08131c" stroke-width="1.2" stroke-linecap="round"/>
+  <ellipse cx="70" cy="33" rx="9" ry="3.4" fill="currentColor" stroke="#08131c" stroke-width="1.2"/>
+</svg>
