@@ -2,87 +2,162 @@ import { Injectable } from '@angular/core';
 import { ShipService } from '../../services/ship.service';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { getAiPersonalityProfile } from './ai-personality';
-import { AiPersonality, Faction, Fleet, StarSystem } from './star-map.models';
-import { getRelation, isTreatyPair } from './diplomacy';
+import { AiPersonality, Faction, FactionProduction, Fleet, PlanetTile, StarSystem } from './star-map.models';
+import {
+  getEffectiveOpinion,
+  getFactionWarExhaustion,
+  getRelation,
+  getWarExhaustion,
+  isTreatyPair,
+  isTruceActive,
+} from './diplomacy';
+import {
+  PeaceTreaty,
+  TreatyItem,
+  TreatyValidation,
+  isFactionAlive,
+  otherParty,
+  validateTreaty,
+} from './peace-treaty';
+import planetData from './planet-data.json';
 
 /*
  * =========================================================
- * ENEMY DIPLOMACY SERVICE — AI treaty decisions
+ * ENEMY DIPLOMACY SERVICE — AI diplomatic judgment
  * =========================================================
  *
- * Every DECISION_INTERVAL seconds of game time each AI faction reviews its
- * treaty relations (rules and rationale: docs/diplomacy.md):
+ * Deterministic, explainable AI diplomacy (docs/diplomacy.md):
  *
- *  - Peace: an AI wants peace with a war enemy when that enemy is clearly
- *    stronger (strength ratio ≥ the personality's peaceRatio), when the
- *    war is a second front (it has ≥ 2 wars, this is not its primary
- *    enemy, and the enemy is not much weaker), or when it is nearly beaten
- *    (≤ 1 planet left against an enemy with ≥ COLLAPSE_ENEMY_PLANETS, and
- *    no clear military edge). A fresh one-planet empire facing an equal
- *    one is not "collapsing". Two AIs sign peace only when both want it. Toward the
- *    human it makes a timed peace offer instead (DiplomacyService).
- *  - War: an AI at peace declares war on a neighbour (within WAR_REACH)
- *    that is clearly weaker (ratio ≤ warRatio), at most one declaration
- *    per review, and only while it has fewer wars than the personality's
- *    maxWars.
+ *  1. assessWar(ai, enemy) turns the war situation into a *peace pressure*
+ *     (sum of named factors: military balance, war exhaustion (own level
+ *     and the gap to the enemy's), fleet and
+ *     planet losses, effective opinion, second front, collapse, pointless
+ *     war, treasury, personality, and a baseline "war aims" resistance).
+ *     Positive pressure means the AI wants out. peaceValue = pressure ×
+ *     scale, where scale is about one minute of the AI's income: what an
+ *     end to this war is worth to it in credits (negative = it wants to be
+ *     paid for peace).
+ *  2. evaluateTreaty values the concrete terms for the AI (resources at
+ *     face value, raw materials ×1.2, planets by strategic value — losses
+ *     weigh more than gains) and accepts when terms + peaceValue ≥ 0 and
+ *     the terms are feasible (validateTreaty). The same number drives the
+ *     acceptance meter the player sees, so the AI is predictable.
+ *  3. counterOffer repairs a refused proposal: first it drops what the AI
+ *     would cede (most valuable planets first, then resources), then asks
+ *     the other side for resources it actually holds, finally for its
+ *     least valuable planet. Only feasible counters the AI itself accepts
+ *     are returned.
+ *  4. Every DECISION_INTERVAL the AI reviews its relations: AI–AI wars end
+ *     when both peace values allow it (the more eager side pays the
+ *     other's price); toward the human it makes a proposal when it wants
+ *     peace; at peace it may declare war on a weak neighbour it does not
+ *     like, or — militarists only — break a truce when overwhelmingly
+ *     stronger and hostile.
  *
- * The same `wantsPeace` rule answers the player's peace proposals, so the
- * player can predict the AI: it accepts when it is losing or busy
- * elsewhere, and refuses while it feels strong.
- *
- * Information: diplomacy uses the real total fleet strength of both
- * factions, not the fog-of-war view. Rough military power is treated as
- * public knowledge for treaties (envoys, intelligence services); the
- * tactical layers still only see what their sensors report.
- *
- * Treaty minimum durations (diplomacy.ts) prevent flip-flopping: a fresh
- * war cannot end before WAR_MIN_DURATION_SECONDS, a fresh peace holds for
- * PEACE_MIN_DURATION_SECONDS, and the opening wars are locked for
- * INITIAL_WAR_LOCK_SECONDS.
+ * Information: total fleet strength, losses and exhaustion are treated as
+ * public knowledge for diplomacy (envoys, intelligence); tactical layers
+ * still only see what sensors report.
  */
 
 interface DiplomacyProfile {
-  /* Enemy/own strength ratio from which the AI seeks peace. */
-  peaceRatio: number;
+  /* Added to peace pressure (positive = more peaceful). */
+  peaceBias: number;
   /* Target/own strength ratio up to which the AI declares war. */
   warRatio: number;
   /* Wars (with treaty factions) the AI is willing to fight at once. */
   maxWars: number;
+  /* The AI only declares war on factions it judges at or below this effective opinion. */
+  warOpinionMax: number;
+  /* May break a running truce (overwhelming strength, hostile opinion). */
+  treachery: boolean;
 }
 
 const DIPLOMACY_PROFILES: Readonly<Record<AiPersonality, DiplomacyProfile>> = {
-  balanced: { peaceRatio: 1.4, warRatio: 0.6, maxWars: 1 },
-  expansionist: { peaceRatio: 1.25, warRatio: 0.65, maxWars: 1 },
-  militarist: { peaceRatio: 2, warRatio: 0.85, maxWars: 2 },
-  technologist: { peaceRatio: 1.1, warRatio: 0.5, maxWars: 1 },
+  balanced: { peaceBias: 0, warRatio: 0.6, maxWars: 1, warOpinionMax: 10, treachery: false },
+  expansionist: { peaceBias: 0.05, warRatio: 0.65, maxWars: 1, warOpinionMax: 15, treachery: false },
+  militarist: { peaceBias: -0.2, warRatio: 0.85, maxWars: 2, warOpinionMax: 30, treachery: true },
+  technologist: { peaceBias: 0.15, warRatio: 0.5, maxWars: 1, warOpinionMax: 0, treachery: false },
 };
 
-export type PeaceReason = 'outmatched' | 'second_front' | 'collapsing';
-export interface PeaceDecision {
+export interface WarFactor {
+  key: string;
+  label: string;
+  /* Contribution to peace pressure (positive pushes the AI toward peace). */
+  value: number;
+}
+
+export interface WarAssessment {
+  pressure: number;
+  /* Credits per unit of pressure (≈ one minute of the AI's income). */
+  scale: number;
+  /* Worth of peace itself to the AI, in credits. */
+  peaceValue: number;
+  factors: WarFactor[];
+}
+
+export interface TreatyEvaluation {
+  validation: TreatyValidation;
+  /* Value of the terms for the AI in credits (what it gains minus what it gives). */
+  termsValue: number;
+  peaceValue: number;
+  /* termsValue + peaceValue; the AI accepts feasible terms when ≥ 0. */
+  margin: number;
+  /* 0…1 for the acceptance meter; 0.5 is the acceptance threshold. */
+  acceptance: number;
   accept: boolean;
-  reason?: PeaceReason;
+  assessment: WarAssessment;
+}
+
+export interface ProposalResponse {
+  decision: 'accept' | 'counter' | 'refuse';
+  evaluation: TreatyEvaluation;
+  counter?: PeaceTreaty;
 }
 
 export interface DiplomacyContext {
   factions: Faction[];
   fleets: Fleet[];
   starSystems: StarSystem[];
+  production?: FactionProduction[];
 }
+
+interface BuildingDef {
+  name: string;
+  price?: number;
+  rawMaterialCost?: number;
+  type?: string;
+}
+
+const BUILDINGS = new Map(((planetData as { buildings: BuildingDef[] }).buildings).map((b) => [b.name, b] as const));
+const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+const roundUp10 = (value: number): number => Math.ceil(value / 10) * 10;
+const roundDown10 = (value: number): number => Math.floor(value / 10) * 10;
 
 @Injectable({ providedIn: 'root' })
 export class EnemyDiplomacyService {
   static readonly DECISION_INTERVAL = 10;
   /* Galaxy cells between the two empires within which an AI starts a war. */
   static readonly WAR_REACH = 120;
-  /* A war enemy weaker than this ratio is never let off on a second front. */
+  /* A war enemy weaker than this ratio is not let off on a second front. */
   static readonly SECOND_FRONT_MIN_RATIO = 0.75;
-  /* After offering peace to the player, the AI waits this long before offering again. */
-  static readonly OFFER_COOLDOWN = 150;
   /* Planets the enemy must hold for a one-planet AI to count as collapsing. */
   static readonly COLLAPSE_ENEMY_PLANETS = 3;
+  /* After proposing peace to the player, the AI waits this long before proposing again. */
+  static readonly OFFER_COOLDOWN = 180;
+  /* Proposals to the player need at least this much pressure (keeps the AI from nagging). */
+  static readonly PROPOSE_MIN_PRESSURE = 0.1;
+  /* Own worst exhaustion from which the AI starts no new war. */
+  static readonly NO_NEW_WAR_EXHAUSTION = 40;
+  /* Raw materials are valued at this many credits each. */
+  static readonly RAW_VALUE = 1.2;
+  /* Planets the AI cedes weigh more than planets it receives. */
+  static readonly PLANET_LOSS_WEIGHT = 1.3;
+  static readonly PLANET_GAIN_WEIGHT = 0.8;
+  /* Baseline resistance to ending a war without a reason ("war aims"). */
+  static readonly BASELINE_PRESSURE = -0.2;
 
   private accumulator = 0;
-  /* AI faction id → seconds until it may offer the player peace again. */
+  /* AI faction id → seconds until it may propose peace to the player again. */
   private offerCooldowns = new Map<string, number>();
 
   constructor(
@@ -110,39 +185,168 @@ export class EnemyDiplomacyService {
     let changed = false;
     // Fixed faction order keeps the decisions deterministic.
     for (const faction of ctx.factions) {
-      if (faction.ai !== true || !this.isAlive(faction.id, ctx)) continue;
+      if (faction.ai !== true || !isFactionAlive(faction.id, ctx)) continue;
       changed = this.reviewPeace(faction, ctx) || changed;
       changed = this.reviewWar(faction, ctx) || changed;
     }
     return changed;
   }
 
-  /*
-   * Would `ai` sign peace with `enemy` now? Used for AI–AI treaties, AI
-   * offers to the player and the answer to the player's proposals.
-   */
-  wantsPeace(ai: Faction, enemy: Faction, ctx: DiplomacyContext): PeaceDecision {
-    const relation = getRelation(ai, enemy);
-    if (!relation || relation.state !== 'war') return { accept: false };
-    const profile = this.profileOf(ai);
-    const ratio = this.strengthRatio(enemy, ai, ctx);
-    if (ratio >= profile.peaceRatio) return { accept: true, reason: 'outmatched' };
-    if (
-      this.ownedPlanetCount(ai.id, ctx) <= 1
-      && this.ownedPlanetCount(enemy.id, ctx) >= EnemyDiplomacyService.COLLAPSE_ENEMY_PLANETS
-      && ratio >= 0.8
-    ) {
-      return { accept: true, reason: 'collapsing' };
-    }
+  /* ---------- Assessment ---------- */
+
+  assessWar(ai: Faction, enemy: Faction, ctx: DiplomacyContext): WarAssessment {
+    const scale = this.scaleOf(ai, ctx);
+    const ownStrength = this.militaryStrength(ai.id, ctx.fleets);
+    const enemyStrength = this.militaryStrength(enemy.id, ctx.fleets);
+    const ratio = enemyStrength / Math.max(1, ownStrength);
+    const own = getRelation(ai, enemy);
+    const theirs = getRelation(enemy, ai);
+    const factors: WarFactor[] = [];
+    const add = (key: string, label: string, value: number) => {
+      if (Math.abs(value) >= 0.005) factors.push({ key, label, value });
+    };
+
+    add('baseline', 'War aims', EnemyDiplomacyService.BASELINE_PRESSURE);
+    add('military', 'Military balance', clamp(0.5 * Math.log2(Math.max(ratio, 1 / 16)), -1, 1));
+    // Own exhaustion counts on its own (two exhausted empires both want out)
+    // and relative to the enemy's (who can hold out longer).
+    const ownExhaustion = getWarExhaustion(ai, enemy);
+    add('exhaustion', 'War exhaustion', (ownExhaustion / 100) * 0.6 + ((ownExhaustion - getWarExhaustion(enemy, ai)) / 100) * 0.3);
+    add('fleet_losses', 'Fleet losses', clamp((0.5 * ((own?.shipsLostValue ?? 0) - (theirs?.shipsLostValue ?? 0))) / scale, -0.5, 0.5));
+    add('planet_losses', 'Planets lost', clamp(0.15 * ((own?.planetsLost ?? 0) - (theirs?.planetsLost ?? 0)), -0.6, 0.6));
+    add('opinion', 'Relations', (getEffectiveOpinion(ai, enemy) / 100) * 0.3);
     const wars = this.warEnemies(ai, ctx);
-    if (
-      wars.length >= 2
-      && this.primaryEnemy(ai, wars, ctx)?.id !== enemy.id
-      && ratio >= EnemyDiplomacyService.SECOND_FRONT_MIN_RATIO
-    ) {
-      return { accept: true, reason: 'second_front' };
+    if (wars.length >= 2 && this.primaryEnemy(ai, wars, ctx)?.id !== enemy.id && ratio >= EnemyDiplomacyService.SECOND_FRONT_MIN_RATIO) {
+      add('second_front', 'Second front', 0.25);
     }
-    return { accept: false };
+    if (this.ownedPlanetCount(ai.id, ctx) <= 1 && this.ownedPlanetCount(enemy.id, ctx) >= EnemyDiplomacyService.COLLAPSE_ENEMY_PLANETS) {
+      add('collapse', 'Empire collapsing', 0.5);
+    }
+    if (this.empireDistance(ai.id, enemy.id, ctx) > EnemyDiplomacyService.WAR_REACH * 1.5) {
+      add('pointless', 'Out of reach', 0.3);
+    }
+    if ((ai.currencies['credits'] ?? 0) < scale * 0.2) {
+      add('treasury', 'Empty treasury', 0.15);
+    }
+    add('personality', 'Temperament', this.profileOf(ai).peaceBias);
+
+    const pressure = factors.reduce((sum, f) => sum + f.value, 0);
+    return { pressure, scale, peaceValue: pressure * scale, factors };
+  }
+
+  /* Strategic value of a planet in credits. */
+  planetValue(planet: PlanetTile): number {
+    let value = 400 + (planet.population ?? 0) * 3;
+    let industrial = false;
+    for (const building of planet.buildings ?? []) {
+      const def = BUILDINGS.get(building.name);
+      value += ((def?.price ?? 0) + (def?.rawMaterialCost ?? 0)) * 0.5;
+      if (building.name === 'Spaceport' || building.name === 'Spaceship Factory') industrial = true;
+    }
+    return industrial ? value * 1.5 : value;
+  }
+
+  /* Value of the terms for `ai` (positive = good for it). */
+  termsValue(ai: Faction, treaty: PeaceTreaty, ctx: DiplomacyContext): number {
+    let value = 0;
+    for (const item of treaty.items) {
+      const sign = item.giverId === ai.id ? -1 : 1;
+      if (item.kind === 'credits') value += sign * item.amount;
+      else if (item.kind === 'rawmaterials') value += sign * item.amount * EnemyDiplomacyService.RAW_VALUE;
+      else {
+        const weight = sign < 0 ? EnemyDiplomacyService.PLANET_LOSS_WEIGHT : EnemyDiplomacyService.PLANET_GAIN_WEIGHT;
+        for (const planet of this.itemPlanets(item, ctx)) value += sign * weight * this.planetValue(planet);
+      }
+    }
+    return value;
+  }
+
+  evaluateTreaty(ai: Faction, treaty: PeaceTreaty, ctx: DiplomacyContext): TreatyEvaluation {
+    const enemy = ctx.factions.find((f) => f.id === otherParty(treaty, ai.id));
+    const validation = validateTreaty(treaty, ctx);
+    const assessment = enemy ? this.assessWar(ai, enemy, ctx) : { pressure: 0, scale: 2000, peaceValue: 0, factors: [] };
+    const termsValue = this.termsValue(ai, treaty, ctx);
+    const margin = termsValue + assessment.peaceValue;
+    return {
+      validation,
+      termsValue,
+      peaceValue: assessment.peaceValue,
+      margin,
+      acceptance: clamp(0.5 + margin / (2 * assessment.scale), 0, 1),
+      accept: validation.ok && margin >= 0,
+      assessment,
+    };
+  }
+
+  /* The AI's answer to a proposal addressed to it. */
+  respondToProposal(ai: Faction, treaty: PeaceTreaty, ctx: DiplomacyContext): ProposalResponse {
+    const evaluation = this.evaluateTreaty(ai, treaty, ctx);
+    if (evaluation.accept) return { decision: 'accept', evaluation };
+    if (!evaluation.validation.ok) return { decision: 'refuse', evaluation };
+    const counter = this.counterOffer(ai, treaty, ctx);
+    return counter ? { decision: 'counter', evaluation, counter } : { decision: 'refuse', evaluation };
+  }
+
+  /* Smallest change to `treaty` the AI would accept, as its own proposal; undefined if none. */
+  counterOffer(ai: Faction, treaty: PeaceTreaty, ctx: DiplomacyContext): PeaceTreaty | undefined {
+    const otherId = otherParty(treaty, ai.id);
+    const other = ctx.factions.find((f) => f.id === otherId);
+    if (!other) return undefined;
+    let items: TreatyItem[] = treaty.items.map((item) => ({ ...item }));
+    const build = (): PeaceTreaty => ({ proposerId: ai.id, recipientId: otherId, items });
+    const margin = () => this.evaluateTreaty(ai, build(), ctx).margin;
+
+    // 1. Stop ceding planets/systems, most valuable first.
+    const cessions = items
+      .filter((item) => item.giverId === ai.id && (item.kind === 'planet' || item.kind === 'system'))
+      .sort((a, b) => this.itemPlanetValue(b, ctx) - this.itemPlanetValue(a, ctx));
+    for (const item of cessions) {
+      if (margin() >= 0) break;
+      items = items.filter((i) => i !== item);
+    }
+    // 2. Pay less.
+    for (const kind of ['credits', 'rawmaterials'] as const) {
+      const item = items.find((i) => i.giverId === ai.id && i.kind === kind) as { amount: number } | undefined;
+      const deficit = -margin();
+      if (!item || deficit <= 0) continue;
+      const unit = kind === 'credits' ? 1 : EnemyDiplomacyService.RAW_VALUE;
+      item.amount = Math.max(0, roundDown10(item.amount - deficit / unit));
+      if (item.amount === 0) items = items.filter((i) => i !== (item as unknown as TreatyItem));
+    }
+    // 3. Ask for resources the other side holds.
+    for (const kind of ['credits', 'rawmaterials'] as const) {
+      const deficit = -margin();
+      if (deficit <= 0) break;
+      const unit = kind === 'credits' ? 1 : EnemyDiplomacyService.RAW_VALUE;
+      const existing = items.find((i) => i.giverId === otherId && i.kind === kind) as { amount: number } | undefined;
+      const already = existing?.amount ?? 0;
+      const available = Math.floor(other.currencies[kind] ?? 0) - already;
+      const ask = Math.min(available, roundUp10(deficit / unit));
+      if (ask <= 0) continue;
+      if (existing) existing.amount += ask;
+      else items.push({ kind, giverId: otherId, amount: ask });
+    }
+    // 4. Ask for the other side's least valuable planet.
+    if (margin() < 0) {
+      const listed = new Set(items.filter((i) => i.kind === 'planet').map((i) => (i as { planetId: number }).planetId));
+      const candidates = ctx.starSystems
+        .flatMap((s) => s.planetsTiles)
+        .filter((p) => p.factionId === otherId && !listed.has(p.id))
+        .sort((a, b) => this.planetValue(a) - this.planetValue(b) || a.id - b.id);
+      for (const planet of candidates) {
+        const trial: TreatyItem[] = [...items, { kind: 'planet', giverId: otherId, planetId: planet.id }];
+        const trialTreaty = { proposerId: ai.id, recipientId: otherId, items: trial };
+        if (validateTreaty(trialTreaty, ctx).ok && this.evaluateTreaty(ai, trialTreaty, ctx).margin >= 0) {
+          items = trial;
+          break;
+        }
+      }
+    }
+    const counter = build();
+    const evaluation = this.evaluateTreaty(ai, counter, ctx);
+    if (!evaluation.accept) return undefined;
+    if (JSON.stringify(counter.items) === JSON.stringify(treaty.items) && treaty.proposerId === ai.id) return undefined;
+    return counter;
   }
 
   /* Total living fleet strength of a faction (public estimate, see header). */
@@ -155,43 +359,100 @@ export class EnemyDiplomacyService {
     return total;
   }
 
+  /* ---------- Periodic review ---------- */
+
   private reviewPeace(ai: Faction, ctx: DiplomacyContext): boolean {
     let changed = false;
     for (const enemy of this.warEnemies(ai, ctx)) {
-      if (!this.diplomacy.canSignPeace(ai, enemy).ok) continue;
-      if (!this.wantsPeace(ai, enemy, ctx).accept) continue;
+      if (!this.diplomacy.canNegotiate(ai, enemy).ok) continue;
+      const mine = this.assessWar(ai, enemy, ctx);
       if (enemy.ai === true) {
-        if (this.wantsPeace(enemy, ai, ctx).accept) {
-          changed = this.diplomacy.signPeace(ai, enemy).ok || changed;
+        changed = this.settleAiWar(ai, enemy, mine, ctx) || changed;
+      } else if (
+        mine.pressure >= EnemyDiplomacyService.PROPOSE_MIN_PRESSURE
+        && !this.diplomacy.hasOffer(ai.id)
+        && !this.offerCooldowns.has(ai.id)
+      ) {
+        const treaty = this.buildProposal(ai, enemy, mine);
+        if (validateTreaty(treaty, ctx).ok && this.evaluateTreaty(ai, treaty, ctx).accept) {
+          this.diplomacy.addOffer(treaty);
+          this.offerCooldowns.set(ai.id, EnemyDiplomacyService.OFFER_COOLDOWN);
+          changed = true;
         }
-      } else if (!this.diplomacy.hasOffer(ai.id) && !this.offerCooldowns.has(ai.id)) {
-        this.diplomacy.addOffer(ai.id);
-        this.offerCooldowns.set(ai.id, EnemyDiplomacyService.OFFER_COOLDOWN);
-        changed = true;
       }
     }
     return changed;
   }
 
+  /*
+   * Two AIs end their war when both peace values together allow it: white
+   * peace if both want out; otherwise the more eager side pays the other's
+   * price in resources it holds.
+   */
+  private settleAiWar(ai: Faction, enemy: Faction, mine: WarAssessment, ctx: DiplomacyContext): boolean {
+    const theirs = this.assessWar(enemy, ai, ctx);
+    if (mine.peaceValue + theirs.peaceValue < 0) return false;
+    let treaty: PeaceTreaty = { proposerId: ai.id, recipientId: enemy.id, items: [] };
+    if (mine.peaceValue < 0 || theirs.peaceValue < 0) {
+      const [payer, price] = mine.peaceValue >= theirs.peaceValue
+        ? [ai, -theirs.peaceValue]
+        : [enemy, -mine.peaceValue];
+      const items = this.resourcePayment(payer, roundUp10(price));
+      if (!items) return false;
+      treaty = { ...treaty, items };
+    }
+    if (!this.evaluateTreaty(ai, treaty, ctx).accept || !this.evaluateTreaty(enemy, { ...treaty, proposerId: enemy.id, recipientId: ai.id }, ctx).accept) {
+      return false;
+    }
+    return this.diplomacy.executeTreaty(ctx, treaty).ok;
+  }
+
+  /* Credits first, then raw materials, covering `value`; undefined if the payer cannot. */
+  private resourcePayment(payer: Faction, value: number): TreatyItem[] | undefined {
+    if (value <= 0) return [];
+    const credits = Math.min(Math.floor(payer.currencies['credits'] ?? 0), value);
+    const rest = value - credits;
+    const raw = rest > 0 ? roundUp10(rest / EnemyDiplomacyService.RAW_VALUE) : 0;
+    if (raw > Math.floor(payer.currencies['rawmaterials'] ?? 0)) return undefined;
+    const items: TreatyItem[] = [];
+    if (credits > 0) items.push({ kind: 'credits', giverId: payer.id, amount: credits });
+    if (raw > 0) items.push({ kind: 'rawmaterials', giverId: payer.id, amount: raw });
+    return items;
+  }
+
+  /* AI proposal to the human: white peace plus credits worth up to half its surplus will for peace. */
+  private buildProposal(ai: Faction, human: Faction, mine: WarAssessment): PeaceTreaty {
+    const credits = roundDown10(Math.min(mine.peaceValue * 0.5, (ai.currencies['credits'] ?? 0) * 0.4));
+    const items: TreatyItem[] = credits >= 100 ? [{ kind: 'credits', giverId: ai.id, amount: credits }] : [];
+    return { proposerId: ai.id, recipientId: human.id, items };
+  }
+
   private reviewWar(ai: Faction, ctx: DiplomacyContext): boolean {
     const profile = this.profileOf(ai);
     if (this.warEnemies(ai, ctx).length >= profile.maxWars) return false;
-    let best: { target: Faction; ratio: number } | undefined;
+    if (getFactionWarExhaustion(ai) >= EnemyDiplomacyService.NO_NEW_WAR_EXHAUSTION) return false;
+    let best: { target: Faction; ratio: number; distance: number; breach: boolean } | undefined;
     for (const other of ctx.factions) {
-      if (!isTreatyPair(ai, other) || !this.isAlive(other.id, ctx)) continue;
-      if (!this.diplomacy.canDeclareWar(ai, other).ok) continue;
+      if (!isTreatyPair(ai, other) || !isFactionAlive(other.id, ctx)) continue;
+      if (getRelation(ai, other)?.state !== 'peace') continue;
       const ratio = this.strengthRatio(other, ai, ctx);
-      if (ratio > profile.warRatio) continue;
-      if (this.empireDistance(ai.id, other.id, ctx) > EnemyDiplomacyService.WAR_REACH) continue;
-      if (!best || ratio < best.ratio) best = { target: other, ratio };
+      const distance = this.empireDistance(ai.id, other.id, ctx);
+      const opinion = getEffectiveOpinion(ai, other);
+      if (distance > EnemyDiplomacyService.WAR_REACH || ratio > profile.warRatio || opinion > profile.warOpinionMax) continue;
+      const breach = isTruceActive(ai, other);
+      if (breach && !(profile.treachery && ratio <= profile.warRatio * 0.5 && opinion <= -40)) continue;
+      if (!best || ratio < best.ratio || (ratio === best.ratio && distance < best.distance)) {
+        best = { target: other, ratio, distance, breach };
+      }
     }
-    return best ? this.diplomacy.declareWar(ai, best.target).ok : false;
+    if (!best) return false;
+    return best.breach ? this.diplomacy.breakTreaty(ai, best.target).ok : this.diplomacy.declareWar(ai, best.target).ok;
   }
 
+  /* ---------- Helpers ---------- */
+
   private warEnemies(ai: Faction, ctx: DiplomacyContext): Faction[] {
-    return ctx.factions.filter(
-      (other) => getRelation(ai, other)?.state === 'war' && this.isAlive(other.id, ctx),
-    );
+    return ctx.factions.filter((other) => getRelation(ai, other)?.state === 'war' && isFactionAlive(other.id, ctx));
   }
 
   /* The war enemy the AI concentrates on: the nearest, weighted toward weaker ones. */
@@ -204,9 +465,31 @@ export class EnemyDiplomacyService {
     return best?.enemy;
   }
 
-  /* Strength of `other` relative to `self` (own strength floored at 1). */
   private strengthRatio(other: Faction, self: Faction, ctx: DiplomacyContext): number {
     return this.militaryStrength(other.id, ctx.fleets) / Math.max(1, this.militaryStrength(self.id, ctx.fleets));
+  }
+
+  /* About one minute of income: population pays 0.1 credits/s per inhabitant. */
+  private scaleOf(ai: Faction, ctx: DiplomacyContext): number {
+    const population = ctx.starSystems
+      .flatMap((s) => s.planetsTiles)
+      .filter((p) => p.factionId === ai.id)
+      .reduce((sum, p) => sum + (p.population ?? 0), 0);
+    return Math.max(2000, population * 0.1 * 60);
+  }
+
+  private itemPlanets(item: TreatyItem, ctx: DiplomacyContext): PlanetTile[] {
+    if (item.kind === 'planet') {
+      return ctx.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.id === item.planetId && p.factionId === item.giverId);
+    }
+    if (item.kind === 'system') {
+      return ctx.starSystems.find((s) => s.id === item.systemId)?.planetsTiles.filter((p) => p.factionId === item.giverId) ?? [];
+    }
+    return [];
+  }
+
+  private itemPlanetValue(item: TreatyItem, ctx: DiplomacyContext): number {
+    return this.itemPlanets(item, ctx).reduce((sum, p) => sum + this.planetValue(p), 0);
   }
 
   /* Shortest distance between the two empires' systems (fleets for a faction without planets). */
@@ -230,12 +513,6 @@ export class EnemyDiplomacyService {
 
   private ownedPlanetCount(factionId: string, ctx: DiplomacyContext): number {
     return ctx.starSystems.reduce((n, s) => n + s.planetsTiles.filter((p) => p.factionId === factionId).length, 0);
-  }
-
-  /* Eliminated factions (no planet, no living fleet) take no part in diplomacy. */
-  private isAlive(factionId: string, ctx: DiplomacyContext): boolean {
-    return this.ownedPlanetCount(factionId, ctx) > 0
-      || ctx.fleets.some((f) => f.factionId === factionId && !f.destroyed && f.ships.some((s) => !s.destroyed));
   }
 
   private profileOf(faction: Faction): DiplomacyProfile {

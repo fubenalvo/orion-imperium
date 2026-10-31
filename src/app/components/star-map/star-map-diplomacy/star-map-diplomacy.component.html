@@ -5,10 +5,24 @@
         <span class="diplomacy__eyebrow">Imperial Foreign Office</span>
         <h2 class="diplomacy__title" id="diplomacy-title">Diplomacy</h2>
       </div>
-      <div class="ui-figure diplomacy__summary">
-        <span class="ui-figure__value">{{ warCount }}</span>
-        <span class="ui-figure__caption">{{ warCount === 1 ? 'war' : 'wars' }} in progress</span>
-      </div>
+      @if (summary) {
+        <div class="diplomacy__summary">
+          <div class="ui-figure">
+            <span class="ui-figure__value" [class.diplomacy__value--positive]="tone(summary.reputation) === 'positive'" [class.diplomacy__value--danger]="tone(summary.reputation) === 'danger'">{{ signed(summary.reputation) }}</span>
+            <span class="ui-figure__caption">Your reputation</span>
+          </div>
+          <div class="ui-figure">
+            <span class="ui-figure__value" [class.diplomacy__value--danger]="summary.penaltyPercent > 0">{{ summary.exhaustion }}</span>
+            <span class="ui-figure__caption">
+              War exhaustion{{ summary.penaltyPercent > 0 ? ' · −' + summary.penaltyPercent + '% output' : '' }}
+            </span>
+          </div>
+          <div class="ui-figure">
+            <span class="ui-figure__value">{{ summary.warCount }}</span>
+            <span class="ui-figure__caption">{{ summary.warCount === 1 ? 'war' : 'wars' }} in progress</span>
+          </div>
+        </div>
+      }
       <button class="diplomacy__close-btn" type="button" (click)="close.emit()" aria-label="Close diplomacy">CLOSE</button>
     </header>
 
@@ -31,13 +45,50 @@
             @if (!row.alive) {
               <span class="ui-chip ui-chip--muted">ELIMINATED</span>
             } @else if (row.state === 'war') {
-              <span class="ui-chip ui-chip--danger">AT WAR</span>
+              <span class="ui-chip ui-chip--danger">AT WAR · TURN {{ row.warTurns + 1 }}</span>
+            } @else if (row.truceTurns > 0) {
+              <span class="ui-chip ui-chip--warning">TRUCE · {{ row.truceTurns }} TURN{{ row.truceTurns === 1 ? '' : 'S' }}</span>
             } @else {
               <span class="ui-chip ui-chip--success">AT PEACE</span>
             }
           </div>
 
           @if (row.alive) {
+            <div class="diplomacy__meters">
+              <div class="diplomacy__meter">
+                <span class="diplomacy__meter-label">Their opinion of you</span>
+                <span class="diplomacy__bipolar" aria-hidden="true">
+                  <span
+                    class="diplomacy__bipolar-fill"
+                    [class.diplomacy__bipolar-fill--negative]="row.opinionOfYou < 0"
+                    [style.width.%]="(row.opinionOfYou < 0 ? -row.opinionOfYou : row.opinionOfYou) / 2"
+                  ></span>
+                </span>
+                <span class="diplomacy__meter-value" [class.diplomacy__value--positive]="tone(row.opinionOfYou) === 'positive'" [class.diplomacy__value--danger]="tone(row.opinionOfYou) === 'danger'">{{ signed(row.opinionOfYou) }}</span>
+              </div>
+              <div class="diplomacy__meter">
+                <span class="diplomacy__meter-label">Their reputation</span>
+                <span class="diplomacy__bipolar" aria-hidden="true">
+                  <span
+                    class="diplomacy__bipolar-fill"
+                    [class.diplomacy__bipolar-fill--negative]="row.reputation < 0"
+                    [style.width.%]="(row.reputation < 0 ? -row.reputation : row.reputation) / 2"
+                  ></span>
+                </span>
+                <span class="diplomacy__meter-value" [class.diplomacy__value--positive]="tone(row.reputation) === 'positive'" [class.diplomacy__value--danger]="tone(row.reputation) === 'danger'">{{ signed(row.reputation) }}</span>
+              </div>
+              @if (row.state === 'war') {
+                <div class="diplomacy__meter">
+                  <span class="diplomacy__meter-label">Exhaustion · you / them</span>
+                  <span class="diplomacy__duo" aria-hidden="true">
+                    <span class="ui-meter"><span class="ui-meter__fill diplomacy__exhaustion-fill" [style.width.%]="row.yourExhaustion"></span></span>
+                    <span class="ui-meter"><span class="ui-meter__fill diplomacy__exhaustion-fill" [style.width.%]="row.theirExhaustion"></span></span>
+                  </span>
+                  <span class="diplomacy__meter-value">{{ row.yourExhaustion }} / {{ row.theirExhaustion }}</span>
+                </div>
+              }
+            </div>
+
             <div class="diplomacy__stats">
               <div class="ui-stat">
                 <span class="ui-stat__label">Planets</span>
@@ -63,40 +114,54 @@
               }
             </div>
 
-            @if (row.offerSeconds > 0) {
+            @if (row.offer) {
               <div class="ui-notice ui-notice--success diplomacy__offer">
-                <span>{{ row.name }} offers peace ({{ row.offerSeconds }} s left).</span>
+                <div>
+                  <strong>{{ row.name }} proposes peace</strong> ({{ row.offer.secondsLeft }} s left):
+                  <ul class="diplomacy__terms">
+                    @for (line of row.offer.summary; track $index) {
+                      <li>{{ line }}</li>
+                    }
+                  </ul>
+                </div>
                 <span class="diplomacy__actions">
-                  <button class="btn-primary" type="button" (click)="acceptOffer.emit(row.id)">ACCEPT</button>
+                  <button class="btn-primary" type="button" (click)="negotiate.emit(row.id)">REVIEW</button>
                   <button type="button" (click)="declineOffer.emit(row.id)">DECLINE</button>
+                </span>
+              </div>
+            }
+
+            @if (isConfirming(row.id, 'war') || isConfirming(row.id, 'breach')) {
+              <div class="ui-notice ui-notice--danger diplomacy__confirm" role="alert">
+                <span>{{ isConfirming(row.id, 'war') ? warConsequence : breachConsequence }}</span>
+                <span class="diplomacy__actions">
+                  <button class="btn-danger" type="button" (click)="confirm()">{{ isConfirming(row.id, 'war') ? 'CONFIRM WAR' : 'BREAK TREATY' }}</button>
+                  <button type="button" (click)="confirming = null">CANCEL</button>
                 </span>
               </div>
             }
 
             <div class="diplomacy__footer">
               <span class="diplomacy__lock">
-                @if (row.lockSeconds > 0) {
-                  {{ row.state === 'war' ? 'Peace possible' : 'War possible' }} in {{ row.lockSeconds }} s
-                } @else if (row.state === 'war' && row.proposalCooldown > 0) {
-                  Envoy refused — next proposal in {{ row.proposalCooldown }} s
+                @if (row.state === 'war') {
+                  @if (row.negotiateWait > 0) {
+                    Negotiations possible in {{ row.negotiateWait }} s
+                  } @else {
+                    Negotiations open
+                  }
+                } @else if (row.truceTurns > 0) {
+                  Truce: no war declaration for {{ row.truceTurns }} turn{{ row.truceTurns === 1 ? '' : 's' }}
                 } @else {
-                  Treaty can change now
+                  Permanent peace · war can be declared
                 }
               </span>
               <span class="diplomacy__actions">
                 @if (row.state === 'war') {
-                  <button
-                    type="button"
-                    [disabled]="row.lockSeconds > 0 || row.proposalCooldown > 0"
-                    (click)="proposePeace.emit(row.id)"
-                  >PROPOSE PEACE</button>
+                  <button class="btn-primary" type="button" [disabled]="!row.canNegotiate" (click)="negotiate.emit(row.id)">NEGOTIATE PEACE</button>
+                } @else if (row.canBreakTreaty) {
+                  <button class="btn-danger" type="button" (click)="ask(row.id, 'breach')">BREAK TREATY…</button>
                 } @else {
-                  <button
-                    class="btn-danger"
-                    type="button"
-                    [disabled]="row.lockSeconds > 0"
-                    (click)="declareWar.emit(row.id)"
-                  >DECLARE WAR</button>
+                  <button class="btn-danger" type="button" [disabled]="!row.canDeclareWar" (click)="ask(row.id, 'war')">DECLARE WAR…</button>
                 }
               </span>
             </div>
@@ -108,7 +173,8 @@
     </div>
 
     <p class="diplomacy__hint">
-      At peace, fleets do not fight and planets cannot be attacked. A new war lasts at least 1 minute, a new peace at least 3 minutes.
+      One turn is one minute of game time. Peace is permanent; after a treaty a {{ truceTurns }}-turn truce forbids war declarations.
+      War exhaustion above 25 cuts credit, raw material and research output (up to 30%) and resets when peace is signed.
       You also win if every surviving empire is at peace with you, no rebel planet remains and you hold more than half of the inhabited planets.
     </p>
   </div>

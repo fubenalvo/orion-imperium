@@ -406,13 +406,29 @@
   @if (showDiplomacy) {
     <app-star-map-diplomacy
       [rows]="getDiplomacyRows()"
+      [summary]="getDiplomacySummary()"
       [message]="diplomacyMessage"
       (close)="closeDiplomacy()"
-      (proposePeace)="onProposePeace($event)"
+      (negotiate)="openNegotiation($event)"
       (declareWar)="onDeclareWar($event)"
-      (acceptOffer)="onAcceptPeaceOffer($event)"
+      (breakTreaty)="onBreakTreaty($event)"
       (declineOffer)="onDeclinePeaceOffer($event)"
     ></app-star-map-diplomacy>
+  }
+
+  @if (negotiation) {
+    @let negotiationVm = getNegotiationVm();
+    @if (negotiationVm) {
+      <app-star-map-peace-negotiation
+        [vm]="negotiationVm"
+        (draftChange)="onNegotiationDraftChange($event)"
+        (send)="onSendPeaceProposal($event)"
+        (acceptIncoming)="onAcceptIncomingTreaty()"
+        (editIncoming)="onEditIncomingTreaty()"
+        (declineIncoming)="onDeclinePeaceOffer(negotiation.aiId)"
+        (close)="closeNegotiation()"
+      ></app-star-map-peace-negotiation>
+    }
   }
 
   @if (showResearchTree) {

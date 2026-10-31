@@ -46,7 +46,7 @@ Order within one tick (per faction):
 - `expensePerSecond` = building upkeep + colony administration + ship upkeep
 - `netPerSecond = incomePerSecond − expensePerSecond`; `net['credits']` is the same number
 
-The AI difficulty multiplier (`ai-difficulty.ts`) scales production only, never costs, and is 1 for the human.
+The AI difficulty multiplier (`ai-difficulty.ts`) scales production only, never costs, and is 1 for the human. War exhaustion above 25 reduces the same gains linearly down to −30% at 100 for the human and the AI alike (`gainMultiplier` = difficulty × (1 − exhaustion penalty); see [Diplomacy](./diplomacy.md#war-exhaustion)). Peace treaties move credits and raw materials between factions outside the economy tick ([Diplomacy](./diplomacy.md#peace-treaties-peace-treatyts)).
 
 ## Upkeep
 

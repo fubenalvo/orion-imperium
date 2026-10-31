@@ -1,0 +1,162 @@
+<div class="negotiation-overlay">
+  <div class="negotiation-panel" role="dialog" aria-modal="true" aria-labelledby="negotiation-title">
+    <header class="negotiation__header">
+      <div>
+        <span class="negotiation__eyebrow">Peace negotiations · game paused</span>
+        <h2 class="negotiation__title" id="negotiation-title">
+          <span class="negotiation__swatch" [style.--faction-color]="vm.them.color" aria-hidden="true"></span>
+          {{ vm.them.name }}
+        </h2>
+      </div>
+      <span class="ui-chip ui-chip--danger">AT WAR</span>
+      <button class="negotiation__close-btn" type="button" (click)="close.emit()" aria-label="Close negotiations">CLOSE</button>
+    </header>
+
+    <div class="negotiation__body">
+      <!-- Both sides' standing -->
+      <section class="negotiation__sides">
+        @for (side of [vm.you, vm.them]; track side.factionId) {
+          <div class="negotiation__side" [style.--faction-color]="side.color">
+            <span class="negotiation__side-name">{{ side === vm.you ? 'You' : side.name }}</span>
+            <div class="ui-stat"><span class="ui-stat__label">Opinion of the other</span><span class="ui-stat__value">{{ side.opinion > 0 ? '+' : '' }}{{ side.opinion }}</span></div>
+            <div class="ui-stat"><span class="ui-stat__label">Reputation</span><span class="ui-stat__value">{{ side.reputation > 0 ? '+' : '' }}{{ side.reputation }}</span></div>
+            <div class="ui-stat" [class.ui-stat--warn]="side.exhaustion > 25">
+              <span class="ui-stat__label">War exhaustion</span><span class="ui-stat__value">{{ side.exhaustion }} / 100</span>
+            </div>
+            <div class="ui-stat"><span class="ui-stat__label">Treasury</span><span class="ui-stat__value">{{ side.credits | number }} cr · {{ side.rawmaterials | number }} raw</span></div>
+          </div>
+        }
+      </section>
+
+      <!-- Terms on the table from the AI -->
+      @if (vm.incoming) {
+        <section class="ui-notice ui-notice--success negotiation__incoming">
+          <div>
+            <strong>{{ vm.incoming.kind === 'offer' ? vm.them.name + ' proposes peace' : vm.them.name + ' counter-offers' }}</strong>
+            @if (vm.incoming.secondsLeft) { <span class="negotiation__dim"> · open for {{ vm.incoming.secondsLeft }} s of game time</span> }
+            <ul class="negotiation__terms">
+              @for (line of vm.incoming.summary; track $index) {
+                <li>{{ line }}</li>
+              }
+            </ul>
+          </div>
+          <span class="negotiation__actions">
+            <button class="btn-primary" type="button" (click)="acceptIncoming.emit()">ACCEPT TERMS</button>
+            <button type="button" (click)="editIncoming.emit()">EDIT AS DRAFT</button>
+            @if (vm.incoming.kind === 'offer') {
+              <button type="button" (click)="declineIncoming.emit()">DECLINE</button>
+            }
+          </span>
+        </section>
+      }
+
+      <!-- The player's draft -->
+      <section class="negotiation__columns">
+        @for (column of ['demand', 'offer']; track column) {
+          @let col = column === 'demand' ? 'demand' : 'offer';
+          @let side = giverSide(col);
+          <div class="negotiation__column" [class.negotiation__column--offer]="col === 'offer'">
+            <h3 class="ui-label">{{ col === 'demand' ? 'You demand from ' + vm.them.name : 'You offer to ' + vm.them.name }}</h3>
+
+            <label class="negotiation__resource">
+              <span>Credits <span class="negotiation__dim">(max {{ side.credits | number }})</span></span>
+              <input type="number" min="0" step="50" [max]="side.credits" [value]="amount(col, 'credits')"
+                (change)="setAmount(col, 'credits', $any($event.target).value)" />
+            </label>
+            <label class="negotiation__resource">
+              <span>Raw materials <span class="negotiation__dim">(max {{ side.rawmaterials | number }})</span></span>
+              <input type="number" min="0" step="50" [max]="side.rawmaterials" [value]="amount(col, 'rawmaterials')"
+                (change)="setAmount(col, 'rawmaterials', $any($event.target).value)" />
+            </label>
+
+            <span class="negotiation__group-label">Star systems <span class="negotiation__dim">(all {{ side === vm.you ? 'your' : 'their' }} planets there)</span></span>
+            <ul class="negotiation__list">
+              @for (system of side.systems; track system.id) {
+                <li>
+                  <label class="negotiation__option" [class.negotiation__option--on]="isSystemSelected(col, system.id)">
+                    <input type="checkbox" [checked]="isSystemSelected(col, system.id)" (change)="toggleSystem(col, system.id)" />
+                    <span class="negotiation__option-name">{{ system.name }}</span>
+                    <span class="negotiation__dim">{{ system.planetIds.length }} planet{{ system.planetIds.length === 1 ? '' : 's' }}</span>
+                    <span class="negotiation__value">≈ {{ system.value | number }}</span>
+                  </label>
+                </li>
+              } @empty {
+                <li class="negotiation__dim">No systems.</li>
+              }
+            </ul>
+
+            <span class="negotiation__group-label">Planets</span>
+            <ul class="negotiation__list">
+              @for (planet of side.planets; track planet.id) {
+                <li>
+                  <label
+                    class="negotiation__option"
+                    [class.negotiation__option--on]="isPlanetSelected(col, planet.id) || isPlanetCovered(col, planet.systemId)"
+                    [class.negotiation__option--covered]="isPlanetCovered(col, planet.systemId)"
+                  >
+                    <input
+                      type="checkbox"
+                      [checked]="isPlanetSelected(col, planet.id) || isPlanetCovered(col, planet.systemId)"
+                      [disabled]="isPlanetCovered(col, planet.systemId)"
+                      (change)="togglePlanet(col, planet.id)"
+                    />
+                    <span class="negotiation__option-name">{{ planet.name }}</span>
+                    <span class="negotiation__dim">{{ planet.systemName }} · pop {{ planet.population | number }} · {{ planet.buildings }} bldg</span>
+                    <span class="negotiation__value">≈ {{ planet.value | number }}</span>
+                  </label>
+                </li>
+              } @empty {
+                <li class="negotiation__dim">No planets.</li>
+              }
+            </ul>
+          </div>
+        }
+      </section>
+
+      <!-- The AI's judgment of the draft -->
+      <section class="negotiation__assessment" aria-live="polite">
+        <div class="negotiation__verdict">
+          <span class="ui-label">{{ vm.them.name }}'s judgment</span>
+          <div class="negotiation__acceptance" [class.negotiation__acceptance--yes]="vm.evaluation.accept">
+            <span class="negotiation__acceptance-fill" [style.width.%]="vm.evaluation.acceptance * 100"></span>
+            <span class="negotiation__acceptance-mark" aria-hidden="true"></span>
+          </div>
+          <p class="negotiation__verdict-text" [class.negotiation__verdict-text--yes]="vm.evaluation.accept">{{ verdict() }}</p>
+          <div class="ui-stat"><span class="ui-stat__label">Value of these terms for them</span><span class="ui-stat__value">{{ vm.evaluation.termsValue | number }}</span></div>
+          <div class="ui-stat"><span class="ui-stat__label">What peace is worth to them</span><span class="ui-stat__value">{{ vm.evaluation.peaceValue | number }}</span></div>
+        </div>
+        <div class="negotiation__factors">
+          <span class="ui-label">Why · peace pressure</span>
+          <ul class="negotiation__factor-list">
+            @for (factor of vm.evaluation.factors; track factor.key) {
+              <li class="negotiation__factor">
+                <span>{{ factor.label }}</span>
+                <span class="negotiation__factor-bar" aria-hidden="true">
+                  <span
+                    class="negotiation__factor-fill"
+                    [class.negotiation__factor-fill--negative]="factor.value < 0"
+                    [style.width.%]="(factor.value < 0 ? -factor.value : factor.value) * 50"
+                  ></span>
+                </span>
+                <span class="negotiation__factor-value" [class.negotiation__factor-value--negative]="factor.value < 0">{{ signed(factor.value) }}</span>
+              </li>
+            }
+          </ul>
+          <p class="negotiation__dim">Positive factors push them toward peace; negative ones make them demand more.</p>
+        </div>
+      </section>
+    </div>
+
+    <footer class="negotiation__footer">
+      @if (vm.message) {
+        <div class="ui-notice ui-notice--warning negotiation__message" role="status">{{ vm.message }}</div>
+      }
+      <span class="negotiation__dim">Accepted terms are executed at once and start a {{ truceTurns }}-turn truce. War exhaustion resets on both sides.</span>
+      <span class="negotiation__actions">
+        <button type="button" (click)="clearDraft()">CLEAR</button>
+        <button type="button" (click)="close.emit()">CANCEL</button>
+        <button class="btn-primary" type="button" [disabled]="!vm.evaluation.valid" (click)="submit()">SEND PROPOSAL</button>
+      </span>
+    </footer>
+  </div>
+</div>

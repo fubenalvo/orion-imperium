@@ -120,17 +120,49 @@ export interface Faction {
   /*
    * Treaty state with every other non-neutral, non-allied faction, keyed by
    * faction id. Symmetric (both sides hold the same state); written only by
-   * diplomacy.ts `setTreatyState`. See docs/diplomacy.md.
+   * diplomacy.ts `startWar` / `startPeace`. See docs/diplomacy.md.
    */
   relations?: Record<string, FactionRelation>;
+  /*
+   * How trustworthy every other empire finds this faction (−100…+100,
+   * missing = 0). Changed by war declarations, surprise attacks, broken and
+   * honored treaties and long peace (diplomacy.ts).
+   */
+  reputation?: number;
 }
 
 export type TreatyState = 'war' | 'peace';
 
+/*
+ * One faction's entry about another (docs/diplomacy.md). Symmetric fields
+ * (same on both sides): state, lockRemaining, truce, warSeconds,
+ * declaredBy, surpriseRecorded. Per-side fields describe the holder:
+ * opinion, warExhaustion, shipsLostValue, planetsLost. Optional fields are
+ * filled with defaults by normalizeRelations on every load.
+ */
 export interface FactionRelation {
   state: TreatyState;
-  /* Game seconds until this relation may change again (0 = may change now). */
+  /*
+   * Game seconds until this relation may change by a normal action: the
+   * minimum war duration at war; the truce at peace (while `truce`).
+   */
   lockRemaining: number;
+  /* At peace: the post-treaty truce is still running. */
+  truce?: boolean;
+  /* The holder's opinion of the other faction (−100…+100). */
+  opinion?: number;
+  /* At war: the holder's exhaustion in this war (0…100). */
+  warExhaustion?: number;
+  /* At war: game seconds since this war started. */
+  warSeconds?: number;
+  /* At war: who declared it (absent for the opening wars of a new game). */
+  declaredBy?: string;
+  /* At war: the declarer's surprise-attack penalty was already applied. */
+  surpriseRecorded?: boolean;
+  /* At war: credit value of the holder's ships lost in this war. */
+  shipsLostValue?: number;
+  /* At war: planets the holder lost to the other in this war. */
+  planetsLost?: number;
 }
 
 export type GalaxySize = 'small' | 'medium' | 'large';

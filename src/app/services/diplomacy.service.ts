@@ -1,84 +1,116 @@
 import { Injectable } from '@angular/core';
-import { Faction } from '../components/star-map/star-map.models';
+import { Faction, FactionProduction } from '../components/star-map/star-map.models';
 import {
-  PEACE_MIN_DURATION_SECONDS,
+  OPINION_PEACE_SIGNED,
+  OPINION_TREATY_BROKEN,
+  OPINION_WAR_DECLARED,
+  REPUTATION_TREATY_BROKEN,
+  REPUTATION_WAR_DECLARED,
+  TRUCE_SECONDS,
   WAR_MIN_DURATION_SECONDS,
+  adjustOpinion,
+  adjustReputation,
   getRelation,
   isTreatyPair,
-  setTreatyState,
-  tickRelationLocks,
+  isTruceActive,
+  startPeace,
+  startWar,
+  tickDiplomacyTime,
 } from '../components/star-map/diplomacy';
+import {
+  PeaceTreaty,
+  TreatyValidation,
+  TreatyWorld,
+  cededPlanets,
+  isFactionAlive,
+  otherParty,
+  resourceTotal,
+  validateTreaty,
+} from '../components/star-map/peace-treaty';
+import { PlanetOwnershipService } from './planet-ownership.service';
 
 /*
  * =========================================================
  * DIPLOMACY SERVICE
  * =========================================================
  *
- * Applies treaty changes (declare war, sign peace) for the player and the
- * AI with the same rules, and keeps the transient diplomatic state that is
- * not part of the save:
- *  - pending AI peace offers to the human player (expire after
- *    PEACE_OFFER_SECONDS; a refused or expired offer starts the AI's
- *    offer cooldown in EnemyDiplomacyService);
- *  - the cooldown after an AI refused the player's peace proposal, so the
- *    player cannot spam proposals until the AI happens to accept;
- *  - the event queue StarMap drains to show treaty notices.
+ * Applies every treaty change — for the player and the AI with exactly the
+ * same rules and consequences (docs/diplomacy.md):
+ *  - declareWar: only at peace after the truce; reputation and the
+ *    victim's opinion drop;
+ *  - breakTreaty: the only way to end a running truce; a heavy reputation
+ *    and opinion penalty;
+ *  - executeTreaty: ends a war with a peace treaty. All-or-nothing: the
+ *    terms are re-validated first and only then are resources moved,
+ *    planets ceded (PlanetOwnershipService, reason 'ceded'), peace and the
+ *    truce started and exhaustion reset.
  *
- * Treaty state itself lives on the factions (`Faction.relations`, see
- * diplomacy.ts) and is saved with them. Losing offers, cooldowns and
- * events on load is harmless: the AI re-evaluates within one decision
- * interval. reset() clears them on every genuine load / new game.
+ * Transient state (not saved; AIs re-evaluate within one decision
+ * interval after a load): open AI peace proposals to the human player and
+ * the event queue StarMap drains for notices. Treaty state, opinion,
+ * reputation and exhaustion live on the factions (diplomacy.ts) and are
+ * saved with them. reset() runs on every genuine load / new game.
  */
 
-export type DiplomacyFailure = 'invalid' | 'already' | 'locked' | 'refused' | 'cooldown';
+export type DiplomacyFailure = 'invalid' | 'already' | 'locked' | 'truce' | 'not_in_truce';
 
 export interface DiplomacyResult {
   ok: boolean;
   reason?: DiplomacyFailure;
-  /* Seconds until the action becomes possible (locked / cooldown). */
+  /* Seconds until the action becomes possible (locked / truce). */
   waitSeconds?: number;
 }
 
-export interface DiplomacyEvent {
-  kind: 'war' | 'peace';
-  initiatorId: string;
-  targetId: string;
+export interface TreatyExecution {
+  ok: boolean;
+  validation: TreatyValidation;
 }
 
-const PLAYER_ID = 'player';
+export type DiplomacyEventKind = 'war' | 'breach' | 'peace' | 'honored';
 
-/* How long an AI peace offer to the player stays open (game seconds). */
-export const PEACE_OFFER_SECONDS = 60;
-/* After an AI refuses the player's proposal, the next one waits this long. */
-export const PROPOSAL_REFUSAL_COOLDOWN_SECONDS = 45;
+export interface DiplomacyEvent {
+  kind: DiplomacyEventKind;
+  initiatorId: string;
+  targetId: string;
+  /* Peace: the executed terms (for notices). */
+  treaty?: PeaceTreaty;
+}
+
+export interface PeaceProposal {
+  treaty: PeaceTreaty;
+  secondsLeft: number;
+}
+
+/* How long an AI peace proposal to the player stays open (game seconds). */
+export const PEACE_OFFER_SECONDS = 90;
 
 @Injectable({ providedIn: 'root' })
 export class DiplomacyService {
   private events: DiplomacyEvent[] = [];
-  /* AI faction id → seconds left on its peace offer to the player. */
-  private offers = new Map<string, number>();
-  /* AI faction id → seconds until the player may propose peace again. */
-  private refusalCooldowns = new Map<string, number>();
+  /* AI faction id → its open peace proposal to the human player. */
+  private offers = new Map<string, PeaceProposal>();
+
+  constructor(private readonly planetOwnership: PlanetOwnershipService) {}
 
   reset(): void {
     this.events = [];
     this.offers.clear();
-    this.refusalCooldowns.clear();
   }
 
-  /* Counts down treaty locks, offers and cooldowns by scaled game time. */
-  tick(deltaSeconds: number, factions: Faction[]): void {
+  /*
+   * Advances all time-based diplomacy (diplomacy.ts tickDiplomacyTime) and
+   * expires offers. `world` lets eliminated factions stop accruing
+   * exhaustion and drift; without it every faction counts as alive.
+   */
+  tick(deltaSeconds: number, factions: Faction[], world?: Pick<TreatyWorld, 'starSystems' | 'fleets'>): void {
     if (deltaSeconds <= 0) return;
-    tickRelationLocks(factions, deltaSeconds);
-    for (const [id, left] of this.offers) {
-      const next = left - deltaSeconds;
-      if (next <= 0) this.offers.delete(id);
-      else this.offers.set(id, next);
+    const alive = world ? (id: string) => isFactionAlive(id, world) : undefined;
+    for (const honored of tickDiplomacyTime(factions, deltaSeconds, alive)) {
+      this.events.push({ kind: 'honored', initiatorId: honored.aId, targetId: honored.bId });
     }
-    for (const [id, left] of this.refusalCooldowns) {
-      const next = left - deltaSeconds;
-      if (next <= 0) this.refusalCooldowns.delete(id);
-      else this.refusalCooldowns.set(id, next);
+    for (const [id, offer] of this.offers) {
+      offer.secondsLeft -= deltaSeconds;
+      if (offer.secondsLeft <= 0) this.offers.delete(id);
     }
   }
 
@@ -86,14 +118,22 @@ export class DiplomacyService {
     const relation = getRelation(a, b);
     if (!relation) return { ok: false, reason: 'invalid' };
     if (relation.state === 'war') return { ok: false, reason: 'already' };
-    if (relation.lockRemaining > 0) return { ok: false, reason: 'locked', waitSeconds: relation.lockRemaining };
+    if (isTruceActive(a, b)) return { ok: false, reason: 'truce', waitSeconds: relation.lockRemaining };
     return { ok: true };
   }
 
-  canSignPeace(a: Faction, b: Faction): DiplomacyResult {
+  canBreakTreaty(a: Faction, b: Faction): DiplomacyResult {
     const relation = getRelation(a, b);
     if (!relation) return { ok: false, reason: 'invalid' };
-    if (relation.state === 'peace') return { ok: false, reason: 'already' };
+    if (!isTruceActive(a, b)) return { ok: false, reason: 'not_in_truce' };
+    return { ok: true };
+  }
+
+  /* Can the two sides negotiate an end to their war right now? */
+  canNegotiate(a: Faction, b: Faction): DiplomacyResult {
+    const relation = getRelation(a, b);
+    if (!relation) return { ok: false, reason: 'invalid' };
+    if (relation.state !== 'war') return { ok: false, reason: 'already' };
     if (relation.lockRemaining > 0) return { ok: false, reason: 'locked', waitSeconds: relation.lockRemaining };
     return { ok: true };
   }
@@ -101,20 +141,56 @@ export class DiplomacyService {
   declareWar(initiator: Faction, target: Faction): DiplomacyResult {
     const check = this.canDeclareWar(initiator, target);
     if (!check.ok) return check;
-    setTreatyState(initiator, target, 'war', WAR_MIN_DURATION_SECONDS);
-    this.clearPair(initiator.id, target.id);
+    startWar(initiator, target, WAR_MIN_DURATION_SECONDS, initiator.id);
+    adjustReputation(initiator, REPUTATION_WAR_DECLARED);
+    adjustOpinion(target, initiator, OPINION_WAR_DECLARED);
+    this.afterTreatyChange(initiator.id, target.id);
     this.events.push({ kind: 'war', initiatorId: initiator.id, targetId: target.id });
     return { ok: true };
   }
 
-  /* Signs peace; the caller has already established that both sides agree. */
-  signPeace(initiator: Faction, target: Faction): DiplomacyResult {
-    const check = this.canSignPeace(initiator, target);
+  /* Ends a running truce with war: treachery, judged harshly by everyone (via reputation). */
+  breakTreaty(initiator: Faction, target: Faction): DiplomacyResult {
+    const check = this.canBreakTreaty(initiator, target);
     if (!check.ok) return check;
-    setTreatyState(initiator, target, 'peace', PEACE_MIN_DURATION_SECONDS);
-    this.clearPair(initiator.id, target.id);
-    this.events.push({ kind: 'peace', initiatorId: initiator.id, targetId: target.id });
+    startWar(initiator, target, WAR_MIN_DURATION_SECONDS, initiator.id);
+    adjustReputation(initiator, REPUTATION_TREATY_BROKEN);
+    adjustOpinion(target, initiator, OPINION_TREATY_BROKEN);
+    this.afterTreatyChange(initiator.id, target.id);
+    this.events.push({ kind: 'breach', initiatorId: initiator.id, targetId: target.id });
     return { ok: true };
+  }
+
+  /*
+   * Executes an agreed peace treaty atomically. The caller has established
+   * that both sides agree (player choice and/or AI evaluation); this only
+   * checks feasibility, then applies everything.
+   */
+  executeTreaty(world: TreatyWorld & { production?: FactionProduction[] }, treaty: PeaceTreaty): TreatyExecution {
+    const validation = validateTreaty(treaty, world);
+    if (!validation.ok) return { ok: false, validation };
+    const proposer = world.factions.find((f) => f.id === treaty.proposerId)!;
+    const recipient = world.factions.find((f) => f.id === treaty.recipientId)!;
+
+    // Validation guarantees every amount is covered, so no step below can fail.
+    for (const giver of [proposer, recipient]) {
+      const receiver = giver === proposer ? recipient : proposer;
+      for (const kind of ['credits', 'rawmaterials'] as const) {
+        const amount = resourceTotal(treaty, giver.id, kind);
+        if (amount <= 0) continue;
+        giver.currencies[kind] = (giver.currencies[kind] ?? 0) - amount;
+        receiver.currencies[kind] = (receiver.currencies[kind] ?? 0) + amount;
+      }
+    }
+    for (const { planet, giverId } of cededPlanets(treaty, world.starSystems)) {
+      this.planetOwnership.transferPlanet(world, planet, otherParty(treaty, giverId), 'ceded');
+    }
+    startPeace(proposer, recipient, TRUCE_SECONDS);
+    adjustOpinion(proposer, recipient, OPINION_PEACE_SIGNED);
+    adjustOpinion(recipient, proposer, OPINION_PEACE_SIGNED);
+    this.afterTreatyChange(proposer.id, recipient.id);
+    this.events.push({ kind: 'peace', initiatorId: proposer.id, targetId: recipient.id, treaty });
+    return { ok: true, validation };
   }
 
   drainEvents(): DiplomacyEvent[] {
@@ -123,18 +199,18 @@ export class DiplomacyService {
     return events;
   }
 
-  /* ---------- AI peace offers to the player ---------- */
+  /* ---------- AI peace proposals to the human player ---------- */
 
-  addOffer(fromAiId: string): void {
-    this.offers.set(fromAiId, PEACE_OFFER_SECONDS);
+  addOffer(treaty: PeaceTreaty): void {
+    this.offers.set(treaty.proposerId, { treaty, secondsLeft: PEACE_OFFER_SECONDS });
+  }
+
+  getOffer(fromAiId: string): PeaceProposal | undefined {
+    return this.offers.get(fromAiId);
   }
 
   hasOffer(fromAiId: string): boolean {
     return this.offers.has(fromAiId);
-  }
-
-  getOfferSecondsLeft(fromAiId: string): number {
-    return this.offers.get(fromAiId) ?? 0;
   }
 
   getOfferIds(): string[] {
@@ -145,30 +221,15 @@ export class DiplomacyService {
     this.offers.delete(fromAiId);
   }
 
-  /* ---------- Player proposals ---------- */
-
-  getRefusalCooldown(aiId: string): number {
-    return this.refusalCooldowns.get(aiId) ?? 0;
-  }
-
-  startRefusalCooldown(aiId: string): void {
-    this.refusalCooldowns.set(aiId, PROPOSAL_REFUSAL_COOLDOWN_SECONDS);
-  }
-
-  /*
-   * A treaty change between the player and an AI voids that AI's pending
-   * offer and the player's proposal cooldown with it. Offers and cooldowns
-   * only exist toward the human player, so AI–AI changes touch nothing.
-   */
-  private clearPair(aId: string, bId: string): void {
-    const other = aId === PLAYER_ID ? bId : bId === PLAYER_ID ? aId : null;
-    if (other) {
-      this.offers.delete(other);
-      this.refusalCooldowns.delete(other);
-    }
-  }
-
   isTreatyPair(a: Faction, b: Faction): boolean {
     return isTreatyPair(a, b);
+  }
+
+  /* Any treaty change between the two voids an open offer between them. */
+  private afterTreatyChange(aId: string, bId: string): void {
+    for (const [id, offer] of this.offers) {
+      const parties = [offer.treaty.proposerId, offer.treaty.recipientId];
+      if (parties.includes(aId) && parties.includes(bId)) this.offers.delete(id);
+    }
   }
 }

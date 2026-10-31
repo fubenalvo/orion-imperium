@@ -8,7 +8,7 @@ System-level description of how AI-controlled factions (`Faction.ai === true`) m
 
 1. Fleet movement (`StarMapMovementService.updateFleets`), arrivals, battle detection.
 2. `StarMapAiTickService.tick` — the whole AI pipeline:
-   0. `EnemyDiplomacyService` — AI treaty decisions (peace, war declarations, peace offers to the player) for all AI factions, every 10 s; runs first so every layer below sees this frame's treaties ([Diplomacy](./diplomacy.md#ai-decisions-enemydiplomacyservice)).
+   0. `EnemyDiplomacyService` — AI diplomacy for all AI factions, every 10 s: AI–AI peace settlements, peace proposals to the player, war declarations and (militarists) treaty breaches, all from the deterministic war assessment; runs first so every layer below sees this frame's treaties ([Diplomacy](./diplomacy.md#ai-judgment-enemydiplomacyservice)).
    Then per faction: `EnemyIntelService` — fog-of-war knowledge and the perceived view every decision layer uses (every 2 s); `EnemyPlanService` — strategic assessment and posture (every 5 s, first immediately); `EnemyFleetService` — fleet roles and movement for every fleet the pipeline is not using (every 2 s, first decision on the first frame), including planet assaults executed by `EnemyInvasionService`; `EnemyResearchService` — buys one technology (every 5 s, first decision immediately).
    After the tick, `StarMap` takes any queued AI assault on a player planet (`takePendingPlayerBattle`) and opens the battle screen.
    1. `EnemyAiService` — legacy reactive pursuit; only for AI fleets nobody else manages (in practice none).
@@ -133,7 +133,7 @@ The parallel colonization slot never executes in a frame where its `move_to_targ
 
 ## Fleet roles (EnemyFleetService)
 
-Decided every 2 s per faction, using `ShipService.calculateFleetStrength` (living ships only). Hostile = at war (`diplomacy.ts` `areFactionsHostile`); fleets of factions at peace are ignored. Every frame (not only on decision ticks) an interception whose target the faction no longer knows about (intel dropped the sighting) or is no longer at war with loses its target, so the interceptor never chases a lost contact while the intel and decision clocks drift apart; the fleet keeps its role-owner and gets a new role at the next decision.
+Decided every 2 s per faction, using `ShipService.calculateFleetStrength` (living ships only). Hostile = at war (`diplomacy.ts` `areFactionsHostile`); fleets of factions at peace are ignored. The assignment map holds every AI faction's fleets, so stale entries are pruned against the real world, never against the deciding faction's fog-of-war view (that once wiped every other AI's fleet roles on each decision, making their fleets flip between roles and stall). Every frame (not only on decision ticks) an interception whose target the faction no longer knows about (intel dropped the sighting) or is no longer at war with loses its target, so the interceptor never chases a lost contact while the intel and decision clocks drift apart; the fleet keeps its role-owner and gets a new role at the next decision.
 
 | Role | When | Order |
 |---|---|---|

@@ -354,7 +354,7 @@ The AI pipeline is a layered system running every frame (respecting pause/speed 
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Diplomacy | ⚠️ partial | War and peace treaties between all empires (AI–AI included), AI peace offers, Diplomacy screen, diplomatic victory — see [Diplomacy](./diplomacy.md). No alliances, trade or tribute yet. |
+| Diplomacy | ⚠️ partial | War/peace between all empires (AI–AI included), opinion, reputation, war exhaustion, 10-turn truce, treaty breach, negotiated peace treaties with resources/planets/systems and AI counter-offers, Diplomacy screen and negotiation dialog, diplomatic victory — see [Diplomacy](./diplomacy.md). No alliances or trade yet. |
 | Ship Design | ❌ | Ship types are fixed in JSON. No customship design, module fitting, or retrofit. |
 | Missions/Objectives | ❌ | No quest system, victory conditions, or mission tracking. |
 | Multiplayer | ❌ | Single-player only. No networking layer. |
@@ -487,7 +487,7 @@ long_range_radar → +1 sensor range (cumulative +3)
 
 1. **No combat ship production for AI** — AI only produces colonizers. Enemy fleets never grow or replace losses. This limits the strategic depth of conflict.
 2. **No victory conditions** — The game has no win/lose state. Players can expand indefinitely with no endpoint.
-3. **Basic diplomacy only** — war/peace treaties exist ([Diplomacy](./diplomacy.md)); no alliances, trade, or tribute.
+3. **No alliances or trade** — war/peace, opinion, reputation, exhaustion and negotiated peace treaties exist ([Diplomacy](./diplomacy.md)); alliances and trade agreements do not.
 4. **No ship design** — All ship types are fixed. No customization or tech-driven upgrades to ship stats.
 5. **Research Laboratory morale bug** — `moraleRate: 1` on research labs makes them effectively social buildings, which is likely unintended.
 6. **Fleet tactics post-battle** — Winner survivor roster does not persist per-ship; fleet position not updated after battle
@@ -507,7 +507,7 @@ long_range_radar → +1 sensor range (cumulative +3)
 | Victory conditions | ❌ | Define win/lose conditions, mission system |
 | AI combat production | ✅ | `produce_combat_ship` queues the cheapest unlocked/affordable combat ship at a factory planet |
 | AI fleet reinforcement | ✅ | `reinforce_fleet` / `create_fleet` replenish AI fleets from global stock via `FleetAssemblyService` |
-| Diplomacy | ⚠️ | War/peace done; alliances, trade, tribute |
+| Diplomacy | ⚠️ | Treaties, opinion, reputation, exhaustion, negotiations done; alliances, trade |
 | Ship design | ❌ | Custom ship construction, module system |
 | Fleet tactics post-battle | ⚠️ | Persist fleet positions, apply repair, survivor roster |
 | Orbital factories | ⚠️ | Add Orbital Factory building, ships requiring it |

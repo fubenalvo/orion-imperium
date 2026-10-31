@@ -1,34 +1,26 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { TreatyState } from '../star-map.models';
+import { DiplomacyRowVm, DiplomacySummaryVm } from '../star-map-diplomacy-vm';
+import {
+  OPINION_TREATY_BROKEN,
+  OPINION_WAR_DECLARED,
+  REPUTATION_SURPRISE_ATTACK,
+  REPUTATION_TREATY_BROKEN,
+  REPUTATION_WAR_DECLARED,
+  TRUCE_TURNS,
+} from '../diplomacy';
+
+export type { DiplomacyRowVm } from '../star-map-diplomacy-vm';
 
 /*
- * One row of the diplomacy screen: the player's relation with one other
- * participant plus what is publicly known about it. Built by
- * StarMap.getDiplomacyRows; the component is a pure view and only emits
- * the player's choices (rules live in DiplomacyService /
- * EnemyDiplomacyService, see docs/diplomacy.md).
+ * Diplomacy screen: one card per other empire with the relation, the
+ * diplomatic values (opinion, reputation, exhaustion, truce) and the
+ * available actions. Pure view: it only emits the player's choices; the
+ * rules live in DiplomacyService / EnemyDiplomacyService and the numbers
+ * come from star-map-diplomacy-vm.ts (docs/diplomacy.md).
+ *
+ * Declaring war and breaking a treaty go through an inline confirmation
+ * that states the consequences, so the player always knows the cost.
  */
-export interface DiplomacyRowVm {
-  id: string;
-  name: string;
-  color: string;
-  personality: string;
-  state: TreatyState;
-  /* Seconds until the treaty may change (0 = now). */
-  lockSeconds: number;
-  /* False once the faction has no planet and no living fleet. */
-  alive: boolean;
-  planets: number;
-  /* Fleet strength compared with the player's. */
-  strength: 'weaker' | 'comparable' | 'stronger';
-  /* Seconds left on this faction's peace offer to the player (0 = none). */
-  offerSeconds: number;
-  /* Seconds until the player may propose peace again after a refusal. */
-  proposalCooldown: number;
-  atWarWith: string[];
-  atPeaceWith: string[];
-}
-
 @Component({
   selector: 'app-star-map-diplomacy',
   standalone: true,
@@ -37,13 +29,24 @@ export interface DiplomacyRowVm {
 })
 export class StarMapDiplomacyComponent {
   @Input() rows: DiplomacyRowVm[] = [];
+  @Input() summary: DiplomacySummaryVm | null = null;
   @Input() message: string | null = null;
 
   @Output() close = new EventEmitter<void>();
-  @Output() proposePeace = new EventEmitter<string>();
+  @Output() negotiate = new EventEmitter<string>();
   @Output() declareWar = new EventEmitter<string>();
-  @Output() acceptOffer = new EventEmitter<string>();
+  @Output() breakTreaty = new EventEmitter<string>();
   @Output() declineOffer = new EventEmitter<string>();
+
+  /* Row awaiting confirmation of a war declaration or a treaty breach. */
+  confirming: { id: string; action: 'war' | 'breach' } | null = null;
+
+  readonly truceTurns = TRUCE_TURNS;
+  readonly warConsequence =
+    `Your reputation ${REPUTATION_WAR_DECLARED}, their opinion of you ${OPINION_WAR_DECLARED}. ` +
+    `Attacking them within one turn of the declaration counts as a surprise attack (reputation ${REPUTATION_SURPRISE_ATTACK}).`;
+  readonly breachConsequence =
+    `Treachery: your reputation ${REPUTATION_TREATY_BROKEN} (every empire trusts you less), their opinion of you ${OPINION_TREATY_BROKEN}.`;
 
   readonly strengthLabels: Record<DiplomacyRowVm['strength'], string> = {
     weaker: 'Weaker fleet than yours',
@@ -51,7 +54,28 @@ export class StarMapDiplomacyComponent {
     stronger: 'Stronger fleet than yours',
   };
 
-  get warCount(): number {
-    return this.rows.filter((r) => r.alive && r.state === 'war').length;
+  ask(id: string, action: 'war' | 'breach'): void {
+    this.confirming = { id, action };
+  }
+
+  confirm(): void {
+    if (!this.confirming) return;
+    const { id, action } = this.confirming;
+    this.confirming = null;
+    if (action === 'war') this.declareWar.emit(id);
+    else this.breakTreaty.emit(id);
+  }
+
+  isConfirming(id: string, action: 'war' | 'breach'): boolean {
+    return this.confirming?.id === id && this.confirming.action === action;
+  }
+
+  /* Sign-prefixed value for opinion / reputation readouts. */
+  signed(value: number): string {
+    return value > 0 ? `+${value}` : `${value}`;
+  }
+
+  tone(value: number): 'positive' | 'danger' | null {
+    return value >= 20 ? 'positive' : value <= -20 ? 'danger' : null;
   }
 }

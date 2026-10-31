@@ -185,8 +185,8 @@ describe('GalaxyGeneratorService', () => {
     expect(byId.get('enemy2')).toMatchObject({ name: 'Bot Two', color: '#ff6fcf', ai: true, team: 3, aiDifficulty: 'easy' });
     // Everyone starts at war with everyone else, under the opening war lock.
     for (const [a, b] of [['player', 'enemy1'], ['player', 'enemy2'], ['enemy1', 'enemy2']]) {
-      expect(byId.get(a)!.relations?.[b]).toEqual({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS });
-      expect(byId.get(b)!.relations?.[a]).toEqual({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS });
+      expect(byId.get(a)!.relations?.[b]).toMatchObject({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS, opinion: 0, warExhaustion: 0 });
+      expect(byId.get(b)!.relations?.[a]).toMatchObject({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS });
     }
     expect(byId.get('independent')!.relations).toBeUndefined();
     expect(byId.has('independent')).toBe(true);

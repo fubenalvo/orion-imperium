@@ -68,11 +68,21 @@ import {
   DriftingAsteroid,
   AsteroidBelt,
 } from './star-map.models';
-import { areFactionsAllied, areFactionsHostile, getRelation, isTreatyPair } from './diplomacy';
+import { DIPLOMACY_TURN_SECONDS, TRUCE_TURNS, areFactionsAllied, areFactionsHostile } from './diplomacy';
 import { DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
 import { EnemyDiplomacyService } from './enemy-diplomacy.service';
-import { getAiPersonalityProfile } from './ai-personality';
-import { DiplomacyRowVm, StarMapDiplomacyComponent } from './star-map-diplomacy/star-map-diplomacy.component';
+import { StarMapDiplomacyComponent } from './star-map-diplomacy/star-map-diplomacy.component';
+import { StarMapPeaceNegotiationComponent } from './star-map-peace-negotiation/star-map-peace-negotiation.component';
+import { PeaceTreaty, describeTreatyInvalid } from './peace-treaty';
+import {
+  DiplomacyRowVm,
+  DiplomacySummaryVm,
+  NegotiationVm,
+  buildDiplomacyRows,
+  buildDiplomacySummary,
+  buildNegotiationVm,
+  summarizeTreaty,
+} from './star-map-diplomacy-vm';
 import { StarMapTerrainService } from './star-map-terrain.service';
 import { DriftingAsteroidService, AsteroidTickResult } from './drifting-asteroid.service';
 import {
@@ -180,6 +190,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapSystemGridViewComponent,
     StarMapResearchTreeComponent,
     StarMapDiplomacyComponent,
+    StarMapPeaceNegotiationComponent,
     StarMapAsteroidInfoComponent,
     StarMapFleetManagerComponent,
   ],
@@ -341,6 +352,18 @@ loadError = '';
   showDiplomacy = false;
   /* Result line of the player's last diplomatic action, shown in the panel. */
   diplomacyMessage: string | null = null;
+  /*
+   * Open peace negotiation with one AI: the player's editable draft, the
+   * AI's terms on the table (its proposal or counter-offer), the last
+   * result line, and whether to resume the game on close.
+   */
+  negotiation: {
+    aiId: string;
+    draft: PeaceTreaty;
+    incoming: NegotiationVm['incoming'];
+    message: string | null;
+    resumeOnClose: boolean;
+  } | null = null;
   /* Set when an AI-vs-AI battle was auto-resolved this frame (fleet losses can end the game). */
   private autoBattleResolved = false;
   /* Offers already announced with a map notice (an offer is announced once). */
@@ -1352,89 +1375,19 @@ loadError = '';
     this.showDiplomacy = false;
   }
 
-  /* Number of open AI peace offers; drives the header badge. */
+  /* Number of open AI peace proposals; drives the header badge. */
   getDiplomacyAlertCount(): number {
     return this.diplomacyService.getOfferIds().length;
   }
 
   getDiplomacyRows(): DiplomacyRowVm[] {
     const player = this.getPlayerFaction();
-    if (!player) return [];
-    const playerStrength = this.enemyDiplomacyService.militaryStrength('player', this.fleets);
-    return this.factions
-      .filter((f) => isTreatyPair(player, f))
-      .map((f) => {
-        const relation = getRelation(player, f)!;
-        const planets = this.starSystems.reduce((n, sys) => n + sys.planetsTiles.filter((p) => p.factionId === f.id).length, 0);
-        const alive = planets > 0 || this.fleets.some((fl) => fl.factionId === f.id && !fl.destroyed && fl.ships.some((sh) => !sh.destroyed));
-        const ratio = this.enemyDiplomacyService.militaryStrength(f.id, this.fleets) / Math.max(1, playerStrength);
-        const others = this.factions.filter((o) => o.id !== player.id && isTreatyPair(f, o));
-        return {
-          id: f.id,
-          name: f.name,
-          color: f.color,
-          personality: f.ai ? getAiPersonalityProfile(f).label : 'Human',
-          state: relation.state,
-          lockSeconds: Math.ceil(relation.lockRemaining),
-          alive,
-          planets,
-          strength: ratio < 0.75 ? 'weaker' : ratio > 1.33 ? 'stronger' : 'comparable',
-          offerSeconds: Math.ceil(this.diplomacyService.getOfferSecondsLeft(f.id)),
-          proposalCooldown: Math.ceil(this.diplomacyService.getRefusalCooldown(f.id)),
-          atWarWith: others.filter((o) => getRelation(f, o)?.state === 'war').map((o) => o.name),
-          atPeaceWith: others.filter((o) => getRelation(f, o)?.state === 'peace').map((o) => o.name),
-        };
-      });
+    return player ? buildDiplomacyRows(player, this.liveDiplomacyContext(), this.diplomacyService, this.enemyDiplomacyService) : [];
   }
 
-  /*
-   * The player proposes peace; the AI answers with the same rule it uses
-   * for its own treaties (EnemyDiplomacyService.wantsPeace). A refusal
-   * starts a short cooldown so proposals cannot be spammed.
-   */
-  onProposePeace(factionId: string): void {
+  getDiplomacySummary(): DiplomacySummaryVm | null {
     const player = this.getPlayerFaction();
-    const ai = this.factions.find((f) => f.id === factionId);
-    if (!player || !ai) return;
-    const check = this.diplomacyService.canSignPeace(player, ai);
-    if (!check.ok) {
-      this.diplomacyMessage = this.describeDiplomacyFailure(ai, check.reason, check.waitSeconds);
-      return;
-    }
-    const cooldown = this.diplomacyService.getRefusalCooldown(ai.id);
-    if (cooldown > 0) {
-      this.diplomacyMessage = `${ai.name} will not receive another envoy for ${Math.ceil(cooldown)} s.`;
-      return;
-    }
-    const decision = ai.ai === true
-      ? this.enemyDiplomacyService.wantsPeace(ai, player, this.liveDiplomacyContext())
-      : { accept: false };
-    if (!decision.accept) {
-      this.diplomacyService.startRefusalCooldown(ai.id);
-      this.diplomacyMessage = `${ai.name} refused peace: they believe they can win this war.`;
-      return;
-    }
-    this.diplomacyService.signPeace(player, ai);
-    this.diplomacyMessage = `${ai.name} accepted peace.`;
-    this.afterTreatyChange();
-  }
-
-  onAcceptPeaceOffer(factionId: string): void {
-    const player = this.getPlayerFaction();
-    const ai = this.factions.find((f) => f.id === factionId);
-    if (!player || !ai || !this.diplomacyService.hasOffer(ai.id)) return;
-    const result = this.diplomacyService.signPeace(ai, player);
-    this.diplomacyService.removeOffer(ai.id);
-    this.diplomacyMessage = result.ok
-      ? `Peace signed with ${ai.name}.`
-      : this.describeDiplomacyFailure(ai, result.reason, result.waitSeconds);
-    if (result.ok) this.afterTreatyChange();
-  }
-
-  onDeclinePeaceOffer(factionId: string): void {
-    const ai = this.factions.find((f) => f.id === factionId);
-    this.diplomacyService.removeOffer(factionId);
-    this.diplomacyMessage = ai ? `You rejected the peace offer of ${ai.name}.` : null;
+    return player ? buildDiplomacySummary(player, this.liveDiplomacyContext()) : null;
   }
 
   onDeclareWar(factionId: string): void {
@@ -1443,17 +1396,155 @@ loadError = '';
     if (!player || !target) return;
     const result = this.diplomacyService.declareWar(player, target);
     this.diplomacyMessage = result.ok
-      ? `You declared war on ${target.name}.`
+      ? `You declared war on ${target.name}. Reputation and their opinion of you dropped.`
       : this.describeDiplomacyFailure(target, result.reason, result.waitSeconds);
     if (result.ok) this.afterTreatyChange();
   }
 
+  onBreakTreaty(factionId: string): void {
+    const player = this.getPlayerFaction();
+    const target = this.factions.find((f) => f.id === factionId);
+    if (!player || !target) return;
+    const result = this.diplomacyService.breakTreaty(player, target);
+    this.diplomacyMessage = result.ok
+      ? `You broke the treaty with ${target.name}. Every empire now trusts you less.`
+      : this.describeDiplomacyFailure(target, result.reason, result.waitSeconds);
+    if (result.ok) this.afterTreatyChange();
+  }
+
+  onDeclinePeaceOffer(factionId: string): void {
+    const ai = this.factions.find((f) => f.id === factionId);
+    this.diplomacyService.removeOffer(factionId);
+    if (this.negotiation?.aiId === factionId && this.negotiation.incoming?.kind === 'offer') {
+      this.negotiation = { ...this.negotiation, incoming: null, message: ai ? `You rejected the proposal of ${ai.name}.` : null };
+    }
+    this.diplomacyMessage = ai ? `You rejected the peace proposal of ${ai.name}.` : null;
+  }
+
+  /*
+   * Opens the negotiation dialog with an AI at war with the player. The
+   * game pauses while negotiating (resumed on close if it was running), so
+   * the AI's judgment shown in the dialog cannot go stale meanwhile. An
+   * open AI proposal is shown as incoming terms.
+   */
+  openNegotiation(factionId: string): void {
+    const player = this.getPlayerFaction();
+    const ai = this.factions.find((f) => f.id === factionId);
+    if (!player || !ai || ai.ai !== true) return;
+    const offer = this.diplomacyService.getOffer(ai.id);
+    if (!offer && !this.diplomacyService.canNegotiate(player, ai).ok) return;
+    this.negotiation = {
+      aiId: ai.id,
+      draft: { proposerId: player.id, recipientId: ai.id, items: [] },
+      incoming: offer
+        ? { kind: 'offer', treaty: offer.treaty, summary: summarizeTreaty(offer.treaty, player.id, this.liveDiplomacyContext()), secondsLeft: Math.ceil(offer.secondsLeft) }
+        : null,
+      message: null,
+      resumeOnClose: !this.gameTimeService.isPaused,
+    };
+    this.gameTimeService.pause();
+    this.cdr.detectChanges();
+  }
+
+  closeNegotiation(): void {
+    const resume = this.negotiation?.resumeOnClose ?? false;
+    this.negotiation = null;
+    if (resume) this.gameTimeService.resume();
+    this.cdr.detectChanges();
+  }
+
+  getNegotiationVm(): NegotiationVm | null {
+    const player = this.getPlayerFaction();
+    const ai = this.negotiation ? this.factions.find((f) => f.id === this.negotiation!.aiId) : undefined;
+    if (!this.negotiation || !player || !ai) return null;
+    return buildNegotiationVm(player, ai, this.negotiation.draft, this.negotiation.incoming, this.negotiation.message,
+      this.liveDiplomacyContext(), this.enemyDiplomacyService);
+  }
+
+  onNegotiationDraftChange(treaty: PeaceTreaty): void {
+    if (!this.negotiation) return;
+    this.negotiation = { ...this.negotiation, draft: treaty, message: null };
+  }
+
+  /* The player sends the draft; the AI accepts (executed at once), counters or refuses. */
+  onSendPeaceProposal(treaty: PeaceTreaty): void {
+    const player = this.getPlayerFaction();
+    const ai = this.negotiation ? this.factions.find((f) => f.id === this.negotiation!.aiId) : undefined;
+    if (!this.negotiation || !player || !ai) return;
+    const world = this.liveDiplomacyContext();
+    const response = this.enemyDiplomacyService.respondToProposal(ai, treaty, world);
+    if (response.decision === 'accept') {
+      this.concludeTreaty(treaty, ai);
+      return;
+    }
+    if (response.decision === 'counter' && response.counter) {
+      this.negotiation = {
+        ...this.negotiation,
+        draft: treaty,
+        incoming: { kind: 'counter', treaty: response.counter, summary: summarizeTreaty(response.counter, player.id, world) },
+        message: `${ai.name} refuses these terms but makes a counter-offer.`,
+      };
+      return;
+    }
+    this.negotiation = {
+      ...this.negotiation,
+      draft: treaty,
+      message: response.evaluation.validation.ok
+        ? `${ai.name} refuses: these terms are far from what it would accept.`
+        : describeTreatyInvalid(response.evaluation.validation.reason),
+    };
+  }
+
+  /*
+   * Accepts the AI's terms on the table (its proposal or counter-offer).
+   * The AI's agreement is re-checked against the current state, then the
+   * treaty is executed atomically.
+   */
+  onAcceptIncomingTreaty(): void {
+    const ai = this.negotiation ? this.factions.find((f) => f.id === this.negotiation!.aiId) : undefined;
+    const incoming = this.negotiation?.incoming;
+    if (!this.negotiation || !ai || !incoming) return;
+    if (!this.enemyDiplomacyService.evaluateTreaty(ai, incoming.treaty, this.liveDiplomacyContext()).accept) {
+      this.diplomacyService.removeOffer(ai.id);
+      this.negotiation = { ...this.negotiation, incoming: null, message: `${ai.name} has withdrawn these terms: the situation changed.` };
+      return;
+    }
+    this.concludeTreaty(incoming.treaty, ai);
+  }
+
+  /* Loads the AI's terms into the editable draft (to adjust and send back). */
+  onEditIncomingTreaty(): void {
+    const player = this.getPlayerFaction();
+    if (!this.negotiation?.incoming || !player) return;
+    const { treaty } = this.negotiation.incoming;
+    this.negotiation = {
+      ...this.negotiation,
+      draft: { proposerId: player.id, recipientId: this.negotiation.aiId, items: treaty.items.map((item) => ({ ...item })) },
+      message: null,
+    };
+  }
+
+  private concludeTreaty(treaty: PeaceTreaty, ai: Faction): void {
+    const execution = this.diplomacyService.executeTreaty({ ...this.liveDiplomacyContext(), production: this.production }, treaty);
+    if (!execution.ok) {
+      if (this.negotiation) this.negotiation = { ...this.negotiation, message: describeTreatyInvalid(execution.validation.reason) };
+      return;
+    }
+    this.diplomacyMessage = `Peace signed with ${ai.name}. Truce: ${TRUCE_TURNS} turns.`;
+    this.closeNegotiation();
+    this.afterTreatyChange();
+  }
+
   private describeDiplomacyFailure(target: Faction, reason: DiplomacyFailure | undefined, waitSeconds?: number): string {
     switch (reason) {
+      case 'truce':
+        return `The truce with ${target.name} holds for another ${Math.ceil((waitSeconds ?? 0) / DIPLOMACY_TURN_SECONDS)} turn(s). Only breaking the treaty can end it.`;
       case 'locked':
-        return `The treaty with ${target.name} cannot change for another ${Math.ceil(waitSeconds ?? 0)} s.`;
+        return `The war with ${target.name} is too fresh: wait ${Math.ceil(waitSeconds ?? 0)} s.`;
       case 'already':
         return `Nothing to change: that is already the state with ${target.name}.`;
+      case 'not_in_truce':
+        return `There is no running truce with ${target.name}.`;
       default:
         return `No treaty is possible with ${target.name}.`;
     }
@@ -1463,7 +1554,7 @@ loadError = '';
     return { factions: this.factions, fleets: this.fleets, starSystems: this.starSystems };
   }
 
-  /* Player treaty change: drop its event (the panel already reports it), re-check the outcome, save. */
+  /* Player treaty change: drop its events (the panel already reports it), re-check the outcome, save. */
   private afterTreatyChange(): void {
     this.diplomacyService.drainEvents();
     this.checkGameOutcome();
@@ -1472,9 +1563,9 @@ loadError = '';
   }
 
   /*
-   * Turns AI treaty events and new AI peace offers into one map notice.
-   * Returns true when anything happened (treaty state is saved with the
-   * factions, so the caller marks the save dirty).
+   * Turns treaty events and new AI peace proposals into one map notice.
+   * Returns true when anything happened (diplomatic state is saved with
+   * the factions, so the caller marks the save dirty).
    */
   private handleDiplomacyEvents(): boolean {
     const events = this.diplomacyService.drainEvents();
@@ -1483,22 +1574,32 @@ loadError = '';
     }
     const offers = this.diplomacyService.getOfferIds().filter((id) => !this.announcedOffers.has(id));
     if (events.length === 0 && offers.length === 0) return false;
-    const name = (id: string) => this.factions.find((f) => f.id === id)?.name ?? id;
+    const name = (id: string) => (id === 'player' ? 'you' : this.factions.find((f) => f.id === id)?.name ?? id);
     const lines: string[] = [];
     for (const event of events) {
-      if (event.kind === 'war') {
-        lines.push(event.targetId === 'player'
-          ? `${name(event.initiatorId)} declared war on you!`
-          : `${name(event.initiatorId)} declared war on ${name(event.targetId)}.`);
-      } else {
-        lines.push(`${name(event.initiatorId)} and ${name(event.targetId)} signed peace.`);
+      const involvesPlayer = event.initiatorId === 'player' || event.targetId === 'player';
+      switch (event.kind) {
+        case 'war':
+          lines.push(event.targetId === 'player'
+            ? `${name(event.initiatorId)} declared war on you!`
+            : `${name(event.initiatorId)} declared war on ${name(event.targetId)}.`);
+          break;
+        case 'breach':
+          lines.push(`${name(event.initiatorId)} broke its treaty with ${name(event.targetId)}!`);
+          break;
+        case 'peace':
+          lines.push(`${name(event.initiatorId)} and ${name(event.targetId)} signed peace.`);
+          break;
+        case 'honored':
+          if (involvesPlayer) lines.push(`The truce between ${name(event.initiatorId)} and ${name(event.targetId)} was honored. Reputation improved.`);
+          break;
       }
     }
     for (const id of offers) {
       this.announcedOffers.add(id);
-      lines.push(`${name(id)} offers peace. Open DIPLOMACY to answer.`);
+      lines.push(`${name(id)} proposes peace. Open DIPLOMACY to answer.`);
     }
-    this.showMapNotice(lines.join(' '));
+    if (lines.length > 0) this.showMapNotice(lines.join(' '));
     return true;
   }
 
@@ -2764,7 +2865,7 @@ loadError = '';
       this.cdr.detectChanges();
       return;
     }
-    this.diplomacyService.tick(gameDeltaTime, this.factions);
+    this.diplomacyService.tick(gameDeltaTime, this.factions, { starSystems: this.starSystems, fleets: this.fleets });
     const attackOrdersChanged = gameDeltaTime > 0 && this.updateAttackOrders();
     const didMoveFleets = this.updateFleets(gameDeltaTime) || attackOrdersChanged;
     const headingsChanged = this.updateFleetHeadings(gameDeltaTime);

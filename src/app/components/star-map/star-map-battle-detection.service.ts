@@ -112,7 +112,7 @@ export class StarMapBattleDetectionService {
 
         if (faction1.ai === true && faction2.ai === true) {
           const { outcome } = autoResolveBattle(battle, this.shipService, this.planetBattleService);
-          this.battleOutcomeService.applyFleetBattleOutcome({ fleets }, outcome);
+          this.battleOutcomeService.applyFleetBattleOutcome({ fleets, factions }, outcome);
           for (const fleet of [fleet1, fleet2]) {
             if (fleet.destroyed) {
               fleet.targetX = null;

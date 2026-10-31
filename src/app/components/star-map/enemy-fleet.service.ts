@@ -279,9 +279,13 @@ export class EnemyFleetService {
     );
 
     // Drop assignments of fleets that are gone or now owned by the pipeline.
+    // The map holds every AI faction's fleets, so existence is checked in the
+    // real world: `fleets` is this faction's fog-of-war view, which does not
+    // contain other factions' unseen fleets (checking it wiped every other
+    // AI's fleet roles on each decision once AIs stopped being allies).
     const managedIds = new Set(managed.map((f) => f.id));
     for (const fleetId of [...this.assignments.keys()]) {
-      const fleet = fleets.find((f) => f.id === fleetId);
+      const fleet = real.fleets.find((f) => f.id === fleetId);
       if (fleet?.factionId === faction.id && !managedIds.has(fleetId)) {
         this.assignments.delete(fleetId);
         this.peakStrength.delete(fleetId);

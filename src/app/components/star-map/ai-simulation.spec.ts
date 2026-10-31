@@ -81,6 +81,12 @@ interface ScenarioOptions {
    * health runs; scenario tests that study contacts keep them unresolved.
    */
   resolvePlayerFleetBattles?: boolean;
+  /*
+   * Keep simulating after a terminal outcome (StarMap would stop). For
+   * AI stability runs, where the passive stand-in player may be defeated
+   * long before the end and the AIs should keep playing each other.
+   */
+  continueAfterOutcome?: boolean;
 }
 
 interface FactionTrace {
@@ -343,7 +349,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     ] as const),
   );
 
-  while (time < options.seconds && outcome === 'inProgress') {
+  while (time < options.seconds && (outcome === 'inProgress' || options.continueAfterOutcome)) {
     const dt = nextDt();
     time += dt;
     frames++;
@@ -381,7 +387,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     // Mirrors StarMap.gameLoopCallback: treaty locks count down, and battles
     // between two AI factions at war are auto-resolved on contact (battles
     // with the player would open the battle screen; the harness has none).
-    diplomacy.tick(dt, data.factions);
+    diplomacy.tick(dt, data.factions, data);
     battleDetection.checkForBattles(
       data.fleets,
       data.factions,
@@ -565,7 +571,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     if (ownership.revision !== lastRevision) {
       lastRevision = ownership.revision;
       outcome = outcomes.evaluate({ ...data, gameOutcome: outcome });
-      if (outcome !== 'inProgress') outcomeAt = time;
+      if (outcome !== 'inProgress' && outcomeAt === null) outcomeAt = time;
     }
 
     // A fleet carrying a colonizer must only ever head for a star system
@@ -1770,7 +1776,7 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
   });
 
   const longRun = (options: ScenarioOptions) => {
-    const result = runScenario({ resolvePlayerFleetBattles: true, ...options });
+    const result = runScenario({ resolvePlayerFleetBattles: true, continueAfterOutcome: true, ...options });
     expectHealthyAiFactions(result, options);
     const rows = leagueRows(result, options, 600);
     for (const row of rows) {

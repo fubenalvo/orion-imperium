@@ -251,6 +251,7 @@ See [AI Pipeline](./ai-pipeline.md) for context.
 - **Galaxy-map arrival:** AI arrival checks compare `Math.floor(fleet.x/y)` with the target system's cell. `fleet.gridCol/gridRow` is not a reliable galaxy-map cell (fleet assembly stores a system-view cell there).
 - **Paced, safe construction:** the AI builds at most one building per faction per 2 s of game time (`EnemyEconomyService`, shared by the background economy and the `develop` action) and never places a building that creates or worsens an energy deficit, or a workforce deficit (power buildings excepted — workforce never scales energy output).
 - **No teleporting ships:** AI code only moves stock ships into a fleet that is in a Spaceport system (galaxy-map cell), or creates a new fleet at the Spaceport. `FleetAssemblyService.reinforceFleet` enforces the same rule (`not_at_spaceport`).
+- **Fleet roles are pruned against the real world:** `EnemyFleetService` drops an assignment only when its fleet is gone from the real state or is now pipeline-owned; never because the deciding faction cannot see another faction's fleet (fog of war).
 - **One writer per AI fleet order:** pipeline fleets (colonizer carriers, the fleet of a current `move_to_target`/`defend` action) → `EnemyActionExecutor`; all other AI fleets → `EnemyFleetService`; `EnemyAiService` only acts on fleets neither manages.
 - **No suicide engagements:** AI interception requires the difficulty's `attackStrengthAdvantage` over the target; an ongoing attack is dropped once the target is stronger than the attacker.
 - **AI research uses ResearchService:** AI factions only gain technologies through `ResearchService.researchTechnology`, after `canResearch` is true.
@@ -269,8 +270,11 @@ See [AI Pipeline](./ai-pipeline.md) for context.
 See [Diplomacy](./diplomacy.md).
 
 - **One hostility rule:** whether two factions fight is decided only by `diplomacy.ts` (`areFactionsHostile` / `canAttackPlanetOf`); no gameplay code compares `Faction.team` to decide hostility.
-- **Symmetric treaties:** `Faction.relations` is written only by `setTreatyState`, always on both sides; `normalizeRelations` runs on every new game and load and repairs disagreement as war.
-- **Locks run on game time:** treaty locks count down only with the scaled game delta (frozen while paused); a treaty never changes while its lock is running, for the player or the AI.
+- **Symmetric treaties:** the treaty state in `Faction.relations` changes only through `startWar` / `startPeace` (both sides at once); symmetric fields always agree; `normalizeRelations` runs on every new game and load, fills defaults, clamps values and repairs disagreement as war.
+- **Atomic peace treaties:** `DiplomacyService.executeTreaty` re-validates the whole treaty first; an infeasible treaty changes nothing (no resources moved, no planet ceded, war continues). A treaty never cedes a giver's last planet and never transfers more resources than the giver holds.
+- **Truce:** during a truce no war can be declared; only the explicit treaty breach ends it.
+- **Same rules for all:** the player and the AI use the same `DiplomacyService` actions, `validateTreaty` and consequences; the AI only accepts terms its own evaluation (`EnemyDiplomacyService.evaluateTreaty`) accepts.
+- **Diplomacy runs on game time:** locks, truces, exhaustion, opinion drift and reputation drift advance only with the scaled game delta (frozen while paused); a war cannot be negotiated before its minimum duration.
 - **No battle screen without a human side:** AI-vs-AI fleet battles are auto-resolved in battle detection and never navigate to `/battle`.
 - **Peace never wins by itself:** a diplomatic victory needs more than half of the inhabited planets.
 

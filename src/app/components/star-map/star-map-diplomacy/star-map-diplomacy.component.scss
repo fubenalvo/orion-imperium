@@ -186,6 +186,113 @@
   }
 
   .diplomacy__summary {
+    gap: 12px;
+  }
+}
+
+/* ---------- Diplomatic values ---------- */
+
+.diplomacy__summary {
+  display: flex;
+  gap: clamp(14px, 2.4vw, 32px);
+}
+
+.diplomacy__value--positive {
+  color: var(--ui-success);
+}
+
+.diplomacy__value--danger {
+  color: var(--ui-danger-text);
+}
+
+.diplomacy__meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 6px 20px;
+}
+
+.diplomacy__meter {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'label value'
+    'bar bar';
+  gap: 3px 10px;
+  align-items: center;
+}
+
+.diplomacy__meter-label {
+  grid-area: label;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-transform: uppercase;
+}
+
+.diplomacy__meter-value {
+  grid-area: value;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+}
+
+/* A centred −100…+100 bar: the fill grows from the middle. */
+.diplomacy__bipolar {
+  grid-area: bar;
+  position: relative;
+  height: 4px;
+  background: var(--ui-surface-sunken);
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -2px;
+    bottom: -2px;
+    width: 1px;
+    background: var(--ui-line-strong);
+  }
+}
+
+.diplomacy__bipolar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  background: var(--ui-success);
+}
+
+.diplomacy__bipolar-fill--negative {
+  right: 50%;
+  left: auto;
+  background: var(--ui-danger);
+}
+
+.diplomacy__duo {
+  grid-area: bar;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.diplomacy__exhaustion-fill {
+  background: var(--ui-warning);
+}
+
+.diplomacy__terms {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+
+.diplomacy__confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@media (max-width: 760px) {
+  .diplomacy__summary .ui-figure:last-child {
     display: none;
   }
 }

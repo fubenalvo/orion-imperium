@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { Battle, BattleOutcome } from '../components/battle-screen/battle/battle.types';
 import { Faction, FactionProduction, Fleet, FleetShip, StarSystem } from '../components/star-map/star-map.models';
 import { PlanetOwnershipService } from './planet-ownership.service';
+import { ShipService } from './ship.service';
+import { recordHostileAct, recordShipLosses } from '../components/star-map/diplomacy';
 
 /*
  * =========================================================
@@ -31,10 +33,14 @@ type OutcomeData = {
 
 @Injectable({ providedIn: 'root' })
 export class BattleOutcomeService {
-  constructor(private readonly planetOwnership: PlanetOwnershipService) {}
+  constructor(
+    private readonly planetOwnership: PlanetOwnershipService,
+    private readonly shipService: ShipService,
+  ) {}
 
   /* Fleet-vs-fleet: both real rosters, wiped fleets destroyed. */
   applyFleetBattleOutcome(data: OutcomeData, outcome: BattleOutcome): void {
+    const before = this.fleetValueByFaction(data);
     for (const fleetOutcome of [outcome.attacker, outcome.defender]) {
       const fleet = data.fleets?.find((f) => f.id === fleetOutcome.fleetId);
       if (!fleet) {
@@ -45,10 +51,12 @@ export class BattleOutcomeService {
         fleet.destroyed = true;
       }
     }
+    this.recordWarLosses(data, outcome, before);
   }
 
   /* Planet battle; returns true when the planet changed owner. */
   applyPlanetBattleOutcome(data: OutcomeData, battle: Battle, outcome: BattleOutcome): boolean {
+    const before = this.fleetValueByFaction(data);
     const defenderFleet = battle.attackerId === battle.fleet1.id ? battle.fleet2 : battle.fleet1;
     const garrisonFleetId = defenderFleet.garrisonFleetId;
     const garrisonShipMap = defenderFleet.garrisonShipMap;
@@ -104,7 +112,41 @@ export class BattleOutcomeService {
       }
       break;
     }
+    this.recordWarLosses(data, outcome, before);
     return captured;
+  }
+
+  /*
+   * War bookkeeping (docs/diplomacy.md): the attack itself (surprise-attack
+   * check) and each side's lost ship value, measured as the drop of its
+   * living fleet value across the whole application, so garrison losses
+   * count too. Virtual turrets are not ships and never count.
+   */
+  private recordWarLosses(data: OutcomeData, outcome: BattleOutcome, before: Map<string, number>): void {
+    const factions = data.factions ?? [];
+    const attacker = factions.find((f) => f.id === outcome.attacker.factionId);
+    const defender = factions.find((f) => f.id === outcome.defender.factionId);
+    if (!attacker || !defender) return;
+    recordHostileAct(attacker, defender);
+    const after = this.fleetValueByFaction(data);
+    for (const [side, enemy, sideOutcome] of [[attacker, defender, outcome.attacker], [defender, attacker, outcome.defender]] as const) {
+      const lost = (before.get(side.id) ?? 0) - (after.get(side.id) ?? 0);
+      if (lost > 0) recordShipLosses(side, enemy, lost, before.get(side.id) ?? 0, sideOutcome.wipedOut === true);
+    }
+  }
+
+  /* Credit value of every faction's living fleet ships. */
+  private fleetValueByFaction(data: OutcomeData): Map<string, number> {
+    const totals = new Map<string, number>();
+    for (const fleet of data.fleets ?? []) {
+      if (fleet.destroyed) continue;
+      let value = 0;
+      for (const ship of fleet.ships) {
+        if (!ship.destroyed) value += this.shipService.getShipType(ship.type)?.cost ?? 0;
+      }
+      totals.set(fleet.factionId, (totals.get(fleet.factionId) ?? 0) + value);
+    }
+    return totals;
   }
 }
 

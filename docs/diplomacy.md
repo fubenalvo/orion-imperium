@@ -1,113 +1,161 @@
 # Diplomacy
 
-Treaties between empires: who may fight whom, how war and peace change, how the AI decides, what the player can do, and how peace affects victory. Player and AI follow the same treaty rules.
+Treaties, opinion, reputation, war exhaustion and peace negotiations: who may fight whom, what wars cost, how peace is negotiated and enforced, and how the AI decides. Player and AI follow exactly the same rules and code paths.
 
-Related: [Planet Capture](./planet-capture.md) (capture rules, game outcome), [AI Pipeline](./ai-pipeline.md) (where AI treaty decisions run), [Battle Rules](./battle-rules.md) (battle triggers), [New Game Generation](./new-game-generation.md) (teams and starting relations), [Data Models](./data-models.md), [Invariants](./invariants.md).
+Related: [Planet Capture](./planet-capture.md) (capture rules, game outcome), [Economy](./economy.md) (exhaustion penalty), [AI Pipeline](./ai-pipeline.md) (where AI treaty decisions run), [Battle Rules](./battle-rules.md) (battle triggers), [New Game Generation](./new-game-generation.md) (teams and starting relations), [Data Models](./data-models.md), [Invariants](./invariants.md).
 
 ## Sources of truth
 
 | What | Where |
 | --- | --- |
-| Relation kinds, the hostility rule, planet-attack rule, normalization, lock countdown, minimum durations | `src/app/components/star-map/diplomacy.ts` |
-| Treaty actions (declare war, sign peace), AI peace offers to the player, proposal cooldown, treaty events | `DiplomacyService` (`src/app/services/diplomacy.service.ts`) |
-| AI treaty decisions and the answer to the player's proposals | `EnemyDiplomacyService` (`src/app/components/star-map/enemy-diplomacy.service.ts`) |
-| Persisted treaty state | `Faction.relations` (`star-map.models.ts`) |
-| Diplomacy screen | `StarMapDiplomacyComponent` (`star-map-diplomacy/`), rows built by `StarMap.getDiplomacyRows` |
+| Relation kinds, hostility rule, planet-attack rule; opinion, reputation and exhaustion values and their events; treaty state changes (`startWar`, `startPeace`); time-based updates (`tickDiplomacyTime`); load normalization; all tuning constants | `src/app/components/star-map/diplomacy.ts` |
+| Peace treaty model, feasibility validation, ceded-planet resolution | `src/app/components/star-map/peace-treaty.ts` |
+| Treaty actions (declare war, break treaty, execute treaty), AI proposals to the player, treaty events | `DiplomacyService` (`src/app/services/diplomacy.service.ts`) |
+| AI judgment: war assessment, treaty evaluation, counter-offers, AI–AI settlement, proposals, war decisions | `EnemyDiplomacyService` (`src/app/components/star-map/enemy-diplomacy.service.ts`) |
+| War-loss recording | `BattleOutcomeService` (ship losses, surprise attacks), `PlanetOwnershipService.transferPlanet` (planet losses) |
+| Exhaustion penalty on output | `EconomyService` (`gainMultiplier`) |
+| Persisted state | `Faction.relations`, `Faction.reputation` (`star-map.models.ts`) |
+| UI | `StarMapDiplomacyComponent` (overview), `StarMapPeaceNegotiationComponent` (negotiation), view models in `star-map-diplomacy-vm.ts`, actions in `StarMap` |
 | Diplomatic victory | `GameOutcomeService` |
 
-## Relation kinds
+## Relation kinds and the hostility rule
 
 `getRelationKind(a, b)` is the one classification every system uses:
 
 | Kind | When | Effect |
 | --- | --- | --- |
 | `self` | same faction | — |
-| `allied` | same non-neutral `team` | permanent; no treaty can change it. Fleets never fight, planets are off limits |
-| `neutral` | either side on team 0 (`independent` rebels, `unhabited`) | neutral fleets never fight; neutral *planets* can be captured by any non-neutral faction (`canAttackPlanetOf`) |
-| `war` / `peace` | any other pair (a *treaty pair*) | stored in `Faction.relations[otherId]` |
+| `allied` | same non-neutral `team` | permanent; never fight, planets off limits. Only on pre-diplomacy saves (all AIs on team 2) |
+| `neutral` | either side on team 0 (`independent` rebels, `unhabited`) | neutral fleets never fight; neutral rebel planets can be captured by anyone (`canAttackPlanetOf`) |
+| `war` / `peace` | every other pair (a *treaty pair*) | stored in `Faction.relations[otherId]` |
 
-**Hostility rule:** `areFactionsHostile(a, b)` ⇔ the relation is `war`. Battle detection, AI threat and target selection, attack orders, the reinforcement "in battle" check and the legacy AI layers all use it (or `hostileFactionIds`). Planet capture uses `canAttackPlanetOf` (war, or a neutral rebel owner; never `unhabited`).
+`areFactionsHostile(a, b)` ⇔ `war`: battle detection, AI threat and target selection, attack orders and the legacy AI layers use it (or `hostileFactionIds`). Planet capture uses `canAttackPlanetOf`. New games give every participant its own team and start everyone at war with everyone (opening lock, see below).
 
-A missing treaty entry between a treaty pair reads as `war`, but every new game and every load fills the entries explicitly (`normalizeRelations`), so the default only matters for transient objects (tests).
+## Time
 
-### Teams
+The game is real-time. One **diplomatic turn** is `DIPLOMACY_TURN_SECONDS` = 60 s of scaled game time. Per-turn rates are applied continuously (`rate × delta / 60`) by `DiplomacyService.tick` → `tickDiplomacyTime`, called from `StarMap.gameLoopCallback` with the scaled delta: everything freezes while paused, runs 2× at speed 2, and there is no partial-turn state to save. The UI shows turns.
 
-New games give every participant its own team (human 1, AIs 2, 3, …), so nobody is a permanent ally. Saves from before diplomacy keep their teams: all AIs on team 2 stay permanently allied and every human/AI pair is at war, which is exactly the old hostility rule. The `team` field therefore still means "permanent alliance"; it is no longer the war/peace switch.
+## Relation data (per pair, stored on both factions)
 
-## Treaty state and locks
+| Field | Side | Meaning |
+| --- | --- | --- |
+| `state` | symmetric | `war` / `peace` |
+| `lockRemaining` | symmetric | at war: minimum war duration before negotiation; at peace: the truce |
+| `truce` | symmetric | the post-treaty truce is running |
+| `warSeconds`, `declaredBy`, `surpriseRecorded` | symmetric | current war's age, declarer (absent for opening wars), surprise penalty applied |
+| `opinion` | per side | holder's opinion of the other, −100…+100 |
+| `warExhaustion` | per side | holder's exhaustion in this war, 0…100 |
+| `shipsLostValue`, `planetsLost` | per side | holder's losses in this war |
 
-`FactionRelation = { state: 'war' | 'peace', lockRemaining }`, stored on **both** factions.
+`Faction.reputation` (−100…+100) is per faction. Only `startWar` / `startPeace` change the treaty state and they always write both sides; `adjustOpinion`, `adjustReputation`, `recordShipLosses`, `recordPlanetLoss`, `recordHostileAct` and `tickDiplomacyTime` change the values.
 
-- **Symmetric:** only `setTreatyState` writes relations, always on both sides. `normalizeRelations` (new game, every load) repairs a save where the sides disagree (war wins, the safer reading), clamps invalid locks and drops entries toward allied, neutral or unknown factions. It is idempotent.
-- **Locks** (`lockRemaining`, game seconds) prevent flip-flopping: a new war cannot end before `WAR_MIN_DURATION_SECONDS` (60), a new peace holds for `PEACE_MIN_DURATION_SECONDS` (180), and the starting wars of a new game are locked for `INITIAL_WAR_LOCK_SECONDS` (240) so the opening is not instantly pacified. `DiplomacyService.tick` counts locks down with the scaled game delta in `StarMap.gameLoopCallback`, so they freeze while paused and run 2× at speed 2.
-- **Start of a new game:** everyone is at war with everyone (with the opening lock).
+## Opinion
 
-## Effects of peace
+A's opinion of B. Changes: B declares war on A −30; B breaks a truce with A −60; peace signed +10 both; B takes one of A's planets by force −10; drift per turn: +1 at peace up to +60, −0.5 at war down to −50.
 
-- Fleets of the two factions never fight (battle detection skips the pair).
-- Planets of the partner cannot be captured or assaulted — by the player (arrival only orbits) or the AI (`EnemyInvasionService.isHostilePlanet`). A player fleet may still be ordered onto a peace partner's planet; it just parks there. Permanent allies' planets stay blocked for move orders as before.
-- Running interceptions, attack goals and player attack orders against the partner end (they all re-check hostility).
-- Peace partners' fleets are not counted as threats by the AI economy, plan and research layers.
+**Effective opinion** = opinion + 0.5 × the other's reputation (clamped). This is how reputation reaches *every* faction: each AI judges a faction by its own history with it plus that faction's general trustworthiness.
+
+## Reputation
+
+Declaring war −5; **surprise attack** −15 (the declarer attacks — fleet battle, planet battle or capture — within one turn of its own declaration; once per war); breaking a truce −40; a truce that runs out unbroken +5 for both; while at war with nobody +0.5 per turn up to +50.
+
+## War exhaustion
+
+Per faction per war. Grows by:
+
+- +1 per turn at war (only while both sides are alive);
+- ship losses: `40 × lost value / max(2000, own fleet value before the loss)` — relative to the navy, so a big empire losing a frigate is not shaken;
+- severe defeat: +5 when a fleet worth ≥ 1000 credits is wiped out;
+- lost planet: `8 + population / 200`, max 20.
+
+Effects:
+
+- **Output penalty:** above 25, credit income and raw/research production fall linearly to −30% at 100 (`getWarExhaustionPenalty`, the faction's worst war). Applied through `EconomyService`, so HUD, tick and AI see the same numbers. Costs and upkeep are unaffected; below 25 there is no penalty, so short wars do not hurt.
+- **Peace pressure:** own exhaustion and the gap to the enemy's raise the AI's will for peace (see below).
+- **No new wars:** an AI whose worst exhaustion is ≥ 40 declares no new war.
+- Reset to 0 on peace (and on a new war).
+
+## Peace, truce and war declarations
+
+- **Peace is permanent.** It ends only by a war declaration or a treaty breach.
+- A peace treaty starts a **truce** of `TRUCE_TURNS` = 10 turns (`TRUCE_SECONDS` = 600 s). During it `declareWar` is refused (`truce`); only `breakTreaty` can end it (an explicit, confirmed action — treachery). After the truce, peace stays and war may be declared normally.
+- A war must last `WAR_MIN_DURATION_SECONDS` (one turn) before negotiation; the opening wars of a new game are locked for 4 turns.
+
+## Peace treaties (`peace-treaty.ts`)
+
+`PeaceTreaty = { proposerId, recipientId, items }`; each item has a giver (one of the two parties): `credits` / `rawmaterials` (positive whole amount), `planet`, or `system`. Star systems have no owner of their own (ownership is per planet), so ceding a system means ceding every planet the giver owns there — the data stays consistent by construction.
+
+`validateTreaty` (shared by UI, AI and execution) requires: a treaty pair at war, war lock expired, both sides alive, givers are parties, amounts positive integers and covered by the giver's current stock, planets owned by their giver, no planet listed twice, and **no giver ceding its last planet** (a treaty never eliminates a party).
+
+`DiplomacyService.executeTreaty` is atomic: it re-validates, then — since validation guarantees every step succeeds — moves resources, cedes planets through `PlanetOwnershipService.transferPlanet` (reason `ceded`: refunds the giver's production orders there, not a war loss), starts peace with the truce, resets exhaustion and loss counters, gives +10 opinion both ways, and emits a `peace` event. An invalid treaty changes nothing and the war continues.
+
+## AI judgment (`EnemyDiplomacyService`)
+
+Deterministic and explainable.
+
+**War assessment** — `assessWar(ai, enemy)` sums named factors into a *peace pressure* (positive = wants peace):
+
+| Factor | Value |
+| --- | --- |
+| War aims (baseline) | −0.2 |
+| Military balance | `0.5 × log2(enemy strength / own)`, clamped ±1 |
+| War exhaustion | `0.6 × own/100 + 0.3 × (own − enemy)/100` |
+| Fleet losses | `0.5 × (own − enemy lost value) / scale`, ±0.5 |
+| Planets lost | `0.15 × (own − enemy planets lost)`, ±0.6 |
+| Relations | `0.3 × effective opinion / 100` |
+| Second front | +0.25 (≥ 2 wars, not the primary enemy, enemy not much weaker) |
+| Empire collapsing | +0.5 (≤ 1 planet vs an enemy with ≥ 3) |
+| Out of reach | +0.3 (empires farther apart than 1.5 × `WAR_REACH`) |
+| Empty treasury | +0.15 (credits < 20% of scale) |
+| Temperament | personality `peaceBias` |
+
+`scale` ≈ one minute of the AI's income (`max(2000, population × 0.1 × 60)`); **peace value** = pressure × scale, in credits: what ending this war is worth to the AI (negative = it wants to be paid).
+
+**Treaty evaluation** — `evaluateTreaty`: terms value for the AI (credits ×1, raw ×1.2, planets by `planetValue` = 400 + 3 × population + half the price of its buildings, ×1.5 with a Spaceport/factory; planets it cedes weigh ×1.3, planets it gains ×0.8). The AI **accepts iff the terms are feasible and terms + peace value ≥ 0**. The acceptance meter is `0.5 + margin / (2 × scale)`, so 0.5 is exactly the threshold; the dialog shows the margin in credits and every factor.
+
+**Counter-offer** — `counterOffer`, from the refused terms: (1) drop what the AI would cede, most valuable planets first; (2) pay less; (3) ask the other side for credits, then raw materials, never more than it holds; (4) ask for its least valuable planet (never its last). Only a feasible counter the AI itself accepts is returned; otherwise the proposal is refused.
+
+**Periodic review** (every `DECISION_INTERVAL` = 10 s, deterministic faction order; runs first in the AI tick):
+
+- *AI vs AI*: if both peace values sum to ≥ 0 they settle — white peace if both are ≥ 0, otherwise the more eager side pays the other's price (credits, then raw) if it can — and both re-check the final terms before execution.
+- *AI vs human*: with pressure ≥ 0.1 and no open proposal or cooldown (3 turns), the AI proposes white peace plus credits up to half its peace value (≤ 40% of its treasury); the proposal stays open `PEACE_OFFER_SECONDS` (90 s of game time).
+- *War*: with fewer wars than `maxWars` and exhaustion < 40, the AI declares war on the weakest peace partner within `WAR_REACH` whose strength ratio ≤ `warRatio` and whose effective opinion ≤ `warOpinionMax`. During a truce only a treacherous personality breaks it, and only at ratio ≤ half `warRatio` and effective opinion ≤ −40.
+
+| Personality | peaceBias | warRatio | maxWars | warOpinionMax | treachery |
+| --- | --- | --- | --- | --- | --- |
+| balanced | 0 | 0.6 | 1 | 10 | no |
+| expansionist | +0.05 | 0.65 | 1 | 15 | no |
+| militarist | −0.2 | 0.85 | 2 | 30 | yes |
+| technologist | +0.15 | 0.5 | 1 | 0 | no |
+
+**Information:** diplomacy uses real total fleet strength, losses and exhaustion — treated as public knowledge (envoys, intelligence); tactical layers still only use sensor data.
 
 ## Battles between AIs
 
-Battle detection opens the interactive battle screen only when a human side is involved. When two AI factions at war meet, `StarMapBattleDetectionService` auto-resolves the battle immediately with `autoResolveBattle` (the resolver also used for AI planet assaults) and writes the result to the live fleets via `BattleOutcomeService.applyFleetBattleOutcome`; the player is never pulled into a fight they are not part of. StarMap re-checks the game outcome afterwards (fleet losses can end the game). A pair that fought once is not re-triggered while it shares the cell (the existing `triggeredBattles` rule), so a draw leaves both fleets in place; a goal stuck on such a target is replanned by `EnemyProgressService`.
+Only battles with a human side open the battle screen. Two AI factions at war that meet are auto-resolved immediately (`autoResolveBattle`) and the outcome is written to the live fleets via `BattleOutcomeService.applyFleetBattleOutcome`, which also records the war losses. A pair that fought once is not re-triggered while it shares the cell.
 
-AI planet assaults on another AI's planet are auto-resolved as before (only human defenders get the battle screen).
+## Player UI
 
-## AI decisions (`EnemyDiplomacyService`)
-
-Runs first in every AI tick (`StarMapAiTickService`), so the whole pipeline sees treaties signed that frame. Every `DECISION_INTERVAL` (10 s) of game time each living AI faction reviews its relations, in faction order (deterministic):
-
-**Peace** with a war enemy whose lock has expired, if `wantsPeace(ai, enemy)`:
-
-| Reason | Condition |
-| --- | --- |
-| `outmatched` | enemy fleet strength ≥ `peaceRatio` × own (personality) |
-| `collapsing` | the AI owns ≤ 1 planet, the enemy ≥ `COLLAPSE_ENEMY_PLANETS` (3), and the enemy is not clearly weaker (ratio ≥ 0.8) |
-| `second_front` | the AI has ≥ 2 wars, this enemy is not its *primary* enemy, and the enemy is not much weaker (ratio ≥ `SECOND_FRONT_MIN_RATIO`, 0.75) |
-
-The primary enemy is the war enemy with the lowest `empire distance × max(0.5, strength ratio)` — the nearest, weighted toward weaker ones. Two AIs sign peace only when **both** want it. Consequence: a dominant AI never lets a much weaker enemy off (the outmatched side's ratio is the other side's inverse), so AI–AI peace mostly happens between comparable empires that have other, nearer enemies.
-
-Toward the human the AI does not sign; it makes a **peace offer** (`DiplomacyService.addOffer`, open for `PEACE_OFFER_SECONDS`, 60), then waits `OFFER_COOLDOWN` (150 s) before offering again.
-
-**War:** an AI with fewer wars than its personality's `maxWars` declares war on at most one peace partner per review whose lock has expired, that lies within `WAR_REACH` (120 cells between the empires) and whose strength ratio is ≤ `warRatio` (the weakest such neighbour).
-
-| Personality | peaceRatio | warRatio | maxWars |
-| --- | --- | --- | --- |
-| balanced | 1.4 | 0.6 | 1 |
-| expansionist | 1.25 | 0.65 | 1 |
-| militarist | 2.0 | 0.85 | 2 |
-| technologist | 1.1 | 0.5 | 1 |
-
-**Information:** treaty decisions use the real total living fleet strength of both factions, not the fog-of-war view — rough military power is treated as public knowledge for diplomacy. Tactical layers still only use what their sensors report. Eliminated factions (no planet, no living fleet) take no part.
-
-## Player actions (Diplomacy screen)
-
-Opened with the **DIPLOMACY** button in the star map header (a badge counts open AI peace offers; a map notice announces each new offer, AI war declarations and AI–AI treaties). One card per other participant: relation chip, planets, a coarse fleet-strength comparison (weaker / comparable / stronger than the player's, ratio < 0.75 / > 1.33), whom it is at war / peace with, lock timer, and actions:
-
-- **Propose peace** (at war, lock expired): the AI answers with the same `wantsPeace` rule it uses itself. A refusal starts `PROPOSAL_REFUSAL_COOLDOWN_SECONDS` (45 s) before the next proposal to that AI.
-- **Accept / decline** an open AI offer.
-- **Declare war** (at peace, lock expired).
-
-The screen does not pause the game. Player treaty changes are saved immediately and re-check the game outcome.
+- **Header DIPLOMACY button** (badge = open AI proposals); map notices announce war declarations, treaty breaches, signed peace, honored truces of the player and new AI proposals.
+- **Diplomacy screen**: summary (your reputation, worst exhaustion and its output penalty, wars); per empire: relation chip (war + turn / truce + turns left / peace), their opinion of you and their reputation (centred −100…+100 bars), exhaustion you / them, planets, fleet comparison, their wars and peaces, open proposal (REVIEW / DECLINE), and NEGOTIATE PEACE / DECLARE WAR… / BREAK TREATY…. War and breach go through an inline confirmation stating the exact consequences.
+- **Negotiation dialog** (pauses the game; resumes on close if it was running): both sides' standing (opinion, reputation, exhaustion, treasury), the AI's terms on the table (proposal or counter-offer: ACCEPT TERMS / EDIT AS DRAFT / DECLINE), a two-column draft — *you demand* (their resources, systems, planets) and *you offer* (yours) — and the AI's live judgment of the draft (meter with the threshold mark, verdict with the missing value, every factor). SEND PROPOSAL → the AI accepts (executed at once), counters, or refuses. Accepting AI terms re-checks the AI's agreement against the current state first ("withdrawn" if the situation changed).
 
 ## Diplomatic victory
 
-`GameOutcomeService` (see [Planet Capture](./planet-capture.md#game-outcome-gameoutcomeservice)): victory requires that every inhabited planet is allied or owned by an AI **at peace** with the player (independent rebel planets still block), that no AI **at war** with the player has a living fleet, and — if any peace partner still owns an inhabited planet — that the allied side owns more than `DIPLOMATIC_VICTORY_PLANET_SHARE` (50%) of the inhabited planets. The share guard stops "sign peace with everyone early" from being an instant win. Victory is sticky as before.
+`GameOutcomeService`: victory requires that every inhabited planet is allied or owned by an AI at peace with the player (rebel planets still block), no AI at war with the player has a living fleet, and — if a peace partner still owns an inhabited planet — the allied side owns more than 50% of the inhabited planets.
 
 ## Persistence and save compatibility
 
-- `Faction.relations` is saved with the factions; no save-version bump. `SaveGameService.migrateSave` runs `normalizeRelations` on every load (any version): pre-diplomacy saves get explicit war entries for every human/AI pair and keep their allied AI team.
-- Not saved (rebuilt within one decision interval): open AI offers, proposal and offer cooldowns, the treaty event queue, the AI decision clock. `resetAiPipeline` (genuine load / new game) clears them; a battle-screen round trip keeps them (the services are not reset on `resumeAfterBattle`).
+- `Faction.relations` and `Faction.reputation` are saved with the factions; no save-version bump. `SaveGameService.migrateSave` runs `normalizeRelations` on every load: missing entries become war, missing values get defaults (opinion 0, exhaustion 0, counters 0, reputation 0), values are clamped, symmetric fields are reconciled (disagreement → war). Diplomacy v0 saves load with their war/peace states; a v0 peace has no truce.
+- Not saved (rebuilt within one decision interval): open AI proposals, proposal cooldowns, the event queue, the AI decision clock, an open negotiation. `resetAiPipeline` clears them on a genuine load / new game; a battle-screen round trip keeps them.
 
 ## Testing
 
-- `diplomacy.spec.ts`: relation kinds, planet-attack rule, normalization and idempotence, legacy-save alliance, lock countdown; `DiplomacyService` locks, offers, events; `EnemyDiplomacyService` peace, offers, war declarations, pause; diplomatic victory and its share guard; AI-vs-AI auto-resolved battles, peace/allied no-fight, human battles still open the screen.
-- `ai-simulation.spec.ts`: the harness mirrors the game loop (lock countdown, AI-vs-AI battle auto-resolve; `resolvePlayerFleetBattles` stands in for the player choosing AUTO in whole-game health runs). Scenarios whose premise is "AIs against the player" opt into the pre-diplomacy world with `aiAlliance: true`; league and long-duration runs play real new games with AI wars and treaties.
+- `diplomacy.spec.ts`: relation kinds and planet rule; v0 migration, clamping, legacy alliance, idempotence; per-turn exhaustion, opinion drift, honored truce, peace reputation, freezing while paused / for eliminated factions; ship/planet loss bookkeeping, surprise attacks, output penalty; `DiplomacyService` war/breach consequences and truce, atomic execution (resources, planets, systems, truce, exhaustion reset), infeasible terms change nothing, planet captured meanwhile, save round-trip, negotiation locks, proposal expiry; `EnemyDiplomacyService` factors, acceptance threshold, counter-offers (feasible, self-accepted, within the other side's means), refusal without a counter, AI–AI settlement with payment and white peace, proposals to the player, war declaration (opinion, truce, treachery, exhaustion), pause; economy penalty; diplomatic victory; AI-vs-AI auto battles with loss recording; capture vs cession bookkeeping.
+- `ai-simulation.spec.ts`: the harness mirrors the game loop (diplomacy tick with alive factions, AI-vs-AI auto battles). League and long-duration runs play real new games (AI wars and treaties), resolve player fleet battles as AUTO, and keep simulating after the passive stand-in player is defeated (`continueAfterOutcome`).
 
 ## Known limitations
 
-- Only war and peace; no alliances, trade, tribute or shared intel between AIs.
-- The fleet-strength comparison shown to the player and used by the AI ignores research combat bonuses and stock ships.
-- AI–AI battles have no interactive view; the player learns about them only through their results.
+- No alliances, trade, tribute outside peace treaties, or shared intel.
+- Fleet-strength comparisons ignore research bonuses and stock ships.
+- The AI proposes peace to the player only when it wants out; a winning AI never proactively demands tribute (it answers the player's proposals with counter-offers instead).

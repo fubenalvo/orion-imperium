@@ -6,6 +6,8 @@ import { ShipStockService } from './ship-stock.service';
 import { ResearchService, TechModifiers } from './research.service';
 import planetData from '../components/star-map/planet-data.json';
 import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
+import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
+
 import {
   Faction,
   FactionProduction,
@@ -23,6 +25,17 @@ import {
   BuildingStats,
   PLANET_TYPE_HABITABILITY,
 } from '../components/star-map/star-map.models';
+
+/*
+ * Multiplier on a faction's gains (credit income, raw and research output;
+ * never costs): the AI difficulty multiplier (1 for the human) reduced by
+ * the war-exhaustion penalty (docs/diplomacy.md), so the HUD, the economy
+ * tick and the AI all see the same reduced numbers.
+ */
+function gainMultiplier(faction: Faction | null | undefined): number {
+  if (!faction) return 1;
+  return getAiDifficultyProfile(faction).incomeMultiplier * (1 - getWarExhaustionPenalty(faction));
+}
 
 /*
  * =========================================================
@@ -326,7 +339,7 @@ export class EconomyService {
     shipStock?: FactionShipStock[],
   ): EconomyBreakdown {
     const faction = factions.find((f) => f.id === factionId);
-    const difficultyIncomeMultiplier = faction ? getAiDifficultyProfile(faction).incomeMultiplier : 1;
+    const difficultyIncomeMultiplier = gainMultiplier(faction);
     const ownedPlanets = this.getOwnedPlanets(factionId, starSystems);
     const ownedFleets = fleets.filter((f) => f.factionId === factionId && !f.destroyed);
 
@@ -617,7 +630,7 @@ export class EconomyService {
     const owner = factions.find((f) => f.id === planet.factionId);
     const ownedCount = starSystems.length > 0 ? this.getOwnedPlanets(planet.factionId, starSystems).length : 1;
     return this.buildPlanetEntry(
-      planet, owner ? getAiDifficultyProfile(owner).incomeMultiplier : 1, administrationShare(ownedCount), owner,
+      planet, gainMultiplier(owner), administrationShare(ownedCount), owner,
     );
   }
 

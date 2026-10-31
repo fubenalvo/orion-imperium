@@ -1,0 +1,349 @@
+@use 'ui';
+
+/* =========================================================
+   PEACE NEGOTIATION
+   ---------------------------------------------------------
+   Modal glass sheet above the Diplomacy screen: header,
+   both sides' standing, the AI's terms on the table, the
+   two-column draft (demands | offers) and the AI's live
+   judgment (acceptance meter with the 50% threshold mark
+   and the named peace-pressure factors).
+   ========================================================= */
+
+.negotiation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 2.5vw, 40px);
+  @include ui.backdrop;
+}
+
+.negotiation-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1080px;
+  max-height: min(94vh, 1100px);
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(22px);
+}
+
+.negotiation__header {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: clamp(10px, 2vw, 28px);
+  flex-shrink: 0;
+  padding: clamp(12px, 2.2vh, 24px) clamp(16px, 2.4vw, 32px) clamp(10px, 1.4vh, 14px);
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+
+.negotiation__eyebrow {
+  display: block;
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.negotiation__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0.1em 0 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xl);
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.negotiation__swatch {
+  width: 0.55em;
+  height: 0.55em;
+  transform: rotate(45deg);
+  background: var(--faction-color, var(--ui-accent));
+}
+
+.negotiation__close-btn {
+  @include ui.button-size(sm);
+  letter-spacing: 0.24em;
+}
+
+.negotiation__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px clamp(16px, 2.4vw, 32px);
+  overflow-y: auto;
+  @include ui.scroll;
+}
+
+.negotiation__sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.negotiation__side {
+  padding: 10px 14px;
+  border: 1px solid var(--ui-line-soft);
+  border-left: 3px solid var(--faction-color, var(--ui-accent));
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised);
+}
+
+.negotiation__side-name {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-lg);
+  letter-spacing: var(--ui-track);
+}
+
+.negotiation__incoming {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.negotiation__terms {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+
+.negotiation__columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.negotiation__column {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-sunken);
+}
+
+.negotiation__column--offer {
+  border-color: rgba(var(--ui-accent-rgb), 0.25);
+}
+
+.negotiation__resource {
+  display: grid;
+  grid-template-columns: 1fr 9em;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+
+  input {
+    width: 100%;
+  }
+}
+
+.negotiation__group-label {
+  margin-top: 4px;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-transform: uppercase;
+}
+
+.negotiation__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 11em;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  @include ui.scroll;
+}
+
+.negotiation__option {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-left: 2px solid transparent;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(var(--ui-accent-rgb), 0.06);
+  }
+}
+
+.negotiation__option--on {
+  border-left-color: var(--ui-accent);
+  background: rgba(var(--ui-accent-rgb), 0.08);
+}
+
+.negotiation__option--covered {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.negotiation__option-name {
+  color: var(--ui-ink-bright);
+}
+
+.negotiation__value {
+  color: var(--ui-warm);
+  white-space: nowrap;
+}
+
+.negotiation__dim {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+}
+
+.negotiation__assessment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised);
+}
+
+.negotiation__acceptance {
+  position: relative;
+  height: 8px;
+  margin: 8px 0 6px;
+  background: var(--ui-surface-sunken);
+}
+
+.negotiation__acceptance-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ui-danger);
+  transition: width 0.2s ease;
+}
+
+.negotiation__acceptance--yes .negotiation__acceptance-fill {
+  background: var(--ui-success);
+}
+
+/* The 50% acceptance threshold. */
+.negotiation__acceptance-mark {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--ui-ink-bright);
+}
+
+.negotiation__verdict-text {
+  margin: 0 0 6px;
+  color: var(--ui-danger-text);
+}
+
+.negotiation__verdict-text--yes {
+  color: var(--ui-success);
+}
+
+.negotiation__factor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.negotiation__factor {
+  display: grid;
+  grid-template-columns: 9.5em 1fr 3.5em;
+  align-items: center;
+  gap: 8px;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+}
+
+.negotiation__factor-bar {
+  position: relative;
+  height: 4px;
+  background: var(--ui-surface-sunken);
+}
+
+.negotiation__factor-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  max-width: 100%;
+  background: var(--ui-success);
+}
+
+.negotiation__factor-fill--negative {
+  background: var(--ui-danger);
+}
+
+.negotiation__factor-value {
+  color: var(--ui-success);
+  text-align: right;
+}
+
+.negotiation__factor-value--negative {
+  color: var(--ui-danger-text);
+}
+
+.negotiation__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 10px clamp(16px, 2.4vw, 32px) 14px;
+  border-top: 1px solid var(--ui-line-soft);
+  background: var(--ui-surface-sunken);
+}
+
+.negotiation__message {
+  flex-basis: 100%;
+}
+
+.negotiation__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  button {
+    @include ui.button-size(sm);
+  }
+}
+
+@media (max-width: 760px) {
+  .negotiation__sides,
+  .negotiation__columns,
+  .negotiation__assessment {
+    grid-template-columns: 1fr;
+  }
+
+  .negotiation__header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .negotiation__header .ui-chip {
+    display: none;
+  }
+}

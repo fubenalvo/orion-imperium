@@ -18,6 +18,9 @@ Population, buildings, satisfaction and the persisted planetary shield pool stay
 | `captured` | arrival on an undefended / shield-only planet (player arrival service, AI `EnemyInvasionService`) |
 | `battle_won` | `BattleOutcomeService.applyPlanetBattleOutcome` (battle screen and AI auto-resolve) |
 | `rebellion` | `EconomyService.applyEconomyDelta` (satisfaction reached 0 → `independent`) |
+| `ceded` | `DiplomacyService.executeTreaty` (a peace treaty cedes the planet or its system) |
+
+War bookkeeping: `captured` and `battle_won` record the loss for the loser (war exhaustion, planets lost, opinion −10) and a possible surprise attack for the taker ([Diplomacy](./diplomacy.md)); `ceded`, `colonized` and `rebellion` are not war losses.
 
 ## Capture rules
 
