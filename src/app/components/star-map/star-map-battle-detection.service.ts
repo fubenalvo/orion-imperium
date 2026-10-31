@@ -10,6 +10,13 @@ import { Fleet, StarSystem, Faction } from './star-map.models';
 import { areFactionsHostile } from './diplomacy';
 import { SpaceBaseService } from './space-base.service';
 import { buildBaseDefenseFleet } from './space-base';
+import {
+  buildStationDefenseFleet,
+  miningStationDefenseFleetId,
+  stationDefenseStateFromOutcome,
+  stationTurretCount,
+} from './station-defense';
+import { isCombatShipType } from './ai-queries';
 
 /*
  * =========================================================
@@ -42,12 +49,8 @@ export class StarMapBattleDetectionService {
   /*
    * checkBaseBattles: a fleet on a space base's galaxy cell whose faction is
    * at war with the base's owner attacks the base (docs/territory.md#combat).
-   * The base fights as static defenses through the planet-battle path
-   * (Battle.type 'planet' + spaceBaseId). Same human/AI split as fleet
-   * battles: a human side opens the battle screen, AI-vs-AI is
-   * auto-resolved and applied to the live registry at once (a destroyed
-   * base loses its territory claim immediately). Fleets inside a system view
-   * never touch a base (bases keep a distance from stars).
+   * Fleets inside a system view never touch a base (bases keep a distance
+   * from stars).
    *
    * Returns true if an interactive battle was triggered.
    */
@@ -70,44 +73,147 @@ export class StarMapBattleDetectionService {
       if (triggeredBattles.has(key)) continue;
       triggeredBattles.add(key);
 
-      const defense = buildBaseDefenseFleet(base);
-      const battle: Battle = {
-        fleet1: fleet,
-        fleet2: defense,
-        faction1Name: attacker.name,
-        faction1Color: attacker.color,
-        faction2Name: owner.name,
-        faction2Color: owner.color,
-        attackerId: fleet.id,
-        defenderId: defense.id,
-        type: 'planet',
-        spaceBaseId: base.id,
-        planetName: base.name,
-        planetColor: owner.color,
-        combatBonuses: this.researchService.buildCombatBonuses([attacker, owner]),
-      };
-
-      if (attacker.ai === true && owner.ai === true) {
-        const { outcome } = autoResolveBattle(battle, this.shipService, this.planetBattleService);
-        const destroyed = this.battleOutcomeService.applySpaceBaseBattleOutcome({ fleets, factions }, outcome);
-        if (destroyed) {
-          this.spaceBaseService.destroy(base.id);
-        } else if (outcome.defender.shieldPoolCurrent !== undefined) {
-          this.spaceBaseService.setShieldPool(base.id, outcome.defender.shieldPoolCurrent);
-        }
-        if (fleet.destroyed) {
-          fleet.targetX = null;
-          fleet.targetY = null;
-        }
-        onAutoResolved?.(battle, outcome);
-        continue;
-      }
-
-      this.battleService.setPlanetBattle(battle);
-      enterBattleScreen();
-      return true;
+      const defense = buildBaseDefenseFleet(base, this.stationTurretsOf(owner));
+      const battle = this.buildStationBattle(fleet, attacker, owner, defense, base.name, { spaceBaseId: base.id });
+      const entered = this.startStationBattle(fleet, battle, attacker, owner, { fleets, factions }, enterBattleScreen, onAutoResolved, (destroyed, outcome) => {
+        // The base registry is live state separate from `fleets`: apply here.
+        if (destroyed) this.spaceBaseService.destroy(base.id);
+        else this.spaceBaseService.setDefenseState(base.id, stationDefenseStateFromOutcome(outcome.defender));
+      });
+      if (entered) return true;
     }
     return false;
+  }
+
+  /*
+   * checkMiningStationBattles: a fleet whose faction is at war with a mining
+   * station's owner and that is stopped in the station's star system (on the
+   * system's galaxy cell, no galaxy target) attacks the station
+   * (docs/territory.md#station-defense). The galaxy cell is used, not
+   * system-view positions, because AI fleets never get in-system positions;
+   * so player and AI follow the same rule in any view. Only fleets with at
+   * least one warship trigger it, so colonizer and outpost convoys parked
+   * in a contested system are not thrown away on a station. A fleet fights
+   * one station at a time; with an interactive battle the next station
+   * triggers after the return from the battle screen.
+   *
+   * Returns true if an interactive battle was triggered.
+   */
+  checkMiningStationBattles(
+    fleets: Fleet[],
+    factions: Faction[],
+    starSystems: StarSystem[],
+    enterBattleScreen: () => void,
+    triggeredBattles: Set<string>,
+    onAutoResolved?: (battle: Battle, outcome: BattleOutcome) => void,
+  ): boolean {
+    for (let systemIndex = 0; systemIndex < starSystems.length; systemIndex++) {
+      const system = starSystems[systemIndex];
+      const asteroids = system.asteroidBelt?.asteroids ?? [];
+      if (!asteroids.some((a) => a.miningStation)) continue;
+      const col = Math.floor(system.x);
+      const row = Math.floor(system.y);
+      for (const fleet of fleets) {
+        if (fleet.destroyed || fleet.targetX !== null || fleet.targetY !== null) continue;
+        if (Math.floor(fleet.x) !== col || Math.floor(fleet.y) !== row || !this.hasLivingWarship(fleet)) continue;
+        const attacker = factions.find((f) => f.id === fleet.factionId);
+        if (!attacker) continue;
+        for (let asteroidIndex = 0; asteroidIndex < asteroids.length; asteroidIndex++) {
+          const asteroid = asteroids[asteroidIndex];
+          const station = asteroid.miningStation;
+          if (!station) continue;
+          const owner = factions.find((f) => f.id === station.factionId);
+          if (!owner || !areFactionsHostile(attacker, owner)) continue;
+          const key = `mine${system.id}:${asteroid.col},${asteroid.row}-${fleet.id}`;
+          if (triggeredBattles.has(key)) continue;
+          triggeredBattles.add(key);
+
+          const name = `${system.name} Mining Station`;
+          const defense = buildStationDefenseFleet({
+            fleetId: miningStationDefenseFleetId(systemIndex, asteroidIndex),
+            name,
+            factionId: owner.id,
+            x: system.x,
+            y: system.y,
+            turretCount: this.stationTurretsOf(owner),
+            shieldPoolCurrent: station.shieldPoolCurrent,
+            hullCurrent: station.hullCurrent,
+          });
+          const battle = this.buildStationBattle(fleet, attacker, owner, defense, name, {
+            miningStation: { systemId: system.id, col: asteroid.col, row: asteroid.row },
+          });
+          // The station lives on the live asteroid, so passing the live
+          // systems lets applyStationBattleOutcome update it directly.
+          if (this.startStationBattle(fleet, battle, attacker, owner, { fleets, factions, starSystems }, enterBattleScreen, onAutoResolved)) {
+            return true;
+          }
+          if (fleet.destroyed) break;
+        }
+      }
+    }
+    return false;
+  }
+
+  /* Turrets on every station of `owner`: its Turret Research level. */
+  stationTurretsOf(owner: Faction): number {
+    return stationTurretCount(this.researchService.getModifiers(owner).stationTurrets);
+  }
+
+  private buildStationBattle(
+    fleet: Fleet,
+    attacker: Faction,
+    owner: Faction,
+    defense: Fleet,
+    stationName: string,
+    station: Pick<Battle, 'spaceBaseId' | 'miningStation'>,
+  ): Battle {
+    return {
+      fleet1: fleet,
+      fleet2: defense,
+      faction1Name: attacker.name,
+      faction1Color: attacker.color,
+      faction2Name: owner.name,
+      faction2Color: owner.color,
+      attackerId: fleet.id,
+      defenderId: defense.id,
+      type: 'planet',
+      ...station,
+      planetName: stationName,
+      planetColor: owner.color,
+      combatBonuses: this.researchService.buildCombatBonuses([attacker, owner]),
+    };
+  }
+
+  /*
+   * Shared human/AI split of station battles (same as fleet battles): a
+   * human side opens the battle screen (the result is applied to the
+   * autosave snapshot there); AI-vs-AI is auto-resolved and applied to the
+   * live state at once. Returns true if the battle screen was entered.
+   */
+  private startStationBattle(
+    attackerFleet: Fleet,
+    battle: Battle,
+    attacker: Faction,
+    owner: Faction,
+    data: { fleets: Fleet[]; factions: Faction[]; starSystems?: StarSystem[] },
+    enterBattleScreen: () => void,
+    onAutoResolved: ((battle: Battle, outcome: BattleOutcome) => void) | undefined,
+    applyLive?: (destroyed: boolean, outcome: BattleOutcome) => void,
+  ): boolean {
+    if (attacker.ai === true && owner.ai === true) {
+      const { outcome } = autoResolveBattle(battle, this.shipService, this.planetBattleService);
+      const destroyed = this.battleOutcomeService.applyStationBattleOutcome(data, outcome);
+      applyLive?.(destroyed, outcome);
+      if (attackerFleet.destroyed) {
+        attackerFleet.targetX = null;
+        attackerFleet.targetY = null;
+      }
+      onAutoResolved?.(battle, outcome);
+      return false;
+    }
+    this.battleService.setPlanetBattle(battle);
+    enterBattleScreen();
+    return true;
   }
 
   /*
@@ -206,6 +312,10 @@ export class StarMapBattleDetectionService {
     }
 
     return false;
+  }
+
+  private hasLivingWarship(fleet: Fleet): boolean {
+    return (fleet.ships ?? []).some((ship) => ship.destroyed !== true && isCombatShipType(this.shipService.getShipType(ship.type)));
   }
 
   private hasLivingShips(fleet: Fleet): boolean {

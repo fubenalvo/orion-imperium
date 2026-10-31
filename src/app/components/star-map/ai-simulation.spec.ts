@@ -24,12 +24,16 @@ import { EnemyReachService } from './enemy-reach.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { ResearchService } from '../../services/research.service';
 import { Fleet } from './star-map.models';
-import { generateResourceTilesForPlanet, selectPlanetsForResources } from './star-map-resources.util';
+import { ensurePlanetResources } from './star-map-resources.util';
 import { getPlanetGridSize } from './star-map-display.util';
 import { areFactionsHostile, normalizeRelations } from './diplomacy';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import { BattleService } from '../../services/battle.service';
+import { OUTPOST_SHIP_TYPE } from './space-base';
+
+/* Non-combat hulls: colonizers and outpost ships (consumed when used). */
+const isCivilianShip = (type: string) => type === 'colonizer' || type === OUTPOST_SHIP_TYPE;
 
 /*
  * =========================================================
@@ -176,12 +180,9 @@ function generate(options: ScenarioOptions): StarMapData {
     })),
   ];
   const data = TestBed.inject(GalaxyGeneratorService).generate(config, options.seed ?? 31337);
-  // Mirrors StarMap.ensureResourceTiles on load: ore deposits on ~20% of planets.
-  const allPlanets = data.starSystems.flatMap((s) => s.planetsTiles);
-  const withOre = selectPlanetsForResources(allPlanets);
-  for (const planet of allPlanets) {
-    planet.resourceTiles = withOre.has(planet.id) ? generateResourceTilesForPlanet(planet, getPlanetGridSize) : [];
-  }
+  // Mirrors StarMap.ensureResourceTiles on load: ore deposits on ~20% of
+  // planets plus every homeworld, each with its finite reserve.
+  ensurePlanetResources(data.starSystems.flatMap((s) => s.planetsTiles), getPlanetGridSize);
   if (options.removePlayerFleets) {
     data.fleets = data.fleets.filter((f) => f.factionId !== 'player');
   }
@@ -261,7 +262,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       initialCombatShips: data.fleets
         .filter((f) => f.factionId === faction.id)
         .flatMap((f) => f.ships)
-        .filter((sh) => sh.type !== 'colonizer').length,
+        .filter((sh) => !isCivilianShip(sh.type)).length,
       contacts: [],
       grossIncome: 0,
       upkeepCharged: 0,
@@ -335,7 +336,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
   const goalsForFog = TestBed.inject(EnemyGoalService);
   const shipService = TestBed.inject(ShipService);
   const strengthOf = (fleet: Fleet) => shipService.calculateFleetStrength(fleet.ships);
-  const livingCombat = (fleet: Fleet) => fleet.ships.filter((sh) => !sh.destroyed && sh.type !== 'colonizer').length;
+  const livingCombat = (fleet: Fleet) => fleet.ships.filter((sh) => !sh.destroyed && !isCivilianShip(sh.type)).length;
   const knownFleetCombat = new Map(data.fleets.map((f) => [f.id, livingCombat(f)] as const));
   const contactKeys = new Set<string>();
   const diplomacy = TestBed.inject(DiplomacyService);
@@ -482,7 +483,10 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     for (const ships of produced.producedShips) {
       const trace = traces.get(ships.factionId);
       if (!trace) continue;
-      if (ships.typeId === 'colonizer') {
+      if (ships.typeId === OUTPOST_SHIP_TYPE) {
+        // Outpost ships (EnemyMiningService) are consumed by mining stations;
+        // they are neither colonizers nor combat ships.
+      } else if (ships.typeId === 'colonizer') {
         trace.colonizersProduced += ships.count;
       } else {
         trace.combatShipsProduced += ships.count;
@@ -629,7 +633,7 @@ function expectHealthyAiFactions(result: ScenarioResult, options: ScenarioOption
     const stockShips = result.data.shipStock?.find((st) => st.factionId === factionId)?.ships ?? [];
     const ids = [...fleetShips, ...stockShips].map((sh) => sh.id);
     expect(new Set(ids).size, `${factionId} unique ship ids`).toBe(ids.length);
-    const combatNow = [...fleetShips, ...stockShips].filter((sh) => sh.type !== 'colonizer').length;
+    const combatNow = [...fleetShips, ...stockShips].filter((sh) => !isCivilianShip(sh.type)).length;
     expect(combatNow, `${factionId} combat ship accounting`).toBe(trace.initialCombatShips + trace.combatShipsProduced);
   }
 
@@ -804,7 +808,7 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
       expect(trace.combatShipsProduced, `${factionId} combat ships`).toBeGreaterThanOrEqual(2);
       // Produced combat ships leave the stock into fleets at a Spaceport.
       const stock = result.data.shipStock?.find((s) => s.factionId === factionId)?.ships ?? [];
-      expect(stock.filter((s) => s.type !== 'colonizer').length, `${factionId} undeployed combat ships`).toBeLessThanOrEqual(1);
+      expect(stock.filter((s) => !isCivilianShip(s.type)).length, `${factionId} undeployed combat ships`).toBeLessThanOrEqual(1);
     }
   });
 
@@ -821,10 +825,12 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
 
     expectHealthyAiFactions(result, options);
     for (const [factionId, trace] of result.traces) {
-      // Solar Array first, then Factory (3000) and Spaceport (4000) from a
-      // half-capacity homeworld's net income.
+      // Solar Array first, then Factory (3000), the first Mining Complex
+      // (1500, plus the power and housing it needs: raw materials only come
+      // from deposits) and Spaceport (4000) from a half-capacity homeworld's
+      // net income.
       expect(trace.factoryAt!, `${factionId} factory time`).toBeLessThan(120);
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(300);
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(420);
       expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(1);
       const home = result.data.starSystems.flatMap((s) => s.planetsTiles).find((p) => p.id === trace.homeworldId)!;
       const economy = TestBed.inject(EconomyService).calculatePlanetEconomy(home, result.data.factions.find((f) => f.id === factionId));
@@ -915,9 +921,10 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     expectHealthyAiFactions(result, options);
     for (const [factionId, trace] of result.traces) {
       expect(trace.spaceportAt, `${factionId} spaceport`).not.toBeNull();
-      // 4000 credits + 600 raw at ~80 credits/s net (homeworld income minus
-      // upkeep) plus other committed needs: about a minute.
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(120);
+      // The first Mining Complex (1500 credits) comes first, then 4000
+      // credits + 1000 raw at ~80 credits/s net (homeworld income minus
+      // upkeep) plus other committed needs: about two minutes.
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(180);
       if (trace.firstResearchBuildingAt !== null) {
         expect(trace.firstResearchBuildingAt, `${factionId} research before spaceport`).toBeGreaterThan(trace.spaceportAt!);
       }
@@ -1090,7 +1097,7 @@ describe('AI simulation — Phase 3 research and military operations', () => {
       expect(trace.fleetsCreated, `${factionId} fleets created`).toBeGreaterThanOrEqual(1);
       expect(trace.reinforcements, `${factionId} reinforcements`).toBeGreaterThanOrEqual(1);
       const stock = result.data.shipStock?.find((st) => st.factionId === factionId)?.ships ?? [];
-      expect(stock.filter((sh) => sh.type !== 'colonizer').length, `${factionId} undeployed combat ships`).toBeLessThanOrEqual(2);
+      expect(stock.filter((sh) => !isCivilianShip(sh.type)).length, `${factionId} undeployed combat ships`).toBeLessThanOrEqual(2);
     }
   });
 
@@ -1195,7 +1202,7 @@ describe('AI simulation — Phase 3 research and military operations', () => {
     const militaryStrength = (data: StarMapData, factionId: string) =>
       data.fleets
         .filter((f) => f.factionId === factionId && !f.destroyed)
-        .reduce((sum, f) => sum + ships().calculateFleetStrength(f.ships.filter((sh) => sh.type !== 'colonizer')), 0);
+        .reduce((sum, f) => sum + ships().calculateFleetStrength(f.ships.filter((sh) => !isCivilianShip(sh.type))), 0);
     const options: ScenarioOptions = {
       // Premise: the AIs act against the player/neutrals, not each other.
       aiAlliance: true,
@@ -1217,7 +1224,7 @@ describe('AI simulation — Phase 3 research and military operations', () => {
             for (const faction of data.factions.filter((f) => f.ai)) {
               preLoss.set(faction.id, militaryStrength(data, faction.id));
               for (const fleet of data.fleets.filter((f) => f.factionId === faction.id && !f.destroyed)) {
-                const combat = fleet.ships.filter((sh) => !sh.destroyed && sh.type !== 'colonizer');
+                const combat = fleet.ships.filter((sh) => !sh.destroyed && !isCivilianShip(sh.type));
                 if (combat.length < 2) continue;
                 // ~75% losses, leaving at least one survivor so the fleet is damaged, not wiped out.
                 const losses = Math.max(1, Math.min(combat.length - 1, Math.round(combat.length * 0.75)));
@@ -1620,6 +1627,14 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
       size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         withPersonalities(['balanced'])(data);
+        // This scenario is about objective handling, not the economy: a
+        // stockpile lets the AI build its defense at the pace the scenario was
+        // calibrated for before finite raw materials and pricier colonizers
+        // and research (docs/economy.md) made fleets grow more slowly.
+        for (const faction of data.factions.filter((x) => x.ai)) {
+          faction.currencies['rawmaterials'] = 20000;
+          faction.currencies['credits'] = 20000;
+        }
         // Two cruisers parked 4 cells from enemy1's home: a 'defend' strategy trigger.
         const home = homeSystemOf(data, 'enemy1');
         const pos = near(data, home, 4, 0);

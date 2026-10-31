@@ -286,6 +286,11 @@
   color: var(--ui-ink-faint);
 }
 
+/* The part of the price (RP or credits) the faction cannot pay yet. */
+.research-tree__cost--short {
+  color: var(--ui-danger);
+}
+
 .research-tree__card-desc {
   color: var(--ui-ink-dim);
   line-height: 1.35;

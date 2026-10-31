@@ -1,5 +1,6 @@
 import { PlanetTile, ResourceDeposit } from './star-map.models';
 import { pickResourceDeposits } from './planet-surface/planet-surface-generator';
+import { ensurePlanetDeposits } from './raw-deposits';
 
 export function createMulberry32(seed: number): () => number {
   return () => {
@@ -22,6 +23,28 @@ export function generateResourceTilesForPlanet(
 ): ResourceDeposit[] {
   const rng = createMulberry32(planet.id * 4967297);
   return pickResourceDeposits(planet, getGridSize(planet), rng);
+}
+
+/*
+ * Gives planets their raw-material deposits (tiles + finite reserve), on
+ * every load and for new games:
+ *  - ~20% of planets (selectPlanetsForResources) get deposit tiles if they
+ *    have none;
+ *  - existing tiles are always kept — that includes the deposit every
+ *    homeworld receives at galaxy generation, which is how the starting
+ *    deposit is guaranteed (docs/economy.md, "Economic safety");
+ *  - every planet with tiles gets its finite reserve (ensurePlanetDeposits).
+ * Call after planet surfaces exist so tiles respect the terrain. Idempotent.
+ */
+export function ensurePlanetResources(planets: PlanetTile[], getGridSize: (p: PlanetTile) => number): void {
+  const selectedIds = selectPlanetsForResources(planets);
+  for (const planet of planets) {
+    const hasTiles = Array.isArray(planet.resourceTiles) && planet.resourceTiles.length > 0;
+    if (!hasTiles) {
+      planet.resourceTiles = selectedIds.has(planet.id) ? generateResourceTilesForPlanet(planet, getGridSize) : [];
+    }
+  }
+  ensurePlanetDeposits(planets);
 }
 
 export function selectPlanetsForResources(planets: PlanetTile[]): Set<number> {

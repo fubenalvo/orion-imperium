@@ -2,6 +2,7 @@ import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { Fleet, FleetTrail, PlanetTile, StarSystem, SystemAsteroid } from '../star-map.models';
 import { AsteroidHint } from '../mining-station';
+import { depletionFraction } from '../raw-deposits';
 import { StarMapMovementService } from '../star-map-movement.service';
 import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
 import {
@@ -57,6 +58,13 @@ export class StarMapSystemGridViewComponent {
   @Input() getPlanetClassNames: (planet: PlanetTile) => string[] = () => [];
   /* Mining-target status of an asteroid for the hover card (parent computes it). */
   @Input() getAsteroidHint: (asteroid: SystemAsteroid) => AsteroidHint | null = () => null;
+  /* Turrets on a faction's stations (its Turret Research level, 0–3). */
+  @Input() getStationTurrets: (factionId: string) => number = () => 0;
+
+  /* One entry per visible turret pip (template iteration helper). */
+  turretSlots(count: number): readonly number[] {
+    return [0, 1, 2].slice(0, Math.max(0, count));
+  }
 
   /*
    * The asteroid under the pointer. Only this one gets a hint computed and a
@@ -80,6 +88,11 @@ export class StarMapSystemGridViewComponent {
 
   floor(value: number): number {
     return Math.floor(value);
+  }
+
+  /* Share of the asteroid's original deposit still left (0…100). */
+  remainingPercent(asteroid: SystemAsteroid): number {
+    return Math.round(100 - depletionFraction(asteroid.totalRawMaterials ?? asteroid.rawMaterials, asteroid.rawMaterials) * 100);
   }
 
   /*

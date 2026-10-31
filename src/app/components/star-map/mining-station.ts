@@ -2,6 +2,8 @@ import { Faction, Fleet, StarSystem, SystemAsteroid } from './star-map.models';
 import { hasLivingOutpostShip, OUTPOST_SHIP_TYPE } from './space-base';
 import { systemCellAtVw } from './system-grid';
 import { TerritoryMap } from './territory';
+import { depletionFraction, isAsteroidSurveyedBy } from './raw-deposits';
+import { describeStationDefense } from './station-defense';
 
 /*
  * =========================================================
@@ -19,17 +21,32 @@ import { TerritoryMap } from './territory';
  * - Deployment consumes one outpost ship, exactly like a base deployment,
  *   and retires a fleet left without living ships.
  * - A station extracts raw materials from its deposit during the economy tick
- *   (EconomyService) until the deposit is empty. A depleted station stays on
- *   its asteroid (it is permanent, like a base) but produces nothing.
- * - Stations have no combat role, sensor range or territory claim.
+ *   (EconomyService) at the asteroid's own `extractionRate` until the
+ *   deposit is empty. A depleted station stays on its asteroid (it is
+ *   permanent, like a base) but produces nothing; the deposit never refills.
+ * - Stations have no sensor range or territory claim. They defend themselves
+ *   with the shared station defense model (station-defense.ts: core hull,
+ *   0–3 turrets from the owner's Turret Research, shield pool) and are
+ *   destroyed by a lost battle, which removes the station from its asteroid
+ *   and so stops extraction (StarMapBattleDetectionService
+ *   .checkMiningStationBattles, BattleOutcomeService.applyStationBattleOutcome).
  *
- * Player and AI would use the same validation and mutation; the AI does not
- * deploy stations yet (it neither surveys asteroids nor builds outpost ships).
+ * Player and AI use the same validation and mutation (the AI through
+ * EnemyMiningService); each faction may only target deposits it surveyed.
  */
 export const MINING_STATION_CONFIG = {
-  /* Raw materials extracted per second of game time (before the faction gain multiplier). */
+  /*
+   * Fallback extraction rate (raw/s of game time, before the faction gain
+   * multiplier) for an asteroid without its own `extractionRate`.
+   */
   extractionPerSecond: 5,
 } as const;
+
+/* Nominal extraction rate (raw/s, before the faction gain multiplier) of a station on this asteroid. */
+export function stationExtractionRate(asteroid: SystemAsteroid): number {
+  const rate = asteroid.extractionRate;
+  return typeof rate === 'number' && Number.isFinite(rate) && rate > 0 ? rate : MINING_STATION_CONFIG.extractionPerSecond;
+}
 
 export type MiningDeploymentFailure =
   | 'no_outpost_ship'
@@ -78,7 +95,7 @@ export function asteroidMiningBlocker(
   territory: TerritoryMap,
 ): MiningDeploymentFailure | null {
   if (asteroid.miningStation) return 'occupied';
-  if (!asteroid.surveyed) return 'not_surveyed';
+  if (!isAsteroidSurveyedBy(asteroid, factionId)) return 'not_surveyed';
   if (asteroid.rawMaterials <= 0) return 'no_deposit';
   const owner = territory.systemTerritoryOwner(system);
   if (owner !== null && owner !== factionId) return 'foreign_territory';
@@ -175,7 +192,11 @@ export function activeMiningStationsOf(factionId: string, starSystems: readonly 
 
 /* Effective extraction rate (raw/s) of a faction's stations, as the HUD shows it. */
 export function miningRatePerSecond(factionId: string, starSystems: readonly StarSystem[], gainMultiplier: number): number {
-  return activeMiningStationsOf(factionId, starSystems).length * MINING_STATION_CONFIG.extractionPerSecond * gainMultiplier;
+  let total = 0;
+  for (const asteroid of activeMiningStationsOf(factionId, starSystems)) {
+    total += stationExtractionRate(asteroid);
+  }
+  return total * gainMultiplier;
 }
 
 /*
@@ -191,10 +212,9 @@ export function extractMiningStations(
   gainMultiplier: number,
 ): number {
   if (deltaTime <= 0) return 0;
-  const perStation = MINING_STATION_CONFIG.extractionPerSecond * gainMultiplier * deltaTime;
   let total = 0;
   for (const asteroid of activeMiningStationsOf(factionId, starSystems)) {
-    const taken = Math.min(asteroid.rawMaterials, perStation);
+    const taken = Math.min(asteroid.rawMaterials, stationExtractionRate(asteroid) * gainMultiplier * deltaTime);
     asteroid.rawMaterials = Math.max(0, asteroid.rawMaterials - taken);
     total += taken;
   }
@@ -222,10 +242,19 @@ export interface AsteroidHintInput {
   territory: TerritoryMap;
   fleets: readonly Fleet[];
   factionName: (factionId: string) => string;
+  /* Turrets on a faction's stations (Turret Research level); omitted = no defense line. */
+  stationTurrets?: (factionId: string) => number;
 }
 
 function formatRaw(amount: number): string {
   return Math.floor(amount).toLocaleString('en-US');
+}
+
+/* "3,200 / 5,000 raw (36% mined)" — remaining and original reserve of a deposit. */
+export function describeAsteroidReserve(asteroid: SystemAsteroid): string {
+  const total = Math.max(asteroid.totalRawMaterials ?? asteroid.rawMaterials, asteroid.rawMaterials);
+  const mined = Math.round(depletionFraction(total, asteroid.rawMaterials) * 100);
+  return `${formatRaw(asteroid.rawMaterials)} / ${formatRaw(total)} raw (${mined}% mined)`;
 }
 
 export function describeAsteroidForFaction(input: AsteroidHintInput): AsteroidHint {
@@ -233,19 +262,20 @@ export function describeAsteroidForFaction(input: AsteroidHintInput): AsteroidHi
   const station = asteroid.miningStation;
   if (station) {
     const depleted = asteroid.rawMaterials <= 0;
+    const defense = input.stationTurrets ? ` · ${describeStationDefense(station, input.stationTurrets(station.factionId))}` : '';
     if (station.factionId === factionId) {
       return {
         tone: 'own',
-        title: 'Your mining station',
+        title: depleted ? 'Your mining station · DEPLETED' : 'Your mining station · active',
         detail: depleted
-          ? 'Deposit depleted.'
-          : `${formatRaw(asteroid.rawMaterials)} raw materials left · ${MINING_STATION_CONFIG.extractionPerSecond}/s`,
+          ? `Deposit depleted (${formatRaw(asteroid.totalRawMaterials ?? 0)} raw extracted). The station is idle.${defense}`
+          : `${describeAsteroidReserve(asteroid)} · ${stationExtractionRate(asteroid)}/s${defense}`,
       };
     }
     return {
       tone: 'invalid',
       title: `${input.factionName(station.factionId)} mining station`,
-      detail: 'Occupied: an asteroid holds one station.',
+      detail: `${depleted ? 'Deposit depleted.' : 'Occupied: an asteroid holds one station.'}${defense}`,
     };
   }
 
@@ -256,7 +286,7 @@ export function describeAsteroidForFaction(input: AsteroidHintInput): AsteroidHi
   if (blocker === 'no_deposit') {
     return { tone: 'invalid', title: 'Barren asteroid', detail: 'No raw materials: no mining station possible.' };
   }
-  const deposit = `${formatRaw(asteroid.rawMaterials)} raw materials`;
+  const deposit = `${formatRaw(asteroid.rawMaterials)} raw · ${stationExtractionRate(asteroid)}/s`;
   if (blocker === 'foreign_territory') {
     const owner = input.territory.systemTerritoryOwner(system);
     return {

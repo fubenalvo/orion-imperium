@@ -1,5 +1,6 @@
-import { Faction, Fleet, FleetShip, SpaceBase, StarSystem } from './star-map.models';
+import { Faction, Fleet, SpaceBase, StarSystem } from './star-map.models';
 import { TerritoryMap } from './territory';
+import { buildStationDefenseFleet, StationDefenseFleet } from './station-defense';
 
 /*
  * =========================================================
@@ -16,10 +17,13 @@ import { TerritoryMap } from './territory';
  * Player and AI deploy through the same validation (validateBaseDeployment)
  * and the same mutation (SpaceBaseService.deploy). See docs/territory.md.
  *
- * Combat: a base fights like a planet's static defenses. Its virtual
- * defense fleet (buildBaseDefenseFleet) holds an immobile station core and
- * the planet turret types, covered by a shared shield pool, and goes
- * through the planet-battle path of the battle minigame / auto-resolver.
+ * Combat: a base uses the shared station defense model (station-defense.ts,
+ * the same as mining stations): a station core with persisted hull, 0–3
+ * turrets from its owner's Turret Research level and a shared shield pool,
+ * fought through the planet-battle path of the battle minigame /
+ * auto-resolver. Destroying a base removes its sensor and territory
+ * contribution at once (SpaceBaseService.destroy bumps the revision; the
+ * sensor layer reads the live registry every frame).
  */
 export const OUTPOST_SHIP_TYPE = 'outpost_ship';
 
@@ -30,30 +34,6 @@ export const SPACE_BASE_CONFIG = {
   minStarDistance: 3,
   /* Owner's sensor radius around the base (cells, incl. the global +2 bonus). */
   sensorRange: 6,
-  /* Virtual defense units: one core plus planet turret types (planet-data.json ids). */
-  coreTypeId: 'station_core',
-  turretTypeIds: ['laser_turret', 'laser_turret', 'missile_turret'],
-  /* Shared shield pool covering every immobile defense unit. */
-  shield: 250,
-  shieldRegen: 12,
-} as const;
-
-/*
- * Stats of the station core, the base's own hull. It enters battle as an
- * immobile virtual unit like a turret (PlanetBattleService.getVirtualShipType),
- * so the base has its own hit points and armor besides the turrets.
- */
-export const STATION_CORE_STATS = {
-  id: SPACE_BASE_CONFIG.coreTypeId,
-  name: 'Station Core',
-  role: 'defense',
-  hitPoints: 900,
-  attack: 30,
-  attackType: 'energy',
-  weakness: 'missile',
-  defense: 15,
-  range: 4,
-  fireRate: 1,
 } as const;
 
 /*
@@ -177,44 +157,20 @@ export function nameSpaceBase(col: number, row: number, starSystems: readonly St
   }
 }
 
-/* Virtual unit ids start here, like planet defense units (PlanetBattleService). */
-const VIRTUAL_UNIT_ID_START = 1_000_000;
-
 /*
- * The base's defense roster for a battle: the station core plus its
- * turrets. Same shape as PlanetBattleService.createVirtualDefenseFleet
- * output, so the battle minigame and auto-resolver treat it exactly like
- * a planet's defenses (immobile stacks under a shared shield pool).
+ * The base's defense roster for a battle (shared station defense model):
+ * core, `turretCount` turrets (the owner's Turret Research level) and the
+ * persisted shield pool and hull.
  */
-export function buildBaseDefenseFleet(base: SpaceBase): Fleet & {
-  shieldPool: number;
-  shieldPoolRegen: number;
-  shieldPoolMax: number;
-} {
-  const unitTypes = [SPACE_BASE_CONFIG.coreTypeId, ...SPACE_BASE_CONFIG.turretTypeIds];
-  const ships: FleetShip[] = unitTypes.map((type, index) => ({
-    id: VIRTUAL_UNIT_ID_START + index,
-    name: `${base.name} ${type === SPACE_BASE_CONFIG.coreTypeId ? 'Core' : `Turret ${index}`}`,
-    type,
-    destroyed: false,
-  }));
-  const max = SPACE_BASE_CONFIG.shield;
-  const persisted = base.shieldPoolCurrent;
-  const current = typeof persisted === 'number' && Number.isFinite(persisted) ? Math.max(0, Math.min(persisted, max)) : max;
-  return {
-    id: spaceBaseDefenseFleetId(base),
-    name: `${base.name} Defenses`,
+export function buildBaseDefenseFleet(base: SpaceBase, turretCount: number): StationDefenseFleet {
+  return buildStationDefenseFleet({
+    fleetId: spaceBaseDefenseFleetId(base),
+    name: base.name,
     factionId: base.factionId,
     x: base.x,
     y: base.y,
-    targetX: null,
-    targetY: null,
-    speed: 0,
-    system: null,
-    ships,
-    destroyed: false,
-    shieldPool: current,
-    shieldPoolRegen: SPACE_BASE_CONFIG.shieldRegen,
-    shieldPoolMax: max,
-  };
+    turretCount,
+    shieldPoolCurrent: base.shieldPoolCurrent,
+    hullCurrent: base.hullCurrent,
+  });
 }

@@ -14,6 +14,14 @@ import { PeaceTreaty, TreatyItem, describeTreatyInvalid, isFactionAlive } from '
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { EnemyDiplomacyService, WarFactor } from './enemy-diplomacy.service';
 import { getAiPersonalityProfile } from './ai-personality';
+import {
+  DEMAND_RULES,
+  DemandKind,
+  MIN_DEMAND_CREDITS,
+  demandMessage,
+  roundDemandAmount,
+} from './diplomatic-demand';
+import { availableResource } from './resource-transfer';
 
 /*
  * View models for the Diplomacy screen and the peace negotiation dialog.
@@ -31,6 +39,43 @@ export interface DiplomacyOfferVm {
   /* secondsLeft formatted for display ("1 min 20 s"). */
   timeLeftLabel: string;
   summary: string[];
+}
+
+/** An AI demand waiting for the player's answer. */
+export interface IncomingDemandVm {
+  id: number;
+  kind: DemandKind;
+  kindLabel: string;
+  /* The demand in the demander's voice (tone follows its personality). */
+  message: string;
+  amount: number;
+  secondsLeft: number;
+  timeLeftLabel: string;
+  /* What refusing may cost; never reveals whether a threat is a bluff. */
+  consequence: string;
+  /* The player holds the credits right now. */
+  affordable: boolean;
+}
+
+/** The player's refused ultimatum, waiting for war or backing down. */
+export interface FollowThroughVm {
+  id: number;
+  amount: number;
+  timeLeftLabel: string;
+  canDeclareWar: boolean;
+}
+
+/** Whether and how the player can demand credits from this empire now. */
+export interface DemandOptionsVm {
+  available: boolean;
+  /* Why not (cooldown, open demand, poor target…); null when available. */
+  reason: string | null;
+  minAmount: number;
+  /* Their current credits: a demand can never exceed what they hold. */
+  maxAmount: number;
+  suggested: number;
+  /* No ultimatum during a truce (it could only be enforced by a breach). */
+  threatAllowed: boolean;
 }
 
 export interface DiplomacyRowVm {
@@ -64,6 +109,9 @@ export interface DiplomacyRowVm {
   canDeclareWar: boolean;
   canBreakTreaty: boolean;
   offer?: DiplomacyOfferVm;
+  incomingDemand?: IncomingDemandVm;
+  followThrough?: FollowThroughVm;
+  demandOptions: DemandOptionsVm;
   atWarWith: string[];
   atPeaceWith: string[];
 }
@@ -174,10 +222,69 @@ export function buildDiplomacyRows(
         offer: offer
           ? { secondsLeft: offer.secondsLeft, timeLeftLabel: formatGameDuration(offer.secondsLeft), summary: summarizeTreaty(offer.treaty, player.id, world) }
           : undefined,
+        incomingDemand: incomingDemandVm(player, f, diplomacy),
+        followThrough: followThroughVm(player, f, diplomacy),
+        demandOptions: demandOptionsVm(player, f, world, diplomacy),
         atWarWith: others.filter((o) => getRelation(f, o)?.state === 'war').map((o) => o.name),
         atPeaceWith: others.filter((o) => getRelation(f, o)?.state === 'peace').map((o) => o.name),
       };
     });
+}
+
+const DEMAND_CONSEQUENCES: Readonly<Record<DemandKind, string>> = {
+  request: 'Refusing sours their opinion of you a little.',
+  tribute: 'Refusing will anger them.',
+  threat: 'If you refuse, they may declare war on you.',
+};
+
+function incomingDemandVm(player: Faction, ai: Faction, diplomacy: DiplomacyService): IncomingDemandVm | undefined {
+  const demand = diplomacy.getPendingDemandsFor(player.id).find((d) => d.demanderId === ai.id);
+  if (!demand) return undefined;
+  return {
+    id: demand.id,
+    kind: demand.kind,
+    kindLabel: DEMAND_RULES[demand.kind].label,
+    message: demandMessage(demand.kind, ai.ai === true ? getAiPersonalityProfile(ai).id : 'human', demand.amount),
+    amount: demand.amount,
+    secondsLeft: demand.secondsLeft,
+    timeLeftLabel: formatGameDuration(demand.secondsLeft),
+    consequence: DEMAND_CONSEQUENCES[demand.kind],
+    affordable: availableResource(player, 'credits') >= demand.amount,
+  };
+}
+
+function followThroughVm(player: Faction, ai: Faction, diplomacy: DiplomacyService): FollowThroughVm | undefined {
+  const demand = diplomacy.getDemands().find((d) => d.stage === 'follow_through' && d.demanderId === player.id && d.targetId === ai.id);
+  if (!demand) return undefined;
+  return {
+    id: demand.id,
+    amount: demand.amount,
+    timeLeftLabel: formatGameDuration(demand.secondsLeft),
+    canDeclareWar: diplomacy.canDeclareWar(player, ai).ok,
+  };
+}
+
+function demandOptionsVm(player: Faction, ai: Faction, world: World, diplomacy: DiplomacyService): DemandOptionsVm {
+  const maxAmount = availableResource(ai, 'credits');
+  const check = diplomacy.canIssueDemand(player, ai, 'request', MIN_DEMAND_CREDITS, world);
+  let reason: string | null = null;
+  if (ai.ai !== true) reason = 'Only AI empires answer demands.';
+  else if (!check.ok) {
+    switch (check.reason) {
+      case 'cooldown': reason = `Next demand possible in ${formatGameDuration(check.waitSeconds ?? 0)}.`; break;
+      case 'open_demand': reason = 'A demand between you is still open.'; break;
+      case 'insufficient_credits': reason = `They hold fewer than ${MIN_DEMAND_CREDITS} credits.`; break;
+      default: reason = 'No demand is possible now.';
+    }
+  }
+  return {
+    available: reason === null,
+    reason,
+    minAmount: MIN_DEMAND_CREDITS,
+    maxAmount,
+    suggested: Math.min(maxAmount, Math.max(MIN_DEMAND_CREDITS, roundDemandAmount(maxAmount * 0.25))),
+    threatAllowed: !isTruceActive(player, ai),
+  };
 }
 
 function sideVm(self: Faction, other: Faction): NegotiationSideVm {

@@ -63,6 +63,7 @@ import { BattleAiService } from './battle/battle-ai.service';
 import { BattleGridComponent } from './battle-grid/battle-grid.component';
 import { BattleParallax } from './battle/battle-parallax';
 import { GameHeaderComponent, GameHeaderSpeedOption } from '../game-header/game-header.component';
+import { isStationBattle } from '../star-map/station-defense';
 
 /*
  * =========================================================
@@ -219,7 +220,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   get resultBattleTypeLabel(): string {
     const outcome = this.battleOutcome;
     if (outcome?.battleType !== 'planet') return 'FLEET BATTLE';
-    return outcome.spaceBaseId != null ? 'STATION BATTLE' : 'PLANET BATTLE';
+    return isStationBattle(outcome) ? 'STATION BATTLE' : 'PLANET BATTLE';
   }
 
   get resultSideSummaries(): BattleResultSideSummary[] {
@@ -382,7 +383,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return {
       name: this.state.planetName,
       color: this.state.planetColor ?? '#ffffff',
-      kind: this.state.spaceBaseId != null ? 'station' : 'planet',
+      kind: isStationBattle(this.state) ? 'station' : 'planet',
     };
   }
 
@@ -831,8 +832,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!outcome || outcome.battleType !== 'planet') {
       return '';
     }
-    if (outcome.spaceBaseId != null) {
-      // A space base is never captured: losing destroys it.
+    if (isStationBattle(outcome)) {
+      // A station (space base or mining station) is never captured: losing destroys it.
       return outcome.winnerSide === 'attacker' ? 'DESTROYED' : 'DEFENDED';
     }
     return outcome.winnerSide === 'attacker' ? 'CAPTURED' : 'DEFENDED';
@@ -856,8 +857,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
       if (battle.type === 'planet' && battle.planetId) {
         this.applyPlanetBattleResult(battle, outcome);
-      } else if (battle.type === 'planet' && battle.spaceBaseId != null) {
-        this.applySpaceBaseBattleResult(outcome);
+      } else if (battle.type === 'planet' && isStationBattle(battle)) {
+        this.applyStationBattleResult(outcome);
       } else {
         this.persistFleetBattleResult(outcome);
       }
@@ -901,17 +902,18 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   /*
-   * Persists a space base battle to the autosave snapshot through the same
-   * BattleOutcomeService path AI-vs-AI base battles use: attacker victory
-   * removes the base (and with it its territory claim); the attacker's
-   * roster is always written back.
+   * Persists a station battle (space base or mining station) to the autosave
+   * snapshot through the same BattleOutcomeService path AI-vs-AI station
+   * battles use: attacker victory removes the station (a base's territory
+   * and sensor coverage, a mining station's extraction go with it); the
+   * attacker's roster is always written back.
    */
-  private applySpaceBaseBattleResult(outcome: BattleOutcome): void {
+  private applyStationBattleResult(outcome: BattleOutcome): void {
     const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
     if (!data) {
       return;
     }
-    this.battleOutcomeService.applySpaceBaseBattleOutcome(data, outcome);
+    this.battleOutcomeService.applyStationBattleOutcome(data, outcome);
     this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
 }

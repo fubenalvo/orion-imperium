@@ -1,16 +1,33 @@
 import { Injectable } from '@angular/core';
 import { ShipService } from '../../services/ship.service';
-import { DiplomacyService } from '../../services/diplomacy.service';
+import { DemandFailure, DiplomacyService } from '../../services/diplomacy.service';
 import { getAiPersonalityProfile } from './ai-personality';
-import { AiPersonality, Faction, FactionProduction, Fleet, StarSystem } from './star-map.models';
+import { AiPersonality, Faction, FactionProduction, FactionShipStock, Fleet, StarSystem } from './star-map.models';
 import {
+  getDemandsReceived,
+  getDemandsRefused,
   getEffectiveOpinion,
+  getEmptyThreats,
   getFactionWarExhaustion,
   getRelation,
   getWarExhaustion,
   isTreatyPair,
   isTruceActive,
 } from './diplomacy';
+import {
+  DEMAND_RULES,
+  DemandKind,
+  DemandValidation,
+  DiplomaticDemand,
+  MAX_DEMAND_TARGET_SHARE,
+  MAX_PAYMENT_SHARE,
+  MIN_DEMAND_CREDITS,
+  PLAYER_DEMAND_COOLDOWN_SECONDS,
+  roundDemandAmount,
+  validateDemand,
+} from './diplomatic-demand';
+import { availableResource } from './resource-transfer';
+import { EnemyEconomyService } from './enemy-economy.service';
 import {
   PeaceTreaty,
   TreatyItem,
@@ -51,6 +68,19 @@ import {
  *     peace; at peace it may declare war on a weak neighbour it does not
  *     like, or — militarists only — break a truce when overwhelmingly
  *     stronger and hostile.
+ *  5. Credit demands at peace (diplomatic-demand.ts), between the review
+ *     of peace and of war: planDemand picks a target and a kind from the
+ *     personality, strength ratio, distance, opinion, own treasury, the
+ *     target's spendable credits and earlier refusals; makeDemand is the
+ *     one path for every demander (AI or human): an AI target answers at
+ *     once (evaluateDemand, a sum of named factors like assessWar), a
+ *     demand to the human waits. On a refused threat the AI recomputes
+ *     assessFollowThrough from the current state — war through the normal
+ *     declareWar, or a bluff. Never random: the same state gives the same
+ *     decision, and earlier empty threats push the next decision toward
+ *     war while making every empire take its threats less seriously.
+ *     An AI never pays more than its spendable credits (above the
+ *     EnemyEconomyService spending reserve, at most MAX_PAYMENT_SHARE).
  *
  * Information: total fleet strength, losses and exhaustion are treated as
  * public knowledge for diplomacy (envoys, intelligence); tactical layers
@@ -68,13 +98,48 @@ interface DiplomacyProfile {
   warOpinionMax: number;
   /* May break a running truce (overwhelming strength, hostile opinion). */
   treachery: boolean;
+  /* Credit demands (diplomatic-demand.ts): */
+  /* Game seconds between this AI's own demands (to anyone). */
+  demandCooldown: number;
+  /* Demand size as a share of its own economic scale (× the kind's multiplier). */
+  demandShare: number;
+  /* Target/own strength ratio up to which it threatens war. */
+  threatRatio: number;
+  /* Target/own strength ratio up to which it demands tribute. */
+  tributeRatio: number;
+  /* Added to the war-or-bluff score when a threat is refused (positive = carries it out). */
+  followThrough: number;
+  /* Multiplier on its opinion loss when its demand is refused. */
+  refusalTolerance: number;
+  /* As a target: added to its will to pay tribute and threats. */
+  yieldBias: number;
+  /* As a target: added to its will to grant financial requests. */
+  generosity: number;
 }
 
+/*
+ * Militarists demand often and large, threaten readily and usually carry
+ * their threats out; technologists rarely demand, mostly ask for support,
+ * seldom threaten and nearly always bluff; balanced and expansionist sit
+ * in between. Tuning lives here only (docs/diplomacy.md lists the table).
+ */
 const DIPLOMACY_PROFILES: Readonly<Record<AiPersonality, DiplomacyProfile>> = {
-  balanced: { peaceBias: 0, warRatio: 0.6, maxWars: 1, warOpinionMax: 10, treachery: false },
-  expansionist: { peaceBias: 0.05, warRatio: 0.65, maxWars: 1, warOpinionMax: 15, treachery: false },
-  militarist: { peaceBias: -0.2, warRatio: 0.85, maxWars: 2, warOpinionMax: 30, treachery: true },
-  technologist: { peaceBias: 0.15, warRatio: 0.5, maxWars: 1, warOpinionMax: 0, treachery: false },
+  balanced: {
+    peaceBias: 0, warRatio: 0.6, maxWars: 1, warOpinionMax: 10, treachery: false,
+    demandCooldown: 480, demandShare: 0.5, threatRatio: 0.5, tributeRatio: 0.65, followThrough: -0.3, refusalTolerance: 1, yieldBias: 0, generosity: 0.05,
+  },
+  expansionist: {
+    peaceBias: 0.05, warRatio: 0.65, maxWars: 1, warOpinionMax: 15, treachery: false,
+    demandCooldown: 420, demandShare: 0.6, threatRatio: 0.55, tributeRatio: 0.7, followThrough: -0.15, refusalTolerance: 1.1, yieldBias: -0.05, generosity: 0,
+  },
+  militarist: {
+    peaceBias: -0.2, warRatio: 0.85, maxWars: 2, warOpinionMax: 30, treachery: true,
+    demandCooldown: 300, demandShare: 0.8, threatRatio: 0.8, tributeRatio: 0.9, followThrough: 0.35, refusalTolerance: 1.4, yieldBias: -0.2, generosity: -0.1,
+  },
+  technologist: {
+    peaceBias: 0.15, warRatio: 0.5, maxWars: 1, warOpinionMax: 0, treachery: false,
+    demandCooldown: 720, demandShare: 0.35, threatRatio: 0.3, tributeRatio: 0.45, followThrough: -0.9, refusalTolerance: 0.7, yieldBias: 0.1, generosity: 0.15,
+  },
 };
 
 export interface WarFactor {
@@ -117,6 +182,48 @@ export interface DiplomacyContext {
   fleets: Fleet[];
   starSystems: StarSystem[];
   production?: FactionProduction[];
+  /* Needed for the AI spending reserve when an AI decides how much it can pay. */
+  shipStock?: FactionShipStock[];
+}
+
+/** An AI target's judgment of a credit demand (named factors, like assessWar). */
+export interface DemandEvaluation {
+  validation: DemandValidation;
+  /** Credits the target can pay: AI = above its spending reserve and ≤ MAX_PAYMENT_SHARE of its stock. */
+  spendable: number;
+  affordable: boolean;
+  /** Sum of the factors; the target pays a feasible, affordable demand when ≥ 0. */
+  score: number;
+  factors: WarFactor[];
+  accept: boolean;
+}
+
+/** What became of a demand right away: paid, refused, war or bluff (AI target), or waiting. */
+export type DemandOutcomeKind = 'paid' | 'refused' | 'war' | 'bluff' | 'pending' | 'follow_through';
+
+export interface DemandOutcome {
+  /** False when the demand could not be made at all (see reason). */
+  ok: boolean;
+  reason?: DemandFailure;
+  waitSeconds?: number;
+  demand?: DiplomaticDemand;
+  outcome?: DemandOutcomeKind;
+  /** The AI target's judgment (only when an AI answered). */
+  evaluation?: DemandEvaluation;
+}
+
+/** An AI's decision whether to carry out a refused threat. */
+export interface FollowThroughAssessment {
+  carryOut: boolean;
+  score: number;
+  factors: WarFactor[];
+}
+
+/** A demand an AI wants to make (planDemand). */
+export interface DemandPlan {
+  target: Faction;
+  kind: DemandKind;
+  amount: number;
 }
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
@@ -150,6 +257,7 @@ export class EnemyDiplomacyService {
   constructor(
     private readonly shipService: ShipService,
     private readonly diplomacy: DiplomacyService,
+    private readonly enemyEconomy: EnemyEconomyService,
   ) {}
 
   reset(): void {
@@ -165,15 +273,22 @@ export class EnemyDiplomacyService {
       if (next <= 0) this.offerCooldowns.delete(id);
       else this.offerCooldowns.set(id, next);
     }
+    // Unanswered demands to the human count as refused as soon as they
+    // expire (not only at decision time), so the timer the player sees is exact.
+    let changed = false;
+    for (const expired of this.diplomacy.takeExpiredDemands()) {
+      this.handleRefusal(expired, ctx);
+      changed = true;
+    }
     this.accumulator += gameDeltaTime;
-    if (this.accumulator < EnemyDiplomacyService.DECISION_INTERVAL) return false;
+    if (this.accumulator < EnemyDiplomacyService.DECISION_INTERVAL) return changed;
     this.accumulator = 0;
 
-    let changed = false;
     // Fixed faction order keeps the decisions deterministic.
     for (const faction of ctx.factions) {
       if (faction.ai !== true || !isFactionAlive(faction.id, ctx)) continue;
       changed = this.reviewPeace(faction, ctx) || changed;
+      changed = this.reviewDemands(faction, ctx) || changed;
       changed = this.reviewWar(faction, ctx) || changed;
     }
     return changed;
@@ -306,7 +421,206 @@ export class EnemyDiplomacyService {
     return total;
   }
 
+  /* ---------- Credit demands (diplomatic-demand.ts) ---------- */
+
+  /**
+   * The one path for making a demand, for an AI or the human demander.
+   * Applies DiplomacyService.issueDemand (checks, cooldowns, opinion);
+   * an AI target answers at once (answerDemand), a demand to the human is
+   * stored and waits for the player.
+   */
+  makeDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, ctx: DiplomacyContext): DemandOutcome {
+    const cooldown = demander.ai === true ? this.profileOf(demander).demandCooldown : PLAYER_DEMAND_COOLDOWN_SECONDS;
+    const issued = this.diplomacy.issueDemand(demander, target, kind, amount, ctx, cooldown);
+    if (!issued.ok || !issued.demand) return { ok: false, reason: issued.reason, waitSeconds: issued.waitSeconds };
+    if (target.ai !== true) {
+      this.diplomacy.addPendingDemand(issued.demand);
+      return { ok: true, demand: issued.demand, outcome: 'pending' };
+    }
+    const answer = this.answerDemand(target, issued.demand, ctx);
+    return { ok: true, demand: issued.demand, outcome: answer.outcome, evaluation: answer.evaluation };
+  }
+
+  /** An AI target's answer: pays when evaluateDemand accepts and the payment succeeds, refuses otherwise. */
+  answerDemand(target: Faction, demand: DiplomaticDemand, ctx: DiplomacyContext): { outcome: DemandOutcomeKind; evaluation: DemandEvaluation } {
+    const evaluation = this.evaluateDemand(target, demand, ctx);
+    if (evaluation.accept && this.diplomacy.acceptDemand(demand, ctx).ok) return { outcome: 'paid', evaluation };
+    return { outcome: this.handleRefusal(demand, ctx), evaluation };
+  }
+
+  /**
+   * Applies a refusal (by an AI, by the human, or by an unanswered demand
+   * expiring). A refused threat is then followed through: an AI demander
+   * decides war or bluff now (assessFollowThrough); the human demander
+   * gets a follow-through decision with its own timer.
+   */
+  handleRefusal(demand: DiplomaticDemand, ctx: DiplomacyContext): DemandOutcomeKind {
+    const demander = ctx.factions.find((f) => f.id === demand.demanderId);
+    const target = ctx.factions.find((f) => f.id === demand.targetId);
+    const tolerance = demander?.ai === true ? this.profileOf(demander).refusalTolerance : 1;
+    this.diplomacy.refuseDemand(demand, ctx.factions, tolerance);
+    if (demand.kind !== 'threat' || !demander || !target) return 'refused';
+    if (demander.ai !== true) {
+      this.diplomacy.startFollowThrough(demand);
+      return 'follow_through';
+    }
+    const decision = this.assessFollowThrough(demander, target, ctx);
+    if (decision.carryOut && this.diplomacy.carryOutThreat(demand, ctx.factions).ok) return 'war';
+    this.diplomacy.backDown(demand, ctx.factions);
+    return 'bluff';
+  }
+
+  /**
+   * How `target` (an AI) judges a demand: deterministic named factors.
+   * Requests weigh relations, the demander's need and generosity; tribute
+   * and threats weigh the balance of power (threats also reach, the
+   * demander's capacity for another war and its record of empty threats).
+   * Pays iff the demand is valid, within its spendable credits and the
+   * score is ≥ 0.
+   */
+  evaluateDemand(target: Faction, demand: DiplomaticDemand, ctx: DiplomacyContext): DemandEvaluation {
+    const validation = validateDemand(demand, ctx);
+    const spendable = this.spendableCredits(target, ctx);
+    const affordable = demand.amount <= spendable;
+    const demander = ctx.factions.find((f) => f.id === demand.demanderId);
+    const factors: WarFactor[] = [];
+    const add = (key: string, label: string, value: number) => {
+      if (Math.abs(value) >= 0.005) factors.push({ key, label, value });
+    };
+    if (demander) {
+      const profile = this.profileOf(target);
+      add('burden', 'Cost to the treasury', -clamp((0.6 * demand.amount) / this.scaleOf(target, ctx), 0, 1.5));
+      // issueDemand already counted this demand; only earlier ones annoy.
+      add('repeated', 'Repeated demands', -0.15 * Math.max(0, getDemandsReceived(target, demander) - 1));
+      const opinion = getEffectiveOpinion(target, demander) / 100;
+      if (demand.kind === 'request') {
+        add('baseline', 'Reluctance', -0.1);
+        add('opinion', 'Relations', 0.8 * opinion);
+        if ((demander.currencies['credits'] ?? 0) < this.scaleOf(demander, ctx) * 0.25) add('need', 'Their need', 0.15);
+        add('personality', 'Generosity', profile.generosity);
+      } else {
+        const power = this.militaryStrength(demander.id, ctx.fleets) / Math.max(1, this.militaryStrength(target.id, ctx.fleets));
+        const balance = clamp(0.5 * Math.log2(Math.max(power, 1 / 16)), -1, 1);
+        add('pride', 'Pride', demand.kind === 'tribute' ? -0.25 : -0.15);
+        add('power', 'Balance of power', (demand.kind === 'tribute' ? 0.6 : 1) * balance);
+        add('opinion', 'Relations', 0.2 * opinion);
+        if (demand.kind === 'threat') {
+          if (this.empireDistance(demander.id, target.id, ctx) > EnemyDiplomacyService.WAR_REACH) add('reach', 'Out of their reach', -0.4);
+          if (!this.canStartWar(demander, ctx)) add('capacity', 'They cannot take on another war', -0.3);
+          add('credibility', 'Empty threats', -0.2 * getEmptyThreats(demander));
+          if (this.warEnemies(target, ctx).length > 0) add('second_front', 'Already at war', 0.2);
+        }
+        add('personality', 'Temperament', profile.yieldBias);
+      }
+    }
+    const score = factors.reduce((sum, f) => sum + f.value, 0);
+    return { validation, spendable, affordable, score, factors, accept: validation.ok && affordable && !!demander && score >= 0 };
+  }
+
+  /**
+   * Whether `ai` carries out its refused threat against `target`, from the
+   * current state: impossible when war cannot be declared (truce or other
+   * declareWar rule), when it is at its war limit or exhausted, or out of
+   * reach; otherwise temperament + military balance − relations + the
+   * pressure of its own earlier empty threats (credibility to restore) ≥ 0.
+   */
+  assessFollowThrough(ai: Faction, target: Faction, ctx: DiplomacyContext): FollowThroughAssessment {
+    const factors: WarFactor[] = [];
+    const blocked = !this.diplomacy.canDeclareWar(ai, target).ok
+      || !this.canStartWar(ai, ctx)
+      || this.empireDistance(ai.id, target.id, ctx) > EnemyDiplomacyService.WAR_REACH;
+    if (blocked) {
+      factors.push({ key: 'unable', label: 'Cannot wage this war now', value: -1 });
+      return { carryOut: false, score: -1, factors };
+    }
+    const own = this.militaryStrength(ai.id, ctx.fleets);
+    const theirs = this.militaryStrength(target.id, ctx.fleets);
+    factors.push({ key: 'personality', label: 'Temperament', value: this.profileOf(ai).followThrough });
+    factors.push({ key: 'military', label: 'Military balance', value: clamp(0.4 * Math.log2(Math.max(own, 1) / Math.max(theirs, 1)), -0.8, 0.8) });
+    factors.push({ key: 'opinion', label: 'Relations', value: (-0.3 * getEffectiveOpinion(ai, target)) / 100 });
+    factors.push({ key: 'credibility', label: 'Credibility to restore', value: 0.15 * getEmptyThreats(ai) });
+    const score = factors.reduce((sum, f) => sum + f.value, 0);
+    return { carryOut: score >= 0, score, factors };
+  }
+
+  /**
+   * Credits a faction can pay toward a demand. The human decides alone
+   * (its whole stock). An AI keeps EnemyEconomyService's spending reserve
+   * and never pays more than MAX_PAYMENT_SHARE of its credits.
+   */
+  spendableCredits(faction: Faction, ctx: DiplomacyContext): number {
+    const credits = availableResource(faction, 'credits');
+    if (faction.ai !== true) return credits;
+    const reserve = this.enemyEconomy.getSpendingReserve(faction, ctx.starSystems, {
+      fleets: ctx.fleets,
+      shipStock: ctx.shipStock ?? [],
+      production: ctx.production ?? [],
+      factions: ctx.factions,
+    }, true);
+    return Math.max(0, Math.min(Math.floor(credits * MAX_PAYMENT_SHARE), Math.floor(credits - reserve.credits)));
+  }
+
+  /**
+   * The demand `ai` would make now, or undefined. Per peace partner it may
+   * demand from (cooldowns, open demands and the human's queue checked by
+   * DiplomacyService.canIssueDemand): a threat when it can fight, the
+   * target is in reach, weak enough (threatRatio; ×1.2 after a refusal —
+   * it escalates) and not liked; tribute when clearly stronger; a request
+   * when its own treasury is low and it does not dislike the target (no
+   * more requests after two recent refusals). No tribute or threat during
+   * a truce. The amount scales with its own economy and never exceeds
+   * MAX_DEMAND_TARGET_SHARE of the target's credits (for an AI target:
+   * also its spendable credits). Harshest kind first, then the weakest target.
+   */
+  planDemand(ai: Faction, ctx: DiplomacyContext): DemandPlan | undefined {
+    if ((ai.demandCooldown ?? 0) > 0) return undefined;
+    const profile = this.profileOf(ai);
+    const scale = this.scaleOf(ai, ctx);
+    const struggling = (ai.currencies['credits'] ?? 0) < scale * 0.25;
+    const canFight = this.canStartWar(ai, ctx);
+    const rank: Record<DemandKind, number> = { request: 1, tribute: 2, threat: 3 };
+    let best: (DemandPlan & { rank: number; ratio: number }) | undefined;
+    for (const other of ctx.factions) {
+      if (!isTreatyPair(ai, other) || getRelation(ai, other)?.state !== 'peace' || !isFactionAlive(other.id, ctx)) continue;
+      if (!this.diplomacy.canIssueDemand(ai, other, 'request', MIN_DEMAND_CREDITS, ctx).ok) continue;
+      const ratio = this.strengthRatio(other, ai, ctx);
+      const distance = this.empireDistance(ai.id, other.id, ctx);
+      const opinion = getEffectiveOpinion(ai, other);
+      const refused = getDemandsRefused(ai, other);
+      const truce = isTruceActive(ai, other);
+      const escalation = refused >= 1 ? 1.2 : 1;
+      let kind: DemandKind | undefined;
+      if (canFight && !truce && distance <= EnemyDiplomacyService.WAR_REACH && ratio <= profile.threatRatio * escalation && opinion <= profile.warOpinionMax + 25) {
+        kind = 'threat';
+      } else if (!truce && distance <= EnemyDiplomacyService.WAR_REACH * 1.5 && ratio <= profile.tributeRatio && opinion <= 30) {
+        kind = 'tribute';
+      } else if (struggling && opinion >= 0 && refused < 2) {
+        kind = 'request';
+      }
+      if (!kind) continue;
+      const share = Math.floor(availableResource(other, 'credits') * MAX_DEMAND_TARGET_SHARE);
+      const cap = other.ai === true ? Math.min(share, this.spendableCredits(other, ctx)) : share;
+      const amount = roundDemandAmount(Math.min(scale * profile.demandShare * DEMAND_RULES[kind].amountMultiplier, cap));
+      if (amount < MIN_DEMAND_CREDITS) continue;
+      if (!best || rank[kind] > best.rank || (rank[kind] === best.rank && ratio < best.ratio)) {
+        best = { target: other, kind, amount, rank: rank[kind], ratio };
+      }
+    }
+    return best ? { target: best.target, kind: best.kind, amount: best.amount } : undefined;
+  }
+
   /* ---------- Periodic review ---------- */
+
+  private reviewDemands(ai: Faction, ctx: DiplomacyContext): boolean {
+    const plan = this.planDemand(ai, ctx);
+    return !!plan && this.makeDemand(ai, plan.target, plan.kind, plan.amount, ctx).ok;
+  }
+
+  /* Can `faction` start another war now (AI: war limit; everyone: exhaustion)? */
+  private canStartWar(faction: Faction, ctx: DiplomacyContext): boolean {
+    if (getFactionWarExhaustion(faction) >= EnemyDiplomacyService.NO_NEW_WAR_EXHAUSTION) return false;
+    return faction.ai !== true || this.warEnemies(faction, ctx).length < this.profileOf(faction).maxWars;
+  }
 
   private reviewPeace(ai: Faction, ctx: DiplomacyContext): boolean {
     let changed = false;
@@ -382,6 +696,9 @@ export class EnemyDiplomacyService {
     for (const other of ctx.factions) {
       if (!isTreatyPair(ai, other) || !isFactionAlive(other.id, ctx)) continue;
       if (getRelation(ai, other)?.state !== 'peace') continue;
+      // An open demand between the two is answered first: an ultimatum's
+      // war, if any, comes from its follow-through, not from a parallel declaration.
+      if (this.diplomacy.hasOpenDemand(ai.id, other.id)) continue;
       const ratio = this.strengthRatio(other, ai, ctx);
       const distance = this.empireDistance(ai.id, other.id, ctx);
       const opinion = getEffectiveOpinion(ai, other);

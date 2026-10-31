@@ -356,7 +356,7 @@
                     class="planet-sidebar__build-item"
                     [class.planet-sidebar__build-item--locked]="!isBuildingUnlocked(building.id)"
                     type="button"
-                    [disabled]="!canAfford(building) || !isBuildingUnlocked(building.id)"
+                    [disabled]="!canAfford(building) || !isBuildingUnlocked(building.id) || !!getSiteBlocker(building)"
                     (click)="selectBuildingType(building.id)"
                   >
                     <span class="planet-sidebar__build-name">{{
@@ -364,9 +364,17 @@
                     }}</span>
                     @if (!isBuildingUnlocked(building.id)) {
                       <span class="planet-sidebar__build-lock">LOCKED</span>
+                    } @else if (getSiteBlocker(building); as siteBlocker) {
+                      <span class="planet-sidebar__build-lock">{{ siteBlocker }}</span>
                     } @else {
                       <span class="planet-sidebar__build-price"
-                        >{{ getBuildingPrice(building) ?? 0 }} CR · {{ getBuildingRawCost(building) }} RM</span
+                        ><span [class.planet-sidebar__price--short]="getPlayerCredits() < getBuildingPrice(building)"
+                          >{{ getBuildingPrice(building) ?? 0 }} CR</span
+                        >
+                        ·
+                        <span [class.planet-sidebar__price--short]="getPlayerRawMaterials() < getBuildingRawCost(building)"
+                          >{{ getBuildingRawCost(building) }} RM</span
+                        ></span
                       >
                     }
                   </button>
@@ -541,6 +549,43 @@
                 <span class="ui-stat__label"><img src="icon-efficiency.png" alt="" width="14" height="14" /> Efficiency</span>
                 <span class="ui-stat__value">{{ planetEconomy.efficiency * 100 | number: '1.0-0' }}%</span>
               </div>
+            }
+
+            @if (depositView; as deposit) {
+              <div class="ui-label">Raw-material deposit</div>
+              <div
+                class="ui-stat"
+                [class.ui-stat--positive]="deposit.status === 'active'"
+                [class.ui-stat--danger]="deposit.status === 'depleted'"
+              >
+                <span class="ui-stat__label"><img src="icon-rawmaterial.png" alt="" width="14" height="14" /> Status</span>
+                <span class="ui-stat__value">{{ deposit.label | uppercase }}</span>
+              </div>
+              <div class="ui-stat">
+                <span class="ui-stat__label">Remaining / total</span>
+                <span class="ui-stat__value">{{ deposit.remaining | number: '1.0-0' }} / {{ deposit.total | number: '1.0-0' }}</span>
+              </div>
+              <div class="ui-stat" [class.ui-stat--warn]="deposit.depletedPercent >= 75 && deposit.status !== 'depleted'">
+                <span class="ui-stat__label">Extracted</span>
+                <span class="ui-stat__value">{{ deposit.depletedPercent }}%</span>
+              </div>
+              <span class="ui-meter planet-sidebar__deposit-meter" [title]="deposit.depletedPercent + '% extracted'">
+                <span class="ui-meter__fill" [style.width.%]="100 - deposit.depletedPercent"></span>
+              </span>
+              <div class="ui-stat">
+                <span class="ui-stat__label">Mining rate</span>
+                <span class="ui-stat__value">{{ deposit.miningRate | number: '1.0-1' }}/s · richness ×{{ deposit.richness | number: '1.2-2' }}</span>
+              </div>
+              @if (deposit.status === 'active') {
+                <div class="ui-stat">
+                  <span class="ui-stat__label">Depleted in</span>
+                  <span class="ui-stat__value">{{ formatDepositTime(deposit.secondsLeft) }}</span>
+                </div>
+              } @else if (deposit.status === 'unmined') {
+                <div class="planet-sidebar__empty">Build a Mining Complex next to a deposit tile to extract it.</div>
+              } @else if (deposit.status === 'depleted') {
+                <div class="planet-sidebar__empty">Exhausted: mines here produce nothing. Look for new deposits on other planets or in asteroid belts.</div>
+              }
             }
 
             <div class="ui-label">

@@ -68,6 +68,8 @@ describe('EnemyActionExecutor', () => {
       isResearched: vi.fn(() => true),
       isShipUnlocked: vi.fn(() => true),
       isBuildingUnlocked: vi.fn(() => true),
+      // Everything researched: nothing left that could starve research.
+      getAllTechnologies: vi.fn(() => []),
     };
     planetBattleService = {
       resolveUninhabitedArrival: vi.fn((fleet: Fleet) => {
@@ -2634,9 +2636,9 @@ describe('EnemyActionExecutor', () => {
       expect(result).toBe(true);
       expect(systems[0].planetsTiles[0].buildings).toHaveLength(1);
       expect(systems[0].planetsTiles[0].buildings[0].name).toBe('Fusion Power Plant');
-      // Fusion Power Plant price in planet-data.json: 2500 credits, 400 raw materials.
+      // Fusion Power Plant price in planet-data.json: 2500 credits, 625 raw materials.
       expect(factions.find((f) => f.id === 'enemy1')!.currencies['credits']).toBe(10000 - 2500);
-      expect(factions.find((f) => f.id === 'enemy1')!.currencies['rawmaterials']).toBe(10000 - 400);
+      expect(factions.find((f) => f.id === 'enemy1')!.currencies['rawmaterials']).toBe(10000 - 625);
     });
 
     it('should build a residential building when workforce is short', () => {

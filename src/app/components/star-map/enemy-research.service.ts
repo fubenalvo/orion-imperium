@@ -1,11 +1,13 @@
 import { Injectable } from '@angular/core';
-import { Faction, Fleet, StarSystem, Technology, TechnologyBonus } from './star-map.models';
+import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, Technology, TechnologyBonus } from './star-map.models';
 import { ResearchService } from '../../services/research.service';
 import { ShipService } from '../../services/ship.service';
 import { EconomyService } from '../../services/economy.service';
 import { isCombatShipType } from './ai-queries';
 import { getAiPersonalityProfile } from './ai-personality';
 import { hostileFactionIds } from './diplomacy';
+import { SpaceBaseService } from './space-base.service';
+import planetData from './planet-data.json';
 
 /*
  * =========================================================
@@ -15,7 +17,7 @@ import { hostileFactionIds } from './diplomacy';
  * Buys technologies for AI factions through the same authoritative API
  * the player's research tree uses: ResearchService.canResearch /
  * researchTechnology. Research is an instant purchase paid in research
- * points (`faction.currencies.research`), so there is no "in progress"
+ * points AND credits (ResearchService.getResearchPrice), so there is no "in progress"
  * state to track: one technology per DECISION_INTERVAL, then the next
  * decision picks the next one.
  *
@@ -39,9 +41,16 @@ import { hostileFactionIds } from './diplomacy';
  *    under threat the peacetime values are divided by the military need.
  * Military need rises when hostile fleets are near AI territory.
  *
+ * Credits: a technology is affordable only if both parts of its price
+ * are, and the credit part must leave CORE credits untouched: the price of
+ * a missing Spaceship Factory / Spaceport, which the economy manager needs
+ * first (research must not starve the infrastructure that builds ships),
+ * and of the next colonizer while the faction is waiting for one (research
+ * must not stall expansion).
+ *
  * Saving: if the best-scoring technology is not affordable yet, scores
- * clearly better than the best affordable one, and research income will
- * pay for it within SAVE_HORIZON seconds, the faction waits for it.
+ * clearly better than the best affordable one, and research and credit
+ * income will pay for it within SAVE_HORIZON seconds, the faction waits for it.
  * Otherwise it buys the best affordable technology, so a faction with
  * little research income never stalls. It never issues an attempt that
  * ResearchService would reject. Every value is derived from game state
@@ -82,6 +91,7 @@ export class EnemyResearchService {
     private readonly researchService: ResearchService,
     private readonly shipService: ShipService,
     private readonly economyService: EconomyService,
+    private readonly spaceBaseService: SpaceBaseService,
   ) {}
 
   reset(): void {
@@ -100,6 +110,8 @@ export class EnemyResearchService {
     factions: Faction[],
     starSystems: StarSystem[],
     fleets: Fleet[],
+    // Ship pipeline, to see whether a colonizer is already stocked or queued.
+    pipeline?: { shipStock: FactionShipStock[]; production: FactionProduction[] },
   ): boolean {
     if (gameDeltaTime <= 0 || faction.ai !== true) {
       return false;
@@ -113,7 +125,7 @@ export class EnemyResearchService {
     }
     this.accumulators.set(faction.id, Math.max(0, accumulator - EnemyResearchService.DECISION_INTERVAL));
 
-    const choice = this.selectTechnology(faction, factions, starSystems, fleets);
+    const choice = this.selectTechnology(faction, factions, starSystems, fleets, pipeline);
     if (!choice) {
       return false;
     }
@@ -127,7 +139,13 @@ export class EnemyResearchService {
     return true;
   }
 
-  selectTechnology(faction: Faction, factions: Faction[], starSystems: StarSystem[], fleets: Fleet[]): Technology | undefined {
+  selectTechnology(
+    faction: Faction,
+    factions: Faction[],
+    starSystems: StarSystem[],
+    fleets: Fleet[],
+    pipeline?: { shipStock: FactionShipStock[]; production: FactionProduction[] },
+  ): Technology | undefined {
     const researched = new Set(faction.researchedTechnologies ?? []);
     const available = this.researchService
       .getAllTechnologies()
@@ -146,18 +164,53 @@ export class EnemyResearchService {
     scored.sort((a, b) => b.score - a.score || a.cost - b.cost || a.tech.id.localeCompare(b.tech.id));
 
     const points = faction.currencies['research'] ?? 0;
-    const bestAffordable = scored.find((s) => s.cost <= points);
+    const spendableCredits = (faction.currencies['credits'] ?? 0) - this.coreCreditReserve(faction, starSystems, fleets, pipeline);
+    const creditCost = (s: { tech: Technology }) => this.researchService.getResearchCreditCost(faction, s.tech);
+    const bestAffordable = scored.find((s) => s.cost <= points && creditCost(s) <= spendableCredits);
     const best = scored[0];
     if (best !== bestAffordable) {
       const shortfall = best.cost - points;
-      const reachable = context.researchIncome > 0
-        && shortfall / context.researchIncome <= EnemyResearchService.SAVE_HORIZON;
+      const creditShortfall = creditCost(best) - spendableCredits;
+      const reachable = (shortfall <= 0 || (context.researchIncome > 0
+        && shortfall / context.researchIncome <= EnemyResearchService.SAVE_HORIZON))
+        && (creditShortfall <= 0 || (context.creditIncome > 0
+          && creditShortfall / context.creditIncome <= EnemyResearchService.SAVE_HORIZON));
       const worthWaiting = !bestAffordable || best.score >= bestAffordable.score * EnemyResearchService.SAVE_SCORE_RATIO;
       if (reachable && worthWaiting) {
         return undefined; // save research points for `best`
       }
     }
     return bestAffordable?.tech;
+  }
+
+  /*
+   * Credits research must not touch: the price of the faction's missing
+   * Spaceship Factory and Spaceport (it cannot build or field warships
+   * without them) and, when the ship pipeline is known, of a colonizer while
+   * an unhabited planet is in sight and no colonizer is in a fleet, the
+   * stock or a production queue (the economy manager's colonizer rule).
+   */
+  private coreCreditReserve(
+    faction: Faction,
+    starSystems: StarSystem[],
+    fleets: Fleet[],
+    pipeline?: { shipStock: FactionShipStock[]; production: FactionProduction[] },
+  ): number {
+    const owned = starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === faction.id);
+    const prices = new Map((planetData as { buildings: { name: string; price: number }[] }).buildings.map((b) => [b.name, b.price]));
+    let reserve = 0;
+    for (const name of ['Spaceship Factory', 'Spaceport']) {
+      if (!owned.some((p) => p.buildings.some((b) => b.name === name))) reserve += prices.get(name) ?? 0;
+    }
+    if (pipeline) {
+      const target = starSystems.some((s) => s.planetsTiles.some((p) => p.factionId === 'unhabited'));
+      const inFleet = fleets.some((f) => f.factionId === faction.id && !f.destroyed && f.ships.some((s) => s.type === 'colonizer' && !s.destroyed));
+      const inStock = (pipeline.shipStock.find((s) => s.factionId === faction.id)?.ships ?? []).some((s) => s.type === 'colonizer');
+      const queued = Object.values(pipeline.production.find((p) => p.factionId === faction.id)?.ordersByPlanet ?? {})
+        .flat().some((o) => o.shipTypeId === 'colonizer');
+      if (target && !inFleet && !inStock && !queued) reserve += this.shipService.getShipType('colonizer')?.cost ?? 0;
+    }
+    return reserve;
   }
 
   /* Situation snapshot shared by all technology valuations of one decision. */
@@ -191,9 +244,11 @@ export class EnemyResearchService {
       shipUpkeep: economy.shipUpkeepPerSecond,
       rawIncome: economy.net['rawmaterials'] ?? 0,
       researchIncome: economy.net['research'] ?? 0,
+      creditIncome: economy.netPerSecond,
       tightestEnergyMargin,
       growthRoom,
       planetCount: owned.length,
+      stationCount: this.countStations(faction.id, starSystems),
       hasFactory: owned.some((p) => p.buildings.some((b) => b.name === 'Spaceship Factory')),
       fleetStrength: [...strengthByType.values()].reduce((a, b) => a + b, 0),
       strengthByType,
@@ -204,6 +259,16 @@ export class EnemyResearchService {
         military: Math.max(weights.offense, weights.defense),
       },
     };
+  }
+
+  private countStations(factionId: string, starSystems: StarSystem[]): number {
+    let count = this.spaceBaseService.basesOf(factionId).length;
+    for (const system of starSystems) {
+      for (const asteroid of system.asteroidBelt?.asteroids ?? []) {
+        if (asteroid.miningStation?.factionId === factionId) count++;
+      }
+    }
+    return count;
   }
 
   /*
@@ -231,6 +296,10 @@ export class EnemyResearchService {
       case 'sensorRange':
         // AI intel (fog of war) uses the sensor bonus: worth more while expanding.
         return w.expansion * (0.2 + 0.05 * ctx.planetCount);
+      case 'stationTurrets':
+        // Turrets protect stations only: worthless without any, more valuable
+        // with every station and under threat.
+        return ctx.stationCount === 0 ? 0.1 : w.military * Math.min(2, 0.3 * ctx.stationCount) * (0.5 + 0.5 * ctx.militaryNeed);
       case 'shipAttack':
       case 'shipShield': {
         const affected = (bonus.shipTypes ?? []).reduce((sum, t) => sum + (ctx.strengthByType.get(t) ?? 0), 0);
@@ -341,11 +410,15 @@ interface ResearchContext {
   shipUpkeep: number;
   rawIncome: number;
   researchIncome: number;
+  /* Net credits per second (the credit part of research prices). */
+  creditIncome: number;
   /* Smallest (production − consumption) / production over owned planets. */
   tightestEnergyMargin: number;
   /* Owned planets below 90% of housing capacity. */
   growthRoom: number;
   planetCount: number;
+  /* Space bases + mining stations the faction owns (Turret Research targets). */
+  stationCount: number;
   hasFactory: boolean;
   fleetStrength: number;
   strengthByType: Map<string, number>;

@@ -37,6 +37,8 @@ export interface TerritoryShapeView {
   own: boolean;
 }
 
+const STATION_TURRET_SLOTS: readonly number[] = [0, 1, 2];
+
 /* A space base marker, positioned in world vw like fleets. */
 export interface SpaceBaseMapView {
   id: number;
@@ -48,6 +50,8 @@ export interface SpaceBaseMapView {
   top: number;
   /* Claim radius in world vw (TERRITORY_CONFIG.baseClaimRadius cells). */
   claimRadiusVw: number;
+  /* Defense turrets (owner's Turret Research level, 0–3; station-defense.ts). */
+  turrets: number;
 }
 
 /* Black hole no-fly zone outline in SVG grid units. */
@@ -114,6 +118,11 @@ export class StarMapGalaxyViewComponent {
   @Input() asteroids: AsteroidMapView[] = [];
   @Input() territories: TerritoryShapeView[] = [];
   @Input() spaceBases: SpaceBaseMapView[] = [];
+
+  /* One entry per visible turret pip (template iteration helper). */
+  turretSlots(count: number): readonly number[] {
+    return STATION_TURRET_SLOTS.slice(0, Math.max(0, count));
+  }
   /* Base marker click (info only; the click also reaches the map, so move orders still work). */
   @Input() onSpaceBaseClick: (baseId: number) => void = () => {};
   @Input() isFleetInNebula: (fleet: Fleet) => boolean = () => false;

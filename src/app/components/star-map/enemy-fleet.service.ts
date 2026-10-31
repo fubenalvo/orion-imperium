@@ -11,6 +11,7 @@ import { AI_COLONIZATION_REACH } from './ai-queries';
 import { DriftingAsteroidService } from './drifting-asteroid.service';
 import { asteroidPosition } from './drifting-asteroids';
 import { areFactionsHostile, hostileFactionIds } from './diplomacy';
+import { hasLivingOutpostShip } from './space-base';
 
 /*
  * =========================================================
@@ -63,7 +64,7 @@ import { areFactionsHostile, hostileFactionIds } from './diplomacy';
  *               asteroid is gone or out of reach. Collection and rewards
  *               follow the same proximity rule as for the player.
  *
- * Ownership: fleets carrying a colonizer and fleets commanded by a
+ * Ownership: fleets carrying a colonizer or an outpost ship (EnemyMiningService) and fleets commanded by a
  * current move_to_target / defend action belong to the pipeline and are
  * never touched here. Fleets managed here are reserved from the legacy
  * EnemyAiService pursuit (StarMapAiTickService.getReservedFleetIds), so
@@ -275,7 +276,8 @@ export class EnemyFleetService {
   ): boolean {
     const own = fleets.filter((f) => f.factionId === faction.id && this.isAlive(f));
     const managed = own.filter(
-      (f) => !pipelineFleetIds.has(f.id) && !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed),
+      (f) => !pipelineFleetIds.has(f.id) && !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed)
+        && !hasLivingOutpostShip(f),
     );
 
     // Drop assignments of fleets that are gone or now owned by the pipeline.

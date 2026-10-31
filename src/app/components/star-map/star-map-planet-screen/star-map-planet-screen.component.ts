@@ -22,6 +22,7 @@ import {
   ResourceRates,
 } from '../star-map.models';
 import { FactionCurrenciesComponent } from '../faction-currencies/faction-currencies.component';
+import { PlanetDepositView, depositMiningBlocker, planetDepositView } from '../raw-deposits';
 import {
   StarMapProductionPanelComponent,
   ProductionPanelViewModel,
@@ -439,6 +440,11 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     const requiresOreProximity = this.selectedBuildingType.requiresOreProximity === true;
 
     if (requiresOreProximity) {
+      if (this.planet && depositMiningBlocker(this.planet) === 'depleted') {
+        this.isPreviewValid = false;
+        this.buildError = 'This deposit is depleted: a new mine would produce nothing.';
+        return;
+      }
       const touchesResource = this.touchesResourceTile(row, col, size, resourceTiles);
       if (!touchesResource) {
         this.isPreviewValid = false;
@@ -538,6 +544,29 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       this.getPlayerCredits() >= building.price
       && this.getPlayerRawMaterials() >= this.getBuildingRawCost(building)
     );
+  }
+
+  /*
+   * Why this building cannot be built on this planet regardless of money
+   * (a mine needs a deposit that is not empty), as a short tag; null if it can.
+   */
+  getSiteBlocker(building: BuildingType): string | null {
+    if (!building.requiresOreProximity || !this.planet) return null;
+    const blocker = depositMiningBlocker(this.planet);
+    if (blocker === 'no_deposit') return 'NO DEPOSIT';
+    if (blocker === 'depleted') return 'DEPLETED';
+    return null;
+  }
+
+  /* The planet's raw-material deposit for the details tab (null without one). */
+  get depositView(): PlanetDepositView | null {
+    return this.planet ? planetDepositView(this.planet, this.planetEconomy?.miningRate ?? 0) : null;
+  }
+
+  formatDepositTime(seconds: number | null): string {
+    if (seconds === null || !Number.isFinite(seconds)) return '—';
+    const minutes = Math.floor(seconds / 60);
+    return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
   }
 
   isCellInPreview(row: number, col: number): boolean {

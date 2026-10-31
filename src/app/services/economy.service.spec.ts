@@ -159,22 +159,35 @@ describe('EconomyService — habitability & workforce', () => {
 
   describe('7. production is reduced when workforce is short', () => {
     // Population 0 isolates building output from the population raw trickle.
-    it('Spaceship Factory base 6 rawmaterials -> 3 at 50% workforce', () => {
+    // The Mining Complex (15 raw/s, needs 80 workers) extracts the planet's
+    // deposit; richness 1 keeps the numbers round.
+    const deposit = () => ({
+      population: 0,
+      resourceTiles: [{ type: 'rawmaterial' as const, x: 0, y: 0 }],
+      rawDeposit: { total: 10000, remaining: 10000, richness: 1 },
+    });
+
+    it('Mining Complex base 15 rawmaterials -> 9.375 at 62.5% workforce', () => {
       const planet = makePlanet(1, 'earthlike', [
         b('Medium Residential Block'),
-        b('Spaceship Factory'),
-      ], { population: 0 });
+        b('Mining Complex'),
+      ], deposit());
       const e = economy.calculatePlanetEconomy(planet);
-      expect(e.production['rawmaterials']).toBeCloseTo(3, 5);
+      expect(e.production['rawmaterials']).toBeCloseTo(9.375, 5);
     });
 
     it('production is full when workforce is sufficient', () => {
       const planet = makePlanet(1, 'earthlike', [
         b('Large Residential Block'),
-        b('Spaceship Factory'),
-      ], { population: 0 });
+        b('Mining Complex'),
+      ], deposit());
       const e = economy.calculatePlanetEconomy(planet);
-      expect(e.production['rawmaterials']).toBeCloseTo(6, 5);
+      expect(e.production['rawmaterials']).toBeCloseTo(15, 5);
+    });
+
+    it('the Spaceship Factory produces no raw materials (every raw source but the trickle is a deposit)', () => {
+      const planet = makePlanet(1, 'earthlike', [b('Large Residential Block'), b('Spaceship Factory')], { population: 0 });
+      expect(economy.calculatePlanetEconomy(planet).production['rawmaterials'] ?? 0).toBe(0);
     });
   });
 

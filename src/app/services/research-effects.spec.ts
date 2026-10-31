@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { RESEARCH_COST_GROWTH_PER_TECH, ResearchService } from './research.service';
+import { RESEARCH_COST_GROWTH_PER_TECH, RESEARCH_CREDITS_PER_POINT, ResearchService } from './research.service';
 import { EconomyService } from './economy.service';
 import { ProductionService } from './production.service';
 import { ShipService } from './ship.service';
@@ -26,15 +26,17 @@ import planetData from '../components/star-map/planet-data.json';
 
 const STARTING = ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power'];
 
+// Currency overrides are merged, so a test that sets only research points
+// keeps the default credits (research also costs credits).
 const faction = (techs: string[] = [], overrides: Partial<Faction> = {}): Faction => ({
   id: 'player',
   name: 'Player',
   color: '#8cc4ff',
   team: 1,
   ai: false,
-  currencies: { credits: 100000, rawmaterials: 100000, research: 0 },
   researchedTechnologies: [...STARTING, ...techs],
   ...overrides,
+  currencies: { credits: 100000, rawmaterials: 100000, research: 0, ...overrides.currencies },
 });
 
 const planet = (buildings: string[], overrides: Partial<PlanetTile> = {}): PlanetTile => ({
@@ -110,6 +112,8 @@ describe('Technology effects — inventory', () => {
     const covered: TechnologyBonusType[] = [
       'sensorRange', 'energyOutput', 'researchOutput', 'rawOutput', 'buildingUpkeep',
       'shipUpkeep', 'shipBuildSpeed', 'populationGrowth', 'shipAttack', 'shipShield',
+      // Station defense turrets: covered in station-defense.spec.ts.
+      'stationTurrets',
     ];
     const used = new Set(research.getAllTechnologies().flatMap((t) => (t.bonuses ?? []).map((b) => b.type)));
     for (const type of used) expect(covered).toContain(type);
@@ -158,8 +162,12 @@ describe('Technology effects — gameplay systems', () => {
     expect(withTech.currencies['research']).toBeCloseTo(a * 1.25, 4);
   });
 
-  it('raw output: advanced_manufacturing raises building output but not the population trickle', () => {
-    const p = planet(['Large Residential Block', 'Spaceship Factory'], { population: 0 });
+  it('raw output: advanced_manufacturing raises mine output but not the population trickle', () => {
+    const p = planet(['Large Residential Block', 'Mining Complex'], {
+      population: 0,
+      resourceTiles: [{ type: 'rawmaterial', x: 0, y: 0 }],
+      rawDeposit: { total: 50000, remaining: 50000, richness: 1 },
+    });
     const base = economy.calculatePlanetEconomy(p, faction()).production['rawmaterials']!;
     expect(economy.calculatePlanetEconomy(p, faction(['advanced_manufacturing'])).production['rawmaterials']).toBeCloseTo(base * 1.25, 6);
   });
@@ -307,6 +315,8 @@ describe('Research rules and unlock timing', () => {
     expect(research.getResearchCost(advanced, tech)).toBe(expected);
     research.researchTechnology(advanced, 'fusion_power');
     expect(advanced.currencies['research']).toBe(100000 - expected);
+    // Credits are charged at the same scaled price.
+    expect(advanced.currencies['credits']).toBe(100000 - Math.round(expected * RESEARCH_CREDITS_PER_POINT));
     // Affordability uses the scaled cost too.
     const almost = faction(['improved_power', 'advanced_engineering', 'basic_radar'], { currencies: { research: tech.researchCost } });
     expect(research.canResearch(almost, 'fusion_power')).toBe(false);
@@ -339,7 +349,7 @@ describe('AI research decisions', () => {
   });
 
   const aiFaction = (points: number, techs: string[] = []): Faction =>
-    faction(techs, { id: 'enemy1', ai: true, team: 2, currencies: { credits: 0, research: points } });
+    faction(techs, { id: 'enemy1', ai: true, team: 2, currencies: { credits: 1_000_000_000, research: points } });
   const home = (f: Faction, buildings: string[]) => [system([planet(buildings, { factionId: f.id })])];
 
   it('only ever picks a technology it can research right now', () => {
@@ -414,6 +424,13 @@ describe('Research tree UI feedback', () => {
     expect(ui.getBlockerText(research.getTechnology('improved_power')!)).toBe('Need 500 more RP (~50 s at 10.0 RP/s)');
     ui.researchPerSecond = 0;
     expect(ui.getBlockerText(research.getTechnology('improved_power')!)).toContain('no research income');
+    // Both parts of the price are reported when both are short.
+    ui.faction.currencies['credits'] = 0;
+    ui.creditsPerSecond = 100;
+    const both = ui.getBlockerText(research.getTechnology('improved_power')!);
+    expect(both).toContain('more RP');
+    expect(both).toContain(`Need ${research.getResearchCreditCost(ui.faction, research.getTechnology('improved_power')!)} more credits`);
+    expect(ui.getCreditCost(research.getTechnology('improved_power')!)).toBe(600 * RESEARCH_CREDITS_PER_POINT);
     expect(ui.getDependentNames(research.getTechnology('improved_power')!)).toEqual(['Fusion Power']);
   });
 });

@@ -166,9 +166,19 @@ describe('asteroid mining stations', () => {
     it('the station belongs to the deploying faction (same rules for the AI)', () => {
       const factions = makeFactions();
       const systems = [makeSystem('vex', 30, 30, 'enemy1')];
+      // The AI may only use deposits it surveyed itself.
+      asteroidAt(systems[0], RICH).surveyedBy = ['enemy1'];
       const result = deployMiningStation(input(fleet(1, 'enemy1', [OUTPOST_SHIP_TYPE], 'vex'), factions, systems));
       expect(result.ok).toBe(true);
       expect(asteroidAt(systems[0], RICH).miningStation).toEqual({ factionId: 'enemy1' });
+    });
+
+    it('a deposit surveyed only by the player is unknown to an AI faction', () => {
+      const factions = makeFactions();
+      const systems = [makeSystem('vex', 30, 30, 'enemy1')];
+      expect(asteroidAt(systems[0], RICH).surveyed).toBe(true);
+      const check = validateMiningStationDeployment(input(fleet(1, 'enemy1', [OUTPOST_SHIP_TYPE], 'vex'), factions, systems));
+      expect(check.ok ? 'ok' : check.reason).toBe('not_surveyed');
     });
   });
 

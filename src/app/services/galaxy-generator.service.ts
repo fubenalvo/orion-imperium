@@ -14,7 +14,8 @@ import {
   StarMapData,
   StarSystem,
 } from '../components/star-map/star-map.models';
-import { createMulberry32 } from '../components/star-map/star-map-resources.util';
+import { createMulberry32, generateResourceTilesForPlanet } from '../components/star-map/star-map-resources.util';
+import { ensurePlanetDeposits } from '../components/star-map/raw-deposits';
 import { buildNavObstacles } from '../components/star-map/fleet-navigation';
 import { NEBULA_CONFIG, generateNebulae } from '../components/star-map/nebula';
 import { ASTEROID_BELT_CONFIG, generateAsteroidBelts } from '../components/star-map/asteroid-belts';
@@ -144,7 +145,13 @@ const FLEET_NAMES: readonly string[] = [
 ];
 
 const STARTING_TECHNOLOGIES = ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power'];
-const BASE_CURRENCIES = { credits: 1000, rawmaterials: 1000, research: 1000 } as const;
+/*
+ * Starting stock. Raw materials cover the first Spaceship Factory and
+ * Mining Complex (750 + 375) with room to spare, because the factory no
+ * longer produces raw materials and every raw source is a finite deposit
+ * (docs/economy.md, "Economic safety").
+ */
+const BASE_CURRENCIES = { credits: 1000, rawmaterials: 2500, research: 1000 } as const;
 /* Homeworld population equals the template's residential capacity (2 × 700). */
 const HOMEWORLD_POPULATION = 1400;
 const COLONY_POPULATION = 100;
@@ -385,6 +392,15 @@ export class GalaxyGeneratorService {
         planet.surface = generatePlanetSurface(planet, seed);
       }
     }
+    // Every homeworld starts with a raw-material deposit next to free ground,
+    // so no empire depends on luck for its first mine (docs/economy.md,
+    // "Economic safety"). Other planets get theirs on first load
+    // (StarMap.ensureResourceTiles), which keeps these tiles.
+    for (const system of homeSystems) {
+      const homeworld = system.planetsTiles[0];
+      homeworld.resourceTiles = generateResourceTilesForPlanet(homeworld, getPlanetGridSize);
+    }
+    ensurePlanetDeposits(homeSystems.map((s) => s.planetsTiles[0]));
 
     // In-system asteroid belts: derived from (seed, system id), no layout rng.
     ensureSystemAsteroidBelts(starSystems, seed);

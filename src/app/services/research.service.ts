@@ -33,6 +33,8 @@ export interface TechModifiers {
   /* Battle attack / shield multipliers per ship type (absent → 1). */
   shipAttack: Record<string, number>;
   shipShield: Record<string, number>;
+  /* Turret Research level: turrets on every station (clamped by station-defense.ts). */
+  stationTurrets: number;
 }
 
 export const NEUTRAL_TECH_MODIFIERS: Readonly<TechModifiers> = Object.freeze({
@@ -46,6 +48,7 @@ export const NEUTRAL_TECH_MODIFIERS: Readonly<TechModifiers> = Object.freeze({
   populationGrowth: 1,
   shipAttack: Object.freeze({}) as Record<string, number>,
   shipShield: Object.freeze({}) as Record<string, number>,
+  stationTurrets: 0,
 });
 
 /* Reductions can never remove more than this share of a cost. */
@@ -60,9 +63,23 @@ const MIN_COST_MULTIPLIER = 0.25;
  */
 export const RESEARCH_COST_GROWTH_PER_TECH = 0.02;
 
+/*
+ * Research needs funding as well as scientific capacity: every technology
+ * also costs this many credits per research point of its current cost.
+ * Research points stay the scarce, lab-produced resource; credits make
+ * research compete with construction and the fleet (docs/research.md).
+ */
+export const RESEARCH_CREDITS_PER_POINT = 2;
+
+/* What a technology costs a faction right now; both parts are paid at once. */
+export interface ResearchPrice {
+  research: number;
+  credits: number;
+}
+
 export interface ResearchResult {
   ok: boolean;
-  reason?: 'already_researched' | 'prerequisites_missing' | 'insufficient_research';
+  reason?: 'already_researched' | 'prerequisites_missing' | 'insufficient_research' | 'insufficient_credits';
   technology?: Technology;
 }
 
@@ -190,6 +207,15 @@ export class ResearchService {
     return Math.round(tech.researchCost * (1 + RESEARCH_COST_GROWTH_PER_TECH * count));
   }
 
+  /* Credit part of the price: RESEARCH_CREDITS_PER_POINT × the research cost. */
+  getResearchCreditCost(faction: Faction | null | undefined, tech: Technology): number {
+    return Math.round(this.getResearchCost(faction, tech) * RESEARCH_CREDITS_PER_POINT);
+  }
+
+  getResearchPrice(faction: Faction | null | undefined, tech: Technology): ResearchPrice {
+    return { research: this.getResearchCost(faction, tech), credits: this.getResearchCreditCost(faction, tech) };
+  }
+
   getSensorRangeBonus(faction: Faction): number {
     return this.getModifiers(faction).sensorRange;
   }
@@ -213,7 +239,7 @@ export class ResearchService {
     const owned = new Set(researched);
     const sums: Record<Exclude<TechnologyBonusType, 'shipAttack' | 'shipShield'>, number> = {
       sensorRange: 0, energyOutput: 0, researchOutput: 0, rawOutput: 0,
-      buildingUpkeep: 0, shipUpkeep: 0, shipBuildSpeed: 0, populationGrowth: 0,
+      buildingUpkeep: 0, shipUpkeep: 0, shipBuildSpeed: 0, populationGrowth: 0, stationTurrets: 0,
     };
     const shipAttack: Record<string, number> = {};
     const shipShield: Record<string, number> = {};
@@ -241,6 +267,7 @@ export class ResearchService {
       populationGrowth: 1 + sums.populationGrowth,
       shipAttack,
       shipShield,
+      stationTurrets: sums.stationTurrets,
     };
     this.modifierCache.set(key, modifiers);
     return modifiers;
@@ -283,6 +310,7 @@ export class ResearchService {
       case 'populationGrowth': return `${pct} population growth`;
       case 'shipAttack': return `${pct} battle damage: ${hulls}`;
       case 'shipShield': return `${pct} battle shields: ${hulls}`;
+      case 'stationTurrets': return `+${bonus.value} defense turret on every space base and mining station`;
     }
   }
 
@@ -315,29 +343,25 @@ export class ResearchService {
     if (this.isResearched(faction, technologyId)) return 'already_researched';
     const researched = faction.researchedTechnologies ?? [];
     if (!tech.prerequisites.every((prereq) => researched.includes(prereq))) return 'prerequisites_missing';
-    if ((faction.currencies['research'] ?? 0) < this.getResearchCost(faction, tech)) return 'insufficient_research';
+    const price = this.getResearchPrice(faction, tech);
+    if ((faction.currencies['research'] ?? 0) < price.research) return 'insufficient_research';
+    if ((faction.currencies['credits'] ?? 0) < price.credits) return 'insufficient_credits';
     return undefined;
   }
 
   /*
    * canResearch: Returns true if the technology is not yet researched,
    * all prerequisites are researched, and the faction has enough research
-   * points to pay the cost.
+   * points AND credits to pay its price.
    */
   canResearch(faction: Faction, technologyId: string): boolean {
-    const tech = this.technologyMap.get(technologyId);
-    if (!tech) return false;
-    if (this.isResearched(faction, technologyId)) return false;
-    const researched = faction.researchedTechnologies ?? [];
-    const hasPrerequisites = tech.prerequisites.every((prereq) => researched.includes(prereq));
-    if (!hasPrerequisites) return false;
-    const researchPoints = faction.currencies['research'] ?? 0;
-    return researchPoints >= this.getResearchCost(faction, tech);
+    return this.getResearchBlocker(faction, technologyId) === undefined;
   }
 
   /*
-   * researchTechnology: Attempts to research a technology. Deducts the
-   * research cost from the faction and marks the technology as researched.
+   * researchTechnology: Attempts to research a technology. Deducts both
+   * parts of the price (all-or-nothing: nothing is paid unless both are
+   * available) and marks the technology as researched.
    */
   researchTechnology(faction: Faction, technologyId: string): ResearchResult {
     const tech = this.technologyMap.get(technologyId);
@@ -353,11 +377,16 @@ export class ResearchService {
       return { ok: false, reason: 'prerequisites_missing', technology: tech };
     }
     const researchPoints = faction.currencies['research'] ?? 0;
-    const cost = this.getResearchCost(faction, tech);
-    if (researchPoints < cost) {
+    const credits = faction.currencies['credits'] ?? 0;
+    const price = this.getResearchPrice(faction, tech);
+    if (researchPoints < price.research) {
       return { ok: false, reason: 'insufficient_research', technology: tech };
     }
-    faction.currencies['research'] = researchPoints - cost;
+    if (credits < price.credits) {
+      return { ok: false, reason: 'insufficient_credits', technology: tech };
+    }
+    faction.currencies['research'] = researchPoints - price.research;
+    faction.currencies['credits'] = credits - price.credits;
     if (!faction.researchedTechnologies) {
       faction.researchedTechnologies = [];
     }

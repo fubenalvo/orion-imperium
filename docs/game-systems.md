@@ -23,10 +23,9 @@ Geometry lives in `system-grid.ts` (the single source of truth; the SCSS of `sta
 
 **Asteroid belt** (`system-asteroids.ts`): every system has one ring of single-cell asteroids around the star, placed in a gap between planet orbits (`SYSTEM_ASTEROID_CONFIG`: belt line 26–88vw from the star, ±3.6vw ragged band, 50% fill, typically 15–30 asteroids). Asteroids keep one cell clear around every planet block and the fleet entry cell, and never block movement or clicks (hovering one shows its mining-target status; the click still reaches the grid).
 
-- **Deposits:** one asteroid in ten (rounded, at least one per belt) holds 2,000–4,000 raw materials (`SystemAsteroid.rawMaterials`); the rest are barren.
-- **Survey:** an asteroid is surveyed once a human player fleet has been on its cell, stopping or just flying through (`surveySystemAsteroids`, run every frame from `StarMap.gameLoopCallback` in any view, since fleets keep moving inside systems while the player looks elsewhere). Until then the UI shows a plain rock and never reveals the deposit. A surveyed barren rock is dimmed; a surveyed deposit glows amber with its amount, and the find is announced with a map notice.
-- **Mining:** an outpost ship stopped on a surveyed deposit can deploy a mining station there (DEPLOY MINING), which extracts the deposit into its owner's raw materials during the economy tick. See [Territory](./territory.md#mining-stations).
-- **Not yet:** AI factions neither survey nor know about belts.
+- **Deposits:** one asteroid in ten (rounded, at least one per belt) holds a finite deposit of 3,000–7,000 raw materials (2,000–4,000 in belts generated before generator version 2) with its own extraction rate (3–8/s); the rest are barren. `totalRawMaterials` keeps the original size ([Economy](./economy.md#finite-deposits)).
+- **Survey:** an asteroid is surveyed by a faction once one of its fleets has been on the cell, stopping or just flying through (`surveySystemAsteroids`, run every frame from `StarMap.gameLoopCallback` in any view, since fleets keep moving inside systems while the player looks elsewhere). The player's survey sets `surveyed`; AI factions survey by the same rule into `surveyedBy` (their outpost fleets sweep belts, see [AI Pipeline](./ai-pipeline.md#asteroid-mining-enemyminingservice)). Until the player surveys it the UI shows a plain rock and never reveals the deposit. A surveyed barren rock is dimmed; a surveyed deposit glows amber with its amount, and the player's finds are announced with a map notice.
+- **Mining:** an outpost ship stopped on a deposit its faction surveyed can deploy a mining station there (DEPLOY MINING), which extracts the deposit into its owner's raw materials during the economy tick until it is depleted or the station is destroyed in battle. Labels and hover cards tell unmined, active and depleted deposits apart; station markers show their defense turrets. See [Territory](./territory.md#mining-stations).
 - **Persistence:** the belt is generated deterministically from (galaxy seed, system id) on its own rng (by the galaxy generator, or by `SaveGameService.migrateSave` for saves without one) and then saved on `StarSystem.asteroidBelt`, because the survey state lives in it.
 
 These in-system belts are unrelated to the impassable galaxy-map asteroid belts and drifting asteroids of [Star Map Terrain](./star-map-terrain.md).
@@ -102,7 +101,7 @@ The update callback (consolidated into `StarMap.gameLoopCallback`):
 3. Calls `StarMapSensorService.computeGalaxySensorCells()` to recompute the current
    sensor range cells, updates `exploredGridCells` (persistent), marks star systems
    as explored, and updates fog cell rendering.
-4. Calls `StarMapBattleDetectionService.checkForBattles()`, then `checkBaseBattles()`.
+4. Calls `StarMapBattleDetectionService.checkForBattles()`, then `checkBaseBattles()`, then `checkMiningStationBattles()` (each only if the previous one opened no battle screen).
    (Before movement: `DiplomacyService.tick` and `BorderService.tick` — border violations; after sensors: `refreshTerritoryViews`, which only rebuilds when the cached territory changed.)
 5. Every `economyTickInterval` (1 s) of accumulated **game** `deltaTime`, runs
    `EconomyService.applyEconomyDelta()` for every faction and refreshes the cached
@@ -211,7 +210,7 @@ Empires own derived territory around their colonized systems and their space bas
 
 `StarMapBattleDetectionService.checkForBattles()` scans every active fleet pair. A battle is triggered when two fleets share a grid cell, both have a faction, the factions are at war (`areFactionsHostile`: never neutral, allied or at peace — see [Diplomacy](./diplomacy.md)), and the pair has not already triggered a battle (tracked by a `Set<string>` keyed on the sorted pair of fleet ids). The fleet that has a `targetX`/`targetY` is treated as the attacker; the other is the defender. If a human faction is involved, the game is saved and the router navigates to `/battle`. A battle between two AI factions is auto-resolved immediately (`autoResolveBattle` + `BattleOutcomeService.applyFleetBattleOutcome` on the live fleets) and scanning continues; StarMap then re-checks the game outcome.
 
-When no fleet battle started, `checkBaseBattles()` starts a static-defense battle for a fleet on the cell of a space base whose owner it is at war with (same human / AI split; see [Territory](./territory.md#combat)).
+When no fleet battle started, `checkBaseBattles()` starts a static-defense battle for a fleet on the cell of a space base whose owner it is at war with, and then `checkMiningStationBattles()` one for a stopped warship fleet in a system holding a mining station of a faction it is at war with (same human / AI split; both use the shared station defense model, see [Territory](./territory.md#station-defense)).
 
 ## Economy
 

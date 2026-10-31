@@ -534,7 +534,7 @@ System-level overview of the whole AI pipeline (ownership, scheduling, invariant
 ### BuildingType (17 types)
 - Defense: Laser Turret, Missile Turret, Planetary Shield
 - Housing: Small/Medium/Large Residential Block (provide workforce: 20/50/100, population capacity: 100/300/700)
-- Industry: Spaceship Factory (rawmaterials +6/s, 1 slot, 0.5 power/s), Mining Complex (rawmaterials +15/s, requires ore proximity). Prices and upkeep: see [Economy](./economy.md)
+- Industry: Spaceship Factory (no raw-material output, 1 slot, 0.5 power/s), Mining Complex (rawmaterials +15/s × deposit richness from the planet's finite deposit, requires ore proximity, idle once the deposit is depleted). Prices and upkeep: see [Economy](./economy.md)
 - Power: Solar Array (energy +40), Fusion Power Plant (energy +100)
 - Research: Small Research Laboratory (research +2/s), Research Laboratory (research +5/s)
 - Social: Central Park (+0.03 morale/s), Hospital (+0.02 morale/s, workforce 40), School (+0.01 morale/s, workforce 30), Entertainment Center (+0.08 morale/s, workforce 60)

@@ -131,6 +131,81 @@
               </div>
             }
 
+            @if (row.incomingDemand; as demand) {
+              <div
+                class="ui-notice diplomacy__demand"
+                [class.ui-notice--danger]="demand.kind === 'threat'"
+                [class.ui-notice--warning]="demand.kind !== 'threat'"
+                role="alert"
+              >
+                <div class="diplomacy__demand-text">
+                  <strong>{{ demand.kindLabel }} · {{ credits(demand.amount) }} credits</strong> ({{ demand.timeLeftLabel }} left)
+                  <q class="diplomacy__demand-quote">{{ demand.message }}</q>
+                  <span>{{ demand.consequence }}</span>
+                  @if (!demand.affordable) {
+                    <span>You do not hold enough credits right now.</span>
+                  }
+                </div>
+                <span class="diplomacy__actions">
+                  <button class="btn-primary" type="button" [disabled]="!demand.affordable" (click)="acceptDemand.emit(demand.id)">ACCEPT</button>
+                  <button type="button" (click)="declineDemand.emit(demand.id)">DECLINE</button>
+                </span>
+              </div>
+            }
+
+            @if (row.followThrough; as follow) {
+              <div class="ui-notice ui-notice--danger diplomacy__demand" role="alert">
+                <div class="diplomacy__demand-text">
+                  <strong>{{ row.name }} rejected your ultimatum</strong> ({{ credits(follow.amount) }} credits, {{ follow.timeLeftLabel }} left to decide)
+                  <span>Enforce it with war, or back down: reputation {{ backDownPenalty }} and your threats lose credibility. Doing nothing counts as backing down.</span>
+                </div>
+                <span class="diplomacy__actions">
+                  <button class="btn-danger" type="button" [disabled]="!follow.canDeclareWar" (click)="carryOutThreat.emit(follow.id)">DECLARE WAR</button>
+                  <button type="button" (click)="backDownThreat.emit(follow.id)">BACK DOWN</button>
+                </span>
+              </div>
+            }
+
+            @if (isDemandFormOpen(row.id) && demandForm; as form) {
+              <div class="ui-notice diplomacy__demand-form">
+                <div class="diplomacy__demand-kinds" role="radiogroup" aria-label="Kind of demand">
+                  @for (kind of demandKinds; track kind) {
+                    <button
+                      type="button"
+                      role="radio"
+                      [attr.aria-checked]="form.kind === kind"
+                      [class.is-selected]="form.kind === kind"
+                      [disabled]="kind === 'threat' && !row.demandOptions.threatAllowed"
+                      [title]="kind === 'threat' && !row.demandOptions.threatAllowed ? 'No ultimatum during a truce' : ''"
+                      (click)="setDemandKind(kind)"
+                    >{{ demandKindLabels[kind] }}</button>
+                  }
+                </div>
+                <label class="diplomacy__demand-amount">
+                  <span>Credits <span class="diplomacy__dim">(they hold {{ credits(row.demandOptions.maxAmount) }})</span></span>
+                  <input
+                    type="number"
+                    step="50"
+                    [min]="row.demandOptions.minAmount"
+                    [max]="row.demandOptions.maxAmount"
+                    [value]="form.amount"
+                    (change)="setDemandAmount(row, $any($event.target).value)"
+                  />
+                </label>
+                <p class="diplomacy__demand-consequence" [class.diplomacy__value--danger]="form.kind === 'threat'">{{ demandOutgoingConsequence[form.kind] }}</p>
+                <p class="diplomacy__dim">{{ demandLimits }}</p>
+                <span class="diplomacy__actions">
+                  <button
+                    type="button"
+                    [class.btn-primary]="form.kind !== 'threat'"
+                    [class.btn-danger]="form.kind === 'threat'"
+                    (click)="submitDemand(row)"
+                  >{{ form.kind === 'threat' ? 'SEND ULTIMATUM' : 'SEND DEMAND' }}</button>
+                  <button type="button" (click)="demandForm = null">CANCEL</button>
+                </span>
+              </div>
+            }
+
             @if (isConfirming(row.id, 'war') || isConfirming(row.id, 'breach')) {
               <div class="ui-notice ui-notice--danger diplomacy__confirm" role="alert">
                 <span>{{ isConfirming(row.id, 'war') ? warConsequence : breachConsequence }}</span>
@@ -154,8 +229,18 @@
                 } @else {
                   Permanent peace · war can be declared
                 }
+                @if (row.state === 'peace' && row.demandOptions.reason) {
+                  <span class="diplomacy__dim"> · {{ row.demandOptions.reason }}</span>
+                }
               </span>
               <span class="diplomacy__actions">
+                @if (row.state === 'peace') {
+                  <button
+                    type="button"
+                    [disabled]="!row.demandOptions.available || isDemandFormOpen(row.id)"
+                    (click)="openDemandForm(row)"
+                  >DEMAND CREDITS…</button>
+                }
                 @if (row.state === 'war') {
                   <button class="btn-primary" type="button" [disabled]="!row.canNegotiate" (click)="negotiate.emit(row.id)">NEGOTIATE PEACE</button>
                 } @else if (row.canBreakTreaty) {

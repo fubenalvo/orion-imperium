@@ -13,6 +13,7 @@ import { EnemyPlanService } from './enemy-plan.service';
 import { EnemyProgressService } from './enemy-progress.service';
 import { EnemyReachService } from './enemy-reach.service';
 import { EnemyIntelService } from './enemy-intel.service';
+import { EnemyMiningService } from './enemy-mining.service';
 import { Battle } from '../battle-screen/battle/battle.types';
 import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiFactionIds } from './star-map.models';
 import { EnemyDiplomacyService } from './enemy-diplomacy.service';
@@ -40,6 +41,8 @@ import { DiplomacyService } from '../../services/diplomacy.service';
  * Fleet movement ownership (one writer per fleet):
  *  - pipeline fleets (colonizer carriers, the fleet of a current
  *    move_to_target / defend action) — EnemyActionExecutor;
+ *  - fleets carrying an outpost ship — EnemyMiningService (asteroid
+ *    surveying and mining-station deployment);
  *  - every other AI fleet — EnemyFleetService (garrison, intercept,
  *    retreat, regroup roles);
  *  - EnemyAiService (legacy reactive pursuit) only acts on AI fleets
@@ -68,6 +71,7 @@ export class StarMapAiTickService {
     private enemyIntelService: EnemyIntelService,
     private enemyDiplomacyService: EnemyDiplomacyService,
     private diplomacyService: DiplomacyService,
+    private enemyMiningService: EnemyMiningService,
   ) {}
 
   // Cadence of the parallel colonization objective's action evaluation.
@@ -144,6 +148,7 @@ export class StarMapAiTickService {
         data.factions,
         view.starSystems,
         view.fleets,
+        { shipStock: data.shipStock, production: data.production },
       ) || operationsChanged;
     }
 
@@ -288,6 +293,8 @@ export class StarMapAiTickService {
         perceivedFleets: viewOf(faction.id).fleets,
         perceivedSystems: viewOf(faction.id).starSystems,
       }) || economyChanged;
+      // Asteroid mining (outpost ships) renews raw supply as deposits run dry.
+      economyChanged = this.enemyMiningService.tick(gameDeltaTime, faction, data, viewOf(faction.id)) || economyChanged;
     }
 
     // Deadlock detection last, with the state every layer produced this frame.
@@ -333,6 +340,7 @@ export class StarMapAiTickService {
     this.enemyProgressService.reset();
     this.enemyReachService.reset();
     this.enemyIntelService.reset();
+    this.enemyMiningService.reset();
     this.colonizationAccumulators.clear();
   }
 
@@ -376,7 +384,8 @@ export class StarMapAiTickService {
    *    (ActionResult.targetId is the AI's own fleet for those types;
    *    for 'attack' it is the player's fleet, so it is not reserved);
    *  - every AI fleet carrying a living colonizer, so a colonization
-   *    run is never diverted into a chase between action ticks.
+   *    run is never diverted into a chase between action ticks;
+   *  - every AI fleet carrying a living outpost ship (EnemyMiningService).
    */
   private getReservedFleetIds(fleets: Fleet[], factions: Faction[]): Set<number> {
     const reserved = new Set<number>();
@@ -392,7 +401,7 @@ export class StarMapAiTickService {
     for (const fleet of fleets) {
       if (aiFactionSet.has(fleet.factionId)
         && !fleet.destroyed
-        && fleet.ships.some((ship) => ship.type === 'colonizer' && !ship.destroyed)) {
+        && (fleet.ships.some((ship) => ship.type === 'colonizer' && !ship.destroyed) || EnemyMiningService.isMiningFleet(fleet))) {
         reserved.add(fleet.id);
       }
     }

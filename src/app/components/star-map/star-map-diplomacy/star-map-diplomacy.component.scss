@@ -283,6 +283,71 @@
   padding-left: 1.2em;
 }
 
+/* Credit demands: incoming demand / follow-through notices and the outgoing form. */
+.diplomacy__demand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.diplomacy__demand-text {
+  display: flex;
+  flex: 1 1 18em;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.diplomacy__demand-quote {
+  color: var(--ui-ink-bright);
+  font-style: italic;
+}
+
+.diplomacy__demand-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--ui-ink);
+}
+
+.diplomacy__demand-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  button {
+    @include ui.button-size(sm);
+
+    &.is-selected {
+      @include ui.button-selected;
+    }
+  }
+}
+
+.diplomacy__demand-amount {
+  display: grid;
+  grid-template-columns: 1fr 9em;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ui-fs-sm);
+
+  input {
+    width: 100%;
+  }
+}
+
+.diplomacy__demand-consequence {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.diplomacy__dim {
+  margin: 0;
+  color: var(--ui-ink-dim);
+}
+
 .diplomacy__confirm {
   display: flex;
   flex-wrap: wrap;

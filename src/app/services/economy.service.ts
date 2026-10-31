@@ -55,6 +55,14 @@ function gainMultiplier(faction: Faction | null | undefined): number {
  * Population income (pop * 0.1 credits/s, plus a pop * POPULATION_RAW_RATE
  * raw-material trickle) is treated as a planet-level production source.
  *
+ * Raw materials come from finite deposits (raw-deposits.ts): buildings with
+ * `requiresOreProximity` (Mining Complex) extract from their planet's
+ * `rawDeposit`, mining stations from their asteroid. Their nominal rates are
+ * part of the breakdown; applyEconomyDelta credits only what is actually
+ * extracted and subtracts it from the deposit. The population trickle is
+ * the only raw source that never runs out: it is the deliberate emergency
+ * floor that keeps an empire with no deposit left able to rebuild.
+ *
  * Upkeep: `maintenanceCost` in planet-data.json / ship-data.json is in
  * upkeep points per second; one point costs UPKEEP_CREDITS_PER_POINT
  * credits. Buildings, fleet ships and ships in the faction-wide reserve
@@ -67,7 +75,11 @@ export const UPKEEP_CREDITS_PER_POINT = 0.3;
 /* Stocked ships are mothballed: they cost this share of their fleet upkeep. */
 export const RESERVE_SHIP_UPKEEP_FACTOR = 0.5;
 export const RESERVE_FLEET_LABEL = 'Reserve (ship stock)';
-/* Raw materials per second per inhabitant (homeworld: 1400 pop → 2.8/s). */
+/*
+ * Raw materials per second per inhabitant (homeworld: 1400 pop → 2.8/s).
+ * Not a deposit and never depleted: the economy's anti-deadlock floor
+ * (docs/economy.md, "Economic safety").
+ */
 export const POPULATION_RAW_RATE = 0.002;
 /*
  * Colony administration: every owned planet beyond the first costs this
@@ -153,6 +165,11 @@ export class EconomyService {
     const workforceEfficiency =
       required > 0 ? Math.min(1, Math.max(0, available / required)) : 1;
     const habitabilityDrift = PLANET_TYPE_HABITABILITY[planet.type] ?? 0;
+    // Deposit mining buildings produce only while the planet's deposit lasts,
+    // scaled by the deposit's richness.
+    const deposit = planet.rawDeposit;
+    const depositMultiplier = deposit && deposit.remaining > 0 ? deposit.richness : 0;
+    let depositMining = 0;
 
     for (const building of planet.buildings ?? []) {
       const stats = this.buildingStatsByName.get(building.name);
@@ -160,8 +177,12 @@ export class EconomyService {
 
       for (const [resource, amount] of Object.entries(stats.production ?? {})) {
         const techMultiplier = resource === 'rawmaterials' ? tech.rawOutput : resource === 'research' ? tech.researchOutput : 1;
-        production[resource as ResourceType] =
-          (production[resource as ResourceType] ?? 0) + amount * workforceEfficiency * techMultiplier;
+        let output = amount * workforceEfficiency * techMultiplier;
+        if (resource === 'rawmaterials' && stats.requiresOreProximity) {
+          output *= depositMultiplier;
+          depositMining += output;
+        }
+        production[resource as ResourceType] = (production[resource as ResourceType] ?? 0) + output;
       }
 
       for (const [resource, amount] of Object.entries(stats.consumption ?? {})) {
@@ -214,6 +235,7 @@ export class EconomyService {
       workforceEfficiency,
       habitabilityDrift,
       buildingMoraleBonus: moraleBonus,
+      depositMining,
     };
   }
 
@@ -352,6 +374,7 @@ export class EconomyService {
     const factionNet: ResourceRates = {};
     let totalPopulation = 0;
     let totalEfficiency = 0;
+    let depositMining = 0;
     let buildingUpkeep = 0;
     let administration = 0;
     const adminShare = administrationShare(ownedPlanets.length);
@@ -362,6 +385,7 @@ export class EconomyService {
       totalEfficiency += entry.efficiency;
       administration += entry.administration ?? 0;
       buildingUpkeep += entry.expense - (entry.administration ?? 0);
+      depositMining += entry.miningRate;
       for (const resource of STOCK_RESOURCES) {
         factionProduction[resource] = (factionProduction[resource] ?? 0) + (entry.production[resource] ?? 0);
         factionConsumption[resource] = (factionConsumption[resource] ?? 0) + (entry.consumption[resource] ?? 0);
@@ -394,6 +418,7 @@ export class EconomyService {
       factionProduction['rawmaterials'] = (factionProduction['rawmaterials'] ?? 0) + miningRate;
       factionNet['rawmaterials'] = (factionNet['rawmaterials'] ?? 0) + miningRate;
     }
+    depositMining += miningRate;
 
     const income = factionProduction['credits'] ?? 0;
     const expense = buildingUpkeep + administration + shipUpkeep;
@@ -405,6 +430,7 @@ export class EconomyService {
       administrationPerSecond: administration,
       shipUpkeepPerSecond: shipUpkeep,
       unpaidUpkeepPerSecond: 0,
+      depositMiningPerSecond: depositMining,
       totalPopulation,
       planets,
       fleetExpenses,
@@ -430,8 +456,9 @@ export class EconomyService {
    *  2. The effective breakdown is computed from the post-drift state and
    *     `net[r] × deltaTime` is applied to every stock resource: income
    *     minus upkeep for credits; raw materials and research as produced.
-   *     Mining stations contribute what they actually extract from their
-   *     deposits this tick (and deplete them).
+   *     Deposit mining (planet mines and asteroid stations) contributes
+   *     what it actually extracts this tick, capped by what each deposit
+   *     still holds, and depletes the deposits.
    *  3. Credits are kept as integers; the fractional remainder is carried
    *     per faction (in memory only) so rounding never drifts the balance
    *     away from the HUD rate.
@@ -473,13 +500,13 @@ export class EconomyService {
 
     // 2) Raw materials and research from the effective (post-drift) breakdown.
     const breakdown = this.calculateEconomy(factionId, factions, starSystems, fleets, shipStock);
-    // Mining is applied as the amount really taken from the deposits (capped
-    // by what is left) instead of the nominal rate inside breakdown.net.
-    const miningRate = miningRatePerSecond(factionId, starSystems, gainMultiplier(faction));
-    const mined = extractMiningStations(factionId, starSystems, deltaTime, gainMultiplier(faction));
+    // Deposit mining is applied as the amount really taken from the deposits
+    // (capped by what is left) instead of the nominal rate inside breakdown.net.
+    const mined = this.extractPlanetDeposits(factionId, starSystems, breakdown, deltaTime)
+      + extractMiningStations(factionId, starSystems, deltaTime, gainMultiplier(faction));
     for (const resource of STOCK_RESOURCES) {
       if (resource === 'credits') continue;
-      const rate = (breakdown.net[resource] ?? 0) - (resource === 'rawmaterials' ? miningRate : 0);
+      const rate = (breakdown.net[resource] ?? 0) - (resource === 'rawmaterials' ? breakdown.depositMiningPerSecond : 0);
       const extra = resource === 'rawmaterials' ? mined : 0;
       faction.currencies[resource] = (faction.currencies[resource] ?? 0) + rate * deltaTime + extra;
     }
@@ -513,6 +540,32 @@ export class EconomyService {
     }
 
     return breakdown;
+  }
+
+  /*
+   * Takes one tick of mining from each owned planet's deposit: the planet's
+   * effective mining rate (its breakdown row) × deltaTime, capped by what
+   * the deposit still holds. Returns the total extracted. Planet rows are
+   * matched by position: calculateEconomy lists owned planets in the same
+   * order as getOwnedPlanets.
+   */
+  private extractPlanetDeposits(
+    factionId: string,
+    starSystems: StarSystem[],
+    breakdown: EconomyBreakdown,
+    deltaTime: number,
+  ): number {
+    const planets = this.getOwnedPlanets(factionId, starSystems);
+    let total = 0;
+    planets.forEach((planet, index) => {
+      const rate = breakdown.planets[index]?.miningRate ?? 0;
+      const deposit = planet.rawDeposit;
+      if (rate <= 0 || !deposit || deposit.remaining <= 0) return;
+      const taken = Math.min(deposit.remaining, rate * deltaTime);
+      deposit.remaining = Math.max(0, deposit.remaining - taken);
+      total += taken;
+    });
+    return total;
   }
 
   /*
@@ -552,6 +605,7 @@ export class EconomyService {
       * difficultyIncomeMultiplier;
     const administration = creditIncome * adminShare;
     const upkeep = buildingUpkeep + administration;
+    const miningRate = economy.depositMining * economy.efficiency * difficultyIncomeMultiplier;
     const production: ResourceRates = {};
     const consumption: ResourceRates = {};
     const netRates: ResourceRates = {};
@@ -589,6 +643,7 @@ export class EconomyService {
       workforceEfficiency: economy.workforceEfficiency,
       habitabilityDrift: economy.habitabilityDrift,
       buildingMoraleBonus: economy.buildingMoraleBonus,
+      miningRate,
     };
   }
 

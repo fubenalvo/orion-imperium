@@ -35,7 +35,8 @@ export type { FactionRelation, TreatyState } from './star-map.models';
  *    declaredBy, surpriseRecorded) are equal on both sides. Only
  *    startWar / startPeace change the treaty state, and they always write
  *    both sides. Per-side fields (opinion, warExhaustion, shipsLostValue,
- *    planetsLost) belong to the faction holding the entry.
+ *    planetsLost, and the credit-demand cooldown and memories) belong to
+ *    the faction holding the entry.
  *  - normalizeRelations (new games, every load) fills missing entries and
  *    defaults, clamps ranges and repairs disagreement as war.
  *  - A missing treaty entry between two treaty participants means war.
@@ -106,6 +107,13 @@ export const EXHAUSTION_PLANET_MAX = 20;
 /* Economy penalty: none up to the threshold, then linear up to the maximum at 100. */
 export const EXHAUSTION_PENALTY_THRESHOLD = 25;
 export const EXHAUSTION_MAX_PENALTY = 0.3;
+
+/* Remembered credit demands and refusals (per relation side) fade by this much per minute of game time. */
+export const DEMAND_MEMORY_DECAY_PER_MINUTE = 0.2;
+/* A faction's empty threats (refused ultimatums it did not carry out) fade by this much per minute. */
+export const EMPTY_THREAT_DECAY_PER_MINUTE = 0.1;
+/* Cap on remembered empty threats, so credibility can always recover. */
+export const EMPTY_THREAT_LIMIT = 5;
 
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
@@ -296,6 +304,60 @@ export function recordHostileAct(attacker: Faction, target: Faction): boolean {
   return true;
 }
 
+/* ---------- Credit demand memory (diplomatic-demand.ts) ---------- */
+
+/* Game seconds until `demander` may demand credits from `target` again. */
+export function getDemandCooldown(demander: Faction, target: Faction): number {
+  return getRelation(demander, target)?.demandCooldown ?? 0;
+}
+
+/*
+ * Records that `demander` made a demand of `target`: the demander's pair
+ * and global cooldowns start, and the target remembers one more demand
+ * (repeated demands cost more opinion). Returns how many earlier demands
+ * the target still remembered, which scales the nuisance penalty.
+ */
+export function recordDemandMade(demander: Faction, target: Faction, pairCooldown: number, globalCooldown: number): number {
+  if (!isTreatyPair(demander, target)) return 0;
+  relationEntry(demander, target).demandCooldown = Math.max(0, pairCooldown);
+  demander.demandCooldown = Math.max(demander.demandCooldown ?? 0, globalCooldown);
+  const memory = relationEntry(target, demander);
+  const remembered = memory.demandsReceived ?? 0;
+  memory.demandsReceived = remembered + 1;
+  return remembered;
+}
+
+/* `target` refused a demand of `demander`: the demander remembers it. */
+export function recordDemandRefused(demander: Faction, target: Faction): void {
+  if (!isTreatyPair(demander, target)) return;
+  const entry = relationEntry(demander, target);
+  entry.demandsRefused = (entry.demandsRefused ?? 0) + 1;
+}
+
+/* How many of `holder`'s demands `other` refused recently (decaying). */
+export function getDemandsRefused(holder: Faction, other: Faction): number {
+  return getRelation(holder, other)?.demandsRefused ?? 0;
+}
+
+/* How many of `other`'s demands `holder` still remembers (decaying). */
+export function getDemandsReceived(holder: Faction, other: Faction): number {
+  return getRelation(holder, other)?.demandsReceived ?? 0;
+}
+
+export function getEmptyThreats(faction: Faction): number {
+  return faction.emptyThreats ?? 0;
+}
+
+/* A refused threat was not carried out: credibility drops (capped, fades over time). */
+export function recordEmptyThreat(faction: Faction): void {
+  faction.emptyThreats = Math.min(EMPTY_THREAT_LIMIT, getEmptyThreats(faction) + 1);
+}
+
+/* A refused threat was carried out: one remembered empty threat is forgiven. */
+export function recordThreatCarriedOut(faction: Faction): void {
+  faction.emptyThreats = Math.max(0, getEmptyThreats(faction) - 1);
+}
+
 /* ---------- Treaty state changes (both sides, always) ---------- */
 
 /*
@@ -374,6 +436,12 @@ export function normalizeRelations(factions: Faction[], defaultLock = 0): void {
     if (faction.reputation !== undefined) {
       faction.reputation = Number.isFinite(faction.reputation) ? clamp(faction.reputation, -REPUTATION_LIMIT, REPUTATION_LIMIT) : 0;
     }
+    if (faction.demandCooldown !== undefined) {
+      faction.demandCooldown = Math.max(0, finite(faction.demandCooldown, 0));
+    }
+    if (faction.emptyThreats !== undefined) {
+      faction.emptyThreats = clamp(finite(faction.emptyThreats, 0), 0, EMPTY_THREAT_LIMIT);
+    }
     if (!faction.relations) continue;
     for (const otherId of Object.keys(faction.relations)) {
       const other = byId.get(otherId);
@@ -408,6 +476,11 @@ export function normalizeRelations(factions: Faction[], defaultLock = 0): void {
         };
         // Border memory survives war and peace; passage is never granted at war.
         if ((own?.borderIncidents ?? 0) > 0) entry.borderIncidents = own!.borderIncidents;
+        // Demand cooldowns and memories survive war and peace too (a war
+        // must not reset a cooldown or wipe the memory of a refusal).
+        if ((own?.demandCooldown ?? 0) > 0) entry.demandCooldown = own!.demandCooldown;
+        if ((own?.demandsReceived ?? 0) > 0) entry.demandsReceived = own!.demandsReceived;
+        if ((own?.demandsRefused ?? 0) > 0) entry.demandsRefused = own!.demandsRefused;
         if (state === 'peace' && own?.passageRights === true) entry.passageRights = true;
         if (state === 'war') {
           entry.warExhaustion = own?.state === 'war' ? own.warExhaustion ?? 0 : 0;
@@ -444,7 +517,17 @@ function sanitize(relation: FactionRelation | undefined): FactionRelation | unde
     planetsLost: Math.max(0, Math.floor(finite(relation.planetsLost, 0))),
     warSeconds: Math.max(0, finite(relation.warSeconds, 0)),
     borderIncidents: Math.max(0, finite(relation.borderIncidents, 0)),
+    demandCooldown: Math.max(0, finite(relation.demandCooldown, 0)),
+    demandsReceived: Math.max(0, finite(relation.demandsReceived, 0)),
+    demandsRefused: Math.max(0, finite(relation.demandsRefused, 0)),
   };
+}
+
+/* Demand cooldowns count down in game seconds; demand memories fade per game minute. */
+function decayDemandMemory(entry: FactionRelation, deltaSeconds: number, minutes: number): void {
+  if ((entry.demandCooldown ?? 0) > 0) entry.demandCooldown = Math.max(0, entry.demandCooldown! - deltaSeconds);
+  if ((entry.demandsReceived ?? 0) > 0) entry.demandsReceived = Math.max(0, entry.demandsReceived! - DEMAND_MEMORY_DECAY_PER_MINUTE * minutes);
+  if ((entry.demandsRefused ?? 0) > 0) entry.demandsRefused = Math.max(0, entry.demandsRefused! - DEMAND_MEMORY_DECAY_PER_MINUTE * minutes);
 }
 
 /* A truce that ran out unbroken this tick (both sides earn reputation). */
@@ -478,6 +561,7 @@ export function tickDiplomacyTime(
       const wasTruce = ra.state === 'peace' && ra.truce === true && ra.lockRemaining > 0;
       for (const entry of [ra, rb]) {
         entry.lockRemaining = Math.max(0, entry.lockRemaining - deltaSeconds);
+        decayDemandMemory(entry, deltaSeconds, minutes);
       }
       if (wasTruce && ra.lockRemaining === 0) {
         ra.truce = false;
@@ -505,6 +589,8 @@ export function tickDiplomacyTime(
     }
   }
   for (const faction of factions) {
+    if ((faction.demandCooldown ?? 0) > 0) faction.demandCooldown = Math.max(0, faction.demandCooldown! - deltaSeconds);
+    if ((faction.emptyThreats ?? 0) > 0) faction.emptyThreats = Math.max(0, faction.emptyThreats! - EMPTY_THREAT_DECAY_PER_MINUTE * minutes);
     if (isNeutralFaction(faction) || !isAlive(faction.id)) continue;
     const partners = factions.filter((other) => isTreatyPair(faction, other) && isAlive(other.id));
     if (partners.length === 0) continue;

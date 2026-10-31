@@ -1,3 +1,4 @@
+@use '../_station-turrets';
 @use '../_star-map-grid';
 @use '../_star-map-ships';
 @use '../_star-map-sensor';
@@ -414,6 +415,23 @@
 .system-asteroid__label--station {
   top: calc(50% + 1.2vw);
   color: var(--station-color, var(--ui-accent));
+}
+
+/* A station whose deposit is empty: still part of the world, visibly idle. */
+.system-asteroid--depleted {
+  .system-asteroid__station {
+    border-style: dashed;
+    opacity: 0.45;
+    box-shadow: none;
+
+    &::after {
+      display: none;
+    }
+  }
+
+  .system-asteroid__label--station {
+    color: var(--ui-ink-faint);
+  }
 }
 
 @keyframes asteroid-deposit-pulse {

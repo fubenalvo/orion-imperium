@@ -9,15 +9,16 @@ Related: [Economy](./economy.md) (research income, upkeep), [AI Pipeline](./ai-p
 | What | Where |
 | --- | --- |
 | Technologies: cost, prerequisites, unlocks, bonuses, descriptions | `src/app/components/star-map/research-tree.json` |
-| Rules: status, cost, purchase, unlocks, aggregated bonuses (`getModifiers`), effect text | `ResearchService` |
-| Consumers of bonuses | `EconomyService` (energy/raw/research output, building/ship upkeep, population growth), `ProductionService` (build speed), `StarMapSensorService` + `EnemyIntelService` (sensor range), `createBattleState` via `Battle.combatBonuses` (attack/shield) |
+| Rules: status, price (`getResearchPrice`: research points + credits), purchase, unlocks, aggregated bonuses (`getModifiers`), effect text | `ResearchService` |
+| Consumers of bonuses | `EconomyService` (energy/raw/research output, building/ship upkeep, population growth), `ProductionService` (build speed), `StarMapSensorService` + `EnemyIntelService` (sensor range), `createBattleState` via `Battle.combatBonuses` (attack/shield), `StarMapBattleDetectionService.stationTurretsOf` (station turrets, also drawn on the station markers) |
 | AI choice | `EnemyResearchService` |
 | UI | `StarMapResearchTreeComponent` |
 
 ## Model
 
-- **Research points** (`faction.currencies.research`) come from research buildings (see [Economy](./economy.md)). Research is an **instant purchase**: when a technology's current cost is available it can be bought; there is no in-progress state. The UI shows the time to afford a technology from the current research income.
-- **Cost**: `researchCost × (1 + 0.02 × researched non-starting technologies)`, rounded (`ResearchService.getResearchCost`, `RESEARCH_COST_GROWTH_PER_TECH`). The one cost rule for `canResearch`, `researchTechnology`, the UI and the AI. Early choices stay cheap; a research leader pays more for the late tree, which damps runaway research advantages.
+- **Research points** (`faction.currencies.research`) come from research buildings (see [Economy](./economy.md)); they are the scarce, lab-produced resource and the only thing that measures scientific capacity. Research is an **instant purchase**: when a technology's current price is available it can be bought; there is no in-progress state. The UI shows the time to afford a technology from the current research and credit income.
+- **Price**: research needs scientific capacity *and* funding. Research points: `researchCost × (1 + 0.02 × researched non-starting technologies)`, rounded (`ResearchService.getResearchCost`, `RESEARCH_COST_GROWTH_PER_TECH`). Credits: `RESEARCH_CREDITS_PER_POINT` (2) × that research-point cost (`getResearchCreditCost`). `getResearchPrice` returns both; it is the one price rule for `canResearch`, `getResearchBlocker`, `researchTechnology`, the UI and the AI. Early choices stay cheap; a research leader pays more for the late tree, which damps runaway research advantages. Research never costs raw materials.
+- **Purchase** is all-or-nothing: `researchTechnology` checks both parts (reasons `insufficient_research`, then `insufficient_credits`) before deducting either, so a technology is never researchable while either resource is short and a failed attempt charges nothing.
 - **Effects** are either **unlocks** (`unlocksShips`, `unlocksBuildings`) or **bonuses** (`bonuses`). Every ship and building is unlocked by exactly one technology (tested).
 - **Bonus aggregation** (`ResearchService.getModifiers`): bonuses of the same type add up; multipliers are `1 + Σ value` (two +15% energy technologies → ×1.30); reductions are negative and floored at ×0.25. Ship combat bonuses apply per listed hull and also add up (fighter: +25% fighter tech + 15% advanced weapons → ×1.40).
 - **Exactly once, save-safe**: modifiers are derived from `researchedTechnologies` whenever needed (cached by that list) and never stored. Loading a save recomputes them; duplicated or unknown ids in a save never count twice. Bonuses act from the moment of research onward and never retroactively (e.g. build speed only speeds up remaining production progress).
@@ -57,8 +58,11 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 | Capital Ship Technology | 3 | 5500 | Unlock | Battleship, Battlecruiser, Dreadnought |
 | Cruiser Technology | 4 | 4500 | Bonus | +20% damage and shields: Cruiser, Battlecruiser |
 | Carrier Technology | 4 | 4500 | Bonus | −15% ship upkeep (fleet and reserve) |
+| Turret Research I | 1 | 700 | Bonus | +1 defense turret on every space base and mining station (`createBattleState` via the station defense roster, [Territory](./territory.md#station-defense)) |
+| Turret Research II | 2 | 1600 | Bonus | +1 turret (2 total); also needs Military Engineering |
+| Turret Research III | 3 | 3000 | Bonus | +1 turret (3 total, a missile turret); also needs Advanced Weapons |
 
-Base total: 52,700 points. With cost scaling the full tree costs roughly 70–75k points.
+Base total: 58,000 points. With cost scaling the full tree costs roughly 70–75k points.
 
 ## Progression rationale
 
@@ -68,16 +72,16 @@ Measured in the 30-minute economy validation simulation (`ai-simulation.spec.ts`
 
 ## AI research (summary)
 
-`EnemyResearchService` scores every technology whose prerequisites are met by `(direct value + 0.5 × best follow-up value) / current cost`. Values come from the faction's real situation: upkeep reductions by today's upkeep share of income, energy by the tightest planet energy margin, raw output by raw income, research output by research income, growth by planets below housing capacity, sensors by expansion, ship combat bonuses by the share of the faction's own fleet strength in the affected hulls × military need, ship unlocks by strength gain × military need. Personality weights (economy, research, expansion, offense/defense) scale the matching values; under threat, peacetime values are divided by the military need. It saves for a clearly better (≥1.5× score) technology only if research income reaches it within 180 s; otherwise it buys the best affordable one, so it never stalls. It only uses information the faction has (own economy and fleets, perceived hostile fleets).
+`EnemyResearchService` scores every technology whose prerequisites are met by `(direct value + 0.5 × best follow-up value) / current cost`. Values come from the faction's real situation: upkeep reductions by today's upkeep share of income, energy by the tightest planet energy margin, raw output by raw income, research output by research income, growth by planets below housing capacity, sensors by expansion, ship combat bonuses by the share of the faction's own fleet strength in the affected hulls × military need, station turrets by the number of stations it owns (bases + mining stations; near zero without any) × military need, ship unlocks by strength gain × military need. Personality weights (economy, research, expansion, offense/defense) scale the matching values; under threat, peacetime values are divided by the military need. A technology is affordable for the AI only if both its research points and its credits are, and the credits must leave the price of a missing Spaceship Factory / Spaceport untouched. It saves for a clearly better (≥1.5× score) technology only if research and credit income reach both parts within 180 s; otherwise it buys the best affordable one, so it never stalls. The AI economy manager keeps the credits of a technology whose points are already banked, and builds research labs first when its labs are too slow ([AI Pipeline](./ai-pipeline.md#construction-and-spending-policy)). It only uses information the faction has (own economy and fleets, perceived hostile fleets).
 
 ## UI
 
-The research screen shows, per technology: name, flavour description, **Effects** (generated from the data by `ResearchService.describeEffects`, so the text cannot drift from the rules), current cost, prerequisites, what it leads to, status, and why it cannot be researched now (missing prerequisites, or points still needed with the time at current research income). An available technology that is not yet affordable also shows a meter of how much of its cost is already banked.
+The research screen shows, per technology: name, flavour description, **Effects** (generated from the data by `ResearchService.describeEffects`, so the text cannot drift from the rules), current price in RP and credits (the part the faction cannot pay is highlighted), prerequisites, what it leads to, status, and why it cannot be researched now (missing prerequisites, or the research points and/or credits still needed, each with the time at current income). An available technology that is not yet affordable also shows a meter of how much of its price is already banked (the scarcer resource decides).
 
 Layout (presentation only, no effect on the rules):
 
 - **Tiers.** Technologies are grouped into rows by prerequisite depth: no prerequisites = tier I, otherwise one more than the deepest prerequisite (`StarMapResearchTreeComponent.getTier`). The tier is derived from the technology data, not stored on it, so adding or re-wiring technologies needs no UI change.
-- **Header.** Current research points and income, and overall progress (researched / total).
+- **Header.** Current research points and income, current credits, and overall progress (researched / total).
 - **Filters.** All / Available / Researched / Locked, with counts. The filter is component state only; it is not saved.
 
 Visual styling follows the design system in [UI Styling](./ui-styling.md#design-system).

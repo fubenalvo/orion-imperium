@@ -3,6 +3,7 @@ import { PlanetTile, StarMapData } from '../components/star-map/star-map.models'
 import { getPlanetGridSize, legacyPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
 import { generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
 import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
+import { ensurePlanetDeposits } from '../components/star-map/raw-deposits';
 import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
 import legacyStarMapData from '../components/star-map/star-map-data.json';
 import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
@@ -304,6 +305,10 @@ export class SaveGameService {
     if (data.spaceBases === undefined) {
       data.spaceBases = [];
     }
+    // v9: open credit demands. Older saves have none.
+    if (!Array.isArray(data.diplomaticDemands)) {
+      data.diplomaticDemands = [];
+    }
     if (data.asteroidEvents === undefined) {
       data.asteroidEvents = initialAsteroidEvents(data.galaxy?.seed ?? 0);
     }
@@ -335,8 +340,14 @@ export class SaveGameService {
       }
     }
     // Every load: systems without an in-system asteroid belt get their
-    // deterministic one (needs planet positions on the current grid, above).
+    // deterministic one (needs planet positions on the current grid, above),
+    // and belts saved before finite deposits get each asteroid's original
+    // reserve and extraction rate.
     ensureSystemAsteroidBelts(systems, data.galaxy?.seed ?? 0);
+    // Every load: planets with deposit tiles get their finite reserve if the
+    // save predates it (a full deposit); saved reserves, including depleted
+    // ones, are kept as they are. No version bump: the field is optional.
+    ensurePlanetDeposits(systems.flatMap((s) => (Array.isArray(s?.planetsTiles) ? s.planetsTiles : [])));
 
     if (version < SAVE_VERSION) {
       data.saveVersion = SAVE_VERSION;

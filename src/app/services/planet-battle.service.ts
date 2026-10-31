@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Fleet, FleetShip, PlanetTile, StarSystem } from '../components/star-map/star-map.models';
 import planetData from '../components/star-map/planet-data.json';
-import { STATION_CORE_STATS } from '../components/star-map/space-base';
+import { STATION_CORE_STATS } from '../components/star-map/station-defense';
 
 /*
  * =========================================================
@@ -231,8 +231,8 @@ export class PlanetBattleService {
     weakness: string;
     role: string;
   } | null {
-    // The space base hull is a virtual defense unit too (space-base.ts), so
-    // base battles reuse the planet-defense stat path instead of a parallel one.
+    // The station core (every station type, station-defense.ts) is a virtual
+    // defense unit too, so station battles reuse the planet-defense stat path instead of a parallel one.
     if (typeId === STATION_CORE_STATS.id) {
       return {
         id: STATION_CORE_STATS.id,

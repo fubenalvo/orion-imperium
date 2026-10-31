@@ -18,7 +18,7 @@
       "workforce": 10,
       "moraleRate": 0,
       "price": 800,
-      "rawMaterialCost": 150,
+      "rawMaterialCost": 200,
       "production": {},
       "consumption": {
         "energy": 5
@@ -42,7 +42,7 @@
       "workforce": 8,
       "moraleRate": 0,
       "price": 1000,
-      "rawMaterialCost": 200,
+      "rawMaterialCost": 250,
       "production": {},
       "consumption": {
         "energy": 3
@@ -64,7 +64,7 @@
       "workforce": 15,
       "moraleRate": 0,
       "price": 3500,
-      "rawMaterialCost": 600,
+      "rawMaterialCost": 875,
       "production": {},
       "consumption": {
         "energy": 25
@@ -83,7 +83,7 @@
       "providesWorkforce": 20,
       "moraleRate": 0,
       "price": 400,
-      "rawMaterialCost": 50,
+      "rawMaterialCost": 100,
       "production": {},
       "consumption": {
         "energy": 3
@@ -103,7 +103,7 @@
       "providesWorkforce": 50,
       "moraleRate": 0,
       "price": 1200,
-      "rawMaterialCost": 150,
+      "rawMaterialCost": 300,
       "production": {},
       "consumption": {
         "energy": 6
@@ -123,7 +123,7 @@
       "providesWorkforce": 100,
       "moraleRate": 0,
       "price": 3000,
-      "rawMaterialCost": 400,
+      "rawMaterialCost": 750,
       "production": {},
       "consumption": {
         "energy": 12
@@ -142,7 +142,7 @@
       "workforce": 5,
       "moraleRate": 0.03,
       "price": 800,
-      "rawMaterialCost": 50,
+      "rawMaterialCost": 200,
       "production": {},
       "consumption": {
         "energy": 2
@@ -161,7 +161,7 @@
       "workforce": 40,
       "moraleRate": 0.02,
       "price": 2000,
-      "rawMaterialCost": 200,
+      "rawMaterialCost": 500,
       "production": {},
       "consumption": {
         "energy": 10
@@ -180,7 +180,7 @@
       "workforce": 30,
       "moraleRate": 0.01,
       "price": 1500,
-      "rawMaterialCost": 150,
+      "rawMaterialCost": 375,
       "production": {},
       "consumption": {
         "energy": 8
@@ -199,7 +199,7 @@
       "workforce": 60,
       "moraleRate": 0.08,
       "price": 3000,
-      "rawMaterialCost": 250,
+      "rawMaterialCost": 750,
       "production": {},
       "consumption": {
         "energy": 15
@@ -218,7 +218,7 @@
       "workforce": 35,
       "moraleRate": -0.01,
       "price": 2500,
-      "rawMaterialCost": 400,
+      "rawMaterialCost": 625,
       "production": {
         "energy": 100
       },
@@ -237,7 +237,7 @@
       "workforce": 5,
       "moraleRate": 0,
       "price": 600,
-      "rawMaterialCost": 100,
+      "rawMaterialCost": 150,
       "production": {
         "energy": 40
       },
@@ -256,10 +256,8 @@
       "workforce": 100,
       "moraleRate": -0.02,
       "price": 3000,
-      "rawMaterialCost": 400,
-      "production": {
-        "rawmaterials": 6
-      },
+      "rawMaterialCost": 750,
+      "production": {},
       "consumption": {
         "energy": 30
       },
@@ -280,7 +278,7 @@
       "workforce": 60,
       "moraleRate": 0,
       "price": 4000,
-      "rawMaterialCost": 600,
+      "rawMaterialCost": 1000,
       "production": {},
       "consumption": {
         "energy": 20
@@ -299,7 +297,7 @@
       "workforce": 80,
       "moraleRate": -0.01,
       "price": 1500,
-      "rawMaterialCost": 100,
+      "rawMaterialCost": 375,
       "production": {
         "rawmaterials": 15
       },
@@ -321,7 +319,7 @@
       "workforce": 30,
       "moraleRate": 0,
       "price": 1000,
-      "rawMaterialCost": 100,
+      "rawMaterialCost": 250,
       "production": {
         "research": 2
       },
@@ -342,7 +340,7 @@
       "workforce": 60,
       "moraleRate": 0,
       "price": 3000,
-      "rawMaterialCost": 300,
+      "rawMaterialCost": 750,
       "production": {
         "research": 5
       },

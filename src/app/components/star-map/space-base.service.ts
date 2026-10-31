@@ -7,6 +7,7 @@ import {
   nameSpaceBase,
   validateBaseDeployment,
 } from './space-base';
+import { StationDefenseState } from './station-defense';
 
 /*
  * =========================================================
@@ -107,9 +108,10 @@ export class SpaceBaseService {
     return true;
   }
 
-  setShieldPool(id: number, value: number): void {
+  /* Shield pool and core hull a base keeps after a battle it survived. */
+  setDefenseState(id: number, state: StationDefenseState): void {
     const base = this.getBase(id);
-    if (base) base.shieldPoolCurrent = value;
+    if (base) Object.assign(base, state);
   }
 }
 

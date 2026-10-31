@@ -76,6 +76,15 @@ export class FactionCurrenciesComponent {
     return this.economyBreakdown.production[this.selectedCurrency] ?? 0;
   }
 
+  /*
+   * Raw production that does not come from deposits: the population
+   * trickle, the economy's never-depleting emergency floor (docs/economy.md).
+   */
+  getRawSalvagePerSecond(): number {
+    if (!this.economyBreakdown) return 0;
+    return Math.max(0, (this.economyBreakdown.production['rawmaterials'] ?? 0) - this.economyBreakdown.depositMiningPerSecond);
+  }
+
   getConsumptionForCurrency(): number {
     if (!this.economyBreakdown || !this.selectedCurrency) return 0;
     return this.economyBreakdown.consumption[this.selectedCurrency] ?? 0;

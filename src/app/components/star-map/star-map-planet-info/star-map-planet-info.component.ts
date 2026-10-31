@@ -2,6 +2,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UpperCasePipe } from '@angular/common';
 import { PlanetTile, PlanetEconomyEntry } from '../star-map.models';
+import { PlanetDepositView, planetDepositView } from '../raw-deposits';
 
 /*
  * Colonization guidance for an uninhabited planet, built by StarMap. The
@@ -32,6 +33,15 @@ export class StarMapPlanetInfoComponent {
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
   @Input() colonization: PlanetColonizationVm | null = null;
+
+  /*
+   * The planet's raw-material deposit (null without one). Deposits are part
+   * of what an explored planet shows, so the player can judge colonization
+   * and mining targets; only the owner's mines change it.
+   */
+  get depositView(): PlanetDepositView | null {
+    return this.planet ? planetDepositView(this.planet, this.planetEconomy?.miningRate ?? 0) : null;
+  }
 
   @Output() close = new EventEmitter<void>();
   @Output() openPlanet = new EventEmitter<void>();

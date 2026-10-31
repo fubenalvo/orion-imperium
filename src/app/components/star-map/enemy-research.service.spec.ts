@@ -15,7 +15,8 @@ describe('EnemyResearchService', () => {
     color: '#d65757',
     team: 2,
     ai: true,
-    currencies: { credits: 0, research: points },
+    // Research also costs credits; these tests are about research points.
+    currencies: { credits: 1_000_000, research: points },
     researchedTechnologies: ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power'],
   });
 

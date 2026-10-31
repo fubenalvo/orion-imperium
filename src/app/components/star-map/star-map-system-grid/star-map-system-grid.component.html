@@ -41,6 +41,7 @@
           [style.--rock-dx]="shape.dx"
           [style.--rock-dy]="shape.dy"
           [class.system-asteroid--station]="!!asteroid.miningStation"
+          [class.system-asteroid--depleted]="!!asteroid.miningStation && asteroid.rawMaterials <= 0"
           [style.--station-color]="asteroid.miningStation ? getFactionColor(asteroid.miningStation.factionId) : null"
           (mouseenter)="hoveredAsteroid = asteroid"
           (mouseleave)="onAsteroidLeave(asteroid)"
@@ -48,8 +49,16 @@
           <span class="system-asteroid__rock"></span>
           @if (asteroid.miningStation) {
             <span class="system-asteroid__station" aria-hidden="true"></span>
+            @let turrets = getStationTurrets(asteroid.miningStation.factionId);
+            @if (turrets > 0) {
+              <span class="station-turrets" aria-hidden="true">
+                @for (t of turretSlots(turrets); track $index) {
+                  <span class="station-turret"></span>
+                }
+              </span>
+            }
             <span class="system-asteroid__label system-asteroid__label--station">
-              {{ asteroid.rawMaterials > 0 ? floor(asteroid.rawMaterials) + ' RAW' : 'DEPLETED' }}
+              {{ asteroid.rawMaterials > 0 ? floor(asteroid.rawMaterials) + ' RAW · ' + remainingPercent(asteroid) + '% LEFT' : 'DEPLETED' }}
             </span>
           } @else if (asteroid.surveyed && asteroid.rawMaterials > 0) {
             <span class="system-asteroid__label">{{ floor(asteroid.rawMaterials) }} RAW</span>

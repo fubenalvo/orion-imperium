@@ -54,13 +54,16 @@ src/app/
         → Selected asteroid panel (cargo, time left, INTERCEPT per fleet)
       star-map-battle-detection.service.ts
         → Fleet-vs-fleet collision detection on the map / inside systems, and
-          fleet-vs-space-base attacks
+          fleet-vs-station attacks (space bases, mining stations)
       territory.ts / territory.service.ts
         → Derived empire territory (claims, overlap rule, cached per-cell owner
           map) and the colonization rule (docs/territory.md)
       space-base.ts / space-base.service.ts
         → Space base rules (deployment, defense roster) and the live base
           registry restored from / saved to StarMapData.spaceBases
+      station-defense.ts
+        → Shared defense model of every station type (core hull, 0–3 turrets
+          from Turret Research, shield pool, defense roster, outcome state)
       border.service.ts
         → Border violations: peace-time trespass costs opinion, never a war
       star-map-planet-arrival.service.ts

@@ -1,0 +1,25 @@
+// Turret pips shared by every station marker (galaxy-map space bases and
+// in-system mining stations): one small lit square per defense turret
+// (0–3, the owner's Turret Research level; see station-defense.ts), in a
+// row along the top edge of the marker, in the owner's color. The marker
+// sets --base-color (space base) or --station-color (mining station).
+.station-turrets {
+  position: absolute;
+  left: 50%;
+  top: -4%;
+  display: flex;
+  gap: 12%;
+  justify-content: center;
+  width: 70%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.station-turret {
+  width: 18%;
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--base-color, var(--station-color, #8cc4ff)) 65%, #fff);
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  box-shadow: 0 0 0.25vw var(--base-color, var(--station-color, #8cc4ff));
+}

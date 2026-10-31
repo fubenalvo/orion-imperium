@@ -68,10 +68,12 @@ import {
   DriftingAsteroid,
   AsteroidBelt,
   SystemAsteroid,
+  getAiFactionIds,
 } from './star-map.models';
 import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration } from './diplomacy';
-import { DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
-import { EnemyDiplomacyService } from './enemy-diplomacy.service';
+import { DemandFailure, DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
+import { DiplomacyContext, EnemyDiplomacyService } from './enemy-diplomacy.service';
+import { DEMAND_RULES, DemandInvalidReason, DemandKind, FOLLOW_THROUGH_SECONDS, describeDemandInvalid } from './diplomatic-demand';
 import { StarMapDiplomacyComponent } from './star-map-diplomacy/star-map-diplomacy.component';
 import { StarMapPeaceNegotiationComponent } from './star-map-peace-negotiation/star-map-peace-negotiation.component';
 import { PeaceTreaty, describeTreatyInvalid } from './peace-treaty';
@@ -109,10 +111,10 @@ import {
 } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import {
   createMulberry32,
-  generateResourceTilesForPlanet as generateResourceTilesUtil,
-  selectPlanetsForResources as selectPlanetsUtil,
+  ensurePlanetResources as ensurePlanetResourcesUtil,
 } from './star-map-resources.util';
 import { StarMapPanelVmService } from './star-map-panel-vm.service';
+import { describeStationDefense } from './station-defense';
 import { StarMapPlanetArrivalService } from './star-map-planet-arrival.service';
 import {
   getFactionColor as getFactionColorUtil,
@@ -163,10 +165,11 @@ import {
   describeAsteroidForFaction,
   describeMiningDeploymentFailure,
   deployMiningStation,
-  MINING_STATION_CONFIG,
+  stationExtractionRate,
   validateMiningStationDeployment,
 } from './mining-station';
 import { SYSTEM_FLEET_ENTRY_VW } from './system-grid';
+import { minedDepositsOf } from './raw-deposits';
 
 /*
  * =========================================================
@@ -902,15 +905,29 @@ loadError = '';
         left: (b.x - 0.5) * this.cellSizeVw,
         top: (b.y - 0.5) * this.cellSizeVh,
         claimRadiusVw: TERRITORY_CONFIG.baseClaimRadius * this.cellSizeVw,
+        turrets: this.getStationTurrets(b.factionId),
       }));
   }
+
+  /*
+   * Turrets on every station (space base or mining station) of a faction:
+   * derived from its Turret Research level, so the markers follow research
+   * immediately (station-defense.ts).
+   */
+  getStationTurrets(factionId: string): number {
+    const faction = this.factions.find((f) => f.id === factionId);
+    return faction ? this.battleDetectionService.stationTurretsOf(faction) : 0;
+  }
+
+  readonly boundGetStationTurrets = this.getStationTurrets.bind(this);
 
   /* Base marker click: names the base; the click still reaches the map, so move orders work through it. */
   onSpaceBaseClick(baseId: number): void {
     const base = this.spaceBaseService.getBase(baseId);
     if (!base) return;
     const owner = base.factionId === 'player' ? 'your' : this.getFactionName(base.factionId);
-    this.showMapNotice(`${base.name}: ${owner} space base. Claims ${TERRITORY_CONFIG.baseClaimRadius} cells around it.`);
+    const defense = describeStationDefense(base, this.getStationTurrets(base.factionId));
+    this.showMapNotice(`${base.name}: ${owner} space base. Claims ${TERRITORY_CONFIG.baseClaimRadius} cells around it. ${defense}.`);
   }
 
   private baseDeployContext() {
@@ -997,7 +1014,7 @@ loadError = '';
     }
     this.showMapNotice(
       `Mining station deployed in the ${result.system.name} asteroid belt: ` +
-        `${MINING_STATION_CONFIG.extractionPerSecond} raw materials/s from a ` +
+        `${stationExtractionRate(result.asteroid)} raw materials/s from a ` +
         `${Math.floor(result.asteroid.rawMaterials).toLocaleString('en-US')} deposit.`,
     );
     if (result.fleetRetired) {
@@ -1018,6 +1035,7 @@ loadError = '';
       territory: this.territoryService.get(this.starSystems, this.factions),
       fleets: this.fleets,
       factionName: (id) => this.getFactionName(id),
+      stationTurrets: (id) => this.getStationTurrets(id),
     });
   }
 
@@ -1592,7 +1610,10 @@ loadError = '';
 
   /* Number of open AI peace proposals; drives the header badge. */
   getDiplomacyAlertCount(): number {
-    return this.diplomacyService.getOfferIds().length;
+    const playerId = this.getPlayerFaction()?.id;
+    const openDemands = this.diplomacyService.getDemands().filter((d) =>
+      (d.stage === 'pending' && d.targetId === playerId) || (d.stage === 'follow_through' && d.demanderId === playerId));
+    return this.diplomacyService.getOfferIds().length + openDemands.length;
   }
 
   getDiplomacyRows(): DiplomacyRowVm[] {
@@ -1634,6 +1655,112 @@ loadError = '';
       this.negotiation = { ...this.negotiation, incoming: null, message: ai ? `You rejected the proposal of ${ai.name}.` : null };
     }
     this.diplomacyMessage = ai ? `You rejected the peace proposal of ${ai.name}.` : null;
+  }
+
+  /* ---------- Credit demands (docs/diplomacy.md) ---------- */
+
+  /*
+   * The player demands credits from an AI at peace. Same path as an AI
+   * demander (EnemyDiplomacyService.makeDemand): the AI answers at once;
+   * a refused ultimatum leaves the player a follow-through decision.
+   */
+  onSendDemand(request: { targetId: string; kind: DemandKind; amount: number }): void {
+    const player = this.getPlayerFaction();
+    const target = this.factions.find((f) => f.id === request.targetId);
+    if (!player || !target) return;
+    const result = this.enemyDiplomacyService.makeDemand(player, target, request.kind, request.amount, this.demandContext());
+    if (!result.ok) {
+      this.diplomacyMessage = this.describeDemandFailure(target, result.reason, result.waitSeconds);
+      return;
+    }
+    const amount = request.amount.toLocaleString('en-US');
+    switch (result.outcome) {
+      case 'paid':
+        this.diplomacyMessage = `${target.name} pays you ${amount} credits.`;
+        break;
+      case 'follow_through':
+        this.diplomacyMessage = `${target.name} rejects your ultimatum. Declare war within ${formatGameDuration(FOLLOW_THROUGH_SECONDS)} of game time, or back down.`;
+        break;
+      default:
+        this.diplomacyMessage = `${target.name} refuses to pay ${amount} credits.`;
+    }
+    this.afterTreatyChange();
+  }
+
+  /* The player pays an AI's demand (one atomic transfer; nothing changes if the credits are short). */
+  onAcceptDemand(demandId: number): void {
+    const demand = this.diplomacyService.getDemand(demandId);
+    const demander = demand ? this.factions.find((f) => f.id === demand.demanderId) : undefined;
+    if (!demand || !demander || demand.stage !== 'pending') return;
+    const result = this.diplomacyService.acceptDemand(demand, this.liveDiplomacyContext());
+    const amount = demand.amount.toLocaleString('en-US');
+    if (result.ok) {
+      this.diplomacyMessage = `You paid ${amount} credits to ${demander.name}.`;
+      this.afterTreatyChange();
+    } else if (result.reason === 'insufficient_credits') {
+      this.diplomacyMessage = `You do not hold ${amount} credits right now. Decline, or pay before the deadline.`;
+    } else {
+      this.diplomacyMessage = describeDemandInvalid(result.reason as DemandInvalidReason);
+    }
+  }
+
+  /* The player refuses an AI's demand; for an ultimatum the AI decides war or bluff at once. */
+  onDeclineDemand(demandId: number): void {
+    const demand = this.diplomacyService.getDemand(demandId);
+    const demander = demand ? this.factions.find((f) => f.id === demand.demanderId) : undefined;
+    if (!demand || !demander || demand.stage !== 'pending') return;
+    const outcome = this.enemyDiplomacyService.handleRefusal(demand, this.demandContext());
+    this.diplomacyMessage = outcome === 'war'
+      ? `You refused the ultimatum. ${demander.name} declared war on you!`
+      : outcome === 'bluff'
+        ? `You refused the ultimatum. ${demander.name} backed down.`
+        : `You refused the demand of ${demander.name}. Their opinion of you dropped.`;
+    this.afterTreatyChange();
+  }
+
+  /* The player enforces a refused ultimatum: an ordinary war declaration. */
+  onCarryOutThreat(demandId: number): void {
+    const demand = this.diplomacyService.getDemand(demandId);
+    const target = demand ? this.factions.find((f) => f.id === demand.targetId) : undefined;
+    if (!demand || !target || demand.stage !== 'follow_through') return;
+    const result = this.diplomacyService.carryOutThreat(demand, this.factions);
+    this.diplomacyMessage = result.ok
+      ? `You enforced your ultimatum: war with ${target.name}.`
+      : `War with ${target.name} cannot be declared right now.`;
+    if (result.ok) this.afterTreatyChange();
+  }
+
+  /* The player backs down from a refused ultimatum (reputation and credibility suffer). */
+  onBackDownThreat(demandId: number): void {
+    const demand = this.diplomacyService.getDemand(demandId);
+    const target = demand ? this.factions.find((f) => f.id === demand.targetId) : undefined;
+    if (!demand || !target || demand.stage !== 'follow_through') return;
+    this.diplomacyService.backDown(demand, this.factions);
+    this.diplomacyMessage = `You backed down from your ultimatum to ${target.name}. Your reputation dropped and your threats carry less weight.`;
+    this.afterTreatyChange();
+  }
+
+  /* Diplomacy context with the economy data the AI needs to judge what it can pay. */
+  private demandContext(): DiplomacyContext {
+    return { ...this.liveDiplomacyContext(), production: this.production, shipStock: this.shipStock };
+  }
+
+  private describeDemandFailure(target: Faction, reason: DemandFailure | undefined, waitSeconds?: number): string {
+    switch (reason) {
+      case 'cooldown':
+        return `Too soon: you can make your next demand in ${formatGameDuration(waitSeconds ?? 0)}.`;
+      case 'open_demand':
+        return `A demand between you and ${target.name} is still open.`;
+      case 'unknown_faction':
+      case 'not_at_peace':
+      case 'eliminated':
+      case 'truce':
+      case 'invalid_amount':
+      case 'insufficient_credits':
+        return describeDemandInvalid(reason);
+      default:
+        return 'This demand is not possible right now.';
+    }
   }
 
   /*
@@ -1807,6 +1934,26 @@ loadError = '';
           break;
         case 'honored':
           if (involvesPlayer) lines.push(`The truce between ${name(event.initiatorId)} and ${name(event.targetId)} was honored. Reputation improved.`);
+          break;
+        case 'demand':
+          // Demands to the player get a notice; AI–AI demands only once they resolve.
+          if (event.targetId === 'player' && event.demand) {
+            lines.push(`${name(event.initiatorId)}: ${DEMAND_RULES[event.demand.kind].label.toLowerCase()} for ${event.demand.amount.toLocaleString('en-US')} credits. Open DIPLOMACY to answer.`);
+          }
+          break;
+        case 'demand_paid':
+          if (!involvesPlayer && event.demand?.kind === 'threat') {
+            lines.push(`${name(event.targetId)} paid ${event.demand.amount.toLocaleString('en-US')} credits to ${name(event.initiatorId)} under threat of war.`);
+          }
+          break;
+        case 'demand_refused':
+          // Only an expired demand reaches here for the player (answers are reported in the panel).
+          if (event.targetId === 'player') lines.push(`You let the demand of ${name(event.initiatorId)} expire: it counts as refused.`);
+          break;
+        case 'bluff':
+          lines.push(event.initiatorId === 'player'
+            ? `You did not enforce your ultimatum to ${name(event.targetId)}. Your reputation dropped.`
+            : `${name(event.initiatorId)} backed down from its ultimatum to ${name(event.targetId)}.`);
           break;
       }
     }
@@ -2148,14 +2295,6 @@ loadError = '';
 
   // Resource deposit generation helpers
 
-  private generateResourceTilesForPlanet(planet: PlanetTile): ResourceDeposit[] {
-    return generateResourceTilesUtil(planet, (p: PlanetTile) => this.getPlanetGridSize(p));
-  }
-
-  private selectPlanetsForResources(planets: PlanetTile[]): Set<number> {
-    return selectPlanetsUtil(planets);
-  }
-
   /*
    * Backfills surface terrain for planets without a usable record (e.g. a
    * save edited by hand). The v6 save migration normally does this; existing
@@ -2170,19 +2309,9 @@ loadError = '';
     }
   }
 
-  /** Ensures every planet has a deterministic resourceTiles array. */
+  /** Ensures every planet has deterministic deposit tiles and, where it has tiles, a finite reserve. */
   ensureResourceTiles(): void {
-    const allPlanets = this.starSystems.flatMap((s) => s.planetsTiles);
-    const selectedIds = this.selectPlanetsForResources(allPlanets);
-    for (const planet of allPlanets) {
-      if (selectedIds.has(planet.id)) {
-        if (!planet.resourceTiles || planet.resourceTiles.length === 0) {
-          planet.resourceTiles = this.generateResourceTilesForPlanet(planet);
-        }
-      } else {
-        planet.resourceTiles = [];
-      }
-    }
+    ensurePlanetResourcesUtil(this.starSystems.flatMap((s) => s.planetsTiles), (p: PlanetTile) => this.getPlanetGridSize(p));
   }
 
   // Selection handlers
@@ -3150,6 +3279,7 @@ loadError = '';
     // ~1 s tick of accumulated game time, so costs are frame-rate independent.
     if (this.economyAccumulator >= this.economyTickInterval) {
       let playerUnpaidUpkeep = 0;
+      const playerDeposits = minedDepositsOf('player', this.starSystems);
       for (const faction of this.factions) {
         const applied = this.economyService.applyEconomyDelta(
           faction.id,
@@ -3169,6 +3299,11 @@ loadError = '';
       };
       this.economyAccumulator = 0;
       economyUpdated = true;
+      for (const deposit of playerDeposits) {
+        if (deposit.isEmpty()) {
+          this.showMapNotice(`Mining stopped: ${deposit.label} is depleted. Find new deposits to keep raw materials flowing.`);
+        }
+      }
     }
 
     // Ownership changed during this frame (AI capture, colonization,
@@ -3309,10 +3444,22 @@ loadError = '';
         this.autoBattleResolved = true;
       },
     );
-    if (!fleetBattleStarted) {
+    const baseBattleStarted =
+      !fleetBattleStarted &&
       this.battleDetectionService.checkBaseBattles(
         this.fleets,
         this.factions,
+        this.enterBattleScreen.bind(this),
+        this.arrivalService.triggeredBattles,
+        () => {
+          this.autoBattleResolved = true;
+        },
+      );
+    if (!fleetBattleStarted && !baseBattleStarted) {
+      this.battleDetectionService.checkMiningStationBattles(
+        this.fleets,
+        this.factions,
+        this.starSystems,
         this.enterBattleScreen.bind(this),
         this.arrivalService.triggeredBattles,
         () => {
@@ -3387,13 +3534,17 @@ loadError = '';
   }
 
   /*
-   * Player fleets survey the in-system asteroid they stand on (any view:
-   * fleets keep moving inside systems while the player looks elsewhere).
-   * Only a found deposit is announced; barren rocks are marked silently.
+   * Fleets survey the in-system asteroid they stand on (any view: fleets
+   * keep moving inside systems while the player looks elsewhere). AI
+   * factions survey by the same rule (EnemyMiningService flies their outpost
+   * fleets over belts). Only the player's found deposits are announced;
+   * barren rocks are marked silently.
    */
   private surveyAsteroids(): void {
-    for (const { fleet, system, asteroid } of surveySystemAsteroids(this.fleets, this.starSystems)) {
-      if (asteroid.rawMaterials > 0) {
+    const aiIds = new Set(getAiFactionIds(this.factions));
+    const surveyed = surveySystemAsteroids(this.fleets, this.starSystems, 'player', (id) => id === 'player' || aiIds.has(id));
+    for (const { fleet, system, asteroid } of surveyed) {
+      if (fleet.factionId === 'player' && asteroid.rawMaterials > 0) {
         this.showMapNotice(
           `${fleet.name} found a raw material deposit in the ${system.name} asteroid belt: ` +
             `${asteroid.rawMaterials.toLocaleString('en-US')} raw materials.`,
@@ -3550,6 +3701,7 @@ loadError = '';
       asteroidBelts: this.asteroidBelts,
       asteroidEvents: this.asteroidService.serialize(),
       spaceBases: this.spaceBaseService.serialize(),
+      diplomaticDemands: this.diplomacyService.serializeDemands(),
     };
   }
 
@@ -3749,6 +3901,9 @@ loadError = '';
     } else {
       this.aiTickService.resetAiPipeline();
     }
+    // Open demands come from the save on every load (after the reset
+    // above), so a reload can never skip or replay an ultimatum.
+    this.diplomacyService.restoreDemands(data.diplomaticDemands, this.factions);
 
     this.clampCamera();
   }

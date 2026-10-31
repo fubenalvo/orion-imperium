@@ -137,7 +137,15 @@ needs to tell old and new records apart.
   AI colonies grow as one compact settlement around the grid center.
 - Deposits (`pickResourceDeposits`) are placed on unblocked, unoccupied
   cells, preferring cells with ≥ 4 cells of clearance from terrain and the
-  grid edge, so a 3×3 Mining Complex always fits next to them.
+  grid edge, so a 3×3 Mining Complex always fits next to them. Homeworlds get
+  theirs at galaxy generation, after the starting buildings; other planets
+  on first load (`ensurePlanetResources`, which keeps existing tiles). The
+  tiles only mark where a mine may stand; how much can be mined is the
+  planet's finite `rawDeposit` ([Economy](./economy.md#finite-deposits)).
+- A Mining Complex is refused on a planet whose deposit is depleted
+  ("This deposit is depleted: a new mine would produce nothing."); the build
+  list shows NO DEPOSIT / DEPLETED for it. The AI never places one there and
+  keeps the site of its first mine free (see [AI Pipeline](./ai-pipeline.md#construction-and-spending-policy)).
 - Starting layouts (`centerLayout`) are authored at the origin and moved to
   the grid center; the surface is generated around them.
 

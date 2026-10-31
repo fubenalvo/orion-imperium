@@ -1,7 +1,7 @@
 import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
 import planetData from '../../star-map/planet-data.json';
-import { STATION_CORE_STATS } from '../../star-map/space-base';
+import { STATION_CORE_STATS } from '../../star-map/station-defense';
 
 /*
  * =========================================================

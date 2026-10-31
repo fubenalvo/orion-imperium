@@ -15,6 +15,14 @@
           </div>
         </div>
 
+        <div class="research-tree__points">
+          <img src="icon-credits.png" alt="" width="22" height="22" />
+          <div class="ui-figure">
+            <span class="ui-figure__value">{{ getCredits() | number: '1.0-0' }}</span>
+            <span class="ui-figure__caption">Credits · research also costs credits</span>
+          </div>
+        </div>
+
         <div class="research-tree__progress">
           <div class="research-tree__progress-head">
             <span>Technologies</span>
@@ -63,7 +71,15 @@
               >
                 <div class="research-tree__card-header">
                   <span class="research-tree__card-name">{{ tech.name }}</span>
-                  <span class="research-tree__card-cost">{{ getStatus(tech.id) === 'researched' ? tech.researchCost : getCost(tech) }} RP</span>
+                  <span class="research-tree__card-cost">
+                    @if (getStatus(tech.id) === 'researched') {
+                      {{ tech.researchCost | number: '1.0-0' }} RP · {{ getBaseCreditCost(tech) | number: '1.0-0' }} CR
+                    } @else {
+                      <span [class.research-tree__cost--short]="getResearchPoints() < getCost(tech)">{{ getCost(tech) | number: '1.0-0' }} RP</span>
+                      ·
+                      <span [class.research-tree__cost--short]="getCredits() < getCreditCost(tech)">{{ getCreditCost(tech) | number: '1.0-0' }} CR</span>
+                    }
+                  </span>
                 </div>
                 <div class="research-tree__card-desc">{{ tech.description }}</div>
 

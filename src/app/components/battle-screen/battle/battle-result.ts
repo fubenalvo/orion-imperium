@@ -49,6 +49,7 @@ export function buildBattleOutcome(state: BattleModelState): BattleOutcome {
     battleType: state.battleType,
     planetId: state.planetId,
     spaceBaseId: state.spaceBaseId,
+    miningStation: state.miningStation,
   };
 }
 

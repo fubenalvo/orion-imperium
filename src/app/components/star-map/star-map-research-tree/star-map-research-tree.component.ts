@@ -24,9 +24,11 @@ export class StarMapResearchTreeComponent {
   /*
    * Current research income (points per second, from the economy
    * breakdown the HUD shows). Used only for the time estimate: research is
-   * an instant purchase once enough points have accumulated.
+   * an instant purchase once enough points and credits have accumulated.
    */
   @Input() researchPerSecond = 0;
+  /* Current net credit income, for the same estimate on the credit part of the price. */
+  @Input() creditsPerSecond = 0;
   @Output() close = new EventEmitter<void>();
   @Output() researched = new EventEmitter<void>();
 
@@ -102,11 +104,16 @@ export class StarMapResearchTreeComponent {
     return this.getAllTechnologies().filter((tech) => this.getStatus(tech.id) === filter).length;
   }
 
-  /* Share of the current cost already banked (0..1), for the affordability meter. */
+  /*
+   * Share of the current price already banked (0..1), for the affordability
+   * meter: the scarcer of the two resources decides.
+   */
   getAffordFraction(tech: Technology): number {
     const cost = this.getCost(tech);
-    if (cost <= 0) return 1;
-    return Math.min(1, this.getResearchPoints() / cost);
+    const credits = this.getCreditCost(tech);
+    const rp = cost <= 0 ? 1 : Math.min(1, this.getResearchPoints() / cost);
+    const cr = credits <= 0 ? 1 : Math.min(1, this.getCredits() / credits);
+    return Math.min(rp, cr);
   }
 
   toRoman(value: number): string {
@@ -146,6 +153,10 @@ export class StarMapResearchTreeComponent {
     return this.faction?.currencies['research'] ?? 0;
   }
 
+  getCredits(): number {
+    return this.faction?.currencies['credits'] ?? 0;
+  }
+
   onClose(): void {
     this.close.emit();
   }
@@ -171,9 +182,19 @@ export class StarMapResearchTreeComponent {
     }
   }
 
-  /* Current cost for this faction (grows with technologies already researched). */
+  /* Current research-point cost for this faction (grows with technologies already researched). */
   getCost(tech: Technology): number {
     return this.researchService.getResearchCost(this.faction, tech);
+  }
+
+  /* Credit part of the current price. */
+  getCreditCost(tech: Technology): number {
+    return this.researchService.getResearchCreditCost(this.faction, tech);
+  }
+
+  /* Price already paid for a researched technology is not tracked; show its base price. */
+  getBaseCreditCost(tech: Technology): number {
+    return this.researchService.getResearchCreditCost(null, tech);
   }
 
   getPrerequisiteNames(tech: Technology): string[] {
@@ -192,9 +213,9 @@ export class StarMapResearchTreeComponent {
   }
 
   /*
-   * Why the technology cannot be researched now, or an empty string. For
-   * missing points it includes the time to reach the cost at the current
-   * research income.
+   * Why the technology cannot be researched now, or an empty string. Every
+   * missing resource is listed (research points and credits), each with the
+   * time to reach it at the current income.
    */
   getBlockerText(tech: Technology): string {
     if (!this.faction) return '';
@@ -205,14 +226,21 @@ export class StarMapResearchTreeComponent {
         .map((id) => this.researchService.getTechnology(id)?.name ?? id);
       return `Requires ${missing.join(', ')}`;
     }
-    if (blocker === 'insufficient_research') {
-      const shortfall = Math.ceil(this.getCost(tech) - this.getResearchPoints());
-      if (this.researchPerSecond <= 0) {
-        return `Need ${shortfall} more RP (no research income — build research labs)`;
-      }
-      return `Need ${shortfall} more RP (~${this.formatDuration(shortfall / this.researchPerSecond)} at ${this.researchPerSecond.toFixed(1)} RP/s)`;
+    if (blocker !== 'insufficient_research' && blocker !== 'insufficient_credits') return '';
+    const parts: string[] = [];
+    const rpShortfall = Math.ceil(this.getCost(tech) - this.getResearchPoints());
+    if (rpShortfall > 0) {
+      parts.push(this.researchPerSecond <= 0
+        ? `Need ${rpShortfall} more RP (no research income — build research labs)`
+        : `Need ${rpShortfall} more RP (~${this.formatDuration(rpShortfall / this.researchPerSecond)} at ${this.researchPerSecond.toFixed(1)} RP/s)`);
     }
-    return '';
+    const crShortfall = Math.ceil(this.getCreditCost(tech) - this.getCredits());
+    if (crShortfall > 0) {
+      parts.push(this.creditsPerSecond <= 0
+        ? `Need ${crShortfall} more credits (no net credit income)`
+        : `Need ${crShortfall} more credits (~${this.formatDuration(crShortfall / this.creditsPerSecond)} at current income)`);
+    }
+    return parts.join(' · ');
   }
 
   private formatDuration(seconds: number): string {

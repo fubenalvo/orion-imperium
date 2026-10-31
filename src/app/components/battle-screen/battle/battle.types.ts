@@ -1,4 +1,5 @@
-﻿/*
+import type { MiningStationRef } from '../../star-map/station-defense';
+/*
  * =========================================================
  * BATTLE MINIGAME — CORE TYPES & CONSTANTS
  * =========================================================
@@ -390,6 +391,8 @@ export interface BattleModelState {
   planetColor?: string;
   /* Space base battle (see Battle.spaceBaseId). */
   spaceBaseId?: number;
+  /* Mining station battle (see Battle.miningStation). */
+  miningStation?: MiningStationRef;
   /*
    * Shared planetary shield. Optional so existing model-state fixtures that
    * predate planet battles keep compiling without a new required field.
@@ -446,6 +449,8 @@ export interface BattleOutcome {
   planetId?: number;
   /* Set when the static defenses were a space base (planetId is then absent). */
   spaceBaseId?: number;
+  /* Set when the static defenses were a mining station (planetId is then absent). */
+  miningStation?: MiningStationRef;
 }
 
 /* =========================================================
@@ -506,6 +511,11 @@ export interface Battle {
    * presentation. See docs/territory.md#combat.
    */
   spaceBaseId?: number;
+  /*
+   * Mining station battle: same static-defense shape as a space base
+   * battle, against the station on this asteroid (station-defense.ts).
+   */
+  miningStation?: MiningStationRef;
   /*
    * Technology combat multipliers per faction id, per ship type
    * (ResearchService.buildCombatBonuses), stamped when the battle is

@@ -255,6 +255,13 @@
         >
           <span class="space-base__ring" aria-hidden="true"></span>
           <span class="space-base__core" aria-hidden="true"></span>
+          @if (base.turrets > 0) {
+            <span class="station-turrets" aria-hidden="true">
+              @for (t of turretSlots(base.turrets); track $index) {
+                <span class="station-turret"></span>
+              }
+            </span>
+          }
           <span class="space-base__name">{{ base.name }}</span>
         </button>
       </div>

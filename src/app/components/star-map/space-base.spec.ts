@@ -19,6 +19,7 @@ import {
   validateBaseDeployment,
 } from './space-base';
 import { TERRITORY_CONFIG } from './territory';
+import { MAX_STATION_TURRETS, STATION_DEFENSE_CONFIG } from './station-defense';
 import { BattleOutcome } from '../battle-screen/battle/battle.types';
 
 /*
@@ -149,14 +150,14 @@ describe('space bases', () => {
     expect(foreign.cells.size).toBe(0);
   });
 
-  it('builds an immobile defense roster (core + turrets) with a shared shield', () => {
+  it('builds an immobile defense roster (core + researched turrets) with a shared shield', () => {
     const b: SpaceBase = { id: 4, name: 'B', factionId: 'enemy1', x: 60, y: 40, shieldPoolCurrent: 40 };
-    const defense = buildBaseDefenseFleet(b);
+    const defense = buildBaseDefenseFleet(b, MAX_STATION_TURRETS);
     expect(defense.id).toBe(spaceBaseDefenseFleetId(b));
     expect(defense.id).toBeLessThan(-1_000_000);
-    expect(defense.ships.map((s) => s.type)).toEqual([SPACE_BASE_CONFIG.coreTypeId, ...SPACE_BASE_CONFIG.turretTypeIds]);
+    expect(defense.ships.map((s) => s.type)).toEqual([STATION_DEFENSE_CONFIG.coreTypeId, ...STATION_DEFENSE_CONFIG.turretTypeIds]);
     expect(defense.shieldPool).toBe(40);
-    expect(defense.shieldPoolMax).toBe(SPACE_BASE_CONFIG.shield);
+    expect(defense.shieldPoolMax).toBe(STATION_DEFENSE_CONFIG.shield);
   });
 
   describe('base battles', () => {
@@ -218,12 +219,12 @@ describe('space bases', () => {
       });
 
       const won = { fleets: [attacker], factions, spaceBases: [{ id: 3, name: 'B', factionId: 'enemy1', x: 60, y: 40 }] };
-      expect(outcomeService.applySpaceBaseBattleOutcome(won, outcome('attacker'))).toBe(true);
+      expect(outcomeService.applyStationBattleOutcome(won, outcome('attacker'))).toBe(true);
       expect(won.spaceBases).toEqual([]);
       expect(attacker.ships[0].currentHp).toBe(120);
 
       const lost = { fleets: [fleet(5, 'player', 60, 40, ['cruiser'])], factions, spaceBases: [{ id: 3, name: 'B', factionId: 'enemy1', x: 60, y: 40 } as SpaceBase] };
-      expect(outcomeService.applySpaceBaseBattleOutcome(lost, outcome('defender'))).toBe(false);
+      expect(outcomeService.applyStationBattleOutcome(lost, outcome('defender'))).toBe(false);
       expect(lost.spaceBases[0].shieldPoolCurrent).toBe(33);
       expect(lost.fleets[0].destroyed).toBe(true);
     });
@@ -242,7 +243,7 @@ describe('space bases', () => {
       const migrated = TestBed.inject(SaveGameService).migrateSave(baseSave({ saveVersion: 6 }));
       expect(migrated.spaceBases).toEqual([]);
       expect(migrated.saveVersion).toBe(SAVE_VERSION);
-      expect(SAVE_VERSION).toBe(8);
+      expect(SAVE_VERSION).toBeGreaterThanOrEqual(8);
     });
 
     it('bases survive a save slot round trip and restore the same territory', () => {

@@ -681,6 +681,17 @@
   white-space: nowrap;
 }
 
+/* The part of a price the player cannot pay yet. */
+.planet-sidebar__price--short {
+  color: var(--ui-danger);
+}
+
+/* Remaining share of the deposit (full bar = untouched). */
+.planet-sidebar__deposit-meter {
+  display: block;
+  margin: 0.2em 0 0.4em;
+}
+
 .planet-sidebar__build-active {
   display: flex;
   flex-direction: column;

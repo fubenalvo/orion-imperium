@@ -10,11 +10,13 @@ Related: [Planet Capture](./planet-capture.md) (capture rules, game outcome), [E
 | --- | --- |
 | Relation kinds, hostility rule, planet-attack rule; opinion, reputation and exhaustion values and their events; treaty state changes (`startWar`, `startPeace`); time-based updates (`tickDiplomacyTime`); load normalization; all tuning constants | `src/app/components/star-map/diplomacy.ts` |
 | Peace treaty model (resources only), feasibility validation | `src/app/components/star-map/peace-treaty.ts` |
-| Treaty actions (declare war, break treaty, execute treaty), AI proposals to the player, treaty events | `DiplomacyService` (`src/app/services/diplomacy.service.ts`) |
-| AI judgment: war assessment, treaty evaluation, counter-offers, AI–AI settlement, proposals, war decisions | `EnemyDiplomacyService` (`src/app/components/star-map/enemy-diplomacy.service.ts`) |
+| Credit demand model (kinds, rules table, validation, flavor text, save sanitizing) | `src/app/components/star-map/diplomatic-demand.ts` |
+| Atomic resource transfer between factions (treaties and demands; never touches treaty state) | `src/app/components/star-map/resource-transfer.ts` |
+| Treaty actions (declare war, break treaty, execute treaty), AI proposals to the player, treaty events; demand actions (issue, accept, refuse, carry out, back down) and the open (saved) demands | `DiplomacyService` (`src/app/services/diplomacy.service.ts`) |
+| AI judgment: war assessment, treaty evaluation, counter-offers, AI–AI settlement, proposals, war decisions; demand planning, demand evaluation, threat follow-through | `EnemyDiplomacyService` (`src/app/components/star-map/enemy-diplomacy.service.ts`) |
 | War-loss recording | `BattleOutcomeService` (ship losses, surprise attacks), `PlanetOwnershipService.transferPlanet` (planet losses) |
 | Exhaustion penalty on output | `EconomyService` (`gainMultiplier`) |
-| Persisted state | `Faction.relations`, `Faction.reputation` (`star-map.models.ts`) |
+| Persisted state | `Faction.relations`, `Faction.reputation`, `Faction.demandCooldown`, `Faction.emptyThreats`, `StarMapData.diplomaticDemands` (`star-map.models.ts`) |
 | UI | `StarMapDiplomacyComponent` (overview), `StarMapPeaceNegotiationComponent` (negotiation), view models in `star-map-diplomacy-vm.ts`, actions in `StarMap` |
 | Diplomatic victory | `GameOutcomeService` |
 
@@ -46,10 +48,12 @@ The UI shows durations as game time through `formatGameDuration` (`diplomacy.ts`
 | `truce` | symmetric | the post-treaty truce is running |
 | `warSeconds`, `declaredBy`, `surpriseRecorded` | symmetric | current war's age, declarer (absent for opening wars), surprise penalty applied |
 | `opinion` | per side | holder's opinion of the other, −100…+100 |
+| `demandCooldown` | per side | game seconds until the holder may demand credits from the other again |
+| `demandsReceived`, `demandsRefused` | per side | decaying memory of the other's demands on the holder / of the holder's demands the other refused |
 | `warExhaustion` | per side | holder's exhaustion in this war, 0…100 |
 | `shipsLostValue`, `planetsLost` | per side | holder's losses in this war |
 
-`Faction.reputation` (−100…+100) is per faction. Only `startWar` / `startPeace` change the treaty state and they always write both sides; `adjustOpinion`, `adjustReputation`, `recordShipLosses`, `recordPlanetLoss`, `recordHostileAct` and `tickDiplomacyTime` change the values.
+`Faction.reputation` (−100…+100) is per faction, and so are `Faction.demandCooldown` and `Faction.emptyThreats` (see below). Demand cooldowns and memories survive war and peace. Only `startWar` / `startPeace` change the treaty state and they always write both sides; `adjustOpinion`, `adjustReputation`, `recordShipLosses`, `recordPlanetLoss`, `recordHostileAct` and `tickDiplomacyTime` change the values.
 
 ## Opinion
 
@@ -59,7 +63,7 @@ A's opinion of B. Changes: B declares war on A −30; B breaks a truce with A �
 
 ## Reputation
 
-Declaring war −5; **surprise attack** −15 (the declarer attacks — fleet battle, planet battle or capture — within 1 minute of game time after its own declaration; once per war); breaking a truce −40; a truce that runs out unbroken +5 for both; while at war with nobody +0.5 per minute up to +50.
+Declaring war −5; not carrying out a refused ultimatum −3; **surprise attack** −15 (the declarer attacks — fleet battle, planet battle or capture — within 1 minute of game time after its own declaration; once per war); breaking a truce −40; a truce that runs out unbroken +5 for both; while at war with nobody +0.5 per minute up to +50.
 
 ## War exhaustion
 
@@ -134,6 +138,39 @@ Deterministic and explainable.
 
 **Information:** diplomacy uses real total fleet strength, losses and exhaustion — treated as public knowledge (envoys, intelligence); tactical layers still only use sensor data.
 
+## Financial demands and ultimatums
+
+Peace-time credit demands between treaty partners (`diplomatic-demand.ts`). At war, payments belong to the peace negotiation, so demands are only possible at peace; they carry only credits. Player and AI use the same model, rules and code path (`EnemyDiplomacyService.makeDemand` → `DiplomacyService.issueDemand`).
+
+| Kind | Meaning | Target's opinion when made | Refusal: demander's opinion of target (× AI tolerance) / target's of demander | After payment: demander / payer |
+| --- | --- | --- | --- | --- |
+| `request` | asks for financial support | 0 | −6 / −1 | +4 / 0 |
+| `tribute` | the stronger side expects payment; no explicit war threat | −4 | −12 / −3 | +2 / −3 |
+| `threat` | ultimatum: pay or face war | −8 | −20 / −5 | +2 / −6 |
+
+Every demand the target still remembers from the same demander (`demandsReceived`, fades 0.2 per minute) costs another −3 opinion and makes it resist harder, so repeated demands sour relations. Payment never buys significant goodwill.
+
+**Rules** (`validateDemand`, shared by issuing, answering and paying): two living treaty partners at peace; a whole amount ≥ `MIN_DEMAND_CREDITS` (100) that the target holds now; no threat during a truce (it could only be enforced by breaking the treaty). `DiplomacyService.canIssueDemand` adds: the demander's global cooldown (`Faction.demandCooldown`: the AI personality's value, 180 s for the human) and per-target cooldown (600 s), at most one open demand per pair, and at most `MAX_PENDING_PLAYER_DEMANDS` (2) demands waiting for the human at once (no notice spam). All cooldowns are game time, live on the factions and are saved.
+
+**Payment** (`acceptDemand`) is one transaction: re-validated, then the credits move through the shared atomic `transferResources` (`resource-transfer.ts`, also used by `executeTreaty`). It never starts peace or a truce, and on failure nothing changes. An AI pays at most its *spendable* credits: above the `EnemyEconomyService.getSpendingReserve` reserve and at most 60% of its stock.
+
+**Lifecycle.** An AI target answers at once (AI–AI demands need no UI and leave no stored state). A demand to the human waits as `pending` for `DEMAND_RESPONSE_SECONDS` (120 s of game time); letting it expire counts as a refusal. When an AI refuses the human's threat, the human gets a `follow_through` entry: declare war or back down within 60 s; letting it expire counts as backing down. Open demands are saved (`StarMapData.diplomaticDemands`) and restored after every load, so a reload cannot skip a decision or its consequences. Any war or peace between the pair voids its open demands; offers and demands of other pairs are never touched.
+
+**AI judgment** (deterministic, no randomness):
+
+- *Planning* (`planDemand`, every decision interval between the peace and the war review, once the AI is off its global cooldown). Per peace partner it may demand from: a **threat** when it can start a war (war limit, exhaustion < 40), there is no truce, the target is within `WAR_REACH`, its strength ratio is ≤ `threatRatio` (× 1.2 after a recent refusal: it escalates) and the effective opinion is ≤ `warOpinionMax` + 25; otherwise **tribute** when the ratio is ≤ `tributeRatio`, no truce, within 1.5 × `WAR_REACH` and opinion ≤ 30; otherwise a **request** when its own treasury is below a quarter of its scale, it does not dislike the target and was not refused twice recently. Amount = own scale × `demandShare` × kind multiplier (request 0.4, tribute 0.8, threat 1.2), capped at half of the target's credits (an AI target: also its spendable credits), rounded down to tens. It picks the harshest kind, then the weakest target. While a demand between it and a target is open, it does not declare war on that target in parallel.
+- *Answering* (`evaluateDemand`): named factors like `assessWar`. All kinds: cost to the treasury (−0.6 × amount / scale), repeated demands. Request: reluctance −0.1, relations 0.8 × effective opinion / 100, the demander's need +0.15, `generosity`. Tribute / threat: pride (−0.25 / −0.15), balance of power (0.6 / 1.0 × `0.5 × log2(their strength / own)`, ±1), relations 0.2 × opinion, `yieldBias`; threats also: out of reach −0.4, the demander cannot take on another war −0.3, its empty threats −0.2 each, already at war elsewhere +0.2. Pays iff valid, affordable and the sum ≥ 0.
+- *Follow-through* (`assessFollowThrough`, when its threat is refused, from the state at that moment): impossible if `declareWar` would refuse (truce), it is at its war limit or exhausted, or out of reach — then it bluffs. Otherwise `followThrough` + military balance (`0.4 × log2(own / theirs)`, ±0.8) − 0.3 × effective opinion / 100 + 0.15 × its own empty threats; ≥ 0 → war through the normal `DiplomacyService.declareWar` (all its checks and penalties), < 0 → bluff.
+
+**Credibility.** Backing down (an AI bluff, or the human not enforcing a refused ultimatum) costs −3 reputation and adds one `Faction.emptyThreats` (cap 5, fades 0.1 per minute). Every empire then takes its threats less seriously, and the bluffer is pushed to carry out the next one; carrying out a threat forgives one empty threat.
+
+| Personality | demandCooldown | demandShare | threatRatio | tributeRatio | followThrough | refusalTolerance | yieldBias | generosity |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| balanced | 480 s | 0.5 | 0.5 | 0.65 | −0.3 | 1 | 0 | 0.05 |
+| expansionist | 420 s | 0.6 | 0.55 | 0.7 | −0.15 | 1.1 | −0.05 | 0 |
+| militarist | 300 s | 0.8 | 0.8 | 0.9 | +0.35 | 1.4 | −0.2 | −0.1 |
+| technologist | 720 s | 0.35 | 0.3 | 0.45 | −0.9 | 0.7 | +0.1 | +0.15 |
+
 ## Border violations
 
 A fleet inside the territory of an empire its faction is at peace with violates its borders: the owner's opinion of the intruder drops on entry and while the fleet stays, scaled by fleet value and by repeated incidents. It never declares war; it only feeds opinion (and through it the AI's war and treaty decisions). `FactionRelation.passageRights` is prepared for future passage treaties (revoked by `startWar`). See [Territory](./territory.md#border-violations).
@@ -144,8 +181,9 @@ Only battles with a human side open the battle screen. Two AI factions at war th
 
 ## Player UI
 
-- **Header DIPLOMACY button** (badge = open AI proposals); map notices announce war declarations, treaty breaches, signed peace, honored truces of the player and new AI proposals.
+- **Header DIPLOMACY button** (badge = open AI proposals, incoming demands and pending ultimatum follow-throughs); map notices announce war declarations, treaty breaches, signed peace, honored truces of the player, new AI proposals and the demand events listed below.
 - **Diplomacy screen**: summary (your reputation, worst exhaustion and its output penalty, wars); per empire: relation chip (war + its duration / truce + time left / peace), their opinion of you and their reputation (centred −100…+100 bars), exhaustion you / them, planets, fleet comparison, their wars and peaces, open proposal (REVIEW / DECLINE), and NEGOTIATE PEACE / DECLARE WAR… / BREAK TREATY…. War and breach go through an inline confirmation stating the exact consequences.
+- **Demands on the Diplomacy screen**: at peace, DEMAND CREDITS… opens an inline form (Request support / Demand tribute / Ultimatum, amount up to their credits, the consequences of the chosen kind, SEND); when unavailable the card says why (cooldown, open demand, too poor). An incoming AI demand shows on the demander's card: kind, amount, time left, the message in the demander's voice (tone by personality and kind), what refusing may cost, ACCEPT / DECLINE. The screen never reveals whether an AI threat is a bluff. A refused ultimatum of the player shows DECLARE WAR / BACK DOWN with its timer. The header badge counts open proposals, incoming demands and pending follow-throughs; map notices announce demands to the player, expiries, bluffs and AI–AI ultimatums that were paid.
 - **Negotiation dialog** (pauses the game; resumes on close if it was running): both sides' standing (opinion, reputation, exhaustion, treasury), the AI's terms on the table (proposal or counter-offer: ACCEPT TERMS / EDIT AS DRAFT / DECLINE), a two-column draft — *you demand* (their credits and raw materials) and *you offer* (yours) — and the AI's live judgment of the draft (meter with the threshold mark, verdict with the missing value, every factor). SEND PROPOSAL → the AI accepts (executed at once), counters, or refuses. Accepting AI terms re-checks the AI's agreement against the current state first ("withdrawn" if the situation changed).
 
 ## Diplomatic victory
@@ -154,17 +192,20 @@ Only battles with a human side open the battle screen. Two AI factions at war th
 
 ## Persistence and save compatibility
 
+- Open demands are saved in `StarMapData.diplomaticDemands` (save version 9; older saves get `[]`) and restored by `DiplomacyService.restoreDemands` after every load (also the reload after a battle), which drops malformed entries, unknown factions and pairs no longer at peace. Demand cooldowns, memories and empty threats are optional fields on `Faction` and `FactionRelation` that `normalizeRelations` defaults and clamps.
 - `Faction.relations` and `Faction.reputation` are saved with the factions; no save-version bump. `SaveGameService.migrateSave` runs `normalizeRelations` on every load: missing entries become war, missing values get defaults (opinion 0, exhaustion 0, counters 0, reputation 0), values are clamped, symmetric fields are reconciled (disagreement → war). Diplomacy v0 saves load with their war/peace states; a v0 peace has no truce.
-- Not saved (rebuilt within one decision interval): open AI proposals, proposal cooldowns, the event queue, the AI decision clock, an open negotiation. `resetAiPipeline` clears them on a genuine load / new game; a battle-screen round trip keeps them.
+- Not saved (rebuilt within one decision interval): open AI peace proposals (unlike demands, see above), proposal cooldowns, the event queue, the AI decision clock, an open negotiation. `resetAiPipeline` clears them on a genuine load / new game; a battle-screen round trip keeps them.
 
 ## Testing
 
 - `diplomacy.spec.ts`: relation kinds and planet rule; v0 migration, clamping, legacy alliance, idempotence; per-minute exhaustion, opinion drift, honored truce, peace reputation, freezing while paused / for eliminated factions; ship/planet loss bookkeeping, surprise attacks, output penalty; `DiplomacyService` war/breach consequences and truce, atomic execution (resources move, planets never do, truce, exhaustion reset), infeasible terms change nothing, planet/system items rejected (`unsupported_item`), payer short of resources meanwhile, save round-trip, negotiation locks, proposal expiry; `EnemyDiplomacyService` factors, acceptance threshold, counter-offers (feasible, self-accepted, within the other side's means), refusal without a counter, AI–AI settlement with payment and white peace, proposals to the player, war declaration (opinion, truce, treachery, exhaustion), never a planet or system item in any AI treaty, pause; real-time timers (duration formatting, continuous rates, everything frozen at zero delta and resuming, no "turn" in the screen view models); economy penalty; diplomatic victory; AI-vs-AI auto battles with loss recording; capture vs rebellion bookkeeping.
+- `diplomatic-demand.spec.ts`: an AI demanding from the player (deterministic), paying (exact atomic transfer), refusing a request (opinion only), a refused threat carried out (normal war declaration) or bluffed (reputation, lasting credibility loss), the player demanding through the same path, AI acceptance and refusal, the player's follow-through (war, or expiry = backing down), AI–AI demands, never paying more than held or spendable, cooldowns (also across a save round trip and while paused), the cap on demands waiting for the player, save/load of pending demands with their deadline and expiry after a reload, no ultimatum or war through a truce, no interference with other open offers and demands.
 - `ai-simulation.spec.ts`: the harness mirrors the game loop (diplomacy tick with alive factions, AI-vs-AI auto battles). League and long-duration runs play real new games (AI wars and treaties), resolve player fleet battles as AUTO, and keep simulating after the passive stand-in player is defeated (`continueAfterOutcome`).
 
 ## Known limitations
 
-- No alliances, trade, tribute outside peace treaties, shared intel, or passage treaties (the passage flag exists, nothing grants it yet).
+- No alliances, trade, recurring tribute (each tribute demand is a one-off payment; the demander may demand again after its cooldowns), shared intel, or passage treaties (the passage flag exists, nothing grants it yet).
+- Demands carry credits only (no raw materials), and only at peace.
 - Planets and systems cannot be traded diplomatically (by design).
 - Fleet-strength comparisons ignore research bonuses and stock ships.
-- The AI proposes peace to the player only when it wants out; a winning AI never proactively demands tribute (it answers the player's proposals with counter-offers instead).
+- The AI proposes peace to the player only when it wants out; a winning AI at war does not dictate peace terms (it answers the player's proposals with counter-offers). At peace it may demand tribute or threaten war (see above).

@@ -217,7 +217,7 @@ describe('StarMap', () => {
     it('should execute produce_colonizer through the full AI pipeline', () => {
       component.factions = component.factions.map((f) => {
         if (f.id === 'enemy1') {
-          return { ...f, currencies: { credits: 1000, rawmaterials: 1000 }, researchedTechnologies: ['basic_engineering'] };
+          return { ...f, currencies: { credits: 5000, rawmaterials: 1000 }, researchedTechnologies: ['basic_engineering'] };
         }
         return f;
       });

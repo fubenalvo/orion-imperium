@@ -73,6 +73,30 @@
         }
       }
 
+      <div class="ui-label"><img src="icon-rawmaterial.png" alt="" width="14" height="14" /> Raw-material deposit</div>
+      @if (depositView; as deposit) {
+        <div
+          class="ui-stat"
+          [class.ui-stat--positive]="deposit.status === 'active'"
+          [class.ui-stat--danger]="deposit.status === 'depleted'"
+        >
+          <span class="ui-stat__label">{{ deposit.label }}</span>
+          <span class="ui-stat__value">{{ deposit.remaining | number: '1.0-0' }} / {{ deposit.total | number: '1.0-0' }}</span>
+        </div>
+        <div class="ui-stat">
+          <span class="ui-stat__label">Extracted · richness</span>
+          <span class="ui-stat__value">{{ deposit.depletedPercent }}% · ×{{ deposit.richness | number: '1.2-2' }}</span>
+        </div>
+        @if (deposit.status === 'active') {
+          <div class="ui-stat">
+            <span class="ui-stat__label">Mining rate</span>
+            <span class="ui-stat__value">{{ deposit.miningRate | number: '1.0-1' }}/s</span>
+          </div>
+        }
+      } @else {
+        <div class="planet-info__empty">No raw-material deposit.</div>
+      }
+
       @if (colonization) {
         <div class="ui-label">Colonization</div>
         <div class="planet-info__note">

@@ -12,6 +12,7 @@ import {
   systemCellCenterVw,
 } from './system-grid';
 import { createSurfaceRng } from './planet-surface/planet-surface-field';
+import { markAsteroidSurveyed } from './raw-deposits';
 
 /*
  * In-system asteroid belts (docs/game-systems.md, "Star system view").
@@ -26,12 +27,23 @@ import { createSurfaceRng } from './planet-surface/planet-surface-field';
  *   still persisted on the StarSystem because survey results live in it.
  * - Asteroids never overlap a planet footprint or the ring of cells around
  *   it, and do not block movement.
- * - Surveying is player-only and only reveals the deposit. A surveyed
- *   deposit can be mined by a mining station deployed from an outpost ship
- *   (mining-station.ts); the AI ignores belts entirely.
+ * - Surveying only reveals the deposit, per faction: the human player's
+ *   survey sets `surveyed`, an AI faction's survey adds it to `surveyedBy`
+ *   (same rule: a fleet of that faction on the cell). A surveyed deposit can
+ *   be mined by a mining station deployed from an outpost ship
+ *   (mining-station.ts).
+ * - Every deposit is finite: `totalRawMaterials` is its original size,
+ *   `rawMaterials` what is left, `extractionRate` how fast a station empties
+ *   it (docs/economy.md, "Finite deposits").
  */
 export const SYSTEM_ASTEROID_CONFIG = {
-  generatorVersion: 1,
+  /*
+   * 2: larger deposits and per-asteroid extraction rates. The layout and the
+   * random draws are identical to version 1; only the deposit range differs,
+   * so a version-1 belt can be regenerated exactly to recover the original
+   * size of a deposit that was already being mined (backfillDepositFields).
+   */
+  generatorVersion: 2,
   /* Belt center-line radius limits (vw from the star center). The inner
      limit keeps the belt out of the star's glow. */
   minRadiusVw: 26,
@@ -46,9 +58,25 @@ export const SYSTEM_ASTEROID_CONFIG = {
   minAsteroids: 14,
   /* Share of asteroids holding a deposit (rounded, at least one). */
   richShare: 0.1,
-  richRawMaterials: { min: 2000, max: 4000 },
+  richRawMaterials: { min: 3000, max: 7000 },
+  /* Deposit range of version-1 belts (saves made before finite-deposit tuning). */
+  legacyRichRawMaterials: { min: 2000, max: 4000 },
+  /* Station extraction rate (raw/s) of a deposit; drawn per asteroid. */
+  extractionRate: { min: 3, max: 8 },
   radiusAttempts: 12,
 } as const;
+
+/*
+ * Extraction rate of the asteroid at (col, row): a hash of the galaxy seed,
+ * system id and cell, independent of the belt's random stream so it can be
+ * assigned to old belts without regenerating them. Rounded to 0.5 raw/s.
+ */
+export function asteroidExtractionRate(galaxySeed: number, systemId: string, col: number, row: number): number {
+  const { min, max } = SYSTEM_ASTEROID_CONFIG.extractionRate;
+  const rng = createSurfaceRng(systemAsteroidSeed(galaxySeed, systemId) ^ Math.imul(col * 131 + row, 0x27d4eb2d));
+  rng();
+  return Math.round((min + rng() * (max - min)) * 2) / 2;
+}
 
 /* Seed for one system's belt, mixed from the galaxy seed and the system id. */
 export function systemAsteroidSeed(galaxySeed: number, systemId: string): number {
@@ -143,7 +171,11 @@ function layBelt(rng: () => number, radius: number, keepOut: Set<string>): Syste
   return asteroids;
 }
 
-export function generateSystemAsteroidBelt(galaxySeed: number, system: StarSystem): SystemAsteroidBelt {
+export function generateSystemAsteroidBelt(
+  galaxySeed: number,
+  system: StarSystem,
+  version: number = SYSTEM_ASTEROID_CONFIG.generatorVersion,
+): SystemAsteroidBelt {
   const cfg = SYSTEM_ASTEROID_CONFIG;
   const rng = createSurfaceRng(systemAsteroidSeed(galaxySeed, system.id));
   const planets = Array.isArray(system.planetsTiles) ? system.planetsTiles : [];
@@ -169,13 +201,52 @@ export function generateSystemAsteroidBelt(galaxySeed: number, system: StarSyste
       const j = Math.floor(rng() * (i + 1));
       [order[i], order[j]] = [order[j], order[i]];
     }
-    const { min, max } = cfg.richRawMaterials;
+    const { min, max } = version <= 1 ? cfg.legacyRichRawMaterials : cfg.richRawMaterials;
     for (const index of order.slice(0, richCount)) {
       asteroids[index].rawMaterials = Math.round((min + rng() * (max - min)) / 50) * 50;
     }
   }
+  for (const asteroid of asteroids) {
+    asteroid.totalRawMaterials = asteroid.rawMaterials;
+    asteroid.extractionRate = asteroidExtractionRate(galaxySeed, system.id, asteroid.col, asteroid.row);
+  }
 
-  return { version: cfg.generatorVersion, radiusVw: Math.round(radius * 100) / 100, asteroids };
+  return { version, radiusVw: Math.round(radius * 100) / 100, asteroids };
+}
+
+function isFiniteNonNegative(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+/*
+ * Fills `totalRawMaterials` and `extractionRate` on belts saved before they
+ * existed. An untouched deposit's remaining amount is its original size; a
+ * deposit with a station may already be partly mined, so its original size
+ * is taken from regenerating the belt with the version that made it.
+ */
+function backfillDepositFields(belt: SystemAsteroidBelt, galaxySeed: number, system: StarSystem): void {
+  let reference: Map<string, number> | null = null;
+  for (const asteroid of belt.asteroids) {
+    if (!isFiniteNonNegative(asteroid.totalRawMaterials)) {
+      if (asteroid.miningStation) {
+        reference ??= new Map(
+          generateSystemAsteroidBelt(galaxySeed, system, belt.version).asteroids
+            .map((a) => [`${a.col},${a.row}`, a.rawMaterials] as const),
+        );
+        asteroid.totalRawMaterials = Math.max(asteroid.rawMaterials, reference.get(`${asteroid.col},${asteroid.row}`) ?? 0);
+      } else {
+        asteroid.totalRawMaterials = asteroid.rawMaterials;
+      }
+    }
+    asteroid.totalRawMaterials = Math.max(asteroid.totalRawMaterials, asteroid.rawMaterials);
+    if (!isFiniteNonNegative(asteroid.extractionRate) || asteroid.extractionRate === 0) {
+      asteroid.extractionRate = asteroidExtractionRate(galaxySeed, system.id, asteroid.col, asteroid.row);
+    }
+    if (asteroid.surveyedBy !== undefined
+      && (!Array.isArray(asteroid.surveyedBy) || asteroid.surveyedBy.some((id) => typeof id !== 'string'))) {
+      delete asteroid.surveyedBy;
+    }
+  }
 }
 
 function isValidBelt(belt: unknown): belt is SystemAsteroidBelt {
@@ -220,6 +291,7 @@ export function ensureSystemAsteroidBelts(systems: StarSystem[], galaxySeed: num
         delete asteroid.miningStation;
       }
     }
+    backfillDepositFields(system.asteroidBelt, galaxySeed, system);
   }
 }
 
@@ -230,27 +302,29 @@ export interface AsteroidSurveyResult {
 }
 
 /*
- * Marks asteroids under human player fleets as surveyed. Any presence on the
- * cell counts, including flying through it. Returns only newly surveyed
- * asteroids so callers can announce discoveries once.
+ * Marks asteroids under fleets as surveyed by the fleet's faction. Any
+ * presence on the cell counts, including flying through it. By default only
+ * the human player surveys; the game loop also passes the AI factions
+ * (`canSurvey`), which survey by the same rule. Returns only newly surveyed
+ * (fleet faction, asteroid) pairs so callers can announce discoveries once.
  */
 export function surveySystemAsteroids(
   fleets: Fleet[],
   systems: StarSystem[],
   playerFactionId = 'player',
+  canSurvey: (factionId: string) => boolean = (id) => id === playerFactionId,
 ): AsteroidSurveyResult[] {
   const results: AsteroidSurveyResult[] = [];
   let systemsById: Map<string, StarSystem> | null = null;
   for (const fleet of fleets) {
-    if (fleet.destroyed || fleet.factionId !== playerFactionId || !fleet.system?.id) continue;
+    if (fleet.destroyed || !fleet.system?.id || !canSurvey(fleet.factionId)) continue;
     systemsById ??= new Map(systems.map((s) => [s.id, s]));
     const system = systemsById.get(fleet.system.id);
     const belt = system?.asteroidBelt;
     if (!system || !belt) continue;
     const cell = systemCellAtVw(fleet.system.x, fleet.system.y);
     const asteroid = belt.asteroids.find((a) => a.col === cell.col && a.row === cell.row);
-    if (asteroid && !asteroid.surveyed) {
-      asteroid.surveyed = true;
+    if (asteroid && markAsteroidSurveyed(asteroid, fleet.factionId, playerFactionId)) {
       results.push({ fleet, system, asteroid });
     }
   }

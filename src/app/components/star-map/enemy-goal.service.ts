@@ -14,6 +14,7 @@ import { ShipService } from '../../services/ship.service';
 import { getEnemyFleets, getHostileFleets, getEnemyPlanets, getUnhabitedPlanets, getColonizationReach, isHostileFleet } from './ai-queries';
 import { EnemyReachService } from './enemy-reach.service';
 import { TerritoryService } from './territory.service';
+import { isAsteroidSurveyedBy, rawOutlook, rawSupplyPressure } from './raw-deposits';
 
 /*
  * =========================================================
@@ -55,6 +56,17 @@ export class EnemyGoalService {
   private readonly COLONIZE_RETRY_DELAY = 600;
   // Score multiplier for systems where another faction already owns a planet.
   private readonly CONTESTED_SYSTEM_WEIGHT = 0.5;
+  /*
+   * Raw-material deposits make a colony target more valuable in proportion
+   * to the faction's raw-supply pressure (raw-deposits.ts): a planet with a
+   * typical deposit (REFERENCE_DEPOSIT) scores up to 1 + 2 × DEPOSIT_WEIGHT
+   * = 2.2× when the faction's mines are about to run dry, and only slightly
+   * more when supply is comfortable. Free asteroid deposits the faction
+   * surveyed in the same system count too, so an asteroid-rich system is
+   * worth settling. Finite deposits are what pushes the AI to expand.
+   */
+  private readonly DEPOSIT_WEIGHT = 0.6;
+  private readonly REFERENCE_DEPOSIT = 40000;
 
   /*
    * One accumulator per faction. tick() is called once per AI faction per
@@ -366,6 +378,8 @@ export class EnemyGoalService {
     const clock = this.clocks.get(factionId) ?? 0;
     const failed = this.failedColonizeTargets.get(factionId);
 
+    const rawPressure = rawSupplyPressure(rawOutlook(factionId, starSystems));
+
     const scored = candidates
       .filter(({ planet }) => !targetedPlanetIds.has(planet.id))
       .filter(({ planet }) => (failed?.get(planet.id) ?? -Infinity) <= clock)
@@ -383,7 +397,9 @@ export class EnemyGoalService {
           (p) => p.factionId !== factionId && p.factionId !== 'unhabited',
         );
         const contestWeight = contested ? this.CONTESTED_SYSTEM_WEIGHT : 1;
-        const score = (20 / distanceFromEnemy) * habitabilityWeight * sizeWeight * contestWeight;
+        const depositWeight = 1 + rawPressure * this.DEPOSIT_WEIGHT
+          * Math.min(1.5, this.knownDepositValue(factionId, system, planet) / this.REFERENCE_DEPOSIT);
+        const score = (20 / distanceFromEnemy) * habitabilityWeight * sizeWeight * contestWeight * depositWeight;
 
         return {
           system,
@@ -655,6 +671,22 @@ export class EnemyGoalService {
       }
     }
     return minDistance;
+  }
+
+  /*
+   * Raw materials a colony on `planet` would give access to: the planet's
+   * own remaining deposit plus free, non-empty asteroid deposits in its
+   * system that this faction has surveyed (it never uses deposits it has
+   * not found itself).
+   */
+  private knownDepositValue(factionId: string, system: StarSystem, planet: StarSystem['planetsTiles'][0]): number {
+    let value = planet.rawDeposit?.remaining ?? 0;
+    for (const asteroid of system.asteroidBelt?.asteroids ?? []) {
+      if (!asteroid.miningStation && asteroid.rawMaterials > 0 && isAsteroidSurveyedBy(asteroid, factionId)) {
+        value += asteroid.rawMaterials;
+      }
+    }
+    return value;
   }
 
   private getHabitabilityWeight(planet: StarSystem['planetsTiles'][0]): number {

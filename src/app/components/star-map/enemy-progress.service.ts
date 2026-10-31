@@ -5,6 +5,7 @@ import { EnemyFleetService } from './enemy-fleet.service';
 import { EnemyPlanService } from './enemy-plan.service';
 import { isCombatShipType } from './ai-queries';
 import { ShipService } from '../../services/ship.service';
+import { hasLivingOutpostShip } from './space-base';
 
 /*
  * =========================================================
@@ -163,6 +164,7 @@ export class EnemyProgressService {
     if (gameDeltaTime <= 0 || faction.ai !== true) {
       return false;
     }
+    this.pruneFleetMotion(data.fleets);
     const state = this.state(faction.id);
     state.clock += gameDeltaTime;
     if (state.clock < state.nextSampleAt) {
@@ -227,7 +229,11 @@ export class EnemyProgressService {
       }
       // Has an order but has not moved: the objective cannot be completed.
       this.pushEvent({ time: state.clock, factionId: faction.id, type: 'stuck_fleet', detail: `fleet ${fleet.id}` });
-      if (pipelineFleetIds.has(fleet.id)) {
+      if (hasLivingOutpostShip(fleet)) {
+        // EnemyMiningService owns it and re-plans when the route fails.
+        fleet.targetX = null;
+        fleet.targetY = null;
+      } else if (pipelineFleetIds.has(fleet.id)) {
         const carriesColonizer = fleet.ships.some((s) => s.type === 'colonizer' && !s.destroyed);
         this.goalService.abandonGoal(faction.id, carriesColonizer && this.goalService.getColonizationGoal(faction.id) ? 'colonization' : 'primary');
         fleet.targetX = null;
@@ -239,6 +245,30 @@ export class EnemyProgressService {
       changed = true;
     }
     return changed;
+  }
+
+  /*
+   * The per-faction loop below only forgets a fleet it still sees as
+   * destroyed. Fleets removed from the list, and fleets of an eliminated
+   * AI (which no longer ticks), would otherwise stay forever; this keeps
+   * the map bounded by the living fleets at every frame. One pass over the
+   * fleets, so it is cheap enough to run on every tick.
+   */
+  private pruneFleetMotion(fleets: Fleet[]): void {
+    if (this.fleetMotion.size === 0) {
+      return;
+    }
+    const living = new Set<number>();
+    for (const fleet of fleets) {
+      if (!fleet.destroyed) {
+        living.add(fleet.id);
+      }
+    }
+    for (const id of [...this.fleetMotion.keys()]) {
+      if (!living.has(id)) {
+        this.fleetMotion.delete(id);
+      }
+    }
   }
 
   private checkStagnation(faction: Faction, state: FactionProgress): void {

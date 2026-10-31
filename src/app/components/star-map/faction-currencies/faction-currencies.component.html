@@ -89,6 +89,25 @@
           </div>
         }
 
+        @if (selectedCurrency === 'rawmaterials') {
+          <div class="hud-overlay__section">
+            <div class="hud-overlay__section-title">Sources</div>
+            <div class="hud-overlay__row">
+              <span>Deposit mining (finite)</span>
+              <span>+{{ economyBreakdown.depositMiningPerSecond | number:'1.0-1' }}/sec</span>
+            </div>
+            <div class="hud-overlay__row">
+              <span>Population salvage</span>
+              <span>+{{ getRawSalvagePerSecond() | number:'1.0-1' }}/sec</span>
+            </div>
+            @if (economyBreakdown.depositMiningPerSecond <= 0) {
+              <div class="hud-overlay__row hud-overlay__row--expense">
+                <span>No active deposit: build a Mining Complex on a deposit or deploy a mining station.</span>
+              </div>
+            }
+          </div>
+        }
+
         @if (selectedCurrency === 'credits') {
           <div class="hud-overlay__section">
             <div class="hud-overlay__section-title">Expenses</div>

@@ -21,6 +21,8 @@ import { getAiPersonalityProfile } from './ai-personality';
 import planetData from './planet-data.json';
 import { ResourceCost, addCosts, buildingCost, canAffordCost, payCost, shipCost } from '../../services/resource-cost';
 import { hostileFactionIds } from './diplomacy';
+import { depositMiningBlocker, DEPOSIT_MINING_BUILDING_NAMES } from './raw-deposits';
+import { hasLivingOutpostShip } from './space-base';
 
 /*
  * =========================================================
@@ -43,8 +45,14 @@ import { hostileFactionIds } from './diplomacy';
  *
  * Game rules this relies on (verified in code, keep in sync):
  *  - Buildings and ships cost credits AND raw materials (resource-cost.ts,
- *    the same helpers the player UI uses). Research points are spent only
- *    by the research tree.
+ *    the same helpers the player UI uses); ships are mostly raw materials,
+ *    buildings mostly credits. Research costs research points and credits
+ *    (ResearchService, spent by EnemyResearchService).
+ *  - Raw materials come from finite deposits (raw-deposits.ts): a Mining
+ *    Complex extracts its planet's deposit until it is empty. Depleted
+ *    deposits are never mined again, so raw supply must be renewed by
+ *    expanding (EnemyGoalService values deposits) and by asteroid mining
+ *    stations (EnemyMiningService).
  *  - Buildings, fleet ships and stocked ships pay upkeep every economy
  *    tick (EconomyService.applyEconomyDelta). Credits never go negative:
  *    unpaid upkeep (arrears) drains satisfaction toward rebellion, and an
@@ -103,8 +111,12 @@ type PlanetEconomySnapshot = ReturnType<EconomyService['calculatePlanetEconomy']
 type UpkeepTier = 'emergency' | 'core' | 'optional';
 
 interface ConstructionRule {
-  /* Whether this tier must leave the spending reserve untouched. */
-  respectsReserve: boolean;
+  /*
+   * Whether this tier must leave the spending reserve untouched: entirely,
+   * or only its credit part ('credits': mines, which produce the raw
+   * materials the reserve is waiting for).
+   */
+  respectsReserve: boolean | 'credits';
   /* How much projected net income the new building's upkeep must leave (see header). */
   upkeep: UpkeepTier;
   candidates: (planet: PlanetTile, economy: PlanetEconomySnapshot) => BuildingDef[];
@@ -179,11 +191,30 @@ export class EnemyEconomyService {
   private static readonly UPKEEP_MARGIN_SHARE = 0.1;
   private static readonly OPTIONAL_BUILDING_MARGIN_SHARE = 0.25;
   /*
-   * Raw-material income (per second) below which an ore planet gets a
-   * Mining Complex. Factories alone yield little raw material, and ships
-   * and buildings both consume it.
+   * Deposit mining: every owned planet with a live deposit gets one Mining
+   * Complex; while raw materials are the binding constraint (see
+   * isRawConstrained) a deposit holding at least SECOND_MINE_MIN_RESERVE
+   * gets a second one, up to MAX_MINES_PER_PLANET. Extra mines empty a
+   * deposit faster rather than adding to it, so they only pay off while raw
+   * materials are short.
    */
-  private static readonly RAW_INCOME_TARGET = 15;
+  private static readonly MAX_MINES_PER_PLANET = 2;
+  private static readonly SECOND_MINE_MIN_RESERVE = 15000;
+  /*
+   * Research is "starved" when the faction could pay the credits of every
+   * technology it can research next (the most expensive one) but its labs
+   * need longer than this to produce that technology's research points;
+   * research buildings then come first.
+   */
+  private static readonly RESEARCH_STARVED_SECONDS = 180;
+  /*
+   * Warships are mostly raw materials and strength per raw material is
+   * about the same for every hull, so buying the cheapest hull the moment
+   * a few hundred raw materials come in would fill the ship-count cap with
+   * light ships. The faction instead saves for its preferred hull when its
+   * income pays the missing part within this many seconds.
+   */
+  private static readonly MILITARY_SAVE_SECONDS = 90;
   /*
    * Core purchases (housing, factory, Spaceport) may run a deficit the
    * treasury can carry for this many seconds. Without it a faction whose
@@ -256,7 +287,10 @@ export class EnemyEconomyService {
    *   E1 energy shortage           → power            (no reserve)
    *   E2 workforce shortage        → housing          (no reserve)
    *   I1 faction has no factory    → Spaceship Factory (no reserve)
+   *   M1 factory, no working mine  → first Mining Complex (no reserve)
    *   I2 factory but no Spaceport  → Spaceport        (no reserve)
+   *   H  planet without housing    → cheapest housing  (no reserve)
+   *   M  live deposit, too few mines → Mining Complex  (credit reserve only)
    *   D  planet without defense    → defense building (reserve)
    *   G  population ≥ 90% capacity, or no housing yet → largest unlocked housing (reserve)
    *   R  planet without research   → research building (reserve)
@@ -298,9 +332,25 @@ export class EnemyEconomyService {
    * getSpendingReserve: Credits optional spending must leave untouched,
    * covering the faction's currently committed needs.
    */
-  getSpendingReserve(faction: Faction, starSystems: StarSystem[], context: EconomyContext, includeMilitary: boolean): ResourceCost {
+  getSpendingReserve(
+    faction: Faction,
+    starSystems: StarSystem[],
+    context: EconomyContext,
+    includeMilitary: boolean,
+    includeMine = true,
+  ): ResourceCost {
     let reserve: ResourceCost = { credits: 0, rawmaterials: 0 };
     const planets = this.getOwnedPlanetsSorted(faction.id, starSystems);
+
+    // A live deposit without a mine is the best raw-material investment the
+    // faction has: its Mining Complex is committed spending, so warships and
+    // optional buildings cannot use up the raw materials it needs. (The
+    // mining rule itself passes includeMine = false, or it would wait for
+    // its own price.)
+    const mine = this.findBuilding('mining_complex');
+    if (includeMine && mine && this.researchService.isBuildingUnlocked(faction, mine.id) && this.hasUnminedDeposit(planets)) {
+      reserve = addCosts(reserve, buildingCost(mine));
+    }
 
     const colonizer = this.shipService.getShipType('colonizer');
     if (colonizer && this.wantsColonizer(faction, starSystems, context)) {
@@ -322,11 +372,51 @@ export class EnemyEconomyService {
       reserve = addCosts(reserve, buildingCost(spaceport));
     }
 
+    // A colony without housing can never grow; its first housing block is
+    // committed spending (raw materials are scarce, and warships would
+    // otherwise use them up before a new colony gets anything).
+    const firstHousing = this.cheapestUnlockedHousing(faction);
+    if (firstHousing) {
+      for (const planet of planets) {
+        if (!this.hasRole(planet, 'housing')) reserve = addCosts(reserve, buildingCost(firstHousing));
+      }
+    }
+
+    // Research points already banked for a technology are waiting only for
+    // its credit price (research costs both): keep those credits.
+    reserve = addCosts(reserve, { credits: this.readyResearchCredits(faction), rawmaterials: 0 });
+
     if (includeMilitary && this.militaryNeed(faction, starSystems, context).strength > 0) {
       const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
       if (ship) reserve = addCosts(reserve, shipCost(ship));
     }
     return reserve;
+  }
+
+  /*
+   * Credit price of the cheapest available technology whose research
+   * points the faction already has (0 if none): what EnemyResearchService
+   * will spend next, as soon as the credits are there.
+   */
+  private readyResearchCredits(faction: Faction): number {
+    const researched = new Set(faction.researchedTechnologies ?? []);
+    const points = faction.currencies['research'] ?? 0;
+    let best: number | undefined;
+    for (const tech of this.researchService.getAllTechnologies()) {
+      if (researched.has(tech.id) || !tech.prerequisites.every((p) => researched.has(p))) continue;
+      const price = this.researchService.getResearchPrice(faction, tech);
+      if (price.research <= points && (best === undefined || price.credits < best)) best = price.credits;
+    }
+    return best ?? 0;
+  }
+
+  /* Some owned planet has a deposit that is neither empty nor mined yet. */
+  private hasUnminedDeposit(planets: PlanetTile[]): boolean {
+    return planets.some((p) => depositMiningBlocker(p) === null && this.countMines(p) === 0);
+  }
+
+  private cheapestUnlockedHousing(faction: Faction): BuildingDef | undefined {
+    return [...this.unlockedByRole(faction, 'housing')].sort((a, b) => a.price - b.price)[0];
   }
 
   /*
@@ -339,7 +429,7 @@ export class EnemyEconomyService {
     faction: Faction,
     starSystems: StarSystem[],
     context: EconomyContext,
-  ): { income: number; net: number; rawNet: number } {
+  ): { income: number; net: number; rawNet: number; researchNet: number } {
     const breakdown = this.economyService.calculateEconomy(
       faction.id, context.factions ?? [faction], starSystems, context.fleets, context.shipStock,
     );
@@ -349,7 +439,36 @@ export class EnemyEconomyService {
       income: breakdown.incomePerSecond,
       net: breakdown.netPerSecond - queuedUpkeep,
       rawNet: breakdown.net['rawmaterials'] ?? 0,
+      researchNet: breakdown.net['research'] ?? 0,
     };
+  }
+
+  /*
+   * Raw materials, not credits, limit the faction: it cannot pay the raw
+   * part of two of its preferred warships but could pay their credits. Then
+   * mining capacity beats more factories or a bigger fleet budget.
+   */
+  isRawConstrained(faction: Faction): boolean {
+    const raw = faction.currencies['rawmaterials'] ?? 0;
+    const credits = faction.currencies['credits'] ?? 0;
+    const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
+    if (!ship) return false;
+    const pair = shipCost(ship, 2);
+    return raw < pair.rawmaterials && credits >= pair.credits;
+  }
+
+  /* See RESEARCH_STARVED_SECONDS. */
+  private isResearchStarved(faction: Faction, researchNet: number): boolean {
+    const researched = new Set(faction.researchedTechnologies ?? []);
+    const available = this.researchService.getAllTechnologies()
+      .filter((t) => !researched.has(t.id) && t.prerequisites.every((p) => researched.has(p)));
+    if (available.length === 0) return false;
+    const dearest = available
+      .map((t) => this.researchService.getResearchPrice(faction, t))
+      .sort((a, b) => b.research - a.research)[0];
+    const points = faction.currencies['research'] ?? 0;
+    if (points >= dearest.research || (faction.currencies['credits'] ?? 0) < dearest.credits) return false;
+    return researchNet <= 0 || (dearest.research - points) / researchNet > EnemyEconomyService.RESEARCH_STARVED_SECONDS;
   }
 
   /* Upkeep (credits/s) a new purchase in this tier may add. */
@@ -372,6 +491,8 @@ export class EnemyEconomyService {
     const hasFactory = planets.some((p) => this.isFactoryPlanet(p));
     const hasSpaceport = this.spaceportService.hasSpaceport(faction.id, starSystems);
     const finances = this.getProjectedNet(faction, starSystems, context);
+    const rawConstrained = this.isRawConstrained(faction);
+    const hasActiveMine = planets.some((p) => depositMiningBlocker(p) === null && this.countMines(p) > 0);
 
     const rules: ConstructionRule[] = [
       {
@@ -390,9 +511,29 @@ export class EnemyEconomyService {
         candidates: () => (hasFactory ? [] : this.unlockedById(faction, 'spaceship_factory')),
       },
       {
+        // The faction's first working mine: without one, raw income is only
+        // the population trickle and the starting stock runs out with the
+        // factory and Spaceport. Factory first (nothing is built without
+        // it), then the mine, then the Spaceport.
+        respectsReserve: false,
+        upkeep: 'core',
+        candidates: (planet) =>
+          hasFactory && !hasActiveMine && depositMiningBlocker(planet) === null ? this.unlockedById(faction, 'mining_complex') : [],
+      },
+      {
         respectsReserve: false,
         upkeep: 'core',
         candidates: () => (hasFactory && !hasSpaceport ? this.unlockedById(faction, 'spaceport') : []),
+      },
+      {
+        // A colony's first housing: without it the planet never grows. Core
+        // (it is in the reserve, so nothing else may spend it).
+        respectsReserve: false,
+        upkeep: 'core',
+        candidates: (planet) => {
+          const housing = this.cheapestUnlockedHousing(faction);
+          return housing && !this.hasRole(planet, 'housing') ? [housing] : [];
+        },
       },
       {
         respectsReserve: true,
@@ -431,10 +572,13 @@ export class EnemyEconomyService {
             : [],
       },
       {
+        // Parallel factories only help while raw materials keep up: a
+        // raw-constrained faction cannot feed the factories it has.
         respectsReserve: true,
         upkeep: 'optional',
         candidates: (planet) =>
           (this.isWealthy(faction) || getAiPersonalityProfile(faction).parallelMilitaryProduction)
+            && !rawConstrained
             && this.countFactories(planet) < getAiPersonalityProfile(faction).factoriesPerPlanet
             ? this.unlockedById(faction, 'spaceship_factory')
             : [],
@@ -442,38 +586,55 @@ export class EnemyEconomyService {
     ];
 
     const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(p, faction)] as const));
+    // Sites protected from other construction (see choosePlacement): the
+    // missing Spaceport and factory, and the first mine on a live deposit —
+    // without this, cheaper buildings can surround the deposit tile before
+    // the mine is affordable and the deposit can never be mined.
     const missingCore = [
       ...(hasSpaceport ? [] : this.unlockedById(faction, 'spaceport')),
       ...(hasFactory ? [] : this.unlockedById(faction, 'spaceship_factory')),
+      ...(this.hasUnminedDeposit(planets) ? this.unlockedById(faction, 'mining_complex') : []),
     ];
     const coreSites = missingCore.length > 0
       ? { planets, missing: missingCore, placeable: this.countPlaceableCore(planets, missingCore) }
       : undefined;
     let reserve: ResourceCost | undefined;
+    let mineReserve: ResourceCost | undefined;
+    let researchReserve: ResourceCost | undefined;
 
     /*
-     * Posture-driven ordering of the optional tiers (indices 4.. are D, G,
+     * Posture-driven ordering of the optional tiers (indices 6.. are D, G,
      * R, R2, P): 'stabilize' builds only emergency and core infrastructure;
      * a 'research' priority or a research-heavy personality moves the
      * research tiers ahead of defense and growth.
      */
     const posture = this.planService.getPosture(faction);
-    const core = rules.slice(0, 4);
-    const [defenseTier, growthTier, researchTier, researchUpgradeTier, factoryTier] = rules.slice(4);
-    // Raw-material supply comes first among the optional tiers: ships and
-    // every building need it, and it only triggers on ore planets while
-    // raw income is low.
+    const core = rules.slice(0, 6);
+    const [defenseTier, growthTier, researchTier, researchUpgradeTier, factoryTier] = rules.slice(6);
+    // Raw-material supply comes right after core infrastructure: ships are
+    // mostly raw materials and every deposit is finite, so an idle deposit
+    // is wasted supply. It leaves the credit reserve (a missing factory or
+    // Spaceport comes first) but may use raw materials the reserve holds for
+    // ships, since the mine is what produces them. Only deposits that are not
+    // empty qualify (depositMiningBlocker): a depleted planet never gets a mine.
     const miningTier: ConstructionRule = {
-      respectsReserve: true,
-      upkeep: 'optional',
-      candidates: (planet) =>
-        finances.rawNet < EnemyEconomyService.RAW_INCOME_TARGET
-          && (planet.resourceTiles ?? []).length > 0
-          && !planet.buildings.some((b) => b.name === 'Mining Complex')
-          ? this.unlockedById(faction, 'mining_complex')
-          : [],
+      respectsReserve: 'credits',
+      upkeep: 'core',
+      candidates: (planet) => {
+        if (depositMiningBlocker(planet) !== null) return [];
+        const mines = this.countMines(planet);
+        const wanted = mines === 0
+          || (rawConstrained
+            && mines < EnemyEconomyService.MAX_MINES_PER_PLANET
+            && (planet.rawDeposit?.remaining ?? 0) >= EnemyEconomyService.SECOND_MINE_MIN_RESERVE);
+        return wanted ? this.unlockedById(faction, 'mining_complex') : [];
+      },
     };
-    const researchFirst = posture.primary === 'research' || posture.researchBuildingsPerPlanet > 1;
+    // Research-starved (credits for the next technology, but the labs are
+    // too slow): research buildings move ahead of defense and growth, and
+    // they no longer wait behind the next warship's share of the reserve.
+    const researchStarved = this.isResearchStarved(faction, finances.researchNet);
+    const researchFirst = posture.primary === 'research' || posture.researchBuildingsPerPlanet > 1 || researchStarved;
     const ordered = posture.primary === 'stabilize'
       ? core
       : researchFirst
@@ -498,9 +659,13 @@ export class EnemyEconomyService {
         coreSites,
       };
       if (rule.respectsReserve) {
-        reserve ??= this.getSpendingReserve(faction, starSystems, context, true);
-        budget.cost.credits -= reserve.credits;
-        budget.cost.rawmaterials -= reserve.rawmaterials;
+        const applied = rule === miningTier
+          ? (mineReserve ??= this.getSpendingReserve(faction, starSystems, context, true, false))
+          : researchStarved && (rule === researchTier || rule === researchUpgradeTier)
+            ? (researchReserve ??= this.getSpendingReserve(faction, starSystems, context, false))
+            : (reserve ??= this.getSpendingReserve(faction, starSystems, context, true));
+        budget.cost.credits -= applied.credits;
+        if (rule.respectsReserve !== 'credits') budget.cost.rawmaterials -= applied.rawmaterials;
       }
       for (const planet of planets) {
         const decision = this.resolveCandidates(faction, planet, rule.candidates(planet, economies.get(planet.id)!), budget, 2);
@@ -720,7 +885,14 @@ export class EnemyEconomyService {
       const finances = this.getProjectedNet(faction, starSystems, context);
       const militaryPreference = Math.max(0.5, getAiPersonalityProfile(faction).militaryTarget);
       const upkeepAllowance = finances.net - finances.income * EnemyEconomyService.UPKEEP_MARGIN_SHARE / militaryPreference;
-      const ship = this.selectMilitaryShip(faction, budget, upkeepAllowance);
+      const preferred = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, upkeepAllowance);
+      if (preferred && this.worthSavingFor(preferred, budget, finances)) {
+        break;
+      }
+      const preferredCost = preferred ? shipCost(preferred) : undefined;
+      const ship = preferred && preferredCost!.credits <= budget.credits && preferredCost!.rawmaterials <= budget.rawmaterials
+        ? preferred
+        : this.selectMilitaryShip(faction, budget, upkeepAllowance);
       if (!ship) {
         break;
       }
@@ -741,6 +913,19 @@ export class EnemyEconomyService {
       slots--;
     }
     return queued;
+  }
+
+  /* The hull is not affordable yet, but income covers the gap within MILITARY_SAVE_SECONDS (see there). */
+  private worthSavingFor(ship: ShipType, budget: ResourceCost, finances: { net: number; rawNet: number }): boolean {
+    const cost = shipCost(ship);
+    const rawGap = cost.rawmaterials - budget.rawmaterials;
+    const creditGap = cost.credits - budget.credits;
+    if (rawGap <= 0 && creditGap <= 0) return false;
+    const seconds = Math.max(
+      rawGap <= 0 ? 0 : finances.rawNet > 0 ? rawGap / finances.rawNet : Infinity,
+      creditGap <= 0 ? 0 : finances.net > 0 ? creditGap / finances.net : Infinity,
+    );
+    return seconds <= EnemyEconomyService.MILITARY_SAVE_SECONDS;
   }
 
   private isMilitaryFocused(faction: Faction): boolean {
@@ -791,6 +976,7 @@ export class EnemyEconomyService {
           && f.targetX === null
           && f.ships.some((s) => !s.destroyed)
           && !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed)
+          && !hasLivingOutpostShip(f)
           && f.ships.filter((s) => !s.destroyed).length < EnemyEconomyService.MAX_FLEET_SHIPS
           && Math.floor(f.x) === Math.floor(spaceport.system.x)
           && Math.floor(f.y) === Math.floor(spaceport.system.y),
@@ -950,6 +1136,10 @@ export class EnemyEconomyService {
     return planet.buildings.some((b) => b.name === EnemyEconomyService.FACTORY_NAME);
   }
 
+  private countMines(planet: PlanetTile): number {
+    return planet.buildings.filter((b) => DEPOSIT_MINING_BUILDING_NAMES.has(b.name)).length;
+  }
+
   private countFactories(planet: PlanetTile): number {
     return planet.buildings.filter((b) => b.name === EnemyEconomyService.FACTORY_NAME).length;
   }
@@ -991,6 +1181,8 @@ export class EnemyEconomyService {
    */
   private findValidPlacements(planet: PlanetTile, building: BuildingDef, gridSize: number): { x: number; y: number }[] {
     const requiresOre = building.requiresOreProximity === true;
+    // A mine only makes sense on a deposit that is not empty.
+    if (requiresOre && depositMiningBlocker(planet) !== null) return [];
     const resourceTiles = planet.resourceTiles ?? [];
     return centerOutPlacementOrder(gridSize, building.size)
       .filter(({ x, y }) => this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre))
@@ -999,6 +1191,7 @@ export class EnemyEconomyService {
 
   private findValidPlacement(planet: PlanetTile, building: BuildingDef, gridSize: number): { x: number; y: number } | undefined {
     const requiresOre = building.requiresOreProximity === true;
+    if (requiresOre && depositMiningBlocker(planet) !== null) return undefined;
     const resourceTiles = planet.resourceTiles ?? [];
     const spot = centerOutPlacementOrder(gridSize, building.size).find(({ x, y }) =>
       this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre),

@@ -43,7 +43,7 @@ Where the rules run:
 | Human player | Interactive battle screen. `EnemyInvasionService` queues the `Battle`; `StarMap` takes it after the AI tick (`StarMapAiTickService.takePendingPlayerBattle`), calls `BattleService.setPlanetBattle` and navigates — the same transport as a player-initiated planet battle. The player defends (AUTO available). |
 | Anyone else (independent rebels, …) | `autoResolveBattle` (non-interactive, immediate). |
 
-Space bases use the same static-defense battle (`type: 'planet'` with `spaceBaseId`) and end in `BattleOutcomeService.applySpaceBaseBattleOutcome` instead — a base is destroyed, never captured ([Territory](./territory.md#combat)).
+Stations (space bases and mining stations) use the same static-defense battle (`type: 'planet'` with `spaceBaseId` or `miningStation`) and end in `BattleOutcomeService.applyStationBattleOutcome` instead — a station is destroyed, never captured ([Territory](./territory.md#station-defense)).
 
 Planet battles end in `BattleOutcomeService.applyPlanetBattleOutcome`: ownership on attacker victory via `PlanetOwnershipService`, attacker roster written back (damage and destroyed ships; a wiped-out attacker is destroyed), garrison damage or destruction, persisted shield pool. The battle screen applies it to the autosave snapshot; the AI path to the live game state. Fleet-vs-fleet outcomes use `applyFleetBattleOutcome`.
 

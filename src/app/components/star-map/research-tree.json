@@ -296,6 +296,36 @@
       "unlocksShips": [],
       "unlocksBuildings": [],
       "bonuses": [{ "type": "populationGrowth", "value": 0.5 }]
+    },
+    {
+      "id": "turret_research_1",
+      "name": "Turret Research I",
+      "description": "Automated laser emplacements for outposts: every space base and mining station mounts one defense turret.",
+      "researchCost": 700,
+      "prerequisites": ["basic_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "stationTurrets", "value": 1 }]
+    },
+    {
+      "id": "turret_research_2",
+      "name": "Turret Research II",
+      "description": "Reinforced hardpoints: every space base and mining station mounts a second laser turret.",
+      "researchCost": 1600,
+      "prerequisites": ["turret_research_1", "military_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "stationTurrets", "value": 1 }]
+    },
+    {
+      "id": "turret_research_3",
+      "name": "Turret Research III",
+      "description": "Missile batteries for deep-space installations: every space base and mining station mounts a third turret, a missile launcher.",
+      "researchCost": 3000,
+      "prerequisites": ["turret_research_2", "advanced_weapons"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "stationTurrets", "value": 1 }]
     }
   ]
 }

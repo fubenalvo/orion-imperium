@@ -96,7 +96,7 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
 - **Planet surfaces:** settled planets get their terrain (`generatePlanetSurface`, seeded from the
   galaxy seed and planet id, kept clear of the starting buildings) during generation; all other
   planets receive the identical terrain on first load. See [Planet Surface](./planet-surface.md).
-- **Starting assets:** 1000 credits / raw materials / research (scaled for AI by difficulty), the
+- **Starting assets:** 1000 credits / 2500 raw materials / 1000 research (scaled for AI by difficulty), a raw-material deposit on every homeworld (deposit tiles placed on free ground after the starting buildings; the finite reserve comes from `ensurePlanetDeposits`, see [Economy](./economy.md#economic-safety)), the
   four basic technologies, and fleets placed 3–6 cells from the home system on free cells. The
   human always gets the legacy roster (ORION: 2 frigates, PEGASUS: 3 cruisers).
 - **Visibility:** every star system starts `explored: true` — star positions and names are known

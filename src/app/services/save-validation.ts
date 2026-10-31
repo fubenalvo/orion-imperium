@@ -43,8 +43,11 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
  * - 8: the system view grid doubled (system-grid.ts): `PlanetTile.x/y` is
  *      the top-left cell of a 2×2 block; older values are converted. Adds
  *      `StarSystem.asteroidBelt`, backfilled deterministically on load.
+ * - 9: open credit demands `diplomaticDemands` (docs/diplomacy.md) plus the
+ *      optional demand fields on `Faction` and `FactionRelation`. Older
+ *      saves get [] and default values (normalizeRelations).
  */
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 /*
  * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
@@ -530,6 +533,12 @@ export function validateSaveData(
         }
       }
     }
+  }
+
+  // Open diplomatic demands are restored by DiplomacyService.restoreDemands,
+  // which drops anything malformed; a broken list must not block the load.
+  if (save.diplomaticDemands !== undefined && !Array.isArray(save.diplomaticDemands)) {
+    warnings.push(warning('demands_not_array', 'diplomaticDemands', 'diplomaticDemands is not an array and will be ignored'));
   }
 
   if (save.exploredGridCells !== undefined && !Array.isArray(save.exploredGridCells)) {

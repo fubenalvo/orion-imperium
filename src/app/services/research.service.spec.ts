@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { ResearchService, ValidationError } from './research.service';
+import { RESEARCH_CREDITS_PER_POINT, ResearchService, ValidationError } from './research.service';
 import { Faction } from '../components/star-map/star-map.models';
 
 describe('ResearchService', () => {
@@ -13,7 +13,9 @@ describe('ResearchService', () => {
       name: 'Player',
       color: '#8cc4ff',
       team: 1,
-      currencies: { credits: 1000, rawmaterials: 1000, research: 500 },
+      // Plenty of credits: most tests below are about research points; the
+      // credit part of the price has its own block.
+      currencies: { credits: 1_000_000, rawmaterials: 1000, research: 500 },
       researchedTechnologies: undefined,
     };
   });
@@ -136,6 +138,58 @@ describe('ResearchService', () => {
       const result = service.researchTechnology(player, 'advanced_engineering');
       expect(result.ok).toBe(false);
       expect(result.reason).toBe('insufficient_research');
+    });
+  });
+
+  describe('research costs credits and research points', () => {
+    beforeEach(() => {
+      player.researchedTechnologies = ['basic_engineering'];
+    });
+
+    it('prices a technology in both resources', () => {
+      const tech = service.getTechnology('advanced_engineering')!;
+      const price = service.getResearchPrice(player, tech);
+      expect(price.research).toBe(tech.researchCost);
+      expect(price.credits).toBe(Math.round(tech.researchCost * RESEARCH_CREDITS_PER_POINT));
+      expect(price.credits).toBeGreaterThan(0);
+    });
+
+    it('consumes both credits and research points', () => {
+      const price = service.getResearchPrice(player, service.getTechnology('advanced_engineering')!);
+      player.currencies['research'] = price.research + 7;
+      player.currencies['credits'] = price.credits + 11;
+      expect(service.researchTechnology(player, 'advanced_engineering').ok).toBe(true);
+      expect(player.currencies['research']).toBe(7);
+      expect(player.currencies['credits']).toBe(11);
+    });
+
+    it('cannot proceed without enough credits, and charges nothing', () => {
+      const price = service.getResearchPrice(player, service.getTechnology('advanced_engineering')!);
+      player.currencies['research'] = price.research;
+      player.currencies['credits'] = price.credits - 1;
+      expect(service.canResearch(player, 'advanced_engineering')).toBe(false);
+      expect(service.getResearchBlocker(player, 'advanced_engineering')).toBe('insufficient_credits');
+      const result = service.researchTechnology(player, 'advanced_engineering');
+      expect(result).toMatchObject({ ok: false, reason: 'insufficient_credits' });
+      expect(player.currencies['research']).toBe(price.research);
+      expect(player.currencies['credits']).toBe(price.credits - 1);
+      expect(player.researchedTechnologies).not.toContain('advanced_engineering');
+    });
+
+    it('cannot proceed without enough research points, however rich, and charges nothing', () => {
+      const price = service.getResearchPrice(player, service.getTechnology('advanced_engineering')!);
+      player.currencies['research'] = price.research - 1;
+      player.currencies['credits'] = 10_000_000;
+      expect(service.canResearch(player, 'advanced_engineering')).toBe(false);
+      expect(service.researchTechnology(player, 'advanced_engineering').reason).toBe('insufficient_research');
+      expect(player.currencies['credits']).toBe(10_000_000);
+    });
+
+    it('the credit price grows with the research price', () => {
+      const tech = service.getTechnology('advanced_shipyards')!;
+      const before = service.getResearchCreditCost(player, tech);
+      player.researchedTechnologies = ['basic_engineering', 'advanced_engineering', 'military_engineering', 'improved_power'];
+      expect(service.getResearchCreditCost(player, tech)).toBeGreaterThan(before);
     });
   });
 

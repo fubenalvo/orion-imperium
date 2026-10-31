@@ -4,6 +4,7 @@ import { Faction, FactionProduction, Fleet, FleetShip, SpaceBase, StarSystem } f
 import { PlanetOwnershipService } from './planet-ownership.service';
 import { ShipService } from './ship.service';
 import { recordHostileAct, recordShipLosses } from '../components/star-map/diplomacy';
+import { findMiningStationAsteroid, stationDefenseStateFromOutcome } from '../components/star-map/station-defense';
 
 /*
  * =========================================================
@@ -117,14 +118,20 @@ export class BattleOutcomeService {
   }
 
   /*
-   * Space base battle (docs/territory.md#combat); returns true when the base
-   * was destroyed. The attacker roster is written back like in a planet
-   * battle. When `data.spaceBases` is given (the battle screen's autosave
-   * snapshot) the base is removed from it on attacker victory, or keeps its
-   * remaining shield pool; the live AI-vs-AI path omits it and updates the
-   * SpaceBaseService registry with the result instead.
+   * Station battle (space base or mining station, the shared station defense
+   * model of station-defense.ts; docs/territory.md#station-defense). Returns
+   * true when the station was destroyed. The attacker roster is written back
+   * like in a planet battle. The station named by the outcome is updated in
+   * `data`: removed on attacker victory, otherwise it keeps its remaining
+   * shield pool and core hull.
+   *  - Space base: in `data.spaceBases` when given (the battle screen's
+   *    autosave snapshot); the live AI-vs-AI path omits it and updates the
+   *    SpaceBaseService registry with the result instead.
+   *  - Mining station: on its asteroid in `data.starSystems` (the snapshot,
+   *    or the live systems for AI-vs-AI). The asteroid and its remaining
+   *    deposit stay; only the station is removed, so extraction stops.
    */
-  applySpaceBaseBattleOutcome(data: OutcomeData & { spaceBases?: SpaceBase[] }, outcome: BattleOutcome): boolean {
+  applyStationBattleOutcome(data: OutcomeData & { spaceBases?: SpaceBase[] }, outcome: BattleOutcome): boolean {
     const before = this.fleetValueByFaction(data);
     const destroyed = outcome.winnerSide === 'attacker';
     const fleet = data.fleets?.find((f) => f.id === outcome.attacker.fleetId);
@@ -134,13 +141,25 @@ export class BattleOutcomeService {
         fleet.destroyed = true;
       }
     }
+    const survivorState = stationDefenseStateFromOutcome(outcome.defender);
     if (data.spaceBases && outcome.spaceBaseId != null) {
       const index = data.spaceBases.findIndex((b) => b.id === outcome.spaceBaseId);
       if (index >= 0) {
         if (destroyed) {
           data.spaceBases.splice(index, 1);
-        } else if (outcome.defender.shieldPoolCurrent !== undefined) {
-          data.spaceBases[index].shieldPoolCurrent = outcome.defender.shieldPoolCurrent;
+        } else {
+          Object.assign(data.spaceBases[index], survivorState);
+        }
+      }
+    }
+    if (outcome.miningStation) {
+      const found = findMiningStationAsteroid(data.starSystems, outcome.miningStation);
+      // Only the station that fought (same owner) is touched.
+      if (found && found.asteroid.miningStation?.factionId === outcome.defender.factionId) {
+        if (destroyed) {
+          delete found.asteroid.miningStation;
+        } else {
+          Object.assign(found.asteroid.miningStation, survivorState);
         }
       }
     }

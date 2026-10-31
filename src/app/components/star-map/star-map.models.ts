@@ -1,3 +1,5 @@
+import type { DiplomaticDemand } from './diplomatic-demand';
+
 export interface PlanetBuilding {
   id?: string;
   name: string;
@@ -80,7 +82,9 @@ export type TechnologyBonusType =
   | 'shipBuildSpeed'
   | 'populationGrowth'
   | 'shipAttack'
-  | 'shipShield';
+  | 'shipShield'
+  /* Defense turrets on every station of the faction (count, summed; see station-defense.ts). */
+  | 'stationTurrets';
 
 export interface TechnologyBonus {
   type: TechnologyBonusType;
@@ -129,6 +133,19 @@ export interface Faction {
    * honored treaties and long peace (diplomacy.ts).
    */
   reputation?: number;
+  /*
+   * Game seconds until this faction may make another credit demand of
+   * anyone (diplomatic-demand.ts). Missing = 0. Saved, so reloading never
+   * skips a cooldown.
+   */
+  demandCooldown?: number;
+  /*
+   * Decaying count of refused threats this faction did not carry out
+   * (0…EMPTY_THREAT_LIMIT, missing = 0). Public knowledge: it lowers the
+   * credibility of its future threats with every empire and pushes it to
+   * carry out the next one (docs/diplomacy.md).
+   */
+  emptyThreats?: number;
 }
 
 export type TreatyState = 'war' | 'peace';
@@ -176,6 +193,17 @@ export interface FactionRelation {
    * nothing grants it yet, and a war declaration revokes it.
    */
   passageRights?: boolean;
+  /*
+   * Credit demands (diplomatic-demand.ts), per side, kept across war and
+   * peace. `demandCooldown`: game seconds until the holder may demand from
+   * the other again. `demandsReceived`: decaying memory of the other's
+   * demands on the holder (repeated demands cost more opinion and are
+   * resisted harder). `demandsRefused`: decaying memory of the holder's
+   * demands the other refused (an AI escalates or stops asking).
+   */
+  demandCooldown?: number;
+  demandsReceived?: number;
+  demandsRefused?: number;
 }
 
 export type GalaxySize = 'small' | 'medium' | 'large';
@@ -224,6 +252,13 @@ export interface PlanetTile {
   explored: boolean;
   satisfaction?: number;
   resourceTiles?: ResourceDeposit[];
+  /*
+   * Finite raw-material reserve of the planet (raw-deposits.ts,
+   * docs/economy.md). Present exactly when `resourceTiles` is non-empty;
+   * mining buildings placed next to a deposit tile extract from it.
+   * Backfilled on load by ensurePlanetDeposits (no save version bump).
+   */
+  rawDeposit?: PlanetRawDeposit;
   shieldPoolCurrent?: number;
   /* Environmental terrain of the surface grid (docs/planet-surface.md). */
   surface?: PlanetSurface;
@@ -236,6 +271,18 @@ export interface PlanetTile {
  * `gridSize` pins the record to the grid it was generated for; a mismatch
  * makes the record ignored (no blocked cells) rather than misapplied.
  */
+/*
+ * A planet's raw-material reserve. `remaining` only ever decreases (economy
+ * tick extraction) and may be fractional; 0 means depleted for good.
+ * `richness` multiplies the output of the planet's mining buildings, so
+ * deposits differ in extraction rate as well as in size.
+ */
+export interface PlanetRawDeposit {
+  total: number;
+  remaining: number;
+  richness: number;
+}
+
 export interface PlanetSurface {
   version: number;
   seed: number;
@@ -281,7 +328,8 @@ export interface SystemAsteroidBelt {
  * One asteroid occupying one system-view cell. `rawMaterials` is the hidden
  * deposit (0 = barren). The UI must not reveal it until `surveyed` is true:
  * a cell is surveyed once a human player fleet has been on it. AI factions
- * do not survey and have no knowledge of deposits. A mining station
+ * survey by the same rule and are recorded in `surveyedBy`; the AI only
+ * knows deposits it surveyed itself. A mining station
  * (mining-station.ts) extracts the deposit, so `rawMaterials` is the
  * remaining amount and may be fractional while it is being mined.
  */
@@ -289,7 +337,23 @@ export interface SystemAsteroid {
   col: number;
   row: number;
   rawMaterials: number;
+  /*
+   * Original deposit size (0 for barren rocks), for the depletion
+   * percentage. Backfilled on load for belts saved before it existed.
+   */
+  totalRawMaterials?: number;
+  /*
+   * Raw materials per second a mining station extracts here (before the
+   * faction gain multiplier). Differs per asteroid; backfilled on load.
+   */
+  extractionRate?: number;
+  /* The human player's survey (drives what the UI may reveal). */
   surveyed: boolean;
+  /*
+   * AI factions that surveyed this asteroid, by the same rule as the player
+   * (a fleet of theirs on the cell). The AI only targets deposits it knows.
+   */
+  surveyedBy?: string[];
   /*
    * Mining station built on this asteroid by an outpost ship (at most one
    * per asteroid by construction). Permanent; it stays after the deposit is
@@ -298,8 +362,15 @@ export interface SystemAsteroid {
   miningStation?: MiningStation;
 }
 
+/*
+ * Defense fields (`shieldPoolCurrent`, `hullCurrent`) follow the shared
+ * station defense model (station-defense.ts); missing = full. Optional, no
+ * save version bump.
+ */
 export interface MiningStation {
   factionId: string;
+  shieldPoolCurrent?: number;
+  hullCurrent?: number;
 }
 
 export interface FleetShip {
@@ -498,6 +569,8 @@ export interface SpaceBase {
   y: number;
   /* Shared shield pool left after a battle (like PlanetTile.shieldPoolCurrent). Missing = full. */
   shieldPoolCurrent?: number;
+  /* Station core hit points left after a battle (station-defense.ts). Missing = full. */
+  hullCurrent?: number;
 }
 
 export interface StarMapData {
@@ -566,6 +639,13 @@ export interface StarMapData {
    * never stored: it is derived from planet owners and these bases.
    */
   spaceBases?: SpaceBase[];
+  /*
+   * Open credit demands (save version 9+): AI demands waiting for the
+   * human's answer and the human's refused threats waiting for a decision
+   * (diplomatic-demand.ts). Older saves get []. Restored by
+   * DiplomacyService.restoreDemands, which drops invalid entries.
+   */
+  diplomaticDemands?: DiplomaticDemand[];
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';
@@ -624,6 +704,13 @@ export interface PlanetEconomy {
   workforceEfficiency: number;
   habitabilityDrift: number;
   buildingMoraleBonus: number;
+  /*
+   * Raw materials/s the planet's mining buildings take from its deposit
+   * (workforce, technology and deposit richness applied; before energy
+   * efficiency and the faction gain multiplier). Part of production.rawmaterials;
+   * 0 without a deposit or once it is depleted.
+   */
+  depositMining: number;
 }
 
 /*
@@ -643,6 +730,12 @@ export interface EconomyBreakdown {
   shipUpkeepPerSecond: number;
   /* Upkeep that could not be paid on the last applied tick (arrears); 0 otherwise. */
   unpaidUpkeepPerSecond: number;
+  /*
+   * Effective raw/s from finite deposits (planet mines + asteroid stations),
+   * included in production.rawmaterials. The economy tick replaces this
+   * nominal rate with what is actually extracted (capped by what is left).
+   */
+  depositMiningPerSecond: number;
   totalPopulation: number;
   planets: PlanetEconomyEntry[];
   fleetExpenses: FleetExpenseEntry[];
@@ -675,6 +768,8 @@ export interface PlanetEconomyEntry {
   workforceEfficiency: number;
   habitabilityDrift: number;
   buildingMoraleBonus: number;
+  /* Effective raw/s this planet's mines extract from its deposit (included in production). */
+  miningRate: number;
 }
 
 export interface BuildingExpenseEntry {
@@ -718,6 +813,11 @@ export interface BuildingStats {
     shield?: number;
     shieldRegen?: number;
   } | null;
+  /*
+   * Must touch a deposit tile when placed; its raw-material production is
+   * extraction from the planet's finite deposit (raw-deposits.ts).
+   */
+  requiresOreProximity?: boolean;
 }
 
 export interface ContextMenuItem {
