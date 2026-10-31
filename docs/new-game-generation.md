@@ -84,9 +84,11 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
 - **Planets** get sequential numeric ids, globally unique generated names, random type/size, and
   the legacy system-view layout positions by index. Unique planet names are required:
   `EconomyService` resolves planets by name.
-- **Factions:** the human → id `'player'` (team 1); AIs → `'enemy1'…` in config order (team 2,
-  `ai: true`, `aiDifficulty`, `aiPersonality`); the neutral `independent` and `unhabited` factions are always added.
-  All AIs share team 2, as on the legacy map, so they do not fight each other.
+- **Factions:** the human → id `'player'` (team 1); AIs → `'enemy1'…` in config order (teams 2, 3, …
+  — one team each, `ai: true`, `aiDifficulty`, `aiPersonality`); the neutral `independent` and `unhabited` factions are always added.
+  No two participants are permanent allies: everyone starts at war with everyone, under the opening
+  war lock (`normalizeRelations(factions, INITIAL_WAR_LOCK_SECONDS)`), and treaties decide later who
+  fights whom. See [Diplomacy](./diplomacy.md). (Pre-diplomacy saves keep all AIs on team 2.)
 - **Homeworld** (planet 1 of each home system, earthlike/medium, population 1400): the legacy Earth
   buildings plus a Fusion Power Plant, so every faction starts energy-positive. Without it, AI
   homeworlds would lose satisfaction at −1/s and rebel before their develop action ran.

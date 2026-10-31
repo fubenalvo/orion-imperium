@@ -17,7 +17,9 @@ import { getRelation, isTreatyPair } from './diplomacy';
  *    stronger (strength ratio ≥ the personality's peaceRatio), when the
  *    war is a second front (it has ≥ 2 wars, this is not its primary
  *    enemy, and the enemy is not much weaker), or when it is nearly beaten
- *    (≤ 1 planet). Two AIs sign peace only when both want it. Toward the
+ *    (≤ 1 planet left against an enemy with ≥ COLLAPSE_ENEMY_PLANETS, and
+ *    no clear military edge). A fresh one-planet empire facing an equal
+ *    one is not "collapsing". Two AIs sign peace only when both want it. Toward the
  *    human it makes a timed peace offer instead (DiplomacyService).
  *  - War: an AI at peace declares war on a neighbour (within WAR_REACH)
  *    that is clearly weaker (ratio ≤ warRatio), at most one declaration
@@ -76,6 +78,8 @@ export class EnemyDiplomacyService {
   static readonly SECOND_FRONT_MIN_RATIO = 0.75;
   /* After offering peace to the player, the AI waits this long before offering again. */
   static readonly OFFER_COOLDOWN = 150;
+  /* Planets the enemy must hold for a one-planet AI to count as collapsing. */
+  static readonly COLLAPSE_ENEMY_PLANETS = 3;
 
   private accumulator = 0;
   /* AI faction id → seconds until it may offer the player peace again. */
@@ -123,7 +127,13 @@ export class EnemyDiplomacyService {
     const profile = this.profileOf(ai);
     const ratio = this.strengthRatio(enemy, ai, ctx);
     if (ratio >= profile.peaceRatio) return { accept: true, reason: 'outmatched' };
-    if (this.ownedPlanetCount(ai.id, ctx) <= 1 && ratio >= 0.8) return { accept: true, reason: 'collapsing' };
+    if (
+      this.ownedPlanetCount(ai.id, ctx) <= 1
+      && this.ownedPlanetCount(enemy.id, ctx) >= EnemyDiplomacyService.COLLAPSE_ENEMY_PLANETS
+      && ratio >= 0.8
+    ) {
+      return { accept: true, reason: 'collapsing' };
+    }
     const wars = this.warEnemies(ai, ctx);
     if (
       wars.length >= 2

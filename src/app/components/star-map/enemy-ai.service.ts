@@ -56,13 +56,17 @@ export class EnemyAiService {
 
     const aiFactionIds = new Set(getAiFactionIds(factions));
 
-    // Pursuit targets are the living fleets of factions this AI faction is
-    // at war with (diplomacy.ts); before diplomacy that was the human (team 1).
+    // Pursuit targets: living fleets of *human* factions this AI faction is
+    // at war with (diplomacy.ts). AI-vs-AI fleets are deliberately left to
+    // EnemyFleetService: this fallback layer acts on fleets in the short
+    // gaps between other owners' decisions, and pursuing AI fleets there
+    // made it fight those owners over the same fleet's target every frame.
     const hostileFleetCache = new Map<string, Fleet[]>();
     const hostileFleetsFor = (factionId: string): Fleet[] => {
       let cached = hostileFleetCache.get(factionId);
       if (!cached) {
-        cached = getHostileFleets(factionId, fleets, factions);
+        const humanIds = new Set(factions.filter((f) => f.ai !== true).map((f) => f.id));
+        cached = getHostileFleets(factionId, fleets, factions).filter((f) => humanIds.has(f.factionId));
         hostileFleetCache.set(factionId, cached);
       }
       return cached;

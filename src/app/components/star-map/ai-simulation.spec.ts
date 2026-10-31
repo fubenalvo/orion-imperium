@@ -1695,19 +1695,13 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
   it('personalities produce different, valid strategies on the same map', () => {
     const run = (personality: string) => {
       const options: ScenarioOptions = {
+        // Compares personalities in isolation: a war between the two AIs
+        // (random winner, lost colonies) would dominate the differences.
+        aiAlliance: true,
         size: 'medium', aiCount: 2, seconds: 900, dt: 1 / 30, removePlayerFleets: true,
         prepare: withPersonalities([personality]),
       };
       const result = runScenario(options);
-      // DEBUG-DIPLOMACY
-      {
-        const ev = TestBed.inject(EnemyProgressService).getEvents();
-        const summary: Record<string, number> = {};
-        for (const e of ev) { const k = `${e.factionId}|${e.type}|${(e as any).dbg ?? e.detail}`.slice(0, 200); summary[k] = (summary[k] ?? 0) + 1; }
-        (globalThis as any).process.stdout.write(`
-DEBUGP ${personality} battles=${result.aiBattles} changed=${(result.changedFrames / result.frames).toFixed(3)} rel=${JSON.stringify(result.data.factions.map((f) => [f.id, f.relations]))} ${JSON.stringify(summary)}
-`);
-      }
       expectHealthyAiFactions(result, options);
       return leagueRows(result, options);
     };
@@ -1779,18 +1773,6 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
     const result = runScenario({ resolvePlayerFleetBattles: true, ...options });
     expectHealthyAiFactions(result, options);
     const rows = leagueRows(result, options, 600);
-    // DEBUG-DIPLOMACY
-    {
-      const ev = TestBed.inject(EnemyProgressService).getEvents();
-      const summary: Record<string, number> = {};
-      for (const e of ev) { const k = `${e.factionId}|${e.type}|${(e as any).dbg ?? (e as any).detail}`.slice(0, 200); summary[k] = (summary[k] ?? 0) + 1; }
-      const rel = result.data.factions.filter((f) => f.relations).map((f) => `${f.id}:${JSON.stringify(Object.fromEntries(Object.entries(f.relations!).map(([k, v]) => [k, v.state])))}`);
-      (globalThis as any).process.stdout.write(`
-DEBUG ${options.size} battles=${result.aiBattles} changed=${(result.changedFrames / result.frames).toFixed(3)}
-${JSON.stringify(summary, null, 1)}
-${rel.join(' ; ')}
-`);
-    }
     for (const row of rows) {
       const who = `${options.size} ${row.factionId} (${row.personality}/${row.difficulty})`;
       expect(row.inactiveWindows, `${who} inactive 10-minute windows`).toBe(0);

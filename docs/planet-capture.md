@@ -23,7 +23,7 @@ Population, buildings, satisfaction and the persisted planetary shield pool stay
 
 Identical for the player and the AI:
 
-1. Only a planet owned by a faction on **another team** can be attacked; neutral team 0 (e.g. `independent` rebels) counts as another team. Own and allied planets never; `unhabited` planets are colonized, not captured.
+1. Only a planet whose owner the attacker is **at war** with can be attacked, plus neutral team 0 rebel planets (`independent`) — `canAttackPlanetOf` in `diplomacy.ts`. Own, permanently allied (same team) and at-peace planets never; `unhabited` planets are colonized, not captured. See [Diplomacy](./diplomacy.md).
 2. A planet without combat defenses (no turret; a planetary shield alone does not fight) is captured on arrival.
 3. A defended planet changes owner only through a won planet battle. A real garrison fleet involved in the battle is destroyed with the planet on attacker victory.
 
@@ -76,12 +76,12 @@ From the human player's perspective; "allied" = the player plus non-AI factions 
 
 1. **Terminal outcomes are sticky.** A save carrying `victory` or `defeat` is returned unchanged; `StarMap.gameLoopCallback` stops simulating once the outcome is terminal, so no later AI tick can overwrite it.
 2. **Defeat (= AI victory):** the allied side owns no planet at all **and** has no fleet with a living ship. A fleet is a recovery route (it can colonize with a colonizer or capture undefended/independent planets), as is any owned planet, even an empty one. Stock ships do not count — without an owned Spaceport they cannot leave the stock. Elimination is evaluated first, so defeat is reachable while hostile planets exist (previously it was not).
-3. **Victory:** every inhabited planet (population > 0 or any building) is allied — independent rebel planets still block victory — and no hostile AI faction has a living fleet.
+3. **Victory:** every inhabited planet (population > 0 or any building) is allied or owned by an AI faction **at peace** with the player — independent rebel planets still block victory — and no AI faction **at war** with the player has a living fleet. If a peace partner still owns an inhabited planet (diplomatic victory), the allied side must also own more than `DIPLOMATIC_VICTORY_PLANET_SHARE` (50%) of the inhabited planets, so peace with everyone early is not an instant win. See [Diplomacy](./diplomacy.md#diplomatic-victory).
 4. Otherwise **in progress**.
 
 Rules 2 and 3 are mutually exclusive. An AI faction without planets but with a fleet is not eliminated (it blocks victory and can recover through assaults).
 
-Outcome checks run on battle return, on load, and in the frame loop whenever `PlanetOwnershipService.revision` changed.
+Outcome checks run on battle return, on load, after a player treaty change, and in the frame loop whenever `PlanetOwnershipService.revision` changed, an AI-vs-AI battle was auto-resolved, or an AI treaty event happened.
 
 A terminal outcome shows the victory / defeat dialog (`.game-end-overlay` in `star-map.html`) in every orientation. It is a top-level sibling of the portrait "rotate your device" overlay; it was once nested inside that overlay by mistake and so never appeared in landscape.
 

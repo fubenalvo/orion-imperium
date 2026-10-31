@@ -168,7 +168,11 @@ describe('AI acceptance (real StarMap sessions)', () => {
     run(map, 120, 0.1);
     expect(frames).toBeGreaterThan(1000);
     // Late game: the AI reports a state change on a small minority of frames.
-    expect(changedFrames / frames).toBeLessThan(0.05);
+    // AIs at war with each other (docs/diplomacy.md) legitimately re-aim
+    // interceptors at moving enemy fleets on many fleet decisions (~5% of
+    // frames here); the guard is against the bug pattern of a change
+    // reported on (almost) every frame.
+    expect(changedFrames / frames).toBeLessThan(0.08);
   });
 
   it('AT-14: the AI view of a real game hides player fleets outside its sensors', () => {

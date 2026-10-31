@@ -58,7 +58,7 @@
 | 35 | Sensor range bonuses (research) | ✅ | Core |
 | 36 | Responsive layout (desktop/mobile) | ✅ | UI |
 | 37 | Options / Credits screen | ❌ stub | Systems |
-| 38 | Diplomacy | ❌ | Missing |
+| 38 | Diplomacy (war / peace) | ✅ | Systems |
 | 39 | Ship design (customization) | ❌ | Missing |
 | 40 | AI opponents (full V5 pipeline) | ✅ | AI |
 | 41 | Missions / objectives | ❌ | Missing |
@@ -354,7 +354,7 @@ The AI pipeline is a layered system running every frame (respecting pause/speed 
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Diplomacy | ❌ | No diplomatic relations, treaties, or trade agreements. Team/faction is static. |
+| Diplomacy | ⚠️ partial | War and peace treaties between all empires (AI–AI included), AI peace offers, Diplomacy screen, diplomatic victory — see [Diplomacy](./diplomacy.md). No alliances, trade or tribute yet. |
 | Ship Design | ❌ | Ship types are fixed in JSON. No customship design, module fitting, or retrofit. |
 | Missions/Objectives | ❌ | No quest system, victory conditions, or mission tracking. |
 | Multiplayer | ❌ | Single-player only. No networking layer. |
@@ -487,7 +487,7 @@ long_range_radar → +1 sensor range (cumulative +3)
 
 1. **No combat ship production for AI** — AI only produces colonizers. Enemy fleets never grow or replace losses. This limits the strategic depth of conflict.
 2. **No victory conditions** — The game has no win/lose state. Players can expand indefinitely with no endpoint.
-3. **No diplomacy** — Enemy factions are permanently hostile. No option for alliances, trade, or tribute.
+3. **Basic diplomacy only** — war/peace treaties exist ([Diplomacy](./diplomacy.md)); no alliances, trade, or tribute.
 4. **No ship design** — All ship types are fixed. No customization or tech-driven upgrades to ship stats.
 5. **Research Laboratory morale bug** — `moraleRate: 1` on research labs makes them effectively social buildings, which is likely unintended.
 6. **Fleet tactics post-battle** — Winner survivor roster does not persist per-ship; fleet position not updated after battle
@@ -507,7 +507,7 @@ long_range_radar → +1 sensor range (cumulative +3)
 | Victory conditions | ❌ | Define win/lose conditions, mission system |
 | AI combat production | ✅ | `produce_combat_ship` queues the cheapest unlocked/affordable combat ship at a factory planet |
 | AI fleet reinforcement | ✅ | `reinforce_fleet` / `create_fleet` replenish AI fleets from global stock via `FleetAssemblyService` |
-| Diplomacy | ❌ | Faction relation system, trade, treaties |
+| Diplomacy | ⚠️ | War/peace done; alliances, trade, tribute |
 | Ship design | ❌ | Custom ship construction, module system |
 | Fleet tactics post-battle | ⚠️ | Persist fleet positions, apply repair, survivor roster |
 | Orbital factories | ⚠️ | Add Orbital Factory building, ships requiring it |

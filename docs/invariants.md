@@ -256,7 +256,7 @@ See [AI Pipeline](./ai-pipeline.md) for context.
 - **AI research uses ResearchService:** AI factions only gain technologies through `ResearchService.researchTechnology`, after `canResearch` is true.
 - **Shared colonization reach:** `EnemyStrategyService`, `EnemyGoalService` and `EnemyPlanService` all read reach from `EnemyReachService`; a strategy that says 'expand' must always have targets the goal layer accepts.
 - **Neutral posture and personality:** the balanced personality without threats reproduces the Phase 4 constants (military ×1, home guard 30%, assault survival 50%); factions without `aiPersonality` are balanced.
-- **One carrier, one colonization objective:** a colonizer carrier serves at most one objective at a time (primary or parallel slot), and the parallel slot never targets the primary's planet.
+- **One carrier, one colonization objective:** a colonizer carrier serves at most one objective at a time (primary or parallel slot), and the parallel slot never targets the primary's planet. The AI tick never executes both slots on the same fleet in one frame (the primary wins).
 - **AI fog of war:** with fog of war on, AI decision layers only read `EnemyIntelService.getView` (sensed or remembered information); only the executor, invasion and construction touch the real world, and they re-validate every decision.
 - **AI debug output is passive:** `EnemyDebugService` never changes state, runs only on demand (≈1 Hz while the F9 panel is open) and logs nothing unless console output is switched on.
 - **Production follows ownership:** an order on a planet its faction no longer owns is refunded and dropped.
@@ -264,13 +264,23 @@ See [AI Pipeline](./ai-pipeline.md) for context.
 - **Truthful change reporting:** AI layers return `true` from `tick` only when game state actually changed; no-op movement orders and repeated attack/defend confirmations return `false`.
 - **Fleet strength counts living ships only:** `ShipService.calculateFleetStrength` skips ships flagged `destroyed`.
 
+## Diplomacy
+
+See [Diplomacy](./diplomacy.md).
+
+- **One hostility rule:** whether two factions fight is decided only by `diplomacy.ts` (`areFactionsHostile` / `canAttackPlanetOf`); no gameplay code compares `Faction.team` to decide hostility.
+- **Symmetric treaties:** `Faction.relations` is written only by `setTreatyState`, always on both sides; `normalizeRelations` runs on every new game and load and repairs disagreement as war.
+- **Locks run on game time:** treaty locks count down only with the scaled game delta (frozen while paused); a treaty never changes while its lock is running, for the player or the AI.
+- **No battle screen without a human side:** AI-vs-AI fleet battles are auto-resolved in battle detection and never navigate to `/battle`.
+- **Peace never wins by itself:** a diplomatic victory needs more than half of the inhabited planets.
+
 ## Planet ownership and game outcome
 
 See [Planet Capture](./planet-capture.md).
 
 - **Single ownership pathway:** gameplay code changes `PlanetTile.factionId` only through `PlanetOwnershipService.transferPlanet` (colonization, capture, battle victory, rebellion); only the galaxy generator writes initial owners directly.
 - **Captured planets stop producing for the loser:** a transfer cancels and refunds the previous owner's production orders on that planet.
-- **Same-team planets are never attacked;** a planet battle changes ownership only on attacker victory; a draw leaves the planet with the defender.
+- **Planets are attacked only at war** (or neutral rebels): permanently allied and at-peace planets are never attacked; a planet battle changes ownership only on attacker victory; a draw leaves the planet with the defender.
 - **One combat damage rule:** the animated battle and the auto-resolver both use `applyVolleyDamage`.
 - **Terminal outcomes are sticky:** once `victory`/`defeat` is stored, `GameOutcomeService.evaluate` returns it unchanged and the star-map frame loop stops simulating.
 - **Defeat = elimination:** the allied side owns no planet and has no living fleet; it is checked before victory and is reachable while hostile planets exist.

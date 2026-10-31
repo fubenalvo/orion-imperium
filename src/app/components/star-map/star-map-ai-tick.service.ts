@@ -251,9 +251,19 @@ export class StarMapAiTickService {
         this.enemyProgressService.recordExecution(factionId, action, executed);
       }
       actionExecuted = executed || actionExecuted;
-      actionExecuted = this.enemyActionExecutor.tick(
+      // One writer per fleet: if the parallel colonization slot holds the
+      // same fleet as the primary action (a carrier re-bound between their
+      // evaluations), the primary action wins this frame. Executing both
+      // made the fleet flip between two targets every frame and never move;
+      // the slot picks another carrier on its next evaluation.
+      const colonizationAction = this.enemyActionService.getColonizationAction(factionId);
+      const sharesPrimaryFleet = colonizationAction?.targetId !== undefined
+        && colonizationAction.targetId === action?.targetId
+        && colonizationAction.type === 'move_to_target'
+        && action?.type === 'move_to_target';
+      actionExecuted = !sharesPrimaryFleet && this.enemyActionExecutor.tick(
         gameDeltaTime,
-        this.enemyActionService.getColonizationAction(factionId),
+        colonizationAction,
         data.factions,
         data.starSystems,
         data.production,

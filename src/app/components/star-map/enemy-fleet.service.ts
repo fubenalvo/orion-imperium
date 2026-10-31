@@ -224,18 +224,17 @@ export class EnemyFleetService {
     }
     const clock = (this.clocks.get(faction.id) ?? 0) + gameDeltaTime;
     this.clocks.set(faction.id, clock);
-    const contactLost = this.dropLostInterceptions(faction, factions, (real ?? { fleets }).fleets);
+    this.dropLostInterceptions(faction, factions, (real ?? { fleets }).fleets);
     // First decision immediately, so fleets are owned from the first frame.
     // Difficulty `reactionInterval` slows decisions (Easy decides every 4 s).
     const interval = EnemyFleetService.DECISION_INTERVAL * getAiDifficultyProfile(faction).reactionInterval;
     const accumulator = (this.accumulators.get(faction.id) ?? interval) + gameDeltaTime;
     if (accumulator < interval) {
       this.accumulators.set(faction.id, accumulator);
-      return contactLost;
+      return false;
     }
     this.accumulators.set(faction.id, Math.max(0, accumulator - interval));
-    return this.decide(faction, factions, starSystems, fleets, pipelineFleetIds, clock, production, real ?? { starSystems, fleets })
-      || contactLost;
+    return this.decide(faction, factions, starSystems, fleets, pipelineFleetIds, clock, production, real ?? { starSystems, fleets });
   }
 
   /*
@@ -245,10 +244,10 @@ export class EnemyFleetService {
    * and fleet decisions run on separate 2 s clocks that drift apart, and
    * without this sweep an interceptor could keep chasing a lost contact
    * for up to one decision interval. The fleet keeps flying to its last
-   * ordered point and gets a new role at the next decision.
+   * ordered point and gets a new role at the next decision. Only the
+   * assignment changes (no game state), so nothing is reported as changed.
    */
-  private dropLostInterceptions(faction: Faction, factions: Faction[], realFleets: Fleet[]): boolean {
-    let changed = false;
+  private dropLostInterceptions(faction: Faction, factions: Faction[], realFleets: Fleet[]): void {
     for (const fleet of realFleets) {
       if (fleet.factionId !== faction.id) continue;
       const assignment = this.assignments.get(fleet.id);
@@ -260,10 +259,8 @@ export class EnemyFleetService {
         // never picks it up); without a target the interception is invalid
         // at the next decision and the fleet gets a new role.
         this.assignments.set(fleet.id, { ...assignment, targetFleetId: undefined });
-        changed = true;
       }
     }
-    return changed;
   }
 
   private decide(

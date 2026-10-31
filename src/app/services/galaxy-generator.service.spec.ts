@@ -12,6 +12,7 @@ import {
 import { validateGeneratedGalaxy } from './galaxy-validation';
 import { GALAXY_SIZE_PRESETS, NewGameConfig, PLAYER_COLOR_PALETTE } from './new-game.models';
 import { addPlayer, createDefaultNewGameConfig, setGalaxySize } from './new-game-config';
+import { INITIAL_WAR_LOCK_SECONDS } from '../components/star-map/diplomacy';
 
 const generator = new GalaxyGeneratorService();
 const SIZES: GalaxySize[] = ['small', 'medium', 'large'];
@@ -180,7 +181,14 @@ describe('GalaxyGeneratorService', () => {
     expect(byId.get('player')).toMatchObject({ name: 'Me', color: '#7bd66b', ai: false, team: 1 });
     expect(byId.get('player')!.aiDifficulty).toBeUndefined();
     expect(byId.get('enemy1')).toMatchObject({ name: 'Bot One', color: '#d65757', ai: true, team: 2, aiDifficulty: 'hard' });
-    expect(byId.get('enemy2')).toMatchObject({ name: 'Bot Two', color: '#ff6fcf', ai: true, team: 2, aiDifficulty: 'easy' });
+    // Every participant has its own team; nobody starts allied (docs/diplomacy.md).
+    expect(byId.get('enemy2')).toMatchObject({ name: 'Bot Two', color: '#ff6fcf', ai: true, team: 3, aiDifficulty: 'easy' });
+    // Everyone starts at war with everyone else, under the opening war lock.
+    for (const [a, b] of [['player', 'enemy1'], ['player', 'enemy2'], ['enemy1', 'enemy2']]) {
+      expect(byId.get(a)!.relations?.[b]).toEqual({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS });
+      expect(byId.get(b)!.relations?.[a]).toEqual({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS });
+    }
+    expect(byId.get('independent')!.relations).toBeUndefined();
     expect(byId.has('independent')).toBe(true);
     expect(byId.has('unhabited')).toBe(true);
     expect(data.factions.filter((f) => f.ai === false && f.team === 1)).toHaveLength(1);

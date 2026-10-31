@@ -12,7 +12,9 @@ the minigame.
 | Type | Defender | Trigger |
 |---|---|---|
 | Fleet vs Fleet | Enemy fleet | `StarMapBattleDetectionService` — hostile fleets on the same galaxy grid cell |
-| Fleet vs Planet | Planet defenses | `StarMapPlanetArrivalService` — a non-teammate fleet stops on a defended enemy planet |
+| Fleet vs Planet | Planet defenses | `StarMapPlanetArrivalService` — a fleet stops on a defended planet of a faction it is at war with |
+
+Fleets fight only when their factions are at war ([Diplomacy](./diplomacy.md)). Only battles with a human side open this minigame; a fleet battle between two AI factions is auto-resolved on the spot (`autoResolveBattle`, see [Planet Capture](./planet-capture.md#auto-resolver-battle-auto-resolvets)).
 
 The **trigger conditions** are unchanged from the strategic side (see `docs/game-state.md`
 §4.6). The tactically significant difference is in resolution: see below.
