@@ -1,0 +1,120 @@
+- generic [ref=e105]:
+  - banner [ref=e108]:
+    - generic [ref=e109]:
+      - button "Back to PROCYON" [ref=e110] [cursor=pointer]:
+        - generic [aria-hidden] [ref=e111]: ‹
+        - generic [ref=e112]: PROCYON
+      - generic "Nyia" [ref=e114]
+    - group "Time controls" [ref=e115]:
+      - button "Pause / Resume" [ref=e116] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=e117] [cursor=pointer]: 1x
+      - button "2x speed" [ref=e118] [cursor=pointer]: 2x
+    - generic [ref=e119]:
+      - generic [ref=e120]:
+        - generic [ref=e122]:
+          - generic [ref=e123] [cursor=pointer]: 1,432
+          - generic [ref=e126]:
+            - generic [ref=e127] [cursor=pointer]
+            - generic [ref=e128] [cursor=pointer]: 1,014
+          - generic [ref=e129]:
+            - generic [ref=e130] [cursor=pointer]
+            - generic [ref=e131] [cursor=pointer]: 1,025
+        - button "0 STOCK" [ref=e134] [cursor=pointer]:
+          - generic [ref=e136]: "0"
+          - generic [ref=e137]: STOCK
+        - button "DIPLOMACY" [ref=e138] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e139]: ⚖
+      - button "Enter full screen" [ref=e141] [cursor=pointer]
+      - button "Open pause menu" [ref=e144] [cursor=pointer]
+  - generic [ref=e149]:
+    - generic [ref=e150]:
+      - generic [ref=e151]:
+        - generic:
+          - generic:
+            - generic: Large Residential Block
+            - generic: Large Residential Block
+            - generic: Fusion Power Plant
+            - generic: Laser Turret
+            - generic: Research Laboratory
+      - generic [ref=e478]:
+        - button "▲" [ref=e479] [cursor=pointer]
+        - button "◀" [ref=e480] [cursor=pointer]
+        - button "●" [ref=e481] [cursor=pointer]
+        - button "▶" [ref=e482] [cursor=pointer]
+        - button "▼" [ref=e483] [cursor=pointer]
+      - group "Surface zoom" [ref=e484]:
+        - button "CLOSE" [ref=e485] [cursor=pointer]
+        - button "MEDIUM" [pressed] [ref=e486] [cursor=pointer]
+        - button "FAR" [ref=e487] [cursor=pointer]
+        - button "NAMES" [pressed] [ref=e488] [cursor=pointer]
+    - complementary [ref=e489]:
+      - generic [ref=e490]:
+        - text: Nyia
+        - generic [ref=e491]: SURFACE
+      - tablist [ref=e492]:
+        - tab "DETAILS" [selected] [ref=e493] [cursor=pointer]
+        - tab "BUILD" [ref=e494] [cursor=pointer]
+      - generic [ref=e495]:
+        - generic [ref=e496]:
+          - generic [ref=e497]: EARTHLIKE
+          - generic [ref=e498]: Terran Empire
+        - generic [ref=e499]:
+          - generic [ref=e500]:
+            - generic [ref=e501]: 1,400
+            - generic [ref=e502]: Population
+          - generic [ref=e503]:
+            - generic [ref=e504]: 107/s
+            - generic [ref=e505]: Net income
+          - generic [ref=e507]:
+            - generic [ref=e508]: Satisfaction
+            - generic [ref=e509]: 100%
+        - generic [ref=e514]:
+          - generic [ref=e515] [cursor=pointer]: 1,432
+          - generic [ref=e518]:
+            - generic [ref=e519] [cursor=pointer]
+            - generic [ref=e520] [cursor=pointer]: 1,014
+          - generic [ref=e521]:
+            - generic [ref=e522] [cursor=pointer]
+            - generic [ref=e523] [cursor=pointer]: 1,025
+        - generic [ref=e524]: Workforce & energy
+        - generic [ref=e525]:
+          - generic [ref=e526]: Workforce
+          - generic [ref=e527]: 200 / 105
+        - generic [ref=e528]:
+          - generic [ref=e529]: Workforce eff.
+          - generic [ref=e530]: 100%
+        - generic [ref=e531]:
+          - generic [ref=e532]: Energy
+          - generic [ref=e533]: 100 / 54
+        - generic [ref=e534]:
+          - generic [ref=e535]: Energy balance
+          - generic [ref=e536]: "46"
+        - generic [ref=e537]:
+          - generic [ref=e538]: Entertainment
+          - generic [ref=e539]: "-0.01"
+        - generic [ref=e540]: Economy
+        - generic [ref=e541]:
+          - generic [ref=e542]: Raw materials
+          - generic [ref=e543]: +3/s
+        - generic [ref=e544]:
+          - generic [ref=e545]: Research
+          - generic [ref=e546]: +5/s
+        - generic [ref=e547]:
+          - generic [ref=e548]: Efficiency
+          - generic [ref=e549]: 100%
+        - generic [ref=e550]: Buildings (5)
+        - generic [ref=e551]:
+          - generic [ref=e552]: Large Residential Block
+          - generic [ref=e553]: 3x3
+        - generic [ref=e554]:
+          - generic [ref=e555]: Large Residential Block
+          - generic [ref=e556]: 3x3
+        - generic [ref=e557]:
+          - generic [ref=e558]: Fusion Power Plant
+          - generic [ref=e559]: 3x3
+        - generic [ref=e560]:
+          - generic [ref=e561]: Laser Turret
+          - generic [ref=e562]: 1x1
+        - generic [ref=e563]:
+          - generic [ref=e564]: Research Laboratory
+          - generic [ref=e565]: 2x2

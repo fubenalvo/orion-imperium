@@ -19,7 +19,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 ## Resources
 
 - **Credits** (stock, integer): population income minus upkeep. Spent on buildings and ships.
-- **Raw materials** (stock): Spaceship Factory 6/s, Mining Complex 15/s (needs an ore tile; ~20% of planets have one), plus a population trickle of `0.002 × population`/s. Building output scales with workforce efficiency; the trickle does not. Spent on buildings and ships.
+- **Raw materials** (stock): Spaceship Factory 6/s, Mining Complex 15/s (needs an ore tile; ~20% of planets have one), plus a population trickle of `0.002 × population`/s, plus 5/s per asteroid mining station until its deposit is empty ([Territory](./territory.md#mining-stations)). Building output scales with workforce efficiency; the trickle and mining do not. Spent on buildings and ships.
 - **Research** (stock): research labs. Spent only on technologies.
 - **One-off windfalls:** collecting a drifting asteroid adds its cargo (raw materials and/or research points) directly to the collecting faction's stock, outside the economy tick. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids).
 - **Energy** (flow, never stored): an energy-short planet produces at `production / consumption` efficiency and loses 1 satisfaction/s.
@@ -32,7 +32,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 Order within one tick (per faction):
 
 1. **Satisfaction drift** on owned planets (+1/s with enough energy, −1/s when short, plus habitability and building morale). A planet reaching 0 rebels to `independent` *before* income is computed, so it neither pays nor costs its old owner on that tick.
-2. **Effective breakdown** (`calculateEconomy`) from the post-drift state; `net[r] × delta` is applied to raw materials and research.
+2. **Effective breakdown** (`calculateEconomy`) from the post-drift state; `net[r] × delta` is applied to raw materials and research, except that mining stations add what they actually extracted from their deposits this tick (capped by the remaining amount) instead of their nominal rate.
 3. **Credits**: `credits + carried fraction + netPerSecond × delta`, floored; the fractional remainder is carried per faction in memory (not saved — at most one credit is lost on reload).
 4. **Arrears**: credits never go below 0. If the treasury cannot cover the upkeep, the unpaid part is waived and every owned planet loses `2 × (unpaid / due)` satisfaction per second. A small shortfall is outweighed by the +1/s energy drift; a large one leads toward rebellion unless income recovers or upkeep is cut (disbanding a fleet moves its ships to the cheaper reserve).
 5. **Population growth.**

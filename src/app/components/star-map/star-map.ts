@@ -67,6 +67,7 @@ import {
   Nebula,
   DriftingAsteroid,
   AsteroidBelt,
+  SystemAsteroid,
 } from './star-map.models';
 import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration } from './diplomacy';
 import { DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
@@ -157,6 +158,14 @@ import { buildTerritoryShapes, TerritoryMap, TERRITORY_CONFIG } from './territor
 import { describeDeploymentFailure, hasLivingOutpostShip } from './space-base';
 import { isPointInObstacle } from './fleet-navigation';
 import { surveySystemAsteroids } from './system-asteroids';
+import {
+  AsteroidHint,
+  describeAsteroidForFaction,
+  describeMiningDeploymentFailure,
+  deployMiningStation,
+  MINING_STATION_CONFIG,
+  validateMiningStationDeployment,
+} from './mining-station';
 import { SYSTEM_FLEET_ENTRY_VW } from './system-grid';
 
 /*
@@ -945,6 +954,74 @@ loadError = '';
     this.saveGame();
     this.cdr.detectChanges();
   }
+
+  /*
+   * DEPLOY MINING state of the selected player fleet: only inside a star
+   * system and only with an outpost ship (null hides the button). Inside a
+   * system it replaces DEPLOY BASE, which only works in open space.
+   */
+  getSelectedFleetMiningDeployment(): { canDeploy: boolean; reason: string | null } | null {
+    const fleet = this.commandableFleet();
+    if (!fleet || !fleet.system || !hasLivingOutpostShip(fleet)) {
+      return null;
+    }
+    const check = validateMiningStationDeployment(this.miningDeployInput(fleet));
+    if (check.ok) {
+      return {
+        canDeploy: true,
+        reason: `Build a mining station on this ${Math.floor(check.asteroid.rawMaterials).toLocaleString('en-US')} raw deposit (uses one Outpost Ship)`,
+      };
+    }
+    return { canDeploy: false, reason: describeMiningDeploymentFailure(check.reason) };
+  }
+
+  private miningDeployInput(fleet: Fleet) {
+    return {
+      fleet,
+      factions: this.factions,
+      starSystems: this.starSystems,
+      territory: this.territoryService.get(this.starSystems, this.factions),
+    };
+  }
+
+  /* DEPLOY MINING: the outpost ship becomes a mining station on the asteroid the fleet stands on. */
+  onDeployMiningSelected(): void {
+    const fleet = this.commandableFleet();
+    if (!fleet) {
+      return;
+    }
+    const result = deployMiningStation(this.miningDeployInput(fleet));
+    if (!result.ok) {
+      if (!result.check.ok) this.showMapNotice(describeMiningDeploymentFailure(result.check.reason));
+      return;
+    }
+    this.showMapNotice(
+      `Mining station deployed in the ${result.system.name} asteroid belt: ` +
+        `${MINING_STATION_CONFIG.extractionPerSecond} raw materials/s from a ` +
+        `${Math.floor(result.asteroid.rawMaterials).toLocaleString('en-US')} deposit.`,
+    );
+    if (result.fleetRetired) {
+      this.deselectFleet();
+    }
+    this.saveGame();
+    this.cdr.detectChanges();
+  }
+
+  /* Hover card of an in-system asteroid (mining target status), for the player. */
+  getAsteroidHint(asteroid: SystemAsteroid): AsteroidHint | null {
+    const system = this.selectedSystem;
+    if (!system) return null;
+    return describeAsteroidForFaction({
+      factionId: 'player',
+      system,
+      asteroid,
+      territory: this.territoryService.get(this.starSystems, this.factions),
+      fleets: this.fleets,
+      factionName: (id) => this.getFactionName(id),
+    });
+  }
+
+  readonly boundGetAsteroidHint = this.getAsteroidHint.bind(this);
 
   /* Why the selected fleet's parked colonizer may not settle (another empire's territory). */
   getSelectedFleetColonizeBlock(): string | null {

@@ -180,6 +180,7 @@
         [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
         [colonizeBlockedReason]="getSelectedFleetColonizeBlock()"
         [baseDeployment]="getSelectedFleetBaseDeployment()"
+        [miningDeployment]="getSelectedFleetMiningDeployment()"
         [borderViolationOf]="getSelectedFleetBorderViolation()"
         (close)="deselectFleet()"
         (setFleetAction)="setFleetAction($event)"
@@ -187,6 +188,7 @@
         (organize)="openFleetManager()"
         (colonize)="onColonizeSelected()"
         (deployBase)="onDeployBaseSelected()"
+        (deployMining)="onDeployMiningSelected()"
       >
       </app-star-map-fleet-info>
     }
@@ -265,6 +267,7 @@
         [getFactionColor]="boundGetFactionColor"
         [fleetHeading]="boundSystemFleetHeading"
         [getPlanetClassNames]="boundGetPlanetClassNames"
+        [getAsteroidHint]="boundGetAsteroidHint"
         [trails]="systemTrails"
         [onSystemGridClick]="boundOnSystemGridClick"
         [onPlanetClick]="boundOnPlanetClick"
@@ -293,6 +296,7 @@
           [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
         [colonizeBlockedReason]="getSelectedFleetColonizeBlock()"
         [baseDeployment]="getSelectedFleetBaseDeployment()"
+        [miningDeployment]="getSelectedFleetMiningDeployment()"
         [borderViolationOf]="getSelectedFleetBorderViolation()"
           (close)="deselectFleet()"
           (setFleetAction)="setFleetAction($event)"
@@ -300,6 +304,7 @@
           (organize)="openFleetManager()"
           (colonize)="onColonizeSelected()"
         (deployBase)="onDeployBaseSelected()"
+        (deployMining)="onDeployMiningSelected()"
         >
         </app-star-map-fleet-info>
       }

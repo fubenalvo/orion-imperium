@@ -218,13 +218,18 @@
   z-index: 0;
 }
 
+/* Hoverable for the mining-target card; clicks bubble to the grid, whose
+   handlers read positions from the grid (currentTarget), not the rock. */
 .system-asteroid {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
   z-index: 1;
+
+  &:hover {
+    z-index: 6;
+  }
 }
 
 .system-asteroid__rock {
@@ -280,6 +285,117 @@
   }
 }
 
+/* Mining station: a small rotating frame in the owner's color around the rock. */
+.system-asteroid--station {
+  z-index: 3;
+}
+
+.system-asteroid__station {
+  position: absolute;
+  width: 1.6vw;
+  height: 1.6vw;
+  border: 1px solid var(--station-color, var(--ui-accent));
+  border-radius: 2px;
+  box-shadow: 0 0 0.4vw color-mix(in srgb, var(--station-color, var(--ui-accent)) 60%, transparent);
+  transform: rotate(45deg);
+  pointer-events: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.3vw;
+    height: 0.3vw;
+    transform: translate(-50%, -50%);
+    background: var(--station-color, var(--ui-accent));
+    box-shadow: 0 0 0.3vw var(--station-color, var(--ui-accent));
+  }
+}
+
+/* Hover target ring: green valid, red invalid, dim unknown, owner color for own. */
+.system-asteroid__target {
+  position: absolute;
+  width: 2.3vw;
+  height: 2.3vw;
+  border-radius: 50%;
+  border: 1px dashed var(--ui-ink-dim);
+  pointer-events: none;
+
+  &--valid {
+    border: 2px solid var(--ui-success);
+    box-shadow: 0 0 0.6vw rgba(var(--ui-success-rgb), 0.6);
+  }
+
+  &--invalid {
+    border-color: var(--ui-danger);
+  }
+
+  &--own {
+    border: 1px solid var(--station-color, var(--ui-accent));
+  }
+}
+
+.asteroid-hint {
+  position: absolute;
+  bottom: calc(50% + 1.4vw);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 16rem;
+  padding: 0.35rem 0.55rem;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-left: 2px solid var(--ui-ink-dim);
+  box-shadow: var(--ui-shadow-panel);
+  font-family: var(--font-primary);
+  pointer-events: none;
+  z-index: 10;
+
+  &--below {
+    bottom: auto;
+    top: calc(50% + 1.4vw);
+  }
+
+  &--start {
+    left: -0.5vw;
+    transform: none;
+  }
+
+  &--end {
+    left: auto;
+    right: -0.5vw;
+    transform: none;
+  }
+
+  &--valid {
+    border-left-color: var(--ui-success);
+  }
+
+  &--invalid {
+    border-left-color: var(--ui-danger);
+  }
+
+  &--own {
+    border-left-color: var(--station-color, var(--ui-accent));
+  }
+}
+
+.asteroid-hint__title {
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.06em;
+  color: var(--ui-ink-bright);
+  white-space: nowrap;
+}
+
+.asteroid-hint__detail {
+  font-size: 0.75rem;
+  color: var(--ui-ink-dim);
+}
+
 .system-asteroid__label {
   position: absolute;
   top: calc(50% + 0.9vw);
@@ -293,6 +409,11 @@
   text-shadow:
     0 0 4px rgba(0, 0, 0, 0.95),
     0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+.system-asteroid__label--station {
+  top: calc(50% + 1.2vw);
+  color: var(--station-color, var(--ui-accent));
 }
 
 @keyframes asteroid-deposit-pulse {

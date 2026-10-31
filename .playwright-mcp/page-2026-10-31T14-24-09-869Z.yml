@@ -1,0 +1,87 @@
+- generic [ref=e566]:
+  - banner [ref=e569]:
+    - generic [ref=e570]:
+      - button "Back to STAR MAP" [ref=e571] [cursor=pointer]:
+        - generic [aria-hidden] [ref=e572]: ‹
+        - generic [ref=e573]: STAR MAP
+      - generic "PROCYON" [ref=e575]
+    - group "Time controls" [ref=e576]:
+      - button "Pause / Resume" [ref=e577] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=e578] [cursor=pointer]: 1x
+      - button "2x speed" [ref=e579] [cursor=pointer]: 2x
+    - generic [ref=e580]:
+      - generic [ref=e581]:
+        - generic [ref=e583]:
+          - generic [ref=e584] [cursor=pointer]: 1,863
+          - generic [ref=e587]:
+            - generic [ref=e588] [cursor=pointer]
+            - generic [ref=e589] [cursor=pointer]: 1,028
+          - generic [ref=e590]:
+            - generic [ref=e591] [cursor=pointer]
+            - generic [ref=e592] [cursor=pointer]: 1,050
+        - button "0 STOCK" [ref=e595] [cursor=pointer]:
+          - generic [ref=e597]: "0"
+          - generic [ref=e598]: STOCK
+        - button "DIPLOMACY" [ref=e599] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e600]: ⚖
+      - button "Enter full screen" [ref=e602] [cursor=pointer]
+      - button "Open pause menu" [ref=e605] [cursor=pointer]
+  - generic [ref=e611]:
+    - button "Nyia" [ref=e612] [cursor=pointer]
+    - button "Luraia" [ref=e615] [cursor=pointer]
+    - button "Koraa" [ref=e618] [cursor=pointer]
+    - button "Moriia" [ref=e621] [cursor=pointer]
+  - generic [ref=e624]:
+    - generic [ref=e625]:
+      - generic [ref=e626]: Nyia
+      - button "Close" [ref=e627] [cursor=pointer]: X
+    - generic [ref=e628]:
+      - generic [ref=e629]:
+        - generic [ref=e630]: EARTHLIKE
+        - generic [ref=e631]: Terran Empire
+      - generic [ref=e632]:
+        - generic [ref=e633]:
+          - generic [ref=e634]: 1,400
+          - generic [ref=e635]: Population
+        - generic [ref=e636]:
+          - generic [ref=e637]: "100"
+          - generic [ref=e638]: Energy
+        - generic [ref=e639]:
+          - generic [ref=e640]: "140"
+          - generic [ref=e641]: Daily tax
+      - generic [ref=e642]: Economy
+      - generic [ref=e643]:
+        - generic [ref=e644]: credits
+        - generic [ref=e645]: +107/s
+      - generic [ref=e646]:
+        - generic [ref=e647]: Raw materials
+        - generic [ref=e648]: +3/s
+      - generic [ref=e649]:
+        - generic [ref=e650]: research
+        - generic [ref=e651]: +5/s
+      - generic [ref=e652]:
+        - generic [ref=e653]: Efficiency
+        - generic [ref=e654]: 100%
+      - generic [ref=e655]:
+        - generic [ref=e656]: Workforce
+        - generic [ref=e657]: 200 / 105
+      - generic [ref=e658]:
+        - generic [ref=e659]: Workforce eff.
+        - generic [ref=e660]: 100%
+      - generic [ref=e661]:
+        - generic [ref=e662]: Entertainment
+        - generic [ref=e663]: "-0.01"
+      - generic [ref=e664]: Buildings (4)
+      - generic [ref=e665]:
+        - generic [ref=e666]: Large Residential Block
+        - generic [ref=e667]: ×2
+      - generic [ref=e668]:
+        - generic [ref=e669]: Fusion Power Plant
+        - generic [ref=e670]: ×1
+      - generic [ref=e671]:
+        - generic [ref=e672]: Laser Turret
+        - generic [ref=e673]: ×1
+      - generic [ref=e674]:
+        - generic [ref=e675]: Research Laboratory
+        - generic [ref=e676]: ×1
+    - button "OPEN PLANET" [ref=e678] [cursor=pointer]

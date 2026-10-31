@@ -19,7 +19,9 @@
     }
 
     <!-- ASTEROID BELT: dust band along the belt line, one rock per asteroid cell.
-         Deposits are shown only once surveyed (see system-asteroids.ts). -->
+         Deposits are shown only once surveyed (see system-asteroids.ts).
+         Hovering a rock shows its mining-target status (mining-station.ts);
+         clicks still bubble to the grid, so move orders onto it work. -->
     @if (selectedSystem.asteroidBelt; as belt) {
       <div
         class="asteroid-belt-dust"
@@ -38,10 +40,28 @@
           [style.--rock-scale]="shape.scale"
           [style.--rock-dx]="shape.dx"
           [style.--rock-dy]="shape.dy"
+          [class.system-asteroid--station]="!!asteroid.miningStation"
+          [style.--station-color]="asteroid.miningStation ? getFactionColor(asteroid.miningStation.factionId) : null"
+          (mouseenter)="hoveredAsteroid = asteroid"
+          (mouseleave)="onAsteroidLeave(asteroid)"
         >
           <span class="system-asteroid__rock"></span>
-          @if (asteroid.surveyed && asteroid.rawMaterials > 0) {
-            <span class="system-asteroid__label">{{ asteroid.rawMaterials }} RAW</span>
+          @if (asteroid.miningStation) {
+            <span class="system-asteroid__station" aria-hidden="true"></span>
+            <span class="system-asteroid__label system-asteroid__label--station">
+              {{ asteroid.rawMaterials > 0 ? floor(asteroid.rawMaterials) + ' RAW' : 'DEPLETED' }}
+            </span>
+          } @else if (asteroid.surveyed && asteroid.rawMaterials > 0) {
+            <span class="system-asteroid__label">{{ floor(asteroid.rawMaterials) }} RAW</span>
+          }
+          @if (hoveredAsteroid === asteroid) {
+            @if (getAsteroidHint(asteroid); as hint) {
+              <span class="system-asteroid__target" [ngClass]="'system-asteroid__target--' + hint.tone"></span>
+              <div class="asteroid-hint" [ngClass]="['asteroid-hint--' + hint.tone].concat(hintPlacement(asteroid))" role="tooltip">
+                <span class="asteroid-hint__title">{{ hint.title }}</span>
+                <span class="asteroid-hint__detail">{{ hint.detail }}</span>
+              </div>
+            }
           }
         </div>
       }

@@ -21,11 +21,12 @@ Geometry lives in `system-grid.ts` (the single source of truth; the SCSS of `sta
 - **Fleets** keep vw positions (`Fleet.system.x/y`), so grid density never affects saved fleets, speed, or trails. A fleet with no in-system position appears at `SYSTEM_FLEET_ENTRY_VW` (bottom-left).
 - **Sensors:** in-system ranges are in *range units* of `SYSTEM_SENSOR_RANGE_UNIT_CELLS` (2) cells, i.e. the old 5vw cell, so a fleet sees exactly as far as before the grid was doubled.
 
-**Asteroid belt** (`system-asteroids.ts`): every system has one ring of single-cell asteroids around the star, placed in a gap between planet orbits (`SYSTEM_ASTEROID_CONFIG`: belt line 26–88vw from the star, ±3.6vw ragged band, 50% fill, typically 15–30 asteroids). Asteroids keep one cell clear around every planet block and the fleet entry cell, and never block movement or clicks.
+**Asteroid belt** (`system-asteroids.ts`): every system has one ring of single-cell asteroids around the star, placed in a gap between planet orbits (`SYSTEM_ASTEROID_CONFIG`: belt line 26–88vw from the star, ±3.6vw ragged band, 50% fill, typically 15–30 asteroids). Asteroids keep one cell clear around every planet block and the fleet entry cell, and never block movement or clicks (hovering one shows its mining-target status; the click still reaches the grid).
 
 - **Deposits:** one asteroid in ten (rounded, at least one per belt) holds 2,000–4,000 raw materials (`SystemAsteroid.rawMaterials`); the rest are barren.
 - **Survey:** an asteroid is surveyed once a human player fleet has been on its cell, stopping or just flying through (`surveySystemAsteroids`, run every frame from `StarMap.gameLoopCallback` in any view, since fleets keep moving inside systems while the player looks elsewhere). Until then the UI shows a plain rock and never reveals the deposit. A surveyed barren rock is dimmed; a surveyed deposit glows amber with its amount, and the find is announced with a map notice.
-- **Not yet:** nothing extracts deposits, and AI factions neither survey nor know about belts.
+- **Mining:** an outpost ship stopped on a surveyed deposit can deploy a mining station there (DEPLOY MINING), which extracts the deposit into its owner's raw materials during the economy tick. See [Territory](./territory.md#mining-stations).
+- **Not yet:** AI factions neither survey nor know about belts.
 - **Persistence:** the belt is generated deterministically from (galaxy seed, system id) on its own rng (by the galaxy generator, or by `SaveGameService.migrateSave` for saves without one) and then saved on `StarSystem.asteroidBelt`, because the survey state lives in it.
 
 These in-system belts are unrelated to the impassable galaxy-map asteroid belts and drifting asteroids of [Star Map Terrain](./star-map-terrain.md).
@@ -204,7 +205,7 @@ Territory rule (player and AI): no colonizing in a system that lies in another e
 
 ### Territory, Borders and Space Bases
 
-Empires own derived territory around their colonized systems and their space bases; fleets at peace inside foreign territory violate its borders (opinion cost, never a war); outpost ships deploy permanent space bases (DEPLOY BASE in the fleet panel) that extend territory and fight as static defenses. See [Territory](./territory.md).
+Empires own derived territory around their colonized systems and their space bases; fleets at peace inside foreign territory violate its borders (opinion cost, never a war); outpost ships deploy permanent space bases (DEPLOY BASE in the fleet panel) that extend territory and fight as static defenses, or, inside a system, mining stations on asteroid deposits (DEPLOY MINING). See [Territory](./territory.md).
 
 ### Battle Detection
 

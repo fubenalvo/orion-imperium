@@ -281,14 +281,25 @@ export interface SystemAsteroidBelt {
  * One asteroid occupying one system-view cell. `rawMaterials` is the hidden
  * deposit (0 = barren). The UI must not reveal it until `surveyed` is true:
  * a cell is surveyed once a human player fleet has been on it. AI factions
- * do not survey and have no knowledge of deposits. Deposits are only
- * discovered for now; nothing extracts them yet.
+ * do not survey and have no knowledge of deposits. A mining station
+ * (mining-station.ts) extracts the deposit, so `rawMaterials` is the
+ * remaining amount and may be fractional while it is being mined.
  */
 export interface SystemAsteroid {
   col: number;
   row: number;
   rawMaterials: number;
   surveyed: boolean;
+  /*
+   * Mining station built on this asteroid by an outpost ship (at most one
+   * per asteroid by construction). Permanent; it stays after the deposit is
+   * depleted. Missing = no station. Optional field, no save version bump.
+   */
+  miningStation?: MiningStation;
+}
+
+export interface MiningStation {
+  factionId: string;
 }
 
 export interface FleetShip {

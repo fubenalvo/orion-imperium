@@ -59,7 +59,17 @@
             COLONIZE
           </button>
         }
-        @if (baseDeployment) {
+        @if (miningDeployment) {
+          <button
+            type="button"
+            class="action-btn btn-primary deploy-base-btn deploy-mining-btn"
+            [disabled]="!miningDeployment.canDeploy"
+            [title]="miningDeployment.reason ?? ''"
+            (click)="deployMining.emit(); $event.stopPropagation()"
+          >
+            DEPLOY MINING
+          </button>
+        } @else if (baseDeployment) {
           <button
             type="button"
             class="action-btn btn-primary deploy-base-btn"
@@ -103,7 +113,11 @@
       @if (moveError) {
         <div class="ui-notice ui-notice--danger fleet-info__move-error" role="status">{{ moveError }}</div>
       }
-      @if (baseDeployment && !baseDeployment.canDeploy && baseDeployment.reason) {
+      @if (miningDeployment) {
+        @if (!miningDeployment.canDeploy && miningDeployment.reason) {
+          <div class="ui-notice fleet-info__move-error" role="status">Mining: {{ miningDeployment.reason }}</div>
+        }
+      } @else if (baseDeployment && !baseDeployment.canDeploy && baseDeployment.reason) {
         <div class="ui-notice fleet-info__move-error" role="status">Base: {{ baseDeployment.reason }}</div>
       }
       @if (colonizeBlockedReason) {

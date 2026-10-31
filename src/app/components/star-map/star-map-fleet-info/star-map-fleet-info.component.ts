@@ -44,6 +44,12 @@ export class StarMapFleetInfoComponent {
    * ship (hides DEPLOY BASE). `reason` explains a disabled button.
    */
   @Input() baseDeployment: { canDeploy: boolean; reason: string | null } | null = null;
+  /*
+   * Mining station deployment state inside a star system; null when the
+   * fleet is in open space or carries no outpost ship. When set it takes the
+   * place of DEPLOY BASE. `reason` is the button tooltip (target or blocker).
+   */
+  @Input() miningDeployment: { canDeploy: boolean; reason: string | null } | null = null;
   /* Name of the empire whose borders this fleet is violating right now; null when none. */
   @Input() borderViolationOf: string | null = null;
 
@@ -61,4 +67,5 @@ export class StarMapFleetInfoComponent {
   @Output() organize = new EventEmitter<void>();
   @Output() colonize = new EventEmitter<void>();
   @Output() deployBase = new EventEmitter<void>();
+  @Output() deployMining = new EventEmitter<void>();
 }

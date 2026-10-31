@@ -1,6 +1,6 @@
 # Territory, Borders and Space Bases
 
-Empire territory on the galaxy map, the diplomatic cost of entering it, and space bases (deployable outposts that extend territory). Player and AI follow the same rules through the same code.
+Empire territory on the galaxy map, the diplomatic cost of entering it, space bases (deployable outposts that extend territory) and asteroid mining stations (the outpost ship's second use, inside star systems). Player and AI follow the same rules through the same code.
 
 Related: [Diplomacy](./diplomacy.md) (opinion, war and peace), [Planet Capture](./planet-capture.md) (ownership pathway, planet battles), [Battle Rules](./battle-rules.md) (combat), [Ship Production](./ship-production.md) (building the outpost ship), [Star Map Terrain](./star-map-terrain.md) (obstacles), [Data Models](./data-models.md), [Invariants](./invariants.md).
 
@@ -16,8 +16,10 @@ Related: [Diplomacy](./diplomacy.md) (opinion, war and peace), [Planet Capture](
 | Base battle trigger | `StarMapBattleDetectionService.checkBaseBattles` |
 | Base battle result | `BattleOutcomeService.applySpaceBaseBattleOutcome` |
 | Passage rights flag | `FactionRelation.passageRights`, `hasPassageRights` (`diplomacy.ts`) |
-| Persisted state | `StarMapData.spaceBases`, `FactionRelation.borderIncidents` / `passageRights` |
-| UI | territory layer + base markers in `StarMapGalaxyViewComponent`; DEPLOY BASE and territory notices in `StarMapFleetInfoComponent`; wiring in `StarMap` |
+| Mining station rules (deployment, hover feedback, extraction) | `mining-station.ts` (pure) |
+| Mining extraction in the economy tick | `EconomyService.calculateEconomy` / `applyEconomyDelta` |
+| Persisted state | `StarMapData.spaceBases`, `SystemAsteroid.miningStation`, `FactionRelation.borderIncidents` / `passageRights` |
+| UI | territory layer + base markers in `StarMapGalaxyViewComponent`; DEPLOY BASE / DEPLOY MINING and territory notices in `StarMapFleetInfoComponent`; asteroid hover card and station markers in `StarMapSystemGridViewComponent`; wiring in `StarMap` |
 
 All grid values use the movement grid convention: a position `(x, y)` lies in cell `(floor(x), floor(y))`; stars and bases sit on integer cells; distances are Euclidean between cell coordinates.
 
@@ -78,7 +80,7 @@ An uninhabited planet cannot be colonized in a system lying in another empire's 
 
 ### Outpost ship
 
-`outpost_ship` (`ship-data.json`, role `Outpost`): built like any ship, carried in fleets, unlocked by Basic Engineering. It is not a combat ship (`isCombatShipType` excludes it, so the AI never builds it as a warship).
+`outpost_ship` (`ship-data.json`, role `Outpost`): built like any ship, carried in fleets, unlocked by Basic Engineering. It is not a combat ship (`isCombatShipType` excludes it, so the AI never builds it as a warship). It has two deployment targets, both consuming the ship: a **space base** in open galaxy space (below) and a **mining station** on an asteroid deposit inside a star system ([Mining stations](#mining-stations)). The fleet panel offers the one that fits where the fleet is: DEPLOY BASE on the galaxy map, DEPLOY MINING inside a system.
 
 ### Deployment
 
@@ -103,6 +105,48 @@ A fleet whose faction is at war with a base's owner and enters the base's cell a
 - A human side opens the battle screen; AI vs AI is auto-resolved immediately (`autoResolveBattle`) and applied to the live registry.
 - `BattleOutcomeService.applySpaceBaseBattleOutcome`: the attacker roster is written back (damage, losses, wipe-out); on attacker victory the base is removed — its territory claim disappears with it — otherwise it keeps its remaining shield. War losses are recorded like every battle. The battle screen applies it to the autosave snapshot; the reload after the battle restores the registry from it.
 
+## Mining stations
+
+The outpost ship's second use (`mining-station.ts`): inside a star system it can be turned into a mining station on a surveyed asteroid deposit of the system's asteroid belt ([Game Systems](./game-systems.md#star-system-view)).
+
+### Deployment
+
+DEPLOY MINING in the fleet panel (player; it replaces DEPLOY BASE while the fleet is inside a system). Same pattern as the base: the station goes where the fleet stands. `validateMiningStationDeployment` requires:
+
+- a living outpost ship in a fleet of a non-neutral faction;
+- the fleet is inside a star system and stopped (no galaxy target, no in-system target);
+- the fleet's system cell holds an asteroid (`asteroidUnderFleet`) that passes `asteroidMiningBlocker`:
+  - no station on it yet (**one station per asteroid**),
+  - surveyed (the deposit must be known; see the survey rule in [Game Systems](./game-systems.md#star-system-view)),
+  - `rawMaterials > 0` (barren rocks are never targets),
+  - the system is not in another empire's territory (`systemTerritoryOwner` is the deployer or nobody: the same own-or-neutral rule as bases and colonization).
+
+`deployMiningStation` re-checks, removes one outpost ship, sets `asteroid.miningStation = { factionId }` and retires a fleet left without living ships, exactly like a base deployment. No battle, territory or sensor change follows.
+
+Storing the station on the asteroid ties it to its asteroid, system and owner by construction and makes a second station on the same asteroid unrepresentable.
+
+### Extraction
+
+Each station with a remaining deposit extracts `MINING_STATION_CONFIG.extractionPerSecond` = 5 raw materials per second of game time × the faction's gain multiplier (AI difficulty × war exhaustion, like building output). It runs inside the economy tick, not on its own timer:
+
+- `calculateEconomy` adds the stations' nominal rate to the faction's raw production and net, so the HUD shows it.
+- `applyEconomyDelta` replaces that nominal rate with what `extractMiningStations` actually takes this tick: each station takes at most its remaining deposit and subtracts it from `asteroid.rawMaterials`. A deposit never goes negative and nothing is credited twice.
+
+A 2,000–4,000 deposit lasts about 7–13 minutes. A depleted station stays on its asteroid (stations are permanent, like bases) and produces nothing; the asteroid stays occupied. After deployment a station no longer depends on territory: it keeps mining if its system later falls into another empire's territory.
+
+### Hover feedback
+
+In the system view, hovering an asteroid shows a ring and a small card (`describeAsteroidForFaction`, computed only for the hovered rock):
+
+| Tone | Case |
+| --- | --- |
+| valid (green) | surveyed deposit, free, own or neutral space, and a player outpost fleet is in this system; the card says whether one is already in position |
+| invalid (red) | barren; occupied by another faction's station; foreign territory; or no outpost ship in this system |
+| neutral (dim) | unsurveyed (the deposit amount is never shown before the survey) |
+| own (owner color) | the player's station, with the remaining deposit or "Deposit depleted" |
+
+Stations are drawn as a rotated frame in the owner's color around the rock, labeled with the remaining amount or DEPLETED. Hover never blocks clicks: events bubble to the grid, so move orders onto an asteroid work as before.
+
 ## Rendering
 
 - **Territory layer** (`.territory-layer`, galaxy view): one SVG in grid units under the fog (z 4, like nebulae), so unexplored space stays dark and every star, planet, fleet and marker stays on top. Per empire: a faint, softly blurred fill (7%, own 10%) and a thin border on the cell edges facing other owners — solid for the player, dashed for foreign empires; neutral space is untinted. Paths come from `buildTerritoryShapes` (row runs for the fill, merged edge runs for the border).
@@ -114,6 +158,7 @@ A fleet whose faction is at war with a base's owner and enters the base's cell a
 - `StarMapData.spaceBases` (save version 7). `migrateSave` gives older saves `[]`; `validateSaveData` rejects a non-array and only warns about malformed entries, which `SpaceBaseService.restore` drops. A destroyed base is removed, so every stored base is alive. Base ids are `max + 1`.
 - `FactionRelation.borderIncidents` and `passageRights` are optional relation fields (no version bump of their own); `normalizeRelations` keeps them (passage only at peace).
 - Territory, the active violation set and the cache are runtime only.
+- Mining stations are saved as the optional `SystemAsteroid.miningStation` inside `StarSystem.asteroidBelt` (no version bump; older saves simply have none). `ensureSystemAsteroidBelts` drops a malformed station on load instead of regenerating the belt, so survey state and other stations are kept. The remaining deposit (`rawMaterials`, fractional while being mined) is saved with it.
 
 ## Edge cases
 
@@ -128,9 +173,13 @@ A fleet whose faction is at war with a base's owner and enters the base's cell a
 ## Testing
 
 - `territory.spec.ts`: claim owner (majority, population and id ties, neutrals), disc radius, overlap rule (system beats base, nearest, older), render shapes, cache invalidation on ownership change and on base restore/destroy, colonization rule (peace blocks, war allows, own/neutral space; the AI goal layer skips a peace partner's system and targets it at war), border violations (size scaling, ongoing cost, no war, intruder view unchanged, repeats cost more, war / passage / own territory exempt, load seeding, incident decay and normalization).
+- `mining-station.spec.ts`: every mining deployment rule, deploy mutation (ship consumed, station on the right asteroid and system, owner faction, fleet retirement), one station per asteroid, barren asteroids refused, base deployment still working from the same ship type, extraction in the economy tick (owner only, deposit capped and depleted, depleted station kept), hover tones, save slot round trip and malformed-station cleanup.
 - `space-base.spec.ts`: every deployment rule, deploy mutation (ship consumed, name, territory), fleet retirement and spacing, peace partner territory, base as player sensor source, defense roster and persisted shield, AI-vs-AI destruction removing the claim, no battle at peace, player base battle transport, battle-screen outcome (removal, surviving shield, wiped attacker), save migration, slot round trip, validation of malformed bases.
 
 ## Known limitations
 
 - The AI does not build or deploy outpost ships, does not plan assaults on bases, and does not route its fleets around peace partners' territory (it pays the same opinion cost as the player would).
 - No passage treaties yet (the flag exists).
+- The AI does not survey asteroids and does not deploy mining stations. It would use the same `validateMiningStationDeployment` / `deployMiningStation`, but only player fleets survey, so the AI never knows about a deposit.
+- Mining stations cannot be attacked, captured or dismantled, and a depleted station is not removed.
+- Research raw-output bonuses do not apply to mining stations (only the faction gain multiplier does).

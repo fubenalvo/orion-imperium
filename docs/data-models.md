@@ -88,8 +88,9 @@ In-system asteroid belt (rules: [Game Systems](./game-systems.md#star-system-vie
 
 - `version`: belt generator version (`SYSTEM_ASTEROID_CONFIG.generatorVersion`)
 - `radiusVw`: radius of the belt's center line around the star (renders the dust band)
-- `asteroids`: `SystemAsteroid[]`, one per system cell, each `{ col, row, rawMaterials, surveyed }`
-  - `rawMaterials`: hidden deposit, `0` = barren; must not be shown before `surveyed`
+- `asteroids`: `SystemAsteroid[]`, one per system cell, each `{ col, row, rawMaterials, surveyed, miningStation? }`
+  - `rawMaterials`: remaining deposit, `0` = barren or depleted; must not be shown before `surveyed`. Fractional while a station mines it
+  - `miningStation?`: `{ factionId }` of the station built on this asteroid (at most one by construction, permanent). Optional, no save version bump; malformed entries are dropped on load. See [Territory](./territory.md#mining-stations)
   - `surveyed`: `true` once a human player fleet has been on the cell (monotonic)
 
 ## PlanetTile

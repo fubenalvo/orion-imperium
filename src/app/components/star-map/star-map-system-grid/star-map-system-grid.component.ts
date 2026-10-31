@@ -1,6 +1,7 @@
 import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { Fleet, FleetTrail, PlanetTile, StarSystem, SystemAsteroid } from '../star-map.models';
+import { AsteroidHint } from '../mining-station';
 import { StarMapMovementService } from '../star-map-movement.service';
 import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
 import {
@@ -54,6 +55,32 @@ export class StarMapSystemGridViewComponent {
   /* Screen heading of a fleet's ship in this view (CSS rotate degrees); see fleet-heading.ts. */
   @Input() fleetHeading: (fleet: Fleet) => number = () => 0;
   @Input() getPlanetClassNames: (planet: PlanetTile) => string[] = () => [];
+  /* Mining-target status of an asteroid for the hover card (parent computes it). */
+  @Input() getAsteroidHint: (asteroid: SystemAsteroid) => AsteroidHint | null = () => null;
+
+  /*
+   * The asteroid under the pointer. Only this one gets a hint computed and a
+   * card rendered, so the per-frame change detection does not evaluate the
+   * rules for every rock in the belt.
+   */
+  hoveredAsteroid: SystemAsteroid | null = null;
+
+  /* Card placement so it stays inside the 36 × 14 grid near its edges. */
+  hintPlacement(asteroid: SystemAsteroid): string[] {
+    const classes: string[] = [];
+    if (asteroid.row <= 3) classes.push('asteroid-hint--below');
+    if (asteroid.col <= 5) classes.push('asteroid-hint--start');
+    else if (asteroid.col >= 31) classes.push('asteroid-hint--end');
+    return classes;
+  }
+
+  onAsteroidLeave(asteroid: SystemAsteroid): void {
+    if (this.hoveredAsteroid === asteroid) this.hoveredAsteroid = null;
+  }
+
+  floor(value: number): number {
+    return Math.floor(value);
+  }
 
   /*
    * Diameter (vw) of the decorative orbit ring that passes through a

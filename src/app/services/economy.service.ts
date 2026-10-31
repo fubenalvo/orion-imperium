@@ -7,6 +7,7 @@ import { ResearchService, TechModifiers } from './research.service';
 import planetData from '../components/star-map/planet-data.json';
 import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
 import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
+import { extractMiningStations, miningRatePerSecond } from '../components/star-map/mining-station';
 
 import {
   Faction,
@@ -385,6 +386,15 @@ export class EconomyService {
     factionConsumption['credits'] = (factionConsumption['credits'] ?? 0) + shipUpkeep;
     factionNet['credits'] = (factionNet['credits'] ?? 0) - shipUpkeep;
 
+    // Asteroid mining stations (mining-station.ts): a faction-level raw source,
+    // not tied to any planet. applyEconomyDelta replaces this rate with the
+    // amount actually extracted, so a nearly empty deposit is never overdrawn.
+    const miningRate = miningRatePerSecond(factionId, starSystems, difficultyIncomeMultiplier);
+    if (miningRate > 0) {
+      factionProduction['rawmaterials'] = (factionProduction['rawmaterials'] ?? 0) + miningRate;
+      factionNet['rawmaterials'] = (factionNet['rawmaterials'] ?? 0) + miningRate;
+    }
+
     const income = factionProduction['credits'] ?? 0;
     const expense = buildingUpkeep + administration + shipUpkeep;
     return {
@@ -420,6 +430,8 @@ export class EconomyService {
    *  2. The effective breakdown is computed from the post-drift state and
    *     `net[r] × deltaTime` is applied to every stock resource: income
    *     minus upkeep for credits; raw materials and research as produced.
+   *     Mining stations contribute what they actually extract from their
+   *     deposits this tick (and deplete them).
    *  3. Credits are kept as integers; the fractional remainder is carried
    *     per faction (in memory only) so rounding never drifts the balance
    *     away from the HUD rate.
@@ -461,9 +473,15 @@ export class EconomyService {
 
     // 2) Raw materials and research from the effective (post-drift) breakdown.
     const breakdown = this.calculateEconomy(factionId, factions, starSystems, fleets, shipStock);
+    // Mining is applied as the amount really taken from the deposits (capped
+    // by what is left) instead of the nominal rate inside breakdown.net.
+    const miningRate = miningRatePerSecond(factionId, starSystems, gainMultiplier(faction));
+    const mined = extractMiningStations(factionId, starSystems, deltaTime, gainMultiplier(faction));
     for (const resource of STOCK_RESOURCES) {
       if (resource === 'credits') continue;
-      faction.currencies[resource] = (faction.currencies[resource] ?? 0) + (breakdown.net[resource] ?? 0) * deltaTime;
+      const rate = (breakdown.net[resource] ?? 0) - (resource === 'rawmaterials' ? miningRate : 0);
+      const extra = resource === 'rawmaterials' ? mined : 0;
+      faction.currencies[resource] = (faction.currencies[resource] ?? 0) + rate * deltaTime + extra;
     }
 
     // 3) Credits with a carried fractional remainder.

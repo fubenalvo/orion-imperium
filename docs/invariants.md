@@ -292,6 +292,7 @@ See [Territory](./territory.md).
 - **A border violation never changes the treaty state:** `BorderService` only adjusts opinion and the incident memory; war is only declared through `DiplomacyService`. Violations exist only at peace, and passage rights only at peace.
 - **Same rules for all:** player and AI use `validateBaseDeployment` / `SpaceBaseService.deploy`, `TerritoryService.canColonizeIn` and the same border rule.
 - **Bases are alive or gone:** a destroyed base is removed from the registry and the save, so its territory claim disappears at once; a base never moves, never changes owner and never enters a fleet.
+- **Mining stations:** at most one per asteroid (it is a field of the asteroid); deployed only on a surveyed asteroid with `rawMaterials > 0`, in own or neutral space, by a stopped fleet standing on it, consuming one outpost ship. Extraction happens only in the economy tick, never exceeds the remaining deposit, and `rawMaterials` never goes negative.
 - **One static-defense combat path:** a base battle is a `type: 'planet'` battle with `spaceBaseId` (never `planetId`); its virtual defense fleet id is `< -10 000 000` and is never written back.
 
 ## Planet ownership and game outcome

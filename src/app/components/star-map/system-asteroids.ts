@@ -26,8 +26,9 @@ import { createSurfaceRng } from './planet-surface/planet-surface-field';
  *   still persisted on the StarSystem because survey results live in it.
  * - Asteroids never overlap a planet footprint or the ring of cells around
  *   it, and do not block movement.
- * - Surveying is player-only and only reveals the deposit. Nothing extracts
- *   raw materials yet; the AI ignores belts entirely.
+ * - Surveying is player-only and only reveals the deposit. A surveyed
+ *   deposit can be mined by a mining station deployed from an outpost ship
+ *   (mining-station.ts); the AI ignores belts entirely.
  */
 export const SYSTEM_ASTEROID_CONFIG = {
   generatorVersion: 1,
@@ -200,7 +201,7 @@ function isValidBelt(belt: unknown): belt is SystemAsteroidBelt {
 
 /*
  * Gives every system without a (well-formed) belt its deterministic one.
- * Idempotent: existing belts, and the survey state in them, are kept.
+ * Idempotent: existing belts, and the survey and mining state in them, are kept.
  * Planet positions must already be on the current grid.
  */
 export function ensureSystemAsteroidBelts(systems: StarSystem[], galaxySeed: number): void {
@@ -208,6 +209,16 @@ export function ensureSystemAsteroidBelts(systems: StarSystem[], galaxySeed: num
     if (!system || typeof system !== 'object' || typeof system.id !== 'string') continue;
     if (!isValidBelt(system.asteroidBelt)) {
       system.asteroidBelt = generateSystemAsteroidBelt(galaxySeed, system);
+      continue;
+    }
+    // A malformed station is dropped instead of invalidating the whole belt,
+    // which would regenerate it and lose the survey state.
+    for (const asteroid of system.asteroidBelt.asteroids) {
+      const station = asteroid.miningStation as unknown;
+      if (station === undefined) continue;
+      if (!station || typeof station !== 'object' || typeof (station as { factionId?: unknown }).factionId !== 'string') {
+        delete asteroid.miningStation;
+      }
     }
   }
 }
