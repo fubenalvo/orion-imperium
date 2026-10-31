@@ -22,7 +22,7 @@
 | # | Feature | Status | Category |
 |---|---------|--------|----------|
 | 1 | Galaxy map (300×180 grid) | ✅ | Core |
-| 2 | Star system view (18×10 grid) | ✅ | Core |
+| 2 | Star system view (36×14 grid, asteroid belt) | ✅ | Core |
 | 3 | Planet surface view | ✅ | Core |
 | 4 | Fleet movement (galaxy + system) | ✅ | Core |
 | 5 | Fog of war / sensor range | ✅ | Core |
@@ -107,9 +107,11 @@ The game runs continuously when unpaused (time speeds 1× and 2×). All simulati
 
 ### 3.2 Star System View
 
-**Grid:** 18×10 cells, 5vw each. Planets are positioned based on their `x`/`y` fields in the planet data (1-indexed system grid coordinates), with a fallback formula for out-of-bounds values.
+**Grid:** 36×14 cells, 2.5vw each. Each planet covers a 2×2 block whose top-left cell is the planet's `x`/`y`, with a fallback formula for out-of-bounds values.
 
 **Fleet placement:** Fleets in the system are positioned at default coordinates (2.5, 32.5) vw and can be moved via click-to-move within the system grid.
+
+**Asteroid belt:** every system has a ring of asteroids between planet orbits. One in ten holds a large raw-material deposit, revealed only when a player fleet flies onto that cell (discovery only for now, no extraction). See [Game Systems](./game-systems.md#star-system-view).
 
 **Visibility:** No fog of war inside systems — all fleets in the current system are visible regardless of sensor range.
 
@@ -354,7 +356,7 @@ The AI pipeline is a layered system running every frame (respecting pause/speed 
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Diplomacy | ⚠️ partial | War/peace between all empires (AI–AI included), opinion, reputation, war exhaustion, 10-turn truce, treaty breach, negotiated peace treaties with resources/planets/systems and AI counter-offers, Diplomacy screen and negotiation dialog, diplomatic victory — see [Diplomacy](./diplomacy.md). No alliances or trade yet. |
+| Diplomacy | ⚠️ partial | War/peace between all empires (AI–AI included), opinion, reputation, war exhaustion, 10-minute truce (game time), treaty breach, negotiated peace treaties with credits/raw materials and AI counter-offers, Diplomacy screen and negotiation dialog, diplomatic victory — see [Diplomacy](./diplomacy.md). No alliances or trade yet. |
 | Ship Design | ❌ | Ship types are fixed in JSON. No customship design, module fitting, or retrofit. |
 | Missions/Objectives | ❌ | No quest system, victory conditions, or mission tracking. |
 | Multiplayer | ❌ | Single-player only. No networking layer. |

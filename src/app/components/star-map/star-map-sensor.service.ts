@@ -5,6 +5,14 @@ import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { StarMapTerrainService } from './star-map-terrain.service';
 import { NEBULA_CONFIG } from './nebula';
+import {
+  SYSTEM_GRID_COLUMNS,
+  SYSTEM_GRID_ROWS,
+  SYSTEM_SENSOR_RANGE_UNIT_CELLS,
+  systemCellAtVw,
+} from './system-grid';
+
+export { SYSTEM_CELL_SIZE_VW, SYSTEM_GRID_COLUMNS, SYSTEM_GRID_ROWS } from './system-grid';
 
 /*
  * =========================================================
@@ -69,11 +77,6 @@ export interface SensorLayerResult {
 export const SENSOR_RANGE_GLOBAL_BONUS = 2;
 export const DEFAULT_FLEET_SENSOR_RANGE = 3;
 export const PLAYER_SYSTEM_SENSOR_RANGE = 5 + SENSOR_RANGE_GLOBAL_BONUS;
-
-/** System-view grid dimensions (fixed 18×10 with 5vw cells). */
-export const SYSTEM_GRID_COLUMNS = 18;
-export const SYSTEM_GRID_ROWS = 10;
-export const SYSTEM_CELL_SIZE_VW = 5;
 
 @Injectable({ providedIn: 'root' })
 export class StarMapSensorService {
@@ -389,7 +392,10 @@ export class StarMapSensorService {
    * Computes sensor range cells for a fleet in the system view, plus the
    * outer-ring preview cells.
    *
-   * The system grid is 18×10 with 5vw cells. The fleet's system.x/y are in vw.
+   * The fleet's system.x/y are in vw. The range is in sensor range units,
+   * each SYSTEM_SENSOR_RANGE_UNIT_CELLS system cells (system-grid.ts), so the
+   * covered area did not shrink when the grid was doubled. The rendered
+   * preview ring is two cells wide (getOuterRingCells).
    * Preview cells are NOT used for fog/exploration.
    */
   computeSystemSensorCells(fleet: Fleet): {
@@ -400,9 +406,11 @@ export class StarMapSensorService {
       return { cells: [], preview: [] };
     }
 
-    const range = (fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE) + SENSOR_RANGE_GLOBAL_BONUS;
-    const centerCol = Math.floor((fleet.system.x ?? 0) / SYSTEM_CELL_SIZE_VW) + 1;
-    const centerRow = Math.floor((fleet.system.y ?? 0) / SYSTEM_CELL_SIZE_VW) + 1;
+    const range =
+      ((fleet.sensorRange ?? DEFAULT_FLEET_SENSOR_RANGE) + SENSOR_RANGE_GLOBAL_BONUS) * SYSTEM_SENSOR_RANGE_UNIT_CELLS;
+    const center = systemCellAtVw(fleet.system.x ?? 0, fleet.system.y ?? 0);
+    const centerCol = center.col;
+    const centerRow = center.row;
 
     const cells = this.getCellsInRadius(
       centerCol,
@@ -479,49 +487,48 @@ export class StarMapSensorService {
 
   /**
    * Returns true if a fleet can explore a planet within its sensor range
-   * in the system view. A planet is explored if it's within the fleet's
-   * sensor radius on the system grid.
+   * in the system view.
    *
-   * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
-   * fleetSystemX/Y are vw coordinates on the 18×10 system grid.
+   * planetCenterCol/Row: the planet footprint's center in system-cell
+   * coordinates (cell N's center is N), so it may be fractional.
+   * fleetSystemX/Y: the fleet's vw position. `range` is in sensor range
+   * units (SYSTEM_SENSOR_RANGE_UNIT_CELLS system cells each).
    */
   isPlanetInRange(
-    planetCol: number,
-    planetRow: number,
+    planetCenterCol: number,
+    planetCenterRow: number,
     fleetSystemX: number,
     fleetSystemY: number,
     range: number,
   ): boolean {
-    const fleetCol = Math.floor(fleetSystemX / SYSTEM_CELL_SIZE_VW) + 1;
-    const fleetRow = Math.floor(fleetSystemY / SYSTEM_CELL_SIZE_VW) + 1;
-    const dx = planetCol - fleetCol;
-    const dy = planetRow - fleetRow;
-    return dx * dx + dy * dy <= range * range;
+    const r = range * SYSTEM_SENSOR_RANGE_UNIT_CELLS;
+    return this.systemDistSq(planetCenterCol, planetCenterRow, fleetSystemX, fleetSystemY) <= r * r;
   }
 
   /**
    * Returns true if a planet lies in the outer-ring preview annulus of a
    * fleet in the system view: strictly farther than `range` and at most
-   * `range + 2` (Euclidean). Used to auto-explore planets at the edge of
-   * sensor reach without making the underlying galaxy cell "explored".
-   *
-   * planetCol/planetRow are 1-indexed system grid cells from planet.x/y.
-   * fleetSystemX/Y are vw coordinates on the 18×10
-   * system grid.
+   * `range + 2` range units (Euclidean). Used to auto-explore planets at the
+   * edge of sensor reach without making the underlying galaxy cell
+   * "explored". Arguments as in isPlanetInRange.
    */
   isPlanetInPreviewRange(
-    planetCol: number,
-    planetRow: number,
+    planetCenterCol: number,
+    planetCenterRow: number,
     fleetSystemX: number,
     fleetSystemY: number,
     range: number,
   ): boolean {
-    const fleetCol = Math.floor(fleetSystemX / SYSTEM_CELL_SIZE_VW) + 1;
-    const fleetRow = Math.floor(fleetSystemY / SYSTEM_CELL_SIZE_VW) + 1;
-    const dx = planetCol - fleetCol;
-    const dy = planetRow - fleetRow;
-    const distSq = dx * dx + dy * dy;
-    return distSq > range * range && distSq <= (range + 2) * (range + 2);
+    const r = range * SYSTEM_SENSOR_RANGE_UNIT_CELLS;
+    const outer = (range + 2) * SYSTEM_SENSOR_RANGE_UNIT_CELLS;
+    const distSq = this.systemDistSq(planetCenterCol, planetCenterRow, fleetSystemX, fleetSystemY);
+    return distSq > r * r && distSq <= outer * outer;
+  }
+
+  /* Squared distance (system cells) between a cell-space point and the fleet's cell. */
+  private systemDistSq(col: number, row: number, fleetSystemX: number, fleetSystemY: number): number {
+    const fleetCell = systemCellAtVw(fleetSystemX, fleetSystemY);
+    return (col - fleetCell.col) ** 2 + (row - fleetCell.row) ** 2;
   }
 
   /**

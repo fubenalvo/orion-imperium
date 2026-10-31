@@ -68,7 +68,7 @@ import {
   DriftingAsteroid,
   AsteroidBelt,
 } from './star-map.models';
-import { DIPLOMACY_TURN_SECONDS, TRUCE_TURNS, areFactionsAllied, areFactionsHostile } from './diplomacy';
+import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration } from './diplomacy';
 import { DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
 import { EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { StarMapDiplomacyComponent } from './star-map-diplomacy/star-map-diplomacy.component';
@@ -156,6 +156,8 @@ import { BorderService } from './border.service';
 import { buildTerritoryShapes, TerritoryMap, TERRITORY_CONFIG } from './territory';
 import { describeDeploymentFailure, hasLivingOutpostShip } from './space-base';
 import { isPointInObstacle } from './fleet-navigation';
+import { surveySystemAsteroids } from './system-asteroids';
+import { SYSTEM_FLEET_ENTRY_VW } from './system-grid';
 
 /*
  * =========================================================
@@ -1144,8 +1146,8 @@ loadError = '';
         if (!fleet.system) {
           fleet.system = {
             id: system.id,
-            x: 2.5,
-            y: 32.5,
+            x: SYSTEM_FLEET_ENTRY_VW.x,
+            y: SYSTEM_FLEET_ENTRY_VW.y,
             targetX: null,
             targetY: null,
           };
@@ -1664,7 +1666,7 @@ loadError = '';
       if (this.negotiation) this.negotiation = { ...this.negotiation, message: describeTreatyInvalid(execution.validation.reason) };
       return;
     }
-    this.diplomacyMessage = `Peace signed with ${ai.name}. Truce: ${TRUCE_TURNS} turns.`;
+    this.diplomacyMessage = `Peace signed with ${ai.name}. Truce: ${formatGameDuration(TRUCE_SECONDS)} of game time.`;
     this.closeNegotiation();
     this.afterTreatyChange();
   }
@@ -1672,9 +1674,9 @@ loadError = '';
   private describeDiplomacyFailure(target: Faction, reason: DiplomacyFailure | undefined, waitSeconds?: number): string {
     switch (reason) {
       case 'truce':
-        return `The truce with ${target.name} holds for another ${Math.ceil((waitSeconds ?? 0) / DIPLOMACY_TURN_SECONDS)} turn(s). Only breaking the treaty can end it.`;
+        return `The truce with ${target.name} holds for another ${formatGameDuration(waitSeconds ?? 0)}. Only breaking the treaty can end it.`;
       case 'locked':
-        return `The war with ${target.name} is too fresh: wait ${Math.ceil(waitSeconds ?? 0)} s.`;
+        return `The war with ${target.name} is too fresh: wait ${formatGameDuration(waitSeconds ?? 0)}.`;
       case 'already':
         return `Nothing to change: that is already the state with ${target.name}.`;
       case 'not_in_truce':
@@ -2532,13 +2534,7 @@ loadError = '';
     event.stopPropagation();
 
     if (this.currentView === 'system' && this.selectedSystem) {
-      const planetCell = this.movementService.getPlanetGridPosition(planet);
-      const items = this.movementService.getObjectsAtSystemCell(
-        this.fleets,
-        this.selectedSystem,
-        planetCell.col,
-        planetCell.row,
-      );
+      const items = this.movementService.getObjectsAtPlanet(this.fleets, this.selectedSystem, planet);
 
       if (items.length > 1) {
         this.showContextMenu(event.clientX, event.clientY, items);
@@ -2581,8 +2577,7 @@ loadError = '';
     const targetCell = this.movementService.calculateSystemGridCell(targetTile.x, targetTile.y);
 
     for (const planet of this.selectedSystem.planetsTiles) {
-      const planetCell = this.movementService.getPlanetGridPosition(planet);
-      if (planetCell.col !== targetCell.col || planetCell.row !== targetCell.row) {
+      if (!this.movementService.isSystemCellOnPlanet(planet, targetCell.col, targetCell.row)) {
         continue;
       }
 
@@ -3195,6 +3190,7 @@ loadError = '';
     );
 
     this.updateExploredPlanets();
+    this.surveyAsteroids();
     this.arrivalService.checkFleetPlanetArrivals({
       fleets: this.fleets,
       currentView: this.currentView,
@@ -3294,6 +3290,22 @@ loadError = '';
     return changed;
   }
 
+  /*
+   * Player fleets survey the in-system asteroid they stand on (any view:
+   * fleets keep moving inside systems while the player looks elsewhere).
+   * Only a found deposit is announced; barren rocks are marked silently.
+   */
+  private surveyAsteroids(): void {
+    for (const { fleet, system, asteroid } of surveySystemAsteroids(this.fleets, this.starSystems)) {
+      if (asteroid.rawMaterials > 0) {
+        this.showMapNotice(
+          `${fleet.name} found a raw material deposit in the ${system.name} asteroid belt: ` +
+            `${asteroid.rawMaterials.toLocaleString('en-US')} raw materials.`,
+        );
+      }
+    }
+  }
+
   /** Updates planet exploration in system view based on fleet sensor range. */
   private updateExploredPlanets(): void {
     if (this.currentView !== 'system' || !this.selectedSystem) {
@@ -3320,17 +3332,20 @@ loadError = '';
           continue;
         }
 
-        const planetCell = this.movementService.getPlanetGridPosition(planet);
+        // Footprint center in cell coordinates (cell N's center is N).
+        const center = this.movementService.getPlanetCellCenter(planet);
+        const centerCol = center.x / StarMapMovementService.systemCellSizeVw + 0.5;
+        const centerRow = center.y / StarMapMovementService.systemCellSizeVw + 0.5;
         const inFull = this.sensorService.isPlanetInRange(
-          planetCell.col,
-          planetCell.row,
+          centerCol,
+          centerRow,
           fleet.system.x,
           fleet.system.y,
           range,
         );
         const inPreview = this.sensorService.isPlanetInPreviewRange(
-          planetCell.col,
-          planetCell.row,
+          centerCol,
+          centerRow,
           fleet.system.x,
           fleet.system.y,
           range,

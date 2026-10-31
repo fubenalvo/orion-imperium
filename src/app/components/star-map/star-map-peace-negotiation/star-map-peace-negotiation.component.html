@@ -33,7 +33,7 @@
         <section class="ui-notice ui-notice--success negotiation__incoming">
           <div>
             <strong>{{ vm.incoming.kind === 'offer' ? vm.them.name + ' proposes peace' : vm.them.name + ' counter-offers' }}</strong>
-            @if (vm.incoming.secondsLeft) { <span class="negotiation__dim"> · open for {{ vm.incoming.secondsLeft }} s of game time</span> }
+            @if (vm.incoming.secondsLeft) { <span class="negotiation__dim"> · open for {{ formatDuration(vm.incoming.secondsLeft) }} of game time</span> }
             <ul class="negotiation__terms">
               @for (line of vm.incoming.summary; track $index) {
                 <li>{{ line }}</li>
@@ -68,47 +68,6 @@
               <input type="number" min="0" step="50" [max]="side.rawmaterials" [value]="amount(col, 'rawmaterials')"
                 (change)="setAmount(col, 'rawmaterials', $any($event.target).value)" />
             </label>
-
-            <span class="negotiation__group-label">Star systems <span class="negotiation__dim">(all {{ side === vm.you ? 'your' : 'their' }} planets there)</span></span>
-            <ul class="negotiation__list">
-              @for (system of side.systems; track system.id) {
-                <li>
-                  <label class="negotiation__option" [class.negotiation__option--on]="isSystemSelected(col, system.id)">
-                    <input type="checkbox" [checked]="isSystemSelected(col, system.id)" (change)="toggleSystem(col, system.id)" />
-                    <span class="negotiation__option-name">{{ system.name }}</span>
-                    <span class="negotiation__dim">{{ system.planetIds.length }} planet{{ system.planetIds.length === 1 ? '' : 's' }}</span>
-                    <span class="negotiation__value">≈ {{ system.value | number }}</span>
-                  </label>
-                </li>
-              } @empty {
-                <li class="negotiation__dim">No systems.</li>
-              }
-            </ul>
-
-            <span class="negotiation__group-label">Planets</span>
-            <ul class="negotiation__list">
-              @for (planet of side.planets; track planet.id) {
-                <li>
-                  <label
-                    class="negotiation__option"
-                    [class.negotiation__option--on]="isPlanetSelected(col, planet.id) || isPlanetCovered(col, planet.systemId)"
-                    [class.negotiation__option--covered]="isPlanetCovered(col, planet.systemId)"
-                  >
-                    <input
-                      type="checkbox"
-                      [checked]="isPlanetSelected(col, planet.id) || isPlanetCovered(col, planet.systemId)"
-                      [disabled]="isPlanetCovered(col, planet.systemId)"
-                      (change)="togglePlanet(col, planet.id)"
-                    />
-                    <span class="negotiation__option-name">{{ planet.name }}</span>
-                    <span class="negotiation__dim">{{ planet.systemName }} · pop {{ planet.population | number }} · {{ planet.buildings }} bldg</span>
-                    <span class="negotiation__value">≈ {{ planet.value | number }}</span>
-                  </label>
-                </li>
-              } @empty {
-                <li class="negotiation__dim">No planets.</li>
-              }
-            </ul>
           </div>
         }
       </section>
@@ -151,7 +110,7 @@
       @if (vm.message) {
         <div class="ui-notice ui-notice--warning negotiation__message" role="status">{{ vm.message }}</div>
       }
-      <span class="negotiation__dim">Accepted terms are executed at once and start a {{ truceTurns }}-turn truce. War exhaustion resets on both sides.</span>
+      <span class="negotiation__dim">Treaties carry credits and raw materials only. Accepted terms are executed at once and start a {{ truceLabel }} truce of game time. War exhaustion resets on both sides.</span>
       <span class="negotiation__actions">
         <button type="button" (click)="clearDraft()">CLEAR</button>
         <button type="button" (click)="close.emit()">CANCEL</button>

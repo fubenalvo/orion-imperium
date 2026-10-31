@@ -268,10 +268,11 @@ describe('global sensor range bonus', () => {
     expect(sysLayer.cells.has('20-27')).toBe(true);
     expect(sysLayer.cells.has('20-28')).toBe(false);
 
-    // System view uses the same +2.
-    const inSystem: Fleet = { ...fleet, system: { id: 's', x: 2.5, y: 2.5, targetX: null, targetY: null } };
+    // System view uses the same +2, in range units of 2 system cells:
+    // (3 + 2) × 2 = 10 cells from the fleet's cell (1, 1).
+    const inSystem: Fleet = { ...fleet, system: { id: 's', x: 1.25, y: 1.25, targetX: null, targetY: null } };
     const sv = service.computeSystemSensorCells(inSystem);
-    expect(sv.cells.some((c) => c.col === 1 + 5 && c.row === 1)).toBe(true);
-    expect(sv.cells.some((c) => c.col === 1 + 6 && c.row === 1)).toBe(false);
+    expect(sv.cells.some((c) => c.col === 1 + 10 && c.row === 1)).toBe(true);
+    expect(sv.cells.some((c) => c.col === 1 + 11 && c.row === 1)).toBe(false);
   });
 });

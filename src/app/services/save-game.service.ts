@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { PlanetTile, StarMapData } from '../components/star-map/star-map.models';
 import { getPlanetGridSize, legacyPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
 import { generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
+import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
 import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
 import legacyStarMapData from '../components/star-map/star-map-data.json';
 import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
@@ -318,6 +319,24 @@ export class SaveGameService {
         }
       }
     }
+
+    // v8: the system view grid doubled (system-grid.ts). A planet now covers
+    // a 2×2 block whose top-left cell is (2x-1, 2y-1), which keeps it at the
+    // same on-screen position. Fleet positions inside systems are vw and stay.
+    if (version < 8) {
+      for (const system of systems) {
+        const planets = Array.isArray(system?.planetsTiles) ? system.planetsTiles : [];
+        for (const planet of planets) {
+          if (planet && typeof planet.x === 'number' && typeof planet.y === 'number') {
+            planet.x = 2 * planet.x - 1;
+            planet.y = 2 * planet.y - 1;
+          }
+        }
+      }
+    }
+    // Every load: systems without an in-system asteroid belt get their
+    // deterministic one (needs planet positions on the current grid, above).
+    ensureSystemAsteroidBelts(systems, data.galaxy?.seed ?? 0);
 
     if (version < SAVE_VERSION) {
       data.saveVersion = SAVE_VERSION;

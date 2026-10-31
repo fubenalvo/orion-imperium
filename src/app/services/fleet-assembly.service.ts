@@ -10,6 +10,7 @@ import { ShipService, ShipType } from './ship.service';
 import { ShipStockService } from './ship-stock.service';
 import { SpaceportService } from './spaceport.service';
 import { StarMapMovementService } from '../components/star-map/star-map-movement.service';
+import { planetFootprintCenterVw, systemCellAtVw } from '../components/star-map/system-grid';
 
 export type AssemblyFailure =
   | 'no_spaceport'
@@ -101,10 +102,10 @@ export class FleetAssemblyService {
     // player sees it next to the Spaceport they just used. Without this
     // the fleet spawns at a hard-coded default and is invisible until
     // the player re-enters the system view.
-    const planetCell = this.movementService.getPlanetGridPosition(planet);
-    const systemCellSize = StarMapMovementService.systemCellSizeVw;
-    const systemVwX = (planetCell.col - 0.5) * systemCellSize;
-    const systemVwY = (planetCell.row - 0.5) * systemCellSize;
+    const spawn = planetFootprintCenterVw(planet);
+    const systemVwX = spawn.x;
+    const systemVwY = spawn.y;
+    const planetCell = systemCellAtVw(spawn.x, spawn.y);
 
     const fleet: Fleet = {
       id: this.nextFleetId(data.fleets),

@@ -6,7 +6,9 @@ import {
   REPUTATION_SURPRISE_ATTACK,
   REPUTATION_TREATY_BROKEN,
   REPUTATION_WAR_DECLARED,
-  TRUCE_TURNS,
+  SURPRISE_ATTACK_WINDOW_SECONDS,
+  TRUCE_SECONDS,
+  formatGameDuration,
 } from '../diplomacy';
 
 export type { DiplomacyRowVm } from '../star-map-diplomacy-vm';
@@ -41,10 +43,10 @@ export class StarMapDiplomacyComponent {
   /* Row awaiting confirmation of a war declaration or a treaty breach. */
   confirming: { id: string; action: 'war' | 'breach' } | null = null;
 
-  readonly truceTurns = TRUCE_TURNS;
+  readonly truceLabel = formatGameDuration(TRUCE_SECONDS);
   readonly warConsequence =
     `Your reputation ${REPUTATION_WAR_DECLARED}, their opinion of you ${OPINION_WAR_DECLARED}. ` +
-    `Attacking them within one turn of the declaration counts as a surprise attack (reputation ${REPUTATION_SURPRISE_ATTACK}).`;
+    `Attacking them within ${formatGameDuration(SURPRISE_ATTACK_WINDOW_SECONDS)} of game time after the declaration counts as a surprise attack (reputation ${REPUTATION_SURPRISE_ATTACK}).`;
   readonly breachConsequence =
     `Treachery: your reputation ${REPUTATION_TREATY_BROKEN} (every empire trusts you less), their opinion of you ${OPINION_TREATY_BROKEN}.`;
 

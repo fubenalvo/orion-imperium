@@ -184,11 +184,7 @@ export class StarMapPlanetArrivalService {
     system: StarSystem,
     planet: PlanetTile,
   ): { carriers: Fleet[]; parked: Fleet | null; enRoute: Fleet | null } {
-    const planetCell = this.movementService.getPlanetGridPosition(planet);
-    const onPlanetCell = (x: number, y: number) => {
-      const cell = this.movementService.calculateSystemGridCell(x, y);
-      return cell.col === planetCell.col && cell.row === planetCell.row;
-    };
+    const onPlanetCell = (x: number, y: number) => this.movementService.isSystemPointOnPlanet(planet, x, y);
     const carriers = fleets.filter(
       (f) => f.factionId === 'player' && !f.destroyed && f.system?.id === system.id && this.hasLivingColonizer(f),
     );
@@ -205,12 +201,10 @@ export class StarMapPlanetArrivalService {
   }
 
   private findPlanetUnderFleet(fleet: Fleet, system: StarSystem): PlanetTile | null {
-    const fleetCell = this.movementService.calculateSystemGridCell(fleet.system!.x, fleet.system!.y);
     return (
-      system.planetsTiles.find((planet) => {
-        const planetCell = this.movementService.getPlanetGridPosition(planet);
-        return fleetCell.col === planetCell.col && fleetCell.row === planetCell.row;
-      }) ?? null
+      system.planetsTiles.find((planet) =>
+        this.movementService.isSystemPointOnPlanet(planet, fleet.system!.x, fleet.system!.y),
+      ) ?? null
     );
   }
 
@@ -236,12 +230,7 @@ export class StarMapPlanetArrivalService {
       if (fleet.factionId !== planet.factionId) continue;
       if (fleet.system.targetX != null || fleet.system.targetY != null) continue;
 
-      const fleetCell = this.movementService.calculateSystemGridCell(
-        fleet.system.x,
-        fleet.system.y,
-      );
-      const planetCell = this.movementService.getPlanetGridPosition(planet);
-      if (fleetCell.col === planetCell.col && fleetCell.row === planetCell.row) {
+      if (this.movementService.isSystemPointOnPlanet(planet, fleet.system.x, fleet.system.y)) {
         return fleet;
       }
     }

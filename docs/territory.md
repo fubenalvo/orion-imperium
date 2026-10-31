@@ -42,7 +42,7 @@ Neutral factions (team 0: `independent` rebels, `unhabited`) never own territory
 
 ### Event-driven updates
 
-`TerritoryService.get(starSystems, factions)` returns a cached `TerritoryMap` and rebuilds it only when an input changed: `PlanetOwnershipService.revision` (every owner change goes through `transferPlanet`), `SpaceBaseService.revision` (deploy, destroy, restore), a different `starSystems` / `factions` array (load, new game) or the grid size. Ownership changes therefore update borders immediately (capture, colonization, cession, rebellion) without any per-frame map scan. Code that writes `PlanetTile.factionId` directly (only tests) must call `invalidate()`.
+`TerritoryService.get(starSystems, factions)` returns a cached `TerritoryMap` and rebuilds it only when an input changed: `PlanetOwnershipService.revision` (every owner change goes through `transferPlanet`), `SpaceBaseService.revision` (deploy, destroy, restore), a different `starSystems` / `factions` array (load, new game) or the grid size. Ownership changes therefore update borders immediately (capture, colonization, rebellion) without any per-frame map scan. Code that writes `PlanetTile.factionId` directly (only tests) must call `invalidate()`.
 
 `StarMap.refreshTerritoryViews` runs every frame but only rebuilds the SVG paths when the cached map instance changed.
 
@@ -53,9 +53,9 @@ A fleet is **violating a border** while it stands in a cell owned by another emp
 `BorderService.tick` (every `checkInterval` = 1 s of game time, from `StarMap.gameLoopCallback` right after the diplomacy tick) applies, for the territory owner's opinion of the intruder:
 
 - **entry:** `incidentOpinion` (−2) × size × repeat, and the owner remembers one more incident;
-- **staying:** `opinionPerTurn` (−3) × size × repeat per diplomatic turn (60 s), continuously.
+- **staying:** `opinionPerMinute` (−3) × size × repeat per minute of game time, continuously.
 
-`size` = fleet value / 1000 clamped to [0.25, 3] (a scout barely matters, a battle fleet weighs ×3). `repeat` = 1 + 0.5 × min(4, remembered incidents before this one). Remembered incidents (`FactionRelation.borderIncidents`, per side) fade by 0.2 per turn and survive war, peace and load normalization.
+`size` = fleet value / 1000 clamped to [0.25, 3] (a scout barely matters, a battle fleet weighs ×3). `repeat` = 1 + 0.5 × min(4, remembered incidents before this one). Remembered incidents (`FactionRelation.borderIncidents`, per side) fade by 0.2 per minute of game time and survive war, peace and load normalization.
 
 **A border violation is never a war declaration.** The service only changes opinion; the treaty state is untouched. The consequence reaches the AI through its normal opinion-driven decisions (a lower opinion makes an AI more willing to declare war and less willing to accept terms, see [Diplomacy](./diplomacy.md#ai-judgment-enemydiplomacyservice)).
 

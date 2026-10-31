@@ -1,6 +1,6 @@
 import { Faction, Fleet, StarSystem, TreatyState } from './star-map.models';
 import {
-  DIPLOMACY_TURN_SECONDS,
+  formatGameDuration,
   getFactionWarExhaustion,
   getOpinion,
   getRelation,
@@ -10,7 +10,7 @@ import {
   isTreatyPair,
   isTruceActive,
 } from './diplomacy';
-import { PeaceTreaty, TreatyItem, cededPlanets, describeTreatyInvalid, isFactionAlive } from './peace-treaty';
+import { PeaceTreaty, TreatyItem, describeTreatyInvalid, isFactionAlive } from './peace-treaty';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { EnemyDiplomacyService, WarFactor } from './enemy-diplomacy.service';
 import { getAiPersonalityProfile } from './ai-personality';
@@ -20,10 +20,16 @@ import { getAiPersonalityProfile } from './ai-personality';
  * Pure presentation: every number comes from diplomacy.ts,
  * DiplomacyService or EnemyDiplomacyService, so the UI shows exactly the
  * values the rules use (docs/diplomacy.md).
+ *
+ * Time is real game time (the game has no turns): durations are carried in
+ * seconds and shown through formatGameDuration, so every timer on the
+ * screen reads the same way and pauses with the game.
  */
 
 export interface DiplomacyOfferVm {
   secondsLeft: number;
+  /* secondsLeft formatted for display ("1 min 20 s"). */
+  timeLeftLabel: string;
   summary: string[];
 }
 
@@ -44,12 +50,16 @@ export interface DiplomacyRowVm {
   /* At war: exhaustion of each side in this war. */
   yourExhaustion: number;
   theirExhaustion: number;
-  /* Turns of war so far (at war). */
-  warTurns: number;
-  /* At peace: turns left on the truce (0 = no truce). */
-  truceTurns: number;
-  /* At war: seconds until negotiation is possible (0 = now). */
+  /* At war: game seconds the war has lasted so far. */
+  warSeconds: number;
+  /* At peace: game seconds left on the truce (0 = no truce). */
+  truceSecondsLeft: number;
+  /* At war: game seconds until negotiation is possible (0 = now). */
   negotiateWait: number;
+  /* The three durations above formatted for display. */
+  warDurationLabel: string;
+  truceLeftLabel: string;
+  negotiateWaitLabel: string;
   canNegotiate: boolean;
   canDeclareWar: boolean;
   canBreakTreaty: boolean;
@@ -66,31 +76,12 @@ export interface DiplomacySummaryVm {
   warCount: number;
 }
 
-export interface NegotiationPlanetVm {
-  id: number;
-  name: string;
-  systemId: string;
-  systemName: string;
-  population: number;
-  buildings: number;
-  value: number;
-}
-
-export interface NegotiationSystemVm {
-  id: string;
-  name: string;
-  planetIds: number[];
-  value: number;
-}
-
 export interface NegotiationSideVm {
   factionId: string;
   name: string;
   color: string;
   credits: number;
   rawmaterials: number;
-  planets: NegotiationPlanetVm[];
-  systems: NegotiationSystemVm[];
   exhaustion: number;
   reputation: number;
   /* This side's opinion of the other side. */
@@ -128,8 +119,6 @@ interface World {
   fleets: Fleet[];
 }
 
-const turnsOf = (seconds: number): number => Math.ceil(Math.max(0, seconds) / DIPLOMACY_TURN_SECONDS);
-
 export function buildDiplomacySummary(player: Faction, world: World): DiplomacySummaryVm {
   const exhaustion = getFactionWarExhaustion(player);
   return {
@@ -156,6 +145,9 @@ export function buildDiplomacyRows(
       const others = world.factions.filter((o) => o.id !== player.id && isTreatyPair(f, o) && isFactionAlive(o.id, world));
       const offer = diplomacy.getOffer(f.id);
       const negotiate = diplomacy.canNegotiate(player, f);
+      const warSeconds = relation.state === 'war' ? relation.warSeconds ?? 0 : 0;
+      const truceSecondsLeft = isTruceActive(player, f) ? relation.lockRemaining : 0;
+      const negotiateWait = negotiate.reason === 'locked' ? negotiate.waitSeconds ?? 0 : 0;
       return {
         id: f.id,
         name: f.name,
@@ -169,50 +161,32 @@ export function buildDiplomacyRows(
         reputation: Math.round(getReputation(f)),
         yourExhaustion: Math.round(getWarExhaustion(player, f)),
         theirExhaustion: Math.round(getWarExhaustion(f, player)),
-        warTurns: relation.state === 'war' ? Math.floor((relation.warSeconds ?? 0) / DIPLOMACY_TURN_SECONDS) : 0,
-        truceTurns: isTruceActive(player, f) ? turnsOf(relation.lockRemaining) : 0,
-        negotiateWait: negotiate.reason === 'locked' ? Math.ceil(negotiate.waitSeconds ?? 0) : 0,
+        warSeconds,
+        truceSecondsLeft,
+        negotiateWait,
+        // Elapsed war time rounds down, remaining times round up (never "0 s" while running).
+        warDurationLabel: formatGameDuration(Math.floor(warSeconds)),
+        truceLeftLabel: formatGameDuration(truceSecondsLeft),
+        negotiateWaitLabel: formatGameDuration(negotiateWait),
         canNegotiate: negotiate.ok && f.ai === true,
         canDeclareWar: diplomacy.canDeclareWar(player, f).ok,
         canBreakTreaty: diplomacy.canBreakTreaty(player, f).ok,
-        offer: offer ? { secondsLeft: Math.ceil(offer.secondsLeft), summary: summarizeTreaty(offer.treaty, player.id, world) } : undefined,
+        offer: offer
+          ? { secondsLeft: offer.secondsLeft, timeLeftLabel: formatGameDuration(offer.secondsLeft), summary: summarizeTreaty(offer.treaty, player.id, world) }
+          : undefined,
         atWarWith: others.filter((o) => getRelation(f, o)?.state === 'war').map((o) => o.name),
         atPeaceWith: others.filter((o) => getRelation(f, o)?.state === 'peace').map((o) => o.name),
       };
     });
 }
 
-function sideVm(self: Faction, other: Faction, world: World, enemyDiplomacy: EnemyDiplomacyService): NegotiationSideVm {
-  const planets: NegotiationPlanetVm[] = [];
-  const systems: NegotiationSystemVm[] = [];
-  for (const system of world.starSystems) {
-    const owned = system.planetsTiles.filter((p) => p.factionId === self.id);
-    if (owned.length === 0) continue;
-    let systemValue = 0;
-    for (const planet of owned) {
-      const value = Math.round(enemyDiplomacy.planetValue(planet));
-      systemValue += value;
-      planets.push({
-        id: planet.id,
-        name: planet.name,
-        systemId: system.id,
-        systemName: system.name,
-        population: Math.round(planet.population ?? 0),
-        buildings: planet.buildings?.length ?? 0,
-        value,
-      });
-    }
-    systems.push({ id: system.id, name: system.name, planetIds: owned.map((p) => p.id), value: systemValue });
-  }
-  planets.sort((a, b) => b.value - a.value || a.id - b.id);
+function sideVm(self: Faction, other: Faction): NegotiationSideVm {
   return {
     factionId: self.id,
     name: self.name,
     color: self.color,
     credits: Math.floor(self.currencies['credits'] ?? 0),
     rawmaterials: Math.floor(self.currencies['rawmaterials'] ?? 0),
-    planets,
-    systems,
     exhaustion: Math.round(getWarExhaustion(self, other)),
     reputation: Math.round(getReputation(self)),
     opinion: Math.round(getOpinion(self, other)),
@@ -231,8 +205,8 @@ export function buildNegotiationVm(
   const evaluation = enemyDiplomacy.evaluateTreaty(ai, draft, world);
   return {
     draft,
-    you: sideVm(player, ai, world, enemyDiplomacy),
-    them: sideVm(ai, player, world, enemyDiplomacy),
+    you: sideVm(player, ai),
+    them: sideVm(ai, player),
     incoming,
     evaluation: {
       valid: evaluation.validation.ok,
@@ -253,26 +227,14 @@ export function summarizeTreaty(treaty: PeaceTreaty, viewerId: string, world: Pi
   const nameOf = (id: string) => (id === viewerId ? 'You' : world.factions.find((f) => f.id === id)?.name ?? id);
   const lines: string[] = [];
   for (const item of treaty.items) {
-    lines.push(`${nameOf(item.giverId)} ${item.giverId === viewerId ? 'give' : 'gives'} ${describeItem(item, world)}`);
+    lines.push(`${nameOf(item.giverId)} ${item.giverId === viewerId ? 'give' : 'gives'} ${describeItem(item)}`);
   }
   if (lines.length === 0) lines.push('White peace: no concessions on either side.');
   return lines;
 }
 
-function describeItem(item: TreatyItem, world: Pick<World, 'starSystems'>): string {
-  switch (item.kind) {
-    case 'credits':
-      return `${item.amount.toLocaleString('en-US')} credits`;
-    case 'rawmaterials':
-      return `${item.amount.toLocaleString('en-US')} raw materials`;
-    case 'planet': {
-      const found = cededPlanets({ proposerId: item.giverId, recipientId: '', items: [item] }, world.starSystems)[0];
-      return found ? `the planet ${found.planet.name} (${found.system.name})` : 'a planet that no longer exists';
-    }
-    case 'system': {
-      const system = world.starSystems.find((s) => s.id === item.systemId);
-      const count = system?.planetsTiles.filter((p) => p.factionId === item.giverId).length ?? 0;
-      return system ? `the ${system.name} system (${count} planet${count === 1 ? '' : 's'})` : 'a system that no longer exists';
-    }
-  }
+function describeItem(item: TreatyItem): string {
+  return item.kind === 'credits'
+    ? `${item.amount.toLocaleString('en-US')} credits`
+    : `${item.amount.toLocaleString('en-US')} raw materials`;
 }

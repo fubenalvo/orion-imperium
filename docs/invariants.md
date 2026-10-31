@@ -10,15 +10,16 @@ Conditions that must remain true across the codebase. When changing any code tha
 - `StarMapMovementService.calculateGridCell(x, y)` snaps to `{ col: floor(x), row: floor(y) }`.
 - `StarMapMovementService.getTileCenter(vwX, vwY)` converts vw coordinates to 1-indexed grid cells: `{ x: floor(vwX / cellSizeVw) + 1, y: floor(vwY / cellSizeVh) + 1 }`.
 - The vw position of grid cell `N` is `(N - 0.5) * cellSizeVw` horizontally and `(N - 0.5) * cellSizeVh` vertically.
-- The system view uses a fixed 18×10 grid with 5vw cells (`StarMapMovementService.SYSTEM_CELL_SIZE_VW`). `system.x`/`system.y` are in vw units on this grid.
-- `calculateSystemGridCell(vwX, vwY)` returns 1-indexed cells: `{ col: floor(vwX / 5) + 1, row: floor(vwY / 5) + 1 }`.
+- The system view uses a fixed 36×14 grid of 2.5vw cells (`system-grid.ts`, mirrored by `star-map-system-grid.component.scss`). `system.x`/`system.y` are in vw units, never cells.
+- `calculateSystemGridCell(vwX, vwY)` returns 1-indexed cells: `{ col: floor(vwX / 2.5) + 1, row: floor(vwY / 2.5) + 1 }`.
 - `getSystemTileCenter(vwX, vwY)` snaps a click to the center of the containing system cell, in vw units, so the visual target and the actual target match.
-- `getPlanetGridPosition(planet)` returns `{ col: 13 - planet.index, row: 6 ± (planet.index % 3) }`. The sign alternates with `planet.index % 2`. Planets are placed in a zigzag arc to the left of the sun; the JSON `x`/`y`/`xOffset`/`yOffset` fields on a planet are loaded but **not used** for rendering.
+- A planet occupies the 2×2 block whose top-left cell is `getPlanetGridPosition(planet)` (= `planet.x/y` when it fits the grid). Every planet rule that asks "is the fleet on the planet" must test the whole block (`isSystemCellOnPlanet` / `isSystemPointOnPlanet`), never a single cell.
+- In-system sensor ranges are multiplied by `SYSTEM_SENSOR_RANGE_UNIT_CELLS` (2), so doubling the grid did not change how far fleets see.
 
 ## Fleet Position Invariants
 
 - `fleet.gridCol`/`fleet.gridRow` must always equal `Math.floor(fleet.x)` and `Math.floor(fleet.y)` (or `Math.floor(fleet.system.x) + 1` / `Math.floor(fleet.system.y) + 1` while the fleet is in a system).
-- A `Fleet.system` object is present if and only if the fleet is inside a star system. The `id` is the owning system's id; `x`/`y` are in vw on the 18×10 system grid.
+- A `Fleet.system` object is present if and only if the fleet is inside a star system. The `id` is the owning system's id; `x`/`y` are in vw inside the system scene.
 - When `fleet.destroyed = true`, the fleet is excluded from:
   - `visibleFleets` (rendering and the fleet-button list)
   - `updateFleets()` (no movement updates)
@@ -154,7 +155,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 - On viewport resize, the camera is scaled by `newCellSize / oldCellSize` so the same grid area remains under the same viewport point.
 - The background is sized to 200% of the map grid extent and translated at `0.3 * cameraX/Y` for parallax; the getters `bgWidthVw`, `bgHeightVw`, `bgLeftVw`, `bgTopVw` keep it centered on the viewport at all times.
 - Decorative backdrop layers never intercept pointer events and never hide game information. The only layers drawn above the galaxy map (`.star-map-backdrop--front`, map view only) use `mix-blend-mode: screen`, which can only add light; gameplay terrain stays under the fog of war. See [UI Styling](./ui-styling.md#space-scenery).
-- The system view's star center (`SYSTEM_SUN_CENTER_X_VW` / `_Y_VW` in `star-map-system-grid.component.ts`) must match the `.sun` grid placement in its SCSS; the orbit rings are computed from it.
+- The system view's star center (`SYSTEM_SUN_CENTER_X_VW` / `_Y_VW` in `system-grid.ts`) must match the `.sun` grid placement in `star-map-system-grid.component.scss`; the orbit rings, the asteroid belt and its dust band are computed from it.
   - Camera speed is `2` vw per arrow-key press or navigation-component event, not time-based.
 
 ## Sensor Range & Fog-of-War Invariants
@@ -165,7 +166,8 @@ Conditions that must remain true across the codebase. When changing any code tha
 - Only **player** sensor ranges are highlighted on the galaxy map. Enemy fleet sensor ranges are never shown.
 - `exploredGridCells` (a `Set<string>` of `"col-row"` keys, persisted as `string[]`) is monotonic: once a cell is explored it stays explored forever.
 - `StarSystem.explored` is set to `true` when the system's grid cell enters any player sensor range, and never reset to `false`.
-- `PlanetTile.explored` is set to `true` when the planet's system-view grid cell is within a player fleet's sensor range (Euclidean distance on the 18×10 system grid).
+- `PlanetTile.explored` is set to `true` when the center of the planet's 2×2 block is within a player fleet's sensor range (Euclidean, in system cells, range × 2).
+- `SystemAsteroid.surveyed` is monotonic and only ever set by a human player fleet on that cell. The deposit amount (`rawMaterials`) is never shown for an unsurveyed asteroid. In-system asteroids never overlap a planet block or its one-cell margin and never block movement.
 - Enemy/neutral fleets are hidden on the galaxy map when their grid cell is not in the player's sensor range. They remain tracked for battle detection (which uses raw fleet data, not visibility-filtered).
 - In system view, all fleets in the current system are visible (player is physically present).
 - Fog cells (unexplored viewport cells) are culled to the camera viewport + 1-cell buffer for performance on the 100×60 grid.
@@ -271,7 +273,9 @@ See [Diplomacy](./diplomacy.md).
 
 - **One hostility rule:** whether two factions fight is decided only by `diplomacy.ts` (`areFactionsHostile` / `canAttackPlanetOf`); no gameplay code compares `Faction.team` to decide hostility.
 - **Symmetric treaties:** the treaty state in `Faction.relations` changes only through `startWar` / `startPeace` (both sides at once); symmetric fields always agree; `normalizeRelations` runs on every new game and load, fills defaults, clamps values and repairs disagreement as war.
-- **Atomic peace treaties:** `DiplomacyService.executeTreaty` re-validates the whole treaty first; an infeasible treaty changes nothing (no resources moved, no planet ceded, war continues). A treaty never cedes a giver's last planet and never transfers more resources than the giver holds.
+- **Atomic peace treaties:** `DiplomacyService.executeTreaty` re-validates the whole treaty first; an infeasible treaty changes nothing (no resources moved, war continues). A treaty never transfers more resources than the giver holds.
+- **Treaties carry resources only:** a treaty item is credits or raw materials; planets and star systems never change owner through diplomacy (any other item fails validation as `unsupported_item`).
+- **No turns:** every diplomatic timer is seconds of scaled game time and every rate is per minute of game time, applied continuously each tick; nothing advances on a player action, and all of it stops at zero delta (pause).
 - **Truce:** during a truce no war can be declared; only the explicit treaty breach ends it.
 - **Same rules for all:** the player and the AI use the same `DiplomacyService` actions, `validateTreaty` and consequences; the AI only accepts terms its own evaluation (`EnemyDiplomacyService.evaluateTreaty`) accepts.
 - **Diplomacy runs on game time:** locks, truces, exhaustion, opinion drift and reputation drift advance only with the scaled game delta (frozen while paused); a war cannot be negotiated before its minimum duration.
@@ -294,7 +298,7 @@ See [Territory](./territory.md).
 
 See [Planet Capture](./planet-capture.md).
 
-- **Single ownership pathway:** gameplay code changes `PlanetTile.factionId` only through `PlanetOwnershipService.transferPlanet` (colonization, capture, battle victory, rebellion); only the galaxy generator writes initial owners directly.
+- **Single ownership pathway:** gameplay code changes `PlanetTile.factionId` only through `PlanetOwnershipService.transferPlanet` (colonization, capture, battle victory, rebellion — never diplomacy); only the galaxy generator writes initial owners directly.
 - **Captured planets stop producing for the loser:** a transfer cancels and refunds the previous owner's production orders on that planet.
 - **Planets are attacked only at war** (or neutral rebels): permanently allied and at-peace planets are never attacked; a planet battle changes ownership only on attacker victory; a draw leaves the planet with the defender.
 - **One combat damage rule:** the animated battle and the auto-resolver both use `applyVolleyDamage`.

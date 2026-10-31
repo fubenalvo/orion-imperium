@@ -2,7 +2,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { NegotiationSideVm, NegotiationVm } from '../star-map-diplomacy-vm';
 import { PeaceTreaty, ResourceItemKind, TreatyItem } from '../peace-treaty';
-import { TRUCE_TURNS } from '../diplomacy';
+import { TRUCE_SECONDS, formatGameDuration } from '../diplomacy';
 
 /*
  * Peace negotiation dialog. Stateless: the draft lives in StarMap
@@ -12,7 +12,9 @@ import { TRUCE_TURNS } from '../diplomacy';
  * the AI's judgment of exactly the terms on screen. The game is paused
  * while this dialog is open.
  *
- * "Demand" items are given by the AI, "offer" items by the player.
+ * "Demand" items are given by the AI, "offer" items by the player. Terms
+ * are credits and raw materials only: planets and star systems are not
+ * negotiable (docs/diplomacy.md#peace-treaties-peace-treatyts).
  */
 @Component({
   selector: 'app-star-map-peace-negotiation',
@@ -31,7 +33,8 @@ export class StarMapPeaceNegotiationComponent {
   @Output() declineIncoming = new EventEmitter<void>();
   @Output() close = new EventEmitter<void>();
 
-  readonly truceTurns = TRUCE_TURNS;
+  readonly truceLabel = formatGameDuration(TRUCE_SECONDS);
+  readonly formatDuration = formatGameDuration;
 
   /* The side that gives in a column: demands are given by them, offers by you. */
   giverSide(column: 'demand' | 'offer'): NegotiationSideVm {
@@ -41,7 +44,7 @@ export class StarMapPeaceNegotiationComponent {
   amount(column: 'demand' | 'offer', kind: ResourceItemKind): number {
     const giverId = this.giverSide(column).factionId;
     const item = this.vm.draft.items.find((i) => i.kind === kind && i.giverId === giverId);
-    return item && 'amount' in item ? item.amount : 0;
+    return item?.amount ?? 0;
   }
 
   setAmount(column: 'demand' | 'offer', kind: ResourceItemKind, raw: string): void {
@@ -51,42 +54,6 @@ export class StarMapPeaceNegotiationComponent {
     const amount = Number.isFinite(parsed) ? Math.min(max, Math.max(0, parsed)) : 0;
     const items = this.vm.draft.items.filter((i) => !(i.kind === kind && i.giverId === side.factionId));
     if (amount > 0) items.push({ kind, giverId: side.factionId, amount });
-    this.emit(items);
-  }
-
-  isPlanetSelected(column: 'demand' | 'offer', planetId: number): boolean {
-    const giverId = this.giverSide(column).factionId;
-    return this.vm.draft.items.some((i) => i.kind === 'planet' && i.giverId === giverId && i.planetId === planetId);
-  }
-
-  /* A planet is covered when its whole system is already listed. */
-  isPlanetCovered(column: 'demand' | 'offer', systemId: string): boolean {
-    return this.isSystemSelected(column, systemId);
-  }
-
-  togglePlanet(column: 'demand' | 'offer', planetId: number): void {
-    const giverId = this.giverSide(column).factionId;
-    const selected = this.isPlanetSelected(column, planetId);
-    const items = this.vm.draft.items.filter((i) => !(i.kind === 'planet' && i.giverId === giverId && i.planetId === planetId));
-    if (!selected) items.push({ kind: 'planet', giverId, planetId });
-    this.emit(items);
-  }
-
-  isSystemSelected(column: 'demand' | 'offer', systemId: string): boolean {
-    const giverId = this.giverSide(column).factionId;
-    return this.vm.draft.items.some((i) => i.kind === 'system' && i.giverId === giverId && i.systemId === systemId);
-  }
-
-  /* Selecting a system replaces any single planets of that system (no planet listed twice). */
-  toggleSystem(column: 'demand' | 'offer', systemId: string): void {
-    const side = this.giverSide(column);
-    const selected = this.isSystemSelected(column, systemId);
-    const systemPlanets = new Set(side.systems.find((s) => s.id === systemId)?.planetIds ?? []);
-    let items = this.vm.draft.items.filter((i) => !(i.kind === 'system' && i.giverId === side.factionId && i.systemId === systemId));
-    if (!selected) {
-      items = items.filter((i) => !(i.kind === 'planet' && i.giverId === side.factionId && systemPlanets.has(i.planetId)));
-      items.push({ kind: 'system', giverId: side.factionId, systemId });
-    }
     this.emit(items);
   }
 

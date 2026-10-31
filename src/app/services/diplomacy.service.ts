@@ -21,13 +21,10 @@ import {
   PeaceTreaty,
   TreatyValidation,
   TreatyWorld,
-  cededPlanets,
   isFactionAlive,
-  otherParty,
   resourceTotal,
   validateTreaty,
 } from '../components/star-map/peace-treaty';
-import { PlanetOwnershipService } from './planet-ownership.service';
 
 /*
  * =========================================================
@@ -42,8 +39,8 @@ import { PlanetOwnershipService } from './planet-ownership.service';
  *    and opinion penalty;
  *  - executeTreaty: ends a war with a peace treaty. All-or-nothing: the
  *    terms are re-validated first and only then are resources moved,
- *    planets ceded (PlanetOwnershipService, reason 'ceded'), peace and the
- *    truce started and exhaustion reset.
+ *    peace and the truce started and exhaustion reset. Treaties carry
+ *    resources only; planets never change owner through diplomacy.
  *
  * Transient state (not saved; AIs re-evaluate within one decision
  * interval after a load): open AI peace proposals to the human player and
@@ -90,7 +87,6 @@ export class DiplomacyService {
   /* AI faction id → its open peace proposal to the human player. */
   private offers = new Map<string, PeaceProposal>();
 
-  constructor(private readonly planetOwnership: PlanetOwnershipService) {}
 
   reset(): void {
     this.events = [];
@@ -181,9 +177,6 @@ export class DiplomacyService {
         giver.currencies[kind] = (giver.currencies[kind] ?? 0) - amount;
         receiver.currencies[kind] = (receiver.currencies[kind] ?? 0) + amount;
       }
-    }
-    for (const { planet, giverId } of cededPlanets(treaty, world.starSystems)) {
-      this.planetOwnership.transferPlanet(world, planet, otherParty(treaty, giverId), 'ceded');
     }
     startPeace(proposer, recipient, TRUCE_SECONDS);
     adjustOpinion(proposer, recipient, OPINION_PEACE_SIGNED);

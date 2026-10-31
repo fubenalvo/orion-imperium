@@ -40,8 +40,11 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
  *      terrain generated around them (docs/planet-surface.md).
  * - 7: `spaceBases` (docs/territory.md). Older saves get none. Territory
  *      is derived, never saved.
+ * - 8: the system view grid doubled (system-grid.ts): `PlanetTile.x/y` is
+ *      the top-left cell of a 2×2 block; older values are converted. Adds
+ *      `StarSystem.asteroidBelt`, backfilled deterministically on load.
  */
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 /*
  * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid

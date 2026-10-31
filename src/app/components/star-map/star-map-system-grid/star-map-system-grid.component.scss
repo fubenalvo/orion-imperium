@@ -26,12 +26,13 @@
   height: 35vw;
   margin: auto;
   display: grid;
-  grid-template-columns: repeat(18, 5vw);
-  grid-template-rows: repeat(7, 5vw);
+  /* 36 × 14 cells of 2.5vw: must match system-grid.ts. Planets span 2 × 2. */
+  grid-template-columns: repeat(36, 2.5vw);
+  grid-template-rows: repeat(14, 2.5vw);
   background-image:
-    linear-gradient(to right, rgba(90, 160, 220, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(90, 160, 220, 0.06) 1px, transparent 1px);
-  background-size: 5vw 5vw;
+    linear-gradient(to right, rgba(90, 160, 220, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(90, 160, 220, 0.05) 1px, transparent 1px);
+  background-size: 2.5vw 2.5vw;
 }
 
 /* =========================================================
@@ -41,9 +42,9 @@
    ========================================================= */
 
 .sun {
-  /* Implicit 19th column, vertically centered on rows 3-5. */
-  grid-column: 19 / 19;
-  grid-row: 3 / 6;
+  /* Implicit 37th column, vertically centered on rows 5-10 (y 10vw..25vw). */
+  grid-column: 37 / 37;
+  grid-row: 5 / 11;
   position: relative;
   display: flex;
   align-items: center;
@@ -192,6 +193,121 @@
 }
 
 /* =========================================================
+   ASTEROID BELT
+   A soft dust band on the belt line (centered on the star like the
+   orbits) plus one lit rock per asteroid cell. Rocks never take clicks:
+   a click on an asteroid cell is a click on the grid (move order).
+   Surveyed barren rocks dim; surveyed deposits glow amber with a label.
+   ========================================================= */
+
+.asteroid-belt-dust {
+  position: absolute;
+  left: 95vw;
+  top: 17.5vw;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  /* The element is the belt diameter + 8vw: the band peaks on the belt line,
+     4vw inside the edge (about the belt's half-width, system-asteroids.ts). */
+  background: radial-gradient(
+    closest-side,
+    transparent calc(100% - 8vw),
+    rgba(170, 150, 120, 0.08) calc(100% - 4vw),
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.system-asteroid {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.system-asteroid__rock {
+  position: relative;
+  width: 0.95vw;
+  height: 0.75vw;
+  /* Lumpy outline; the star is to the right, so the lit side faces right. */
+  border-radius: 46% 54% 38% 62% / 55% 42% 58% 45%;
+  background: radial-gradient(circle at 72% 38%, #a39a8c 0%, #6b6358 40%, #39342e 85%);
+  box-shadow: inset -0.12vw -0.08vw 0.15vw rgba(0, 0, 0, 0.55);
+  transform: translate(var(--rock-dx, 0), var(--rock-dy, 0)) rotate(var(--rock-rotate, 0deg))
+    scale(var(--rock-scale, 1));
+
+  /* A pebble beside the main rock so a belt reads as rubble, not a dotted line. */
+  &::after {
+    content: '';
+    position: absolute;
+    width: 0.32vw;
+    height: 0.26vw;
+    left: 115%;
+    top: 70%;
+    border-radius: 50% 40% 55% 45%;
+    background: #5d564c;
+  }
+}
+
+.system-asteroid--surveyed:not(.system-asteroid--rich) .system-asteroid__rock {
+  filter: grayscale(0.6) brightness(0.6);
+}
+
+.system-asteroid--rich {
+  z-index: 2;
+
+  .system-asteroid__rock {
+    background:
+      radial-gradient(circle at 40% 60%, rgba(255, 196, 92, 0.95) 0 14%, transparent 22%),
+      radial-gradient(circle at 66% 30%, rgba(255, 214, 120, 0.9) 0 10%, transparent 18%),
+      radial-gradient(circle at 72% 38%, #b0a28a 0%, #74644d 40%, #3d342a 85%);
+    box-shadow:
+      inset -0.12vw -0.08vw 0.15vw rgba(0, 0, 0, 0.5),
+      0 0 0.5vw 0.1vw rgba(255, 180, 70, 0.55);
+  }
+
+  /* Pulsing survey ring around a found deposit. */
+  &::before {
+    content: '';
+    position: absolute;
+    width: 2vw;
+    height: 2vw;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 190, 90, 0.6);
+    animation: asteroid-deposit-pulse 2.4s ease-in-out infinite;
+  }
+}
+
+.system-asteroid__label {
+  position: absolute;
+  top: calc(50% + 0.9vw);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: var(--font-primary);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  color: #ffc768;
+  text-shadow:
+    0 0 4px rgba(0, 0, 0, 0.95),
+    0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+@keyframes asteroid-deposit-pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+/* =========================================================
    PLANETS
    ========================================================= */
 
@@ -326,7 +442,8 @@
   .sun-rays,
   .sun-glow,
   .sun-core::before,
-  .planet-body::before {
+  .planet-body::before,
+  .system-asteroid--rich::before {
     animation: none;
   }
 }

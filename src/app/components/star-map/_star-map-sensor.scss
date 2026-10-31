@@ -43,10 +43,10 @@
   animation: sensor-pulse 2.5s ease-in-out infinite;
 }
 
-/* Sensor range cells in system view use fixed 5vw cells */
+/* Sensor range cells in system view use the fixed system cell (system-grid.ts) */
 .system-sensor-cell {
-  width: 5vw;
-  height: 5vw;
+  width: 2.5vw;
+  height: 2.5vw;
 }
 
 /* =========================================================
@@ -65,10 +65,10 @@
   opacity: 0.3;
 }
 
-/* Preview cells in system view use fixed 5vw cells */
+/* Preview cells in system view use the fixed system cell (system-grid.ts) */
 .system-sensor-preview-cell {
-  width: 5vw;
-  height: 5vw;
+  width: 2.5vw;
+  height: 2.5vw;
 }
 
 @keyframes sensor-pulse {

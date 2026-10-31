@@ -18,6 +18,35 @@
       ></div>
     }
 
+    <!-- ASTEROID BELT: dust band along the belt line, one rock per asteroid cell.
+         Deposits are shown only once surveyed (see system-asteroids.ts). -->
+    @if (selectedSystem.asteroidBelt; as belt) {
+      <div
+        class="asteroid-belt-dust"
+        [style.width.vw]="belt.radiusVw * 2 + 8"
+        [style.height.vw]="belt.radiusVw * 2 + 8"
+      ></div>
+      @for (asteroid of belt.asteroids; track asteroid.col + '-' + asteroid.row) {
+        @let shape = asteroidShape(asteroid);
+        <div
+          class="system-asteroid"
+          [class.system-asteroid--surveyed]="asteroid.surveyed"
+          [class.system-asteroid--rich]="asteroid.surveyed && asteroid.rawMaterials > 0"
+          [style.gridColumn]="asteroid.col"
+          [style.gridRow]="asteroid.row"
+          [style.--rock-rotate]="shape.rotate"
+          [style.--rock-scale]="shape.scale"
+          [style.--rock-dx]="shape.dx"
+          [style.--rock-dy]="shape.dy"
+        >
+          <span class="system-asteroid__rock"></span>
+          @if (asteroid.surveyed && asteroid.rawMaterials > 0) {
+            <span class="system-asteroid__label">{{ asteroid.rawMaterials }} RAW</span>
+          }
+        </div>
+      }
+    }
+
     <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
     @if (sensorRangeEnabled) {
       @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {
@@ -46,8 +75,8 @@
         class="planet"
         [ngClass]="getPlanetClassNames(planet)"
         [class.planet--unexplored]="!planet.explored"
-        [style.gridColumn]="movementService.getPlanetGridPosition(planet).col"
-        [style.gridRow]="movementService.getPlanetGridPosition(planet).row"
+        [style.gridColumn]="planetGridColumn(planet)"
+        [style.gridRow]="planetGridRow(planet)"
         [style.--planet-color]="selectedSystem.color"
         (click)="onPlanetClick(planet, $event)"
         (contextmenu)="onPlanetContextMenu(planet, $event)"

@@ -927,8 +927,6 @@ describe('StarMap', () => {
    */
   describe('Fleet move rejection feedback', () => {
     // Center of a 1-indexed system grid cell, in system-view vw (5vw cells).
-    const cellCenter = (cell: { col: number; row: number }) => ({ x: (cell.col - 1) * 5 + 2.5, y: (cell.row - 1) * 5 + 2.5 });
-
     const setup = () => {
       const system = component.starSystems[0];
       const planet = system.planetsTiles[0];
@@ -947,7 +945,7 @@ describe('StarMap', () => {
       component.selectedSystem = system;
       component.selectFleet(mover);
       component.selectedFleetAction = 'move';
-      return { system, planet, mover, parked, target: cellCenter(component.movementService.getPlanetGridPosition(planet)) };
+      return { system, planet, mover, parked, target: component.movementService.getPlanetCellCenter(planet) };
     };
 
     it('explains a move onto an allied planet and does not move the fleet', () => {

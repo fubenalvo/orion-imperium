@@ -1,7 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  DIPLOMACY_TURN_SECONDS,
+  SECONDS_PER_MINUTE,
+  EXHAUSTION_PER_MINUTE,
+  OPINION_PEACE_DRIFT_PER_MINUTE,
+  formatGameDuration,
   EXHAUSTION_MAX_PENALTY,
   INITIAL_WAR_LOCK_SECONDS,
   OPINION_TREATY_BROKEN,
@@ -40,6 +43,7 @@ import { StarMapBattleDetectionService } from './star-map-battle-detection.servi
 import { BattleService } from '../../services/battle.service';
 import { EconomyService } from '../../services/economy.service';
 import { PeaceTreaty, validateTreaty } from './peace-treaty';
+import { buildDiplomacyRows } from './star-map-diplomacy-vm';
 import { PlanetOwnershipService } from '../../services/planet-ownership.service';
 
 const faction = (id: string, team: number, ai = true, extra: Partial<Faction> = {}): Faction => ({
@@ -157,14 +161,14 @@ describe('diplomacy rules', () => {
   });
 });
 
-describe('time-based diplomacy (one turn = 60 s)', () => {
-  it('raises exhaustion each turn of war and erodes opinion; peace builds opinion', () => {
+describe('time-based diplomacy (continuous game time, rates per minute)', () => {
+  it('raises exhaustion every minute of war and erodes opinion; peace builds opinion', () => {
     const a = faction('enemy1', 2);
     const b = faction('enemy2', 3);
     const c = faction('enemy3', 4);
     normalizeRelations([a, b, c]);
     setTreatyState(a, c, 'peace', 0);
-    tickDiplomacyTime([a, b, c], 10 * DIPLOMACY_TURN_SECONDS);
+    tickDiplomacyTime([a, b, c], 10 * SECONDS_PER_MINUTE);
     expect(getWarExhaustion(a, b)).toBeCloseTo(10);
     expect(getRelation(a, b)?.warSeconds).toBe(600);
     expect(getOpinion(a, b)).toBeCloseTo(-5);
@@ -190,7 +194,7 @@ describe('time-based diplomacy (one turn = 60 s)', () => {
     expect(honored).toEqual([{ aId: 'enemy1', bId: 'enemy2' }]);
     expect(isTruceActive(a, b)).toBe(false);
     expect(getRelationKind(a, b)).toBe('peace');
-    // Honored truce, plus 10 turns of reputation drift while at war with nobody.
+    // Honored truce, plus 10 minutes of reputation drift while at war with nobody.
     expect(getReputation(a)).toBeCloseTo(REPUTATION_TREATY_HONORED + 0.5 * 10);
   });
 
@@ -199,7 +203,7 @@ describe('time-based diplomacy (one turn = 60 s)', () => {
     const b = faction('enemy2', 3);
     normalizeRelations([a, b]);
     setTreatyState(a, b, 'peace', 0);
-    tickDiplomacyTime([a, b], 10 * DIPLOMACY_TURN_SECONDS);
+    tickDiplomacyTime([a, b], 10 * SECONDS_PER_MINUTE);
     expect(getReputation(a)).toBeCloseTo(5);
   });
 });
@@ -230,7 +234,7 @@ describe('war bookkeeping', () => {
     expect(getOpinion(a, b)).toBe(-10);
   });
 
-  it('a surprise attack is an attack by the declarer within one turn, penalized once per war', () => {
+  it('a surprise attack is an attack by the declarer within one minute of game time, penalized once per war', () => {
     const a = faction('enemy1', 2);
     const b = faction('enemy2', 3);
     normalizeRelations([a, b]);
@@ -241,7 +245,7 @@ describe('war bookkeeping', () => {
     expect(getReputation(a)).toBe(REPUTATION_SURPRISE_ATTACK);
 
     startWar(a, b, WAR_MIN_DURATION_SECONDS, 'enemy1');
-    tickDiplomacyTime([a, b], DIPLOMACY_TURN_SECONDS);
+    tickDiplomacyTime([a, b], SECONDS_PER_MINUTE);
     expect(recordHostileAct(a, b)).toBe(false);
   });
 
@@ -277,9 +281,9 @@ describe('DiplomacyService', () => {
     expect(service.declareWar(player, ai)).toEqual({ ok: false, reason: 'truce', waitSeconds: TRUCE_SECONDS });
     service.tick(TRUCE_SECONDS, [player, ai]);
     expect(service.declareWar(player, ai).ok).toBe(true);
-    // Truce honored (+5) and 10 turns at war with nobody (+5), then the declaration.
+    // Truce honored (+5) and 10 minutes of game time at war with nobody (+5), then the declaration.
     expect(getReputation(player)).toBeCloseTo(REPUTATION_TREATY_HONORED + 5 + REPUTATION_WAR_DECLARED);
-    // +10 from ten turns of peace, then the declaration.
+    // +10 from ten minutes of peace, then the declaration.
     expect(getOpinion(ai, player)).toBeCloseTo(10 + OPINION_WAR_DECLARED);
     expect(getRelation(player, ai)).toMatchObject({ state: 'war', declaredBy: 'player', lockRemaining: WAR_MIN_DURATION_SECONDS });
   });
@@ -294,10 +298,11 @@ describe('DiplomacyService', () => {
     expect(service.drainEvents()).toEqual([{ kind: 'breach', initiatorId: 'player', targetId: 'enemy1' }]);
   });
 
-  it('executes a treaty atomically: resources, planets and systems move, peace and truce start, exhaustion resets', () => {
+  it('executes a treaty atomically: resources move, planets stay, peace and truce start, exhaustion resets', () => {
     const home = system('home', 10, 10, ['enemy1', 'enemy1']);
     const colony = system('col', 20, 10, ['enemy1', 'player']);
     const capital = system('cap', 40, 10, ['player']);
+    const ownersBefore = [home, colony, capital].map((s) => s.planetsTiles.map((p) => p.factionId));
     player.relations!['enemy1'].warExhaustion = 40;
     const treaty: PeaceTreaty = {
       proposerId: 'player',
@@ -305,7 +310,6 @@ describe('DiplomacyService', () => {
       items: [
         { kind: 'credits', giverId: 'enemy1', amount: 500 },
         { kind: 'rawmaterials', giverId: 'player', amount: 200 },
-        { kind: 'system', giverId: 'enemy1', systemId: 'col' },
       ],
     };
     const result = service.executeTreaty(world([home, colony, capital]), treaty);
@@ -314,7 +318,8 @@ describe('DiplomacyService', () => {
     expect(player.currencies['credits']).toBe(1500);
     expect(player.currencies['rawmaterials']).toBe(300);
     expect(ai.currencies['rawmaterials']).toBe(300);
-    expect(colony.planetsTiles.every((p) => p.factionId === 'player')).toBe(true);
+    // A treaty never moves a planet.
+    expect([home, colony, capital].map((s) => s.planetsTiles.map((p) => p.factionId))).toEqual(ownersBefore);
     expect(getRelation(player, ai)).toMatchObject({ state: 'peace', truce: true, lockRemaining: TRUCE_SECONDS, warExhaustion: 0 });
     expect(isTruceActive(ai, player)).toBe(true);
   });
@@ -324,27 +329,41 @@ describe('DiplomacyService', () => {
     const capital = system('cap', 40, 10, ['player']);
     const before = JSON.stringify([player, ai, home, capital]);
     const tooMuch: PeaceTreaty = { proposerId: 'player', recipientId: 'enemy1', items: [
-      { kind: 'planet', giverId: 'enemy1', planetId: home.planetsTiles[0].id },
+      { kind: 'rawmaterials', giverId: 'player', amount: 100 },
       { kind: 'credits', giverId: 'enemy1', amount: 9999 },
     ] };
     expect(service.executeTreaty(world([home, capital]), tooMuch).validation.reason).toBe('insufficient_resources');
-    const lastPlanet: PeaceTreaty = { proposerId: 'player', recipientId: 'enemy1', items: [{ kind: 'planet', giverId: 'enemy1', planetId: home.planetsTiles[0].id }] };
-    expect(service.executeTreaty(world([home, capital]), lastPlanet).validation.reason).toBe('last_planet');
     expect(JSON.stringify([player, ai, home, capital])).toBe(before);
   });
 
-  it('a treaty whose planet changed hands meanwhile is refused as a whole', () => {
+  it('rejects planet or system items (stale code or data): only resources are negotiable', () => {
     const home = system('home', 10, 10, ['enemy1', 'enemy1']);
     const capital = system('cap', 40, 10, ['player']);
-    const treaty: PeaceTreaty = { proposerId: 'enemy1', recipientId: 'player', items: [
-      { kind: 'credits', giverId: 'enemy1', amount: 300 },
+    const before = JSON.stringify([player, ai, home, capital]);
+    for (const legacy of [
       { kind: 'planet', giverId: 'enemy1', planetId: home.planetsTiles[1].id },
+      { kind: 'system', giverId: 'enemy1', systemId: 'home' },
+    ]) {
+      const treaty = { proposerId: 'player', recipientId: 'enemy1', items: [{ kind: 'credits', giverId: 'enemy1', amount: 100 }, legacy] } as unknown as PeaceTreaty;
+      const result = service.executeTreaty(world([home, capital]), treaty);
+      expect(result.ok).toBe(false);
+      expect(result.validation).toEqual({ ok: false, reason: 'unsupported_item', itemIndex: 1 });
+    }
+    expect(JSON.stringify([player, ai, home, capital])).toBe(before);
+    expect(getRelationKind(player, ai)).toBe('war');
+  });
+
+  it('a treaty whose payer spent the resources meanwhile is refused as a whole', () => {
+    const home = system('home', 10, 10, ['enemy1']);
+    const capital = system('cap', 40, 10, ['player']);
+    const treaty: PeaceTreaty = { proposerId: 'enemy1', recipientId: 'player', items: [
+      { kind: 'credits', giverId: 'enemy1', amount: 1500 },
+      { kind: 'rawmaterials', giverId: 'player', amount: 100 },
     ] };
-    // A third party captured the planet after the proposal was made.
-    home.planetsTiles[1].factionId = 'independent';
+    ai.currencies['credits'] = 1000;
     const result = service.executeTreaty(world([home, capital]), treaty);
-    expect(result.validation.reason).toBe('not_owner');
-    expect(ai.currencies['credits']).toBe(2000);
+    expect(result.validation.reason).toBe('insufficient_resources');
+    expect(player.currencies['rawmaterials']).toBe(500);
     expect(getRelationKind(player, ai)).toBe('war');
   });
 
@@ -428,20 +447,23 @@ describe('EnemyDiplomacyService', () => {
     const paidEval = ai.evaluateTreaty(ctx.a, paid, ctx);
     expect(paidEval.accept).toBe(true);
     expect(paidEval.acceptance).toBeGreaterThanOrEqual(0.5);
-    const greedy: PeaceTreaty = { ...white, items: [{ kind: 'planet', giverId: 'enemy1', planetId: ctx.starSystems[0].planetsTiles[0].id }] };
+    const greedy: PeaceTreaty = { ...white, items: [{ kind: 'credits', giverId: 'enemy1', amount: 3000 }] };
     expect(ai.evaluateTreaty(ctx.a, greedy, ctx).acceptance).toBeLessThan(whiteEval.acceptance);
+    // Terms are valued in credits only: raw materials ×1.2, nothing else.
+    expect(ai.termsValue(ctx.a, { ...white, items: [{ kind: 'rawmaterials', giverId: 'enemy2', amount: 100 }] })).toBeCloseTo(120);
   });
 
-  it('counter-offers by dropping its own concessions and asking only for what the other side holds', () => {
+  it('counter-offers by paying less and asking only for resources the other side holds', () => {
     const ctx = world(Array(5).fill('battleship'), Array(5).fill('battleship'));
     const greedy: PeaceTreaty = { proposerId: 'enemy2', recipientId: 'enemy1', items: [
-      { kind: 'planet', giverId: 'enemy1', planetId: ctx.starSystems[0].planetsTiles[1].id },
+      { kind: 'credits', giverId: 'enemy1', amount: 3000 },
     ] };
     const response = ai.respondToProposal(ctx.a, greedy, ctx);
     expect(response.decision).toBe('counter');
     const counter = response.counter!;
     expect(counter.proposerId).toBe('enemy1');
-    expect(counter.items.some((i) => i.giverId === 'enemy1' && i.kind === 'planet')).toBe(false);
+    expect(counter.items.every((i) => i.kind === 'credits' || i.kind === 'rawmaterials')).toBe(true);
+    expect(counter.items.some((i) => i.giverId === 'enemy1')).toBe(false);
     expect(validateTreaty(counter, ctx).ok).toBe(true);
     expect(ai.evaluateTreaty(ctx.a, counter, ctx).accept).toBe(true);
     for (const item of counter.items) {
@@ -451,8 +473,7 @@ describe('EnemyDiplomacyService', () => {
 
   it('refuses outright when no feasible counter exists', () => {
     const ctx = world(Array(10).fill('battleship'), ['fighter']);
-    ctx.b.currencies = { credits: 0, rawmaterials: 0, research: 0 };
-    ctx.starSystems[1].planetsTiles.splice(1, 1); // enemy2 keeps a single planet: nothing to cede
+    ctx.b.currencies = { credits: 0, rawmaterials: 0, research: 0 }; // nothing it could pay
     const white: PeaceTreaty = { proposerId: 'enemy2', recipientId: 'enemy1', items: [] };
     expect(ai.respondToProposal(ctx.a, white, ctx).decision).toBe('refuse');
   });
@@ -505,7 +526,7 @@ describe('EnemyDiplomacyService', () => {
     expect(getRelationKind(ctx.a, ctx.b)).toBe('peace');
 
     diplomacy.tick(TRUCE_SECONDS, ctx.factions);
-    // Ten turns of peace built some goodwill; reset it to "indifferent".
+    // Ten minutes of peace built some goodwill; reset it to "indifferent".
     ctx.a.relations!['enemy2'].opinion = 0;
     ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
     expect(getRelationKind(ctx.a, ctx.b)).toBe('war');
@@ -534,6 +555,29 @@ describe('EnemyDiplomacyService', () => {
     expect(getRelationKind(ctx.a, ctx.b)).toBe('peace');
   });
 
+  it('never offers or demands planets or systems, in any proposal, counter-offer or AI–AI treaty', () => {
+    const scenarios = [
+      world(['fighter'], Array(10).fill('battleship')),
+      world(Array(10).fill('battleship'), ['fighter']),
+      world(Array(5).fill('battleship'), Array(5).fill('battleship')),
+    ];
+    for (const ctx of scenarios) {
+      ctx.b.currencies = { credits: 0, rawmaterials: 0, research: 0 };
+      // A hard counter request: the AI used to ask for planets when resources ran out.
+      const response = ai.respondToProposal(ctx.a, { proposerId: 'enemy2', recipientId: 'enemy1', items: [] }, ctx);
+      for (const item of response.counter?.items ?? []) expect(['credits', 'rawmaterials']).toContain(item.kind);
+    }
+    const ctx = world(['fighter'], ['fighter']);
+    ctx.fleets.push(fleet(3, 'player', 12, 10, Array(10).fill('battleship')));
+    ctx.starSystems.push(system('p1', 14, 10, ['player']));
+    ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+    for (const item of diplomacy.getOffer('enemy1')?.treaty.items ?? []) expect(['credits', 'rawmaterials']).toContain(item.kind);
+    const executed = diplomacy.drainEvents().filter((e) => e.kind === 'peace');
+    for (const event of executed) {
+      for (const item of event.treaty?.items ?? []) expect(['credits', 'rawmaterials']).toContain(item.kind);
+    }
+  });
+
   it('does nothing while paused or between decisions', () => {
     const ctx = world(Array(10).fill('battleship'), ['fighter']);
     setTreatyState(ctx.a, ctx.b, 'peace', 0);
@@ -547,7 +591,7 @@ describe('EnemyDiplomacyService', () => {
 describe('planet transfers and war bookkeeping (PlanetOwnershipService)', () => {
   beforeEach(() => TestBed.configureTestingModule({}));
 
-  it('a capture is a war loss (and a surprise attack right after the declaration); a ceded planet is not', () => {
+  it('a capture is a war loss (and a surprise attack right after the declaration)', () => {
     const ownership = TestBed.inject(PlanetOwnershipService);
     const a = faction('enemy1', 2);
     const b = faction('enemy2', 3);
@@ -557,8 +601,86 @@ describe('planet transfers and war bookkeeping (PlanetOwnershipService)', () => 
     ownership.transferPlanet({ factions: [a, b] }, sys.planetsTiles[0], 'enemy1', 'captured');
     expect(getRelation(b, a)?.planetsLost).toBe(1);
     expect(getReputation(a)).toBe(REPUTATION_SURPRISE_ATTACK);
-    ownership.transferPlanet({ factions: [a, b] }, sys.planetsTiles[1], 'enemy1', 'ceded');
+    // Rebellion is not a war loss.
+    ownership.transferPlanet({ factions: [a, b] }, sys.planetsTiles[1], 'independent', 'rebellion');
     expect(getRelation(b, a)?.planetsLost).toBe(1);
+  });
+});
+
+describe('real-time diplomacy timers', () => {
+  beforeEach(() => TestBed.configureTestingModule({}));
+
+  it('formats game durations without turns', () => {
+    expect(formatGameDuration(0)).toBe('0 s');
+    expect(formatGameDuration(44.2)).toBe('45 s');
+    expect(formatGameDuration(60)).toBe('1 min');
+    expect(formatGameDuration(270)).toBe('4 min 30 s');
+    expect(formatGameDuration(TRUCE_SECONDS)).toBe('10 min');
+    expect(formatGameDuration(3900)).toBe('1 h 5 min');
+  });
+
+  it('every timer and rate is continuous game time: half a minute does half a minute of work', () => {
+    const a = faction('enemy1', 2);
+    const b = faction('enemy2', 3);
+    normalizeRelations([a, b]);
+    startPeace(a, b, TRUCE_SECONDS);
+    tickDiplomacyTime([a, b], 30);
+    expect(getRelation(a, b)?.lockRemaining).toBe(TRUCE_SECONDS - 30);
+    expect(getOpinion(a, b)).toBeCloseTo(OPINION_PEACE_DRIFT_PER_MINUTE / 2);
+    startWar(a, b, 0);
+    tickDiplomacyTime([a, b], 90);
+    expect(getWarExhaustion(a, b)).toBeCloseTo(EXHAUSTION_PER_MINUTE * 1.5);
+    expect(getRelation(a, b)?.warSeconds).toBe(90);
+  });
+
+  it('freezes while paused (zero scaled delta): truce, war clock, offers and AI decisions', () => {
+    const service = TestBed.inject(DiplomacyService);
+    const enemy = TestBed.inject(EnemyDiplomacyService);
+    service.reset();
+    enemy.reset();
+    const player = faction('player', 1, false);
+    const a = faction('enemy1', 2, true);
+    const b = faction('enemy2', 3, true);
+    const factions = [player, a, b];
+    normalizeRelations(factions);
+    startPeace(player, a, TRUCE_SECONDS);
+    startWar(a, b, 0);
+    service.addOffer({ proposerId: 'enemy1', recipientId: 'player', items: [] });
+    const before = JSON.stringify(factions);
+    for (let i = 0; i < 1000; i++) {
+      service.tick(0, factions);
+      enemy.tick(0, { factions, fleets: [], starSystems: [] });
+    }
+    expect(JSON.stringify(factions)).toBe(before);
+    expect(service.getOffer('enemy1')?.secondsLeft).toBe(PEACE_OFFER_SECONDS);
+    // Resuming continues from where it stopped.
+    service.tick(10, factions);
+    expect(getRelation(player, a)?.lockRemaining).toBe(TRUCE_SECONDS - 10);
+    expect(service.getOffer('enemy1')?.secondsLeft).toBe(PEACE_OFFER_SECONDS - 10);
+  });
+
+  it('the diplomacy screen shows real durations and never mentions turns', () => {
+    const service = TestBed.inject(DiplomacyService);
+    const enemy = TestBed.inject(EnemyDiplomacyService);
+    service.reset();
+    const player = faction('player', 1, false);
+    const a = faction('enemy1', 2, true);
+    const b = faction('enemy2', 3, true);
+    const factions = [player, a, b];
+    normalizeRelations(factions);
+    startPeace(player, a, TRUCE_SECONDS);
+    tickDiplomacyTime(factions, 150);
+    service.addOffer({ proposerId: 'enemy2', recipientId: 'player', items: [] });
+    const world = { factions, fleets: [] as Fleet[], starSystems: [system('p', 1, 1, ['player']), system('a', 30, 1, ['enemy1']), system('b', 60, 1, ['enemy2'])] };
+    const rows = buildDiplomacyRows(player, world, service, enemy);
+    const peaceRow = rows.find((r) => r.id === 'enemy1')!;
+    const warRow = rows.find((r) => r.id === 'enemy2')!;
+    expect(peaceRow.truceSecondsLeft).toBe(TRUCE_SECONDS - 150);
+    expect(peaceRow.truceLeftLabel).toBe('7 min 30 s');
+    expect(warRow.warSeconds).toBe(150);
+    expect(warRow.warDurationLabel).toBe('2 min 30 s');
+    expect(warRow.offer?.timeLeftLabel).toBe('1 min 30 s');
+    expect(JSON.stringify(rows).toLowerCase()).not.toContain('turn');
   });
 });
 

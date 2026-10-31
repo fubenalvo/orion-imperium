@@ -24,6 +24,7 @@ import { AI_PERSONALITIES } from '../components/star-map/ai-personality';
 import { centerLayout, generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
 import { getPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
 import { SAVE_VERSION } from './save-validation';
+import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
 import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star-map/diplomacy';
 
@@ -58,6 +59,8 @@ import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star
  * - asteroid belts (generateGalaxyAsteroidBelts) are impassable walls kept
  *   clear of systems, starting fleets, the black hole and each other, and
  *   never disconnect a home system from any other system. Own rng stream.
+ * - every system gets its in-system asteroid belt
+ *   (generateSystemAsteroidBelt), derived from the seed and the system id;
  * - settled planets get their surface terrain (generatePlanetSurface)
  *   here, derived arithmetically from the seed and the planet id, so it does
  *   not consume the layout stream; starting buildings are centered on the
@@ -102,14 +105,18 @@ interface Point {
   y: number;
 }
 
-/* Planet positions on the 18×10 system grid, by planet index (matches the legacy map). */
+/*
+ * Planet positions by planet index: top-left cell of each planet's 2×2 block
+ * on the system grid (system-grid.ts). Same screen positions as the legacy
+ * map's 18×10 layout ({12,3}, {10,5}, {8,4}, {6,2}, {4,6}, {2,3}).
+ */
 const PLANET_SYSTEM_LAYOUT: readonly Point[] = [
-  { x: 12, y: 3 },
-  { x: 10, y: 5 },
-  { x: 8, y: 4 },
-  { x: 6, y: 2 },
-  { x: 4, y: 6 },
-  { x: 2, y: 3 },
+  { x: 23, y: 5 },
+  { x: 19, y: 9 },
+  { x: 15, y: 7 },
+  { x: 11, y: 3 },
+  { x: 7, y: 11 },
+  { x: 3, y: 5 },
 ];
 
 const PLANET_TYPES: readonly PlanetType[] = ['earthlike', 'marslike', 'venuslike', 'gasgiant', 'ice', 'desert'];
@@ -378,6 +385,9 @@ export class GalaxyGeneratorService {
         planet.surface = generatePlanetSurface(planet, seed);
       }
     }
+
+    // In-system asteroid belts: derived from (seed, system id), no layout rng.
+    ensureSystemAsteroidBelts(starSystems, seed);
 
     const fleets = this.buildFleets(rng, preset, center, participants, homeSystems, starSystems);
 

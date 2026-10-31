@@ -82,16 +82,26 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 
 - `exploredGridCells?: string[]` — array of `"col-row"` keys representing every galaxy grid cell the player has ever sensed. Persisted in the `StarMapData` save snapshot. Loaded into a `Set<string>` on the `StarMap` component at runtime. Old saves without this field default to all systems explored (backward compatibility).
 
+## SystemAsteroidBelt (`StarSystem.asteroidBelt`)
+
+In-system asteroid belt (rules: [Game Systems](./game-systems.md#star-system-view)). Optional on load: systems without a well-formed belt get their deterministic one in `SaveGameService.migrateSave`.
+
+- `version`: belt generator version (`SYSTEM_ASTEROID_CONFIG.generatorVersion`)
+- `radiusVw`: radius of the belt's center line around the star (renders the dust band)
+- `asteroids`: `SystemAsteroid[]`, one per system cell, each `{ col, row, rawMaterials, surveyed }`
+  - `rawMaterials`: hidden deposit, `0` = barren; must not be shown before `surveyed`
+  - `surveyed`: `true` once a human player fleet has been on the cell (monotonic)
+
 ## PlanetTile
 
 - `id`, `index`, `name`: identity
 - `factionId`: owning faction (use `'unhabited'` for uncolonized worlds)
-- `x`, `y`, `xOffset`, `yOffset`: loaded from JSON for backwards compatibility but **not used** for rendering. The system view uses `getPlanetGridPosition()` instead.
+- `x`, `y`: top-left cell (1-indexed) of the planet's 2×2 block on the 36×14 system grid (`system-grid.ts`; `getPlanetGridPosition()` falls back to an index-based layout for values off the grid). Saves before version 8 stored cells of the old 18×10 grid and are converted on load (`2x − 1`, `2y − 1`). `xOffset`/`yOffset` are legacy and unused.
  - `type`: `'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert'`. Also determines the planet's base morale/satisfaction drift per second via `PLANET_TYPE_HABITABILITY` (`star-map.models.ts`): `earthlike 0`, `marslike -0.03`, `venuslike -0.05`, `gasgiant 0`, `ice -0.08`, `desert -0.05`.
  - `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
   - `population`: float (not floored); grown each economy tick by `EconomyService.applyEconomyDelta` per the rule in `docs/invariants.md` (§ Population Growth Invariants), and clamped to the planet's residential `populationCapacity`. Older saves may omit it (treated as `0`).
  - `buildings`: `PlanetBuilding[]`
- - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, plus the global +2 bonus, on the 18×10 system grid)
+ - `explored`: `true` once a planet has come within a player fleet's sensor range in system view (range = `getFleetSensorRange(fleet)`, which is the max of the fleet's `sensorRange` floor (default 3) and the highest `ShipType.range` among its non-destroyed ships, plus the global +2 bonus; one range unit = 2 system cells)
  - `resourceTiles?`: raw-material deposits (`{ type, x, y }`, one grid cell each); never on terrain-blocked cells.
  - `surface?`: `PlanetSurface` terrain record — `{ version, seed, gridSize, intrusion, blocked }`. `blocked` is a row-major hex bitmask of cells covered by terrain obstacles and is authoritative for construction; the visual terrain is regenerated from `seed`. A record whose `gridSize` does not match the planet is ignored and regenerated on load. See [Planet Surface](./planet-surface.md).
  - `satisfaction?`: number in `[0, 100]`, defaulting to `100` when undefined (backward-compatible with older saves). Represents population satisfaction; drifts each economy tick by `(energyDirection ±1 + moraleDrift) × deltaTime` where `moraleDrift = PLANET_TYPE_HABITABILITY[type] + Σ building.moraleRate`, scaled by game time (pauses when paused, 2× at speed 2). When it reaches `0` the planet's `factionId` is set to `'independent'` (rebellion). Once flipped, satisfaction stays at `0` until the planet is re-conquered (currently out of scope). See `docs/invariants.md` for the rules that depend on this field.
@@ -124,7 +134,7 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 ### SystemLocation
 
 - `id`: id of the star system the fleet is inside (`null` if not in a system)
-- `x`, `y`: position in vw units on the 18×10 system grid
+- `x`, `y`: position in vw units inside the 90vw × 35vw system scene (independent of the cell grid)
 - `targetX`, `targetY`: target position in vw (`null` when idle)
 
 ### FleetShip

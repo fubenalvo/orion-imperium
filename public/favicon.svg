@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Colors follow the UI tokens in src/styles.scss: --ui-accent (#6de5d3) and --ui-warning (#f0c96a). -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0" stop-color="#0f2430"/>
+      <stop offset="1" stop-color="#050b10"/>
+    </radialGradient>
+    <radialGradient id="planet" cx="35%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#b9fff3"/>
+      <stop offset="0.45" stop-color="#6de5d3"/>
+      <stop offset="1" stop-color="#16544f"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+
+  <!-- The ring is split into a back arc (drawn before the planet) and a front arc
+       (drawn after it) so the planet appears to sit inside the ring. -->
+  <g transform="rotate(-24 16 17)" fill="none" stroke="#f0c96a" stroke-width="1.9" stroke-linecap="round">
+    <path d="M3.5 17 A12.5 4 0 0 1 28.5 17" opacity="0.55"/>
+  </g>
+  <circle cx="16" cy="17" r="7.2" fill="url(#planet)"/>
+  <g transform="rotate(-24 16 17)" fill="none" stroke="#f0c96a" stroke-width="1.9" stroke-linecap="round">
+    <path d="M28.5 17 A12.5 4 0 0 1 3.5 17"/>
+  </g>
+
+  <path d="M25 3.2 L25.9 6.1 L28.8 7 L25.9 7.9 L25 10.8 L24.1 7.9 L21.2 7 L24.1 6.1 Z" fill="#fff6d8"/>
+</svg>

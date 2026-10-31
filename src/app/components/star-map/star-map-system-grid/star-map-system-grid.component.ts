@@ -1,19 +1,21 @@
 import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
-import { Fleet, FleetTrail, PlanetTile, StarSystem } from '../star-map.models';
+import { Fleet, FleetTrail, PlanetTile, StarSystem, SystemAsteroid } from '../star-map.models';
 import { StarMapMovementService } from '../star-map-movement.service';
 import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
+import {
+  SYSTEM_PLANET_FOOTPRINT,
+  SYSTEM_SUN_CENTER_X_VW,
+  SYSTEM_SUN_CENTER_Y_VW,
+} from '../system-grid';
 
 /*
- * Center of the system's star in system-grid coordinates (vw). It follows
- * from the .sun placement in _star-map-system-view.scss: an implicit 19th
- * column at x = 18 * 5vw, shifted right by `left: 5vw`, spanning rows 3-5
- * (y 10vw..25vw). Keep both in sync if the sun is moved.
+ * The star's center (system-grid.ts) follows from the .sun placement in the
+ * SCSS: an implicit 37th column at x = 36 * 2.5vw, shifted right by
+ * `left: 5vw`, spanning rows 5-10 (y 10vw..25vw). Keep both in sync if the
+ * sun is moved.
  */
-export const SYSTEM_SUN_CENTER_X_VW = 95;
-export const SYSTEM_SUN_CENTER_Y_VW = 17.5;
-/* System grid cell size (vw); matches grid-template-columns in the SCSS. */
-const SYSTEM_CELL_VW = 5;
+export { SYSTEM_SUN_CENTER_X_VW, SYSTEM_SUN_CENTER_Y_VW } from '../system-grid';
 
 /*
  * =========================================================
@@ -59,10 +61,35 @@ export class StarMapSystemGridViewComponent {
    * move along it.
    */
   orbitDiameterVw(planet: PlanetTile): number {
-    const cell = this.movementService.getPlanetGridPosition(planet);
-    const x = (cell.col - 0.5) * SYSTEM_CELL_VW;
-    const y = (cell.row - 0.5) * SYSTEM_CELL_VW;
-    return 2 * Math.hypot(SYSTEM_SUN_CENTER_X_VW - x, SYSTEM_SUN_CENTER_Y_VW - y);
+    const center = this.movementService.getPlanetCellCenter(planet);
+    return 2 * Math.hypot(SYSTEM_SUN_CENTER_X_VW - center.x, SYSTEM_SUN_CENTER_Y_VW - center.y);
+  }
+
+  /* CSS grid placement of a planet's footprint block. */
+  planetGridColumn(planet: PlanetTile): string {
+    return `${this.movementService.getPlanetGridPosition(planet).col} / span ${SYSTEM_PLANET_FOOTPRINT}`;
+  }
+
+  planetGridRow(planet: PlanetTile): string {
+    return `${this.movementService.getPlanetGridPosition(planet).row} / span ${SYSTEM_PLANET_FOOTPRINT}`;
+  }
+
+  /*
+   * Stable per-cell look of an asteroid (rotation, size, nudge), hashed from
+   * its cell so it never changes between frames or loads. Render-only.
+   */
+  asteroidShape(asteroid: SystemAsteroid): { rotate: string; scale: number; dx: string; dy: string } {
+    let h = Math.imul(asteroid.col * 73856093 ^ asteroid.row * 19349663, 0x9e3779b1);
+    const next = () => {
+      h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+      return ((h ^ (h >>> 13)) >>> 0) / 4294967296;
+    };
+    return {
+      rotate: `${Math.round(next() * 360)}deg`,
+      scale: 0.7 + next() * 0.6,
+      dx: `${(next() - 0.5) * 0.6}vw`,
+      dy: `${(next() - 0.5) * 0.6}vw`,
+    };
   }
   @Input() trails: FleetTrail[] = [];
 

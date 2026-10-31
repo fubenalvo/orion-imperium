@@ -11,7 +11,7 @@
 | # | Feature | Állapot |
 |---|---------|---------|
 | 1 | Galaxy map (300×180) | ✅ |
-| 2 | System view (18×10) | ✅ |
+| 2 | System view (36×14, asteroid belt) | ✅ |
 | 3 | Planet surface | ✅ |
 | 4 | Fleet movement | ✅ |
 | 5 | Fog of war / sensor | ✅ |
@@ -141,8 +141,8 @@ src/app/
 - Fleets are placed on galaxy grid cells matching their system position on load
 
 ### 4.2 Star System view
-- 18×10 grid, 5vw cells
-- Planet arc layout: `col = 13 - index`, `row = 6 ± (index % 3)`
+- 36×14 grid, 2.5vw cells; planets cover 2×2 cells (`system-grid.ts`)
+- Asteroid belt per system; deposits revealed by player fleets flying onto the cell
 - Fleets in vw units, no fog inside systems
 - Planet arrivals: colonize / capture / ignore / trigger battle
 

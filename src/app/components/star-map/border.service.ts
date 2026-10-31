@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { ShipService } from '../../services/ship.service';
 import { Faction, Fleet, StarSystem } from './star-map.models';
 import { TerritoryService } from './territory.service';
-import { adjustOpinion, DIPLOMACY_TURN_SECONDS, getRelationKind, hasPassageRights, isTreatyPair } from './diplomacy';
+import { adjustOpinion, SECONDS_PER_MINUTE, getRelationKind, hasPassageRights, isTreatyPair } from './diplomacy';
 
 /*
  * Border-violation tuning (docs/territory.md#border-violations).
@@ -15,15 +15,15 @@ export const BORDER_CONFIG = {
   checkInterval: 1,
   /* Owner's opinion change when a violation starts (× size × repeat). */
   incidentOpinion: -2,
-  /* Owner's opinion change per diplomatic turn spent inside (× size × repeat). */
-  opinionPerTurn: -3,
+  /* Owner's opinion change per minute of game time spent inside (× size × repeat). */
+  opinionPerMinute: -3,
   sizeValueScale: 1000,
   minSize: 0.25,
   maxSize: 3,
   repeatStep: 0.5,
   repeatMaxIncidents: 4,
-  /* Remembered incidents fade by this much per diplomatic turn. */
-  incidentDecayPerTurn: 0.2,
+  /* Remembered incidents fade by this much per minute of game time. */
+  incidentDecayPerMinute: 0.2,
 } as const;
 
 export interface BorderViolationEvent {
@@ -131,7 +131,7 @@ export class BorderService {
         if (entry) entry.borderIncidents = (entry.borderIncidents ?? 0) + 1;
         this.events.push({ ownerId, intruderId: intruder.id, fleetId: fleet.id, fleetName: fleet.name });
       } else {
-        adjustOpinion(owner, intruder, (BORDER_CONFIG.opinionPerTurn * scale * elapsed) / DIPLOMACY_TURN_SECONDS);
+        adjustOpinion(owner, intruder, (BORDER_CONFIG.opinionPerMinute * scale * elapsed) / SECONDS_PER_MINUTE);
         changed = true;
       }
     }
@@ -158,7 +158,7 @@ export class BorderService {
   }
 
   private decayIncidents(factions: Faction[], elapsed: number): void {
-    const decay = (BORDER_CONFIG.incidentDecayPerTurn * elapsed) / DIPLOMACY_TURN_SECONDS;
+    const decay = (BORDER_CONFIG.incidentDecayPerMinute * elapsed) / SECONDS_PER_MINUTE;
     for (const faction of factions) {
       for (const entry of Object.values(faction.relations ?? {})) {
         if (!entry.borderIncidents) continue;

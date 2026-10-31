@@ -1753,8 +1753,10 @@ describe('EnemyActionExecutor', () => {
       expect(fleet.x).toBe(systems[0].x);
       expect(fleet.y).toBe(systems[0].y);
       expect(fleet.system?.id).toBe('sys1');
-      expect(fleet.gridCol).toBe(2);
-      expect(fleet.gridRow).toBe(2);
+      // The planet at (10, 10) covers cells 10-11; the fleet spawns on the
+      // footprint center, which lies in the bottom-right cell (11, 11).
+      expect(fleet.gridCol).toBe(11);
+      expect(fleet.gridRow).toBe(11);
     });
 
     it('should not execute assemble_fleet while paused', () => {

@@ -206,8 +206,9 @@ export function getAiFactionIds(factions: Faction[]): string[] {
 /*
  * PlanetTile represents a single planet within a star system.
  *
- * NOTE: x and y are 1-indexed system grid cell coordinates used for
- * positioning in the system view.
+ * NOTE: x and y are the 1-indexed top-left cell of the planet's 2×2 block
+ * on the system view grid (system-grid.ts; save version 8 doubled the grid,
+ * older saves are converted by SaveGameService.migrateSave).
  */
 export interface PlanetTile {
   id: number;
@@ -260,6 +261,34 @@ export interface StarSystem {
   gridCol?: number;
   gridRow?: number;
   explored?: boolean;
+  /*
+   * In-system asteroid belt (system-asteroids.ts, docs/game-systems.md).
+   * Generated once per system and persisted, because survey results are
+   * part of it. Saves without it get the deterministic belt on load.
+   */
+  asteroidBelt?: SystemAsteroidBelt;
+}
+
+export interface SystemAsteroidBelt {
+  /* Belt generator version that produced it (SYSTEM_ASTEROID_CONFIG). */
+  version: number;
+  /* Radius (vw) of the belt's center line around the star; drives the dust band. */
+  radiusVw: number;
+  asteroids: SystemAsteroid[];
+}
+
+/*
+ * One asteroid occupying one system-view cell. `rawMaterials` is the hidden
+ * deposit (0 = barren). The UI must not reveal it until `surveyed` is true:
+ * a cell is surveyed once a human player fleet has been on it. AI factions
+ * do not survey and have no knowledge of deposits. Deposits are only
+ * discovered for now; nothing extracts them yet.
+ */
+export interface SystemAsteroid {
+  col: number;
+  row: number;
+  rawMaterials: number;
+  surveyed: boolean;
 }
 
 export interface FleetShip {

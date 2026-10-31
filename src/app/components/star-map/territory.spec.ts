@@ -315,6 +315,6 @@ describe('BorderService (border violations)', () => {
     normalizeRelations(factions);
     expect(player.relations!['enemy1'].borderIncidents).toBe(1);
     border.tick(60, { factions, fleets: [], starSystems: [] });
-    expect(player.relations!['enemy1'].borderIncidents).toBeCloseTo(1 - BORDER_CONFIG.incidentDecayPerTurn, 5);
+    expect(player.relations!['enemy1'].borderIncidents).toBeCloseTo(1 - BORDER_CONFIG.incidentDecayPerMinute, 5);
   });
 });

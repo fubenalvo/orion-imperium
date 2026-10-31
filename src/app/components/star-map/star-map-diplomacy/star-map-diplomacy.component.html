@@ -45,9 +45,9 @@
             @if (!row.alive) {
               <span class="ui-chip ui-chip--muted">ELIMINATED</span>
             } @else if (row.state === 'war') {
-              <span class="ui-chip ui-chip--danger">AT WAR · TURN {{ row.warTurns + 1 }}</span>
-            } @else if (row.truceTurns > 0) {
-              <span class="ui-chip ui-chip--warning">TRUCE · {{ row.truceTurns }} TURN{{ row.truceTurns === 1 ? '' : 'S' }}</span>
+              <span class="ui-chip ui-chip--danger" title="Duration of the war in game time">AT WAR · {{ row.warDurationLabel }}</span>
+            } @else if (row.truceSecondsLeft > 0) {
+              <span class="ui-chip ui-chip--warning" title="Truce time left (game time)">TRUCE · {{ row.truceLeftLabel }} LEFT</span>
             } @else {
               <span class="ui-chip ui-chip--success">AT PEACE</span>
             }
@@ -117,7 +117,7 @@
             @if (row.offer) {
               <div class="ui-notice ui-notice--success diplomacy__offer">
                 <div>
-                  <strong>{{ row.name }} proposes peace</strong> ({{ row.offer.secondsLeft }} s left):
+                  <strong>{{ row.name }} proposes peace</strong> ({{ row.offer.timeLeftLabel }} left):
                   <ul class="diplomacy__terms">
                     @for (line of row.offer.summary; track $index) {
                       <li>{{ line }}</li>
@@ -145,12 +145,12 @@
               <span class="diplomacy__lock">
                 @if (row.state === 'war') {
                   @if (row.negotiateWait > 0) {
-                    Negotiations possible in {{ row.negotiateWait }} s
+                    Negotiations possible in {{ row.negotiateWaitLabel }}
                   } @else {
                     Negotiations open
                   }
-                } @else if (row.truceTurns > 0) {
-                  Truce: no war declaration for {{ row.truceTurns }} turn{{ row.truceTurns === 1 ? '' : 's' }}
+                } @else if (row.truceSecondsLeft > 0) {
+                  Truce: no war declaration for {{ row.truceLeftLabel }}
                 } @else {
                   Permanent peace · war can be declared
                 }
@@ -173,7 +173,7 @@
     </div>
 
     <p class="diplomacy__hint">
-      One turn is one minute of game time. Peace is permanent; after a treaty a {{ truceTurns }}-turn truce forbids war declarations.
+      All times are game time: they stop while the game is paused and run faster at 2x. Peace is permanent; after a treaty a {{ truceLabel }} truce forbids war declarations.
       War exhaustion above 25 cuts credit, raw material and research output (up to 30%) and resets when peace is signed.
       You also win if every surviving empire is at peace with you, no rebel planet remains and you hold more than half of the inhabited planets.
     </p>

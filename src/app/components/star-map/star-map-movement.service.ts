@@ -2,6 +2,14 @@ import { Injectable } from '@angular/core';
 import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.models';
 import { StarMapTerrainService } from './star-map-terrain.service';
 import { NavPoint, RouteFailure, RoutePlan } from './fleet-navigation';
+import {
+  SYSTEM_CELL_SIZE_VW,
+  SYSTEM_PLANET_FOOTPRINT,
+  planetFootprintCenterVw,
+  planetFootprintOrigin,
+  systemCellAtVw,
+  systemCellCenterVw,
+} from './system-grid';
 
 /*
  * Route the movement service is currently flying for a fleet. Cached per
@@ -33,8 +41,9 @@ interface ActiveRoute {
  *   The *rendered* cell size (cellSizeVw: 2 desktop, 3.5 mobile) is never
  *   used for simulation, so travel time does not depend on window width.
  *
- * The system view (inside star systems) uses a separate fixed 18x10 grid
- * with 5vw cells. System view positions (systemX/Y) remain in vw units.
+ * The system view (inside star systems) uses a separate fixed grid
+ * (system-grid.ts: 36x14 cells of 2.5vw). System view positions
+ * (fleet.system.x/y) remain in vw units.
  *
  * Galaxy terrain (docs/star-map-terrain.md), applied to every fleet alike:
  * - Black holes: `Fleet.targetX/targetY` is always the final destination;
@@ -53,8 +62,6 @@ export class StarMapMovementService {
   gridColumns = 0;
   gridRows = 0;
 
-  private static readonly SYSTEM_CELL_SIZE_VW = 5;
-
   /*
    * Fixed vw-per-cell used to convert fleet speed to galaxy cells/s. It
    * equals the desktop render size (2), which every balance value was tuned
@@ -65,7 +72,7 @@ export class StarMapMovementService {
   static readonly GALAXY_MOVEMENT_CELL_SIZE_VW = 2;
 
   static get systemCellSizeVw(): number {
-    return StarMapMovementService.SYSTEM_CELL_SIZE_VW;
+    return SYSTEM_CELL_SIZE_VW;
   }
 
   private readonly routes = new WeakMap<Fleet, ActiveRoute>();
@@ -169,34 +176,15 @@ export class StarMapMovementService {
     };
   }
 
-  /*
-    * getSystemTileCenter: Snaps system view vw coordinates to the center of the
-    * containing system grid cell. Returns vw coordinates for system view movement.
-    * The system view uses a fixed 18x10 grid with 5vw cells.
-    */
+  /* Snaps system-view vw coordinates to the center (vw) of the containing system cell. */
   getSystemTileCenter(vwX: number, vwY: number): { x: number; y: number } {
-    const col = Math.floor(vwX / StarMapMovementService.SYSTEM_CELL_SIZE_VW);
-    const row = Math.floor(vwY / StarMapMovementService.SYSTEM_CELL_SIZE_VW);
-    return {
-      x:
-        col * StarMapMovementService.SYSTEM_CELL_SIZE_VW +
-        StarMapMovementService.SYSTEM_CELL_SIZE_VW / 2,
-      y:
-        row * StarMapMovementService.SYSTEM_CELL_SIZE_VW +
-        StarMapMovementService.SYSTEM_CELL_SIZE_VW / 2,
-    };
+    const cell = systemCellAtVw(vwX, vwY);
+    return systemCellCenterVw(cell.col, cell.row);
   }
 
-  /*
-    * calculateSystemGridCell: Converts system view vw coordinates to grid cells.
-    * The system view uses a fixed 18x10 grid with 5vw cells.
-    * Returns 1-indexed grid positions.
-    */
+  /* Converts system-view vw coordinates to the 1-indexed system cell (see system-grid.ts). */
   calculateSystemGridCell(vwX: number, vwY: number): { col: number; row: number } {
-    return {
-      col: Math.floor(vwX / StarMapMovementService.SYSTEM_CELL_SIZE_VW) + 1,
-      row: Math.floor(vwY / StarMapMovementService.SYSTEM_CELL_SIZE_VW) + 1,
-    };
+    return systemCellAtVw(vwX, vwY);
   }
 
   /*
@@ -209,28 +197,36 @@ export class StarMapMovementService {
     return fleetCell.col === sysCell.col && fleetCell.row === sysCell.row;
   }
 
-  /* System-view (vw) center of a planet's cell: the point a fleet must stop on to arrive at the planet. */
+  /*
+   * System-view (vw) center of a planet's footprint: the planet is drawn
+   * there and move orders onto the planet target it. That point is a corner
+   * shared by the four footprint cells; the fleet stopping on it belongs to
+   * the bottom-right one, which is still on the planet.
+   */
   getPlanetCellCenter(planet: PlanetTile): { x: number; y: number } {
-    const cell = this.getPlanetGridPosition(planet);
-    const size = StarMapMovementService.systemCellSizeVw;
-    return { x: (cell.col - 0.5) * size, y: (cell.row - 0.5) * size };
+    return planetFootprintCenterVw(planet);
   }
 
-  /*
-   * getPlanetGridPosition: Returns the planet's grid position in system view.
-   * Uses planet.x and planet.y as 1-indexed column/row coordinates.
-   * Falls back to the index-based formula if values are out of bounds.
-   */
+  /* Top-left system cell (1-indexed) of the planet's footprint block (system-grid.ts). */
   getPlanetGridPosition(planet: PlanetTile): { col: number; row: number } {
-    const col = planet.x;
-    const row = planet.y;
-    if (col < 1 || col > 18 || row < 1 || row > 10) {
-      return {
-        col: Math.max(1, 14 - planet.index * 2),
-        row: 1 + ((planet.index * 3 + (planet.index % 2)) % 7),
-      };
-    }
-    return { col, row };
+    return planetFootprintOrigin(planet);
+  }
+
+  /* True when the 1-indexed system cell is part of the planet's footprint. */
+  isSystemCellOnPlanet(planet: PlanetTile, col: number, row: number): boolean {
+    const origin = this.getPlanetGridPosition(planet);
+    return (
+      col >= origin.col &&
+      col < origin.col + SYSTEM_PLANET_FOOTPRINT &&
+      row >= origin.row &&
+      row < origin.row + SYSTEM_PLANET_FOOTPRINT
+    );
+  }
+
+  /* True when a system-view vw point lies on the planet's footprint. */
+  isSystemPointOnPlanet(planet: PlanetTile, vwX: number, vwY: number): boolean {
+    const cell = systemCellAtVw(vwX, vwY);
+    return this.isSystemCellOnPlanet(planet, cell.col, cell.row);
   }
 
   /*
@@ -482,12 +478,26 @@ export class StarMapMovementService {
     }
 
     for (const planet of system.planetsTiles) {
-      const planetCell = this.getPlanetGridPosition(planet);
-      if (planetCell.col === col && planetCell.row === row) {
+      if (this.isSystemCellOnPlanet(planet, col, row)) {
         items.push({ type: 'planet', label: `Planet: ${planet.name}`, data: planet });
       }
     }
 
+    return items;
+  }
+
+  /* The planet plus every fleet standing on any cell of its footprint. */
+  getObjectsAtPlanet(fleets: Fleet[], system: StarSystem, planet: PlanetTile): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+    for (const fleet of fleets) {
+      if (fleet.destroyed || fleet.system?.id !== system.id) {
+        continue;
+      }
+      if (this.isSystemPointOnPlanet(planet, fleet.system.x, fleet.system.y)) {
+        items.push({ type: 'fleet', label: `Fleet: ${fleet.name}`, data: fleet });
+      }
+    }
+    items.push({ type: 'planet', label: `Planet: ${planet.name}`, data: planet });
     return items;
   }
 

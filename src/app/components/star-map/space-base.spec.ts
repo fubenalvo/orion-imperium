@@ -242,7 +242,7 @@ describe('space bases', () => {
       const migrated = TestBed.inject(SaveGameService).migrateSave(baseSave({ saveVersion: 6 }));
       expect(migrated.spaceBases).toEqual([]);
       expect(migrated.saveVersion).toBe(SAVE_VERSION);
-      expect(SAVE_VERSION).toBe(7);
+      expect(SAVE_VERSION).toBe(8);
     });
 
     it('bases survive a save slot round trip and restore the same territory', () => {

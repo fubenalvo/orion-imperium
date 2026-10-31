@@ -81,7 +81,14 @@ src/app/
           fleets, movement target); forwards events to StarMap handler inputs
       star-map-system-grid/
         → Presentational system view grid (sun, decorative orbit rings,
-          system sensor highlights, planets, fleets in system, movement target)
+          asteroid belt, system sensor highlights, planets, fleets in system,
+          movement target)
+      system-grid.ts
+        → System view geometry (36×14 cells of 2.5vw, 2×2 planet footprints,
+          sensor range unit, star center); pure, shared by services and UI
+      system-asteroids.ts
+        → In-system asteroid belt generation (deterministic per system),
+          save backfill, and the player survey rule
       fleet-ship/ + fleet-heading.ts
         → Shared fleet marker ship glyph (rotating hull + engine trail) used by
           both views; render-only heading trackers updated by StarMap's loop

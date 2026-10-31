@@ -3,7 +3,8 @@ import { Faction, FactionProduction, PlanetTile } from '../components/star-map/s
 import { ProductionService } from './production.service';
 import { recordHostileAct, recordPlanetLoss } from '../components/star-map/diplomacy';
 
-export type OwnershipChangeReason = 'colonized' | 'captured' | 'battle_won' | 'rebellion' | 'ceded';
+/* Planets never change owner through diplomacy: peace treaties carry resources only. */
+export type OwnershipChangeReason = 'colonized' | 'captured' | 'battle_won' | 'rebellion';
 
 /*
  * =========================================================
@@ -65,8 +66,8 @@ export class PlanetOwnershipService {
     this.revisionCounter++;
     // War bookkeeping (docs/diplomacy.md): a planet taken by force raises the
     // loser's war exhaustion and lowers its opinion of the taker; taking it
-    // right after one's own declaration is a surprise attack. Ceded planets
-    // (peace treaties) and rebellions are not war losses.
+    // right after one's own declaration is a surprise attack. Rebellions are
+    // not war losses.
     if (reason === 'captured' || reason === 'battle_won') {
       const loser = data.factions?.find((f) => f.id === previousOwnerId);
       const taker = data.factions?.find((f) => f.id === newOwnerId);

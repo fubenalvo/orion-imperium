@@ -24,10 +24,11 @@ export type { FactionRelation, TreatyState } from './star-map.models';
  *  - 'war' / 'peace' — a treaty state stored on both factions in
  *                `Faction.relations[otherId]`.
  *
- * Time: the game is real-time. A "diplomatic turn" is
- * DIPLOMACY_TURN_SECONDS of scaled game time; per-turn rates are applied
- * continuously (rate × delta / turn), so there is no partial-turn state to
- * save and everything freezes while paused.
+ * Time: the game is real-time; there are no turns or rounds. Every timer
+ * is in seconds of scaled game time and every rate is "per minute of game
+ * time", applied continuously on each tick (rate × delta / 60). Nothing
+ * advances on a player action or a step; everything freezes while the game
+ * is paused (scaled delta 0) and runs twice as fast at speed 2.
  *
  * Invariants:
  *  - Symmetric fields (state, lockRemaining, truce, warSeconds,
@@ -45,18 +46,17 @@ export type { FactionRelation, TreatyState } from './star-map.models';
 
 export type RelationKind = 'self' | 'allied' | 'neutral' | TreatyState;
 
-/* One diplomatic turn in game seconds (the game has no real turns). */
-export const DIPLOMACY_TURN_SECONDS = 60;
-/* Mandatory truce after a peace treaty, in turns / game seconds. */
-export const TRUCE_TURNS = 10;
-export const TRUCE_SECONDS = TRUCE_TURNS * DIPLOMACY_TURN_SECONDS;
+/* Seconds of game time in one game minute: the unit of every per-minute rate below. */
+export const SECONDS_PER_MINUTE = 60;
+/* Mandatory truce after a peace treaty (game seconds: 10 minutes). */
+export const TRUCE_SECONDS = 10 * SECONDS_PER_MINUTE;
 /* A war must last this long (game seconds) before peace can be negotiated. */
-export const WAR_MIN_DURATION_SECONDS = DIPLOMACY_TURN_SECONDS;
+export const WAR_MIN_DURATION_SECONDS = SECONDS_PER_MINUTE;
 /*
  * Lock on the starting wars of a new game: nobody can negotiate during the
  * opening, so the first contacts are real conflicts.
  */
-export const INITIAL_WAR_LOCK_SECONDS = 4 * DIPLOMACY_TURN_SECONDS;
+export const INITIAL_WAR_LOCK_SECONDS = 4 * SECONDS_PER_MINUTE;
 
 /* ---------- Opinion (A's view of B, −100…+100) ---------- */
 export const OPINION_LIMIT = 100;
@@ -68,10 +68,10 @@ export const OPINION_TREATY_BROKEN = -60;
 export const OPINION_PEACE_SIGNED = 10;
 /* The loser's opinion of the faction that took one of its planets. */
 export const OPINION_PLANET_LOST = -10;
-/* Drift per turn: peace slowly builds trust up to a cap, war erodes it down to a floor. */
-export const OPINION_PEACE_DRIFT_PER_TURN = 1;
+/* Drift per minute of game time: peace slowly builds trust up to a cap, war erodes it down to a floor. */
+export const OPINION_PEACE_DRIFT_PER_MINUTE = 1;
 export const OPINION_PEACE_DRIFT_CAP = 60;
-export const OPINION_WAR_DRIFT_PER_TURN = -0.5;
+export const OPINION_WAR_DRIFT_PER_MINUTE = -0.5;
 export const OPINION_WAR_DRIFT_FLOOR = -50;
 
 /* ---------- Reputation (how trustworthy everyone finds a faction, −100…+100) ---------- */
@@ -79,19 +79,19 @@ export const REPUTATION_LIMIT = 100;
 export const REPUTATION_WAR_DECLARED = -5;
 /* Attacking within SURPRISE_ATTACK_WINDOW_SECONDS of one's own declaration. */
 export const REPUTATION_SURPRISE_ATTACK = -15;
-export const SURPRISE_ATTACK_WINDOW_SECONDS = DIPLOMACY_TURN_SECONDS;
+export const SURPRISE_ATTACK_WINDOW_SECONDS = SECONDS_PER_MINUTE;
 export const REPUTATION_TREATY_BROKEN = -40;
 /* Both sides when a truce runs out without being broken. */
 export const REPUTATION_TREATY_HONORED = 5;
-/* Per turn while a faction is at war with nobody, up to the cap. */
-export const REPUTATION_PEACE_PER_TURN = 0.5;
+/* Per minute of game time while a faction is at war with nobody, up to the cap. */
+export const REPUTATION_PEACE_PER_MINUTE = 0.5;
 export const REPUTATION_PEACE_CAP = 50;
 /* Weight of the other faction's reputation in an AI's effective opinion. */
 export const REPUTATION_OPINION_WEIGHT = 0.5;
 
 /* ---------- War exhaustion (per faction per war, 0…100) ---------- */
 export const EXHAUSTION_LIMIT = 100;
-export const EXHAUSTION_PER_TURN = 1;
+export const EXHAUSTION_PER_MINUTE = 1;
 /* Losing the whole fleet value at once adds this much (scaled by the lost share). */
 export const EXHAUSTION_FLEET_LOSS_SCALE = 40;
 /* Denominator floor so a tiny navy losing one scout is not a catastrophe. */
@@ -174,6 +174,22 @@ export function hostileFactionIds(faction: Faction, factions: Faction[]): Set<st
 export function isTruceActive(a: Faction, b: Faction): boolean {
   const relation = getRelation(a, b);
   return !!relation && relation.state === 'peace' && relation.truce === true && relation.lockRemaining > 0;
+}
+
+/*
+ * Player-facing game duration: "45 s", "3 min", "4 min 30 s", "1 h 5 min".
+ * The one formatter for every diplomacy timer in the UI, so durations read
+ * the same everywhere. Rounds up to whole seconds (a timer never shows 0
+ * while it still runs).
+ */
+export function formatGameDuration(seconds: number): string {
+  const total = Math.max(0, Math.ceil(seconds));
+  if (total < 60) return `${total} s`;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return m > 0 ? `${h} h ${m} min` : `${h} h`;
+  return s > 0 ? `${m} min ${s} s` : `${m} min`;
 }
 
 /* ---------- Opinion & reputation ---------- */
@@ -439,7 +455,7 @@ export interface HonoredTreaty {
 
 /*
  * Advances every time-based diplomatic value by `deltaSeconds` of scaled
- * game time: locks and truces, war duration, per-turn exhaustion, opinion
+ * game time: locks and truces, war duration, per-minute exhaustion, opinion
  * drift and peace-time reputation. Pairs where either side is eliminated
  * (`isAlive` false) only count their locks down. Returns the truces that
  * were honored (expired unbroken) in this tick.
@@ -451,7 +467,7 @@ export function tickDiplomacyTime(
 ): HonoredTreaty[] {
   const honored: HonoredTreaty[] = [];
   if (deltaSeconds <= 0) return honored;
-  const turns = deltaSeconds / DIPLOMACY_TURN_SECONDS;
+  const minutes = deltaSeconds / SECONDS_PER_MINUTE;
   for (let i = 0; i < factions.length; i++) {
     for (let j = i + 1; j < factions.length; j++) {
       const a = factions[i];
@@ -474,15 +490,15 @@ export function tickDiplomacyTime(
       if (ra.state === 'war') {
         for (const entry of [ra, rb]) {
           entry.warSeconds = (entry.warSeconds ?? 0) + deltaSeconds;
-          addExhaustion(entry, EXHAUSTION_PER_TURN * turns);
+          addExhaustion(entry, EXHAUSTION_PER_MINUTE * minutes);
           if ((entry.opinion ?? 0) > OPINION_WAR_DRIFT_FLOOR) {
-            entry.opinion = Math.max(OPINION_WAR_DRIFT_FLOOR, (entry.opinion ?? 0) + OPINION_WAR_DRIFT_PER_TURN * turns);
+            entry.opinion = Math.max(OPINION_WAR_DRIFT_FLOOR, (entry.opinion ?? 0) + OPINION_WAR_DRIFT_PER_MINUTE * minutes);
           }
         }
       } else {
         for (const entry of [ra, rb]) {
           if ((entry.opinion ?? 0) < OPINION_PEACE_DRIFT_CAP) {
-            entry.opinion = Math.min(OPINION_PEACE_DRIFT_CAP, (entry.opinion ?? 0) + OPINION_PEACE_DRIFT_PER_TURN * turns);
+            entry.opinion = Math.min(OPINION_PEACE_DRIFT_CAP, (entry.opinion ?? 0) + OPINION_PEACE_DRIFT_PER_MINUTE * minutes);
           }
         }
       }
@@ -494,7 +510,7 @@ export function tickDiplomacyTime(
     if (partners.length === 0) continue;
     const atWar = partners.some((other) => getRelationKind(faction, other) === 'war');
     if (!atWar && getReputation(faction) < REPUTATION_PEACE_CAP) {
-      faction.reputation = Math.min(REPUTATION_PEACE_CAP, getReputation(faction) + REPUTATION_PEACE_PER_TURN * turns);
+      faction.reputation = Math.min(REPUTATION_PEACE_CAP, getReputation(faction) + REPUTATION_PEACE_PER_MINUTE * minutes);
     }
   }
   return honored;

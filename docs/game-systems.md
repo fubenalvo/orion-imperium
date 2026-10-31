@@ -9,8 +9,26 @@ The `StarMap` component (`src/app/components/star-map/star-map.ts`) is the centr
 `StarMap` exposes three sub-views, switched by the `currentView` field:
 
 - **`map`** – Galaxy view. Star systems and fleets are positioned on a `map.width` × `map.height` grid of cells. `cellSizeVw` and `cellSizeVh` (both 2 on desktop, 3.5 on mobile) define the rendered size of each cell. `gridBreakpointPx` (1300) decides which cell size is used.
-- **`system`** – Inside a star system. Fleets are positioned in vw units on a separate 18×10 grid with 5vw cells (`StarMapMovementService.SYSTEM_CELL_SIZE_VW`). Planets are arranged in a zigzag arc to the left of the sun via `getPlanetGridPosition()`: column = `13 - planet.index`, row = `6 ± (planet.index % 3)` with a sign that alternates by `planet.index % 2`.
+- **`system`** – Inside a star system: a 36×14 grid of 2.5vw cells with the star at the right edge, planets (2×2 cells each) and an asteroid belt. See [Star system view](#star-system-view) below.
 - **`planet`** – Planet surface. An isometric colony view: a `numericPlanetSize * 4 + 6` grid framed by procedural terrain that can cut into it (see [Planet Surface](./planet-surface.md)). The player can place new buildings here.
+
+### Star system view
+
+Geometry lives in `system-grid.ts` (the single source of truth; the SCSS of `star-map-system-grid` must match it):
+
+- **Grid:** 36 columns × 14 rows of 2.5vw cells on a fixed 90vw × 35vw scene. It was doubled from 18 × 7 cells of 5vw in save version 8; the scene's physical size did not change.
+- **Planets** occupy a 2×2 block. `PlanetTile.x/y` is the block's top-left cell; the planet is drawn at the block's center (move orders onto the planet target it too), so planets look exactly as large and sit exactly where they did on the old grid. Every cell of the block counts as "on the planet" (`StarMapMovementService.isSystemCellOnPlanet` / `isSystemPointOnPlanet`) for arrivals, colonization, stationed-fleet checks, move validation and click menus. New games use `PLANET_SYSTEM_LAYOUT` in the galaxy generator; old saves are converted (`x → 2x − 1`, `y → 2y − 1`).
+- **Fleets** keep vw positions (`Fleet.system.x/y`), so grid density never affects saved fleets, speed, or trails. A fleet with no in-system position appears at `SYSTEM_FLEET_ENTRY_VW` (bottom-left).
+- **Sensors:** in-system ranges are in *range units* of `SYSTEM_SENSOR_RANGE_UNIT_CELLS` (2) cells, i.e. the old 5vw cell, so a fleet sees exactly as far as before the grid was doubled.
+
+**Asteroid belt** (`system-asteroids.ts`): every system has one ring of single-cell asteroids around the star, placed in a gap between planet orbits (`SYSTEM_ASTEROID_CONFIG`: belt line 26–88vw from the star, ±3.6vw ragged band, 50% fill, typically 15–30 asteroids). Asteroids keep one cell clear around every planet block and the fleet entry cell, and never block movement or clicks.
+
+- **Deposits:** one asteroid in ten (rounded, at least one per belt) holds 2,000–4,000 raw materials (`SystemAsteroid.rawMaterials`); the rest are barren.
+- **Survey:** an asteroid is surveyed once a human player fleet has been on its cell, stopping or just flying through (`surveySystemAsteroids`, run every frame from `StarMap.gameLoopCallback` in any view, since fleets keep moving inside systems while the player looks elsewhere). Until then the UI shows a plain rock and never reveals the deposit. A surveyed barren rock is dimmed; a surveyed deposit glows amber with its amount, and the find is announced with a map notice.
+- **Not yet:** nothing extracts deposits, and AI factions neither survey nor know about belts.
+- **Persistence:** the belt is generated deterministically from (galaxy seed, system id) on its own rng (by the galaxy generator, or by `SaveGameService.migrateSave` for saves without one) and then saved on `StarSystem.asteroidBelt`, because the survey state lives in it.
+
+These in-system belts are unrelated to the impassable galaxy-map asteroid belts and drifting asteroids of [Star Map Terrain](./star-map-terrain.md).
 
 ### Fog of War & Sensor Range
 
@@ -37,7 +55,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 
 - `exploredGridCells` (`Set<string>` of `"col-row"` keys, persisted as `string[]` in saves) tracks every galaxy grid cell the player has ever sensed. Once explored, a cell stays explored.
 - `StarSystem.explored` is set to `true` when the system's grid cell falls within any player sensor range. Only explored systems are rendered and selectable on the galaxy map.
-- `PlanetTile.explored` is set to `true` when the planet's system-view grid cell falls within a player fleet's sensor range in the system view (replacing the previous exact-cell-match logic).
+- `PlanetTile.explored` is set to `true` when the center of the planet's 2×2 block falls within a stopped player fleet's sensor range (or its two-unit preview ring) in the system view.
 
 **Fog of war layers (galaxy map):**
 
@@ -78,8 +96,8 @@ frame:
 The update callback (consolidated into `StarMap.gameLoopCallback`):
 
 1. Calls `StarMapMovementService.updateFleets()` with the scaled `gameDeltaTime`.
-2. Calls `updateExploredPlanets()` (system view only) and `checkFleetPlanetArrivals()`
-   (system view only).
+2. Calls `updateExploredPlanets()` (system view only), `surveyAsteroids()` (any view, see
+   [Star system view](#star-system-view)) and `checkFleetPlanetArrivals()` (system view only).
 3. Calls `StarMapSensorService.computeGalaxySensorCells()` to recompute the current
    sensor range cells, updates `exploredGridCells` (persistent), marks star systems
    as explored, and updates fog cell rendering.
@@ -162,7 +180,7 @@ After every move, `gridCol` and `gridRow` are refreshed from the current x/y. `r
 
 ### Planet Arrivals
 
-`checkFleetPlanetArrivals()` runs every frame in system view, for the viewed system only. For every fleet that has stopped on a planet's grid cell, it invokes `handleFleetPlanetArrival()`:
+`checkFleetPlanetArrivals()` runs every frame in system view, for the viewed system only. For every fleet that has stopped on any cell of a planet's 2×2 block, it invokes `handleFleetPlanetArrival()`:
 
 1. **Uninhabited planet** — Nothing happens; the fleet just parks. Colonization is an explicit player command (see Colonization below).
 2. **Same-faction planet** — Logged and ignored.
