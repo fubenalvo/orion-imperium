@@ -1,0 +1,31 @@
+- generic [ref=f7e178]:
+  - generic "TACTICAL BATTLE" [ref=f7e179]:
+    - banner [ref=f7e180]:
+      - generic [ref=f7e182]:
+        - generic "TACTICAL BATTLE" [ref=f7e183]
+        - generic [ref=f7e185]:
+          - generic [ref=f7e186]: Pirate Raiders
+          - generic [ref=f7e187]: VS
+          - generic [ref=f7e188]: ORION
+      - group "Time controls" [ref=f7e189]:
+        - button "Pause / Resume" [ref=f7e190] [cursor=pointer]: ⏸
+        - button "1x speed" [ref=f7e191] [cursor=pointer]: 1x
+        - button "2x speed" [ref=f7e192] [cursor=pointer]: 2x
+        - button "Auto battle toggle" [pressed] [ref=f7e193] [cursor=pointer]: AUTO
+      - button "Enter full screen" [ref=f7e195] [cursor=pointer]
+  - main [ref=f7e198]:
+    - generic [ref=f7e200]:
+      - button "Enemy Fighter" [ref=f7e201]:
+        - generic [ref=f7e202]: "1"
+      - button "Enemy Fighter" [ref=f7e207]:
+        - generic [ref=f7e208]: "1"
+      - button "Enemy Corvette" [ref=f7e213]:
+        - generic [ref=f7e214]: "1"
+      - button "Friendly Frigate" [ref=f7e219] [cursor=pointer]:
+        - generic [ref=f7e220]: "1"
+      - button "Friendly Frigate" [ref=f7e225] [cursor=pointer]:
+        - generic [ref=f7e226]: "1"
+  - contentinfo [ref=f7e231]:
+    - generic [ref=f7e233]:
+      - generic [ref=f7e234]: NO UNIT SELECTED
+      - generic [ref=f7e235]: Click one of your ships · click a cell to move · click an enemy to attack

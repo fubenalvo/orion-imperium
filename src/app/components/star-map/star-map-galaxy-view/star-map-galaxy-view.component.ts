@@ -76,6 +76,19 @@ export interface AsteroidMapView {
 }
 
 /*
+ * A discovered but unvisited exploration anomaly (docs/exploration-anomalies.md),
+ * in world vw. System and asteroid sites are drawn at the corner of the
+ * star's cell (`inSystem`). The type is not revealed before a visit.
+ */
+export interface AnomalyMapView {
+  id: number;
+  left: number;
+  top: number;
+  inSystem: boolean;
+  title: string;
+}
+
+/*
  * =========================================================
  * STAR MAP GALAXY VIEW COMPONENT
  * =========================================================
@@ -118,6 +131,7 @@ export class StarMapGalaxyViewComponent {
   @Input() asteroids: AsteroidMapView[] = [];
   @Input() territories: TerritoryShapeView[] = [];
   @Input() spaceBases: SpaceBaseMapView[] = [];
+  @Input() anomalies: AnomalyMapView[] = [];
 
   /* One entry per visible turret pip (template iteration helper). */
   turretSlots(count: number): readonly number[] {

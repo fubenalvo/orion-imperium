@@ -1,0 +1,168 @@
+@use 'ui';
+
+/* =========================================================
+   EXPLORATION EVENT DIALOG
+   ---------------------------------------------------------
+   Modal glass sheet (same frame as the peace negotiation
+   dialog) with a violet anomaly accent: eyebrow, title,
+   category chip and location, the flavour text, then one
+   card per choice with its consequences and, when it is
+   unavailable, the reason.
+   ========================================================= */
+
+.anomaly-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 2.5vw, 40px);
+  @include ui.backdrop;
+}
+
+/* The frame never scrolls: its corner brackets sit 1px outside it and
+   would otherwise create scrollbars. Long content scrolls in the body. */
+.anomaly-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 640px;
+  max-height: min(94vh, 900px);
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(22px, var(--ui-anomaly));
+}
+
+.anomaly__body {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.6vh, 18px);
+  min-height: 0;
+  padding: clamp(14px, 2.4vh, 26px) clamp(16px, 2.4vw, 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  @include ui.scroll;
+}
+
+.anomaly__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding-bottom: 0.8em;
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+
+.anomaly__eyebrow {
+  color: var(--ui-anomaly);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.anomaly__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xl);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.anomaly__diamond {
+  flex-shrink: 0;
+  width: 0.5em;
+  height: 0.5em;
+  transform: rotate(45deg);
+  background: var(--ui-anomaly);
+  box-shadow: 0 0 10px var(--ui-anomaly);
+}
+
+.anomaly__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em;
+}
+
+.anomaly__where {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.08em;
+}
+
+.anomaly__description {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.anomaly__error {
+  margin: 0;
+}
+
+.anomaly__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+
+.anomaly__choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding: 0.7em 0.8em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.02);
+
+  &--disabled {
+    opacity: 0.75;
+  }
+}
+
+.anomaly__choice-btn {
+  align-self: flex-start;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.anomaly__consequences {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 1.1em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.06em;
+}
+
+.anomaly__consequence {
+  &--gain {
+    color: var(--ui-success);
+  }
+
+  &--cost {
+    color: var(--ui-warning);
+  }
+
+  &--danger {
+    color: var(--ui-danger-text);
+  }
+
+  &--neutral {
+    color: var(--ui-ink-dim);
+  }
+}
+
+.anomaly__reason {
+  margin: 0;
+}

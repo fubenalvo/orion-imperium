@@ -1,0 +1,56 @@
+<div class="anomaly-overlay">
+  <div
+    class="anomaly-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="anomaly-title"
+    aria-describedby="anomaly-description"
+  >
+    <div class="anomaly__body">
+    <header class="anomaly__header">
+      <span class="anomaly__eyebrow">Exploration event · game paused</span>
+      <h2 class="anomaly__title" id="anomaly-title">
+        <span class="anomaly__diamond" aria-hidden="true"></span>
+        {{ vm.name }}
+      </h2>
+      <div class="anomaly__meta">
+        <span [class]="chipClass()">{{ vm.category }}</span>
+        <span class="anomaly__where">{{ vm.location }} · {{ vm.fleetName }}</span>
+      </div>
+    </header>
+
+    <p class="anomaly__description" id="anomaly-description">{{ vm.description }}</p>
+
+    @if (error) {
+      <p class="ui-notice ui-notice--danger anomaly__error" role="alert">{{ error }}</p>
+    }
+
+    <div class="anomaly__choices">
+      @for (choice of vm.choices; track choice.id) {
+        <section class="anomaly__choice" [class.anomaly__choice--disabled]="choice.disabled">
+          <button
+            type="button"
+            class="anomaly__choice-btn"
+            [class.btn-primary]="$first && !choice.disabled"
+            [disabled]="choice.disabled || chosen !== null"
+            [attr.aria-describedby]="'anomaly-choice-' + choice.id"
+            (click)="pick(choice.id)"
+          >
+            {{ choice.label }}
+          </button>
+          <ul class="anomaly__consequences" [id]="'anomaly-choice-' + choice.id">
+            @for (line of choice.consequences; track $index) {
+              <li [class]="'anomaly__consequence anomaly__consequence--' + line.tone">
+                {{ line.text }}
+              </li>
+            }
+          </ul>
+          @if (choice.reason) {
+            <p class="ui-notice ui-notice--warning anomaly__reason">{{ choice.reason }}</p>
+          }
+        </section>
+      }
+    </div>
+    </div>
+  </div>
+</div>

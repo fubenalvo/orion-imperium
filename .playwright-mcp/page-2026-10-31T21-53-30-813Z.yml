@@ -1,0 +1,19 @@
+- main [ref=f4e6]:
+  - generic [ref=f4e7]:
+    - generic [ref=f4e8]:
+      - img "Orion Imperium Logo" [ref=f4e9]
+      - paragraph [ref=f4e10]: A GALACTIC STRATEGY GAME
+    - navigation "Main menu" [ref=f4e11]:
+      - button "NEW GAME Forge a new empire" [ref=f4e12] [cursor=pointer]:
+        - generic [ref=f4e13]: NEW GAME
+        - generic [ref=f4e14]: Forge a new empire
+      - button "LOAD GAME Resume a saved campaign" [ref=f4e15] [cursor=pointer]:
+        - generic [ref=f4e16]: LOAD GAME
+        - generic [ref=f4e17]: Resume a saved campaign
+      - button "OPTIONS Adjust game settings" [ref=f4e18] [cursor=pointer]:
+        - generic [ref=f4e19]: OPTIONS
+        - generic [ref=f4e20]: Adjust game settings
+      - button "CREDITS The makers of the empire" [ref=f4e21] [cursor=pointer]:
+        - generic [ref=f4e22]: CREDITS
+        - generic [ref=f4e23]: The makers of the empire
+  - generic: v0.2

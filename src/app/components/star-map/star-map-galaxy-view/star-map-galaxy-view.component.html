@@ -450,6 +450,23 @@
       </div>
     }
 
+    <!-- EXPLORATION ANOMALIES: discovered, not yet visited. Informational only:
+         a click bubbles to the map, so a move order onto the marker works. -->
+    @for (anomaly of anomalies; track anomaly.id) {
+      <div
+        class="anomaly-marker"
+        [class.anomaly-marker--in-system]="anomaly.inSystem"
+        [style.left]="anomaly.left + 'vw'"
+        [style.top]="anomaly.top + 'vw'"
+        [title]="anomaly.title"
+        role="img"
+        [attr.aria-label]="anomaly.title"
+      >
+        <span class="anomaly-marker__pulse" aria-hidden="true"></span>
+        <span class="anomaly-marker__glyph" aria-hidden="true">?</span>
+      </div>
+    }
+
     <!-- MOVEMENT TRAILS -->
     @for (trail of trails; track trackTrail(trail)) {
       @if (getTrailLength(trail) > 0) {

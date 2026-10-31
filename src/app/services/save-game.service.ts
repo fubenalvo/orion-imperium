@@ -8,6 +8,7 @@ import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validat
 import legacyStarMapData from '../components/star-map/star-map-data.json';
 import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
 import { normalizeRelations } from '../components/star-map/diplomacy';
+import { generateAnomalies, sanitizeAnomalyState } from '../components/star-map/anomalies';
 
 /*
  * =========================================================
@@ -348,6 +349,22 @@ export class SaveGameService {
     // save predates it (a full deposit); saved reserves, including depleted
     // ones, are kept as they are. No version bump: the field is optional.
     ensurePlanetDeposits(systems.flatMap((s) => (Array.isArray(s?.planetsTiles) ? s.planetsTiles : [])));
+
+    // v10: exploration anomalies. A game without them (new game, older save,
+    // or a malformed state) gets its galaxy's deterministic set exactly once;
+    // needs the asteroid belts above. A saved state is kept as it is.
+    if (!sanitizeAnomalyState(data.anomalies) && data.map && data.map.width > 0 && data.map.height > 0) {
+      data.anomalies = generateAnomalies({
+        seed: data.galaxy?.seed ?? 0,
+        width: data.map.width,
+        height: data.map.height,
+        starSystems: systems,
+        factions,
+        fleets: Array.isArray(data.fleets) ? data.fleets : [],
+        specialObjects: data.specialObjects ?? [],
+        asteroidBelts: data.asteroidBelts ?? [],
+      });
+    }
 
     if (version < SAVE_VERSION) {
       data.saveVersion = SAVE_VERSION;

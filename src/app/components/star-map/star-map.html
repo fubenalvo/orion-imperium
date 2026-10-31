@@ -102,6 +102,7 @@
       [blackHoleRings]="blackHoleRings"
       [territories]="territoryViews"
       [spaceBases]="visibleSpaceBases"
+      [anomalies]="anomalyMarkers"
       [onSpaceBaseClick]="boundOnSpaceBaseClick"
       [asteroids]="visibleAsteroids"
       [isFleetInNebula]="boundIsFleetInNebula"
@@ -260,6 +261,7 @@
         [selectedSystem]="selectedSystem"
         [selectedFleet]="selectedFleet"
         [fleets]="visibleFleets"
+        [anomalyCells]="systemAnomalyCells"
         [targetX]="targetX"
         [targetY]="targetY"
         [sensorRangeEnabled]="sensorRangeEnabled"
@@ -418,6 +420,15 @@
       (cancel)="closeFleetManager()"
     ></app-star-map-fleet-manager>
     }
+  }
+
+  <!-- Exploration event (docs/exploration-anomalies.md); the game is paused while it is open. -->
+  @if (anomalyEvent) {
+    <app-star-map-anomaly-event
+      [vm]="anomalyEvent"
+      [error]="anomalyError"
+      (choose)="onAnomalyChoice($event)"
+    ></app-star-map-anomaly-event>
   }
 
   @if (showDiplomacy) {

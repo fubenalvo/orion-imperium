@@ -170,6 +170,10 @@ import {
 } from './mining-station';
 import { SYSTEM_FLEET_ENTRY_VW } from './system-grid';
 import { minedDepositsOf } from './raw-deposits';
+import { AnomalyContext, AnomalyEventVm, AnomalyService } from './anomaly.service';
+import { StarMapAnomalyEventComponent } from './star-map-anomaly-event/star-map-anomaly-event.component';
+import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.component';
+import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
 
 /*
  * =========================================================
@@ -215,6 +219,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapPeaceNegotiationComponent,
     StarMapAsteroidInfoComponent,
     StarMapFleetManagerComponent,
+    StarMapAnomalyEventComponent,
   ],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
@@ -407,6 +412,13 @@ loadError = '';
   fleetManagerReserve: import('./star-map.models').ShipStockEntry[] | null = null;
   fleetManagerError: string | null = null;
   private fleetManagerResumeOnClose = false;
+  // Exploration event dialog (docs/exploration-anomalies.md): the oldest
+  // pending anomaly event, null while none is pending. Modal like the fleet
+  // manager: the game is paused while it is open and resumed on close only
+  // if it was running when the dialog opened.
+  anomalyEvent: AnomalyEventVm | null = null;
+  anomalyError: string | null = null;
+  private anomalyResumeOnClose = false;
   // Developer AI debug panel (F9). Snapshots refresh ~1×/s of real time only while open.
   aiDebugVisible = false;
   aiDebugSnapshots: AiDebugSnapshot[] = [];
@@ -476,6 +488,7 @@ loadError = '';
     private spaceBaseService: SpaceBaseService,
     private territoryService: TerritoryService,
     private borderService: BorderService,
+    private anomalyService: AnomalyService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -3263,6 +3276,7 @@ loadError = '';
 
     const visibilityChanged = this.updateSensorVisibility();
     const territoryChanged = this.refreshTerritoryViews();
+    const anomaliesChanged = this.updateAnomalies();
 
     const productionResult = this.productionService.tick(
       gameDeltaTime,
@@ -3328,7 +3342,7 @@ loadError = '';
 
     if (
       didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged ||
-      diplomacyChanged || territoryChanged || bordersChanged || borderNotices
+      diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged
     ) {
       this.ngZone.run(() => this.cdr.detectChanges());
       this.simStateDirty = true;
@@ -3553,6 +3567,123 @@ loadError = '';
     }
   }
 
+  /*
+   * Exploration anomalies, once per frame after sensors: discovery from the
+   * explored cells, activation by arriving player fleets (AI fleets never
+   * trigger them), then the event dialog follows the oldest pending event.
+   * A state change is saved at once, like asteroid collections, so a
+   * battle-return reload can never bring a triggered event back.
+   */
+  private updateAnomalies(): boolean {
+    const changed = this.anomalyService.update(this.exploredGridCells, this.fleets);
+    const dialogChanged = this.syncAnomalyEvent();
+    if (changed) {
+      this.saveGame();
+    }
+    return changed || dialogChanged;
+  }
+
+  private anomalyContext(): AnomalyContext {
+    return { factions: this.factions, fleets: this.fleets, starSystems: this.starSystems, shipStock: this.shipStock };
+  }
+
+  /* Opens, switches or closes the event dialog to match the pending events. */
+  private syncAnomalyEvent(): boolean {
+    const pending = this.anomalyService.currentEvent();
+    if (!pending) {
+      if (!this.anomalyEvent) return false;
+      this.closeAnomalyEvent();
+      return true;
+    }
+    if (this.anomalyEvent?.anomalyId === pending.id) return false;
+    if (!this.anomalyEvent) {
+      this.anomalyResumeOnClose = !this.gameTimeService.isPaused;
+      this.gameTimeService.pause();
+    }
+    this.anomalyEvent = this.anomalyService.buildEventVm(pending, this.anomalyContext());
+    this.anomalyError = null;
+    return true;
+  }
+
+  private closeAnomalyEvent(): void {
+    this.anomalyEvent = null;
+    this.anomalyError = null;
+    if (this.anomalyResumeOnClose) {
+      this.gameTimeService.resume();
+    }
+    this.anomalyResumeOnClose = false;
+  }
+
+  /*
+   * The player's choice in the event dialog. AnomalyService validates it
+   * (still pending, affordable) and resolves the anomaly; a pirate ambush
+   * then starts through the normal fleet-battle transport.
+   */
+  onAnomalyChoice(choiceId: string): void {
+    const event = this.anomalyEvent;
+    if (!event) return;
+    const result = this.anomalyService.resolve(event.anomalyId, choiceId, this.anomalyContext());
+    if (!result.ok) {
+      // Keep the dialog on the same event with the reason; if the event is
+      // gone, fall through to whatever is pending next.
+      const pending = this.anomalyService.getAnomaly(event.anomalyId);
+      if (pending?.status === 'active') {
+        this.anomalyEvent = this.anomalyService.buildEventVm(pending, this.anomalyContext());
+        this.anomalyError = result.reason;
+      } else {
+        this.syncAnomalyEvent();
+      }
+      this.cdr.detectChanges();
+      return;
+    }
+    if (result.battle) {
+      // The battle screen owns time from here; loadGame resets it on return.
+      this.anomalyEvent = null;
+      this.anomalyError = null;
+      this.anomalyResumeOnClose = false;
+      this.battleService.setBattle(result.battle);
+      this.enterBattleScreen();
+      return;
+    }
+    this.showMapNotice(result.message);
+    // Switches to the next pending event, or closes the dialog (and resumes).
+    this.syncAnomalyEvent();
+    this.saveGame();
+    this.cdr.detectChanges();
+  }
+
+  /* Discovered, unvisited anomalies on the galaxy map (type unknown until visited). */
+  get anomalyMarkers(): AnomalyMapView[] {
+    return this.anomalyService.discoveredAnomalies().map((anomaly) => {
+      const inSystem = anomaly.site.kind !== 'space';
+      // System and asteroid sites sit at the corner of the star's cell so
+      // the marker does not hide the star.
+      const offset = inSystem ? 0.45 : 0;
+      return {
+        id: anomaly.id,
+        left: (anomaly.site.x - 0.5 + offset) * this.cellSizeVw,
+        top: (anomaly.site.y - 0.5 - offset) * this.cellSizeVh,
+        inSystem,
+        title: `Unidentified anomaly: ${this.anomalyService.locationLabel(anomaly, this.starSystems)}. Send a fleet to investigate.`,
+      };
+    });
+  }
+
+  /* Discovered asteroid anomalies of the open system (system view markers). */
+  get systemAnomalyCells(): AnomalyCellView[] {
+    const systemId = this.selectedSystem?.id;
+    if (!systemId) return [];
+    return this.anomalyService
+      .discoveredAnomalies()
+      .filter((a) => a.site.kind === 'asteroid' && a.site.systemId === systemId)
+      .map((a) => ({
+        id: a.id,
+        col: a.site.col ?? 0,
+        row: a.site.row ?? 0,
+        title: 'Unidentified anomaly: move a fleet onto this asteroid to investigate.',
+      }));
+  }
+
   /** Updates planet exploration in system view based on fleet sensor range. */
   private updateExploredPlanets(): void {
     if (this.currentView !== 'system' || !this.selectedSystem) {
@@ -3702,6 +3833,7 @@ loadError = '';
       asteroidEvents: this.asteroidService.serialize(),
       spaceBases: this.spaceBaseService.serialize(),
       diplomaticDemands: this.diplomacyService.serializeDemands(),
+      anomalies: this.anomalyService.serialize(),
     };
   }
 
@@ -3787,6 +3919,20 @@ loadError = '';
     });
     this.rebuildTerrainViews();
     this.asteroidService.restore(data.asteroidEvents, this.galaxy?.seed ?? 0, this.fleets);
+    this.anomalyService.restore(data.anomalies, {
+      seed: this.galaxy?.seed ?? 0,
+      width: this.mapWidth,
+      height: this.mapHeight,
+      starSystems: this.starSystems,
+      factions: this.factions,
+      fleets: this.fleets,
+      specialObjects: this.specialObjects,
+      asteroidBelts: this.asteroidBelts,
+    });
+    // A pending event re-opens from the restored state on the next frame.
+    this.anomalyEvent = null;
+    this.anomalyError = null;
+    this.anomalyResumeOnClose = false;
     // Bases before sensors and territory: both are derived from them.
     this.spaceBaseService.restore(data.spaceBases);
     this.borderService.reset();
@@ -4015,6 +4161,10 @@ loadError = '';
 
     if (battleResult) {
       this.applyBattleResult(battleResult);
+      // Pirate ambush (exploration anomaly): victory loot, paid exactly once
+      // because the battle result is consumed (cleared) right below.
+      const anomalyNotice = this.anomalyService.applyBattleOutcome(battleResult, this.factions);
+      if (anomalyNotice) this.showMapNotice(anomalyNotice);
     }
 
     if (destroyedFleetId != null) {
@@ -4098,7 +4248,7 @@ loadError = '';
     if (isInput) return;
     // The fleet manager is modal: it handles Escape itself, and map shortcuts
     // (including un-pausing with Space) must not act behind it.
-    if (this.fleetManagerFleets) return;
+    if (this.fleetManagerFleets || this.anomalyEvent) return;
 
     switch (event.key) {
       case 'ArrowUp':

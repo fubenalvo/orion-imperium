@@ -408,3 +408,69 @@
     animation: none;
   }
 }
+
+/* =========================================================
+   EXPLORATION ANOMALIES (docs/exploration-anomalies.md)
+   A discovered, unvisited anomaly: a pulsing violet "?" beacon.
+   Zero-size anchor at the cell center like the asteroids; the
+   in-system variant is anchored by StarMap at the star cell's
+   top-right corner and drawn smaller.
+   ========================================================= */
+.anomaly-marker {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 12;
+  --anomaly-size: 1.5vw;
+
+  &--in-system {
+    --anomaly-size: 1.1vw;
+  }
+}
+
+.anomaly-marker__glyph,
+.anomaly-marker__pulse {
+  position: absolute;
+  left: calc(var(--anomaly-size) / -2);
+  top: calc(var(--anomaly-size) / -2);
+  width: var(--anomaly-size);
+  height: var(--anomaly-size);
+  border-radius: 50%;
+}
+
+.anomaly-marker__glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--ui-anomaly);
+  background: radial-gradient(circle, rgba(195, 156, 255, 0.35), rgba(40, 18, 70, 0.75));
+  box-shadow: 0 0 8px rgba(195, 156, 255, 0.6);
+  color: #f1e6ff;
+  font-size: calc(var(--anomaly-size) * 0.62);
+  line-height: 1;
+  cursor: help;
+}
+
+.anomaly-marker__pulse {
+  border: 1px solid var(--ui-anomaly);
+  pointer-events: none;
+  animation: anomaly-pulse 2.4s ease-out infinite;
+}
+
+@keyframes anomaly-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anomaly-marker__pulse {
+    animation: none;
+    opacity: 0;
+  }
+}

@@ -646,6 +646,64 @@ export interface StarMapData {
    * DiplomacyService.restoreDemands, which drops invalid entries.
    */
   diplomaticDemands?: DiplomaticDemand[];
+  /*
+   * Exploration anomalies (save version 10+; docs/exploration-anomalies.md).
+   * Older saves get a deterministic set from SaveGameService.migrateSave
+   * once; after that the persisted state (hidden / discovered / active /
+   * resolved) is the source of truth and is never regenerated.
+   */
+  anomalies?: AnomalyState;
+}
+
+/* ---------- Exploration anomalies (anomalies.ts) ---------- */
+
+export type AnomalyType = 'ancient_wreck' | 'distress_signal' | 'pirate_trap' | 'derelict_outpost';
+
+/*
+ * Where an anomaly waits. `x`/`y` is always the galaxy cell that is checked
+ * for discovery (the system cell for system and asteroid sites).
+ * - system:   arriving at (stopping in) the star system triggers it;
+ * - asteroid: a player fleet on that in-system belt cell (col/row) triggers it;
+ * - space:    any player fleet presence on the open-space cell triggers it.
+ */
+export interface AnomalySite {
+  kind: 'system' | 'asteroid' | 'space';
+  x: number;
+  y: number;
+  systemId?: string;
+  col?: number;
+  row?: number;
+}
+
+/*
+ * hidden → discovered (cell explored by the player's sensors) → active (a
+ * player fleet arrived; the event dialog waits for a choice) → resolved.
+ * A hidden anomaly can go straight to active. `active` is persisted so a
+ * reload re-opens the pending event instead of losing or replaying it.
+ */
+export type AnomalyStatus = 'hidden' | 'discovered' | 'active' | 'resolved';
+
+export interface Anomaly {
+  id: number;
+  type: AnomalyType;
+  site: AnomalySite;
+  status: AnomalyStatus;
+  /* Distress signal: the AI empire whose opinion the "assist" choice improves. */
+  factionId?: string;
+  /* While active: the player fleet that triggered it. */
+  fleetId?: number | null;
+  /* While active: activation order (the oldest pending event is shown first). */
+  activatedSeq?: number;
+  /* Once resolved: the choice taken. */
+  choiceId?: string;
+  /* Pirate trap: the victory loot was paid out (exactly once). */
+  lootClaimed?: boolean;
+}
+
+export interface AnomalyState {
+  version: number;
+  nextSeq: number;
+  anomalies: Anomaly[];
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';

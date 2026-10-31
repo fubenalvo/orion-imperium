@@ -30,6 +30,10 @@ Geometry lives in `system-grid.ts` (the single source of truth; the SCSS of `sta
 
 These in-system belts are unrelated to the impassable galaxy-map asteroid belts and drifting asteroids of [Star Map Terrain](./star-map-terrain.md).
 
+### Exploration Anomalies
+
+Hidden events in unclaimed systems, on in-system asteroids and in open space (`anomalies.ts`, `AnomalyService`). A site becomes *discovered* (violet "?" marker) once its galaxy cell is explored by the player's sensors, and *active* when a player fleet arrives; the event dialog then pauses the game until the player picks a choice (rewards, costs, an AI opinion change, a free outpost ship, or a pirate battle on the battle screen). Only player fleets trigger them; each anomaly resolves exactly once. See [Exploration Anomalies](./exploration-anomalies.md).
+
 ### Fog of War & Sensor Range
 
 Sensor range determines which grid cells a fleet (or player-owned star system) can "see". All sensor ranges are Euclidean circles (`dx² + dy² <= range²`).

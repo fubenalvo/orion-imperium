@@ -46,8 +46,11 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
  * - 9: open credit demands `diplomaticDemands` (docs/diplomacy.md) plus the
  *      optional demand fields on `Faction` and `FactionRelation`. Older
  *      saves get [] and default values (normalizeRelations).
+ * - 10: exploration `anomalies` (docs/exploration-anomalies.md). Older saves
+ *      get the deterministic anomaly set of their galaxy once, from
+ *      SaveGameService.migrateSave.
  */
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 /*
  * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
@@ -537,6 +540,10 @@ export function validateSaveData(
 
   // Open diplomatic demands are restored by DiplomacyService.restoreDemands,
   // which drops anything malformed; a broken list must not block the load.
+  if (save.anomalies !== undefined
+    && (!save.anomalies || typeof save.anomalies !== 'object' || !Array.isArray(save.anomalies.anomalies))) {
+    warnings.push(warning('anomalies_invalid', 'anomalies', 'anomalies is malformed and will be regenerated'));
+  }
   if (save.diplomaticDemands !== undefined && !Array.isArray(save.diplomaticDemands)) {
     warnings.push(warning('demands_not_array', 'diplomaticDemands', 'diplomaticDemands is not an array and will be ignored'));
   }

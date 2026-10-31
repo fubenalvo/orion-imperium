@@ -19,6 +19,14 @@ import {
  */
 export { SYSTEM_SUN_CENTER_X_VW, SYSTEM_SUN_CENTER_Y_VW } from '../system-grid';
 
+/* A discovered, unvisited exploration anomaly on an asteroid cell of this system. */
+export interface AnomalyCellView {
+  id: number;
+  col: number;
+  row: number;
+  title: string;
+}
+
 /*
  * =========================================================
  * STAR MAP SYSTEM GRID VIEW COMPONENT
@@ -43,6 +51,7 @@ export { SYSTEM_SUN_CENTER_X_VW, SYSTEM_SUN_CENTER_Y_VW } from '../system-grid';
 })
 export class StarMapSystemGridViewComponent {
   @Input() selectedSystem: StarSystem | null = null;
+  @Input() anomalyCells: AnomalyCellView[] = [];
   @Input() selectedFleet: Fleet | null = null;
   @Input() fleets: Fleet[] = [];
   @Input() targetX: number | null = null;

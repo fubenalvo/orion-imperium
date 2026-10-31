@@ -76,6 +76,18 @@
       }
     }
 
+    <!-- EXPLORATION ANOMALIES on asteroids: discovered, not yet visited. Clicks
+         bubble to the grid, so a move order onto the asteroid works. -->
+    @for (anomaly of anomalyCells; track anomaly.id) {
+      <div
+        class="system-anomaly"
+        [style.gridColumn]="anomaly.col"
+        [style.gridRow]="anomaly.row"
+      >
+        <span class="system-anomaly__glyph" role="img" [title]="anomaly.title" [attr.aria-label]="anomaly.title">?</span>
+      </div>
+    }
+
     <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
     @if (sensorRangeEnabled) {
       @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {

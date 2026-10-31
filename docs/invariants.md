@@ -312,3 +312,10 @@ See [Planet Capture](./planet-capture.md).
 - **One combat damage rule:** the animated battle and the auto-resolver both use `applyVolleyDamage`.
 - **Terminal outcomes are sticky:** once `victory`/`defeat` is stored, `GameOutcomeService.evaluate` returns it unchanged and the star-map frame loop stops simulating.
 - **Defeat = elimination:** the allied side owns no planet and has no living fleet; it is checked before victory and is reachable while hostile planets exist.
+
+## Exploration anomalies
+
+- **Player only:** only `'player'` fleets discover or trigger anomalies; AI fleets never change anomaly state or open the event dialog.
+- **Exactly once:** an anomaly activates only from `hidden`/`discovered`, and a choice applies only to an `active` anomaly, which it moves to `resolved` in the same call. A refused choice (not pending, unaffordable, finder gone) changes nothing.
+- **Persisted immediately:** every anomaly state change is saved at once, so a battle-return reload never replays or loses an event.
+- **Pirates are virtual:** the ambush fleet (id below −30 000 000, faction `'pirates'`) never enters `fleets`; its loot is paid once, from the battle result. See [Exploration Anomalies](./exploration-anomalies.md).

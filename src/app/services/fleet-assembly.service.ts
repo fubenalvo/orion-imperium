@@ -32,7 +32,7 @@ export interface AssemblyRequest {
   count: number;
 }
 
-const DEFAULT_FLEET_SPEED = 4;
+export const DEFAULT_FLEET_SPEED = 4;
 const DEFAULT_FLEET_SENSOR_RANGE = 3;
 
 /*
