@@ -251,6 +251,13 @@ export interface PlanetTile {
   buildings: PlanetBuilding[];
   explored: boolean;
   satisfaction?: number;
+  /*
+   * Game seconds left in which the planet cannot rebel, set on capture
+   * (PlanetOwnershipService) and counted down by the economy tick.
+   * Satisfaction may still fall to 0 meanwhile; the planet rebels only once
+   * the grace is over. Optional and saved; absent = no grace (old saves).
+   */
+  rebellionGraceSeconds?: number;
   resourceTiles?: ResourceDeposit[];
   /*
    * Finite raw-material reserve of the planet (raw-deposits.ts,

@@ -304,14 +304,23 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     return `Energy after building: ${after.production} produced / ${after.consumption} used${tail}`;
   }
 
+  /* Seconds of capture protection left (no rebellion meanwhile), or null. */
+  get rebellionGraceSeconds(): number | null {
+    const grace = this.planet?.rebellionGraceSeconds;
+    return grace !== undefined && grace > 0 ? Math.ceil(grace) : null;
+  }
+
   /*
    * Seconds until the planet rebels at its current satisfaction drift, or
-   * null when satisfaction is not falling.
+   * null when satisfaction is not falling. A planet under capture
+   * protection cannot rebel before the protection ends.
    */
   get secondsToRebellion(): number | null {
     const economy = this.planetEconomy;
-    if (!economy || economy.satisfactionDrift >= 0 || economy.satisfaction <= 0) return null;
-    return Math.ceil(economy.satisfaction / -economy.satisfactionDrift);
+    if (!economy || economy.satisfactionDrift >= 0) return null;
+    const grace = this.rebellionGraceSeconds ?? 0;
+    if (economy.satisfaction <= 0 && grace === 0) return null;
+    return Math.max(grace, Math.ceil(economy.satisfaction / -economy.satisfactionDrift));
   }
 
   activeTab: PlanetSidebarTab = 'details';

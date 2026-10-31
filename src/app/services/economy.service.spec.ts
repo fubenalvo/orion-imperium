@@ -522,4 +522,31 @@ describe('EconomyService — energy shortfall and satisfaction', () => {
     tick(colony, 3);
     expect(colony.factionId).toBe('independent');
   });
+
+  it('a planet in its capture grace does not rebel at 0% until the grace runs out', () => {
+    // Severe shortage (-1/s) right after a capture.
+    const captured = planetWith(['Large Residential Block', 'Large Residential Block', 'Large Residential Block'], {
+      satisfaction: 40,
+      rebellionGraceSeconds: 120,
+    });
+    tick(captured, 60);
+    expect(captured.satisfaction).toBeCloseTo(0, 6);
+    expect(captured.factionId).toBe('player');
+    expect(captured.rebellionGraceSeconds).toBeCloseTo(60, 6);
+
+    tick(captured, 59);
+    expect(captured.factionId).toBe('player');
+
+    tick(captured, 2);
+    expect(captured.rebellionGraceSeconds).toBeUndefined();
+    expect(captured.factionId).toBe('independent');
+  });
+
+  it('a recovering planet simply loses its grace when it runs out', () => {
+    const captured = planetWith(['Medium Residential Block'], { satisfaction: 40, rebellionGraceSeconds: 5 });
+    tick(captured, 10);
+    expect(captured.rebellionGraceSeconds).toBeUndefined();
+    expect(captured.factionId).toBe('player');
+    expect(captured.satisfaction).toBeGreaterThan(40);
+  });
 });

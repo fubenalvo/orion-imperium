@@ -10,7 +10,13 @@ How planets change owner, how planet battles are fought and applied, and how the
 - cancels the previous owner's production orders on that planet and refunds their unbuilt part — a captured factory never keeps building for the faction that lost it (`ProductionService.tick` only refunds orders whose planet vanished entirely);
 - increments `revision`; `StarMap.gameLoopCallback` re-evaluates the game outcome whenever the revision changed during the frame.
 
-Population, buildings, satisfaction and the persisted planetary shield pool stay with the planet.
+Population, buildings, satisfaction and the persisted planetary shield pool stay with the planet, except for the capture adjustment below.
+
+### After a capture
+
+A `captured` or `battle_won` transfer raises the planet's satisfaction to at least `CAPTURE_MIN_SATISFACTION` (40) and sets `rebellionGraceSeconds` to `CAPTURE_REBELLION_GRACE_SECONDS` (120 s of game time). The economy tick counts it down; until it runs out the planet cannot rebel, even if satisfaction meanwhile falls to 0. When it ends, normal rules apply (a planet at 0% with a non-positive drift rebels on that tick). Without this, a rebel planet (0%) that is still short on energy would rebel again on the next tick after its capture, before the new owner can build power.
+
+`colonized` and `rebellion` leave satisfaction untouched and remove any running grace. The same rule applies to the player and the AI. The planet screen shows the remaining protection, and its rebellion estimate accounts for it. `rebellionGraceSeconds` is an optional saved field (absent = no grace), so older saves load unchanged without a save-version bump.
 
 | Reason | Caller |
 |---|---|

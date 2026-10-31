@@ -524,6 +524,11 @@
                 }
               </div>
             }
+            @if (planetEconomy && rebellionGraceSeconds !== null) {
+              <div class="planet-sidebar__notice">
+                Recently captured: the planet cannot rebel for {{ rebellionGraceSeconds }} more seconds.
+              </div>
+            }
 
             <div class="planet-sidebar__currencies">
               <app-faction-currencies

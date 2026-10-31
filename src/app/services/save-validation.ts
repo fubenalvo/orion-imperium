@@ -248,6 +248,14 @@ export function validateSaveData(
               );
             }
             if (
+              planet.rebellionGraceSeconds !== undefined &&
+              (typeof planet.rebellionGraceSeconds !== 'number' || !Number.isFinite(planet.rebellionGraceSeconds))
+            ) {
+              errors.push(
+                error('rebellion_grace_invalid', `${planetPath}.rebellionGraceSeconds`, 'rebellionGraceSeconds must be a finite number'),
+              );
+            }
+            if (
               planet.shieldPoolCurrent !== undefined &&
               (typeof planet.shieldPoolCurrent !== 'number' ||
                 !Number.isFinite(planet.shieldPoolCurrent) ||

@@ -1,5 +1,9 @@
 import { TestBed } from '@angular/core/testing';
-import { PlanetOwnershipService } from './planet-ownership.service';
+import {
+  CAPTURE_MIN_SATISFACTION,
+  CAPTURE_REBELLION_GRACE_SECONDS,
+  PlanetOwnershipService,
+} from './planet-ownership.service';
 import { Faction, FactionProduction, PlanetTile } from '../components/star-map/star-map.models';
 
 describe('PlanetOwnershipService', () => {
@@ -49,5 +53,32 @@ describe('PlanetOwnershipService', () => {
     service.transferPlanet({}, p, 'enemy1', 'captured');
     expect(p.population).toBe(100);
     expect(p.buildings).toHaveLength(1);
+  });
+
+  it('a capture raises satisfaction to the minimum and starts the rebellion grace', () => {
+    for (const reason of ['captured', 'battle_won'] as const) {
+      const p = { ...planet(), factionId: 'independent', satisfaction: 0 };
+      service.transferPlanet({}, p, 'player', reason);
+      expect(p.satisfaction).toBe(CAPTURE_MIN_SATISFACTION);
+      expect(p.rebellionGraceSeconds).toBe(CAPTURE_REBELLION_GRACE_SECONDS);
+    }
+  });
+
+  it('a capture never lowers a higher satisfaction', () => {
+    const p = { ...planet(), satisfaction: 90 };
+    service.transferPlanet({}, p, 'enemy1', 'captured');
+    expect(p.satisfaction).toBe(90);
+  });
+
+  it('colonization and rebellion leave satisfaction alone and clear any grace', () => {
+    const p = { ...planet(), satisfaction: 0, rebellionGraceSeconds: 50 };
+    service.transferPlanet({}, p, 'independent', 'rebellion');
+    expect(p.satisfaction).toBe(0);
+    expect(p.rebellionGraceSeconds).toBeUndefined();
+
+    const q = { ...planet(), factionId: 'unhabited', satisfaction: 100 };
+    service.transferPlanet({}, q, 'player', 'colonized');
+    expect(q.satisfaction).toBe(100);
+    expect(q.rebellionGraceSeconds).toBeUndefined();
   });
 });

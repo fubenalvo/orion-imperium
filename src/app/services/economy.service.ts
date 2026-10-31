@@ -483,7 +483,8 @@ export class EconomyService {
    *  1. Satisfaction drift per owned planet (PlanetEconomy.satisfactionDrift):
    *     the energy part (energySatisfactionDrift: +1/s when fully powered,
    *     falling with the size of the shortfall down to −1/s) plus
-   *     habitability + building morale; clamped to [0, 100]. A planet reaching 0
+   *     habitability + building morale; clamped to [0, 100]. A planet in its
+   *     capture grace (`rebellionGraceSeconds`) never rebels; otherwise one reaching 0
    *     rebels (→ 'independent') BEFORE income is computed, so it neither
    *     pays its old owner nor costs it upkeep on that tick.
    *  2. The effective breakdown is computed from the post-drift state and
@@ -524,6 +525,12 @@ export class EconomyService {
       const drift = this.calculatePlanetEconomy(planet, faction).satisfactionDrift;
       const current = planet.satisfaction ?? 100;
       planet.satisfaction = Math.max(0, Math.min(100, current + drift * deltaTime));
+      // Capture grace (PlanetOwnershipService): no rebellion until it runs out.
+      if (planet.rebellionGraceSeconds !== undefined) {
+        planet.rebellionGraceSeconds -= deltaTime;
+        if (planet.rebellionGraceSeconds > 0) continue;
+        delete planet.rebellionGraceSeconds;
+      }
       if (planet.satisfaction <= 0) {
         this.planetOwnership.transferPlanet({ production, factions }, planet, 'independent', 'rebellion');
       }

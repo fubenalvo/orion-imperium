@@ -586,6 +586,16 @@
   line-height: 1.35;
 }
 
+.planet-sidebar__notice {
+  margin: 0.2em 0 0.4em;
+  padding: 0.5em 0.6em;
+  border-left: 2px solid var(--ui-accent);
+  background: rgba(var(--ui-accent-rgb), 0.08);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.35;
+}
+
 .planet-sidebar__satisfaction--warn {
   --meter-color: var(--ui-warning);
 }

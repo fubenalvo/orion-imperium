@@ -7,6 +7,16 @@ import { recordHostileAct, recordPlanetLoss } from '../components/star-map/diplo
 export type OwnershipChangeReason = 'colonized' | 'captured' | 'battle_won' | 'rebellion';
 
 /*
+ * A planet taken by force starts at no less than this satisfaction and
+ * cannot rebel for CAPTURE_REBELLION_GRACE_SECONDS of game time. Without
+ * it a planet that had rebelled (0%) and is still short on energy would
+ * rebel again on the very next economy tick, before the conqueror can
+ * build anything (docs/planet-capture.md, "After a capture").
+ */
+export const CAPTURE_MIN_SATISFACTION = 40;
+export const CAPTURE_REBELLION_GRACE_SECONDS = 120;
+
+/*
  * =========================================================
  * PLANET OWNERSHIP SERVICE
  * =========================================================
@@ -28,7 +38,10 @@ export type OwnershipChangeReason = 'colonized' | 'captured' | 'battle_won' | 'r
  *    outcome after ownership changes made during the frame loop.
  *
  * Population, buildings, satisfaction and the persisted planetary shield
- * pool stay with the planet: the conqueror takes the planet as it is.
+ * pool stay with the planet: the conqueror takes the planet as it is,
+ * except that a capture (captured / battle_won) raises satisfaction to at
+ * least CAPTURE_MIN_SATISFACTION and starts a rebellion grace period
+ * (`rebellionGraceSeconds`, counted down by EconomyService).
  * Transfers to the current owner are ignored, so a rule that fires more
  * than once cannot apply the same change twice.
  */
@@ -68,6 +81,13 @@ export class PlanetOwnershipService {
     // loser's war exhaustion and lowers its opinion of the taker; taking it
     // right after one's own declaration is a surprise attack. Rebellions are
     // not war losses.
+    if (reason === 'captured' || reason === 'battle_won') {
+      planet.satisfaction = Math.max(planet.satisfaction ?? 100, CAPTURE_MIN_SATISFACTION);
+      planet.rebellionGraceSeconds = CAPTURE_REBELLION_GRACE_SECONDS;
+    } else {
+      // A grace period belongs to the capturer; it never carries over.
+      delete planet.rebellionGraceSeconds;
+    }
     if (reason === 'captured' || reason === 'battle_won') {
       const loser = data.factions?.find((f) => f.id === previousOwnerId);
       const taker = data.factions?.find((f) => f.id === newOwnerId);

@@ -12,12 +12,6 @@ Related: [Economy](./economy.md), [Planet Capture](./planet-capture.md), [Ship P
 
 ## P0 – Critical: breaks the game, do first
 
-### 2. [Bug] A recaptured planet rebels again immediately [Played, confirmed in code]
-
-- **Problem:** a captured planet keeps 0% satisfaction. If it is energy-short, it rebels again on the next economy tick, while the battle screen showed "CAPTURED". Independent planets cannot be built on, so the loop cannot be broken.
-- **Files:** `src/app/services/planet-ownership.service.ts` (`transferPlanet`), `src/app/services/economy.service.ts`
-- **Suggestion:** on capture or colonization, set a minimum satisfaction (e.g. 30–50) and give a few minutes of protection from rebellion. Update `docs/planet-capture.md`.
-
 ### 3. [Bug] Soft-lock: no planet and no colonizer, but no defeat [Played]
 
 - **Problem:** with no planet, no income and no colonizer, but living fleets, the game stays "in progress" with no way out.
@@ -143,4 +137,4 @@ Only 4 event types, half of them pirate traps. Suggestion: more event types and 
 
 ---
 
-**Suggested order:** 2 → 3 → 5–6 → 10–11 (economy) → 16–18 → the rest.
+**Suggested order:** 3 → 5–6 → 10–11 (economy) → 16–18 → the rest.
