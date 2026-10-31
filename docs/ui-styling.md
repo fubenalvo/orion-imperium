@@ -176,8 +176,8 @@ controls on narrow screens.
 
 **Layout.** A three-column grid: *start* (back button + title, optional subtitle) · *center*
 (⏸ and speed buttons, plus projected extras such as battle AUTO, inside one bracketed tray) ·
-*end* (projected status content such as currencies / ship stock / planet shield, then the ☰
-pause-menu button). Currency readouts are separated by short vertical hairlines.
+*end* (projected status content such as currencies / ship stock / planet shield, then the
+full-screen toggle, then the ☰ pause-menu button). Currency readouts are separated by short vertical hairlines.
 The start column may shrink to zero (the title truncates with an ellipsis); the end column
 never shrinks below its content. When space is ample both side columns are equal, so the time
 controls sit exactly in the middle.
@@ -191,6 +191,12 @@ grid row) offsets itself by `--game-header-h`; never hard-code the header height
 **Buttons.** All header buttons use the `hud-button` mixins in `src/styles/_hud-controls.scss`
 (`@use 'hud-controls' as hud;`), which also reset the global `button` look so hover
 and press never change a button's size or position.
+
+**Full-screen toggle.** Shown on every screen (including battle) whenever the browser supports
+the Fullscreen API; hidden otherwise (e.g. iPhone Safari). It calls `requestFullscreen` on the
+document root and reads its pressed state back from `fullscreenchange`, so leaving full screen
+with Esc / F11 keeps the icon in sync. This is browser state only — it is not saved and does not
+pause the game.
 
 **Responsive rules** (viewport width): at ≤1100px the back button collapses to its arrow (the
 full label stays in its tooltip / aria-label), the ship-stock "STOCK" label is hidden and gaps

@@ -54,6 +54,26 @@
       <ng-content></ng-content>
     </div>
 
+    @if (fullscreenSupported) {
+      <button
+        class="game-header__btn game-header__fullscreen"
+        type="button"
+        [class.game-header__btn--active]="isFullscreen"
+        [attr.aria-pressed]="isFullscreen"
+        (click)="toggleFullscreen()"
+        [attr.aria-label]="isFullscreen ? 'Exit full screen' : 'Enter full screen'"
+        [title]="isFullscreen ? 'Exit full screen' : 'Full screen'"
+      >
+        <svg class="game-header__fullscreen-icon" viewBox="0 0 16 16" aria-hidden="true">
+          @if (isFullscreen) {
+            <path d="M6 1v5H1M10 1v5h5M6 15v-5H1M10 15v-5h5" />
+          } @else {
+            <path d="M1 6V1h5M15 6V1h-5M1 10v5h5M15 10v5h-5" />
+          }
+        </svg>
+      </button>
+    }
+
     @if (showMenuButton) {
       <button
         class="game-header__btn game-header__menu"

@@ -161,6 +161,19 @@
   margin-left: calc(var(--gh-u) * 0.25);
 }
 
+.game-header__fullscreen + .game-header__menu {
+  margin-left: 0;
+}
+
+.game-header__fullscreen-icon {
+  width: calc(var(--gh-u) * 1.1);
+  height: calc(var(--gh-u) * 1.1);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: square;
+}
+
 .game-header__hamburger {
   display: flex;
   flex-direction: column;

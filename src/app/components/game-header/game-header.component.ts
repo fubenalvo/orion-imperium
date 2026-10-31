@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
 
 export interface GameHeaderSpeedOption {
   value: number;
@@ -15,7 +15,7 @@ export interface GameHeaderSpeedOption {
  * supply data and handle the emitted events.
  *
  * Layout: a three-column grid
- *   [start: back button + title/subtitle] [center: time controls] [end: status + menu]
+ *   [start: back button + title/subtitle] [center: time controls] [end: status + full screen + menu]
  * The start column may shrink to zero (the title truncates with an ellipsis);
  * the end column never shrinks below its content. This is what guarantees that
  * no two elements overlap: when space runs out the title gives way, instead
@@ -64,4 +64,53 @@ export class GameHeaderComponent {
   @Output() togglePause = new EventEmitter<void>();
   @Output() setSpeed = new EventEmitter<number>();
   @Output() openMenu = new EventEmitter<void>();
+
+  /*
+   * Full-screen toggle (browser Fullscreen API on the whole document).
+   * This is the one piece of state the header owns itself: it is a browser
+   * concern, not game state, so it is identical on every screen. The state is
+   * read back from `fullscreenchange` rather than set on click, because the
+   * user can also leave full screen with Esc / F11 or the browser UI, and a
+   * request can be rejected (it needs a user gesture; iPhone Safari has no
+   * element full screen at all, so the button is hidden there).
+   */
+  readonly fullscreenSupported =
+    typeof document !== 'undefined' &&
+    !!(document.fullscreenEnabled || (document as WebkitDocument).webkitFullscreenEnabled);
+  isFullscreen = currentFullscreenElement() !== null;
+
+  @HostListener('document:fullscreenchange')
+  @HostListener('document:webkitfullscreenchange')
+  onFullscreenChange(): void {
+    this.isFullscreen = currentFullscreenElement() !== null;
+  }
+
+  toggleFullscreen(): void {
+    const doc = document as WebkitDocument;
+    if (currentFullscreenElement()) {
+      const exit = doc.exitFullscreen?.bind(doc) ?? doc.webkitExitFullscreen?.bind(doc);
+      void Promise.resolve(exit?.()).catch(() => undefined);
+      return;
+    }
+    const root = document.documentElement as WebkitElement;
+    const request =
+      root.requestFullscreen?.bind(root) ?? root.webkitRequestFullscreen?.bind(root);
+    void Promise.resolve(request?.()).catch(() => undefined);
+  }
+}
+
+/* Safari (macOS / iPadOS) only exposes the prefixed Fullscreen API in older versions. */
+type WebkitDocument = Document & {
+  webkitFullscreenEnabled?: boolean;
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+};
+type WebkitElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+
+function currentFullscreenElement(): Element | null {
+  if (typeof document === 'undefined') return null;
+  const doc = document as WebkitDocument;
+  return doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
 }
