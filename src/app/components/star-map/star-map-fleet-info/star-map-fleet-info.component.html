@@ -59,6 +59,17 @@
             COLONIZE
           </button>
         }
+        @if (baseDeployment) {
+          <button
+            type="button"
+            class="action-btn btn-primary deploy-base-btn"
+            [disabled]="!baseDeployment.canDeploy"
+            [title]="baseDeployment.canDeploy ? 'Deploy a space base here (uses one Outpost Ship)' : (baseDeployment.reason ?? '')"
+            (click)="deployBase.emit(); $event.stopPropagation()"
+          >
+            DEPLOY BASE
+          </button>
+        }
         @if (canDisband) {
           <button
             type="button"
@@ -91,6 +102,17 @@
       }
       @if (moveError) {
         <div class="ui-notice ui-notice--danger fleet-info__move-error" role="status">{{ moveError }}</div>
+      }
+      @if (baseDeployment && !baseDeployment.canDeploy && baseDeployment.reason) {
+        <div class="ui-notice fleet-info__move-error" role="status">Base: {{ baseDeployment.reason }}</div>
+      }
+      @if (colonizeBlockedReason) {
+        <div class="ui-notice ui-notice--warning fleet-info__move-error" role="status">{{ colonizeBlockedReason }}</div>
+      }
+      @if (borderViolationOf) {
+        <div class="ui-notice ui-notice--warning fleet-info__move-error" role="status">
+          Violating {{ borderViolationOf }} borders — their opinion of you keeps dropping.
+        </div>
       }
     }
 

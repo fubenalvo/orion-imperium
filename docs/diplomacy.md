@@ -130,6 +130,10 @@ Deterministic and explainable.
 
 **Information:** diplomacy uses real total fleet strength, losses and exhaustion — treated as public knowledge (envoys, intelligence); tactical layers still only use sensor data.
 
+## Border violations
+
+A fleet inside the territory of an empire its faction is at peace with violates its borders: the owner's opinion of the intruder drops on entry and while the fleet stays, scaled by fleet value and by repeated incidents. It never declares war; it only feeds opinion (and through it the AI's war and treaty decisions). `FactionRelation.passageRights` is prepared for future passage treaties (revoked by `startWar`). See [Territory](./territory.md#border-violations).
+
 ## Battles between AIs
 
 Only battles with a human side open the battle screen. Two AI factions at war that meet are auto-resolved immediately (`autoResolveBattle`) and the outcome is written to the live fleets via `BattleOutcomeService.applyFleetBattleOutcome`, which also records the war losses. A pair that fought once is not re-triggered while it shares the cell.
@@ -156,6 +160,6 @@ Only battles with a human side open the battle screen. Two AI factions at war th
 
 ## Known limitations
 
-- No alliances, trade, tribute outside peace treaties, or shared intel.
+- No alliances, trade, tribute outside peace treaties, shared intel, or passage treaties (the passage flag exists, nothing grants it yet).
 - Fleet-strength comparisons ignore research bonuses and stock ships.
 - The AI proposes peace to the player only when it wants out; a winning AI never proactively demands tribute (it answers the player's proposals with counter-offers instead).

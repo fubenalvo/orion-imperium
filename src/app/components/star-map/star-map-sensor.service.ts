@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { Fleet, StarSystem, Faction } from './star-map.models';
+import { Fleet, StarSystem, Faction, SpaceBase } from './star-map.models';
+import { SPACE_BASE_CONFIG } from './space-base';
 import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { StarMapTerrainService } from './star-map-terrain.service';
@@ -286,25 +287,30 @@ export class StarMapSensorService {
     factions: Faction[],
     gridColumns: number,
     gridRows: number,
+    spaceBases: readonly SpaceBase[] = [],
   ): SensorLayerResult {
     const cells = new Map<string, SensorCellInfo>();
     const preview = new Map<string, SensorPreviewCellInfo>();
     const playerColor = this.getFactionColor(factions, 'player');
     const playerFaction = factions.find((f) => f.id === 'player');
     const playerSystemKeys = new Set<string>();
-    const systemSensorRange =
-      PLAYER_SYSTEM_SENSOR_RANGE +
-      (playerFaction ? this.researchService.getSensorRangeBonus(playerFaction) : 0);
+    const researchBonus = playerFaction ? this.researchService.getSensorRangeBonus(playerFaction) : 0;
+    const systemSensorRange = PLAYER_SYSTEM_SENSOR_RANGE + researchBonus;
 
-    // 1. Player-owned systems provide base sensor radius
-    const ownedSystems = starSystems.filter((s) =>
-      s.planetsTiles.some((p) => p.factionId === 'player'),
-    );
+    // 1. Fixed sensor sources: player-owned systems and player space bases
+    //    (observation posts, SPACE_BASE_CONFIG.sensorRange) share the same
+    //    priority over fleet sensors.
+    const fixedSources = [
+      ...starSystems
+        .filter((s) => s.planetsTiles.some((p) => p.factionId === 'player'))
+        .map((s) => ({ col: s.gridCol ?? Math.floor(s.x), row: s.gridRow ?? Math.floor(s.y), range: systemSensorRange })),
+      ...spaceBases
+        .filter((b) => b.factionId === 'player')
+        .map((b) => ({ col: b.x, row: b.y, range: SPACE_BASE_CONFIG.sensorRange + researchBonus })),
+    ];
 
-    for (const system of ownedSystems) {
-      const col = system.gridCol ?? Math.floor(system.x);
-      const row = system.gridRow ?? Math.floor(system.y);
-      const sensorCells = this.getGalaxySensorCells(col, row, systemSensorRange, gridColumns, gridRows);
+    for (const { col, row, range } of fixedSources) {
+      const sensorCells = this.getGalaxySensorCells(col, row, range, gridColumns, gridRows);
       for (const cell of sensorCells) {
         const key = `${cell.col}-${cell.row}`;
         playerSystemKeys.add(key);
@@ -340,10 +346,8 @@ export class StarMapSensorService {
     // 3. Outer-ring preview cells: skip anything already in the full layer or
     //    covered by a player-owned system. Sources mirror the full layer so
     //    every sensor source gets a matching halo.
-    for (const system of ownedSystems) {
-      const col = system.gridCol ?? Math.floor(system.x);
-      const row = system.gridRow ?? Math.floor(system.y);
-      const ringCells = this.getGalaxyOuterRingCells(col, row, systemSensorRange, gridColumns, gridRows);
+    for (const { col, row, range } of fixedSources) {
+      const ringCells = this.getGalaxyOuterRingCells(col, row, range, gridColumns, gridRows);
       for (const cell of ringCells) {
         const key = `${cell.col}-${cell.row}`;
         if (playerSystemKeys.has(key) || cells.has(key)) {

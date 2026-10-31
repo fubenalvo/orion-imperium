@@ -8,6 +8,8 @@ import { autoResolveBattle } from '../battle-screen/battle/battle-auto-resolve';
 import { Battle, BattleOutcome } from '../battle-screen/battle/battle.types';
 import { Fleet, StarSystem, Faction } from './star-map.models';
 import { areFactionsHostile } from './diplomacy';
+import { SpaceBaseService } from './space-base.service';
+import { buildBaseDefenseFleet } from './space-base';
 
 /*
  * =========================================================
@@ -34,7 +36,79 @@ export class StarMapBattleDetectionService {
     private battleOutcomeService: BattleOutcomeService,
     private shipService: ShipService,
     private planetBattleService: PlanetBattleService,
+    private spaceBaseService: SpaceBaseService,
   ) {}
+
+  /*
+   * checkBaseBattles: a fleet on a space base's galaxy cell whose faction is
+   * at war with the base's owner attacks the base (docs/territory.md#combat).
+   * The base fights as static defenses through the planet-battle path
+   * (Battle.type 'planet' + spaceBaseId). Same human/AI split as fleet
+   * battles: a human side opens the battle screen, AI-vs-AI is
+   * auto-resolved and applied to the live registry at once (a destroyed
+   * base loses its territory claim immediately). Fleets inside a system view
+   * never touch a base (bases keep a distance from stars).
+   *
+   * Returns true if an interactive battle was triggered.
+   */
+  checkBaseBattles(
+    fleets: Fleet[],
+    factions: Faction[],
+    enterBattleScreen: () => void,
+    triggeredBattles: Set<string>,
+    onAutoResolved?: (battle: Battle, outcome: BattleOutcome) => void,
+  ): boolean {
+    if (this.spaceBaseService.bases.length === 0) return false;
+    for (const fleet of fleets) {
+      if (fleet.destroyed || fleet.system || !this.hasLivingShips(fleet)) continue;
+      const base = this.spaceBaseService.getBaseAtCell(Math.floor(fleet.x), Math.floor(fleet.y));
+      if (!base) continue;
+      const attacker = factions.find((f) => f.id === fleet.factionId);
+      const owner = factions.find((f) => f.id === base.factionId);
+      if (!attacker || !owner || !areFactionsHostile(attacker, owner)) continue;
+      const key = `base${base.id}-${fleet.id}`;
+      if (triggeredBattles.has(key)) continue;
+      triggeredBattles.add(key);
+
+      const defense = buildBaseDefenseFleet(base);
+      const battle: Battle = {
+        fleet1: fleet,
+        fleet2: defense,
+        faction1Name: attacker.name,
+        faction1Color: attacker.color,
+        faction2Name: owner.name,
+        faction2Color: owner.color,
+        attackerId: fleet.id,
+        defenderId: defense.id,
+        type: 'planet',
+        spaceBaseId: base.id,
+        planetName: base.name,
+        planetColor: owner.color,
+        combatBonuses: this.researchService.buildCombatBonuses([attacker, owner]),
+      };
+
+      if (attacker.ai === true && owner.ai === true) {
+        const { outcome } = autoResolveBattle(battle, this.shipService, this.planetBattleService);
+        const destroyed = this.battleOutcomeService.applySpaceBaseBattleOutcome({ fleets, factions }, outcome);
+        if (destroyed) {
+          this.spaceBaseService.destroy(base.id);
+        } else if (outcome.defender.shieldPoolCurrent !== undefined) {
+          this.spaceBaseService.setShieldPool(base.id, outcome.defender.shieldPoolCurrent);
+        }
+        if (fleet.destroyed) {
+          fleet.targetX = null;
+          fleet.targetY = null;
+        }
+        onAutoResolved?.(battle, outcome);
+        continue;
+      }
+
+      this.battleService.setPlanetBattle(battle);
+      enterBattleScreen();
+      return true;
+    }
+    return false;
+  }
 
   /*
    * checkForBattles: Iterates through all active fleet pairs

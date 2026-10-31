@@ -163,6 +163,19 @@ export interface FactionRelation {
   shipsLostValue?: number;
   /* At war: planets the holder lost to the other in this war. */
   planetsLost?: number;
+  /*
+   * Holder's memory of the other's border violations in the holder's
+   * territory: a decaying incident count (border.service.ts) that raises
+   * the opinion penalty of repeated violations. Per side, kept across war
+   * and peace.
+   */
+  borderIncidents?: number;
+  /*
+   * The holder grants the other faction free passage through its territory
+   * (no border-violation penalty). Prepared for future passage treaties:
+   * nothing grants it yet, and a war declaration revokes it.
+   */
+  passageRights?: boolean;
 }
 
 export type GalaxySize = 'small' | 'medium' | 'large';
@@ -428,6 +441,25 @@ export interface AsteroidEventState {
   active: DriftingAsteroid[];
 }
 
+/*
+ * Space base: a permanent, immobile station deployed by an outpost ship on
+ * a galaxy cell (docs/territory.md). It is an observation post and extends
+ * its owner's territory by a claim radius; it has no economy, research or
+ * production function. In battle it is defended by its own core and
+ * turrets (SPACE_BASE_CONFIG in space-base.ts). x/y are the 1-indexed grid
+ * column/row of its cell (integers, like star systems). A destroyed base is
+ * removed from StarMapData.spaceBases, so every stored base is alive.
+ */
+export interface SpaceBase {
+  id: number;
+  name: string;
+  factionId: string;
+  x: number;
+  y: number;
+  /* Shared shield pool left after a battle (like PlanetTile.shieldPoolCurrent). Missing = full. */
+  shieldPoolCurrent?: number;
+}
+
 export interface StarMapData {
   /*
    * Save format version. Missing (older saves) is treated as 0 and
@@ -489,6 +521,11 @@ export interface StarMapData {
    * barrier to a running game could cut off fleets and territory).
    */
   asteroidBelts?: AsteroidBelt[];
+  /*
+   * Space bases (save version 7+); older saves get []. Territory itself is
+   * never stored: it is derived from planet owners and these bases.
+   */
+  spaceBases?: SpaceBase[];
 }
 
 export type ResourceType = 'credits' | 'rawmaterials' | 'research' | 'energy';

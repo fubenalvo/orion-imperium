@@ -121,6 +121,63 @@
       </svg>
     }
 
+    <!--
+      TERRITORY (docs/territory.md): one SVG in grid units under the fog layer,
+      like the nebulae, so unexplored space stays dark and fleets, stars and
+      markers stay on top. Per empire: a faint, softly blurred fill and a thin
+      border on the cell edges facing other owners — solid for the player,
+      dashed for foreign empires; neutral space has no tint. Space base claim
+      circles are drawn on top as faint dashed rings. Static: paths change
+      only when the territory changes.
+    -->
+    @if (territories.length > 0 || spaceBases.length > 0) {
+      <svg
+        class="territory-layer"
+        [attr.viewBox]="'0 0 ' + gridColumns + ' ' + gridRows"
+        preserveAspectRatio="none"
+        [style.width]="gridColumns * cellSizeVw + 'vw'"
+        [style.height]="gridRows * cellSizeVh + 'vw'"
+        aria-hidden="true"
+      >
+        <defs>
+          <filter
+            id="territory-soften"
+            filterUnits="userSpaceOnUse"
+            x="-2"
+            y="-2"
+            [attr.width]="gridColumns + 4"
+            [attr.height]="gridRows + 4"
+          >
+            <feGaussianBlur stdDeviation="0.45" />
+          </filter>
+        </defs>
+        @for (shape of territories; track shape.factionId) {
+          <path
+            class="territory__fill"
+            [class.territory__fill--own]="shape.own"
+            [attr.d]="shape.fill"
+            [attr.fill]="shape.color"
+            filter="url(#territory-soften)"
+          />
+          <path
+            class="territory__border"
+            [class.territory__border--own]="shape.own"
+            [attr.d]="shape.border"
+            [attr.stroke]="shape.color"
+          />
+        }
+        @for (base of spaceBases; track base.id) {
+          <circle
+            class="territory__base-claim"
+            [attr.cx]="base.left / cellSizeVw"
+            [attr.cy]="base.top / cellSizeVh"
+            [attr.r]="base.claimRadiusVw / cellSizeVw + 0.5"
+            [attr.stroke]="base.color"
+          />
+        }
+      </svg>
+    }
+
     <!-- FOG OF WAR CELLS (viewport-culled, unexplored areas) -->
     @if (sensorRangeEnabled) {
       @for (cell of fogCells; track cell.col + '-' + cell.row) {
@@ -174,6 +231,31 @@
             <span class="star-system__core"></span>
           </span>
           <span class="star-system__name">{{ system.name }}</span>
+        </button>
+      </div>
+    }
+
+    <!-- SPACE BASES: immobile stations (below fleets, above the fog). The click
+         is informational and bubbles to the map, so move/attack orders onto
+         the base cell work as usual. -->
+    @for (base of spaceBases; track base.id) {
+      <div
+        class="space-base-cell"
+        [class.space-base-cell--own]="base.own"
+        [style.left]="base.left + 'vw'"
+        [style.top]="base.top + 'vw'"
+        [style.--base-color]="base.color"
+      >
+        <button
+          class="space-base"
+          type="button"
+          [attr.aria-label]="base.name + ' (' + base.ownerName + ' space base)'"
+          [title]="base.name + ' — ' + base.ownerName + ' space base'"
+          (click)="onSpaceBaseClick(base.id)"
+        >
+          <span class="space-base__ring" aria-hidden="true"></span>
+          <span class="space-base__core" aria-hidden="true"></span>
+          <span class="space-base__name">{{ base.name }}</span>
         </button>
       </div>
     }

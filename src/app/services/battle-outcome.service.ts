@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Battle, BattleOutcome } from '../components/battle-screen/battle/battle.types';
-import { Faction, FactionProduction, Fleet, FleetShip, StarSystem } from '../components/star-map/star-map.models';
+import { Faction, FactionProduction, Fleet, FleetShip, SpaceBase, StarSystem } from '../components/star-map/star-map.models';
 import { PlanetOwnershipService } from './planet-ownership.service';
 import { ShipService } from './ship.service';
 import { recordHostileAct, recordShipLosses } from '../components/star-map/diplomacy';
@@ -114,6 +114,38 @@ export class BattleOutcomeService {
     }
     this.recordWarLosses(data, outcome, before);
     return captured;
+  }
+
+  /*
+   * Space base battle (docs/territory.md#combat); returns true when the base
+   * was destroyed. The attacker roster is written back like in a planet
+   * battle. When `data.spaceBases` is given (the battle screen's autosave
+   * snapshot) the base is removed from it on attacker victory, or keeps its
+   * remaining shield pool; the live AI-vs-AI path omits it and updates the
+   * SpaceBaseService registry with the result instead.
+   */
+  applySpaceBaseBattleOutcome(data: OutcomeData & { spaceBases?: SpaceBase[] }, outcome: BattleOutcome): boolean {
+    const before = this.fleetValueByFaction(data);
+    const destroyed = outcome.winnerSide === 'attacker';
+    const fleet = data.fleets?.find((f) => f.id === outcome.attacker.fleetId);
+    if (fleet) {
+      fleet.ships = shipsFromOutcome(outcome.attacker.ships);
+      if (outcome.attacker.wipedOut) {
+        fleet.destroyed = true;
+      }
+    }
+    if (data.spaceBases && outcome.spaceBaseId != null) {
+      const index = data.spaceBases.findIndex((b) => b.id === outcome.spaceBaseId);
+      if (index >= 0) {
+        if (destroyed) {
+          data.spaceBases.splice(index, 1);
+        } else if (outcome.defender.shieldPoolCurrent !== undefined) {
+          data.spaceBases[index].shieldPoolCurrent = outcome.defender.shieldPoolCurrent;
+        }
+      }
+    }
+    this.recordWarLosses(data, outcome, before);
+    return destroyed;
   }
 
   /*

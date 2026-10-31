@@ -25,6 +25,7 @@ import { StarMapMovementService } from './star-map-movement.service';
 import { isCombatShipType } from './ai-queries';
 import { canAffordCost, shipCost } from '../../services/resource-cost';
 import { areFactionsHostile } from './diplomacy';
+import { TerritoryService } from './territory.service';
 
 /*
  * =========================================================
@@ -83,6 +84,7 @@ export class EnemyActionExecutor {
     private readonly enemyEconomyService: EnemyEconomyService,
     private readonly planetOwnership: PlanetOwnershipService,
     private readonly intelService: EnemyIntelService,
+    private readonly territory: TerritoryService,
   ) {}
 
   private readonly confirmedEngagements = new Map<string, string>();
@@ -638,6 +640,10 @@ export class EnemyActionExecutor {
     const system = starSystems.find((s) => s.id === action.targetSystemId);
     const planet = system?.planetsTiles.find((p) => p.id === action.targetPlanetId);
     if (!system || !planet || planet.factionId !== 'unhabited') {
+      return false;
+    }
+    // Territory rule shared with the player (docs/territory.md#colonization).
+    if (!this.territory.canColonizeIn(factions.find((f) => f.id === action.factionId), system, starSystems, factions)) {
       return false;
     }
 

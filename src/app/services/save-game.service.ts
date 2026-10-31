@@ -299,6 +299,10 @@ export class SaveGameService {
     if (data.asteroidBelts === undefined) {
       data.asteroidBelts = [];
     }
+    // v7: space bases. Saves from before bases existed simply have none.
+    if (data.spaceBases === undefined) {
+      data.spaceBases = [];
+    }
     if (data.asteroidEvents === undefined) {
       data.asteroidEvents = initialAsteroidEvents(data.galaxy?.seed ?? 0);
     }

@@ -6,13 +6,14 @@ All gameplay types live in `src/app/components/star-map/star-map.models.ts`. The
 
 The root save format. Contains everything needed to reconstruct a game session:
 
-- `saveVersion`: format version (currently 5); see `SAVE_VERSION` in `save-validation.ts`
+- `saveVersion`: format version (currently 7); see `SAVE_VERSION` in `save-validation.ts`
 - `galaxy?`: `{ size: 'small' | 'medium' | 'large', seed, requestedSeed, generatorVersion }` – generation metadata of a procedurally generated galaxy (absent for the legacy map). Informational only: loading never regenerates. See [New Game Generation](./new-game-generation.md)
 - `factions`: `Faction[]`
 - `specialObjects?`: `SpecialObject[]` – map entities without ownership, currently the central black hole (`{ x, y, width, height, type: 'blackhole', component: 'blackhole' }`, x/y = top-left grid cell). Persisted since v3; pre-v3 saves are backfilled from `star-map-data.json`. Optional `navigationRadius` sets a black hole's no-fly radius (default 4 cells), see [Star Map Terrain](./star-map-terrain.md#black-holes-navigation-obstacles)
 - `nebulae?`: `Nebula[]` – `{ id, x, y, radius, lobes[], rotation, color }`, irregular gas clouds in grid coordinates (edge distance = `radius × lobe(θ)`). Generated at New Game, persisted, never regenerated on load; pre-v4 saves are backfilled once by `migrateSave`. See [Star Map Terrain](./star-map-terrain.md#nebulae)
 - `asteroidBelts?`: `AsteroidBelt[]` – `{ id, points: {x,y}[] (2 straight / 5 for a gentle arc), halfWidth, visualSeed }`, impassable belts (v5). Navigation uses capsules of radius `halfWidth + safetyMargin` along `points`; rock fragments are rebuilt from `visualSeed`, not saved. Pre-v5 saves get `[]`. See [Star Map Terrain](./star-map-terrain.md#asteroid-belts)
 - `asteroidEvents?`: `{ nextId, spawnTimer, rngState, active: DriftingAsteroid[] }` – drifting asteroid state (v4). `DriftingAsteroid = { id, type: 'ore' | 'crystal' | 'mixed', startX, startY, dirX, dirY, speed, traveled, length, reward: { rawmaterials?, research? } }`; position is derived as start + dir × traveled. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids)
+- `spaceBases?`: `SpaceBase[]` – `{ id, name, factionId, x, y, shieldPoolCurrent? }`, permanent space bases on integer galaxy cells (v7; older saves get `[]`). Only living bases are stored. Territory is derived from these and planet owners, never saved. See [Territory](./territory.md)
 - `map`: `{ width, height, cellSizeVw, cellSizeVh }` – the grid dimensions and per-cell render size. Width/height vary per galaxy (180×108, 240×144, 300×180) and are read from the save by `StarMap.loadGame`
 - `starSystems`: `StarSystem[]`
 - `fleets`: `Fleet[]`
@@ -30,7 +31,7 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `name`: display name (player-configurable on the New Game screen)
 - `color`: hex color used for the UI accent (player-configurable)
 - `team`: `0` neutral, `1` the human, `2+` AIs. Same non-neutral team = **permanent alliance** (never fight). New games give each AI its own team; pre-diplomacy saves keep all AIs on team 2. Team 0 fleets never fight; team 0 rebel planets can be captured
-- `relations?`: `Record<otherFactionId, FactionRelation>` — treaty state and diplomatic values toward every other non-neutral, non-allied faction. Symmetric fields (same on both sides): `state` (`war` | `peace`), `lockRemaining` (war minimum / truce), `truce`, `warSeconds`, `declaredBy`, `surpriseRecorded`; per-side fields (the holder's view): `opinion` (−100…+100), `warExhaustion` (0…100), `shipsLostValue`, `planetsLost`. Treaty state is changed only by `diplomacy.ts` `startWar` / `startPeace` (both sides at once); `normalizeRelations` fills defaults and repairs it on new games and every load. Whether two factions fight is decided here, not by `team`. See [Diplomacy](./diplomacy.md)
+- `relations?`: `Record<otherFactionId, FactionRelation>` — treaty state and diplomatic values toward every other non-neutral, non-allied faction. Symmetric fields (same on both sides): `state` (`war` | `peace`), `lockRemaining` (war minimum / truce), `truce`, `warSeconds`, `declaredBy`, `surpriseRecorded`; per-side fields (the holder's view): `opinion` (−100…+100), `warExhaustion` (0…100), `shipsLostValue`, `planetsLost`. Treaty state is changed only by `diplomacy.ts` `startWar` / `startPeace` (both sides at once); `normalizeRelations` fills defaults and repairs it on new games and every load. Whether two factions fight is decided here, not by `team`. Two optional per-side fields belong to the territory system: `borderIncidents` (decaying memory of the other's border violations) and `passageRights` (holder grants the other free passage; prepared, peace only). See [Diplomacy](./diplomacy.md), [Territory](./territory.md#border-violations)
 - `reputation?`: −100…+100 (missing = 0), how trustworthy every other empire finds the faction; feeds every AI's effective opinion. See [Diplomacy](./diplomacy.md#reputation)
 - `ai?: boolean`: `true` when the AI pipeline should tick this faction. Replaces the previous hardcoded `enemy1`/`enemy2` ID sets — any faction with `ai: true` is managed by the AI layers (V3 target selection → V4.1 strategy → V4.2 goal → V4.3 capability → V5 action → V5.1/V5.2 execution). `false` for player and neutral factions. Backfilled from `team === 2` by `SaveGameService.migrateSave` for older saves.
 - `aiPersonality?`: `'balanced' | 'expansionist' | 'militarist' | 'technologist'` – only for `ai: true`; profiles in `ai-personality.ts`; missing (older saves, legacy map) is `'balanced'`; validated by `save-validation.ts` when present.
@@ -178,7 +179,8 @@ re-exported by `BattleService`). Lives between `StarMap` and `BattleScreenCompon
 - `faction1Name`, `faction1Color`, `faction2Name`, `faction2Color`: display data
 - `attackerId`, `defenderId`: ids of the attacker and defender — sides are resolved by id,
   not by fleet1/fleet2 order (the attacker may be fleet2).
-- `type`: `'fleet' | 'planet'` — set to `'planet'` by `setPlanetBattle()`
+- `type`: `'fleet' | 'planet'` — set to `'planet'` by `setPlanetBattle()` (also used for space base battles: static defenses)
+- `spaceBaseId`: only set for space base battles (then `planetId` is absent); copied to the battle state and `BattleOutcome.spaceBaseId` ([Territory](./territory.md#combat))
 - `planetId`: only set for planet battles; used by the result handler to update the planet
   owner
 - `planetName`, `planetColor`: planet-battle presentation metadata used by the separate

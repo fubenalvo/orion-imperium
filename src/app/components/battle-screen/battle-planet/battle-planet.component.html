@@ -1,7 +1,16 @@
 @if (planet; as p) {
-  <div class="battle-planet" [style.--planet-color]="p.color">
-    <div class="battle-planet__body"></div>
-    <div class="battle-planet__clouds"></div>
+  <div class="battle-planet" [class.battle-planet--station]="p.kind === 'station'" [style.--planet-color]="p.color">
+    @if (p.kind === 'station') {
+      <!-- Space base scenery: dark habitat ring, spokes and a lit hub, tinted by the owner's color. -->
+      <div class="battle-station" aria-hidden="true">
+        <span class="battle-station__ring"></span>
+        <span class="battle-station__spokes"></span>
+        <span class="battle-station__hub"></span>
+      </div>
+    } @else {
+      <div class="battle-planet__body"></div>
+      <div class="battle-planet__clouds"></div>
+    }
 
     @if (shieldFraction > 0) {
       <div

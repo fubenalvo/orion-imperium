@@ -6,7 +6,7 @@
       "description": "Fundamentals of spacecraft construction and repair. Enables basic ship production and infrastructure.",
       "researchCost": 0,
       "prerequisites": [],
-      "unlocksShips": ["scout", "fighter", "colonizer"],
+      "unlocksShips": ["scout", "fighter", "colonizer", "outpost_ship"],
       "unlocksBuildings": ["spaceship_factory", "spaceport", "laser_turret", "missile_turret"]
     },
     {

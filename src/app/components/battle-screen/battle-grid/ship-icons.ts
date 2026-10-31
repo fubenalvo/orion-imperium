@@ -41,6 +41,7 @@ export const SHIP_ICONS: Readonly<Record<string, ShipIconDef>> = {
   scout: icon('scout', 106, 46),
   corvette: icon('corvette', 118, 62),
   colonizer: icon('colonizer', 124, 72),
+  outpost_ship: icon('outpost_ship', 130, 80),
   frigate: icon('frigate', 138, 70),
   destroyer: icon('destroyer', 155, 68),
   cruiser: icon('cruiser', 220, 96),
@@ -50,6 +51,7 @@ export const SHIP_ICONS: Readonly<Record<string, ShipIconDef>> = {
   dreadnought: icon('dreadnought', 440, 140),
   laser_turret: icon('laser_turret', 112, 100),
   missile_turret: icon('missile_turret', 116, 108),
+  station_core: icon('station_core', 160, 150),
 };
 
 /* Used only for a type id with no entry (e.g. a newly added ship type before

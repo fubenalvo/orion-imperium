@@ -38,8 +38,10 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
  * - 6: planet surfaces doubled in size plus persisted `PlanetTile.surface`
  *      terrain. Older layouts are re-centered on the bigger grid and get
  *      terrain generated around them (docs/planet-surface.md).
+ * - 7: `spaceBases` (docs/territory.md). Older saves get none. Territory
+ *      is derived, never saved.
  */
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 /*
  * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
@@ -505,6 +507,23 @@ export function validateSaveData(
         if (!isWellFormedAsteroid(asteroid)) {
           // A broken asteroid is dropped on load; it must not block the save.
           warnings.push(warning('asteroid_invalid', `asteroidEvents.active[${i}]`, 'malformed drifting asteroid will be dropped'));
+        }
+      }
+    }
+  }
+
+  if (save.spaceBases !== undefined) {
+    if (!Array.isArray(save.spaceBases)) {
+      errors.push(error('space_bases_not_array', 'spaceBases', 'spaceBases must be an array'));
+    } else {
+      for (const [i, base] of save.spaceBases.entries()) {
+        const b = base as unknown as Record<string, unknown> | null;
+        const wellFormed = !!b && typeof b === 'object'
+          && [b['id'], b['x'], b['y']].every((v) => typeof v === 'number' && Number.isFinite(v))
+          && typeof b['factionId'] === 'string';
+        if (!wellFormed) {
+          // A broken base is dropped on load (SpaceBaseService.restore); it must not block the save.
+          warnings.push(warning('space_base_invalid', `spaceBases[${i}]`, 'malformed space base will be dropped'));
         }
       }
     }

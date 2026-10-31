@@ -203,8 +203,8 @@
             @if (getPlanetResultLabel()) {
               <span
                 class="result-planet-label ui-chip"
-                [class.ui-chip--warning]="getPlanetResultLabel() !== 'CAPTURED' && getPlanetResultLabel() !== 'DEFENDED'"
-                [class.ui-chip--success]="getPlanetResultLabel() === 'CAPTURED'"
+                [class.ui-chip--warning]="getPlanetResultLabel() !== 'CAPTURED' && getPlanetResultLabel() !== 'DESTROYED' && getPlanetResultLabel() !== 'DEFENDED'"
+                [class.ui-chip--success]="getPlanetResultLabel() === 'CAPTURED' || getPlanetResultLabel() === 'DESTROYED'"
                 [class.ui-chip--danger]="getPlanetResultLabel() === 'DEFENDED'"
               >{{ getPlanetResultLabel() }}</span>
             }

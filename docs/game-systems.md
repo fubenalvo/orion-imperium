@@ -20,6 +20,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 
 1. **Player fleets** — each fleet has a `sensorRange` field (default 3 grid cells) which serves as a **minimum floor**. The effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)` — if any ship in the fleet has a longer `range`, that ship's range is used instead — plus `SENSOR_RANGE_GLOBAL_BONUS` (2 cells, applied to every sensor source, player and AI, galaxy and system view). The effective range is centered on the fleet's current integer grid position (`Math.floor(fleet.x)`, `Math.floor(fleet.y)`).
 2. **Player-owned star systems** — any star system containing at least one planet with `factionId === 'player'` provides a fixed 7-grid-radius sensor range (5 + the global +2 bonus), centered on the system's grid cell. This is the "base visibility" — your home territory is always partially detected even without a fleet present.
+3. **Player space bases** — observation posts with a fixed `SPACE_BASE_CONFIG.sensorRange` (6) + research bonus, same priority as owned systems ([Territory](./territory.md#space-bases)).
 
 **Rendering:**
 
@@ -82,7 +83,8 @@ The update callback (consolidated into `StarMap.gameLoopCallback`):
 3. Calls `StarMapSensorService.computeGalaxySensorCells()` to recompute the current
    sensor range cells, updates `exploredGridCells` (persistent), marks star systems
    as explored, and updates fog cell rendering.
-4. Calls `StarMapBattleDetectionService.checkForBattles()`.
+4. Calls `StarMapBattleDetectionService.checkForBattles()`, then `checkBaseBattles()`.
+   (Before movement: `DiplomacyService.tick` and `BorderService.tick` — border violations; after sensors: `refreshTerritoryViews`, which only rebuilds when the cached territory changed.)
 5. Every `economyTickInterval` (1 s) of accumulated **game** `deltaTime`, runs
    `EconomyService.applyEconomyDelta()` for every faction and refreshes the cached
    player economy breakdown.
@@ -178,9 +180,17 @@ The system-view planet panel shows a Colonization note for explored uninhabited 
 
 AI factions colonize through `EnemyActionExecutor.executeColonize` on galaxy cells ([AI Pipeline](./ai-pipeline.md)); they never use this path.
 
+Territory rule (player and AI): no colonizing in a system that lies in another empire's territory unless at war with it (`TerritoryService.canColonizeIn`). COLONIZE is then hidden and the fleet panel names the blocking empire. See [Territory](./territory.md#colonization-rule).
+
+### Territory, Borders and Space Bases
+
+Empires own derived territory around their colonized systems and their space bases; fleets at peace inside foreign territory violate its borders (opinion cost, never a war); outpost ships deploy permanent space bases (DEPLOY BASE in the fleet panel) that extend territory and fight as static defenses. See [Territory](./territory.md).
+
 ### Battle Detection
 
 `StarMapBattleDetectionService.checkForBattles()` scans every active fleet pair. A battle is triggered when two fleets share a grid cell, both have a faction, the factions are at war (`areFactionsHostile`: never neutral, allied or at peace — see [Diplomacy](./diplomacy.md)), and the pair has not already triggered a battle (tracked by a `Set<string>` keyed on the sorted pair of fleet ids). The fleet that has a `targetX`/`targetY` is treated as the attacker; the other is the defender. If a human faction is involved, the game is saved and the router navigates to `/battle`. A battle between two AI factions is auto-resolved immediately (`autoResolveBattle` + `BattleOutcomeService.applyFleetBattleOutcome` on the live fleets) and scanning continues; StarMap then re-checks the game outcome.
+
+When no fleet battle started, `checkBaseBattles()` starts a static-defense battle for a fleet on the cell of a space base whose owner it is at war with (same human / AI split; see [Territory](./territory.md#combat)).
 
 ## Economy
 

@@ -364,6 +364,8 @@ export interface BattleShieldPool {
 export interface BattlePlanetVisual {
   name: string;
   color: string;
+  /* 'station' draws a space base instead of a planet in the same scenery slot. */
+  kind?: 'planet' | 'station';
 }
 
 export interface BattleModelState {
@@ -386,6 +388,8 @@ export interface BattleModelState {
   planetId?: number;
   planetName?: string;
   planetColor?: string;
+  /* Space base battle (see Battle.spaceBaseId). */
+  spaceBaseId?: number;
   /*
    * Shared planetary shield. Optional so existing model-state fixtures that
    * predate planet battles keep compiling without a new required field.
@@ -440,6 +444,8 @@ export interface BattleOutcome {
   rounds: number;
   battleType: 'fleet' | 'planet';
   planetId?: number;
+  /* Set when the static defenses were a space base (planetId is then absent). */
+  spaceBaseId?: number;
 }
 
 /* =========================================================
@@ -493,6 +499,13 @@ export interface Battle {
   planetId?: number;
   planetName?: string;
   planetColor?: string;
+  /*
+   * Space base battle: type 'planet' (static defenses — immobile units
+   * under a shared shield pool) fought against a SpaceBase instead of a
+   * planet. planetId stays absent; planetName/planetColor carry the base's
+   * presentation. See docs/territory.md#combat.
+   */
+  spaceBaseId?: number;
   /*
    * Technology combat multipliers per faction id, per ship type
    * (ResearchService.buildCombatBonuses), stamped when the battle is

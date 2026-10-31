@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { Fleet, FleetShip, PlanetTile, StarSystem } from '../components/star-map/star-map.models';
 import planetData from '../components/star-map/planet-data.json';
+import { STATION_CORE_STATS } from '../components/star-map/space-base';
 
 /*
  * =========================================================
@@ -230,6 +231,20 @@ export class PlanetBattleService {
     weakness: string;
     role: string;
   } | null {
+    // The space base hull is a virtual defense unit too (space-base.ts), so
+    // base battles reuse the planet-defense stat path instead of a parallel one.
+    if (typeId === STATION_CORE_STATS.id) {
+      return {
+        id: STATION_CORE_STATS.id,
+        name: STATION_CORE_STATS.name,
+        hitPoints: STATION_CORE_STATS.hitPoints,
+        attack: STATION_CORE_STATS.attack,
+        defense: STATION_CORE_STATS.defense,
+        attackType: STATION_CORE_STATS.attackType,
+        weakness: STATION_CORE_STATS.weakness,
+        role: STATION_CORE_STATS.role,
+      };
+    }
     const def = this.buildingDefs.find((d) => d.id === typeId);
     if (!def) return null;
 

@@ -217,7 +217,9 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   get resultBattleTypeLabel(): string {
-    return this.battleOutcome?.battleType === 'planet' ? 'PLANET BATTLE' : 'FLEET BATTLE';
+    const outcome = this.battleOutcome;
+    if (outcome?.battleType !== 'planet') return 'FLEET BATTLE';
+    return outcome.spaceBaseId != null ? 'STATION BATTLE' : 'PLANET BATTLE';
   }
 
   get resultSideSummaries(): BattleResultSideSummary[] {
@@ -380,6 +382,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return {
       name: this.state.planetName,
       color: this.state.planetColor ?? '#ffffff',
+      kind: this.state.spaceBaseId != null ? 'station' : 'planet',
     };
   }
 
@@ -828,6 +831,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!outcome || outcome.battleType !== 'planet') {
       return '';
     }
+    if (outcome.spaceBaseId != null) {
+      // A space base is never captured: losing destroys it.
+      return outcome.winnerSide === 'attacker' ? 'DESTROYED' : 'DEFENDED';
+    }
     return outcome.winnerSide === 'attacker' ? 'CAPTURED' : 'DEFENDED';
   }
 
@@ -849,6 +856,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
       if (battle.type === 'planet' && battle.planetId) {
         this.applyPlanetBattleResult(battle, outcome);
+      } else if (battle.type === 'planet' && battle.spaceBaseId != null) {
+        this.applySpaceBaseBattleResult(outcome);
       } else {
         this.persistFleetBattleResult(outcome);
       }
@@ -888,6 +897,21 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       return;
     }
     this.battleOutcomeService.applyPlanetBattleOutcome(data, battle, outcome);
+    this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
+  }
+
+  /*
+   * Persists a space base battle to the autosave snapshot through the same
+   * BattleOutcomeService path AI-vs-AI base battles use: attacker victory
+   * removes the base (and with it its territory claim); the attacker's
+   * roster is always written back.
+   */
+  private applySpaceBaseBattleResult(outcome: BattleOutcome): void {
+    const data = this.saveGameService.loadFromSlot(SaveSlotId.AUTOSAVE);
+    if (!data) {
+      return;
+    }
+    this.battleOutcomeService.applySpaceBaseBattleOutcome(data, outcome);
     this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
   }
 }

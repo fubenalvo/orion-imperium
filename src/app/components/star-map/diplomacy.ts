@@ -300,8 +300,19 @@ export function startWar(a: Faction, b: Faction, lockSeconds: number, declarerId
     entry.warExhaustion = 0;
     entry.shipsLostValue = 0;
     entry.planetsLost = 0;
+    delete entry.passageRights;
     if (declarerId === undefined) delete entry.declaredBy;
   }
+}
+
+/*
+ * Has `owner` granted `guest` free passage through its territory? Only
+ * possible at peace. Nothing grants passage yet (prepared for passage
+ * treaties, docs/territory.md); the border service already honors it.
+ */
+export function hasPassageRights(owner: Faction, guest: Faction): boolean {
+  const relation = getRelation(owner, guest);
+  return !!relation && relation.state === 'peace' && relation.passageRights === true;
 }
 
 /* Starts a permanent peace with a truce of `truceSeconds`; war fields reset. */
@@ -379,6 +390,9 @@ export function normalizeRelations(factions: Faction[], defaultLock = 0): void {
           ...defaultsFor(state, lock),
           opinion: own?.opinion ?? 0,
         };
+        // Border memory survives war and peace; passage is never granted at war.
+        if ((own?.borderIncidents ?? 0) > 0) entry.borderIncidents = own!.borderIncidents;
+        if (state === 'peace' && own?.passageRights === true) entry.passageRights = true;
         if (state === 'war') {
           entry.warExhaustion = own?.state === 'war' ? own.warExhaustion ?? 0 : 0;
           entry.shipsLostValue = own?.state === 'war' ? own.shipsLostValue ?? 0 : 0;
@@ -413,6 +427,7 @@ function sanitize(relation: FactionRelation | undefined): FactionRelation | unde
     shipsLostValue: Math.max(0, finite(relation.shipsLostValue, 0)),
     planetsLost: Math.max(0, Math.floor(finite(relation.planetsLost, 0))),
     warSeconds: Math.max(0, finite(relation.warSeconds, 0)),
+    borderIncidents: Math.max(0, finite(relation.borderIncidents, 0)),
   };
 }
 

@@ -88,3 +88,54 @@
   white-space: nowrap;
   text-shadow: 0 0 4px rgba(0, 0, 0, 0.85);
 }
+
+/* Space base battles reuse the planet scenery slot with a station silhouette
+ * (BattlePlanetVisual.kind = 'station'). Kept dark and low-contrast like the
+ * planet so the defending turret stacks drawn over it stay readable. */
+.battle-station {
+  position: absolute;
+  inset: 12%;
+}
+
+.battle-station__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: calc(var(--u) * 1.4) solid color-mix(in srgb, var(--planet-color) 30%, #0b1824);
+  box-shadow:
+    0 0 calc(var(--u) * 1.5) color-mix(in srgb, var(--planet-color) 35%, transparent),
+    inset 0 0 calc(var(--u) * 1) rgba(0, 0, 0, 0.6);
+  outline: 1px dashed color-mix(in srgb, var(--planet-color) 55%, transparent);
+  outline-offset: calc(var(--u) * -0.7);
+  animation: battle-station-spin 120s linear infinite;
+}
+
+.battle-station__spokes {
+  position: absolute;
+  inset: 8%;
+  background:
+    linear-gradient(90deg, transparent 47%, color-mix(in srgb, var(--planet-color) 25%, #0b1824) 47% 53%, transparent 53%),
+    linear-gradient(0deg, transparent 47%, color-mix(in srgb, var(--planet-color) 25%, #0b1824) 47% 53%, transparent 53%);
+  animation: battle-station-spin 120s linear infinite;
+}
+
+.battle-station__hub {
+  position: absolute;
+  inset: 34%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--planet-color) 45%, #d8f2ff) 0%, color-mix(in srgb, var(--planet-color) 35%, #0b1824) 55%, #02070c 100%);
+  box-shadow: 0 0 calc(var(--u) * 2) color-mix(in srgb, var(--planet-color) 40%, transparent);
+}
+
+@keyframes battle-station-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .battle-station__ring,
+  .battle-station__spokes {
+    animation: none;
+  }
+}

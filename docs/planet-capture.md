@@ -20,6 +20,8 @@ Population, buildings, satisfaction and the persisted planetary shield pool stay
 | `rebellion` | `EconomyService.applyEconomyDelta` (satisfaction reached 0 → `independent`) |
 | `ceded` | `DiplomacyService.executeTreaty` (a peace treaty cedes the planet or its system) |
 
+Every owner change also moves territory: a system's space follows its majority planet owner ([Territory](./territory.md)).
+
 War bookkeeping: `captured` and `battle_won` record the loss for the loser (war exhaustion, planets lost, opinion −10) and a possible surprise attack for the taker ([Diplomacy](./diplomacy.md)); `ceded`, `colonized` and `rebellion` are not war losses.
 
 ## Capture rules
@@ -42,7 +44,9 @@ Where the rules run:
 | Human player | Interactive battle screen. `EnemyInvasionService` queues the `Battle`; `StarMap` takes it after the AI tick (`StarMapAiTickService.takePendingPlayerBattle`), calls `BattleService.setPlanetBattle` and navigates — the same transport as a player-initiated planet battle. The player defends (AUTO available). |
 | Anyone else (independent rebels, …) | `autoResolveBattle` (non-interactive, immediate). |
 
-Both paths end in `BattleOutcomeService.applyPlanetBattleOutcome`: ownership on attacker victory via `PlanetOwnershipService`, attacker roster written back (damage and destroyed ships; a wiped-out attacker is destroyed), garrison damage or destruction, persisted shield pool. The battle screen applies it to the autosave snapshot; the AI path to the live game state. Fleet-vs-fleet outcomes use `applyFleetBattleOutcome`.
+Space bases use the same static-defense battle (`type: 'planet'` with `spaceBaseId`) and end in `BattleOutcomeService.applySpaceBaseBattleOutcome` instead — a base is destroyed, never captured ([Territory](./territory.md#combat)).
+
+Planet battles end in `BattleOutcomeService.applyPlanetBattleOutcome`: ownership on attacker victory via `PlanetOwnershipService`, attacker roster written back (damage and destroyed ships; a wiped-out attacker is destroyed), garrison damage or destruction, persisted shield pool. The battle screen applies it to the autosave snapshot; the AI path to the live game state. Fleet-vs-fleet outcomes use `applyFleetBattleOutcome`.
 
 ### Auto-resolver (`battle-auto-resolve.ts`)
 

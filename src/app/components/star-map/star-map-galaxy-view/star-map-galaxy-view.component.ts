@@ -24,6 +24,32 @@ export interface NebulaView {
   rotationDeg: number;
 }
 
+/*
+ * One empire's territory as SVG paths in grid units (territory.ts
+ * buildTerritoryShapes) plus its render color. `own` marks the player's
+ * territory, drawn with a solid border; foreign borders are dashed.
+ */
+export interface TerritoryShapeView {
+  factionId: string;
+  fill: string;
+  border: string;
+  color: string;
+  own: boolean;
+}
+
+/* A space base marker, positioned in world vw like fleets. */
+export interface SpaceBaseMapView {
+  id: number;
+  name: string;
+  ownerName: string;
+  color: string;
+  own: boolean;
+  left: number;
+  top: number;
+  /* Claim radius in world vw (TERRITORY_CONFIG.baseClaimRadius cells). */
+  claimRadiusVw: number;
+}
+
 /* Black hole no-fly zone outline in SVG grid units. */
 export interface BlackHoleRingView {
   cx: number;
@@ -86,6 +112,10 @@ export class StarMapGalaxyViewComponent {
   @Input() belts: BeltView[] = [];
   @Input() blackHoleRings: BlackHoleRingView[] = [];
   @Input() asteroids: AsteroidMapView[] = [];
+  @Input() territories: TerritoryShapeView[] = [];
+  @Input() spaceBases: SpaceBaseMapView[] = [];
+  /* Base marker click (info only; the click also reaches the map, so move orders still work). */
+  @Input() onSpaceBaseClick: (baseId: number) => void = () => {};
   @Input() isFleetInNebula: (fleet: Fleet) => boolean = () => false;
   /* Screen heading of a fleet's ship (CSS rotate degrees); see fleet-heading.ts. */
   @Input() fleetHeading: (fleet: Fleet) => number = () => 0;

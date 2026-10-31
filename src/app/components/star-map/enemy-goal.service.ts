@@ -13,6 +13,7 @@ import {
 import { ShipService } from '../../services/ship.service';
 import { getEnemyFleets, getHostileFleets, getEnemyPlanets, getUnhabitedPlanets, getColonizationReach, isHostileFleet } from './ai-queries';
 import { EnemyReachService } from './enemy-reach.service';
+import { TerritoryService } from './territory.service';
 
 /*
  * =========================================================
@@ -89,6 +90,7 @@ export class EnemyGoalService {
   constructor(
     private readonly shipService: ShipService,
     private readonly reachService: EnemyReachService,
+    private readonly territory: TerritoryService,
   ) {}
 
   reset(): void {
@@ -161,7 +163,7 @@ export class EnemyGoalService {
     const primaryStartedAt = this.goalStartedAt.get(factionId);
     const primaryChanged = this.updatePrimaryGoal(currentStrategy, factionId, fleets, factions, starSystems, clock);
     const colonizationChanged = this.updateColonizationGoal(
-      factionId, fleets, starSystems, clock, allowParallelColonization, previousPrimary, primaryStartedAt, concurrentColonizations,
+      factionId, fleets, factions, starSystems, clock, allowParallelColonization, previousPrimary, primaryStartedAt, concurrentColonizations,
     );
     return primaryChanged || colonizationChanged;
   }
@@ -215,6 +217,7 @@ export class EnemyGoalService {
   private updateColonizationGoal(
     factionId: string,
     fleets: Fleet[],
+    factions: Faction[],
     starSystems: StarSystem[],
     clock: number,
     allowed: boolean,
@@ -239,7 +242,7 @@ export class EnemyGoalService {
     // Only a primary that actually changed away from this colonize goal hands over.
     const primaryChanged = previousPrimary !== primary;
     if (!existing && primaryChanged && previousPrimary?.type === 'colonize' && !handOverFailed
-      && this.isColonizeGoalValid(previousPrimary, starSystems)) {
+      && this.isColonizeGoalValid(previousPrimary, factionId, factions, starSystems)) {
       this.colonizationGoals.set(factionId, previousPrimary);
       this.colonizationStartedAt.set(factionId, previousPrimaryStartedAt ?? clock);
       return true;
@@ -248,7 +251,7 @@ export class EnemyGoalService {
     if (existing) {
       const startedAt = this.colonizationStartedAt.get(factionId) ?? clock;
       const timedOut = clock - startedAt > this.colonizeTimeout(factionId, existing, starSystems);
-      if (!timedOut && this.isColonizeGoalValid(existing, starSystems)) {
+      if (!timedOut && this.isColonizeGoalValid(existing, factionId, factions, starSystems)) {
         return false;
       }
       if (timedOut) {
@@ -257,7 +260,7 @@ export class EnemyGoalService {
       this.colonizationGoals.delete(factionId);
     }
 
-    const next = this.selectColonizeGoal(factionId, fleets, starSystems);
+    const next = this.selectColonizeGoal(factionId, fleets, factions, starSystems);
     if (next) {
       this.colonizationGoals.set(factionId, next);
       this.colonizationStartedAt.set(factionId, clock);
@@ -329,7 +332,7 @@ export class EnemyGoalService {
   ): StrategicGoal | undefined {
     switch (strategy) {
       case 'expand':
-        return this.selectColonizeGoal(factionId, fleets, starSystems);
+        return this.selectColonizeGoal(factionId, fleets, factions, starSystems);
       case 'attack':
         return this.selectAttackGoal(factionId, fleets, factions);
       case 'defend':
@@ -344,11 +347,16 @@ export class EnemyGoalService {
   private selectColonizeGoal(
     factionId: string,
     fleets: Fleet[],
+    factions: Faction[],
     starSystems: StarSystem[],
   ): ColonizeGoal | undefined {
     const enemyPlanets = getEnemyPlanets(factionId, starSystems);
     const enemyFleets = getEnemyFleets(factionId, fleets);
-    const candidates = getUnhabitedPlanets(starSystems);
+    // Same territory rule as the player (TerritoryService.canColonizeIn).
+    const self = factions.find((f) => f.id === factionId);
+    const candidates = getUnhabitedPlanets(starSystems).filter(({ system }) =>
+      this.territory.canColonizeIn(self, system, starSystems, factions),
+    );
 
     if (enemyFleets.length === 0 || candidates.length === 0) {
       return undefined;
@@ -534,7 +542,7 @@ export class EnemyGoalService {
   ): boolean {
     switch (goal.type) {
       case 'colonize':
-        return this.isColonizeGoalValid(goal, starSystems);
+        return this.isColonizeGoalValid(goal, factionId, factions, starSystems);
       case 'attack':
         return this.isAttackGoalValid(goal, factionId, fleets, factions);
       case 'defend':
@@ -544,7 +552,7 @@ export class EnemyGoalService {
     }
   }
 
-  private isColonizeGoalValid(goal: ColonizeGoal, starSystems: StarSystem[]): boolean {
+  private isColonizeGoalValid(goal: ColonizeGoal, factionId: string, factions: Faction[], starSystems: StarSystem[]): boolean {
     const system = starSystems.find((s) => s.id === goal.targetSystemId);
     if (!system) {
       return false;
@@ -553,7 +561,9 @@ export class EnemyGoalService {
     if (!planet) {
       return false;
     }
-    return planet.factionId === 'unhabited';
+    // A target that fell into another (non-hostile) empire's territory is dropped.
+    return planet.factionId === 'unhabited'
+      && this.territory.canColonizeIn(factions.find((f) => f.id === factionId), system, starSystems, factions);
   }
 
   /* The target must still be alive and its owner still at war with us (peace ends the goal). */

@@ -103,6 +103,8 @@ import {
   AsteroidMapView,
   BlackHoleRingView,
   NebulaView,
+  SpaceBaseMapView,
+  TerritoryShapeView,
 } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import {
   createMulberry32,
@@ -148,6 +150,12 @@ import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spa
 import { StarMapBlackholeComponent } from './blackhole/blackhole.component';
 import { StarMapResearchTreeComponent } from './star-map-research-tree/star-map-research-tree.component';
 import { buildingCost, payCost } from '../../services/resource-cost';
+import { SpaceBaseService } from './space-base.service';
+import { TerritoryService } from './territory.service';
+import { BorderService } from './border.service';
+import { buildTerritoryShapes, TerritoryMap, TERRITORY_CONFIG } from './territory';
+import { describeDeploymentFailure, hasLivingOutpostShip } from './space-base';
+import { isPointInObstacle } from './fleet-navigation';
 
 /*
  * =========================================================
@@ -228,6 +236,10 @@ loadError = '';
   // Impassable asteroid belts (persisted geometry) and their render data.
   asteroidBelts: AsteroidBelt[] = [];
   beltViews: BeltView[] = [];
+  // Territory render data (docs/territory.md). Rebuilt only when the cached
+  // TerritoryMap instance changes (ownership / base events), never per frame.
+  territoryViews: TerritoryShapeView[] = [];
+  private renderedTerritory: TerritoryMap | null = null;
 
   // Drifting asteroid selection / panel state (asteroids themselves live in
   // DriftingAsteroidService and are persisted through serializeGameState).
@@ -445,6 +457,9 @@ loadError = '';
     private fleetOrganizationService: FleetOrganizationService,
     private diplomacyService: DiplomacyService,
     private enemyDiplomacyService: EnemyDiplomacyService,
+    private spaceBaseService: SpaceBaseService,
+    private territoryService: TerritoryService,
+    private borderService: BorderService,
   ) {
     this.movementService.initialize(
       this.cellSizeVw,
@@ -777,6 +792,7 @@ loadError = '';
   }
 
   readonly boundOnAsteroidClick = this.onAsteroidClick.bind(this);
+  readonly boundOnSpaceBaseClick = this.onSpaceBaseClick.bind(this);
   readonly boundIsFleetInNebula = this.isFleetInNebula.bind(this);
 
   /*
@@ -834,6 +850,124 @@ loadError = '';
       cy: o.y - 0.5,
       r: o.radius,
     }));
+  }
+
+  /*
+   * Rebuilds the territory overlay when the territory changed. Cheap to call
+   * every frame: TerritoryService returns the same TerritoryMap instance
+   * until a planet ownership change or a base event invalidates it, so the
+   * SVG paths are only rebuilt on those events.
+   */
+  private refreshTerritoryViews(): boolean {
+    const territory = this.territoryService.get(this.starSystems, this.factions);
+    if (territory === this.renderedTerritory) {
+      return false;
+    }
+    this.renderedTerritory = territory;
+    this.territoryViews = buildTerritoryShapes(territory).map((shape) => ({
+      ...shape,
+      color: this.getFactionColor(shape.factionId),
+      own: shape.factionId === 'player',
+    }));
+    return true;
+  }
+
+  /*
+   * Space bases drawn on the galaxy map: own bases always, foreign bases
+   * once their cell has been explored (a base is a static structure, like a
+   * star, so it stays known after first sight). Fog disabled shows all.
+   */
+  get visibleSpaceBases(): SpaceBaseMapView[] {
+    return this.spaceBaseService.bases
+      .filter((b) => !this.sensorRangeEnabled || b.factionId === 'player' || this.exploredGridCells.has(`${b.x}-${b.y}`))
+      .map((b) => ({
+        id: b.id,
+        name: b.name,
+        ownerName: this.getFactionName(b.factionId),
+        color: this.getFactionColor(b.factionId),
+        own: b.factionId === 'player',
+        left: (b.x - 0.5) * this.cellSizeVw,
+        top: (b.y - 0.5) * this.cellSizeVh,
+        claimRadiusVw: TERRITORY_CONFIG.baseClaimRadius * this.cellSizeVw,
+      }));
+  }
+
+  /* Base marker click: names the base; the click still reaches the map, so move orders work through it. */
+  onSpaceBaseClick(baseId: number): void {
+    const base = this.spaceBaseService.getBase(baseId);
+    if (!base) return;
+    const owner = base.factionId === 'player' ? 'your' : this.getFactionName(base.factionId);
+    this.showMapNotice(`${base.name}: ${owner} space base. Claims ${TERRITORY_CONFIG.baseClaimRadius} cells around it.`);
+  }
+
+  private baseDeployContext() {
+    return {
+      factions: this.factions,
+      starSystems: this.starSystems,
+      territory: this.territoryService.get(this.starSystems, this.factions),
+      width: this.mapWidth,
+      height: this.mapHeight,
+      isBlocked: (x: number, y: number) => this.terrainService.obstacles.some((o) => isPointInObstacle({ x, y }, o)),
+    };
+  }
+
+  /* DEPLOY BASE state of the selected player fleet; null when it carries no outpost ship. */
+  getSelectedFleetBaseDeployment(): { canDeploy: boolean; reason: string | null } | null {
+    const fleet = this.commandableFleet();
+    if (!fleet || !hasLivingOutpostShip(fleet)) {
+      return null;
+    }
+    const check = this.spaceBaseService.check(fleet, this.baseDeployContext());
+    return check.ok ? { canDeploy: true, reason: null } : { canDeploy: false, reason: describeDeploymentFailure(check.reason) };
+  }
+
+  /* DEPLOY BASE: the outpost ship becomes a permanent space base on the fleet's cell. */
+  onDeployBaseSelected(): void {
+    const fleet = this.commandableFleet();
+    if (!fleet) {
+      return;
+    }
+    const result = this.spaceBaseService.deploy(fleet, this.baseDeployContext());
+    if (!result.base) {
+      if (!result.check.ok) this.showMapNotice(describeDeploymentFailure(result.check.reason));
+      return;
+    }
+    this.showMapNotice(`${result.base.name} deployed. Your territory grows around it.`);
+    if (result.fleetRetired) {
+      this.deselectFleet();
+    }
+    this.refreshTerritoryViews();
+    this.updateSensorVisibility(true);
+    this.saveGame();
+    this.cdr.detectChanges();
+  }
+
+  /* Why the selected fleet's parked colonizer may not settle (another empire's territory). */
+  getSelectedFleetColonizeBlock(): string | null {
+    const fleet = this.commandableFleet();
+    const blocker = fleet ? this.arrivalService.getTerritoryBlocker(fleet, this.starSystems, this.factions) : null;
+    return blocker ? `${blocker.name} territory: colonizing here is only possible at war with them.` : null;
+  }
+
+  /* Empire whose borders the selected player fleet is violating right now, if any. */
+  getSelectedFleetBorderViolation(): string | null {
+    const fleet = this.selectedFleet;
+    if (!fleet || fleet.factionId !== 'player') return null;
+    const ownerId = this.borderService.violatedTerritoryOf(fleet.id);
+    return ownerId ? this.getFactionName(ownerId) : null;
+  }
+
+  /* Map notices for border violations involving the player (docs/territory.md#border-violations). */
+  private handleBorderEvents(): boolean {
+    const events = this.borderService.drainEvents();
+    for (const event of events) {
+      if (event.intruderId === 'player') {
+        this.showMapNotice(`${event.fleetName} entered ${this.getFactionName(event.ownerId)} territory: border violation. Their opinion of you drops while it stays.`);
+      } else if (event.ownerId === 'player') {
+        this.showMapNotice(`A ${this.getFactionName(event.intruderId)} fleet (${event.fleetName}) is violating your borders.`);
+      }
+    }
+    return events.length > 0;
   }
 
   /**
@@ -1670,7 +1804,7 @@ loadError = '';
   /* Planet the selected player fleet can colonize now (drives the fleet panel's COLONIZE button). */
   getSelectedFleetColonizeTarget(): PlanetTile | null {
     const fleet = this.commandableFleet();
-    return fleet ? this.arrivalService.getColonizablePlanet(fleet, this.starSystems) : null;
+    return fleet ? this.arrivalService.getColonizablePlanet(fleet, this.starSystems, this.factions) : null;
   }
 
   /*
@@ -1683,7 +1817,11 @@ loadError = '';
     if (!fleet || !planet) {
       return;
     }
-    const result = this.arrivalService.colonize(fleet, planet, { production: this.production, factions: this.factions });
+    const result = this.arrivalService.colonize(fleet, planet, {
+      production: this.production,
+      factions: this.factions,
+      starSystems: this.starSystems,
+    });
     if (!result) {
       return;
     }
@@ -2866,6 +3004,13 @@ loadError = '';
       return;
     }
     this.diplomacyService.tick(gameDeltaTime, this.factions, { starSystems: this.starSystems, fleets: this.fleets });
+    // Border violations only change opinion; they never start a war.
+    const bordersChanged = this.borderService.tick(gameDeltaTime, {
+      factions: this.factions,
+      fleets: this.fleets,
+      starSystems: this.starSystems,
+    });
+    const borderNotices = this.handleBorderEvents();
     const attackOrdersChanged = gameDeltaTime > 0 && this.updateAttackOrders();
     const didMoveFleets = this.updateFleets(gameDeltaTime) || attackOrdersChanged;
     const headingsChanged = this.updateFleetHeadings(gameDeltaTime);
@@ -2897,6 +3042,7 @@ loadError = '';
     }
 
     const visibilityChanged = this.updateSensorVisibility();
+    const territoryChanged = this.refreshTerritoryViews();
 
     const productionResult = this.productionService.tick(
       gameDeltaTime,
@@ -2954,7 +3100,10 @@ loadError = '';
       this.ngZone.run(() => this.cdr.detectChanges());
     }
 
-    if (didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged || diplomacyChanged) {
+    if (
+      didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged ||
+      diplomacyChanged || territoryChanged || bordersChanged || borderNotices
+    ) {
       this.ngZone.run(() => this.cdr.detectChanges());
       this.simStateDirty = true;
     }
@@ -3056,7 +3205,7 @@ loadError = '';
       enterBattleScreen: () => this.enterBattleScreen(),
     });
 
-    this.battleDetectionService.checkForBattles(
+    const fleetBattleStarted = this.battleDetectionService.checkForBattles(
       this.fleets,
       this.factions,
       (x, y) => this.movementService.calculateGridCell(x, y),
@@ -3068,6 +3217,17 @@ loadError = '';
         this.autoBattleResolved = true;
       },
     );
+    if (!fleetBattleStarted) {
+      this.battleDetectionService.checkBaseBattles(
+        this.fleets,
+        this.factions,
+        this.enterBattleScreen.bind(this),
+        this.arrivalService.triggeredBattles,
+        () => {
+          this.autoBattleResolved = true;
+        },
+      );
+    }
 
     return didMoveFleets;
   }
@@ -3103,6 +3263,7 @@ loadError = '';
       this.factions,
       this.movementService.gridColumns,
       this.movementService.gridRows,
+      this.spaceBaseService.bases,
     );
     this.sensorRangeCells = layer.cells;
     this.sensorPreviewCells = layer.preview;
@@ -3277,6 +3438,7 @@ loadError = '';
       nebulae: this.nebulae,
       asteroidBelts: this.asteroidBelts,
       asteroidEvents: this.asteroidService.serialize(),
+      spaceBases: this.spaceBaseService.serialize(),
     };
   }
 
@@ -3362,6 +3524,10 @@ loadError = '';
     });
     this.rebuildTerrainViews();
     this.asteroidService.restore(data.asteroidEvents, this.galaxy?.seed ?? 0, this.fleets);
+    // Bases before sensors and territory: both are derived from them.
+    this.spaceBaseService.restore(data.spaceBases);
+    this.borderService.reset();
+    this.renderedTerritory = null;
     this.selectedAsteroidId = null;
     this.asteroidPanelVm = null;
     this.asteroidPanelMessage = null;
@@ -3457,6 +3623,7 @@ loadError = '';
     // Compute initial sensor visibility after loading
     this.computeInitialSensorVisibility();
     this.updateSensorVisibility();
+    this.refreshTerritoryViews();
 
     // Terrain first: deposit generation avoids blocked surface cells.
     this.ensurePlanetSurfaces();

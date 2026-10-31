@@ -100,6 +100,9 @@
       [nebulae]="nebulaViews"
       [belts]="beltViews"
       [blackHoleRings]="blackHoleRings"
+      [territories]="territoryViews"
+      [spaceBases]="visibleSpaceBases"
+      [onSpaceBaseClick]="boundOnSpaceBaseClick"
       [asteroids]="visibleAsteroids"
       [isFleetInNebula]="boundIsFleetInNebula"
       [fleetHeading]="boundGalaxyFleetHeading"
@@ -175,11 +178,15 @@
         [coLocatedFleetCount]="getCoLocatedPlayerFleetCount(selectedFleet)"
         [atSpaceport]="isFleetAtOwnSpaceport(selectedFleet)"
         [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
+        [colonizeBlockedReason]="getSelectedFleetColonizeBlock()"
+        [baseDeployment]="getSelectedFleetBaseDeployment()"
+        [borderViolationOf]="getSelectedFleetBorderViolation()"
         (close)="deselectFleet()"
         (setFleetAction)="setFleetAction($event)"
         (disband)="onDisbandSelected()"
         (organize)="openFleetManager()"
         (colonize)="onColonizeSelected()"
+        (deployBase)="onDeployBaseSelected()"
       >
       </app-star-map-fleet-info>
     }
@@ -284,11 +291,15 @@
           [coLocatedFleetCount]="getCoLocatedPlayerFleetCount(selectedFleet)"
         [atSpaceport]="isFleetAtOwnSpaceport(selectedFleet)"
           [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
+        [colonizeBlockedReason]="getSelectedFleetColonizeBlock()"
+        [baseDeployment]="getSelectedFleetBaseDeployment()"
+        [borderViolationOf]="getSelectedFleetBorderViolation()"
           (close)="deselectFleet()"
           (setFleetAction)="setFleetAction($event)"
           (disband)="onDisbandSelected()"
           (organize)="openFleetManager()"
           (colonize)="onColonizeSelected()"
+        (deployBase)="onDeployBaseSelected()"
         >
         </app-star-map-fleet-info>
       }

@@ -89,6 +89,7 @@ export function createBattleState(
     planetId: battle.planetId,
     planetName: battle.planetName,
     planetColor: battle.planetColor,
+    spaceBaseId: battle.spaceBaseId,
     defenderShieldPool:
       battle.type === 'planet' && shieldPoolMax > 0
         ? { current: shieldPool, max: shieldPoolMax, regen: shieldPoolRegen }

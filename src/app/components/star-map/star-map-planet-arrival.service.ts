@@ -6,6 +6,7 @@ import { PlanetOwnershipService } from '../../services/planet-ownership.service'
 import { Faction, FactionProduction, Fleet, PlanetTile, StarSystem, PLANET_TYPE_COLORS } from './star-map.models';
 import { StarMapMovementService } from './star-map-movement.service';
 import { canAttackPlanetOf } from './diplomacy';
+import { TerritoryService } from './territory.service';
 
 /*
  * =========================================================
@@ -59,6 +60,7 @@ export class StarMapPlanetArrivalService {
     private movementService: StarMapMovementService,
     private planetOwnership: PlanetOwnershipService,
     private researchService: ResearchService,
+    private territory: TerritoryService,
   ) {}
 
   /** Clears per-session arrival bookkeeping. Safe to call on every load. */
@@ -96,8 +98,33 @@ export class StarMapPlanetArrivalService {
    * stopped on the planet's cell inside a system and carries a living
    * colonizer. Works in every view, since fleet.system keeps its in-system
    * position until the fleet leaves the system on the galaxy map.
+   * With `factions` the territory rule applies too (TerritoryService
+   * .canColonizeIn): no colonizing in another empire's territory unless at
+   * war with it.
    */
-  getColonizablePlanet(fleet: Fleet, starSystems: StarSystem[]): PlanetTile | null {
+  getColonizablePlanet(fleet: Fleet, starSystems: StarSystem[], factions?: Faction[]): PlanetTile | null {
+    const planet = this.getParkedUninhabitedPlanet(fleet, starSystems);
+    if (!planet || (factions && this.getTerritoryBlocker(fleet, starSystems, factions) !== null)) {
+      return null;
+    }
+    return planet;
+  }
+
+  /*
+   * Faction whose territory forbids `fleet` to colonize the uninhabited
+   * planet it is parked on; null when nothing blocks it (or there is no
+   * such planet).
+   */
+  getTerritoryBlocker(fleet: Fleet, starSystems: StarSystem[], factions: Faction[]): Faction | null {
+    if (!this.getParkedUninhabitedPlanet(fleet, starSystems)) return null;
+    const system = starSystems.find((s) => s.id === fleet.system!.id)!;
+    const colonizer = factions.find((f) => f.id === fleet.factionId);
+    if (this.territory.canColonizeIn(colonizer, system, starSystems, factions)) return null;
+    const ownerId = this.territory.get(starSystems, factions).systemTerritoryOwner(system);
+    return factions.find((f) => f.id === ownerId) ?? null;
+  }
+
+  private getParkedUninhabitedPlanet(fleet: Fleet, starSystems: StarSystem[]): PlanetTile | null {
     if (fleet.destroyed || !fleet.system || this.isMovingInSystem(fleet) || !this.hasLivingColonizer(fleet)) {
       return null;
     }
@@ -116,10 +143,17 @@ export class StarMapPlanetArrivalService {
   colonize(
     fleet: Fleet,
     planet: PlanetTile,
-    data: { production?: FactionProduction[]; factions?: Faction[] },
+    data: { production?: FactionProduction[]; factions?: Faction[]; starSystems?: StarSystem[] },
   ): { fleetRetired: boolean } | null {
     if (planet.factionId !== 'unhabited' || fleet.destroyed) {
       return null;
+    }
+    const system = data.starSystems?.find((s) => s.planetsTiles.includes(planet));
+    if (system && data.factions && data.starSystems) {
+      const colonizer = data.factions.find((f) => f.id === fleet.factionId);
+      if (!this.territory.canColonizeIn(colonizer, system, data.starSystems, data.factions)) {
+        return null;
+      }
     }
     const result = this.planetBattleService.resolveUninhabitedArrival(fleet);
     if (!result.colonized || result.colonizerIndex < 0) {

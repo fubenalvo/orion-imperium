@@ -208,6 +208,25 @@
       "rawMaterialCost": 150,
       "maintenanceCost": 5,
       "fireRate": 2
+    },
+    {
+      "id": "outpost_ship",
+      "name": "Outpost Ship",
+      "role": "Outpost",
+      "hitPoints": 60,
+      "shield": 20,
+      "shieldRegen": 2,
+      "attack": 2,
+      "attackType": "kinetic",
+      "weakness": "energy",
+      "defense": 3,
+      "speed": 2,
+      "range": 1,
+      "battleMoveRange": 2,
+      "cost": 350,
+      "rawMaterialCost": 300,
+      "maintenanceCost": 6,
+      "fireRate": 2
     }
   ]
 }

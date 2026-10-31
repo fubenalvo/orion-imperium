@@ -53,12 +53,12 @@ export function isHostileFleet(fleet: Fleet, factionId: string, factions: Factio
 
 /*
  * isCombatShipType: A ship counts as combat-capable when its role is
- * neither Recon nor Colonizer. Shared by the AI action layer (combat
+ * none of Recon, Colonizer or Outpost. Shared by the AI action layer (combat
  * ship selection) and the action executor (reinforcement composition)
  * so both agree on what can engage and what can be reinforced.
  */
 export function isCombatShipType(shipType: { role: string } | undefined): boolean {
-  return shipType !== undefined && shipType.role !== 'Recon' && shipType.role !== 'Colonizer';
+  return shipType !== undefined && shipType.role !== 'Recon' && shipType.role !== 'Colonizer' && shipType.role !== 'Outpost';
 }
 
 /*

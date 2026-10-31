@@ -278,6 +278,18 @@ See [Diplomacy](./diplomacy.md).
 - **No battle screen without a human side:** AI-vs-AI fleet battles are auto-resolved in battle detection and never navigate to `/battle`.
 - **Peace never wins by itself:** a diplomatic victory needs more than half of the inhabited planets.
 
+## Territory and space bases
+
+See [Territory](./territory.md).
+
+- **Territory is derived, never stored:** it is computed from planet owners and `StarMapData.spaceBases` only; no save field holds territory.
+- **One owner per cell:** the overlap rule (system claim > base claim > nearest > older) is deterministic; neutral factions (team 0) never own territory.
+- **Event-driven cache:** `TerritoryService` rebuilds only when `PlanetOwnershipService.revision`, `SpaceBaseService.revision`, the arrays or the grid change — which relies on the single ownership pathway below. Direct writes to `PlanetTile.factionId` (tests) must call `invalidate()`.
+- **A border violation never changes the treaty state:** `BorderService` only adjusts opinion and the incident memory; war is only declared through `DiplomacyService`. Violations exist only at peace, and passage rights only at peace.
+- **Same rules for all:** player and AI use `validateBaseDeployment` / `SpaceBaseService.deploy`, `TerritoryService.canColonizeIn` and the same border rule.
+- **Bases are alive or gone:** a destroyed base is removed from the registry and the save, so its territory claim disappears at once; a base never moves, never changes owner and never enters a fleet.
+- **One static-defense combat path:** a base battle is a `type: 'planet'` battle with `spaceBaseId` (never `planetId`); its virtual defense fleet id is `< -10 000 000` and is never written back.
+
 ## Planet ownership and game outcome
 
 See [Planet Capture](./planet-capture.md).

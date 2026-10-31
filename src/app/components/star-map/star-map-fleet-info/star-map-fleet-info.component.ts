@@ -37,6 +37,15 @@ export class StarMapFleetInfoComponent {
   @Input() atSpaceport = false;
   /* Uninhabited planet the fleet is parked on and can colonize now (it carries a colonizer); null hides COLONIZE. */
   @Input() colonizeTargetName: string | null = null;
+  /* Why the parked colonizer may not settle here (another empire's territory); null = no block. */
+  @Input() colonizeBlockedReason: string | null = null;
+  /*
+   * Space base deployment state; null when the fleet carries no outpost
+   * ship (hides DEPLOY BASE). `reason` explains a disabled button.
+   */
+  @Input() baseDeployment: { canDeploy: boolean; reason: string | null } | null = null;
+  /* Name of the empire whose borders this fleet is violating right now; null when none. */
+  @Input() borderViolationOf: string | null = null;
 
   formatEta(seconds: number): string {
     const total = Math.max(0, Math.round(seconds));
@@ -51,4 +60,5 @@ export class StarMapFleetInfoComponent {
   @Output() disband = new EventEmitter<void>();
   @Output() organize = new EventEmitter<void>();
   @Output() colonize = new EventEmitter<void>();
+  @Output() deployBase = new EventEmitter<void>();
 }

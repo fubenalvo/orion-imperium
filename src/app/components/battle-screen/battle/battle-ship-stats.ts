@@ -1,6 +1,7 @@
 import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
 import planetData from '../../star-map/planet-data.json';
+import { STATION_CORE_STATS } from '../../star-map/space-base';
 
 /*
  * =========================================================
@@ -38,6 +39,7 @@ const TIER_LOOKUP: Record<string, number> = {
   scout: 1,
   fighter: 1,
   colonizer: 1,
+  outpost_ship: 1,
   corvette: 1,
   frigate: 2,
   destroyer: 2,
@@ -53,19 +55,25 @@ function fallbackTier(cost: number): number {
   return Math.min(5, Math.max(1, Math.ceil(cost / 150)));
 }
 
-/* Virtual defense building attack ranges (planet-data.json defense block). */
-const VIRTUAL_RANGE_LOOKUP: Record<string, number> = Object.fromEntries(
-  (planetData as { buildings: { id: string; range?: number }[] }).buildings
-    .filter((b) => b.range != null)
-    .map((b) => [b.id, b.range as number]),
-);
+/* Virtual defense building attack ranges (planet-data.json defense block), plus the space base core. */
+const VIRTUAL_RANGE_LOOKUP: Record<string, number> = {
+  ...Object.fromEntries(
+    (planetData as { buildings: { id: string; range?: number }[] }).buildings
+      .filter((b) => b.range != null)
+      .map((b) => [b.id, b.range as number]),
+  ),
+  [STATION_CORE_STATS.id]: STATION_CORE_STATS.range,
+};
 
-/* Virtual defense building fire rates (planet-data.json, shots per second). */
-const VIRTUAL_FIRE_RATE_LOOKUP: Record<string, number> = Object.fromEntries(
-  (planetData as { buildings: { id: string; fireRate?: number }[] }).buildings
-    .filter((b) => b.fireRate != null)
-    .map((b) => [b.id, b.fireRate as number]),
-);
+/* Virtual defense building fire rates (planet-data.json, shots per second), plus the space base core. */
+const VIRTUAL_FIRE_RATE_LOOKUP: Record<string, number> = {
+  ...Object.fromEntries(
+    (planetData as { buildings: { id: string; fireRate?: number }[] }).buildings
+      .filter((b) => b.fireRate != null)
+      .map((b) => [b.id, b.fireRate as number]),
+  ),
+  [STATION_CORE_STATS.id]: STATION_CORE_STATS.fireRate,
+};
 
 export function getBattleShipStats(
   typeId: string,

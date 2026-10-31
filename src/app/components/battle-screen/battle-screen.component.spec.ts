@@ -812,7 +812,7 @@ describe('BattleScreenComponent', () => {
     component = fixture.componentInstance;
     fixture.detectChanges();
 
-    expect(component.planetVisual).toEqual({ name: 'Mars', color: '#b35a2a' });
+    expect(component.planetVisual).toEqual({ name: 'Mars', color: '#b35a2a', kind: 'planet' });
     expect(component.planetShield).toEqual({ current: 300, max: 300, regen: 15 });
     expect(component.planetShieldFraction).toBe(1);
 
