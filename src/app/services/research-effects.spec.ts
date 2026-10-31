@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { RESEARCH_COST_GROWTH_PER_TECH, RESEARCH_CREDITS_PER_POINT, ResearchService } from './research.service';
-import { EconomyService } from './economy.service';
+import { COLONY_CORE_ENERGY, EconomyService } from './economy.service';
 import { ProductionService } from './production.service';
 import { ShipService } from './ship.service';
 import { PlanetBattleService } from './planet-battle.service';
@@ -147,9 +147,10 @@ describe('Technology effects — gameplay systems', () => {
 
   it('energy output: improved_power and advanced_power stack additively (+15% each)', () => {
     const p = planet(['Fusion Power Plant']);
-    const base = economy.calculatePlanetEconomy(p, faction()).energyProduction;
-    expect(economy.calculatePlanetEconomy(p, faction(['improved_power'])).energyProduction).toBeCloseTo(base * 1.15, 6);
-    expect(economy.calculatePlanetEconomy(p, faction(['improved_power', 'advanced_power'])).energyProduction).toBeCloseTo(base * 1.3, 6);
+    // The colony core's flat energy is not scaled by energy technologies.
+    const base = economy.calculatePlanetEconomy(p, faction()).energyProduction - COLONY_CORE_ENERGY;
+    expect(economy.calculatePlanetEconomy(p, faction(['improved_power'])).energyProduction).toBeCloseTo(base * 1.15 + COLONY_CORE_ENERGY, 6);
+    expect(economy.calculatePlanetEconomy(p, faction(['improved_power', 'advanced_power'])).energyProduction).toBeCloseTo(base * 1.3 + COLONY_CORE_ENERGY, 6);
   });
 
   it('research output: applied_science raises building research, and the economy tick applies it', () => {

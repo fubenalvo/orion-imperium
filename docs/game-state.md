@@ -216,10 +216,10 @@ src/app/
 - Flow: energy (efficiency only)
 - Energy efficiency = 1.0 if energy ok, else production/consumption
 - Workforce: `availableWorkforce` = Σ `providesWorkforce` (housing/residential buildings); `requiredWorkforce` = Σ `workforce` (requirement) over all buildings; `workforceEfficiency = min(1, available/required)` (1 when there are no consumers). Scales building `production` rates only — consumption and the `pop * 0.1` credit contribution are intentionally unscaled.
-- Satisfaction 0–100, drift per economy tick = `(energyDirection ±1 + moraleDrift) × deltaTime`
-  - `energyDirection`: -1 if energy production < consumption, else +1 (±1/s).
+- Satisfaction 0–100, drift per economy tick = `(energyDrift + moraleDrift) × deltaTime`
+  - `energyDrift = max(−1, 1 − 4 × (1 − efficiency))`: +1/s when powered, proportional to the shortfall (25% short → 0, 50%+ short → −1/s). Every owned planet has +10 colony-core energy. See [Economy](./economy.md#energy-and-satisfaction).
   - `moraleDrift = PLANET_TYPE_HABITABILITY[planet.type] + Σ building.moraleRate` (satisfaction points per second of game time). Base per planet type: `earthlike 0`, `gasgiant 0`, `marslike -0.03`, `venuslike -0.05`, `desert -0.05`, `ice -0.08`. Social/entertainment buildings (Park +0.03, Entertainment Center +0.08, Hospital +0.02, School +0.01) offset harsh worlds; heavy industry contributes a small negative (-0.01–-0.02: Spaceship Factory -0.02, Fusion Plant -0.01, Mining Complex -0.01).
-  - The existing energy-based ±1/s drift is preserved; the habitability/morale drift is additive on top of it.
+  - The habitability/morale drift is additive on top of the energy drift.
   - Clamped to [0, 100]. 0 → rebellion → independent faction.
 - Population growth: applied each economy tick from the **same 1s accumulator** that drives morale, so it pauses when paused and runs 2× at speed 2x (`star-map.ts` feeds the scaled delta into `applyEconomyDelta`).
   - Per-tick growth = `0.005/s × (satisfaction/100, clamped 0..1) × max(0, 1 + PLANET_TYPE_HABITABILITY[type]) × (capacity − population) × deltaTime`.

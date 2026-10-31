@@ -55,8 +55,9 @@ import { hasLivingOutpostShip } from './space-base';
  *    stations (EnemyMiningService).
  *  - Buildings, fleet ships and stocked ships pay upkeep every economy
  *    tick (EconomyService.applyEconomyDelta). Credits never go negative:
- *    unpaid upkeep (arrears) drains satisfaction toward rebellion, and an
- *    energy deficit does the same (-1/s).
+ *    unpaid upkeep (arrears) drains satisfaction toward rebellion, and a
+ *    large energy deficit does the same (down to -1/s, in proportion to
+ *    the shortfall; EconomyService.energySatisfactionDrift).
  *  - Credit income is population × 0.1 × satisfaction; population is
  *    capped by housing capacity, so housing is the real growth building.
  *  - Ships are built by Spaceship Factories into the faction-wide stock;

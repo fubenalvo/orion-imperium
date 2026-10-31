@@ -566,6 +566,26 @@
   }
 }
 
+.planet-sidebar__satisfaction-trend {
+  margin-left: 0.4em;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
+/* Energy shortage / falling satisfaction warning under the hero figures. */
+.planet-sidebar__alert {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0.2em 0 0.4em;
+  padding: 0.5em 0.6em;
+  border-left: 2px solid var(--ui-danger);
+  background: rgba(var(--ui-danger-rgb), 0.08);
+  color: var(--ui-danger-text);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.35;
+}
+
 .planet-sidebar__satisfaction--warn {
   --meter-color: var(--ui-warning);
 }
@@ -681,7 +701,16 @@
   white-space: nowrap;
 }
 
-/* The part of a price the player cannot pay yet. */
+/* Energy a building uses (or, with --gain, produces). */
+.planet-sidebar__build-energy {
+  color: var(--ui-ink-dim);
+}
+
+.planet-sidebar__build-energy--gain {
+  color: var(--ui-success);
+}
+
+/* The part of a price the player cannot pay yet (also: energy it cannot supply). */
 .planet-sidebar__price--short {
   color: var(--ui-danger);
 }
@@ -727,6 +756,10 @@
   font-size: var(--ui-fs-sm);
   line-height: 1.35;
   text-align: center;
+}
+
+.planet-sidebar__build-hint--danger {
+  color: var(--ui-danger-text);
 }
 
 .planet-sidebar__build-error {

@@ -762,6 +762,14 @@ export interface PlanetEconomy {
   workforceEfficiency: number;
   habitabilityDrift: number;
   buildingMoraleBonus: number;
+  /* Energy part of the satisfaction drift (economy.service energySatisfactionDrift), points/s. */
+  energySatisfactionDrift: number;
+  /*
+   * Total satisfaction change per second the economy tick applies before
+   * arrears: energy part + habitability + building morale. Negative means
+   * the planet is heading toward rebellion at 0%.
+   */
+  satisfactionDrift: number;
   /*
    * Raw materials/s the planet's mining buildings take from its deposit
    * (workforce, technology and deposit richness applied; before energy
@@ -826,6 +834,8 @@ export interface PlanetEconomyEntry {
   workforceEfficiency: number;
   habitabilityDrift: number;
   buildingMoraleBonus: number;
+  /* See PlanetEconomy.satisfactionDrift (arrears not included). */
+  satisfactionDrift: number;
   /* Effective raw/s this planet's mines extract from its deposit (included in production). */
   miningRate: number;
 }

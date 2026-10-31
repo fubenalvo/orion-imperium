@@ -268,6 +268,52 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     return building.rawMaterialCost ?? 0;
   }
 
+  /*
+   * Energy change of one building, as listed in planet-data.json. Energy
+   * technologies raise a power building's real output a little above this
+   * (EconomyService), so the preview is conservative for power buildings.
+   */
+  getBuildingEnergyDelta(building: BuildingType): number {
+    return (building.energyProduction ?? 0) - (building.energyConsumption ?? 0);
+  }
+
+  /*
+   * Planet energy after adding `building`: production / consumption and the
+   * shortfall share (0 when fully powered). Null without an economy entry.
+   */
+  getEnergyAfterBuilding(building: BuildingType): { production: number; consumption: number; shortPct: number } | null {
+    const economy = this.planetEconomy;
+    if (!economy) return null;
+    const production = economy.energyProduction + (building.energyProduction ?? 0);
+    const consumption = economy.energyConsumption + (building.energyConsumption ?? 0);
+    const shortPct = consumption > production ? Math.round((1 - production / Math.max(consumption, 1)) * 100) : 0;
+    return { production, consumption, shortPct };
+  }
+
+  /* True when building it would leave (or keep) the planet short on energy. */
+  causesEnergyShortage(building: BuildingType): boolean {
+    return (this.getEnergyAfterBuilding(building)?.shortPct ?? 0) > 0 && this.getBuildingEnergyDelta(building) < 0;
+  }
+
+  getBuildingEnergyTooltip(building: BuildingType): string {
+    const after = this.getEnergyAfterBuilding(building);
+    if (!after) return '';
+    const tail = after.shortPct > 0
+      ? ` — ${after.shortPct}% short: output drops${after.shortPct >= 25 ? ' and satisfaction falls toward rebellion' : ''}`
+      : '';
+    return `Energy after building: ${after.production} produced / ${after.consumption} used${tail}`;
+  }
+
+  /*
+   * Seconds until the planet rebels at its current satisfaction drift, or
+   * null when satisfaction is not falling.
+   */
+  get secondsToRebellion(): number | null {
+    const economy = this.planetEconomy;
+    if (!economy || economy.satisfactionDrift >= 0 || economy.satisfaction <= 0) return null;
+    return Math.ceil(economy.satisfaction / -economy.satisfactionDrift);
+  }
+
   activeTab: PlanetSidebarTab = 'details';
   isBuildMode = false;
   selectedBuildingType: BuildingType | null = null;

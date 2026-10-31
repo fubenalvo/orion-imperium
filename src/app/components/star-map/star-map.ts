@@ -133,6 +133,7 @@ import {
 } from './star-map-display.util';
 
 import { EconomyBreakdown } from '../../services/economy.service';
+import { PlanetStabilityState, planetStabilityNotices } from './planet-stability';
 
 import { StarMapFleetInfoComponent } from './star-map-fleet-info/star-map-fleet-info.component';
 import { StarMapSystemInfoComponent } from './star-map-system-info/star-map-system-info.component';
@@ -270,6 +271,8 @@ loadError = '';
   mapNotice: string | null = null;
   private mapNoticeClock = 0;
   private static readonly MAP_NOTICE_SECONDS = 6;
+  /* Player planets whose energy shortage was already announced (planet-stability.ts; not persisted). */
+  private readonly announcedEnergyShort = new Set<string>();
   shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
   production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
   defaultView: import('./star-map.models').StarMapData['defaultView'] = initialStarMapData.defaultView ?? undefined;
@@ -783,6 +786,24 @@ loadError = '';
       secondsToExit: asteroidRemainingSeconds(asteroid),
       fleets,
     };
+  }
+
+  /* Satisfaction and energy state of every player planet, keyed by planet name. */
+  private playerPlanetStability(): Map<string, PlanetStabilityState> {
+    const player = this.factions.find((f) => f.id === 'player') ?? null;
+    const states = new Map<string, PlanetStabilityState>();
+    for (const system of this.starSystems) {
+      for (const planet of system.planetsTiles ?? []) {
+        if (planet.factionId !== 'player') continue;
+        const economy = this.economyService.calculatePlanetEconomy(planet, player);
+        states.set(planet.name, {
+          satisfaction: economy.satisfaction,
+          efficiency: economy.efficiency,
+          satisfactionDrift: economy.satisfactionDrift,
+        });
+      }
+    }
+    return states;
   }
 
   private showMapNotice(text: string): void {
@@ -3294,6 +3315,7 @@ loadError = '';
     if (this.economyAccumulator >= this.economyTickInterval) {
       let playerUnpaidUpkeep = 0;
       const playerDeposits = minedDepositsOf('player', this.starSystems);
+      const stabilityBefore = this.playerPlanetStability();
       for (const faction of this.factions) {
         const applied = this.economyService.applyEconomyDelta(
           faction.id,
@@ -3318,6 +3340,8 @@ loadError = '';
           this.showMapNotice(`Mining stopped: ${deposit.label} is depleted. Find new deposits to keep raw materials flowing.`);
         }
       }
+      const stabilityLines = planetStabilityNotices(stabilityBefore, this.playerPlanetStability(), this.announcedEnergyShort);
+      if (stabilityLines.length > 0) this.showMapNotice(stabilityLines.join(' '));
     }
 
     // Ownership changed during this frame (AI capture, colonization,

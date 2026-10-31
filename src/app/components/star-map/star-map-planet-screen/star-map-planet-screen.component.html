@@ -357,6 +357,7 @@
                     [class.planet-sidebar__build-item--locked]="!isBuildingUnlocked(building.id)"
                     type="button"
                     [disabled]="!canAfford(building) || !isBuildingUnlocked(building.id) || !!getSiteBlocker(building)"
+                    [title]="getBuildingEnergyTooltip(building)"
                     (click)="selectBuildingType(building.id)"
                   >
                     <span class="planet-sidebar__build-name">{{
@@ -374,7 +375,16 @@
                         ·
                         <span [class.planet-sidebar__price--short]="getPlayerRawMaterials() < getBuildingRawCost(building)"
                           >{{ getBuildingRawCost(building) }} RM</span
-                        ></span
+                        >
+                        @if (getBuildingEnergyDelta(building) !== 0) {
+                          ·
+                          <span
+                            class="planet-sidebar__build-energy"
+                            [class.planet-sidebar__build-energy--gain]="getBuildingEnergyDelta(building) > 0"
+                            [class.planet-sidebar__price--short]="causesEnergyShortage(building)"
+                            >{{ getBuildingEnergyDelta(building) > 0 ? '+' : '' }}{{ getBuildingEnergyDelta(building) }} EN</span
+                          >
+                        }</span
                       >
                     }
                   </button>
@@ -387,6 +397,18 @@
                   {{ selectedBuildingType?.name }}
                   ({{ selectedBuildingType?.size }}x{{ selectedBuildingType?.size }})
                 </div>
+                @if (selectedBuildingType && getEnergyAfterBuilding(selectedBuildingType); as energyAfter) {
+                  <div
+                    class="planet-sidebar__build-hint"
+                    [class.planet-sidebar__build-hint--danger]="causesEnergyShortage(selectedBuildingType)"
+                  >
+                    Energy after building: {{ energyAfter.production | number: '1.0-0' }} /
+                    {{ energyAfter.consumption | number: '1.0-0' }}
+                    @if (energyAfter.shortPct > 0) {
+                      ({{ energyAfter.shortPct }}% short)
+                    }
+                  </div>
+                }
                 @if (selectedCell) {
                   @if (isPreviewValid) {
                     <button
@@ -468,11 +490,17 @@
                 <div
                   class="planet-sidebar__satisfaction"
                   [class.planet-sidebar__satisfaction--warn]="planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0"
-                  [class.planet-sidebar__satisfaction--danger]="planetEconomy.satisfaction <= 0"
+                  [class.planet-sidebar__satisfaction--danger]="planetEconomy.satisfaction <= 0 || secondsToRebellion !== null"
                 >
                   <div class="planet-sidebar__satisfaction-head">
                     <span>Satisfaction</span>
-                    <b>{{ planetEconomy.satisfaction | number: '1.0-0' }}%</b>
+                    <b
+                      >{{ planetEconomy.satisfaction | number: '1.0-0' }}%
+                      <small class="planet-sidebar__satisfaction-trend"
+                        >{{ planetEconomy.satisfactionDrift >= 0 ? '+' : ''
+                        }}{{ planetEconomy.satisfactionDrift | number: '1.2-2' }}/s</small
+                      ></b
+                    >
                   </div>
                   <span class="ui-meter">
                     <span class="ui-meter__fill" [style.width.%]="planetEconomy.satisfaction"></span>
@@ -480,6 +508,22 @@
                 </div>
               }
             </div>
+
+            @if (planetEconomy && (planetEconomy.energyBalance < 0 || secondsToRebellion !== null)) {
+              <div class="planet-sidebar__alert" role="alert">
+                @if (planetEconomy.energyBalance < 0) {
+                  <div>
+                    Energy shortage: {{ planetEconomy.energyConsumption | number: '1.0-0' }} used,
+                    {{ planetEconomy.energyProduction | number: '1.0-0' }} produced. Output is
+                    {{ (1 - planetEconomy.efficiency) * 100 | number: '1.0-0' }}% lower. Build a power plant or remove
+                    buildings.
+                  </div>
+                }
+                @if (secondsToRebellion !== null) {
+                  <div>Satisfaction is falling: the planet rebels in about {{ secondsToRebellion }} s.</div>
+                }
+              </div>
+            }
 
             <div class="planet-sidebar__currencies">
               <app-faction-currencies

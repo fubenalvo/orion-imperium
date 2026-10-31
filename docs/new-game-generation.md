@@ -91,7 +91,7 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
   fights whom. See [Diplomacy](./diplomacy.md). (Pre-diplomacy saves keep all AIs on team 2.)
 - **Homeworld** (planet 1 of each home system, earthlike/medium, population 1400): the legacy Earth
   buildings plus a Fusion Power Plant, so every faction starts energy-positive. Without it, AI
-  homeworlds would lose satisfaction at −1/s and rebel before their develop action ran.
+  homeworlds would be far short on energy, lose satisfaction and rebel before their develop action ran.
   Starting layouts (homeworld and AI colonies) are centered on the grid (`centerLayout`).
 - **Planet surfaces:** settled planets get their terrain (`generatePlanetSurface`, seeded from the
   galaxy seed and planet id, kept clear of the starting buildings) during generation; all other

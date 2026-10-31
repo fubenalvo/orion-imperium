@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EconomyService } from './economy.service';
+import { COLONY_CORE_ENERGY, EconomyService, energySatisfactionDrift } from './economy.service';
 import { ShipService } from './ship.service';
 import { PlanetTile, PlanetType, StarSystem, Faction, Fleet } from '../components/star-map/star-map.models';
 
@@ -251,7 +251,7 @@ describe('EconomyService — habitability & workforce', () => {
     });
 
     it('desert morale drift (-0.05) is part of the per-second delta', () => {
-      // No buildings => balanced energy (0/0) => energyDirection +1; drift = -0.05.
+      // No buildings => fully powered by the colony core => energy drift +1; morale -0.05.
       // Expected per-second change = (+1 - 0.05) * deltaTime = 0.95 * deltaTime.
       const base = makePlanet(1, 'desert', [], { satisfaction: 90 });
       const cloneAt = (delta: number): PlanetTile => ({ ...base, satisfaction: 90 });
@@ -272,7 +272,7 @@ describe('EconomyService — habitability & workforce', () => {
     it('linear in deltaTime proves 2x speed doubles the morale tick', () => {
       // GameTimeService.getScaledDeltaTime already doubles delta at speed 2
       // (see game-time.service.spec.ts); the morale application multiplies
-      // (energyDirection + moraleDrift) by deltaTime, so a 2x delta yields a
+      // the total satisfaction drift by deltaTime, so a 2x delta yields a
       // 2x change. We assert linearity directly.
       // Solar Array powers the planet (energy balanced => +1/s) and is neutral
       // for morale; Central Park adds +0.03 morale. Total = 1.03/s.
@@ -406,7 +406,7 @@ describe('EconomyService — habitability & workforce', () => {
     });
 
     // Solar Array (40 energy) balances Small Residential (3 energy) so
-    // energyDirection stays +1 and satisfaction holds at 100, isolating
+    // the energy drift stays +1 and satisfaction holds at 100, isolating
     // population growth from the morale/satisfaction dynamics.
     it('applyEconomyDelta mutates planet.population; paused tick does nothing', () => {
       const planet = makePlanet(1, 'earthlike', [b('Solar Array'), b('Small Residential Block')], { satisfaction: 100, population: 0 });
@@ -427,5 +427,99 @@ describe('EconomyService — habitability & workforce', () => {
       // growth = 0.005 * 1 * 1 * (100-99.8) * 1000 = 1.0; nextPop 100.8 clamped to 100
       expect(planet.population).toBe(100);
     });
+  });
+});
+
+/*
+ * Energy and satisfaction (docs/economy.md, "Energy and satisfaction"):
+ * the colony core's flat energy and the proportional energy drift that
+ * replaced the old "any shortfall = -1/s" rule.
+ */
+describe('EconomyService — energy shortfall and satisfaction', () => {
+  let economy: EconomyService;
+
+  beforeEach(() => {
+    economy = new EconomyService(new ShipService());
+  });
+
+  const planetWith = (names: string[], overrides: Partial<PlanetTile> = {}): PlanetTile => ({
+    id: 1,
+    index: 1,
+    name: 'Home',
+    factionId: 'player',
+    x: 0,
+    y: 0,
+    type: 'earthlike',
+    size: 'medium',
+    population: 0,
+    buildings: names.map((name, i) => ({ name, size: 1, x: i, y: 0 })) as PlanetTile['buildings'],
+    explored: true,
+    satisfaction: 60,
+    ...overrides,
+  });
+
+  const tick = (planet: PlanetTile, seconds: number): void => {
+    const faction = {
+      id: 'player',
+      name: 'Player',
+      color: '#fff',
+      currencies: { credits: 1_000_000, rawmaterials: 0, research: 0 },
+    } as unknown as Faction;
+    const system = { id: 's', name: 'S', x: 0, y: 0, planets: 1, color: '#fff', planetsTiles: [planet] } as StarSystem;
+    economy.applyEconomyDelta('player', [faction], [system], [], seconds);
+  };
+
+  it('energy drift is +1 when powered and falls with the shortfall down to -1', () => {
+    expect(energySatisfactionDrift(1)).toBe(1);
+    expect(energySatisfactionDrift(0.96)).toBeCloseTo(0.84, 6);
+    expect(energySatisfactionDrift(0.75)).toBeCloseTo(0, 6);
+    expect(energySatisfactionDrift(0.5)).toBe(-1);
+    expect(energySatisfactionDrift(0)).toBe(-1);
+  });
+
+  it('owned planets get the colony core energy; unowned and independent planets do not', () => {
+    expect(economy.calculatePlanetEconomy(planetWith([])).energyProduction).toBe(COLONY_CORE_ENERGY);
+    expect(economy.calculatePlanetEconomy(planetWith([], { factionId: 'independent' })).energyProduction).toBe(0);
+    expect(economy.calculatePlanetEconomy(planetWith([], { factionId: '' })).energyProduction).toBe(0);
+  });
+
+  it('a new colony can run its first housing block before any power building', () => {
+    const colony = planetWith(['Medium Residential Block']);
+    expect(economy.calculatePlanetEconomy(colony).efficiency).toBe(1);
+    tick(colony, 10);
+    expect(colony.satisfaction).toBeGreaterThan(60);
+  });
+
+  it('a small energy overshoot lowers output but satisfaction keeps rising', () => {
+    // 100 (fusion) + 10 (core) produced; 30 + 20 + 20 + 25 + 6 + 12 + 3 = 116 used: ~5% short.
+    const home = planetWith([
+      'Fusion Power Plant',
+      'Spaceship Factory',
+      'Mining Complex',
+      'Spaceport',
+      'Research Laboratory',
+      'Medium Residential Block',
+      'Large Residential Block',
+      'Missile Turret',
+    ]);
+    const e = economy.calculatePlanetEconomy(home);
+    expect(e.efficiency).toBeLessThan(1);
+    expect(e.energySatisfactionDrift).toBeGreaterThan(0.7);
+    const before = home.satisfaction!;
+    tick(home, 30);
+    expect(home.factionId).toBe('player');
+    expect(home.satisfaction!).toBeGreaterThan(before);
+  });
+
+  it('a severe shortage still drains satisfaction at -1/s and ends in rebellion', () => {
+    // 10 (core) produced; 3 x 12 = 36 used: 72% short.
+    const colony = planetWith(['Large Residential Block', 'Large Residential Block', 'Large Residential Block'], {
+      satisfaction: 5,
+    });
+    expect(economy.calculatePlanetEconomy(colony).satisfactionDrift).toBeCloseTo(-1, 6);
+    tick(colony, 3);
+    expect(colony.satisfaction).toBeCloseTo(2, 6);
+    tick(colony, 3);
+    expect(colony.factionId).toBe('independent');
   });
 });

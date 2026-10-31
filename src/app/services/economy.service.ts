@@ -95,6 +95,32 @@ export function administrationShare(ownedPlanetCount: number): number {
   return Math.min(ADMINISTRATION_MAX_SHARE, ADMINISTRATION_SHARE_PER_PLANET * Math.max(0, ownedPlanetCount - 1));
 }
 
+/*
+ * Energy every owned planet gets from its colony core, on top of its power
+ * buildings. It lets a fresh colony run its first housing blocks before a
+ * power plant exists (a 0-energy colony would otherwise be 100% short).
+ * Flat: energy technologies scale only power buildings. Unowned and
+ * independent planets have no core. See docs/economy.md, "Energy and
+ * satisfaction".
+ */
+export const COLONY_CORE_ENERGY = 10;
+
+/*
+ * Energy part of the satisfaction drift, in points per second:
+ * 1 − ENERGY_SHORTFALL_DRIFT_FACTOR × shortfall, floored at
+ * ENERGY_MIN_SATISFACTION_DRIFT, where shortfall = 1 − efficiency (0..1).
+ * Fully powered → +1/s; 4% short → +0.84/s (still recovering, but output is
+ * 4% lower); 25% short → 0; 50% or more short → −1/s. A small overshoot
+ * therefore costs output but no longer drives the planet into rebellion.
+ */
+export const ENERGY_SHORTFALL_DRIFT_FACTOR = 4;
+export const ENERGY_MIN_SATISFACTION_DRIFT = -1;
+
+export function energySatisfactionDrift(efficiency: number): number {
+  const shortfall = Math.max(0, Math.min(1, 1 - efficiency));
+  return Math.max(ENERGY_MIN_SATISFACTION_DRIFT, 1 - ENERGY_SHORTFALL_DRIFT_FACTOR * shortfall);
+}
+
 export type { ResourceType, ResourceRates, PlanetEconomy };
 export type { EconomyBreakdown, PlanetEconomyEntry, BuildingExpenseEntry, FleetExpenseEntry, BuildingStats };
 
@@ -210,8 +236,12 @@ export class EconomyService {
       net[resource] = prod - cons;
     }
 
+    if (planet.factionId && planet.factionId !== 'independent') {
+      energyProduction += COLONY_CORE_ENERGY;
+    }
     const energyBalance = energyProduction - energyConsumption;
     const efficiency = energyProduction >= energyConsumption ? 1.0 : energyProduction / Math.max(energyConsumption, 1);
+    const energyDrift = energySatisfactionDrift(efficiency);
 
     // Satisfaction is clamped to [0, 100]; an independent planet always reads
     // as 0% so the multiplier is consistent even though the planet no longer
@@ -235,6 +265,8 @@ export class EconomyService {
       workforceEfficiency,
       habitabilityDrift,
       buildingMoraleBonus: moraleBonus,
+      energySatisfactionDrift: energyDrift,
+      satisfactionDrift: energyDrift + habitabilityDrift + moraleBonus,
       depositMining,
     };
   }
@@ -448,9 +480,10 @@ export class EconomyService {
    * frame-rate independent. Energy is a flow resource and is NOT stored.
    *
    * Order within a tick:
-   *  1. Satisfaction drift per owned planet: +1/s with enough energy, -1/s
-   *     when energy-short, plus habitability + building morale
-   *     (getMoraleDriftPerSecond); clamped to [0, 100]. A planet reaching 0
+   *  1. Satisfaction drift per owned planet (PlanetEconomy.satisfactionDrift):
+   *     the energy part (energySatisfactionDrift: +1/s when fully powered,
+   *     falling with the size of the shortfall down to −1/s) plus
+   *     habitability + building morale; clamped to [0, 100]. A planet reaching 0
    *     rebels (→ 'independent') BEFORE income is computed, so it neither
    *     pays its old owner nor costs it upkeep on that tick.
    *  2. The effective breakdown is computed from the post-drift state and
@@ -465,7 +498,7 @@ export class EconomyService {
    *  4. Arrears: credits never go below 0. If the treasury cannot cover the
    *     upkeep, the unpaid part is waived and every owned planet loses
    *     satisfaction at ARREARS_MORALE_PENALTY × (unpaid / upkeep) per
-   *     second. A small shortfall is outweighed by the +1/s energy drift; a
+   *     second. A small shortfall is outweighed by the positive energy drift; a
    *     large one leads toward rebellion unless income recovers or upkeep
    *     is cut (e.g. by disbanding fleets into the cheaper reserve).
    *  5. Population growth on every owned planet.
@@ -488,11 +521,9 @@ export class EconomyService {
     // 1) Satisfaction drift and rebellion.
     for (const planet of this.getOwnedPlanets(factionId, starSystems)) {
       if (planet.factionId === 'independent') continue;
-      const energyShort = this.calculatePlanetEconomy(planet, faction).efficiency < 1.0;
-      const energyDirection = energyShort ? -1 : 1;
-      const moraleDrift = this.getMoraleDriftPerSecond(planet);
+      const drift = this.calculatePlanetEconomy(planet, faction).satisfactionDrift;
       const current = planet.satisfaction ?? 100;
-      planet.satisfaction = Math.max(0, Math.min(100, current + (energyDirection + moraleDrift) * deltaTime));
+      planet.satisfaction = Math.max(0, Math.min(100, current + drift * deltaTime));
       if (planet.satisfaction <= 0) {
         this.planetOwnership.transferPlanet({ production, factions }, planet, 'independent', 'rebellion');
       }
@@ -643,6 +674,7 @@ export class EconomyService {
       workforceEfficiency: economy.workforceEfficiency,
       habitabilityDrift: economy.habitabilityDrift,
       buildingMoraleBonus: economy.buildingMoraleBonus,
+      satisfactionDrift: economy.satisfactionDrift,
       miningRate,
     };
   }

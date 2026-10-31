@@ -27,7 +27,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 - **Raw materials** (stock): the physical industrial resource. Produced only by extracting **finite deposits** ([Finite deposits](#finite-deposits)) — a Mining Complex on a planet deposit (15/s × deposit richness, workforce- and energy-scaled) and asteroid mining stations (each asteroid's own rate) — plus a small population trickle of `0.002 × population`/s, the one never-depleting source ([Economic safety](#economic-safety)). The Spaceship Factory produces no raw materials. Spent mostly on ships, partly on buildings.
 - **Research** (stock): research points from research labs (unchanged). Spent only on technologies, always together with credits ([Research](./research.md)).
 - **One-off windfalls:** collecting a drifting asteroid adds its cargo (raw materials and/or research points) directly to the collecting faction's stock, outside the economy tick. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids).
-- **Energy** (flow, never stored): an energy-short planet produces at `production / consumption` efficiency and loses 1 satisfaction/s.
+- **Energy** (flow, never stored): every owned planet has a colony core (+10) plus its power buildings. An energy-short planet produces at `production / consumption` efficiency, and the shortfall lowers its satisfaction drift in proportion ([Energy and satisfaction](#energy-and-satisfaction)).
 - **Population**: capped by housing; `0.1 credits/s` per inhabitant at 100% satisfaction.
 
 ## Finite deposits
@@ -58,16 +58,31 @@ Deposits run out, so the economy guarantees a way back:
 - **Windfalls:** drifting asteroids still carry one-off raw cargo ([Star Map Terrain](./star-map-terrain.md#drifting-asteroids)).
 - **New sources:** ~20% of all planets carry a deposit, and every system's asteroid belt holds at least one, so expansion always has targets. There is no regeneration and no ship scrapping; recovery is by expansion.
 
+## Energy and satisfaction
+
+Energy decides two things on a planet: production efficiency and the energy part of the satisfaction drift. Both come from `EconomyService.calculatePlanetEconomy`.
+
+- **Colony core:** every planet owned by a faction (not unowned, not `independent`) gets `COLONY_CORE_ENERGY` = 10 energy on top of its power buildings. It is flat (energy technologies scale only power buildings). It lets a new colony run its first housing blocks (3–12 energy each) before a Solar Array, and gives the homeworld (100 from its Fusion Power Plant) room for the usual first Mining Complex + Spaceship Factory.
+- **Efficiency:** `1` when production ≥ consumption, otherwise `production / consumption`. All building output and credit income are multiplied by it.
+- **Energy drift** (`energySatisfactionDrift`): `1 − 4 × shortfall`, at least `−1`, where `shortfall = 1 − efficiency`. Fully powered → +1/s; 4% short → +0.84/s; 25% short → 0; 50% or more short → −1/s. A small overshoot costs output but no longer leads to rebellion; a severe shortage still does (from 100% in ~100 s).
+- **Total drift** (`PlanetEconomy.satisfactionDrift`) = energy drift + habitability + building morale. The economy tick applies it (arrears come on top, see below).
+
+**Player feedback** (all derived, nothing saved):
+
+- Planet screen: the satisfaction figure shows the drift per second; a red alert appears while the planet is short on energy (with the output loss) or while satisfaction is falling (with the estimated seconds to rebellion).
+- Build list: each building shows its energy use or output (`EN`), red when building it would leave the planet short; the tooltip and the placement panel show the planet's energy after building. The preview uses the listed values, so it slightly understates a power building's output under energy technologies.
+- Map notices (`planet-stability.ts`, from snapshots taken right before and after each economy tick): a player planet newly short on energy (once, again only after it recovered), satisfaction falling through 50% and 20%, and a planet lost to rebellion.
+
 ## The economy tick
 
 `StarMap.gameLoopCallback` accumulates scaled game delta and, once ≥ 1 s has accumulated, calls `EconomyService.applyEconomyDelta` once per faction with the accumulated delta. This is the **only** place income and upkeep are applied, so costs are charged exactly once per tick and are frame-rate independent (many small ticks ≈ one large tick, within integer rounding). A paused game (delta 0) changes nothing. The headless simulation harness (`ai-simulation.spec.ts`) mirrors this loop.
 
 Order within one tick (per faction):
 
-1. **Satisfaction drift** on owned planets (+1/s with enough energy, −1/s when short, plus habitability and building morale). A planet reaching 0 rebels to `independent` *before* income is computed, so it neither pays nor costs its old owner on that tick.
+1. **Satisfaction drift** on owned planets (the energy drift from [Energy and satisfaction](#energy-and-satisfaction), plus habitability and building morale). A planet reaching 0 rebels to `independent` *before* income is computed, so it neither pays nor costs its old owner on that tick.
 2. **Effective breakdown** (`calculateEconomy`) from the post-drift state; `net[r] × delta` is applied to raw materials and research, except that deposit mining (planet mines and asteroid stations, `depositMiningPerSecond`) adds what it actually extracted from each deposit this tick (each capped by what is left, and subtracted from it) instead of its nominal rate.
 3. **Credits**: `credits + carried fraction + netPerSecond × delta`, floored; the fractional remainder is carried per faction in memory (not saved — at most one credit is lost on reload).
-4. **Arrears**: credits never go below 0. If the treasury cannot cover the upkeep, the unpaid part is waived and every owned planet loses `2 × (unpaid / due)` satisfaction per second. A small shortfall is outweighed by the +1/s energy drift; a large one leads toward rebellion unless income recovers or upkeep is cut (disbanding a fleet moves its ships to the cheaper reserve).
+4. **Arrears**: credits never go below 0. If the treasury cannot cover the upkeep, the unpaid part is waived and every owned planet loses `2 × (unpaid / due)` satisfaction per second. A small shortfall is outweighed by a positive energy drift; a large one leads toward rebellion unless income recovers or upkeep is cut (disbanding a fleet moves its ships to the cheaper reserve).
 5. **Population growth.**
 
 ## Effective rates (what the HUD shows)
@@ -168,4 +183,4 @@ Buildings complete instantly. Adding construction time would need: a persistent 
 - Late-game AI factions still accumulate a credit surplus (~50–350k after 30 minutes), now with raw materials as the binding constraint on their fleets; research prices absorb part of it.
 - No ship dismantling or recycling: the only recovery from exhausted deposits is expansion (plus the trickle and drifting asteroids).
 - Mining stations cannot be captured or dismantled, but hostile warships stopped in their system attack and can destroy them, which stops extraction; Turret Research I–III arms them ([Territory](./territory.md#station-defense)).
-- An energy-short planet earns nothing; a faction whose only planet is energy-short with less than a Solar Array's price (600) cannot recover.
+- A planet 25% or more short on energy loses satisfaction; a faction whose only planet is in that state with less than a Solar Array's price (600) may not recover in time.

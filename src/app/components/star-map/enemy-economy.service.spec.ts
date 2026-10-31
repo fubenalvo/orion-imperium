@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { EnemyEconomyService, EconomyContext } from './enemy-economy.service';
+import { EconomyService } from '../../services/economy.service';
 import { Faction, FactionProduction, FactionShipStock, Fleet, PlanetTile, StarSystem } from './star-map.models';
 
 /*
@@ -8,10 +9,12 @@ import { Faction, FactionProduction, FactionShipStock, Fleet, PlanetTile, StarSy
  */
 describe('EnemyEconomyService', () => {
   let service: EnemyEconomyService;
+  let economyService: EconomyService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
     service = TestBed.inject(EnemyEconomyService);
+    economyService = TestBed.inject(EconomyService);
   });
 
   // Raw materials default to plenty so tests isolate credit decisions;
@@ -65,9 +68,11 @@ describe('EnemyEconomyService', () => {
     }
   };
 
-  it('bootstraps an empty colony with power and then housing instead of deadlocking', () => {
+  it('bootstraps an empty colony with housing, powered by the colony core, without an energy shortage', () => {
     // Enough for Solar Array (600) + Small Residential Block (400) plus the
     // treasury runway that lets a zero-income colony carry their upkeep.
+    // The colony core (COLONY_CORE_ENERGY) powers the first housing block,
+    // so housing no longer has to wait for a power building.
     const f = faction(2000);
     const colony = planet({ id: 2, size: 'small' });
     const systems = [system([colony])];
@@ -75,8 +80,8 @@ describe('EnemyEconomyService', () => {
     run(f, systems, context(), 5);
 
     const names = colony.buildings.map((b) => b.name);
-    expect(names[0]).toBe('Solar Array');
     expect(names).toContain('Small Residential Block');
+    expect(economyService.calculatePlanetEconomy(colony, f).efficiency).toBe(1);
   });
 
   it('builds at most one building per decision interval', () => {
