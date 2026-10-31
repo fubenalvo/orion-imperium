@@ -46,6 +46,15 @@ width or 600px height the whole scale steps down once (media query on
 sizes for text that already uses the tokens. `--ui-edge` is the gap between
 floating HUD panels and the viewport edge.
 
+Exception: the floating info cards of the star map and system view (system,
+fleet, planet, asteroid) step down one more time on the same viewports (the
+`compact-view` mixin) by overriding the `--ui-fs-*` tokens on the card itself,
+and tighten their paddings. They are also capped at about half the screen
+height (`min(55dvh, …)`) and at `min(44vw, 240px)` width, with a scrolling
+content area and the action row pinned at the bottom, so the map stays usable
+on phones. Those rules live in `src/styles/_hud-panels.scss` (compact block)
+and in each info component's stylesheet.
+
 Legacy tokens (`--color-blue*`, `--color-text*`, `--panel-*`,
 `--color-success` …) are aliases of the palette above — the `--color-blue*`
 names now carry the turquoise accent. Prefer `--ui-*` in new code.

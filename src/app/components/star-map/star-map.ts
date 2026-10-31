@@ -305,6 +305,8 @@ loadError = '';
   private dragCameraStartX = 0;
   private dragCameraStartY = 0;
   private dragMoved = false;
+  /** Viewport element of the current drag, so a long press can end it (endStillDrag). */
+  private dragViewport: HTMLElement | null = null;
   private readonly dragThreshold = 5;
 
   // Parallax background: the background div must always be 200% of the actual
@@ -2304,6 +2306,7 @@ loadError = '';
   private consumeRightClick(event: MouseEvent): boolean {
     event.preventDefault();
     event.stopPropagation();
+    this.endStillDrag(event);
     if (this.contextMenu) {
       this.closeContextMenu();
       return true;
@@ -2891,6 +2894,21 @@ loadError = '';
     return Math.max(0, Math.min(camera, gridSizeVw - visibleSizeVw));
   }
 
+  /*
+   * A touch long-press arrives as a contextmenu (TouchLongPressService) while
+   * the same finger has already started a camera drag on pointerdown. If the
+   * camera has not moved, that "drag" was really the press: end it, so the
+   * lift is not read as a tap (onMapClick) that would undo the order.
+   * The synthetic long-press event (not trusted) also ends a drag that passed
+   * the 5px drag threshold, because the long press only fires while the
+   * finger stayed within its own, larger touch tolerance (finger jitter).
+   */
+  private endStillDrag(event: MouseEvent): void {
+    if (!this.isDragging || (this.dragMoved && event.isTrusted)) return;
+    this.isDragging = false;
+    this.dragViewport?.classList.remove('dragging');
+  }
+
   /** Pointer down on the map viewport — begins drag tracking (empty areas only). */
   onPointerDown(event: PointerEvent): void {
     if (this.contextMenu) {
@@ -2906,6 +2924,7 @@ loadError = '';
 
     const vp = event.currentTarget as HTMLElement;
     vp.setPointerCapture(event.pointerId);
+    this.dragViewport = vp;
 
     this.isDragging = true;
     this.dragMoved = false;

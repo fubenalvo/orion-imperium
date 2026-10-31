@@ -1,3 +1,5 @@
+@use 'mixins' as *;
+
 /* Placement is the shared bottom-left card (styles/_hud-panels.scss); it
    sits above the system scene's planets because it opens over them. */
 .planet-info {
@@ -27,6 +29,12 @@
   border: 1px solid var(--ui-line-soft);
   border-radius: var(--ui-radius);
   background: var(--ui-surface-raised);
+
+  @include compact-view {
+    gap: 0.3em;
+    margin: 0.2em 0 0.1em;
+    padding: 0.35em 0.5em;
+  }
 }
 
 .planet-info__empty {
@@ -38,4 +46,8 @@
   color: var(--ui-ink-dim);
   font-size: var(--ui-fs-sm);
   line-height: 1.45;
+
+  @include compact-view {
+    line-height: 1.3;
+  }
 }

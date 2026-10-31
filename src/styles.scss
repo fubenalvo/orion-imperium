@@ -158,6 +158,9 @@
 
 * {
   user-select: none;
+  /* No iOS link/image callout on long press: a long press is a right-click
+     in the game (TouchLongPressService). */
+  -webkit-touch-callout: none;
 }
 
 html,

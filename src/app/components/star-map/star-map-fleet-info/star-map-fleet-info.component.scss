@@ -1,4 +1,6 @@
 
+@use 'mixins' as *;
+
 /* Fleet name in its faction color, so the panel is attributable at a glance. */
 .fleet-info__name {
   overflow: hidden;
@@ -27,6 +29,11 @@
   margin-top: 0.45em;
   padding: 0.45em 0.9em;
   font-size: var(--ui-fs-xs);
+
+  @include compact-view {
+    margin-top: 0.3em;
+    padding: 0.4em 0.5em;
+  }
 }
 
 .fleet-organize__hint {

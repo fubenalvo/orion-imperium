@@ -35,11 +35,14 @@
   z-index: 30;
   animation: panel-rise 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
-  @include mobile-view {
+  @include compact-view {
     left: 4px;
     bottom: 4px;
     min-width: 0;
-    width: min(46vw, 300px);
+    width: min(44vw, 240px);
+    /* Leave most of the map visible; the content area scrolls and the
+       action row stays pinned at the bottom of the card. */
+    max-height: min(55dvh, calc(100dvh - var(--game-header-h) - 8px));
   }
 }
 
@@ -67,8 +70,10 @@
   line-height: 1.35;
   @include ui.scroll;
 
-  @include mobile-view {
-    padding: 0.5em 0.6em;
+  @include compact-view {
+    gap: 0.2em;
+    padding: 0.35em 0.5em;
+    line-height: 1.25;
   }
 }
 
@@ -123,8 +128,70 @@
     min-width: 0;
   }
 
-  @include mobile-view {
-    padding: 0.2em 0.6em 0.6em;
+  @include compact-view {
+    gap: 0.35em;
+    padding: 0.15em 0.5em 0.45em;
+
+    > button {
+      min-height: 0;
+      padding: 0.45em 0.6em;
+    }
+  }
+}
+
+/* =========================================================
+   COMPACT INFO CARDS (phones, portrait and landscape)
+   ---------------------------------------------------------
+   On small screens the cards would otherwise cover a large part
+   of the star map / system view. Instead of restyling every
+   element, the cards take one more step down the type scale by
+   overriding the --ui-fs-* tokens locally (everything inside
+   sizes from them or from em), and tighten the few fixed
+   paddings below. Component stylesheets (planet / fleet /
+   asteroid info) add compact rules for their own classes.
+   ========================================================= */
+
+.system-info,
+.fleet-info,
+.planet-info,
+.asteroid-info {
+  @include compact-view {
+    --ui-fs-xs: 0.62rem;
+    --ui-fs-sm: 0.68rem;
+    --ui-fs-md: 0.76rem;
+    --ui-fs-lg: 0.9rem;
+
+    .panel-style__title {
+      gap: 0.5em;
+      min-height: 0;
+      padding: 0.35em 2.2em 0.35em 0.6em;
+      letter-spacing: 0.12em;
+
+      button.close-btn {
+        right: 0.3rem;
+        width: 1.5rem;
+        height: 1.5rem;
+      }
+    }
+
+    .panel-hero {
+      gap: 0.6em;
+      padding: 0 0 0.2em;
+    }
+
+    .panel-hero__star {
+      width: 1.8em;
+      height: 1.8em;
+    }
+
+    .ui-stat {
+      gap: 0.5em;
+      padding: 0.05em 0;
+    }
+
+    .ui-label {
+      margin-top: 0.2em;
+    }
   }
 }
 
@@ -136,6 +203,11 @@
   display: flex;
   gap: 0.45em;
   margin-top: 0.5em;
+
+  @include compact-view {
+    gap: 0.3em;
+    margin-top: 0.3em;
+  }
 }
 
 /* The global button rule supplies the look; only the small size here. */
@@ -149,6 +221,10 @@
   &.active {
     @include ui.button-selected;
   }
+
+  @include compact-view {
+    padding: 0.4em 0.5em;
+  }
 }
 
 .action-btn.disband-btn {
@@ -161,6 +237,11 @@
   grid-template-columns: 1fr 1fr;
   gap: 0.5em;
   margin-top: 0.4em;
+
+  @include compact-view {
+    gap: 0.3em;
+    margin-top: 0.25em;
+  }
 }
 
 .fleet-power__cell {
@@ -168,6 +249,10 @@
   border: 1px solid var(--ui-line-soft);
   border-radius: var(--ui-radius);
   background: var(--ui-surface-raised);
+
+  @include compact-view {
+    padding: 0.3em 0.5em;
+  }
 }
 
 .fleet-section-divider {
@@ -197,6 +282,11 @@
   border-left: 2px solid var(--ui-line);
   background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.06), transparent 80%);
   font-size: var(--ui-fs-sm);
+
+  @include compact-view {
+    gap: 0.5em;
+    padding: 0.12em 0.4em;
+  }
 }
 
 .fleet-ships__type {

@@ -9,11 +9,13 @@
   z-index: 30;
   animation: panel-rise 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
-  @include mobile-view {
+  @include compact-view {
     left: auto;
     right: 4px;
     bottom: 4px;
-    width: min(46vw, 280px);
+    width: min(44vw, 230px);
+    max-height: min(55dvh, calc(100dvh - var(--game-header-h) - 8px));
+    overflow-y: auto;
   }
 }
 
