@@ -282,9 +282,13 @@ export class ProductionService {
         if (head.progress >= 1) {
           queue.shift();
           const entries: ShipStockEntry[] = [];
+          // nextShipId scans fleets and stock, and the new entries reach the
+          // stock only after the loop, so take the first free id once and
+          // count up; calling it per ship gave every ship the same id.
+          const firstId = this.shipStockService.nextShipId(fleets as never, data);
           for (let i = 0; i < head.quantity; i++) {
             entries.push({
-              id: this.shipStockService.nextShipId(fleets as never, data),
+              id: firstId + i,
               type: shipType.id,
               name: shipType.name,
               producedAtTick: this.tickCounter,

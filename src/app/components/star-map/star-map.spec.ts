@@ -23,6 +23,10 @@ describe('StarMap', () => {
   let fixture: ComponentFixture<StarMap>;
 
   beforeEach(async () => {
+    // The previous test's StarMap is torn down after afterEach and saves on
+    // destroy, so storage must also be cleared here; otherwise this test
+    // would load that game (possibly an already lost one).
+    localStorage.clear();
     await TestBed.configureTestingModule({
       imports: [StarMap],
       providers: [
@@ -132,7 +136,7 @@ describe('StarMap', () => {
       expect(actionAfter).toEqual(actionBefore);
     });
 
-    it('should fire on a single 2s delta (2x speed: 1 real second feeds 2 game seconds)', () => {
+    it('should fire on a single 2s game-time delta (a large frame delta at 3x speed)', () => {
       component['gameLoopCallback'](2);
       expect(actionService.getAction('enemy1')).toBeDefined();
       expect(actionService.getAction('enemy2')).toBeDefined();
@@ -265,14 +269,21 @@ describe('StarMap', () => {
 
       component.starSystems = component.starSystems.map((s) => {
         if (s.id === 'sol') {
+          const home = s.planetsTiles.find((p) => p.id === 1)!;
           return {
             ...s,
-            planetsTiles: s.planetsTiles.map((p) => {
-              if (p.id === 1) {
-                return { ...p, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] };
-              }
-              return p;
-            }),
+            planetsTiles: [
+              ...s.planetsTiles.map((p) => {
+                if (p.id === 1) {
+                  return { ...p, factionId: 'enemy1', buildings: [{ name: 'Spaceport', size: 1, x: 0, y: 0 }] };
+                }
+                return p;
+              }),
+              // Handing planet 1 to enemy1 would leave the player planetless
+              // (= defeat, and the frame loop stops simulating), so keep an
+              // empty player-owned foothold.
+              { ...home, id: 99902, factionId: 'player', population: 0, buildings: [] },
+            ],
           };
         }
         return s;
@@ -1183,6 +1194,41 @@ describe('StarMap', () => {
       component.selectFleet(component.fleets[3]);
       component.openFleetManager();
       expect(component.fleetManagerFleets).toBeNull();
+    });
+  });
+
+  describe('Building placement', () => {
+    const setup = () => {
+      const planet = component.starSystems.flatMap((s) => s.planetsTiles).find((p) => p.id === 1)!;
+      planet.buildings = [{ name: 'Spaceport', size: 4, x: 0, y: 0 }];
+      planet.resourceTiles = [];
+      planet.surface = undefined;
+      component.selectedPlanetTile = planet;
+      const player = component.factions.find((f) => f.id === 'player')!;
+      player.currencies = { credits: 10000, rawmaterials: 10000, research: 0 };
+      player.researchedTechnologies = ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power'];
+      return { planet, player };
+    };
+
+    it('refuses an overlapping placement without charging', () => {
+      const { planet, player } = setup();
+      component.onBuildingConfirmed({ buildingId: 'small_residential', x: 1, y: 1 });
+      expect(planet.buildings).toHaveLength(1);
+      expect(player.currencies['credits']).toBe(10000);
+    });
+
+    it('refuses a placement outside the surface grid', () => {
+      const { planet, player } = setup();
+      component.onBuildingConfirmed({ buildingId: 'small_residential', x: 999, y: 0 });
+      expect(planet.buildings).toHaveLength(1);
+      expect(player.currencies['credits']).toBe(10000);
+    });
+
+    it('builds and charges on a valid placement', () => {
+      const { planet, player } = setup();
+      component.onBuildingConfirmed({ buildingId: 'small_residential', x: 5, y: 5 });
+      expect(planet.buildings).toHaveLength(2);
+      expect(player.currencies['credits']).toBeLessThan(10000);
     });
   });
 });

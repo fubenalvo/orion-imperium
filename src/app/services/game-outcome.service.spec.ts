@@ -29,7 +29,7 @@ describe('GameOutcomeService', () => {
     explored: true,
   } as any);
 
-  const makeFleet = (id: number, factionId: string, destroyed = false) => ({
+  const makeFleet = (id: number, factionId: string, destroyed = false, shipType = 'fighter') => ({
     id,
     name: 'F' + id,
     factionId,
@@ -39,7 +39,7 @@ describe('GameOutcomeService', () => {
     targetY: null,
     speed: 4,
     system: null,
-    ships: [{ id: id * 10, name: 's', type: 'fighter', destroyed: false }],
+    ships: [{ id: id * 10, name: 's', type: shipType, destroyed: false }],
     destroyed,
   } as Fleet);
 
@@ -162,7 +162,25 @@ describe('GameOutcomeService', () => {
     expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('inProgress');
   });
 
-  it('player has no planets but still has a surviving fleet: no defeat', () => {
+  it('player has no planets but a fleet with a living colonizer: no defeat', () => {
+    const data = makeData({
+      starSystems: [
+        {
+          id: 's1',
+          name: 'S1',
+          x: 1,
+          y: 1,
+          planets: 0,
+          color: '#fff',
+          planetsTiles: [],
+        } as any,
+      ],
+      fleets: [makeFleet(1, 'player', false, 'colonizer')],
+    });
+    expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('inProgress');
+  });
+
+  it('player has no planets and only warships (no colonizer): defeat', () => {
     const data = makeData({
       starSystems: [
         {
@@ -177,7 +195,7 @@ describe('GameOutcomeService', () => {
       ],
       fleets: [makeFleet(1, 'player')],
     });
-    expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('inProgress');
+    expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('defeat');
   });
 
   it('player has neither inhabited planets nor surviving fleets: defeat', () => {
@@ -217,14 +235,26 @@ describe('GameOutcomeService', () => {
       expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('defeat');
     });
 
-    it('a player without planets but with a living fleet is not defeated, even while the AI holds planets', () => {
+    it('a player without planets but with a colonizer fleet is not defeated, even while the AI holds planets', () => {
       const data = makeData({
         starSystems: [
           { id: 's1', name: 'S1', x: 1, y: 1, planets: 1, color: '#fff', planetsTiles: [makePlanet(2, 'enemy1')] } as any,
         ],
-        fleets: [makeFleet(1, 'player')],
+        fleets: [makeFleet(1, 'player', false, 'colonizer')],
       });
       expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('inProgress');
+    });
+
+    it('a destroyed colonizer is not a recovery route', () => {
+      const fleet = makeFleet(1, 'player', false, 'colonizer');
+      fleet.ships[0].destroyed = true;
+      const data = makeData({
+        starSystems: [
+          { id: 's1', name: 'S1', x: 1, y: 1, planets: 1, color: '#fff', planetsTiles: [makePlanet(2, 'enemy1')] } as any,
+        ],
+        fleets: [fleet],
+      });
+      expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('defeat');
     });
 
     it('an owned but uninhabited planet still counts as a foothold', () => {
@@ -241,7 +271,7 @@ describe('GameOutcomeService', () => {
         starSystems: [
           { id: 's1', name: 'S1', x: 1, y: 1, planets: 1, color: '#fff', planetsTiles: [makePlanet(2, 'enemy1')] } as any,
         ],
-        fleets: [makeFleet(1, 'player', true)],
+        fleets: [makeFleet(1, 'player', true, 'colonizer')],
       });
       expect(service.evaluateOutcome(data.factions, data.starSystems, data.fleets)).toBe('defeat');
     });

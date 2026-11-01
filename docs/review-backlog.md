@@ -12,20 +12,11 @@ Related: [Economy](./economy.md), [Planet Capture](./planet-capture.md), [Ship P
 
 ## P0 – Critical: breaks the game, do first
 
-### 3. [Bug] Soft-lock: no planet and no colonizer, but no defeat [Played]
-
-- **Problem:** with no planet, no income and no colonizer, but living fleets, the game stays "in progress" with no way out.
-- **File:** `src/app/services/game-outcome.service.ts`
-- **Suggestion:** defeat when there is no planet and no fleet that can gain one (a colonizer, or a reachable capturable independent/enemy planet). Alternative: an emergency colonizer. Update the docs.
+No open items.
 
 ---
 
 ## P1 – Important bugs
-
-### 5. [Bug] Every ship in a multi-ship production order gets the same id [Played + Code]
-
-- **File:** `src/app/services/production.service.ts` (~line 285): the completion loop calls `nextShipId` before adding anything to the stock.
-- **Fix:** increasing ids inside the loop (first id + i). Add a regression test, and check whether existing saves with duplicate ids cause problems (migration?).
 
 ### 6. [Bug/Balance] Build time does not scale with order quantity [Code]
 
@@ -36,15 +27,6 @@ Related: [Economy](./economy.md), [Planet Capture](./planet-capture.md), [Ship P
 ### 7. [Bug] The player's own home system shows status "UNEXPLORED" [Played]
 
 On the galaxy map system panel.
-
-### 8. [Bug] Game speed resets from 2× to 1× after every battle [Played]
-
-- **Files:** `src/app/services/game-time.service.ts`, return from the battle screen.
-- **Suggestion:** keep the speed for the session.
-
-### 9. [Bug] `StarMap.onBuildingConfirmed` does not validate placement [Code]
-
-Overlap and terrain are checked only in the planet screen UI. Move the placement rule into a shared function and call it from both places.
 
 ---
 

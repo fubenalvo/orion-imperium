@@ -17,7 +17,7 @@ import { GameHeaderComponent, GameHeaderSpeedOption } from '../../game-header/ga
  * Star-map flavour of the shared GameHeaderComponent, used by every
  * star-map view (map, system, planet). It fills the generic header with
  * the view title, an optional back button, the strategic time controls
- * ([⏸] [1x] [2x]), the player's currency row, the global ship stock
+ * ([⏸] [1x] [3x]), the player's currency row, the global ship stock
  * indicator, the DIPLOMACY button and the pause-menu button.
  *
  * The header overlays the top --game-header-h of its parent; view content
@@ -59,7 +59,7 @@ export class StarMapHeaderComponent {
 
   readonly speedOptions: readonly GameHeaderSpeedOption[] = [
     { value: 1, label: '1x' },
-    { value: 2, label: '2x' },
+    { value: 3, label: '3x' },
   ];
 
   onSetSpeed(speed: number): void {

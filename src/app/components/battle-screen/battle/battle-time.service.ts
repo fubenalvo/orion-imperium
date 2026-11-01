@@ -2,7 +2,9 @@ import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 import { battleDebug } from './battle.types';
 
-export type BattleSpeed = 0.625 | 1.25;
+/* Internal battle speeds, shown as 1x / 3x (same labels as the star map).
+ * 0.625 is the default battle pace; 1.875 is three times that. */
+export type BattleSpeed = 0.625 | 1.875;
 
 export interface BattleTimeState {
   speed: BattleSpeed;

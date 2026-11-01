@@ -23,14 +23,16 @@ export type GameOutcome = 'inProgress' | 'victory' | 'defeat';
  *  1. Terminal outcomes are sticky: once a save carries 'victory' or
  *     'defeat' it is returned unchanged, so later ticks can never
  *     overwrite it.
- *  2. Defeat (= AI victory): the allied side is eliminated — it owns no
- *     planet at all AND has no fleet with a living ship. While it still
- *     has either, a recovery route exists: a fleet can colonize (with a
- *     colonizer) or capture undefended / independent planets, and any
- *     owned planet can still build. Ships in the global stock do not
- *     count: without an owned Spaceport they can never leave the stock.
+ *  2. Defeat (= AI victory): the allied side owns no planet at all AND
+ *     has no fleet carrying a living colonizer. Any owned planet (even an
+ *     empty one) can still build, and a colonizer can found a new colony;
+ *     warships alone do not count — without a planet there is no income,
+ *     no repair and no production, so a planetless empire with only
+ *     warships is treated as eliminated (it used to soft-lock the game in
+ *     'inProgress'). Ships in the global stock do not count either:
+ *     without an owned Spaceport they can never leave the stock.
  *     Elimination is checked first, so defeat is reachable even while
- *     hostile planets exist (that ordering was the original bug).
+ *     hostile planets exist.
  *  3. Victory: every inhabited planet (population > 0 or any building) is
  *     allied or owned by an AI faction at peace with the player —
  *     independent (rebel) planets therefore still block victory — and no
@@ -77,8 +79,8 @@ export class GameOutcomeService {
 
     const allPlanets = starSystems.flatMap((system) => system.planetsTiles ?? []);
     const alliedOwnsAnyPlanet = allPlanets.some((p) => alliedFactionIds.has(p.factionId));
-    const alliedHasFleet = [...alliedFactionIds].some((id) => this.hasSurvivingFleet(fleets, id));
-    if (!alliedOwnsAnyPlanet && !alliedHasFleet) {
+    const alliedHasColonizer = [...alliedFactionIds].some((id) => this.hasLivingColonizer(fleets, id));
+    if (!alliedOwnsAnyPlanet && !alliedHasColonizer) {
       return 'defeat';
     }
 
@@ -121,6 +123,13 @@ export class GameOutcomeService {
     }
 
     return 'victory';
+  }
+
+  private hasLivingColonizer(fleets: Fleet[], factionId: string): boolean {
+    return (fleets ?? []).some((fleet) =>
+      fleet.factionId === factionId
+      && !fleet.destroyed
+      && (fleet.ships ?? []).some((s) => s.type === 'colonizer' && s.destroyed !== true));
   }
 
   private hasSurvivingFleet(fleets: Fleet[], factionId: string): boolean {

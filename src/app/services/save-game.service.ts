@@ -9,6 +9,7 @@ import legacyStarMapData from '../components/star-map/star-map-data.json';
 import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
 import { normalizeRelations } from '../components/star-map/diplomacy';
 import { generateAnomalies, sanitizeAnomalyState } from '../components/star-map/anomalies';
+import { ShipStockService } from './ship-stock.service';
 
 /*
  * =========================================================
@@ -365,6 +366,11 @@ export class SaveGameService {
         asteroidBelts: data.asteroidBelts ?? [],
       });
     }
+
+    // Every load: ship ids must be unique across fleets and stock. Older
+    // saves can hold duplicates from multi-ship production orders. No
+    // version bump: the repair is idempotent.
+    ShipStockService.repairDuplicateShipIds(data);
 
     if (version < SAVE_VERSION) {
       data.saveVersion = SAVE_VERSION;

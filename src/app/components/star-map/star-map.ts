@@ -33,6 +33,7 @@ import { ResearchService } from '../../services/research.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
+import { checkBuildingPlacement } from './building-placement';
 import starMapData from './star-map-data.json';
 import shipData from './ship-data.json';
 import planetData from './planet-data.json';
@@ -1484,9 +1485,16 @@ loadError = '';
     }
 
     const buildingDef = (
-      planetData as { buildings: { id: string; price: number; rawMaterialCost?: number; size: number; name: string }[] }
+      planetData as {
+        buildings: { id: string; price: number; rawMaterialCost?: number; size: number; name: string; requiresOreProximity?: boolean }[];
+      }
     ).buildings.find((b) => b.id === event.buildingId);
     if (!buildingDef) return;
+
+    // The planet screen only emits valid placements, but this is the point
+    // that changes the game state, so the rule is enforced here too, before
+    // anything is paid.
+    if (checkBuildingPlacement(planet, this.getPlanetGridSize(planet), buildingDef, event.x, event.y) !== null) return;
 
     // Credits and raw materials are checked and deducted together.
     if (!payCost(player, buildingCost(buildingDef))) return;
@@ -3810,7 +3818,7 @@ loadError = '';
     this.gameTimeService.resume();
   }
 
-  /** Header time control: set simulation speed (1x or 2x) and un-pause. */
+  /** Header time control: set simulation speed (1x or 3x) and un-pause. */
   onSetSpeed(speed: GameSpeed): void {
     this.gameTimeService.setSpeed(speed);
   }
@@ -4063,7 +4071,8 @@ loadError = '';
     // Ensure every planet has deterministic resource deposit tiles
     this.ensureResourceTiles();
 
-    // Reset game time state (speed=1, not paused) on every load
+    // Un-pause and clear elapsed time on every load; the chosen speed is
+    // kept for the session (also across battles, which reload the autosave).
     this.gameTimeService.reset();
 
     if (options.resumeAi) {
@@ -4299,9 +4308,9 @@ loadError = '';
         event.preventDefault();
         this.gameTimeService.setSpeed(1);
         break;
-      case '2':
+      case '3':
         event.preventDefault();
-        this.gameTimeService.setSpeed(2);
+        this.gameTimeService.setSpeed(3);
         break;
       case 'Escape':
         event.preventDefault();

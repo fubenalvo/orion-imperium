@@ -154,9 +154,9 @@ describe('DriftingAsteroidService', () => {
     expect(p1.x).toBeCloseTo(2.5, 6);
     expect(p1.y).toBe(50);
 
-    // 2× speed = twice the game delta per frame.
-    service.tick(20, [], factions(), W, H);
-    expect(asteroidPosition(service.active[0]).x).toBeCloseTo(6.5, 6);
+    // 3× speed = three times the game delta per frame.
+    service.tick(30, [], factions(), W, H);
+    expect(asteroidPosition(service.active[0]).x).toBeCloseTo(8.5, 6);
   });
 
   it('leaves the map and is removed when nobody intercepts it', () => {

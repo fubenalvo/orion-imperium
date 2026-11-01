@@ -24,7 +24,7 @@
 | 12 | Save / load (5 slots: 1 autosave + 4 manual) | ✅ |
 | 13 | Main menu | ✅ |
 | 14 | Pause menu | ✅ |
-| 15 | Time controls (1x/2x/pause) | ✅ |
+| 15 | Time controls (1x/3x/pause) | ✅ |
 | 16 | Camera / navigation | ✅ |
 | 17 | Context menu | ✅ |
 | 18 | Fleet info panel | ✅ |
@@ -221,11 +221,11 @@ src/app/
   - `moraleDrift = PLANET_TYPE_HABITABILITY[planet.type] + Σ building.moraleRate` (satisfaction points per second of game time). Base per planet type: `earthlike 0`, `gasgiant 0`, `marslike -0.03`, `venuslike -0.05`, `desert -0.05`, `ice -0.08`. Social/entertainment buildings (Park +0.03, Entertainment Center +0.08, Hospital +0.02, School +0.01) offset harsh worlds; heavy industry contributes a small negative (-0.01–-0.02: Spaceship Factory -0.02, Fusion Plant -0.01, Mining Complex -0.01).
   - The habitability/morale drift is additive on top of the energy drift.
   - Clamped to [0, 100]. 0 → rebellion → independent faction.
-- Population growth: applied each economy tick from the **same 1s accumulator** that drives morale, so it pauses when paused and runs 2× at speed 2x (`star-map.ts` feeds the scaled delta into `applyEconomyDelta`).
+- Population growth: applied each economy tick from the **same 1s accumulator** that drives morale, so it pauses when paused and runs 3× at speed 3x (`star-map.ts` feeds the scaled delta into `applyEconomyDelta`).
   - Per-tick growth = `0.005/s × (satisfaction/100, clamped 0..1) × max(0, 1 + PLANET_TYPE_HABITABILITY[type]) × (capacity − population) × deltaTime`.
   - `capacity` = Σ `population` of residential/housing buildings (Small 100 / Medium 300 / Large 700, from `planet-data.json`). Growth is a float and **clamped to capacity**; a planet at capacity grows by 0.
   - Independent planets (satisfaction locked at 0) never grow; the `pop * 0.1` credit contribution uses the grown population on the next tick.
-  - Pause / 2× speed: inherited from `GameTimeService.getScaledDeltaTime` — the 1-second economy accumulator is fed the scaled delta, so morale is frozen while paused and runs 2× as fast at speed 2x (no per-system pause/speed checks).
+  - Pause / 3× speed: inherited from `GameTimeService.getScaledDeltaTime` — the 1-second economy accumulator is fed the scaled delta, so morale is frozen while paused and runs 3× as fast at speed 3x (no per-system pause/speed checks).
 
 ### 4.8 Production
 - One order per planet
@@ -285,7 +285,7 @@ System-level overview of the whole AI pipeline (ownership, scheduling, invariant
 > **Current role:** `EnemyAiService` is now a fallback. Every AI fleet is owned either by the strategic pipeline or by `EnemyFleetService` (§4.20), and both are passed in `reservedFleetIds`, so in generated games this layer issues no orders. The rules below describe its behavior for fleets nobody else manages.
 
 - `EnemyAiService` runs every frame inside the existing `StarMap.gameLoopCallback`
-- Uses the same scaled `gameDeltaTime` as other systems (pause-safe, 1x/2x-aware)
+- Uses the same scaled `gameDeltaTime` as other systems (pause-safe, 1x/3x-aware)
   - Only AI-controlled factions (`f.ai === true`, dynamically derived from the `factions` array) are controlled; player, independent, and unhabited fleets are never modified
 - Runtime state tracks `enemyFleetId → targetPlayerFleetId` in a `Map<number, number>`
   - This is purely in-memory state; no persistent properties are added to the `Fleet` model
@@ -322,7 +322,7 @@ System-level overview of the whole AI pipeline (ownership, scheduling, invariant
   - **Movement**: The AI only sets `targetX/targetY`; the existing `StarMapMovementService` handles actual fleet movement each frame
   - **Battle**: The AI does not trigger battles. When an enemy fleet reaches a player fleet in the same cell, the existing `StarMapBattleDetectionService` detects the collision and initiates battle via `BattleService`
   - **Pause**: When `gameDeltaTime <= 0` (paused), the AI returns `false` immediately and makes no progress
-  - **Speed**: At 1x and 2x, the AI runs at the same rate as other simulation systems
+  - **Speed**: At 1x and 3x, the AI runs at the same rate as other simulation systems
 - Test coverage:
   - 21 Vitest tests covering: target selection by strength priority, distance tie-breaking within categories, strong-target fallback, target commitment, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets
 
@@ -649,11 +649,11 @@ System-level overview of the whole AI pipeline (ownership, scheduling, invariant
 - Existing spec files:
   - `app.spec.ts` — 2 tests
   - `main-menu.spec.ts` — 1 test
-  - `star-map.spec.ts` — 15 tests (component creation + EnemyActionService game-loop integration: 2s evaluation timing, pause safety, 2x speed behaviour, independent per-faction ActionResults, reset on load, no game-state mutation, pipeline ordering, log-only-on-change, produce_colonizer and assemble_fleet full-pipeline execution)
+  - `star-map.spec.ts` — 15 tests (component creation + EnemyActionService game-loop integration: 2s evaluation timing, pause safety, 3x speed behaviour, independent per-faction ActionResults, reset on load, no game-state mutation, pipeline ordering, log-only-on-change, produce_colonizer and assemble_fleet full-pipeline execution)
   - `game-time.service.spec.ts` — 28 tests
   - `star-map-sensor.service.spec.ts` — 11 tests
   - `star-map-resources.spec.ts` — 10 tests (deterministic resource tile generation + selection)
-  - `economy.service.spec.ts` — 34 tests (habitability drift, workforce/efficiency, pause freezes morale, 2× speed linearity, population growth: capacity, formula, clamp, independent planets, live mutation)
+  - `economy.service.spec.ts` — 34 tests (habitability drift, workforce/efficiency, pause freezes morale, 3× speed linearity, population growth: capacity, formula, clamp, independent planets, live mutation)
   - `enemy-ai.service.spec.ts` — 21 tests (strength-based target selection, category priority, distance tie-breaking, target validation, retargeting on destroy/no-ships, pause safety, independent multi-fleet targeting, moving target follow, no modification of player/neutral fleets)
   - `enemy-strategy.service.spec.ts` — 18 tests (defend/attack/expand/develop selection, priority ordering, determinism, no state mutation, independent multi-faction behavior, accumulator timing, reset)
   - `enemy-goal.service.spec.ts` — 27 tests (all four goal types, goal commitment, invalidation, strategy change replacement, multi-faction independence, determinism, no state mutation, accumulator timing, reset)

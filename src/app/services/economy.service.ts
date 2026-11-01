@@ -321,7 +321,7 @@ export class EconomyService {
    * building on the planet. Entertainment/social buildings offset harsh
    * habitability; industrial buildings contribute a small negative pressure.
    * This value is multiplied by the game-time `deltaTime` when applied, so
-   * it pauses when the game is paused and runs 2× as fast at speed 2x.
+   * it pauses when the game is paused and runs 3× as fast at speed 3x.
    */
   getMoraleDriftPerSecond(planet: PlanetTile): number {
     const { moraleBonus } = this.computeWorkforce(planet);

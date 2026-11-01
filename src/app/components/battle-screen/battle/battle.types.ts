@@ -98,11 +98,6 @@ export function battleDebug(...args: unknown[]): void {
   }
 }
 
-/* Battle speed multipliers for the time control buttons.
- * 1x is the default; 2x doubles the game-time flow rate. */
-export const BATTLE_SPEED_1X = 1.0;
-export const BATTLE_SPEED_2X = 2.0;
-
 /* Fraction of the attacker's attack range the AI closes to before stopping.
  * E.g. range 4 → stops at distance 3. Only affects WHERE the AI moves;
  * attack resolution and range checks are untouched. Tune freely. */

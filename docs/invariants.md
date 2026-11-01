@@ -129,7 +129,7 @@ Conditions that must remain true across the codebase. When changing any code tha
   - `energyDrift = max(−1, 1 − 4 × (1 − efficiency))` (`energySatisfactionDrift`): `+1` when fully powered, falling in proportion to the shortfall. See [Economy](./economy.md#energy-and-satisfaction).
   - Energy production includes the flat colony core (`COLONY_CORE_ENERGY`) on every planet owned by a faction other than `independent`.
   - `moraleDrift = PLANET_TYPE_HABITABILITY[planet.type] + Σ building.moraleRate` (habitability base per planet type, plus the per-building `moraleRate`; social/entertainment buildings are positive, heavy industry mildly negative). `moraleRate`/`habitabilityDrift` units are satisfaction points per second of game time.
-  - This whole delta is multiplied by `deltaTime` (the game-time accumulator passed from `StarMap`), so morale is frozen while paused and runs 2× at speed 2x — no per-system pause/speed checks are needed.
+  - This whole delta is multiplied by `deltaTime` (the game-time accumulator passed from `StarMap`), so morale is frozen while paused and runs 3× at speed 3x — no per-system pause/speed checks are needed.
 - When `satisfaction` reaches `0`, `factionId !== 'independent'` and the planet has no running capture grace (`rebellionGraceSeconds`), the planet's `factionId` is set to `'independent'` (rebellion). A capture always leaves satisfaction ≥ 40 and starts a 120 s grace ([Planet Capture](./planet-capture.md#after-a-capture)). This happens **before** the credits tick for the same frame, so a planet that flips contributes `0` credits on the tick it flips. Once `independent`, `satisfaction` stays at `0` and the planet no longer contributes to any faction's owned-planet economy.
 - Energy balance ≥ 0 means the planet is considered powered; `>= 0` (not `> 0`) is the recovery threshold so a perfectly balanced grid counts as healthy.
 
@@ -143,7 +143,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 
 ## Population Growth Invariants
 
-- Population grows continuously via `EconomyService.applyEconomyDelta`, driven by the **same 1s game-time accumulator** (`StarMap.economyAccumulator`) that drives satisfaction drift. The per-tick growth is `POPULATION_GROWTH_BASE_RATE (0.005/s) × satisfactionMultiplier × habitabilityMultiplier × capacityRemaining × deltaTime`, so it is **frozen while paused** (`deltaTime === 0`) and runs **2× at speed 2x** — no independent timers or per-planet update loops, mirroring morale drift.
+- Population grows continuously via `EconomyService.applyEconomyDelta`, driven by the **same 1s game-time accumulator** (`StarMap.economyAccumulator`) that drives satisfaction drift. The per-tick growth is `POPULATION_GROWTH_BASE_RATE (0.005/s) × satisfactionMultiplier × habitabilityMultiplier × capacityRemaining × deltaTime`, so it is **frozen while paused** (`deltaTime === 0`) and runs **3× at speed 3x** — no independent timers or per-planet update loops, mirroring morale drift.
 - `capacityRemaining = max(0, populationCapacity - population)`. `populationCapacity` is the sum of the `population` field of all residential (`role === 'housing'`) buildings on the planet (Small 100 / Medium 300 / Large 700 from `planet-data.json`). Growth is applied as a float and **clamped to capacity**, so a planet at capacity grows by 0.
 - `satisfactionMultiplier = clamp(satisfaction / 100, 0, 1)`. Independent planets have `satisfaction` locked at `0`, so they never grow.
 - `habitabilityMultiplier = max(0, 1 + PLANET_TYPE_HABITABILITY[planet.type])` — note `PLANET_TYPE_HABITABILITY` is a **satisfaction drift** value, not a 0..1 score: the multiplier is `1 + drift` (`earthlike`/`gasgiant` = 1.0; `desert`/`venuslike` = 0.95; `marslike` = 0.97; `ice` = 0.92). This multiplier is independent of the morale-drift path that *also* uses habitability for satisfaction.
@@ -198,7 +198,7 @@ See [Star Map Terrain](./star-map-terrain.md).
 
 - `StarMapData.shipStock` and `StarMapData.production` are empire-scoped (per faction), never planet-scoped. Adding ships to a faction's stock, removing from it, or queueing a production order never mutates another faction's data.
 - A `ShipStockEntry` has the same `{id, type, name}` shape as a `FleetShip` so `FleetAssemblyService` can push a stock entry into `fleet.ships` and existing battle / sensor / movement code reads it without changes.
-- Stock ship ids share the same id space as `FleetShip.id` and are unique per save (`ShipStockService.nextShipId` walks every fleet and every stock entry to allocate).
+- Stock ship ids share the same id space as `FleetShip.id` and are unique per save (`ShipStockService.nextShipId` walks every fleet and every stock entry to allocate). Callers that create several ships before adding them anywhere (a multi-ship production order) take the first id once and count up, because `nextShipId` does not see ships that are not yet in a fleet or the stock. Every load runs `ShipStockService.repairDuplicateShipIds`, which renumbers duplicates left by older saves.
 - A `Spaceport` building is a permission flag, not a storage depot. `FleetAssemblyService.createFleet` places new fleets at a Spaceport planet's `StarSystem.x/y`; they may immediately be ordered to move.
 - **No teleporting ships:** stock ships enter an existing fleet only while the fleet stands on the galaxy cell of a system with one of its faction's own Spaceport planets. `FleetAssemblyService.reinforceFleet` and `FleetOrganizationService.applyPlan` (reserve) both enforce this, for the player and the AI alike.
 - Production completion is the only way new entries enter the stock: `ProductionService.tick` mints `ShipStockEntry`s and pushes them into `ShipStockService.addToStock` (`production.service.ts:230-244`).
@@ -239,7 +239,7 @@ See [New Game Generation](./new-game-generation.md) for the rules behind these.
 See [Planet Surface](./planet-surface.md).
 
 - Every system that places or validates buildings uses `getPlanetGridSize` (`numericSize * 4 + 6`); only the v6 save migration may use the legacy formula.
-- No building and no deposit ever covers a cell marked in `planet.surface.blocked`. The generator keeps occupied cells clear, the player screen and `EnemyEconomyService.canPlace` reject blocked footprints, and the galaxy validator checks starting layouts.
+- No building and no deposit ever covers a cell marked in `planet.surface.blocked`. The generator keeps occupied cells clear, the player rule (`checkBuildingPlacement`, used by the planet screen preview and enforced by `StarMap.onBuildingConfirmed`) and `EnemyEconomyService.canPlace` reject blocked footprints, and the galaxy validator checks starting layouts.
 - `planet.surface.blocked` is the only gameplay source of terrain. Visuals are re-derived from `seed`/`intrusion` and must stay flattened to the mask (buildable cells render as flat plateau at height 0).
 - A surface whose `gridSize` differs from the planet's grid is ignored (no blocked cells) and regenerated on load; it is never applied to a different grid.
 - At most 20% of a grid is blocked when the surface is generated.
@@ -312,7 +312,7 @@ See [Planet Capture](./planet-capture.md).
 - **Planets are attacked only at war** (or neutral rebels): permanently allied and at-peace planets are never attacked; a planet battle changes ownership only on attacker victory; a draw leaves the planet with the defender.
 - **One combat damage rule:** the animated battle and the auto-resolver both use `applyVolleyDamage`.
 - **Terminal outcomes are sticky:** once `victory`/`defeat` is stored, `GameOutcomeService.evaluate` returns it unchanged and the star-map frame loop stops simulating.
-- **Defeat = elimination:** the allied side owns no planet and has no living fleet; it is checked before victory and is reachable while hostile planets exist.
+- **Defeat = elimination:** the allied side owns no planet and has no fleet with a living colonizer (warships alone are not a recovery route); it is checked before victory and is reachable while hostile planets exist.
 
 ## Exploration anomalies
 

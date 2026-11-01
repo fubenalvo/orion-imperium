@@ -175,6 +175,40 @@ export class ShipStockService {
     return max + 1;
   }
 
+  /*
+   * repairDuplicateShipIds: Gives every ship a unique id across all fleets
+   * and the stock. Ship ids must be unique because battle outcomes, fleet
+   * organization and the stock look ships up by id. Saves made while
+   * multi-ship production orders handed out one id per order contain
+   * duplicates; the first occurrence keeps its id and later ones get fresh
+   * ids above the current maximum. Idempotent. Returns how many ships were
+   * renumbered.
+   */
+  static repairDuplicateShipIds(data: { fleets?: Fleet[]; shipStock?: FactionShipStock[] }): number {
+    const ships: { id: number }[] = [];
+    for (const fleet of Array.isArray(data.fleets) ? data.fleets : []) {
+      if (Array.isArray(fleet?.ships)) ships.push(...fleet.ships);
+    }
+    for (const stock of Array.isArray(data.shipStock) ? data.shipStock : []) {
+      if (Array.isArray(stock?.ships)) ships.push(...stock.ships);
+    }
+    let max = 0;
+    for (const ship of ships) {
+      if (typeof ship?.id === 'number' && ship.id > max) max = ship.id;
+    }
+    const seen = new Set<number>();
+    let repaired = 0;
+    for (const ship of ships) {
+      if (!ship || typeof ship.id !== 'number') continue;
+      if (seen.has(ship.id)) {
+        ship.id = ++max;
+        repaired++;
+      }
+      seen.add(ship.id);
+    }
+    return repaired;
+  }
+
   static defaultNameFor(_typeName: string | undefined): string {
     return ShipStockService.DEFAULT_SHIP_NAME;
   }

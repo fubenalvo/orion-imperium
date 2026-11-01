@@ -231,7 +231,7 @@ describe('EconomyService — habitability & workforce', () => {
     });
   });
 
-  describe('9. morale tick scales with game time (2x => 2x drift)', () => {
+  describe('9. morale tick scales with game time (3x => 3x drift)', () => {
     const makeFaction = (): Faction => ({
       id: 'player',
       name: 'Player',
@@ -260,20 +260,20 @@ describe('EconomyService — habitability & workforce', () => {
       economy.applyEconomyDelta('player', [makeFaction()], [makeSystem(f1)], [], 1);
       const changeAt1 = (f1.satisfaction ?? 0) - 90;
 
-      const f2 = cloneAt(2);
-      economy.applyEconomyDelta('player', [makeFaction()], [makeSystem(f2)], [], 2);
-      const changeAt2 = (f2.satisfaction ?? 0) - 90;
+      const f3 = cloneAt(3);
+      economy.applyEconomyDelta('player', [makeFaction()], [makeSystem(f3)], [], 3);
+      const changeAt3 = (f3.satisfaction ?? 0) - 90;
 
-      // 2x the game-time delta produces exactly 2x the satisfaction change.
-      expect(changeAt2).toBeCloseTo(2 * changeAt1, 5);
+      // 3x the game-time delta produces exactly 3x the satisfaction change.
+      expect(changeAt3).toBeCloseTo(3 * changeAt1, 5);
       expect(changeAt1).toBeCloseTo(0.95, 5);
     });
 
-    it('linear in deltaTime proves 2x speed doubles the morale tick', () => {
-      // GameTimeService.getScaledDeltaTime already doubles delta at speed 2
+    it('linear in deltaTime proves 3x speed triples the morale tick', () => {
+      // GameTimeService.getScaledDeltaTime already triples delta at speed 3
       // (see game-time.service.spec.ts); the morale application multiplies
-      // the total satisfaction drift by deltaTime, so a 2x delta yields a
-      // 2x change. We assert linearity directly.
+      // the total satisfaction drift by deltaTime, so a 3x delta yields a
+      // 3x change. We assert linearity directly.
       // Solar Array powers the planet (energy balanced => +1/s) and is neutral
       // for morale; Central Park adds +0.03 morale. Total = 1.03/s.
       const base = makePlanet(2, 'earthlike', [b('Solar Array'), b('Central Park')], { satisfaction: 80 });

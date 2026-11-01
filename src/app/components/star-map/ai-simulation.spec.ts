@@ -1703,7 +1703,8 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
   it('regression: on a sparse large map every faction keeps expanding (adaptive reach)', () => {
     // Seed 4242 (large, 5 AIs) left two factions with nothing in the fixed
     // 60-cell reach: one colony each in 15 minutes, then 'develop' forever.
-    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 1200, dt: 1 / 30, seed: 4242 };
+    // The passive stand-in player can be eliminated mid-run; the AIs keep playing.
+    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 1200, dt: 1 / 30, seed: 4242, continueAfterOutcome: true };
     const result = runScenario(options);
     expectHealthyAiFactions(result, options);
     const reach = TestBed.inject(EnemyReachService);
@@ -1940,8 +1941,9 @@ describe('AI simulation — economy validation', () => {
 
   it('long multi-faction games: factions expand, spend a meaningful share of income and research steadily', () => {
     const configs: ScenarioOptions[] = [
-      { size: 'medium', aiCount: 3, seconds: 1800, dt: 1 / 30 },
-      { size: 'large', aiCount: 5, seconds: 1800, dt: 1 / 30, seed: 4242 },
+      // The passive stand-in player can be eliminated mid-run; the AIs keep playing.
+      { size: 'medium', aiCount: 3, seconds: 1800, dt: 1 / 30, continueAfterOutcome: true },
+      { size: 'large', aiCount: 5, seconds: 1800, dt: 1 / 30, seed: 4242, continueAfterOutcome: true },
     ];
     const rows: EconomyRow[] = [];
     for (const options of configs) {

@@ -126,7 +126,7 @@ src/app/
         → Currency HUD with expandable economy breakdown
     star-map-header/
         → Star-map flavour of the shared game header: title, back button,
-          time controls ([⏸] [1x] [2x]), currencies, ship stock, ☰ pause-menu button
+          time controls ([⏸] [1x] [3x]), currencies, ship stock, ☰ pause-menu button
     star-map-navigation/
         → Camera pan controls, minimap, viewport position
     star-map-pause/

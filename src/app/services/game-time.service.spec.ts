@@ -34,13 +34,13 @@ describe('GameTimeService', () => {
       expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.016, 5);
     });
 
-    it('should return realDeltaTime * 2 at 2x speed', () => {
-      service.setSpeed(2);
-      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.032, 5);
+    it('should return realDeltaTime * 3 at 3x speed', () => {
+      service.setSpeed(3);
+      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.048, 5);
     });
 
     it('should return 0 when paused', () => {
-      service.setSpeed(2);
+      service.setSpeed(3);
       service.pause();
       expect(service.getScaledDeltaTime(0.016)).toBe(0);
     });
@@ -54,22 +54,22 @@ describe('GameTimeService', () => {
 
   describe('setSpeed', () => {
     it('should set speed to 1', () => {
-      service.setSpeed(2);
+      service.setSpeed(3);
       service.setSpeed(1);
       expect(service.speed).toBe(1);
     });
 
-    it('should set speed to 2', () => {
+    it('should set speed to 3', () => {
       service.setSpeed(1);
-      service.setSpeed(2);
-      expect(service.speed).toBe(2);
+      service.setSpeed(3);
+      expect(service.speed).toBe(3);
     });
 
     it('should un-pause when called', () => {
       service.pause();
-      service.setSpeed(2);
+      service.setSpeed(3);
       expect(service.isPaused).toBe(false);
-      expect(service.speed).toBe(2);
+      expect(service.speed).toBe(3);
     });
   });
 
@@ -85,13 +85,13 @@ describe('GameTimeService', () => {
       expect(service.isPaused).toBe(false);
     });
 
-    it('should preserve speed across pause/resume cycle at 2x', () => {
-      service.setSpeed(2);
+    it('should preserve speed across pause/resume cycle at 3x', () => {
+      service.setSpeed(3);
       service.pause();
-      expect(service.speed).toBe(2);
+      expect(service.speed).toBe(3);
       service.resume();
-      expect(service.speed).toBe(2);
-      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.032, 5);
+      expect(service.speed).toBe(3);
+      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.048, 5);
     });
 
     it('should be a no-op when already paused', () => {
@@ -123,10 +123,10 @@ describe('GameTimeService', () => {
     });
 
     it('should preserve speed on toggle', () => {
-      service.setSpeed(2);
+      service.setSpeed(3);
       service.togglePause();
       service.togglePause();
-      expect(service.speed).toBe(2);
+      expect(service.speed).toBe(3);
       expect(service.isPaused).toBe(false);
     });
   });
@@ -139,15 +139,15 @@ describe('GameTimeService', () => {
       expect(service.gameElapsedTime).toBeCloseTo(2, 5);
     });
 
-    it('should accumulate elapsed time at 2x', () => {
-      service.setSpeed(2);
+    it('should accumulate elapsed time at 3x', () => {
+      service.setSpeed(3);
       service.onTick(1);
       service.onTick(1);
-      expect(service.gameElapsedTime).toBeCloseTo(4, 5);
+      expect(service.gameElapsedTime).toBeCloseTo(6, 5);
     });
 
     it('should not accumulate when paused', () => {
-      service.setSpeed(2);
+      service.setSpeed(3);
       service.pause();
       service.onTick(1);
       service.onTick(2);
@@ -156,10 +156,12 @@ describe('GameTimeService', () => {
   });
 
   describe('reset', () => {
-    it('should reset speed to 1', () => {
-      service.setSpeed(2);
+    it('should keep the speed (a session preference, also across battles)', () => {
+      service.setSpeed(3);
+      service.pause();
       service.reset();
-      expect(service.speed).toBe(1);
+      expect(service.speed).toBe(3);
+      expect(service.isPaused).toBe(false);
     });
 
     it('should reset isPaused to false', () => {
@@ -191,12 +193,12 @@ describe('GameTimeService', () => {
       sub.unsubscribe();
       sub2.unsubscribe();
 
-      service.setSpeed(2);
+      service.setSpeed(3);
       // BehaviorSubject emits synchronously — subscribe gets the latest
-      expect(service.state$.value.speed).toBe(2);
+      expect(service.state$.value.speed).toBe(3);
 
       const lateSub = service.state$.subscribe((s) => {
-        expect(s.speed).toBe(2);
+        expect(s.speed).toBe(3);
       });
       lateSub.unsubscribe();
     });

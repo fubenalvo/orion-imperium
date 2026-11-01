@@ -35,7 +35,7 @@
 | 12 | Save/load (1 autosave + 4 manual slots) | ✅ | Systems |
 | 13 | Main menu (new game, load game) | ✅ | Systems |
 | 14 | Pause menu (save, load, exit) | ✅ | Systems |
-| 15 | Time controls (1×/2×/pause) | ✅ | Systems |
+| 15 | Time controls (1×/3×/pause) | ✅ | Systems |
 | 16 | Camera pan (arrows, drag, minimap, d-pad) | ✅ | UI |
 | 17 | Context menu (click disambiguation) | ✅ | UI |
 | 18 | Fleet info panel | ✅ | UI |
@@ -87,7 +87,7 @@ Galaxy Map → Select Fleet → Move to System → Enter System → Move to Plan
 6. **Fight:** Move fleets into enemy territory. Fleet-vs-fleet battles trigger on same-cell collision. Planet-vs-fleet battles trigger when an enemy fleet arrives at a defended planet. Battles switch to a tactical turn-based minigame.
 7. **Manage:** Monitor satisfaction/morale, build social infrastructure to counter planet-type penalties, reinforce fleets, and save regularly.
 
-The game runs continuously when unpaused (time speeds 1× and 2×). All simulation (movement, AI, economy, production) pauses when the player views the battle screen or when the game is paused.
+The game runs continuously when unpaused (time speeds 1× and 3×). All simulation (movement, AI, economy, production) pauses when the player views the battle screen or when the game is paused.
 
 ---
 
@@ -225,7 +225,7 @@ See [Battle Screen](./battle-screen.md) for full tactical rules.
 
 - Grows continuously each 1-second economy tick: `0.005/s × satisfactionMultiplier × habitabilityMultiplier × (capacity - population) × deltaTime`
 - Clamped to capacity (sum of residential building populations: Small 100 / Medium 300 / Large 700)
-- Frozen when paused, 2× at speed 2×
+- Frozen when paused, 3× at speed 3×
 - Independent planets (satisfaction locked at 0) never grow
 - Population is a single float per planet — no individual citizens
 
@@ -334,7 +334,7 @@ The AI pipeline is a layered system running every frame (respecting pause/speed 
 **Keyboard:**
 - Arrow keys: camera pan
 - Space: pause/resume
-- 1/2: set speed to 1×/2×
+- 1/3: set speed to 1×/3×
 - Escape: open pause menu
 
 **Mouse/Touch:**
@@ -344,7 +344,7 @@ The AI pipeline is a layered system running every frame (respecting pause/speed 
 
 **Auto-pause:** Window blur, tab hidden, and portrait orientation trigger auto-pause (window blur/visibility only pause simulation; portrait shows overlay).
 
-**Header HUD:** Title, time controls (⏸ 1× 2×), currency display, ship stock count, research tree button, sensor range toggle.
+**Header HUD:** Title, time controls (⏸ 1× 3×), currency display, ship stock count, research tree button, sensor range toggle.
 
 **Pause menu:** Overlay with save slots, load slots, and exit to main menu.
 

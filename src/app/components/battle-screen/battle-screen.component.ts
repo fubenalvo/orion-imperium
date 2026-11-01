@@ -288,10 +288,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.battleTime.setSpeed(speed);
   }
 
-  /** Battle's internal speeds are shown as 1x / 2x in the shared header. */
+  /** Battle's internal speeds are shown as 1x / 3x in the shared header. */
   readonly battleSpeedOptions: readonly GameHeaderSpeedOption[] = [
     { value: 0.625, label: '1x' },
-    { value: 1.25, label: '2x' },
+    { value: 1.875, label: '3x' },
   ];
 
   onHeaderSpeed(speed: number): void {

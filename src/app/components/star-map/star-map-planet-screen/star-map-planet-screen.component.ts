@@ -18,7 +18,6 @@ import {
   PlanetBuilding,
   PLANET_SURFACE_CELL_VW,
   PlanetEconomyEntry,
-  ResourceDeposit,
   ResourceRates,
 } from '../star-map.models';
 import { FactionCurrenciesComponent } from '../faction-currencies/faction-currencies.component';
@@ -34,6 +33,7 @@ import {
 } from '../star-map-spaceport-panel/star-map-spaceport-panel.component';
 import planetData from '../planet-data.json';
 import { getBlockedMask } from '../planet-surface/planet-surface';
+import { PLACEMENT_ERROR_MESSAGES, checkBuildingPlacement } from '../building-placement';
 import { PLANET_SURFACE_MARGIN } from '../planet-surface/planet-surface-field';
 import {
   SurfaceRenderResult,
@@ -150,8 +150,9 @@ const EMPTY_SETTLEMENT: SettlementLayout = { streets: '', accessRoads: [], plots
  * - After selecting a building type (BUILD tab), clicking a cell previews the
  *   footprint (cells + a ghost sprite). A placement must fit the grid, avoid
  *   terrain obstacles (planet.surface), buildings and deposits (the Mining
- *   Complex must touch one instead). The AI applies the same terrain rule in
- *   EnemyEconomyService.canPlace.
+ *   Complex must touch one instead) — checkBuildingPlacement in
+ *   building-placement.ts, which StarMap.onBuildingConfirmed re-checks. The
+ *   AI applies the same terrain rule in EnemyEconomyService.canPlace.
  *
  * Derived scene data (sprites, streets, zone outline) is rebuilt only when
  * the planet's buildings / surface signature changes (ngDoCheck), because
@@ -467,65 +468,17 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       }
     }
 
-    const fitsGrid = col + size <= this.gridSize && row + size <= this.gridSize;
-    if (!fitsGrid) {
+    const error = this.planet
+      ? checkBuildingPlacement(this.planet, this.gridSize, this.selectedBuildingType, col, row)
+      : 'out_of_grid';
+    if (error) {
       this.isPreviewValid = false;
-      this.buildError = 'This area does not fit the building.';
+      this.buildError = PLACEMENT_ERROR_MESSAGES[error];
       return;
-    }
-
-    if (this.footprintHitsTerrain(row, col, size)) {
-      this.isPreviewValid = false;
-      this.buildError = 'The terrain here is not suitable for construction.';
-      return;
-    }
-
-    const overlaps = (this.planet?.buildings ?? []).some((b) => {
-      const bSize = b.size;
-      return col < b.x + bSize && col + size > b.x && row < b.y + bSize && row + size > b.y;
-    });
-
-    if (overlaps) {
-      this.isPreviewValid = false;
-      this.buildError = 'Area overlaps with existing buildings.';
-      return;
-    }
-
-    const resourceTiles = this.planet?.resourceTiles ?? [];
-    const requiresOreProximity = this.selectedBuildingType.requiresOreProximity === true;
-
-    if (requiresOreProximity) {
-      if (this.planet && depositMiningBlocker(this.planet) === 'depleted') {
-        this.isPreviewValid = false;
-        this.buildError = 'This deposit is depleted: a new mine would produce nothing.';
-        return;
-      }
-      const touchesResource = this.touchesResourceTile(row, col, size, resourceTiles);
-      if (!touchesResource) {
-        this.isPreviewValid = false;
-        this.buildError = 'Mining Complex must be placed near a raw material deposit.';
-        return;
-      }
-    } else {
-      const overlapsResource = this.overlapsResourceTile(row, col, size, resourceTiles);
-      if (overlapsResource) {
-        this.isPreviewValid = false;
-        this.buildError = 'Cannot build directly on a resource deposit.';
-        return;
-      }
     }
 
     this.isPreviewValid = true;
     this.buildError = '';
-  }
-
-  private footprintHitsTerrain(row: number, col: number, size: number): boolean {
-    for (let r = row; r < row + size; r++) {
-      for (let c = col; c < col + size; c++) {
-        if (this.isBlockedCell(r, c)) return true;
-      }
-    }
-    return false;
   }
 
   /** True when an environmental obstacle covers the cell (not buildable). */
@@ -535,42 +488,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       return false;
     }
     return mask[row * this.gridSize + col] === 1;
-  }
-
-  private touchesResourceTile(
-    row: number,
-    col: number,
-    size: number,
-    resourceTiles: ResourceDeposit[],
-  ): boolean {
-    for (let r = row; r < row + size; r++) {
-      for (let c = col; c < col + size; c++) {
-        for (const rt of resourceTiles) {
-          if (Math.abs(r - rt.y) <= 1 && Math.abs(c - rt.x) <= 1) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-  private overlapsResourceTile(
-    row: number,
-    col: number,
-    size: number,
-    resourceTiles: ResourceDeposit[],
-  ): boolean {
-    for (let r = row; r < row + size; r++) {
-      for (let c = col; c < col + size; c++) {
-        for (const rt of resourceTiles) {
-          if (r === rt.y && c === rt.x) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
   }
 
   isResourceTile(row: number, col: number): boolean {

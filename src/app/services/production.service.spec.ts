@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { ProductionService } from './production.service';
-import { Faction, FactionProduction, StarSystem } from '../components/star-map/star-map.models';
+import { ShipStockService } from './ship-stock.service';
+import { Faction, FactionProduction, ShipStockEntry, StarSystem } from '../components/star-map/star-map.models';
 
 describe('ProductionService — save rebasing', () => {
   let service: ProductionService;
@@ -83,5 +84,39 @@ describe('ProductionService — save rebasing', () => {
     expect(result.refundedOrders).toHaveLength(1);
     expect(data.production[0].ordersByPlanet[5]).toHaveLength(0);
     expect(result.stateChanged).toBe(true);
+  });
+
+  it('gives every ship of a multi-ship order its own id', () => {
+    const data: { production: FactionProduction[]; shipStock: { factionId: string; ships: ShipStockEntry[] }[] } = {
+      production: [
+        {
+          factionId: 'player',
+          ordersByPlanet: { 5: [{ id: 1, shipTypeId: 'fighter', quantity: 3, progress: 0.999, startedAtTick: 0 }] },
+        },
+      ],
+      shipStock: [],
+    };
+    service.rebaseFromSave(data.production);
+    const fleets = [{ id: 1, ships: [{ id: 40, type: 'fighter', name: 'Ship' }] }];
+
+    const result = service.tick(1000, data, planetSystem(), fleets, [faction()]);
+
+    expect(result.completedOrders).toHaveLength(1);
+    expect(data.shipStock[0].ships.map((s) => s.id)).toEqual([41, 42, 43]);
+  });
+});
+
+describe('ShipStockService.repairDuplicateShipIds', () => {
+  it('keeps the first occurrence and renumbers later duplicates above the maximum', () => {
+    const data = {
+      fleets: [{ ships: [{ id: 5 }, { id: 7 }] }] as never,
+      shipStock: [{ factionId: 'player', ships: [{ id: 7 }, { id: 7 }, { id: 2 }] }] as never,
+    };
+
+    expect(ShipStockService.repairDuplicateShipIds(data)).toBe(2);
+    const ids = [...(data.fleets as any)[0].ships, ...(data.shipStock as any)[0].ships].map((s: { id: number }) => s.id);
+    expect(ids).toEqual([5, 7, 8, 9, 2]);
+    // Idempotent.
+    expect(ShipStockService.repairDuplicateShipIds(data)).toBe(0);
   });
 });

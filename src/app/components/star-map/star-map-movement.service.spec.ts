@@ -76,11 +76,11 @@ describe('StarMapMovementService galaxy movement', () => {
     advance(createService(MOBILE_CELL_VW), [slow, fast], 40);
     expect((fast.x - 10) / (slow.x - 10)).toBeCloseTo(5, 6);
 
-    // Speed 2x = twice the scaled game delta per real frame (GameTimeService).
+    // Speed 3x = three times the scaled game delta per real frame (GameTimeService).
     const normal = fleet(3, 3);
-    const doubled = fleet(4, 3);
+    const tripled = fleet(4, 3);
     advance(createService(MOBILE_CELL_VW), [normal], 20, DT);
-    advance(createService(MOBILE_CELL_VW), [doubled], 40, DT * 2);
-    expect(doubled.x - 10).toBeCloseTo(2 * (normal.x - 10), 6);
+    advance(createService(MOBILE_CELL_VW), [tripled], 60, DT * 3);
+    expect(tripled.x - 10).toBeCloseTo(3 * (normal.x - 10), 6);
   });
 });

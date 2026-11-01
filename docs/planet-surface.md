@@ -129,10 +129,16 @@ needs to tell old and new records apart.
 
 ## Construction on terrain
 
-- Player (`StarMapPlanetScreenComponent.updatePreview`) and AI
-  (`EnemyEconomyService.canPlace`) reject any footprint containing a blocked
-  cell, in addition to the existing grid/overlap/deposit rules. Player error:
-  "The terrain here is not suitable for construction."
+- Player and AI reject any footprint containing a blocked cell, in addition
+  to the grid/overlap/deposit rules. The player rule is one shared function,
+  `checkBuildingPlacement` (`star-map/building-placement.ts`): the planet
+  screen preview (`StarMapPlanetScreenComponent.updatePreview`) uses it to
+  show the error, and `StarMap.onBuildingConfirmed` re-checks it before
+  charging, so an invalid placement is never built or paid for. Player error
+  for terrain: "The terrain here is not suitable for construction."
+- The AI uses its own variant, `EnemyEconomyService.canPlace`: same terrain,
+  overlap and "not on a deposit" rules, but its Mining Complex must cover a
+  deposit cell, while the player's only has to touch one.
 - The AI scans candidate positions center-out (`centerOutPlacementOrder`), so
   AI colonies grow as one compact settlement around the grid center.
 - Deposits (`pickResourceDeposits`) are placed on unblocked, unoccupied

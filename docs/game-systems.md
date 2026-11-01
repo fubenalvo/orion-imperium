@@ -122,7 +122,7 @@ responsive. `stopGameLoop()` is used on component destroy.
 
 ### Pause and Focus
 
-- Keyboard: `Space` toggles pause/resume, `1` sets 1× speed, `2` sets 2× speed.
+- Keyboard: `Space` toggles pause/resume, `1` sets 1× speed, `3` sets 3× speed (the speed is kept for the session, also across battles).
 - Window `blur` and document `visibilitychange` (hidden) call `gameTimeService.pause()`.
 - The pause menu overlay (in `StarMapPauseComponent`) shows when `isPaused || pauseMenuOpen`.
 - Portrait orientation shows a "rotate your device" overlay; landscape is required to play.
@@ -236,7 +236,7 @@ When no fleet battle started, `checkBaseBattles()` starts a static-defense battl
 
 - The grid is `numericSize * 4 + 6` cells per side (`10, 14, 18, 22`). Terrain obstacles (`planet.surface.blocked`) make some cells unbuildable; build mode hatches them and outlines the buildable area.
 - A build menu lists every `building` from `planet-data.json`.
-- Selecting a building type enters build mode; clicking a cell highlights the building's footprint, shows a ghost of the building (green when valid, red when not) and reveals a BUILD button if placement is valid. A footprint is invalid outside the grid, on terrain obstacles, over other buildings, or on a deposit (the Mining Complex must instead touch one).
+- Selecting a building type enters build mode; clicking a cell highlights the building's footprint, shows a ghost of the building (green when valid, red when not) and reveals a BUILD button if placement is valid. A footprint is invalid outside the grid, on terrain obstacles, over other buildings, or on a deposit (the Mining Complex must instead touch one). The rule is `checkBuildingPlacement` (`building-placement.ts`), used by the preview and enforced again by `StarMap.onBuildingConfirmed` before anything is charged.
 - Hovering a building shows its name; the NAMES toggle next to the zoom selector shows all names.
 - Confirming a build charges the building's `price` (credits) and `rawMaterialCost` through `payCost` (nothing is charged if either is short) and appends a new `PlanetBuilding` (with the chosen `x`/`y`) to `planet.buildings`. The build list shows both costs and disables unaffordable buildings. Confirmation reaches `StarMap.onBuildingConfirmed` through the `buildConfirmed` output only (a second input callback used to place and charge every building twice).
 - The same component is reused across the system view (when a planet is selected) and the planet view.
