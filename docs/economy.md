@@ -29,8 +29,8 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 - **Research** (stock): research points from research labs (unchanged). Spent only on technologies, always together with credits ([Research](./research.md)).
 - **Trade deliveries:** civilian traders pay credits to the owners of the Trading Posts they connect, on arrival and outside the economy tick ([Trade Network](./trade-network.md#cargo-and-payout)).
 - **One-off windfalls:** collecting a drifting asteroid adds its cargo (raw materials and/or research points) directly to the collecting faction's stock, outside the economy tick. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids).
-- **Energy** (flow, never stored): every owned planet has a colony core (+10) plus its power buildings. An energy-short planet produces at `production / consumption` efficiency, and the shortfall lowers its satisfaction drift in proportion ([Energy and satisfaction](#energy-and-satisfaction)).
-- **Population**: capped by housing × the planet type's population factor ([Planet types](#planet-types)); `POPULATION_CREDIT_RATE` = `0.085 credits/s` per inhabitant at 100% satisfaction (was 0.1, lowered against the credit glut).
+- **Energy** (flow, never stored): every owned planet has a core building (Colony Center +10, Capital +20; [Colony cores](#colony-cores)) plus its power buildings. An energy-short planet produces at `production / consumption` efficiency, and the shortfall lowers its satisfaction drift in proportion ([Energy and satisfaction](#energy-and-satisfaction)).
+- **Population**: capped by housing plus the core building × the planet type's population factor ([Planet types](#planet-types)); `POPULATION_CREDIT_RATE` = `0.085 credits/s` per inhabitant at 100% satisfaction (was 0.1, lowered against the credit glut).
 
 ## Finite deposits
 
@@ -46,7 +46,7 @@ Every raw-material source except the population trickle is a deposit with a fixe
 
 Planets hold large, slow reserves; asteroids small ones at varied speeds. Values are data-driven (`PLANET_DEPOSIT_CONFIG`, `SYSTEM_ASTEROID_CONFIG`) and generated deterministically (planet id; galaxy seed + system + cell), so a deposit always belongs to its celestial body and survives ownership changes.
 
-**Depletion.** When `remaining` reaches 0 the deposit is depleted for good: the economy tick extracts nothing more, the mine or station stays (with its upkeep) but is idle, the planet screen, planet info panel and asteroid hover card say DEPLETED, and the player gets a map notice for each of their deposits that runs dry during a tick (`minedDepositsOf`). A Mining Complex cannot be placed on a depleted deposit (player planet screen and AI placement). Depleted deposits stay part of the world and of the save.
+**Depletion.** When `remaining` reaches 0 the deposit is depleted for good: the economy tick extracts nothing more, the mine or station stays but is idle (a Mining Complex keeps its upkeep; an asteroid mining station on a depleted asteroid pays none), the planet screen, planet info panel and asteroid hover card say DEPLETED, and the player gets a map notice for each of their deposits that runs dry during a tick (`minedDepositsOf`). A Mining Complex cannot be placed on a depleted deposit (player planet screen and AI placement). Depleted deposits stay part of the world and of the save.
 
 **Status vocabulary** (`raw-deposits.ts`): `unmined` (deposit, no mine/station), `active` (being mined), `depleted`, `none`. The UI shows remaining / total, the extracted percentage, the current mining rate and (planet screen) the time until empty.
 
@@ -56,7 +56,7 @@ Deposits run out, so the economy guarantees a way back:
 
 - **Starting deposit:** every homeworld is generated with a deposit (`GalaxyGenerator` gives it deposit tiles; `ensurePlanetResources` keeps existing tiles), so no empire depends on luck for its first mine.
 - **Starting stock:** 2,500 raw materials (× AI difficulty start multiplier) — the first Spaceship Factory (750) and Mining Complex (375) with room for a Spaceport.
-- **Emergency floor:** the population trickle (`POPULATION_RAW_RATE`, 2.8/s on a full homeworld) never depletes. It is deliberately small; it lets an empire whose deposits are all gone still afford a Mining Complex on a new colony or an outpost ship (500 raw) within minutes, but it cannot sustain a fleet.
+- **Emergency floor:** the population trickle (`POPULATION_RAW_RATE`, 2.4/s on a full homeworld) never depletes. It is deliberately small; it lets an empire whose deposits are all gone still afford a Mining Complex on a new colony or an outpost ship (500 raw) within minutes, but it cannot sustain a fleet.
 - **Windfalls:** drifting asteroids still carry one-off raw cargo ([Star Map Terrain](./star-map-terrain.md#drifting-asteroids)).
 - **New sources:** ~20% of all planets carry a deposit, and every system's asteroid belt holds at least one, so expansion always has targets. There is no regeneration and no ship scrapping; recovery is by expansion.
 
@@ -64,7 +64,7 @@ Deposits run out, so the economy guarantees a way back:
 
 Energy decides two things on a planet: production efficiency and the energy part of the satisfaction drift. Both come from `EconomyService.calculatePlanetEconomy`.
 
-- **Colony core:** every planet owned by a faction (not unowned, not `independent`) gets `COLONY_CORE_ENERGY` = 10 energy on top of its power buildings. It is flat (energy technologies scale only power buildings). It lets a new colony run its first housing blocks (3–12 energy each) before a Solar Array, and gives the homeworld (100 from its Fusion Power Plant) room for the usual first Mining Complex + Spaceship Factory.
+- **Core building:** every planet owned by a faction has a core building ([Colony cores](#colony-cores)): the Colony Center gives 10 energy, the Capital 20. Core energy is flat (energy technologies and the Venus-like bonus scale only power buildings). It lets a new colony run its first housing blocks (3–12 energy each) before a Solar Array, and gives the homeworld (100 from its Fusion Power Plant) room for the usual first Mining Complex + Spaceship Factory.
 - **Efficiency:** `1` when production ≥ consumption, otherwise `production / consumption`. All building output and credit income are multiplied by it.
 - **Energy drift** (`energySatisfactionDrift`): `1 − 4 × shortfall`, at least `−1`, where `shortfall = 1 − efficiency`. Fully powered → +1/s; 4% short → +0.84/s; 25% short → 0; 50% or more short → −1/s. A small overshoot costs output but no longer leads to rebellion; a severe shortage still does (from 100% in ~100 s).
 - **Total drift** (`PlanetEconomy.satisfactionDrift`) = energy drift + habitability + building morale. The economy tick applies it (arrears come on top, see below).
@@ -109,12 +109,12 @@ Upkeep is the economy's main **credit sink**: it grows with the empire, so a lar
 - **Buildings**: every building instance on an owned planet, × the planet type's upkeep factor ([Planet types](#planet-types)).
 - **Fleet ships**: every non-destroyed ship in a non-destroyed fleet of the faction. Ship upkeep points grow faster than combat strength with hull size (`ship-data.json`): scout 2, fighter 4, corvette 7, frigate 12, destroyer 20, cruiser 32, carrier 40, battleship 64, battlecruiser 70, dreadnought 120 (colonizer 5, outpost ship 6). Light hulls are ~1.3–1.5× their old upkeep, capital ships ~2–2.2×, so a large heavy navy is the most expensive thing an empire can keep.
 - **Reserve ships** (faction ship stock): `RESERVE_SHIP_UPKEEP_FACTOR = 0.5` of the fleet rate — mothballed, but not free, so the stock is not an upkeep loophole.
-- **Stations**: every space base costs `SPACE_BASE_UPKEEP_POINTS = 25` points, every asteroid mining station `MINING_STATION_UPKEEP_POINTS = 15` (also on a depleted asteroid — a station stays until destroyed). Stations are structures, so the building-upkeep technology modifier applies. Bases come from the live `SpaceBaseService` registry, mining stations from the asteroids.
+- **Stations**: every space base costs `SPACE_BASE_UPKEEP_POINTS = 25` points, every asteroid mining station `MINING_STATION_UPKEEP_POINTS = 15` while its asteroid has raw materials left (a station on a depleted asteroid stays until destroyed but pays no upkeep, since it cannot be dismantled). Stations are structures, so the building-upkeep technology modifier applies. Bases come from the live `SpaceBaseService` registry, mining stations from the asteroids.
 - **Colony administration**: every owned planet beyond the first adds `3%` of each planet's credit income as an expense, capped at `45%` (`administrationShare`). A fresh colony raises the share on the whole empire before its own income grows, so over-expansion costs real money, while total income can never turn negative from administration alone.
 
 Ownership changes, destruction, fleet creation/disbanding and production completion need no bookkeeping: upkeep is recomputed from the current state on every tick.
 
-Reference homeworld at game start (earthlike, 1400 pop, 2 Large Residential, Fusion Plant, Laser Turret, Research Lab; the human's starting fleet of 2 scouts + 1 fighter; one planet, so scale ×1): income 119/s, building upkeep 32.7/s, fleet upkeep 2.4/s, net ≈ 84/s. A Normal AI starts with 2 frigates (7.2/s).
+Reference homeworld at game start (earthlike, 1200 pop, Capital, 1 Large Residential, Fusion Plant, Laser Turret, Research Lab; the human's starting fleet of 2 scouts + 1 fighter; one planet, so scale ×1): income 102/s, building upkeep 29.1/s (the Capital is free), fleet upkeep 2.4/s, net ≈ 70/s (the planet screen shows 73/s, before fleet upkeep). Before the colony cores it was 1400 pop and net ≈ 84/s. A Normal AI starts with 2 frigates (7.2/s).
 
 Effect of the 2026-11 credit-sink changes (empire upkeep scale, station upkeep, progressive ship upkeep, smaller starting fleets, population income 0.085, research 4 credits per point, planet types), measured in `ai-simulation.spec.ts` (economy validation, 30-minute games, 3 and 5 AIs):
 
@@ -147,6 +147,32 @@ Credits are now the binding resource and raw materials pile up instead; the Trad
 - Homeworlds are always earthlike. A planet whose population is above its ceiling (an older save, an AI starting colony) drops to the ceiling on the next economy tick.
 - The planet info panel and the planet screen show the type's effects ("World type").
 - AI colonization scores a type by `0.4 + 0.6 × ceiling / upkeep factor` (earthlike 1.0 … gas giant ≈ 0.65, see [AI Pipeline](./ai-pipeline.md)).
+
+## Colony cores
+
+Every planet a faction owns has exactly one core building (`role: "core"`, `autoPlaced: true` in `planet-data.json`; rules in `colony-core.ts`). The core carries the planet's base values, so they are tuned in the building data instead of hidden constants (it replaced the old invisible `COLONY_CORE_ENERGY`):
+
+| Core | Where | Size | Population | Workforce | Energy |
+| --- | --- | --- | --- | --- | --- |
+| Capital | generated homeworlds | 3×3 | 500 | 100 | 20 |
+| Colony Center | every other owned planet | 2×2 | 150 | 30 | 10 |
+
+- **Free and permanent:** no price, no upkeep, `maxPerPlanet` 1. No technology unlocks a core and the build list hides `autoPlaced` buildings, so neither the player nor the AI can build one; there is no demolition.
+- **Placement:** automatic, at the free spot nearest to the grid center (`centerOutPlacementOrder`, the AI's construction order): by the galaxy generator in the starting layouts, by `PlanetOwnershipService.transferPlanet` whenever a faction (not `unhabited`, not `independent`) takes a planet without a core (colonization, capture, battle), and by `StarMap.ensureColonyCores` on load. If terrain leaves no room, the nearest spot free of buildings and deposits is cleared of terrain; a core is missing only on a grid that is completely built over.
+- **Ownership:** the core stays with the planet through capture and rebellion. A captured Capital stays a Capital; a rebel (independent) planet keeps its core but earns nothing. Independent civilizations have no core until someone takes them.
+- **Economy:** `EconomyService` treats the core like housing for the population ceiling and workforce (`providesHousing`), and adds its energy without technology or planet-type multipliers. A planet without a core has no base energy, housing or workforce.
+- **Effect:** a fresh colony grows to 150 people (×the planet type's ceiling) without any housing, so it earns a little at once.
+
+**Start balance (2026-11, with the cores).** Against the credit glut of the opening, the homeworld's second Large Residential Block became the Capital (1200 people instead of 1400) and housing costs 1.5× (Large 4500/1125, upkeep unchanged). The start net fell from ≈ 84 to ≈ 70 credits/s, and a Large Residential Block repays its price in ~3.7 minutes of growth instead of ~3. Lowering the per-inhabitant income (0.07–0.08) or raising housing upkeep was tried and rejected: it cut the net margin for the whole game, the AI's over-expansion brake then stopped colonization, and AIs fell into arrears. Measured in `ai-simulation.spec.ts` (the AI uses the same rules):
+
+| | Before | After |
+| --- | --- | --- |
+| AI Spaceport (15-minute medium game) | ~200 s | ~245 s |
+| AI first colony | ~205 s | ~250 s |
+| Colonies / ships at 15 minutes | 3 / 9–10 | 3 / 8–12 |
+| Large map, 5 AIs, 30 minutes: planets / warships | 32 / 116 | 36 / 90 |
+
+The AI expands a little more (colonies are cheaper to start) and keeps fewer warships (more colonies raise the empire upkeep scale while credits bind). The simulation thresholds that measure pace were adjusted; see the comments in the spec.
 
 ## Bank
 
@@ -184,7 +210,8 @@ Buildings (credits / raw materials):
 
 | Role | Building | Price |
 | --- | --- | --- |
-| Housing | Small / Medium / Large Residential | 400/100, 1200/300, 3000/750 |
+| Housing | Small / Medium / Large Residential | 600/150, 1800/450, 4500/1125 |
+| Core (never bought) | Capital / Colony Center | free, no upkeep ([Colony cores](#colony-cores)) |
 | Power | Solar Array / Fusion Power Plant | 600/150, 2500/625 |
 | Research | Small Research Laboratory / Research Laboratory | 1000/250, 3000/750 |
 | Industry | Mining Complex / Spaceship Factory | 1500/375, 3000/750 |
@@ -212,6 +239,7 @@ Full details in [AI Pipeline](./ai-pipeline.md#ai-economy-manager-enemyeconomyse
 
 - **Reserve**: optional purchases leave credits and raw materials for committed needs: next colonizer, a missing factory or Spaceport (only while net income is positive), the first housing of every colony, the first mine on an unmined live deposit, the credits of a technology whose research points are already banked (for the technologist: of the technology research is saving for), and the next warship.
 - **Upkeep headroom**: a purchase's upkeep (priced with the faction's empire upkeep scale) must fit the projected net (current net minus queued ships' upkeep): emergency power — always; core (housing, factory, Spaceport) — net ≥ 0, or a deficit the treasury can carry for 300 s; warships — leave `10% / personality military preference` of gross income; optional buildings — leave 25%. The gap keeps ~15% of income structurally available for warship upkeep.
+- **Over-expansion brake**: the AI starts a new colony only if its net credit income stays ≥ 0 after the colony's own cost to the empire (`marginalColonyCost`: the administration step on the whole income plus the upkeep-scale step on all scaled upkeep), or its credits cover the resulting deficit for 300 s (`canSupportNewColony`). Assault targets are braked the same way with the whole economy recomputed as if the target were already owned (`canSupportCapture`, see [Planet Capture](./planet-capture.md#ai-assaults)); a capture that improves the net is always allowed.
 - **Military target** includes the strength that 12% of gross income can sustain in upkeep, so the navy scales with the economy.
 - **Space**: while a factory, a Spaceport or the first mine on a live deposit is missing, no other building may take the last room for it.
 - **Raw materials**: every owned planet with a live deposit gets a Mining Complex (never a depleted one); while raw materials are the binding constraint (`isRawConstrained`: credits for two preferred warships but not their raw materials) a large deposit gets a second one and no extra factories are built. Warships save for the preferred hull when income covers the gap within 90 s instead of buying the cheapest hull.
@@ -226,7 +254,8 @@ No save version bump; every new field is optional and filled on load (`SaveGameS
 - `SystemAsteroid.totalRawMaterials` / `extractionRate`: an untouched deposit's original size is its remaining amount; a deposit that already had a station is regenerated from the belt's own generator version to recover its original size. Rates come from a deterministic hash.
 - `SystemAsteroid.surveyedBy` (AI surveys) starts empty.
 - Existing credits, raw materials, research points, buildings, mines and stations are untouched. Old saves keep their homeworld as it was (only new games guarantee a homeworld deposit).
-- The 2026-11 balance values (income, upkeep, research price, planet types) apply to old saves at once: nothing about them is stored. A non-earthlike planet above its new population ceiling drops to it on the first tick; existing starting fleets stay as they were; the Trading Post is available immediately (Basic Industry is a starting technology).
+- The 2026-11 balance values (income, upkeep, research price, planet types, housing prices) apply to old saves at once: nothing about them is stored.
+- Colony cores: on load every faction-owned planet without a core gets a Colony Center (`StarMap.ensureColonyCores`, idempotent) — old homeworlds too, since a save does not record which planet was the homeworld. Old homeworlds keep their two Large Residential Blocks. A non-earthlike planet above its new population ceiling drops to it on the first tick; existing starting fleets stay as they were; the Trading Post is available immediately (Basic Industry is a starting technology).
 
 Missing `rawmaterials`/`research` read as 0. Production orders without `paid` (written before this economy) are treated as credits-only (`ship cost × quantity`), so cancelling them refunds credits only; a malformed `paid` falls back to the same rule. Loading never charges, refunds or re-applies upkeep: everything is derived from the saved state, and the economy accumulator restarts at 0.
 

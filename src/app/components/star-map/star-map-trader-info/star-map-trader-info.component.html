@@ -39,35 +39,20 @@
       </div>
 
       @if (vm.raid; as raidVm) {
-        <div class="ui-label">Raid with</div>
+        <div class="ui-label">Raid</div>
         @if (raidVm.blocked) {
           <div class="trader-info__hint">{{ raidVm.blocked }}</div>
         } @else {
           @if (raidVm.warning) {
             <div class="ui-notice ui-notice--warning" role="note">{{ raidVm.warning }}</div>
           }
-          @for (fleet of raidVm.fleets; track fleet.fleetId) {
+          @for (name of raidVm.raiders; track $index) {
             <div class="trader-info__fleet">
-              <span class="trader-info__fleet-name">{{ fleet.name }}</span>
-              @switch (fleet.status) {
-                @case ('raiding') {
-                  <span class="ui-chip ui-chip--danger">RAIDING</span>
-                }
-                @case ('ready') {
-                  <button type="button" class="action-btn" (click)="raid.emit(fleet.fleetId); $event.stopPropagation()">
-                    RAID{{ fleet.etaSeconds !== null ? ' · ~' + formatSeconds(fleet.etaSeconds) : '' }}
-                  </button>
-                }
-                @case ('no-warships') {
-                  <span class="ui-chip">NO WARSHIPS</span>
-                }
-                @default {
-                  <span class="ui-chip ui-chip--danger">OUT OF REACH</span>
-                }
-              }
+              <span class="trader-info__fleet-name">{{ name }}</span>
+              <span class="ui-chip ui-chip--danger">RAIDING</span>
             </div>
           } @empty {
-            <div class="trader-info__hint">No fleets available.</div>
+            <div class="trader-info__hint">Right-click the trader with a fleet selected to raid it.</div>
           }
         }
       }

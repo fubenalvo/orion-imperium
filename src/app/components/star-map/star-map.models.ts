@@ -989,6 +989,8 @@ export interface BuildingStats {
   requiresOreProximity?: boolean;
   /* Most instances one planet may hold (building-placement.ts); missing = no cap. */
   maxPerPlanet?: number;
+  /* Core buildings (role `core`, colony-core.ts): placed by the game, never built by hand. */
+  autoPlaced?: boolean;
 }
 
 export interface ContextMenuItem {

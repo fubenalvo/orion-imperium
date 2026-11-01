@@ -68,13 +68,13 @@ describe('EnemyEconomyService', () => {
     }
   };
 
-  it('bootstraps an empty colony with housing, powered by the colony core, without an energy shortage', () => {
-    // Enough for Solar Array (600) + Small Residential Block (400) plus the
+  it('bootstraps a fresh colony with housing, powered by its Colony Center, without an energy shortage', () => {
+    // Enough for Solar Array (600) + Small Residential Block (600) plus the
     // treasury runway that lets a zero-income colony carry their upkeep.
-    // The colony core (COLONY_CORE_ENERGY) powers the first housing block,
-    // so housing no longer has to wait for a power building.
+    // The Colony Center (10 energy) powers the first housing block, so
+    // housing does not have to wait for a power building.
     const f = faction(2000);
-    const colony = planet({ id: 2, size: 'small' });
+    const colony = planet({ id: 2, size: 'small', buildings: [{ name: 'Colony Center', size: 2, x: 6, y: 6 }] });
     const systems = [system([colony])];
 
     run(f, systems, context(), 5);
@@ -117,8 +117,9 @@ describe('EnemyEconomyService', () => {
     expect(home.buildings.some((b) => b.name === 'Small Research Laboratory')).toBe(false);
 
     // The Spaceport (60 workers) would open a workforce deficit (205/200),
-    // so the planner first builds an enabling Small Residential Block.
-    f.currencies['credits'] = 4500;
+    // so the planner first builds an enabling Small Residential Block
+    // (600 + 4000 for the Spaceport).
+    f.currencies['credits'] = 4700;
     run(f, systems, ctx, 4.1);
     const names = home.buildings.map((b) => b.name);
     expect(names).toContain('Spaceport');

@@ -1,6 +1,7 @@
 import { getAiPersonalityProfile } from './ai-personality';
-import { Fleet, Faction, StarSystem } from './star-map.models';
+import { EconomyBreakdown, Fleet, Faction, StarSystem } from './star-map.models';
 import { areFactionsHostile, hostileFactionIds } from './diplomacy';
+import { marginalColonyCost } from '../../services/economy.service';
 
 export function getEnemyFleets(factionId: string, fleets: Fleet[]): Fleet[] {
   return fleets.filter(
@@ -76,4 +77,49 @@ export const AI_COLONIZATION_REACH = 60;
 /* The faction's colonization reach: AI_COLONIZATION_REACH × personality reach. */
 export function getColonizationReach(faction: Faction | undefined): number {
   return AI_COLONIZATION_REACH * getAiPersonalityProfile(faction).colonizationReach;
+}
+
+/*
+ * How long the treasury may carry the deficit a new colony causes. A fresh
+ * colony earns almost nothing at first, so expansion into a deficit is only
+ * acceptable while the stock covers it for this long (the same runway the
+ * AI's core construction uses, EnemyEconomyService.CORE_RUNWAY_SECONDS).
+ */
+export const COLONY_RUNWAY_SECONDS = 300;
+
+/*
+ * Over-expansion brake for the AI: one more planet raises administration
+ * and the empire upkeep scale on the whole empire (marginalColonyCost).
+ * The faction may start another colony only if its net credit income stays
+ * non-negative afterwards, or its credits cover the resulting deficit for
+ * COLONY_RUNWAY_SECONDS. Without this an expansionist kept colonizing at
+ * ~0 net income and ended in permanent upkeep arrears.
+ */
+export function canSupportNewColony(
+  breakdown: EconomyBreakdown,
+  ownedPlanetCount: number,
+  credits: number,
+): boolean {
+  if (ownedPlanetCount === 0) return true;
+  const netAfter = breakdown.netPerSecond - marginalColonyCost(breakdown, ownedPlanetCount);
+  return netAfter >= 0 || Math.max(0, credits) >= -netAfter * COLONY_RUNWAY_SECONDS;
+}
+
+/*
+ * Conquest brake for the AI (the capture counterpart of canSupportNewColony).
+ * `netAfter` is the faction's projected net credit income with the target
+ * planet already owned (EnemyFleetService.projectedNetAfterCapture: the
+ * planet keeps its population and buildings, satisfaction at least
+ * CAPTURE_MIN_SATISFACTION, and the empire pays the higher administration
+ * share and upkeep scale). A capture is allowed when the faction stays
+ * solvent, when the treasury covers the deficit for COLONY_RUNWAY_SECONDS,
+ * when the capture improves the net (a struggling faction may still take a
+ * rich world), or when the faction owns no planet (its recovery route).
+ * Without it a militarist conquered its way to ~-200 credits/s for the rest
+ * of a game (QA 2026-11-01).
+ */
+export function canSupportCapture(netBefore: number, netAfter: number, ownedPlanetCount: number, credits: number): boolean {
+  if (ownedPlanetCount === 0) return true;
+  if (netAfter >= 0 || netAfter > netBefore) return true;
+  return Math.max(0, credits) >= -netAfter * COLONY_RUNWAY_SECONDS;
 }

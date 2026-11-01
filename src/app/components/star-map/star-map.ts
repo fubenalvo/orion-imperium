@@ -186,6 +186,7 @@ import { AnomalyContext, AnomalyEventVm, AnomalyService } from './anomaly.servic
 import { StarMapAnomalyEventComponent } from './star-map-anomaly-event/star-map-anomaly-event.component';
 import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
+import { ensureColonyCore, isCoreOwner } from './colony-core';
 
 /*
  * =========================================================
@@ -834,6 +835,15 @@ loadError = '';
     return this.sensorRangeCells.has(key) || this.sensorPreviewCells.has(key);
   }
 
+  /* Fleets pursued by a player attack order; the galaxy view rings them like a targeted asteroid. */
+  get attackTargetFleetIds(): ReadonlySet<number> {
+    const ids = new Set<number>();
+    for (const fleet of this.fleets) {
+      if (fleet.factionId === 'player' && !fleet.destroyed && fleet.attackFleetId != null) ids.add(fleet.attackFleetId);
+    }
+    return ids;
+  }
+
   get visibleTraders(): TraderMapView[] {
     const views: TraderMapView[] = [];
     for (const trader of this.tradeNetworkService.traders) {
@@ -913,37 +923,31 @@ loadError = '';
     };
   }
 
-  /* RAID choices of the trader panel; estimates plan routes, so this is throttled with the panel. */
+  /*
+   * Raid section of the trader panel. Raids are ordered only by right-click
+   * (onTraderContextMenu); the panel shows whether it may be raided, the
+   * diplomatic cost, and which player fleets are already raiding it.
+   */
   private traderRaidSection(trader: Trader, owner: Faction | undefined): NonNullable<TraderPanelViewModel['raid']> {
     const player = this.factions.find((f) => f.id === 'player');
     if (raidBlocker(player, owner) === 'allied_trader') {
-      return { blocked: 'An allied trader: it cannot be raided.', warning: null, fleets: [] };
+      return { blocked: 'An allied trader: it cannot be raided.', warning: null, raiders: [] };
     }
-    let warning: string | null = null;
+    const raiders = this.fleets
+      .filter((f) => f.factionId === 'player' && !f.destroyed && f.raidTraderId === trader.id)
+      .map((f) => f.name);
+    return { blocked: null, warning: this.traderRaidCost(player, owner), raiders };
+  }
+
+  /* The diplomatic cost of raiding a trader of `owner` (docs/trade-network.md#raids), or null at war. */
+  private traderRaidCost(player: Faction | undefined, owner: Faction | undefined): string | null {
     if (!owner || isNeutralFaction(owner)) {
-      warning = 'Piracy against civilians costs a little reputation.';
-    } else if (player && getRelationKind(player, owner) === 'peace') {
-      warning = `${owner.name} is at peace with you: raiding its trader costs opinion and reputation (no war by itself).`;
+      return 'Piracy against civilians costs a little reputation.';
     }
-    const fleets = this.fleets
-      .filter((f) => f.factionId === 'player' && !f.destroyed && f.ships.some((s) => !s.destroyed))
-      .map((fleet) => {
-        if (fleet.raidTraderId === trader.id) {
-          return { fleetId: fleet.id, name: fleet.name, status: 'raiding' as const, etaSeconds: null };
-        }
-        if (this.tradeNetworkService.raidDamagePerSecond(fleet) <= 0) {
-          return { fleetId: fleet.id, name: fleet.name, status: 'no-warships' as const, etaSeconds: null };
-        }
-        const eta = this.movementService.estimateTravelSeconds(
-          { x: fleet.x, y: fleet.y },
-          { x: trader.x, y: trader.y },
-          StarMapMovementService.galaxyCellsPerSecond(fleet),
-        );
-        return Number.isFinite(eta)
-          ? { fleetId: fleet.id, name: fleet.name, status: 'ready' as const, etaSeconds: eta }
-          : { fleetId: fleet.id, name: fleet.name, status: 'unreachable' as const, etaSeconds: null };
-      });
-    return { blocked: null, warning, fleets };
+    if (player && getRelationKind(player, owner) === 'peace') {
+      return `${owner.name} is at peace with you: raiding its trader costs opinion and reputation (no war by itself).`;
+    }
+    return null;
   }
 
   /* Why the fleet's faction may not raid this trader (trade-network.ts raidBlocker), or null. */
@@ -960,7 +964,12 @@ loadError = '';
   onRaidTrader(fleetId: number): void {
     const fleet = this.fleets.find((f) => f.id === fleetId && f.factionId === 'player' && !f.destroyed);
     const trader = this.selectedTraderId == null ? undefined : this.tradeNetworkService.getTrader(this.selectedTraderId);
-    if (!fleet || !trader || trader.status !== 'travelling' || this.traderRaidBlocker(fleet, trader)) return;
+    if (!fleet || !trader || trader.status !== 'travelling') return;
+    if (this.traderRaidBlocker(fleet, trader)) {
+      this.showMapNotice('An allied trader: it cannot be raided.');
+      return;
+    }
+    if (fleet.raidTraderId === trader.id) return;
     if (this.tradeNetworkService.raidDamagePerSecond(fleet) <= 0) {
       this.showMapNotice(`${fleet.name} has no warships to raid with.`);
       return;
@@ -979,6 +988,12 @@ loadError = '';
       this.targetX = trader.x;
       this.targetY = trader.y;
     }
+    // The order is a single right-click, so the price is stated when it is given.
+    const cost = this.traderRaidCost(
+      this.factions.find((f) => f.id === 'player'),
+      this.tradeNetworkService.traderOwner(trader, this.starSystems, this.factions),
+    );
+    this.showMapNotice(`${fleet.name} is raiding the trader.${cost ? ' ' + cost : ''}`);
     this.simStateDirty = true;
     this.saveGame();
     this.refreshTraderPanel();
@@ -2616,6 +2631,20 @@ loadError = '';
     }
   }
 
+  /*
+   * Every planet owned by a faction must have a core building (colony-core.ts).
+   * Saves from before cores existed get a Colony Center on each owned planet
+   * (old homeworlds too: a save does not record which planet was the
+   * homeworld). Idempotent; runs after terrain and deposits so it avoids both.
+   */
+  ensureColonyCores(): void {
+    for (const planet of this.starSystems.flatMap((s) => s.planetsTiles)) {
+      if (isCoreOwner(planet.factionId)) {
+        ensureColonyCore(planet);
+      }
+    }
+  }
+
   /** Ensures every planet has deterministic deposit tiles and, where it has tiles, a finite reserve. */
   ensureResourceTiles(): void {
     ensurePlanetResourcesUtil(this.starSystems.flatMap((s) => s.planetsTiles), (p: PlanetTile) => this.getPlanetGridSize(p));
@@ -2798,6 +2827,7 @@ loadError = '';
    *     (moving onto an enemy planet is the planet attack, via arrival handling)
    *   - hostile fleet on the galaxy map: attack order (pursuit, see fleet-attack-orders.ts)
    *   - drifting asteroid: intercept order
+   *   - civilian trader: raid order (the only way to order one)
    *   - the selected fleet itself: deselect
    * Without a commandable fleet the old behavior stays: right-click clears
    * the selection of the clicked object type. The native menu is always
@@ -2850,7 +2880,12 @@ loadError = '';
       if (this.areFleetsHostile(fleet, target)) {
         this.orderAttack(target);
       } else {
-        this.moveSelectedFleet(target.x, target.y);
+        // Only a war makes a fleet attackable (diplomacy.ts); say so, or the
+        // right-click looks like a failed attack order.
+        const moved = this.moveSelectedFleet(target.x, target.y);
+        if (moved && target.factionId !== 'player') {
+          this.showMapNotice(`Not at war with ${this.getFactionName(target.factionId)}: ${fleet.name} moves to ${target.name} without attacking.`);
+        }
       }
     } else if (this.selectedSystem && fleet.system?.id === this.selectedSystem.id && target.system) {
       const tile = this.movementService.getSystemTileCenter(target.system.x, target.system.y);
@@ -4397,6 +4432,8 @@ loadError = '';
     this.ensurePlanetSurfaces();
     // Ensure every planet has deterministic resource deposit tiles
     this.ensureResourceTiles();
+    // Owned planets from saves before colony cores get their Colony Center.
+    this.ensureColonyCores();
 
     // Un-pause and clear elapsed time on every load; the chosen speed is
     // kept for the session (also across battles, which reload the autosave).

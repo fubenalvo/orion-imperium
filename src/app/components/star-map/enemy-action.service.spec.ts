@@ -9,6 +9,7 @@ import { ProductionService } from '../../services/production.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { StarMapMovementService } from './star-map-movement.service';
+import { EconomyService } from '../../services/economy.service';
 
 describe('EnemyActionService', () => {
   let service: EnemyActionService;
@@ -19,8 +20,16 @@ describe('EnemyActionService', () => {
   let spaceportService: any;
   let fleetAssemblyService: any;
   let movementService: any;
+  let economyService: any;
 
   beforeEach(() => {
+    // A solvent economy by default: these tests are about action selection;
+    // the over-expansion brake has its own test below.
+    economyService = {
+      calculateEconomy: vi.fn(() => ({
+        incomePerSecond: 1000, buildingUpkeepPerSecond: 200, shipUpkeepPerSecond: 50, stationUpkeepPerSecond: 0, netPerSecond: 750,
+      })),
+    };
     shipService = {
       getShipType: vi.fn(() => ({ id: 'colonizer', name: 'Colonizer', cost: 100 })),
       getAllShipTypes: vi.fn(() => [
@@ -77,6 +86,7 @@ describe('EnemyActionService', () => {
         { provide: SpaceportService, useValue: spaceportService },
         { provide: FleetAssemblyService, useValue: fleetAssemblyService },
         { provide: StarMapMovementService, useValue: movementService },
+        { provide: EconomyService, useValue: economyService },
       ],
     });
 
@@ -204,6 +214,41 @@ describe('EnemyActionService', () => {
       expect(result!.goalType).toBe('colonize');
     });
 
+    it('develops instead of producing a colonizer when one more planet would push net income negative', () => {
+      // Net 0 now; the next colony's administration and upkeep-scale step makes it negative,
+      // and 200 credits do not cover that deficit for the runway.
+      economyService.calculateEconomy.mockReturnValue({
+        incomePerSecond: 500, buildingUpkeepPerSecond: 400, shipUpkeepPerSecond: 100, stationUpkeepPerSecond: 0, netPerSecond: 0,
+      });
+      const factionsWithCredits = baseFactions.map((f) =>
+        f.id === 'enemy1' ? { ...f, currencies: { credits: 200 }, researchedTechnologies: ['basic_engineering'] } : f,
+      );
+      const systems = [
+        createSystem({
+          id: 'sys1',
+          x: 10,
+          y: 10,
+          planetsTiles: [createPlanet({ id: 1, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] })],
+        }),
+      ];
+      const capability = makeCapability({
+        canExecute: false,
+        requirements: [
+          { type: 'colonizer_technology', satisfied: true, reason: 'satisfied' },
+          { type: 'colonizer_unlocked', satisfied: true, reason: 'satisfied' },
+          { type: 'colonizer_available', satisfied: false, reason: 'no_colonizer_available' },
+          { type: 'usable_fleet', satisfied: true, reason: 'satisfied' },
+          { type: 'target_valid', satisfied: true, reason: 'satisfied' },
+        ],
+      });
+
+      service.tick(3, makeColonizeGoal(), capability, 'enemy1', [], factionsWithCredits, systems, emptyShipStock, emptyProduction);
+      const result = service.getAction('enemy1');
+
+      expect(result!.type).toBe('develop');
+      expect(result!.reason).toBe('colony_upkeep_unaffordable');
+    });
+
     it('should produce ASSEMBLE_FLEET when colonizer is in stock but no fleet has it', () => {
       const factionsWithCredits = baseFactions.map((f) =>
         f.id === 'enemy1' ? { ...f, researchedTechnologies: ['basic_engineering'] } : f,
@@ -241,6 +286,7 @@ describe('EnemyActionService', () => {
         spaceportService,
         fleetAssemblyService,
         movementMock as any,
+        economyService,
       );
 
       const fleets = [
@@ -293,6 +339,7 @@ describe('EnemyActionService', () => {
         spaceportService,
         fleetAssemblyService,
         movementMock as any,
+        economyService,
       );
 
       const fleets = [

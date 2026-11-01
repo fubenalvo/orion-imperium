@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Faction, FactionProduction, PlanetTile } from '../components/star-map/star-map.models';
 import { ProductionService } from './production.service';
 import { recordHostileAct, recordPlanetLoss } from '../components/star-map/diplomacy';
+import { ensureColonyCore, isCoreOwner } from '../components/star-map/colony-core';
 
 /* Planets never change owner through diplomacy: peace treaties carry resources only. */
 export type OwnershipChangeReason = 'colonized' | 'captured' | 'battle_won' | 'rebellion';
@@ -34,6 +35,9 @@ export const CAPTURE_REBELLION_GRACE_SECONDS = 120;
  *    refunds their unbuilt part (a captured factory must not keep
  *    building ships for the faction that lost it — ProductionService.tick
  *    only refunds orders whose planet disappeared entirely);
+ *  - gives the planet a Colony Center when a faction (not `independent`)
+ *    takes it without a core building (colony-core.ts), so every owned
+ *    planet has its base population, workforce and energy;
  *  - bumps `revision`, which StarMap watches to re-evaluate the game
  *    outcome after ownership changes made during the frame loop.
  *
@@ -80,6 +84,9 @@ export class PlanetOwnershipService {
     // (docs/trade-network.md#independent-civilizations); a later rebellion
     // makes an ordinary rebel planet, not the civilization again.
     delete planet.civilization;
+    if (isCoreOwner(newOwnerId)) {
+      ensureColonyCore(planet);
+    }
     this.revisionCounter++;
     // War bookkeeping (docs/diplomacy.md): a planet taken by force raises the
     // loser's war exhaustion and lowers its opinion of the taker; taking it

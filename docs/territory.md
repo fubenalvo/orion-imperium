@@ -143,7 +143,7 @@ DEPLOY MINING in the fleet panel (player; it replaces DEPLOY BASE while the flee
 
 `deployMiningStation` re-checks, removes one outpost ship, sets `asteroid.miningStation = { factionId }` and retires a fleet left without living ships, exactly like a base deployment. No battle, territory or sensor change follows. The new station defends itself at its owner's current turret level ([Station defense](#station-defense)).
 
-A mining station costs upkeep (15 points/s, see [Economy](./economy.md#upkeep)) for as long as it stands, also after its asteroid is depleted.
+A mining station costs upkeep (15 points/s, see [Economy](./economy.md#upkeep)) while its asteroid still has raw materials. A station on a depleted asteroid is idle and costs nothing: stations cannot be dismantled, so an upkeep on dead stations would be a permanent drain (in the 2026-11-01 QA runs most AI stations were depleted by minute 40, and they were the largest part of a shrunken empire's deficit).
 
 Storing the station on the asteroid ties it to its asteroid, system and owner by construction and makes a second station on the same asteroid unrepresentable.
 

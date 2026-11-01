@@ -7,7 +7,9 @@ import { EnemyInvasionService } from './enemy-invasion.service';
 import { EnemyPlanService } from './enemy-plan.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { EnemyReachService } from './enemy-reach.service';
-import { AI_COLONIZATION_REACH } from './ai-queries';
+import { AI_COLONIZATION_REACH, canSupportCapture } from './ai-queries';
+import { EconomyService } from '../../services/economy.service';
+import { CAPTURE_MIN_SATISFACTION } from '../../services/planet-ownership.service';
 import { DriftingAsteroidService } from './drifting-asteroid.service';
 import { asteroidPosition } from './drifting-asteroids';
 import { areFactionsHostile, getRelationKind, hostileFactionIds, isNeutralFaction } from './diplomacy';
@@ -179,6 +181,7 @@ export class EnemyFleetService {
     private readonly reachService: EnemyReachService,
     private readonly asteroidService: DriftingAsteroidService,
     private readonly tradeNetwork: TradeNetworkService,
+    private readonly economyService: EconomyService,
   ) {}
 
   setGameSeconds(seconds: number): void {
@@ -507,7 +510,7 @@ export class EnemyFleetService {
     if (assaultFleets.length === 0 && clock >= (this.nextAssaultPlanAt.get(faction.id) ?? 0)
       && this.planService.getPosture(faction).allowAssault) {
       this.nextAssaultPlanAt.set(faction.id, clock + EnemyFleetService.ASSAULT_PLANNING_INTERVAL);
-      changed = this.planAssault(faction, factions, starSystems, ownedSystems, home, free, managed, clock) || changed;
+      changed = this.planAssault(faction, factions, starSystems, ownedSystems, home, free, managed, clock, data) || changed;
     }
 
     // 4d. Fog of war: send one free fleet to chart the nearest unknown system
@@ -826,6 +829,33 @@ export class EnemyFleetService {
   }
 
   /*
+   * projectedNetAfterCapture: The faction's net credit income with `target`
+   * already its own, from the same EconomyService calculation as the HUD.
+   * The planet is taken as the faction perceives it (fog of war) and keeps
+   * its population and buildings; satisfaction is raised to the capture
+   * floor as PlanetOwnershipService does. Reserve-stock upkeep is left out
+   * on both sides of the comparison (the AI keeps little in stock).
+   */
+  private projectedNetAfterCapture(
+    faction: Faction,
+    factions: Faction[],
+    real: { starSystems: StarSystem[]; fleets: Fleet[] },
+    target: PlanetTile,
+  ): number {
+    const captured: PlanetTile = {
+      ...target,
+      factionId: faction.id,
+      satisfaction: Math.max(target.satisfaction ?? 100, CAPTURE_MIN_SATISFACTION),
+    };
+    const systems = real.starSystems.map((system) =>
+      system.planetsTiles.some((p) => p.id === target.id)
+        ? { ...system, planetsTiles: system.planetsTiles.map((p) => (p.id === target.id ? captured : p)) }
+        : system,
+    );
+    return this.economyService.calculateEconomy(faction.id, factions, systems, real.fleets).netPerSecond;
+  }
+
+  /*
    * planAssault: Picks the most valuable reachable hostile planet the
    * faction can take with the forecast and commitment limits, and assigns
    * the smallest group (strongest first) that achieves it.
@@ -839,6 +869,7 @@ export class EnemyFleetService {
     free: Fleet[],
     managed: Fleet[],
     clock: number,
+    real: { starSystems: StarSystem[]; fleets: Fleet[] },
   ): boolean {
     const origins: { x: number; y: number }[] = ownedSystems.length > 0 ? ownedSystems : managed;
     const candidates: { system: StarSystem; planet: PlanetTile; score: number; distance: number }[] = [];
@@ -869,6 +900,20 @@ export class EnemyFleetService {
     }
     candidates.sort((a, b) => b.score - a.score || a.distance - b.distance || a.planet.id - b.planet.id);
 
+    // Conquest brake (canSupportCapture): skip targets the economy cannot
+    // carry. Evaluated lazily in score order: only the top three affordable
+    // targets are tried below.
+    const affordable: typeof candidates = [];
+    const before = this.economyService.calculateEconomy(faction.id, factions, real.starSystems, real.fleets);
+    const ownedCount = real.starSystems.reduce((n, s) => n + s.planetsTiles.filter((p) => p.factionId === faction.id).length, 0);
+    for (const candidate of candidates) {
+      if (affordable.length >= 3) break;
+      const netAfter = this.projectedNetAfterCapture(faction, factions, real, candidate.planet);
+      if (canSupportCapture(before.netPerSecond, netAfter, ownedCount, faction.currencies['credits'] ?? 0)) {
+        affordable.push(candidate);
+      }
+    }
+
     // Keep the strongest fleet guarding home (when there is more than one),
     // and never commit more than the posture allows (1 - homeGuardFraction,
     // i.e. 70% for the neutral posture) of the managed strength.
@@ -884,7 +929,7 @@ export class EnemyFleetService {
       .filter((f) => !(homeGuard && free.length > 1 && f.id === homeGuard.id))
       .sort((a, b) => this.strength(b) - this.strength(a) || a.id - b.id);
 
-    for (const target of candidates.slice(0, 3)) {
+    for (const target of affordable) {
       const group: Fleet[] = [];
       let committed = 0;
       for (const fleet of pool) {

@@ -154,6 +154,11 @@ needs to tell old and new records apart.
   keeps the site of its first mine free (see [AI Pipeline](./ai-pipeline.md#construction-and-spending-policy)).
 - Starting layouts (`centerLayout`) are authored at the origin and moved to
   the grid center; the surface is generated around them.
+- Core buildings (Capital, Colony Center) are never placed by hand. The game
+  puts one on every owned planet at the free spot nearest to the grid
+  center; if terrain leaves no room, it clears the terrain of the nearest
+  spot free of buildings and deposits (the surface record is replaced, so
+  the mask cache stays valid). See [Economy](./economy.md#colony-cores).
 
 ## Save compatibility (save version 6)
 
@@ -241,7 +246,7 @@ id with dashes), generated from geometry by `scripts/building-sprites/`:
   sci-fi colony: round towers with domed caps, glowing ribbon windows,
   floating halo rings, arches, tube bridges, glass bio-domes and spires
   with glowing tips on bevelled base slabs with luminous edges; cyan is the
-  colony light, red marks beacons and medical, hazard yellow industry, gold trade and finance — the Trading Post and the Bank).
+  colony light, red marks beacons and medical, hazard yellow industry, gold trade and finance — the Trading Post and the Bank; violet and gold the Capital, teal the Colony Center).
   Each design draws back to front, since SVG paints in document order.
 - `generate.mjs` — writes one file per building in `planet-data.json` and
   fails if a building has no design, so a new building cannot ship without

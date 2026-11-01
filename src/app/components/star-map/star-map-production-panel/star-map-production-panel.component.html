@@ -24,7 +24,9 @@
         <div class="production-panel__row">
           <div class="production-panel__row-info">
             <span class="production-panel__row-type">{{ order.shipTypeId | uppercase }}</span>
-            <span class="production-panel__row-qty">×{{ order.quantity }}</span>
+            @if (order.quantity > 1) {
+              <span class="production-panel__row-qty">×{{ order.quantity }}</span>
+            }
             <span class="production-panel__row-eta">{{ formatEta(vm.etas[order.id]) }}</span>
           </div>
           <div class="production-panel__row-bar">

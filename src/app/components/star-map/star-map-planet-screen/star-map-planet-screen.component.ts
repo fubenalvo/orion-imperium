@@ -77,6 +77,8 @@ export interface BuildingType {
   } | null;
   requiresOreProximity?: boolean;
   maxPerPlanet?: number;
+  /* Core buildings (colony-core.ts): placed by the game, never in the build list. */
+  autoPlaced?: boolean;
 }
 
 export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production' | 'trade';
@@ -306,6 +308,8 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   get buildingTypes(): BuildingType[] {
     return this._buildingTypes;
   }
+
+  readonly buildableTypes: BuildingType[] = this._buildingTypes.filter((b) => !b.autoPlaced);
 
   getBuildingName(building: BuildingType): string {
     return building.name;

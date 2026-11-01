@@ -17,7 +17,7 @@ import { ShipService } from '../../services/ship.service';
 import { ProductionService } from '../../services/production.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
-import { isCombatShipType } from './ai-queries';
+import { canSupportNewColony, isCombatShipType } from './ai-queries';
 import { EnemyPlanService } from './enemy-plan.service';
 import { getAiPersonalityProfile } from './ai-personality';
 import planetData from './planet-data.json';
@@ -1216,8 +1216,8 @@ export class EnemyEconomyService {
 
   /*
    * wantsColonizer: The faction can still expand (an unhabited planet
-   * exists) and has no colonizer anywhere in its pipeline (stock, fleets,
-   * production queue).
+   * exists), has no colonizer anywhere in its pipeline (stock, fleets,
+   * production queue) and can carry the upkeep of one more planet.
    */
   private wantsColonizer(faction: Faction, starSystems: StarSystem[], context: EconomyContext): boolean {
     const anyTarget = (context.perceivedSystems ?? starSystems).some((s) => s.planetsTiles.some((p) => p.factionId === 'unhabited'));
@@ -1229,7 +1229,16 @@ export class EnemyEconomyService {
       (f) => f.factionId === faction.id && !f.destroyed && f.ships.some((s) => s.type === 'colonizer' && !s.destroyed),
     );
     const queued = this.pendingOrders(faction.id, context).some((o) => o.shipTypeId === 'colonizer');
-    return !inStock && !inFleet && !queued;
+    if (inStock || inFleet || queued) {
+      return false;
+    }
+    // A colony the economy cannot carry is not committed spending (the
+    // action layer does not order the colonizer either, see canSupportNewColony).
+    const breakdown = this.economyService.calculateEconomy(
+      faction.id, context.factions ?? [faction], starSystems, context.fleets, context.shipStock,
+    );
+    const owned = this.getOwnedPlanetsSorted(faction.id, starSystems).length;
+    return canSupportNewColony(breakdown, owned, faction.currencies['credits'] ?? 0);
   }
 
   private pendingOrders(factionId: string, context: EconomyContext): { shipTypeId: string; quantity: number }[] {

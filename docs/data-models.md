@@ -177,15 +177,16 @@ Read from `ship-data.json`:
 Read from `planet-data.json`:
 
 - `id`, `name`: identity
-- `role`: e.g. `'industrial'`, `'defense'`
+- `role`: e.g. `'industrial'`, `'defense'`; `'core'` marks the Capital and the Colony Center ([Economy](./economy.md#colony-cores))
 - `price`: build cost in credits; `rawMaterialCost`: build cost in raw materials (see [Economy](./economy.md) for the price table)
 - `size`: footprint in surface-grid cells
 - `maintenanceCost`: upkeep points per second (`× 0.3` credits/s)
 - `production`, `consumption`: `ResourceRates` – resources produced or consumed per second
 - `energyProduction`, `energyConsumption`: per-second energy flow
-- `population`, `workforce`, `providesWorkforce`, `moraleRate`: optional demographic / morale fields. `workforce` is the workforce *required* by the building per second of operation; `providesWorkforce` (housing-role buildings only) is the workforce *provided* by the building; `moraleRate` is the building's per-second contribution to the planet's morale/satisfaction drift (social/entertainment buildings are positive, heavy industry mildly negative). All three are now consumed by `EconomyService`.
+- `population`, `workforce`, `providesWorkforce`, `moraleRate`: optional demographic / morale fields. `workforce` is the workforce *required* by the building per second of operation; `providesWorkforce` (housing and core buildings only) is the workforce *provided* by the building; `moraleRate` is the building's per-second contribution to the planet's morale/satisfaction drift (social/entertainment buildings are positive, heavy industry mildly negative). All three are now consumed by `EconomyService`.
 - `defense`: optional `{ type, attack, attackType, range, fireRate, weakness, shield, shieldRegen }` block for defense buildings
-- `maxPerPlanet?`: most instances one planet may hold (Bank and Trading Post: 1); missing = no cap. Enforced at placement for the player and the AI (`building-placement.ts`), see [Economy](./economy.md#per-planet-building-cap)
+- `autoPlaced?`: core buildings placed by the game (`colony-core.ts`); hidden from the build list and never unlocked by research
+- `maxPerPlanet?`: most instances one planet may hold (Bank, Trading Post and the cores: 1); missing = no cap. Enforced at placement for the player and the AI (`building-placement.ts`), see [Economy](./economy.md#per-planet-building-cap)
 
 ## Battle
 

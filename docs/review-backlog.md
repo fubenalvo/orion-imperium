@@ -18,12 +18,6 @@ No open items.
 
 ## P1 – Important bugs
 
-### 6. [Bug/Balance] Build time does not scale with order quantity [Code]
-
-- **Problem:** 10 ships take as long as 1.
-- **File:** `src/app/services/production.service.ts` (`buildTime` × `quantity`)
-- **Suggestion:** multiply build time by quantity, or deliver ships to the stock one at a time. Update `docs/ship-production.md`.
-
 ### 7. [Bug] The player's own home system shows status "UNEXPLORED" [Played]
 
 On the galaxy map system panel.

@@ -89,10 +89,12 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
   No two participants are permanent allies: everyone starts at war with everyone, under the opening
   war lock (`normalizeRelations(factions, INITIAL_WAR_LOCK_SECONDS)`), and treaties decide later who
   fights whom. See [Diplomacy](./diplomacy.md). (Pre-diplomacy saves keep all AIs on team 2.)
-- **Homeworld** (planet 1 of each home system, earthlike/medium, population 1400): the legacy Earth
-  buildings plus a Fusion Power Plant, so every faction starts energy-positive. Without it, AI
-  homeworlds would be far short on energy, lose satisfaction and rebel before their develop action ran.
-  Starting layouts (homeworld and AI colonies) are centered on the grid (`centerLayout`).
+- **Homeworld** (planet 1 of each home system, earthlike/medium, population 1200): the Capital (core
+  building) in the middle, with a Large Residential Block, a Fusion Power Plant, a Laser Turret and a
+  Research Laboratory around it. The Fusion Power Plant makes every faction start energy-positive
+  (120 vs 42); without it, AI homeworlds would be short on energy and rebel before their develop
+  action ran. AI starting colonies get a Colony Center, a Small Residential Block and a Solar Array.
+  Starting layouts are centered on the grid (`centerLayout`). See [Economy](./economy.md#colony-cores).
 - **Planet surfaces:** settled planets get their terrain (`generatePlanetSurface`, seeded from the
   galaxy seed and planet id, kept clear of the starting buildings) during generation; all other
   planets receive the identical terrain on first load. See [Planet Surface](./planet-surface.md).

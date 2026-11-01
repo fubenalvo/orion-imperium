@@ -224,7 +224,7 @@ function developedPlanetCount(data: StarMapData, factionId: string, trace: Facti
 }
 
 function homeworldOf(data: StarMapData): (factionId: string) => StarMapData['starSystems'][0]['planetsTiles'][0] {
-  return (factionId) => ownedPlanets(data, factionId).find((p) => p.population === 1400)!;
+  return (factionId) => ownedPlanets(data, factionId).find((p) => p.buildings.some((b) => b.name === 'Capital'))!;
 }
 
 function runScenario(options: ScenarioOptions): ScenarioResult {
@@ -243,7 +243,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
   for (const faction of data.factions.filter((f) => f.ai)) {
     const planets = ownedPlanets(data, faction.id);
     // A faction may start a scenario with no planet at all (recovery tests).
-    const homeworld = planets.find((p) => p.population === 1400) ?? planets[0] ?? { id: -1 };
+    const homeworld = planets.find((p) => p.buildings.some((b) => b.name === 'Capital')) ?? planets[0] ?? { id: -1 };
     traces.set(faction.id, {
       evaluations: 0,
       buildTimes: [],
@@ -711,8 +711,13 @@ describe('AI simulation (headless multi-minute games)', () => {
       planets.filter((p) => p.factionId === factionId && p.buildings.some((b) => b.name === building)).length;
     for (const faction of result.data.factions.filter((f) => f.ai)) {
       const profile = getAiPersonalityProfile(faction);
-      // Every personality ends up with a Trading Post; those that build Banks without a surplus have one.
-      expect(owned(faction.id, 'Trading Post'), `${faction.id} (${faction.aiPersonality}) trading posts`).toBeGreaterThanOrEqual(1);
+      // Every personality that builds Trading Posts without a surplus has one,
+      // and so do those that build Banks. A militarist builds a post only
+      // from a large surplus, which the slower economy since the colony
+      // cores (2026-11) no longer reaches within 20 minutes.
+      if (profile.commerce.tradingPosts >= 1) {
+        expect(owned(faction.id, 'Trading Post'), `${faction.id} (${faction.aiPersonality}) trading posts`).toBeGreaterThanOrEqual(1);
+      }
       if (profile.commerce.bankShare >= 0.5) {
         expect(owned(faction.id, 'Bank'), `${faction.id} (${faction.aiPersonality}) banks`).toBeGreaterThanOrEqual(1);
       }
@@ -766,7 +771,9 @@ describe('AI simulation (headless multi-minute games)', () => {
   });
 
   it('five AIs on a large map are each processed and colonize', () => {
-    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 600, dt: 1 / 60 };
+    // 12 minutes: since the colony cores (2026-11) the first colonizer leaves
+    // ~50 s later, and on a large map its trip can exceed the old 10 minutes.
+    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 720, dt: 1 / 60 };
     const result = runScenario(options);
 
     expectHealthyAiFactions(result, options);
@@ -839,7 +846,11 @@ describe('AI simulation (headless multi-minute games)', () => {
 const stripToResidential = (data: StarMapData): void => {
   for (const faction of data.factions.filter((f) => f.ai)) {
     const home = homeworldOf(data)(faction.id);
-    home.buildings = [{ name: 'Large Residential Block', size: 3, x: 0, y: 0 }];
+    // The Capital stays: core buildings are never removed (colony-core.ts).
+    home.buildings = [
+      ...home.buildings.filter((b) => b.name === 'Capital'),
+      { name: 'Large Residential Block', size: 3, x: 0, y: 0 },
+    ];
     // Enough for one power building (Solar Array: 600 credits). With an
     // energy deficit the homeworld earns nothing, so less than that would
     // be an unwinnable start under the economy rules, not an AI test.
@@ -865,9 +876,11 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     for (const [factionId, trace] of result.traces) {
       expect(trace.factoryAt, `${factionId} factory`).not.toBeNull();
       expect(trace.spaceportAt, `${factionId} spaceport`).not.toBeNull();
-      // Factory (3000) + Spaceport (4000) from a 1000-credit start at ~65–75
-      // credits/s net (population income 0.08/inhabitant since 2026-11).
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(240);
+      // Factory (3000) + Spaceport (4000) from a 1000-credit start. Since the
+      // colony cores (2026-11) the homeworld holds 1200 people and housing
+      // costs 1.5×, so the net is ~55–65 credits/s: measured 240–250 s
+      // (~200 s before).
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(280);
       expect(trace.firstColonizationAt!, `${factionId} first colony time`).toBeLessThan(300);
       expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(2);
       // Every owned planet (except possibly a colony founded in the last
@@ -997,9 +1010,10 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     for (const [factionId, trace] of result.traces) {
       expect(trace.spaceportAt, `${factionId} spaceport`).not.toBeNull();
       // The first Mining Complex (1500 credits) comes first, then 4000
-      // credits + 1000 raw at ~65–75 credits/s net (homeworld income minus
-      // upkeep) plus other committed needs: about three minutes.
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(240);
+      // credits + 1000 raw at ~55–65 credits/s net (homeworld income minus
+      // upkeep; 1200 people since the colony cores) plus other committed
+      // needs: about four minutes.
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(280);
       if (trace.firstResearchBuildingAt !== null) {
         expect(trace.firstResearchBuildingAt, `${factionId} research before spaceport`).toBeGreaterThan(trace.spaceportAt!);
       }
@@ -1557,7 +1571,10 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
     const options: ScenarioOptions = {
       // Premise: the AIs act against the player/neutrals, not each other.
       aiAlliance: true,
-      size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
+      // 12 minutes: enemy1 retakes its old worlds and colonizes first; the
+      // free world falls ~10 minutes in since the slower start of the colony
+      // cores (2026-11; ~9 minutes before).
+      size: 'medium', aiCount: 2, seconds: 720, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         // enemy1 loses every planet but keeps its fleets.
         for (const planet of data.starSystems.flatMap((sy) => sy.planetsTiles)) {
@@ -1714,9 +1731,11 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
         // stockpile lets the AI build its defense at the pace the scenario was
         // calibrated for before finite raw materials and pricier colonizers
         // and research (docs/economy.md) made fleets grow more slowly.
+        // 30000 credits since the colony cores (2026-11): pricier housing used
+        // up 20000 before the second colonizer.
         for (const faction of data.factions.filter((x) => x.ai)) {
           faction.currencies['rawmaterials'] = 20000;
-          faction.currencies['credits'] = 20000;
+          faction.currencies['credits'] = 30000;
         }
         // A cruiser parked 4 cells from enemy1's home: a 'defend' strategy
         // trigger. One cruiser outguns the Normal AI's 2 starting frigates
@@ -1792,12 +1811,23 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     // Seed 4242 (large, 5 AIs) left two factions with nothing in the fixed
     // 60-cell reach: one colony each in 15 minutes, then 'develop' forever.
     // The passive stand-in player can be eliminated mid-run; the AIs keep playing.
-    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 1200, dt: 1 / 30, seed: 4242, continueAfterOutcome: true };
+    // 25 minutes: the reach widens in steps over time, and since the colony
+    // cores (2026-11) the sparse faction needs the full widening (reached
+    // ~20–25 minutes in).
+    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 1500, dt: 1 / 30, seed: 4242, continueAfterOutcome: true };
     const result = runScenario(options);
     expectHealthyAiFactions(result, options);
     const reach = TestBed.inject(EnemyReachService);
     for (const [factionId, trace] of result.traces) {
-      expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(2);
+      expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(1);
+      // Since the colony cores (2026-11) the neighbours expand faster and can
+      // take every planet in the sparse faction's reach (measured: enemy2's
+      // nearest free system 127 cells away, maximum reach 120). A faction
+      // with fewer than two colonies must therefore have widened its reach
+      // all the way, which is what this regression is about.
+      if (trace.colonizations < 2) {
+        expect(reach.getBonus(factionId), `${factionId} widened its reach fully`).toBe(EnemyReachService.MAX_BONUS);
+      }
     }
     expect([...result.traces.keys()].some((id) => reach.getBonus(id) > 1), 'some faction widened its reach').toBe(true);
   });
@@ -1918,8 +1948,10 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
     const { result } = longRun({ size: 'large', aiCount: 5, seconds: 1800, dt: 1 / 30 });
     const ships = result.data.fleets.filter((f) => !f.destroyed).reduce((n, f) => n + f.ships.filter((s) => !s.destroyed).length, 0);
     const planets = result.data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId !== 'unhabited').length;
-    // Navies are smaller since ship upkeep grows with hull size (2026-11).
-    expect(ships, 'entity count reached').toBeGreaterThan(100);
+    // Navies are smaller since ship upkeep grows with hull size (2026-11),
+    // and again since the colony cores (more colonies, credits bind): ~90
+    // ships and ~36 planets at 30 minutes (116 and 32 before).
+    expect(ships, 'entity count reached').toBeGreaterThan(75);
     expect(planets).toBeGreaterThan(15);
     // Measured AI cost per frame (all five factions together).
     expect(result.aiTickMs.perFrame, 'average AI ms per frame').toBeLessThan(2);
@@ -2071,6 +2103,29 @@ describe('AI simulation — economy validation', () => {
     // console.log is mocked in these suites and console.info is swallowed by
     // the Angular test builder, so the report goes straight to stdout.
     (globalThis as any).process?.stdout?.write(`ECONOMY METRICS ${JSON.stringify(rows)}\n`);
+  }, 180_000);
+
+  it('with independent civilizations no AI expands or conquers into lasting upkeep arrears', () => {
+    // QA 2026-11-01 on this setup: the expansionist kept colonizing at ~0 net
+    // income, and later the militarist conquered its way to ~-200 credits/s
+    // for the rest of the game. The colony and conquest brakes
+    // (canSupportNewColony, canSupportCapture) keep every AI solvent while
+    // conquest itself still happens.
+    const options: ScenarioOptions = {
+      // 10 fps keeps this 60-minute run light enough not to starve the
+      // parallel suites (at 20 fps they hit their 5 s timeouts).
+      size: 'medium', aiCount: 3, seconds: 3600, dt: 1 / 10, civilizations: true,
+      resolvePlayerFleetBattles: true, continueAfterOutcome: true,
+    };
+    const result = runScenario(options);
+    expect([...result.traces.values()].some((t) => t.personality === 'expansionist'), 'an expansionist plays').toBe(true);
+    for (const row of economyRows(result, 'civ')) {
+      expect(row.arrearsTicks, `${row.who} ticks in arrears`).toBeLessThanOrEqual(60);
+      expect(Number(row.planets.split('->')[1]), `${row.who} planets`).toBeGreaterThan(Number(row.planets.split('->')[0]));
+    }
+    const aiIds = new Set(result.traces.keys());
+    const captures = result.ownershipChanges.filter((c) => aiIds.has(c.to) && c.from !== 'unhabited').length;
+    expect(captures, 'AI captures still happen').toBeGreaterThanOrEqual(3);
   }, 180_000);
 });
 

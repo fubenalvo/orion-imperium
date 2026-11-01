@@ -22,20 +22,20 @@ export interface TraderPanelViewModel {
   /*
    * Raid section (docs/trade-network.md#raids); null for the player's own
    * traders. `blocked` explains why it cannot be raided at all; `warning`
-   * names the diplomatic cost of raiding it.
+   * names the diplomatic cost of raiding it; `raiders` are the player fleets
+   * currently raiding it. Raids are ordered by right-click on the trader.
    */
   raid: {
     blocked: string | null;
     warning: string | null;
-    /* Player fleets: ETA to the trader's current position (null = unreachable). */
-    fleets: { fleetId: number; name: string; status: 'raiding' | 'ready' | 'no-warships' | 'unreachable'; etaSeconds: number | null }[];
+    raiders: string[];
   } | null;
 }
 
 /*
  * Presentational panel for a selected trader: affiliation, home post, the
- * current leg, cargo and its value, the time to arrival, and one RAID action
- * per player fleet (with the diplomatic cost spelled out before the click).
+ * current leg, cargo and its value, the time to arrival, and the raid status
+ * (raid cost and raiding fleets; the order itself is a right-click).
  */
 @Component({
   selector: 'app-star-map-trader-info',
@@ -46,7 +46,6 @@ export interface TraderPanelViewModel {
 export class StarMapTraderInfoComponent {
   @Input() vm: TraderPanelViewModel | null = null;
 
-  @Output() raid = new EventEmitter<number>();
   @Output() close = new EventEmitter<void>();
 
   formatSeconds(seconds: number): string {

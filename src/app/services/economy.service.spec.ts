@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { COLONY_CORE_ENERGY, EconomyService, energySatisfactionDrift } from './economy.service';
+import { EconomyService, energySatisfactionDrift, marginalColonyCost } from './economy.service';
+import { COLONY_RUNWAY_SECONDS, canSupportCapture, canSupportNewColony } from '../components/star-map/ai-queries';
 import { ShipService } from './ship.service';
-import { PlanetTile, PlanetType, StarSystem, Faction, Fleet } from '../components/star-map/star-map.models';
+import { EconomyBreakdown, PlanetTile, PlanetType, StarSystem, Faction, Fleet } from '../components/star-map/star-map.models';
 
 /*
  * Unit tests for the habitability/morale drift and workforce mechanics added
@@ -479,22 +480,41 @@ describe('EconomyService — energy shortfall and satisfaction', () => {
     expect(energySatisfactionDrift(0)).toBe(-1);
   });
 
-  it('owned planets get the colony core energy; unowned and independent planets do not', () => {
-    expect(economy.calculatePlanetEconomy(planetWith([])).energyProduction).toBe(COLONY_CORE_ENERGY);
-    expect(economy.calculatePlanetEconomy(planetWith([], { factionId: 'independent' })).energyProduction).toBe(0);
-    expect(economy.calculatePlanetEconomy(planetWith([], { factionId: '' })).energyProduction).toBe(0);
+  it('base values come from the core building: no core, no energy, housing or workforce', () => {
+    const bare = planetWith([]);
+    expect(economy.calculatePlanetEconomy(bare).energyProduction).toBe(0);
+    expect(economy.getPopulationCapacity(bare)).toBe(0);
+    expect(economy.getWorkforce(bare).available).toBe(0);
+
+    const colony = planetWith(['Colony Center']);
+    expect(economy.calculatePlanetEconomy(colony).energyProduction).toBe(10);
+    expect(economy.getPopulationCapacity(colony)).toBe(150);
+    expect(economy.getWorkforce(colony).available).toBe(30);
+
+    const capital = planetWith(['Capital']);
+    expect(economy.calculatePlanetEconomy(capital).energyProduction).toBe(20);
+    expect(economy.getPopulationCapacity(capital)).toBe(500);
+    expect(economy.getWorkforce(capital).available).toBe(100);
+  });
+
+  it('core buildings cost no upkeep', () => {
+    const owner = { id: 'player', name: 'P', color: '#fff', ai: false, currencies: { credits: 0 } } as unknown as Faction;
+    const planet = planetWith(['Capital', 'Colony Center'], { population: 0 });
+    const system = { id: 's', name: 'S', x: 0, y: 0, planets: 1, color: '#fff', planetsTiles: [planet] } as StarSystem;
+    expect(economy.calculateEconomy('player', [owner], [system], []).buildingUpkeepPerSecond).toBe(0);
   });
 
   it('a new colony can run its first housing block before any power building', () => {
-    const colony = planetWith(['Medium Residential Block']);
+    const colony = planetWith(['Colony Center', 'Medium Residential Block']);
     expect(economy.calculatePlanetEconomy(colony).efficiency).toBe(1);
     tick(colony, 10);
     expect(colony.satisfaction).toBeGreaterThan(60);
   });
 
   it('a small energy overshoot lowers output but satisfaction keeps rising', () => {
-    // 100 (fusion) + 10 (core) produced; 30 + 20 + 20 + 25 + 6 + 12 + 3 = 116 used: ~5% short.
+    // 100 (fusion) + 10 (Colony Center) produced; 30 + 20 + 20 + 25 + 6 + 12 + 3 = 116 used: ~5% short.
     const home = planetWith([
+      'Colony Center',
       'Fusion Power Plant',
       'Spaceship Factory',
       'Mining Complex',
@@ -514,8 +534,8 @@ describe('EconomyService — energy shortfall and satisfaction', () => {
   });
 
   it('a severe shortage still drains satisfaction at -1/s and ends in rebellion', () => {
-    // 10 (core) produced; 3 x 12 = 36 used: 72% short.
-    const colony = planetWith(['Large Residential Block', 'Large Residential Block', 'Large Residential Block'], {
+    // 10 (Colony Center) produced; 3 x 12 = 36 used: 72% short.
+    const colony = planetWith(['Colony Center', 'Large Residential Block', 'Large Residential Block', 'Large Residential Block'], {
       satisfaction: 5,
     });
     expect(economy.calculatePlanetEconomy(colony).satisfactionDrift).toBeCloseTo(-1, 6);
@@ -545,10 +565,70 @@ describe('EconomyService — energy shortfall and satisfaction', () => {
   });
 
   it('a recovering planet simply loses its grace when it runs out', () => {
-    const captured = planetWith(['Medium Residential Block'], { satisfaction: 40, rebellionGraceSeconds: 5 });
+    const captured = planetWith(['Colony Center', 'Medium Residential Block'], { satisfaction: 40, rebellionGraceSeconds: 5 });
     tick(captured, 10);
     expect(captured.rebellionGraceSeconds).toBeUndefined();
     expect(captured.factionId).toBe('player');
     expect(captured.satisfaction).toBeGreaterThan(40);
+  });
+});
+
+describe('marginalColonyCost / canSupportNewColony (AI over-expansion brake)', () => {
+  // Only the fields the formula reads matter; the rest of the breakdown is irrelevant here.
+  const breakdown = (income: number, building: number, ship: number, station: number) => ({
+    incomePerSecond: income,
+    buildingUpkeepPerSecond: building,
+    shipUpkeepPerSecond: ship,
+    stationUpkeepPerSecond: station,
+    netPerSecond: income - building - ship - station,
+  }) as unknown as EconomyBreakdown;
+
+  it('charges the administration step on the whole income and the upkeep-scale step on all scaled upkeep', () => {
+    // 5 → 6 planets: administration 12% → 15% of income; scale 1.28 → 1.35.
+    const b = breakdown(1000, 300, 100, 20);
+    const expected = 0.03 * 1000 + (1.35 / 1.28 - 1) * 420;
+    expect(marginalColonyCost(b, 5)).toBeCloseTo(expected, 6);
+  });
+
+  it('adds no administration once the administration cap is reached', () => {
+    const b = breakdown(1000, 0, 0, 0);
+    expect(marginalColonyCost(b, 20)).toBe(0);
+  });
+
+  it('allows a colony that keeps net income non-negative', () => {
+    expect(canSupportNewColony(breakdown(1000, 300, 100, 0), 5, 0)).toBe(true);
+  });
+
+  it('refuses a colony that drives net income negative unless the treasury covers the runway', () => {
+    // net 0 before the colony → negative after it.
+    const b = breakdown(500, 300, 200, 0);
+    const deficit = marginalColonyCost(b, 10);
+    expect(canSupportNewColony(b, 10, 0)).toBe(false);
+    expect(canSupportNewColony(b, 10, deficit * COLONY_RUNWAY_SECONDS - 1)).toBe(false);
+    expect(canSupportNewColony(b, 10, deficit * COLONY_RUNWAY_SECONDS + 1)).toBe(true);
+  });
+
+  it('never blocks a faction without planets', () => {
+    expect(canSupportNewColony(breakdown(0, 50, 50, 0), 0, 0)).toBe(true);
+  });
+});
+
+describe('canSupportCapture (AI conquest brake)', () => {
+  it('allows a capture that keeps net income non-negative', () => {
+    expect(canSupportCapture(50, 10, 8, 0)).toBe(true);
+  });
+
+  it('allows a capture that improves a negative net (a struggling faction may take a rich world)', () => {
+    expect(canSupportCapture(-80, -20, 8, 0)).toBe(true);
+  });
+
+  it('refuses a capture that drives net income further negative unless the treasury covers the runway', () => {
+    expect(canSupportCapture(20, -30, 8, 0)).toBe(false);
+    expect(canSupportCapture(20, -30, 8, 30 * COLONY_RUNWAY_SECONDS - 1)).toBe(false);
+    expect(canSupportCapture(20, -30, 8, 30 * COLONY_RUNWAY_SECONDS)).toBe(true);
+  });
+
+  it('never blocks a faction without planets (its recovery route)', () => {
+    expect(canSupportCapture(-50, -90, 0, 0)).toBe(true);
   });
 });

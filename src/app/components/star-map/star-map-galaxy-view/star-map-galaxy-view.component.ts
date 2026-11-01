@@ -146,6 +146,8 @@ export class StarMapGalaxyViewComponent {
   @Input() blackHoleRings: BlackHoleRingView[] = [];
   @Input() asteroids: AsteroidMapView[] = [];
   @Input() traders: TraderMapView[] = [];
+  /* Fleets a player fleet is pursuing with an attack order (marked like an intercepted asteroid). */
+  @Input() attackTargetIds: ReadonlySet<number> = new Set();
   @Input() territories: TerritoryShapeView[] = [];
   @Input() spaceBases: SpaceBaseMapView[] = [];
   @Input() anomalies: AnomalyMapView[] = [];

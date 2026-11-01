@@ -160,29 +160,33 @@ const STARTING_TECHNOLOGIES = ['basic_engineering', 'basic_science', 'basic_indu
  * (docs/economy.md, "Economic safety").
  */
 const BASE_CURRENCIES = { credits: 1000, rawmaterials: 2500, research: 1000 } as const;
-/* Homeworld population equals the template's residential capacity (2 × 700). */
-const HOMEWORLD_POPULATION = 1400;
+/* Homeworld population equals the template's capacity (Capital 500 + Large Residential 700). */
+const HOMEWORLD_POPULATION = 1200;
 const COLONY_POPULATION = 100;
 
 /*
- * Homeworld = the legacy Earth layout plus a Fusion Power Plant. The
- * legacy Earth started energy-negative, which every AI homeworld would
- * have inherited and rebelled from before its develop action ran; the
- * plant makes every faction start energy-positive (100 vs 54).
+ * Homeworld: the Capital (core building, colony-core.ts) in the middle of a
+ * 9×9 block, with one Large Residential Block, a Fusion Power Plant, a
+ * Laser Turret and a Research Laboratory around it. The second Large
+ * Residential Block of the old layout was replaced by the Capital, which
+ * holds fewer people (1200 instead of 1400): a slower start is intended
+ * (docs/economy.md, "Colony cores"). Energy 120 vs 42 used, so every faction
+ * starts energy-positive with room for a Mining Complex and a factory.
  * Authored at the origin; centerLayout moves it to the middle of the grid.
  */
 const HOMEWORLD_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Large Residential Block', size: 3, x: 0, y: 0 },
-  { name: 'Large Residential Block', size: 3, x: 3, y: 0 },
   { name: 'Fusion Power Plant', size: 3, x: 6, y: 0 },
-  { name: 'Laser Turret', size: 1, x: 0, y: 3 },
-  { name: 'Research Laboratory', size: 2, x: 0, y: 6 },
+  { name: 'Capital', size: 3, x: 3, y: 3 },
+  { name: 'Research Laboratory', size: 2, x: 0, y: 7 },
+  { name: 'Laser Turret', size: 1, x: 8, y: 8 },
 ];
 
 /* Extra AI colonies (difficulty bonus). Centered like the homeworld layout. */
 const COLONY_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Small Residential Block', size: 1, x: 0, y: 0 },
-  { name: 'Solar Array', size: 2, x: 1, y: 0 },
+  { name: 'Colony Center', size: 2, x: 1, y: 0 },
+  { name: 'Solar Array', size: 2, x: 3, y: 0 },
 ];
 
 interface FleetTemplate {

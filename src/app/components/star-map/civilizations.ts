@@ -51,7 +51,8 @@ export const CIVILIZATION_CONFIG = {
 
 /*
  * Capital: housing 150 workforce for 146 required; Fusion Power Plant + the
- * colony core (110 energy once owned) for 77 used, so a conqueror inherits a
+ * Colony Center a conqueror receives (colony-core.ts; 110 energy once
+ * owned) for 77 used, so a conqueror inherits a
  * working, powered planet. Shield + 2 laser + 2 missile turrets: strong
  * enough that an opening fleet cannot simply take it (the AI also waits,
  * see AiPersonalityProfile.civilizationAssaultAfter). Authored at the

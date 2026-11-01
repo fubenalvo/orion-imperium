@@ -320,7 +320,9 @@ describe('finite raw-material deposits', () => {
 
   describe('cost structure (6, 7)', () => {
     const ships = (shipData as { shipTypes: { id: string; role: string; cost: number; rawMaterialCost: number }[] }).shipTypes;
-    const buildings = (planetData as { buildings: { id: string; name: string; price: number; rawMaterialCost: number }[] }).buildings;
+    // Core buildings (colony-core.ts) are free and never bought.
+    const buildings = (planetData as { buildings: { id: string; name: string; price: number; rawMaterialCost: number; autoPlaced?: boolean }[] }).buildings
+      .filter((b) => !b.autoPlaced);
 
     it('warships cost mostly raw materials, buildings mostly credits', () => {
       for (const ship of ships.filter((s) => !['colonizer', 'outpost_ship'].includes(s.id))) {

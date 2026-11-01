@@ -82,8 +82,8 @@
       "workforce": 0,
       "providesWorkforce": 20,
       "moraleRate": 0,
-      "price": 400,
-      "rawMaterialCost": 100,
+      "price": 600,
+      "rawMaterialCost": 150,
       "production": {},
       "consumption": {
         "energy": 3
@@ -102,8 +102,8 @@
       "workforce": 0,
       "providesWorkforce": 50,
       "moraleRate": 0,
-      "price": 1200,
-      "rawMaterialCost": 300,
+      "price": 1800,
+      "rawMaterialCost": 450,
       "production": {},
       "consumption": {
         "energy": 6
@@ -122,8 +122,8 @@
       "workforce": 0,
       "providesWorkforce": 100,
       "moraleRate": 0,
-      "price": 3000,
-      "rawMaterialCost": 750,
+      "price": 4500,
+      "rawMaterialCost": 1125,
       "production": {},
       "consumption": {
         "energy": 12
@@ -390,6 +390,46 @@
       },
       "defense": null,
       "maxPerPlanet": 1
+    },
+    {
+      "id": "capital",
+      "name": "Capital",
+      "role": "core",
+      "energyConsumption": 0,
+      "energyProduction": 20,
+      "maintenanceCost": 0,
+      "size": 3,
+      "population": 500,
+      "workforce": 0,
+      "providesWorkforce": 100,
+      "moraleRate": 0,
+      "price": 0,
+      "rawMaterialCost": 0,
+      "production": {},
+      "consumption": {},
+      "defense": null,
+      "maxPerPlanet": 1,
+      "autoPlaced": true
+    },
+    {
+      "id": "colony_center",
+      "name": "Colony Center",
+      "role": "core",
+      "energyConsumption": 0,
+      "energyProduction": 10,
+      "maintenanceCost": 0,
+      "size": 2,
+      "population": 150,
+      "workforce": 0,
+      "providesWorkforce": 30,
+      "moraleRate": 0,
+      "price": 0,
+      "rawMaterialCost": 0,
+      "production": {},
+      "consumption": {},
+      "defense": null,
+      "maxPerPlanet": 1,
+      "autoPlaced": true
     }
   ]
 }

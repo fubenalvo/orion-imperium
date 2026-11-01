@@ -22,7 +22,8 @@ import { ProductionService } from '../../services/production.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { StarMapMovementService } from './star-map-movement.service';
-import { isCombatShipType } from './ai-queries';
+import { canSupportNewColony, isCombatShipType } from './ai-queries';
+import { EconomyService } from '../../services/economy.service';
 import { canAffordCost, shipCost } from '../../services/resource-cost';
 import { hasLivingOutpostShip } from './space-base';
 
@@ -77,6 +78,7 @@ export class EnemyActionService {
     private readonly spaceportService: SpaceportService,
     private readonly fleetAssemblyService: FleetAssemblyService,
     private readonly movementService: StarMapMovementService,
+    private readonly economyService: EconomyService,
   ) {}
 
   reset(): void {
@@ -267,6 +269,11 @@ export class EnemyActionService {
     }
 
     if (colonizerAvailable && !colonizerAvailable.satisfied) {
+      // Over-expansion brake: develop instead (a 'none' would be reported
+      // as a deadlock) until the economy can carry one more planet.
+      if (!this.canAffordNewColony(factionId, factions, starSystems, fleets, shipStock)) {
+        return this.createAction('develop', factionId, goal, undefined, undefined, undefined, 'colony_upkeep_unaffordable');
+      }
       if (this.canProduceColonizer(factionId, factions, starSystems)) {
         return this.createAction('produce_colonizer', factionId, goal, undefined, goal.targetSystemId, goal.targetPlanetId, 'No colonizer available but production is possible');
       }
@@ -329,6 +336,9 @@ export class EnemyActionService {
         return this.createAction('assemble_fleet', factionId, goal, undefined, goal.targetSystemId, goal.targetPlanetId, 'Colonizer in stock but no fleet has it');
       }
       // Every carrier serves another objective: this one needs its own colonizer.
+      if (!this.canAffordNewColony(factionId, factions, starSystems, fleets, shipStock)) {
+        return this.createAction('develop', factionId, goal, undefined, undefined, undefined, 'colony_upkeep_unaffordable');
+      }
       if (this.canProduceColonizer(factionId, factions, starSystems)) {
         return this.createAction('produce_colonizer', factionId, goal, undefined, goal.targetSystemId, goal.targetPlanetId, 'All carriers are assigned; producing another colonizer');
       }
@@ -589,6 +599,21 @@ export class EnemyActionService {
           planet.factionId === factionId && this.productionService.getPlanetCapacity(planet, 'spaceship_factory') > 0,
       ),
     );
+  }
+
+  /* See canSupportNewColony (ai-queries.ts). */
+  private canAffordNewColony(
+    factionId: string,
+    factions: Faction[],
+    starSystems: StarSystem[],
+    fleets: Fleet[],
+    shipStock: { factionId: string; ships: ShipStockEntry[] }[],
+  ): boolean {
+    const faction = factions.find((f) => f.id === factionId);
+    if (!faction) return false;
+    const breakdown = this.economyService.calculateEconomy(factionId, factions, starSystems, fleets, shipStock);
+    const owned = starSystems.reduce((n, s) => n + s.planetsTiles.filter((p) => p.factionId === factionId).length, 0);
+    return canSupportNewColony(breakdown, owned, faction.currencies['credits'] ?? 0);
   }
 
   private canProduceColonizer(factionId: string, factions: Faction[], starSystems: StarSystem[]): boolean {

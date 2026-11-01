@@ -100,6 +100,8 @@ describe('StarMap right-click orders', () => {
     map.onFleetContextMenu(enemy, rightClick());
     expect(fleet.attackFleetId).toBe(enemy.id);
     expect([fleet.targetX, fleet.targetY]).toEqual([enemy.x, enemy.y]);
+    // The quarry is marked on the map like an intercepted asteroid.
+    expect(map.attackTargetFleetIds.has(enemy.id)).toBe(true);
 
     // The quarry slips away: the next frame re-aims the pursuit.
     enemy.y += 2;
@@ -110,6 +112,7 @@ describe('StarMap right-click orders', () => {
     // A manual move cancels the attack.
     map.moveSelectedFleet(fleet.x, fleet.y + 1);
     expect(fleet.attackFleetId).toBeNull();
+    expect(map.attackTargetFleetIds.has(enemy.id)).toBe(false);
   });
 
   it('drops the attack order when the quarry leaves sensor range', () => {

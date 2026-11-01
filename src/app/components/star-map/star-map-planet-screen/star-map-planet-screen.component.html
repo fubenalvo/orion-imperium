@@ -354,7 +354,7 @@
           @case ('build') {
             @if (!isBuildMode) {
               <div class="planet-sidebar__build-list">
-                @for (building of buildingTypes; track building.id) {
+                @for (building of buildableTypes; track building.id) {
                   <button
                     class="planet-sidebar__build-item"
                     [class.planet-sidebar__build-item--locked]="!isBuildingUnlocked(building.id)"

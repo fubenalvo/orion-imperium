@@ -221,7 +221,9 @@ describe('StarMap', () => {
     it('should execute produce_colonizer through the full AI pipeline', () => {
       component.factions = component.factions.map((f) => {
         if (f.id === 'enemy1') {
-          return { ...f, currencies: { credits: 5000, rawmaterials: 1000 }, researchedTechnologies: ['basic_engineering'] };
+          // enemy1 owns 9 planets on this map at about -190 credits/s; the
+          // treasury must carry the next colony's deficit (canSupportNewColony).
+          return { ...f, currencies: { credits: 100000, rawmaterials: 1000 }, researchedTechnologies: ['basic_engineering'] };
         }
         return f;
       });
@@ -232,7 +234,8 @@ describe('StarMap', () => {
             ...s,
             planetsTiles: s.planetsTiles.map((p) => {
               if (p.id === 1) {
-                return { ...p, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }] };
+                // Every owned planet has a core building (colony-core.ts).
+                return { ...p, factionId: 'enemy1', buildings: [{ name: 'Spaceship Factory', size: 1, x: 0, y: 0 }, { name: 'Colony Center', size: 2, x: 4, y: 4 }] };
               }
               return p;
             }),

@@ -54,6 +54,30 @@ ship type also carries a `productionBuilding` discriminator
 (`'spaceship_factory' | 'orbital_factory'`) so the same production service
 works for both factory classes without code changes.
 
+### One ship per order
+
+A request for N ships (the player's quantity picker) is stored as **N
+single-ship orders** in the planet queue. Consequences:
+
+- The queue's total time is unit time × N; the factory works on the head
+  order only, so ships reach the stock one at a time.
+- `queueOrder` still charges the full price for all N at once
+  (all-or-nothing) and splits it into per-order `paid` shares that sum
+  exactly to the charge (rounding remainder on the first share).
+- Cancelling a queue item refunds that one ship's un-built fraction; the
+  other items and ships already in the stock are untouched.
+- `getOrderEta` reports the time for one queue item; the panel shows a
+  `×N` label only for orders with `quantity > 1`.
+
+Saves written before this rule can hold orders with `quantity > 1`.
+`ProductionService.rebaseFromSave` (run on every load) splits them into
+single-ship orders: the first keeps the batch's progress and id, the rest
+get fresh ids and progress 0, and `paid` is shared exactly, so no ship or
+refundable resource is lost or duplicated. Orders for an unknown ship type
+are left whole (the tick refunds them). As a defensive fallback, the tick
+and `getOrderEta` multiply the unit time by `quantity`, so a multi-ship
+order can never finish faster than its ships.
+
 ## Fleet spawn position and view transition
 
 `FleetAssemblyService.createFleet` places the new fleet on the host
@@ -77,8 +101,8 @@ planet's cell) immediately.
 ## Production completion → Global Ship Stock
 
 When `ProductionService.tick` advances an order past `progress >= 1` it
-mints one `ShipStockEntry` per produced unit (see
-`production.service.ts:230-244`) and pushes them into the producing
+mints one `ShipStockEntry` per produced unit (normally one, see
+[One ship per order](#one-ship-per-order)) and pushes them into the producing
 faction's stock via `ShipStockService.addToStock`. The factory never
 touches a fleet and the fleet never touches the factory. Entries are
 captured with `producedAtTick` and `originPlanetId` for debug, but those

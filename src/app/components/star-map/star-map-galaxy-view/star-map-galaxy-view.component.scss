@@ -94,6 +94,17 @@
   opacity: 0.5;
 }
 
+/* Quarry of a player attack order: a rotating dashed ring like a targeted asteroid. */
+.fleet-cell--targeted .fleet::after {
+  content: '';
+  position: absolute;
+  inset: 4%;
+  border: 1px dashed var(--color-danger, #ff5a5a);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: asteroid-ring 3s linear infinite;
+}
+
 /* Fleet inside a nebula: hazy outline signals slowed movement and impaired sensors. */
 .fleet-cell--nebula .fleet__icon {
   filter: drop-shadow(0 0 4px rgba(200, 150, 255, 0.9)) blur(0.4px);
@@ -169,16 +180,24 @@
   pointer-events: none;
 }
 
+/*
+ * Map markers that move under the cursor (asteroids, traders) are centered
+ * with negative offsets, never with `transform`: the global
+ * `button:active { transform: none }` rule would drop a centering transform
+ * on mouse-down, making the button jump half its size so the mouse-up (and
+ * the click) landed on the map instead. `min-height: 0` overrides the global
+ * button minimum, which otherwise made the hit area larger than the glyph.
+ */
 .asteroid {
   position: absolute;
-  top: 0;
-  left: 0;
-  transform: translate(-50%, -50%);
+  top: -0.8vw;
+  left: -0.8vw;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 1.6vw;
   height: 1.6vw;
+  min-height: 0;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -245,16 +264,17 @@
   will-change: left, top;
 }
 
+/* Centered without `transform`, see `.asteroid`. */
 .trader {
   position: absolute;
-  top: 0;
-  left: 0;
-  transform: translate(-50%, -50%);
+  top: -0.7vw;
+  left: -0.7vw;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 1.4vw;
   height: 1.4vw;
+  min-height: 0;
   padding: 0;
   border: none;
   border-radius: 50%;

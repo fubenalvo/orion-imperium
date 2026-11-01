@@ -50,9 +50,12 @@ describe('PlanetOwnershipService', () => {
 
   it('keeps population and buildings with the planet', () => {
     const p = planet();
+    const before = [...p.buildings];
     service.transferPlanet({}, p, 'enemy1', 'captured');
     expect(p.population).toBe(100);
-    expect(p.buildings).toHaveLength(1);
+    // The old buildings stay; a planet without a core also gets a Colony Center.
+    expect(p.buildings.slice(0, before.length)).toEqual(before);
+    expect(p.buildings.map((b) => b.name)).toContain('Colony Center');
   });
 
   it('a capture raises satisfaction to the minimum and starts the rebellion grace', () => {

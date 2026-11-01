@@ -273,6 +273,7 @@
         class="fleet-cell"
         [class.fleet-cell--preview]="isEnemyInPreview(fleet)"
         [class.fleet-cell--nebula]="isFleetInNebula(fleet)"
+        [class.fleet-cell--targeted]="attackTargetIds.has(fleet.id)"
         [style.left]="(fleet.x - 0.5) * cellSizeVw + 'vw'"
         [style.top]="(fleet.y - 0.5) * cellSizeVh + 'vw'"
         [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"

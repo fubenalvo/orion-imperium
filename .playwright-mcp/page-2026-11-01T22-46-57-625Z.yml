@@ -1,0 +1,138 @@
+- generic [ref=f2e102]:
+  - banner [ref=f2e105]:
+    - generic [ref=f2e106]:
+      - button "Back to DENEB" [ref=f2e107] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f2e108]: ‹
+        - generic [ref=f2e109]: DENEB
+      - generic "Ilara" [ref=f2e111]
+    - group "Time controls" [ref=f2e112]:
+      - button "Pause / Resume" [ref=f2e113] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=f2e114] [cursor=pointer]: 1x
+      - button "3x speed" [ref=f2e115] [cursor=pointer]: 3x
+    - generic [ref=f2e116]:
+      - generic [ref=f2e117]:
+        - generic [ref=f2e119]:
+          - generic [ref=f2e120] [cursor=pointer]: 1,071
+          - generic [ref=f2e123]:
+            - generic [ref=f2e124] [cursor=pointer]
+            - generic [ref=f2e125] [cursor=pointer]: 2,502
+          - generic [ref=f2e126]:
+            - generic [ref=f2e127] [cursor=pointer]
+            - generic [ref=f2e128] [cursor=pointer]: 1,005
+        - button "0 STOCK" [ref=f2e131] [cursor=pointer]:
+          - generic [ref=f2e133]: "0"
+          - generic [ref=f2e134]: STOCK
+        - button "DIPLOMACY" [ref=f2e135] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e136]: ⚖
+      - button "Enter full screen" [ref=f2e138] [cursor=pointer]
+      - button "Open pause menu" [ref=f2e141] [cursor=pointer]
+  - generic [ref=f2e146]:
+    - generic [ref=f2e147]:
+      - generic [ref=f2e148]:
+        - generic:
+          - generic:
+            - generic: Large Residential Block
+            - generic: Fusion Power Plant
+            - generic: Capital
+            - generic: Research Laboratory
+            - generic: Laser Turret
+      - generic [ref=f2e475]:
+        - button "▲" [ref=f2e476] [cursor=pointer]
+        - button "◀" [ref=f2e477] [cursor=pointer]
+        - button "●" [ref=f2e478] [cursor=pointer]
+        - button "▶" [ref=f2e479] [cursor=pointer]
+        - button "▼" [ref=f2e480] [cursor=pointer]
+      - group "Surface zoom" [ref=f2e481]:
+        - button "CLOSE" [ref=f2e482] [cursor=pointer]
+        - button "MEDIUM" [pressed] [ref=f2e483] [cursor=pointer]
+        - button "FAR" [ref=f2e484] [cursor=pointer]
+        - button "NAMES" [pressed] [ref=f2e485] [cursor=pointer]
+    - complementary [ref=f2e486]:
+      - generic [ref=f2e487]:
+        - text: Ilara
+        - generic [ref=f2e488]: SURFACE
+      - tablist [ref=f2e489]:
+        - tab "DETAILS" [selected] [ref=f2e490] [cursor=pointer]
+        - tab "BUILD" [ref=f2e491] [cursor=pointer]
+      - generic [ref=f2e492]:
+        - generic [ref=f2e493]:
+          - generic [ref=f2e494]: EARTHLIKE
+          - generic [ref=f2e495]: Terran Empire
+        - generic [ref=f2e496]:
+          - generic [ref=f2e497]:
+            - generic [ref=f2e498]: 1,200
+            - generic [ref=f2e499]: Population
+          - generic [ref=f2e500]:
+            - generic [ref=f2e501]: 73/s
+            - generic [ref=f2e502]: Net income
+          - generic [ref=f2e504]:
+            - generic [ref=f2e505]: Satisfaction
+            - generic [ref=f2e506]: 100% +0.99/s
+        - generic [ref=f2e511]:
+          - generic [ref=f2e512] [cursor=pointer]: 1,071
+          - generic [ref=f2e515]:
+            - generic [ref=f2e516] [cursor=pointer]
+            - generic [ref=f2e517] [cursor=pointer]: 2,502
+          - generic [ref=f2e518]:
+            - generic [ref=f2e519] [cursor=pointer]
+            - generic [ref=f2e520] [cursor=pointer]: 1,005
+        - generic [ref=f2e521]: Workforce & energy
+        - generic [ref=f2e522]:
+          - generic [ref=f2e523]: Workforce
+          - generic [ref=f2e524]: 200 / 105
+        - generic [ref=f2e525]:
+          - generic [ref=f2e526]: Workforce eff.
+          - generic [ref=f2e527]: 100%
+        - generic [ref=f2e528]:
+          - generic [ref=f2e529]: Energy
+          - generic [ref=f2e530]: 120 / 42
+        - generic [ref=f2e531]:
+          - generic [ref=f2e532]: Energy balance
+          - generic [ref=f2e533]: "78"
+        - generic [ref=f2e534]:
+          - generic [ref=f2e535]: World type
+          - generic [ref=f2e536]: "Ideal world: no penalties"
+        - generic [ref=f2e537]:
+          - generic [ref=f2e538]: Entertainment
+          - generic [ref=f2e539]: "-0.01"
+        - generic [ref=f2e540]: Economy
+        - generic [ref=f2e541]:
+          - generic [ref=f2e542]: Raw materials
+          - generic [ref=f2e543]: +2/s
+        - generic [ref=f2e544]:
+          - generic [ref=f2e545]: Research
+          - generic [ref=f2e546]: +5/s
+        - generic [ref=f2e547]:
+          - generic [ref=f2e548]: Efficiency
+          - generic [ref=f2e549]: 100%
+        - generic [ref=f2e550]: Raw-material deposit
+        - generic [ref=f2e551]:
+          - generic [ref=f2e552]: Status
+          - generic [ref=f2e553]: UNMINED
+        - generic [ref=f2e554]:
+          - generic [ref=f2e555]: Remaining / total
+          - generic [ref=f2e556]: 41,500 / 41,500
+        - generic [ref=f2e557]:
+          - generic [ref=f2e558]: Extracted
+          - generic [ref=f2e559]: 0%
+        - generic "0% extracted"
+        - generic [ref=f2e560]:
+          - generic [ref=f2e561]: Mining rate
+          - generic [ref=f2e562]: 0/s · richness ×1.02
+        - generic [ref=f2e563]: Build a Mining Complex next to a deposit tile to extract it.
+        - generic [ref=f2e564]: Buildings (5)
+        - generic [ref=f2e565]:
+          - generic [ref=f2e566]: Large Residential Block
+          - generic [ref=f2e567]: 3x3
+        - generic [ref=f2e568]:
+          - generic [ref=f2e569]: Fusion Power Plant
+          - generic [ref=f2e570]: 3x3
+        - generic [ref=f2e571]:
+          - generic [ref=f2e572]: Capital
+          - generic [ref=f2e573]: 3x3
+        - generic [ref=f2e574]:
+          - generic [ref=f2e575]: Research Laboratory
+          - generic [ref=f2e576]: 2x2
+        - generic [ref=f2e577]:
+          - generic [ref=f2e578]: Laser Turret
+          - generic [ref=f2e579]: 1x1

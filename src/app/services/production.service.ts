@@ -16,6 +16,7 @@ export interface ProductionResult {
   ok: boolean;
   reason?: 'no_factory' | 'insufficient_resources' | 'invalid_type' | 'invalid_quantity';
   order?: ProductionOrder;
+  orders?: ProductionOrder[];
   refunded?: { credits: number; rawmaterials: number; research: number };
 }
 
@@ -34,7 +35,11 @@ export interface ProductionTickResult {
  * service never touches a fleet directly.
  *
  * One in-flight order per planet at a time (production-capacity = 1 by
- * default). This matches the IG1 single-queue mental model and avoids
+ * default). A request for N ships is stored as N single-ship orders, so the
+ * queue's total time grows with N, finished ships reach the stock one by
+ * one, and cancelling an item refunds exactly one unbuilt ship. The tick
+ * and ETA still scale with `quantity`, so a multi-ship order that somehow
+ * survives (see splitBatchOrders) can never finish faster than its ships. This matches the IG1 single-queue mental model and avoids
  * ambiguous UI for v1. The service is fully data-driven: production
  * capacity and power come from the building definitions on each planet,
  * not from any hard-coded list.
@@ -84,6 +89,7 @@ export class ProductionService {
    */
   rebaseFromSave(production: FactionProduction[] | undefined): void {
     let maxOrderId = 0;
+    this.splitBatchOrders(production);
     let maxStartedAtTick = 0;
     for (const factionProd of production ?? []) {
       for (const orders of Object.values(factionProd.ordersByPlanet ?? {})) {
@@ -102,9 +108,48 @@ export class ProductionService {
   }
 
   /*
-   * queueOrder: Deducts the resource cost up-front, then enqueues the
-   * order on the planet. Returns a structured result so the UI can
-   * display the failure reason.
+   * splitBatchOrders: Saves written before single-ship orders hold orders
+   * with quantity > 1. Each becomes `quantity` single-ship orders in place:
+   * the first keeps the batch's progress, `paid` is shared evenly, so the
+   * ship count and the total refundable amount are preserved. The new
+   * orders reuse ids above every existing id; rebaseFromSave then advances
+   * the counter past them.
+   */
+  private splitBatchOrders(production: FactionProduction[] | undefined): void {
+    let nextId = 1;
+    for (const factionProd of production ?? []) {
+      for (const orders of Object.values(factionProd.ordersByPlanet ?? {})) {
+        for (const order of orders ?? []) {
+          if (typeof order.id === 'number' && Number.isFinite(order.id)) nextId = Math.max(nextId, order.id + 1);
+        }
+      }
+    }
+    for (const factionProd of production ?? []) {
+      for (const orders of Object.values(factionProd.ordersByPlanet ?? {})) {
+        if (!orders) continue;
+        for (let i = 0; i < orders.length; i++) {
+          const order = orders[i];
+          const count = Math.floor(order.quantity);
+          // Unknown ship types stay whole: tick refunds them in one step.
+          if (!(count > 1) || !this.shipService.getShipType(order.shipTypeId)) continue;
+          const shares = ProductionService.splitCost(this.getPaidCost(order), count);
+          const units: ProductionOrder[] = [{ ...order, quantity: 1, paid: shares[0] }];
+          for (let k = 1; k < count; k++) {
+            units.push({ ...order, id: nextId++, quantity: 1, progress: 0, paid: shares[k] });
+          }
+          orders.splice(i, 1, ...units);
+          i += count - 1;
+        }
+      }
+    }
+  }
+
+  /*
+   * queueOrder: Deducts the full resource cost up-front (all-or-nothing),
+   * then enqueues `quantity` single-ship orders on the planet, each
+   * recording its own unit price in `paid`. `order` in the result is the
+   * first of them, `orders` lists all. Returns a structured result so the
+   * UI can display the failure reason.
    */
   queueOrder(
     data: { production?: FactionProduction[] },
@@ -115,7 +160,7 @@ export class ProductionService {
     starSystems: StarSystem[],
     factions: Faction[],
   ): ProductionResult {
-    if (quantity <= 0) {
+    if (!Number.isFinite(quantity) || Math.floor(quantity) < 1) {
       return { ok: false, reason: 'invalid_quantity' };
     }
     const shipType = this.shipService.getShipType(shipTypeId);
@@ -134,21 +179,28 @@ export class ProductionService {
     if (!faction) {
       return { ok: false, reason: 'invalid_type' };
     }
-    const totalCost = shipCost(shipType, quantity);
+    const totalCost = shipCost(shipType, Math.floor(quantity));
     if (!payCost(faction, totalCost)) {
       return { ok: false, reason: 'insufficient_resources' };
     }
 
-    const order: ProductionOrder = {
-      id: this.orderIdCounter++,
-      shipTypeId,
-      quantity,
-      progress: 0,
-      startedAtTick: this.tickCounter,
-      paid: totalCost,
-    };
-    this.getQueue(data, factionId, planetId).push(order);
-    return { ok: true, order };
+    const count = Math.floor(quantity);
+    const shares = ProductionService.splitCost(totalCost, count);
+    const queue = this.getQueue(data, factionId, planetId);
+    const orders: ProductionOrder[] = [];
+    for (let i = 0; i < count; i++) {
+      const order: ProductionOrder = {
+        id: this.orderIdCounter++,
+        shipTypeId,
+        quantity: 1,
+        progress: 0,
+        startedAtTick: this.tickCounter,
+        paid: shares[i],
+      };
+      queue.push(order);
+      orders.push(order);
+    }
+    return { ok: true, order: orders[0], orders };
   }
 
   /*
@@ -277,7 +329,7 @@ export class ProductionService {
           }
           continue;
         }
-        const buildTime = (shipType.buildTime ?? Math.max(1, shipType.cost * 0.1)) / power;
+        const buildTime = this.getOrderBuildSeconds(shipType, head) / power;
         head.progress += deltaTime / buildTime;
         if (head.progress >= 1) {
           queue.shift();
@@ -339,6 +391,25 @@ export class ProductionService {
     return { credits: (shipType?.cost ?? 0) * order.quantity, rawmaterials: 0 };
   }
 
+  /*
+   * Splits a cost into `count` integer shares that sum exactly to the
+   * original; the rounding remainder goes to the first share.
+   */
+  private static splitCost(total: ResourceCost, count: number): ResourceCost[] {
+    const credits = Math.floor(total.credits / count);
+    const raw = Math.floor(total.rawmaterials / count);
+    const shares = Array.from({ length: count }, () => ({ credits, rawmaterials: raw }));
+    shares[0].credits += total.credits - credits * count;
+    shares[0].rawmaterials += total.rawmaterials - raw * count;
+    return shares;
+  }
+
+  /* Seconds at production power 1: unit build time × the ships in the order. */
+  private getOrderBuildSeconds(shipType: ShipType, order: ProductionOrder): number {
+    const unitSeconds = shipType.buildTime ?? Math.max(1, shipType.cost * 0.1);
+    return unitSeconds * Math.max(1, order.quantity);
+  }
+
   private findPlanet(starSystems: StarSystem[], planetId: number): PlanetTile | null {
     for (const system of starSystems) {
       for (const planet of system.planetsTiles ?? []) {
@@ -364,7 +435,7 @@ export class ProductionService {
     if (power <= 0) {
       return null;
     }
-    const totalSeconds = (shipType.buildTime ?? Math.max(1, shipType.cost * 0.1)) / power;
+    const totalSeconds = this.getOrderBuildSeconds(shipType, order) / power;
     return Math.max(0, totalSeconds * (1 - order.progress));
   }
 

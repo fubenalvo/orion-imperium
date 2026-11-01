@@ -76,8 +76,10 @@ function gainMultiplier(faction: Faction | null | undefined): number {
 
 /*
  * Credits per second per inhabitant: the main income source (homeworld
- * 1400 pop → 119/s). Lowered from 0.1 against the credit glut
- * (docs/economy.md).
+ * 1200 pop → 102/s). Lowered from 0.1 against the credit glut. Lowering it
+ * further was tried with the colony cores and rejected: it cuts the net
+ * margin for the whole game and the AI stops expanding (docs/economy.md,
+ * "Colony cores").
  */
 export const POPULATION_CREDIT_RATE = 0.085;
 
@@ -100,8 +102,8 @@ export function empireUpkeepScale(ownedPlanetCount: number): number {
 }
 /*
  * Upkeep points of the stations, which have no data-file entry. They are
- * structures, so the building-upkeep technology modifier applies. Every
- * station costs this, also a mining station on a depleted asteroid.
+ * structures, so the building-upkeep technology modifier applies. A mining
+ * station on a depleted asteroid costs nothing (see getStationUpkeepPerSecond).
  */
 export const SPACE_BASE_UPKEEP_POINTS = 25;
 export const MINING_STATION_UPKEEP_POINTS = 15;
@@ -109,7 +111,7 @@ export const MINING_STATION_UPKEEP_POINTS = 15;
 export const RESERVE_SHIP_UPKEEP_FACTOR = 0.5;
 export const RESERVE_FLEET_LABEL = 'Reserve (ship stock)';
 /*
- * Raw materials per second per inhabitant (homeworld: 1400 pop → 2.8/s).
+ * Raw materials per second per inhabitant (homeworld: 1200 pop → 2.4/s).
  * Not a deposit and never depleted: the economy's anti-deadlock floor
  * (docs/economy.md, "Economic safety").
  */
@@ -129,14 +131,29 @@ export function administrationShare(ownedPlanetCount: number): number {
 }
 
 /*
- * Energy every owned planet gets from its colony core, on top of its power
- * buildings. It lets a fresh colony run its first housing blocks before a
- * power plant exists (a 0-energy colony would otherwise be 100% short).
- * Flat: energy technologies scale only power buildings. Unowned and
- * independent planets have no core. See docs/economy.md, "Energy and
- * satisfaction".
+ * Credits per second one more owned planet adds to the faction's expenses
+ * before the new colony earns anything: the administration share rises on
+ * the whole empire's income, and the empire upkeep scale rises on every
+ * existing building, ship and station (all upkeep is multiplied by it).
+ * The AI uses it to stop expanding into a negative net income; see
+ * docs/ai-pipeline.md, "Colonization".
  */
-export const COLONY_CORE_ENERGY = 10;
+export function marginalColonyCost(breakdown: EconomyBreakdown, ownedPlanetCount: number): number {
+  const adminIncrease = administrationShare(ownedPlanetCount + 1) - administrationShare(ownedPlanetCount);
+  const scaleIncrease = empireUpkeepScale(ownedPlanetCount + 1) / empireUpkeepScale(ownedPlanetCount) - 1;
+  const scaledUpkeep = breakdown.buildingUpkeepPerSecond + breakdown.shipUpkeepPerSecond + breakdown.stationUpkeepPerSecond;
+  return adminIncrease * breakdown.incomePerSecond + scaleIncrease * scaledUpkeep;
+}
+
+/*
+ * Core buildings (role `core`: Capital, Colony Center; colony-core.ts) give
+ * a planet its base population ceiling, workforce and energy. Their energy
+ * is flat: energy technologies and the Venus-like bonus scale only power
+ * buildings. See docs/economy.md, "Colony cores".
+ */
+function providesHousing(stats: BuildingStats): boolean {
+  return stats.role === 'housing' || stats.role === 'core';
+}
 
 /*
  * Energy part of the satisfaction drift, in points per second:
@@ -254,7 +271,8 @@ export class EconomyService {
         consumption[resource as ResourceType] = (consumption[resource as ResourceType] ?? 0) + amount;
       }
 
-      energyProduction += (stats.energyProduction ?? 0) * tech.energyOutput * traits.energyOutput;
+      const energyMultiplier = stats.role === 'core' ? 1 : tech.energyOutput * traits.energyOutput;
+      energyProduction += (stats.energyProduction ?? 0) * energyMultiplier;
       energyConsumption += stats.energyConsumption ?? 0;
     }
 
@@ -279,9 +297,6 @@ export class EconomyService {
       net[resource] = prod - cons;
     }
 
-    if (planet.factionId && planet.factionId !== 'independent') {
-      energyProduction += COLONY_CORE_ENERGY;
-    }
     const energyBalance = energyProduction - energyConsumption;
     const efficiency = energyProduction >= energyConsumption ? 1.0 : energyProduction / Math.max(energyConsumption, 1);
     const energyDrift = energySatisfactionDrift(efficiency);
@@ -316,9 +331,9 @@ export class EconomyService {
 
   /*
    * computeWorkforce: Sums the workforce provided by residential (housing)
-   * buildings and the workforce required by every building on the planet,
-   * plus the aggregate building morale bonus. Residential buildings are pure
-   * providers (their `workforce` requirement is 0); all other buildings
+   * and core buildings and the workforce required by every building on the
+   * planet, plus the aggregate building morale bonus. Housing and cores are
+   * pure providers (their `workforce` requirement is 0); all other buildings
    * consume workforce. Returns raw totals so callers (economy calc, UI,
    * morale drift) can reuse a single pass instead of re-scanning buildings.
    */
@@ -334,7 +349,7 @@ export class EconomyService {
       const stats = this.buildingStatsByName.get(building.name);
       if (!stats) continue;
       required += stats.workforce ?? 0;
-      if (stats.role === 'housing') {
+      if (providesHousing(stats)) {
         available += stats.providesWorkforce ?? 0;
       }
       moraleBonus += stats.moraleRate ?? 0;
@@ -398,8 +413,9 @@ export class EconomyService {
   }
 
   /*
-   * getPopulationCapacity: planet population ceiling from residential
-   * buildings' population field (100/300/700) × the planet type's
+   * getPopulationCapacity: planet population ceiling from the population
+   * field of residential buildings (100/300/700) and the core building
+   * (Capital 500, Colony Center 150) × the planet type's
    * populationCapacity (planet-types.ts).
    */
   getPopulationCapacity(planet: PlanetTile): number {
@@ -407,7 +423,7 @@ export class EconomyService {
     for (const building of planet.buildings ?? []) {
       const stats = this.buildingStatsByName.get(building.name);
       if (!stats) continue;
-      if (stats.role === 'housing') {
+      if (providesHousing(stats)) {
         capacity += stats.population ?? 0;
       }
     }
@@ -696,7 +712,10 @@ export class EconomyService {
     let stations = 0;
     for (const system of starSystems) {
       for (const asteroid of system.asteroidBelt?.asteroids ?? []) {
-        if (asteroid.miningStation?.factionId === factionId) stations++;
+        // A station on a depleted asteroid is idle and pays nothing: it
+        // cannot be dismantled, so charging it would be a permanent sink
+        // that outlives the empire's ability to pay (QA 2026-11-01).
+        if (asteroid.miningStation?.factionId === factionId && asteroid.rawMaterials > 0) stations++;
       }
     }
     if (bases === 0 && stations === 0) return 0;

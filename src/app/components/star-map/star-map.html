@@ -111,6 +111,7 @@
       [traders]="visibleTraders"
       [onTraderClick]="boundOnTraderClick"
       [onTraderContextMenu]="boundOnTraderContextMenu"
+      [attackTargetIds]="attackTargetFleetIds"
       [fleets]="visibleFleets"
       [selectedSystem]="selectedSystem"
       [selectedFleet]="selectedFleet"
@@ -164,7 +165,6 @@
     @if (traderPanelVm) {
       <app-star-map-trader-info
         [vm]="traderPanelVm"
-        (raid)="onRaidTrader($event)"
         (close)="deselectTrader()"
       ></app-star-map-trader-info>
     }

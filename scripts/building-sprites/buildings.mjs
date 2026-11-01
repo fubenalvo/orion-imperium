@@ -712,7 +712,83 @@ function shuttle(p, cu, cv, h) {
   p.glow(cu + L * 0.62, cv + 0.04, b + 0.06, 0.04, ACCENT);
 }
 
+// ---------------------------------------------------------------- colony cores
+
+/*
+ * Capital (homeworld core, 3×3): the seat of government. A raised violet-lit
+ * podium with two white wing towers at the back, a tall central keep under
+ * gold and violet halos, and a pylon gateway with flanking domes at the front.
+ */
+function capital(p, f) {
+  const c = f / 2;
+  plate(p, f, [108, 106, 124], VIOLET);
+  const pod = p.box(0.22, 0.22, f - 0.44, f - 0.44, 0.05, 0.2, WALL_DARK, [150, 146, 162]);
+  p.stripe(pod, 0.16, GOLD, 0.02);
+
+  // Wing towers (back), linked to the keep by tubes.
+  p.roundTower(0.62, c, 0.2, 0.2, 1.0, WHITE, ACCENT, { spire: 0.22 });
+  p.roundTower(c, 0.62, 0.2, 0.2, 1.0, WHITE, ACCENT, { spire: 0.22 });
+  tube(p, [0.78, c, 0.75], [c - 0.5, c, 0.75]);
+  tube(p, [c, 0.78, 0.75], [c, c - 0.5, 0.75]);
+
+  // Central keep: a banded drum, then a tapered tower under two halos.
+  p.cylinder(c, c, 0.62, 0.2, 0.55, WALL, WALL_DARK);
+  p.ring(c, c, 0.62, 0.32, css(VIOLET, 1.05), 2.4, true);
+  p.ring(c, c, 0.62, 0.45, css(ACCENT, 1.05), 2, true);
+  p.halo(c, c, 0.6, 1.25, GOLD, () => {
+    p.halo(c, c, 0.48, 1.7, VIOLET, () => {
+      p.roundTower(c, c, 0.36, 0.55, 1.95, WHITE, VIOLET, { taper: 0.22, spire: 0.5, rings: 8, domeTint: GOLD });
+    }, 1.8);
+  }, 2.4);
+
+  // Front domes and the pylon gateway at the front corner.
+  p.cylinder(2.08, 0.95, 0.24, 0.2, 0.34, WALL_DARK, METAL);
+  p.dome(2.08, 0.95, 0.22, 0.34, 0.2, [190, 160, 255], { ribs: 4 });
+  p.cylinder(0.95, 2.08, 0.24, 0.2, 0.34, WALL_DARK, METAL);
+  p.dome(0.95, 2.08, 0.22, 0.34, 0.2, [190, 160, 255], { ribs: 4 });
+  p.cylinder(2.25, 1.75, 0.05, 0.2, 0.58, METAL, METAL_DARK);
+  p.sphere(2.25, 1.75, 0.62, 0.045, GOLD, true);
+  p.cylinder(1.75, 2.25, 0.05, 0.2, 0.58, METAL, METAL_DARK);
+  p.sphere(1.75, 2.25, 0.62, 0.045, GOLD, true);
+  p.arch([2.25, 1.75, 0.55], [1.75, 2.25, 0.55], 0.22, css(GOLD, 1.05), 2);
+  beacon(p, 2.4, 2.4, 0.2, 0.25);
+}
+
+/*
+ * Colony Center (core of every other colony, 2×2): a prefabricated command
+ * hub. A comms mast with a dish and a small control tower at the back, two
+ * habitat pods, and a glass-domed hub ringed with teal lights at the front.
+ */
+function colonyCenter(p, f) {
+  plate(p, f, CONCRETE, TEAL);
+  // Comms mast and dish (back corner).
+  p.line([0.3, 0.3, 0.05], [0.3, 0.3, 0.95], css(METAL, 1.2), 1.6);
+  p.disc(0.3, 0.3, 0.17, 0.95, css(WHITE, 0.95), { stroke: css(METAL_DARK), width: 0.8 });
+  p.disc(0.3, 0.3, 0.07, 0.96, css(TEAL, 1, 0.8), { filter: 'glow' });
+  p.glow(0.3, 0.3, 1.05, 0.05, RED);
+  // Control tower and habitat pods.
+  p.roundTower(0.75, 0.38, 0.14, 0.05, 0.72, WHITE, TEAL, { spire: 0.18 });
+  p.cylinder(1.38, 0.38, 0.18, 0.05, 0.22, WALL, WALL_DARK);
+  p.dome(1.38, 0.38, 0.17, 0.22, 0.15, GLASS, { ribs: 3 });
+  p.cylinder(0.38, 1.38, 0.18, 0.05, 0.22, WALL, WALL_DARK);
+  p.dome(0.38, 1.38, 0.17, 0.22, 0.15, GLASS, { ribs: 3 });
+  // Main hub.
+  const hu = 1.0;
+  const hv = 1.0;
+  p.cylinder(hu, hv, 0.5, 0.05, 0.3, WALL, WALL_DARK);
+  p.ring(hu, hv, 0.5, 0.16, css(TEAL, 1.05), 2.2, true);
+  p.cylinder(hu, hv, 0.54, 0.3, 0.34, METAL, METAL);
+  p.dome(hu, hv, 0.46, 0.34, 0.36, [120, 230, 210], { ribs: 5 });
+  p.spire(hu, hv, 0.68, 0.22, TEAL);
+  for (let k = 0; k < 6; k++) {
+    const a = Math.PI / 4 + (k / 5) * (Math.PI / 2) - Math.PI / 4;
+    p.glow(hu + Math.cos(a) * 0.6, hv + Math.sin(a) * 0.6, 0.07, 0.035, TEAL);
+  }
+}
+
 export const BUILDINGS = {
+  capital,
+  colony_center: colonyCenter,
   laser_turret: laserTurret,
   missile_turret: missileTurret,
   planetary_shield: planetaryShield,

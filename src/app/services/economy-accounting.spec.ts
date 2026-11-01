@@ -264,9 +264,10 @@ describe('Economy accounting — purchases, production and refunds', () => {
     expect(f.currencies).toEqual({ credits: 5000, rawmaterials: 10 });
   });
 
-  it('every building has a price and a raw-material cost, and they are differentiated', () => {
-    const defs = (planetData as { buildings: { id: string; price: number; rawMaterialCost?: number }[] }).buildings;
-    for (const def of defs) {
+  it('every buildable building has a price and a raw-material cost, and they are differentiated', () => {
+    const defs = (planetData as { buildings: { id: string; price: number; rawMaterialCost?: number; autoPlaced?: boolean }[] }).buildings;
+    // Core buildings (colony-core.ts) are placed by the game and free.
+    for (const def of defs.filter((d) => !d.autoPlaced)) {
       expect(def.price, def.id).toBeGreaterThan(0);
       expect(def.rawMaterialCost ?? 0, def.id).toBeGreaterThan(0);
     }
@@ -285,7 +286,9 @@ describe('Economy accounting — purchases, production and refunds', () => {
     expect(result.ok).toBe(true);
     expect(f.currencies['credits']).toBe(10000 - 2 * cruiser.cost);
     expect(f.currencies['rawmaterials']).toBe(10000 - 2 * cruiser.rawMaterialCost!);
-    expect(result.order!.paid).toEqual(shipCost(cruiser, 2));
+    // A 2-ship request becomes two single-ship orders, each recording one unit's price.
+    expect(result.orders).toHaveLength(2);
+    expect(result.orders!.map((o) => o.paid)).toEqual([shipCost(cruiser, 1), shipCost(cruiser, 1)]);
   });
 
   it('insufficient raw materials reject the order without charging anything', () => {
@@ -431,7 +434,7 @@ describe('Economy accounting — empire upkeep scale and stations', () => {
     expect(two.shipUpkeepPerSecond).toBeCloseTo(one.shipUpkeepPerSecond * scale, 6);
   });
 
-  it('charges upkeep for space bases and mining stations (also on a depleted asteroid)', () => {
+  it('charges upkeep for space bases and active mining stations, not for a station on a depleted asteroid', () => {
     const f = faction();
     TestBed.inject(SpaceBaseService).restore([
       { id: 1, name: 'Vega Outpost', factionId: 'player', x: 5, y: 5 },
@@ -447,7 +450,8 @@ describe('Economy accounting — empire upkeep scale and stations', () => {
     } as unknown as StarSystem;
 
     const breakdown = economy.calculateEconomy('player', [f], [sys], []);
-    const expected = (SPACE_BASE_UPKEEP_POINTS + 2 * MINING_STATION_UPKEEP_POINTS) * UPKEEP_CREDITS_PER_POINT;
+    // One base + the player's one active station; the depleted station is free.
+    const expected = (SPACE_BASE_UPKEEP_POINTS + MINING_STATION_UPKEEP_POINTS) * UPKEEP_CREDITS_PER_POINT;
     expect(breakdown.stationUpkeepPerSecond).toBeCloseTo(expected, 6);
     expect(breakdown.expensePerSecond).toBeCloseTo(
       breakdown.buildingUpkeepPerSecond + breakdown.administrationPerSecond + breakdown.shipUpkeepPerSecond + expected,
