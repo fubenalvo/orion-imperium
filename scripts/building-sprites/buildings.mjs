@@ -523,6 +523,88 @@ function researchLab(p, f) {
   p.ring(0.55, 1.25, 0.34, 0.06, css(TEAL), 1.8, true);
 }
 
+// ---------------------------------------------------------------- trade
+
+const GOLD = [255, 196, 70];
+const ORE = [255, 132, 60];
+
+/*
+ * Trading Post: a gold-lit exchange hub. A domed exchange rotunda at the
+ * back carries a floating hologram of the trade — a credit coin and a raw
+ * crystal linked by exchange arcs. A cargo warehouse sits on the right,
+ * container stacks and a cargo pad with a crane arm in front.
+ */
+function tradingPost(p, f) {
+  plate(p, f, CONCRETE, GOLD);
+
+  // Exchange rotunda (back left) under a golden halo.
+  const cu = 0.55;
+  const cv = 0.55;
+  p.halo(cu, cv, 0.5, 0.5, GOLD, () => {
+    p.cylinder(cu, cv, 0.42, 0.05, 0.4, WALL, METAL);
+    p.ring(cu, cv, 0.42, 0.16, css(GOLD), 1.8, true);
+    p.ring(cu, cv, 0.42, 0.3, css(ACCENT), 1.6, true);
+    p.dome(cu, cv, 0.4, 0.4, 0.3, [255, 226, 160], { ribs: 6 });
+  }, 1.8);
+  // Trade hologram: coin and crystal above the dome, linked by exchange arcs.
+  const hh = 0.9;
+  p.disc(cu - 0.16, cv + 0.12, 0.11, hh, css(GOLD, 1.1, 0.85), { stroke: css(WHITE), width: 0.8, filter: 'glow' });
+  p.disc(cu - 0.16, cv + 0.12, 0.06, hh + 0.005, 'none', { stroke: css([255, 240, 200]), width: 0.9 });
+  p.poly(
+    [[cu + 0.2, cv - 0.08, hh - 0.08], [cu + 0.26, cv - 0.14, hh + 0.04], [cu + 0.2, cv - 0.2, hh + 0.16], [cu + 0.14, cv - 0.14, hh + 0.04]],
+    css(ORE, 1.1, 0.9),
+    { stroke: css([255, 210, 170]), width: 0.8, filter: 'glow' },
+  );
+  p.arch([cu - 0.16, cv + 0.12, hh + 0.05], [cu + 0.2, cv - 0.14, hh + 0.08], 0.16, css(GOLD, 1, 0.8), 1.2);
+  p.arch([cu + 0.2, cv - 0.14, hh - 0.02], [cu - 0.16, cv + 0.12, hh - 0.04], -0.12, css(ORE, 1, 0.75), 1.2);
+  p.glow(cu, cv, hh, 0.16, GOLD);
+  p.spire(cu + 0.28, cv - 0.28, 0.4, 0.3, GOLD);
+
+  // Cargo warehouse (back right) with hazard-striped bay doors.
+  const wh = block(p, 1.12, 0.1, 0.48, 0.62, 0.05, 0.42, { wall: WALL_DARK, light: GOLD, bands: 1 });
+  // facePoly offsets are absolute distances along the face (du = 0.48).
+  p.poly(p.facePoly('left', wh, 0.08, 0.4, 0.07, 0.3), css([40, 44, 52]));
+  for (let k = 0; k < 4; k++) {
+    const a = 0.1 + k * 0.08;
+    p.poly(p.facePoly('left', wh, a, a + 0.04, 0.07, 0.11), css(WARN, 0.95));
+  }
+  beacon(p, wh.u + wh.du - 0.06, wh.v + 0.06, wh.top, 0.2);
+
+  // Tube link from the rotunda to the warehouse.
+  tube(p, [0.95, 0.42, 0.3], [1.12, 0.42, 0.3]);
+
+  // Container stacks (front left), in trade colors.
+  const crates = [
+    [0.14, 1.12, 0, ORE], [0.14, 1.36, 0, TEAL], [0.38, 1.12, 0, GOLD],
+    [0.14, 1.12, 1, GOLD], [0.38, 1.36, 0, ORE], [0.14, 1.36, 1, ORE],
+  ];
+  for (const [u, v, level, color] of crates) {
+    const h0 = 0.05 + level * 0.14;
+    const c = p.box(u, v, 0.22, 0.22, h0, h0 + 0.14, color, color);
+    p.stripe(c, h0 + 0.07, WHITE, 0.012);
+  }
+
+  // Cargo pad (front right) with a crane arm over a waiting crate.
+  const pu = 1.18;
+  const pv = 1.18;
+  p.cylinder(pu, pv, 0.36, 0.05, 0.09, METAL_DARK, CONCRETE);
+  p.disc(pu, pv, 0.32, 0.09, css([84, 88, 96]), { stroke: css(GOLD), width: 1.6, filter: 'glow' });
+  p.disc(pu, pv, 0.18, 0.09, 'none', { stroke: css(WARN, 1, 0.7), width: 1 });
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    p.glow(pu + Math.cos(a) * 0.33, pv + Math.sin(a) * 0.33, 0.1, 0.03, GOLD);
+  }
+  const crate = p.box(pu - 0.1, pv - 0.1, 0.2, 0.2, 0.09, 0.23, TEAL, TEAL);
+  p.stripe(crate, 0.16, WHITE, 0.012);
+  // Crane: mast at the pad's front corner (drawn last), boom over the crate.
+  const mu = pu + 0.3;
+  const mv = pv + 0.3;
+  p.box(mu - 0.04, mv - 0.04, 0.08, 0.08, 0.05, 0.62, WARN, METAL_DARK);
+  p.line([mu, mv, 0.62], [pu, pv, 0.6], css(WARN, 1.05), 2.4);
+  p.line([pu, pv, 0.6], [pu, pv, 0.3], css(METAL_DARK), 0.9);
+  p.glow(mu, mv, 0.66, 0.04, RED);
+}
+
 // ---------------------------------------------------------------- military
 
 function spaceport(p, f) {
@@ -613,6 +695,7 @@ export const BUILDINGS = {
   mining_complex: miningComplex,
   small_research_lab: smallResearchLab,
   research_lab: researchLab,
+  trading_post: tradingPost,
 };
 
 export function renderBuilding(id, size, inset) {

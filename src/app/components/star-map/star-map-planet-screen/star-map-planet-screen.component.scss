@@ -760,6 +760,31 @@
   text-transform: uppercase;
 }
 
+/* Trading Post exchange (TRADE tab). */
+.planet-sidebar__trade {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.planet-sidebar__trade-rates {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8em;
+  padding: 0.45em 0.6em;
+  border: 1px solid var(--ui-line);
+  background: var(--ui-surface-raised);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.06em;
+}
+
+.planet-sidebar__trade-btn {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8em;
+}
+
 .planet-sidebar__build-hint {
   padding: 0.4em 0;
   color: var(--ui-ink-dim);

@@ -338,6 +338,9 @@
               @case ('production') {
                 PRODUCTION
               }
+              @case ('trade') {
+                TRADE
+              }
               @default {
                 DETAILS
               }
@@ -469,6 +472,47 @@
             </div>
           }
 
+          @case ('trade') {
+            <div class="planet-sidebar__trade">
+              <div class="ui-label">Trading Post</div>
+              <div class="planet-sidebar__build-hint">
+                Exchange at a steep markup &mdash; a last resort when one resource runs dry.
+              </div>
+              <div class="planet-sidebar__trade-rates">
+                <span>Buy: 1 RM = {{ tradeBuyRate }} CR</span>
+                <span>Sell: 1 RM = {{ tradeSellRate }} CR</span>
+              </div>
+
+              <div class="ui-label">Buy raw materials</div>
+              @for (lot of tradeLots; track lot) {
+                <button
+                  class="planet-sidebar__btn planet-sidebar__trade-btn"
+                  type="button"
+                  [disabled]="!canTrade('buyRaw', lot)"
+                  (click)="requestTrade('buyRaw', lot)"
+                >
+                  <span>+{{ lot }} RM</span>
+                  <span [class.planet-sidebar__price--short]="!canTrade('buyRaw', lot)"
+                    >&minus;{{ tradeCredits('buyRaw', lot) }} CR</span
+                  >
+                </button>
+              }
+
+              <div class="ui-label">Sell raw materials</div>
+              @for (lot of tradeLots; track lot) {
+                <button
+                  class="planet-sidebar__btn planet-sidebar__trade-btn"
+                  type="button"
+                  [disabled]="!canTrade('sellRaw', lot)"
+                  (click)="requestTrade('sellRaw', lot)"
+                >
+                  <span [class.planet-sidebar__price--short]="!canTrade('sellRaw', lot)">&minus;{{ lot }} RM</span>
+                  <span>+{{ tradeCredits('sellRaw', lot) }} CR</span>
+                </button>
+              }
+            </div>
+          }
+
           @default {
             <div class="planet-sidebar__identity">
               <span class="ui-chip">{{ planet?.type | uppercase }}</span>
@@ -557,6 +601,11 @@
               <div class="ui-stat" [class.ui-stat--danger]="planetEconomy.energyBalance < 0">
                 <span class="ui-stat__label"><img src="icon-energy.png" alt="" width="14" height="14" /> Energy balance</span>
                 <span class="ui-stat__value">{{ planetEconomy.energyBalance | number: '1.0-0' }}</span>
+              </div>
+
+              <div class="ui-stat">
+                <span class="ui-stat__label">World type</span>
+                <span class="ui-stat__value">{{ planetTypeSummary }}</span>
               </div>
 
               @if (planetEconomy.habitabilityDrift !== 0) {

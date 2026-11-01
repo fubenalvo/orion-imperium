@@ -90,6 +90,8 @@ describe('EnemyActionExecutor', () => {
       calculateEconomy: vi.fn(() => ({ incomePerSecond: 1000, netPerSecond: 1000, net: { rawmaterials: 100 } })),
       getBuildingUpkeepPerSecond: vi.fn(() => 1),
       getShipUpkeepPerSecond: vi.fn(() => 1),
+      // The real housing capacity rule (housing population × planet type factor).
+      getPopulationCapacity: vi.fn((planet: PlanetTile) => new EconomyService(new ShipService()).getPopulationCapacity(planet)),
     };
 
     TestBed.configureTestingModule({

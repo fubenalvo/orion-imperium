@@ -36,7 +36,7 @@ export interface AiDifficultyProfile {
   attackStrengthAdvantage: number;
   incomeMultiplier: number;
   startingResourceMultiplier: number;
-  startingFleetPreset: 'reduced' | 'standard' | 'reinforced';
+  startingFleetPreset: 'player' | 'reduced' | 'standard' | 'reinforced';
   extraColonies: number;
   combatForecast: boolean;
   reactionInterval: number;
@@ -51,7 +51,7 @@ export const AI_DIFFICULTY_PROFILES: Readonly<Record<AiDifficulty, AiDifficultyP
     attackStrengthAdvantage: 1.6,
     incomeMultiplier: 0.75,
     startingResourceMultiplier: 0.75,
-    startingFleetPreset: 'reduced',
+    startingFleetPreset: 'player',
     extraColonies: 0,
     combatForecast: false,
     reactionInterval: 2,
@@ -62,7 +62,7 @@ export const AI_DIFFICULTY_PROFILES: Readonly<Record<AiDifficulty, AiDifficultyP
     attackStrengthAdvantage: 1.2,
     incomeMultiplier: 1,
     startingResourceMultiplier: 1,
-    startingFleetPreset: 'standard',
+    startingFleetPreset: 'reduced',
     extraColonies: 1,
     combatForecast: true,
     reactionInterval: 1,
@@ -73,7 +73,7 @@ export const AI_DIFFICULTY_PROFILES: Readonly<Record<AiDifficulty, AiDifficultyP
     attackStrengthAdvantage: 1.0,
     incomeMultiplier: 1.3,
     startingResourceMultiplier: 1.5,
-    startingFleetPreset: 'reinforced',
+    startingFleetPreset: 'standard',
     extraColonies: 2,
     combatForecast: true,
     reactionInterval: 1,

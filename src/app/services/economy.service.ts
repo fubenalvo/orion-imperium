@@ -8,6 +8,8 @@ import planetData from '../components/star-map/planet-data.json';
 import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
 import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
 import { extractMiningStations, miningRatePerSecond } from '../components/star-map/mining-station';
+import { SpaceBaseService } from '../components/star-map/space-base.service';
+import { planetTypeTraits } from '../components/star-map/planet-types';
 
 import {
   Faction,
@@ -52,7 +54,7 @@ function gainMultiplier(faction: Faction | null | undefined): number {
  * Building production/consumption is defined in planet-data.json
  * and read generically, so new buildings require no code changes.
  *
- * Population income (pop * 0.1 credits/s, plus a pop * POPULATION_RAW_RATE
+ * Population income (pop * POPULATION_CREDIT_RATE credits/s, plus a pop * POPULATION_RAW_RATE
  * raw-material trickle) is treated as a planet-level production source.
  *
  * Raw materials come from finite deposits (raw-deposits.ts): buildings with
@@ -65,13 +67,44 @@ function gainMultiplier(faction: Faction | null | undefined): number {
  *
  * Upkeep: `maintenanceCost` in planet-data.json / ship-data.json is in
  * upkeep points per second; one point costs UPKEEP_CREDITS_PER_POINT
- * credits. Buildings, fleet ships and ships in the faction-wide reserve
- * (ship stock, at RESERVE_SHIP_UPKEEP_FACTOR) all pay upkeep. Upkeep is
+ * credits. Buildings, fleet ships, ships in the faction-wide reserve
+ * (ship stock, at RESERVE_SHIP_UPKEEP_FACTOR), space bases and asteroid
+ * mining stations all pay upkeep. Upkeep is the economy's main credit
+ * sink: it grows with the empire, so credits cannot pile up unused. It is
  * charged only in applyEconomyDelta. See docs/economy.md.
  */
 
+/*
+ * Credits per second per inhabitant: the main income source (homeworld
+ * 1400 pop → 119/s). Lowered from 0.1 against the credit glut
+ * (docs/economy.md).
+ */
+export const POPULATION_CREDIT_RATE = 0.085;
+
 /* Credits per second charged for one upkeep point (the single upkeep tuning knob). */
 export const UPKEEP_CREDITS_PER_POINT = 0.3;
+/*
+ * Empire upkeep scale: every owned planet beyond the first makes ALL upkeep
+ * (buildings, fleet and reserve ships, stations) this much more expensive,
+ * capped at EMPIRE_UPKEEP_MAX_SCALE. This is the credit sink: a one-planet
+ * start pays the base rates (the early build-up is tuned on them), while a
+ * large empire's growing income is absorbed by its growing upkeep instead
+ * of piling up unspent. A flat higher rate was tried and starved the early
+ * game (late Spaceports, no early warships).
+ */
+export const EMPIRE_UPKEEP_SCALE_PER_PLANET = 0.07;
+export const EMPIRE_UPKEEP_MAX_SCALE = 0.8;
+
+export function empireUpkeepScale(ownedPlanetCount: number): number {
+  return 1 + Math.min(EMPIRE_UPKEEP_MAX_SCALE, EMPIRE_UPKEEP_SCALE_PER_PLANET * Math.max(0, ownedPlanetCount - 1));
+}
+/*
+ * Upkeep points of the stations, which have no data-file entry. They are
+ * structures, so the building-upkeep technology modifier applies. Every
+ * station costs this, also a mining station on a depleted asteroid.
+ */
+export const SPACE_BASE_UPKEEP_POINTS = 25;
+export const MINING_STATION_UPKEEP_POINTS = 15;
 /* Stocked ships are mothballed: they cost this share of their fleet upkeep. */
 export const RESERVE_SHIP_UPKEEP_FACTOR = 0.5;
 export const RESERVE_FLEET_LABEL = 'Reserve (ship stock)';
@@ -156,6 +189,9 @@ export class EconomyService {
     private shipService: ShipService,
     @Optional() planetOwnership?: PlanetOwnershipService,
     @Optional() research?: ResearchService,
+    // The live space bases (session registry). Optional for specs that
+    // construct the service by hand; such an instance sees no bases.
+    @Optional() private spaceBases?: SpaceBaseService,
   ) {
     this.planetOwnership = planetOwnership
       ?? new PlanetOwnershipService(new ProductionService(shipService, new ShipStockService()));
@@ -179,6 +215,7 @@ export class EconomyService {
    */
   calculatePlanetEconomy(planet: PlanetTile, owner?: Faction | null): PlanetEconomy {
     const tech = this.research.getModifiers(owner);
+    const traits = planetTypeTraits(planet.type);
     const production: ResourceRates = {};
     const consumption: ResourceRates = {};
     let energyProduction = 0;
@@ -194,7 +231,7 @@ export class EconomyService {
     // Deposit mining buildings produce only while the planet's deposit lasts,
     // scaled by the deposit's richness.
     const deposit = planet.rawDeposit;
-    const depositMultiplier = deposit && deposit.remaining > 0 ? deposit.richness : 0;
+    const depositMultiplier = deposit && deposit.remaining > 0 ? deposit.richness * traits.depositMining : 0;
     let depositMining = 0;
 
     for (const building of planet.buildings ?? []) {
@@ -202,7 +239,9 @@ export class EconomyService {
       if (!stats) continue;
 
       for (const [resource, amount] of Object.entries(stats.production ?? {})) {
-        const techMultiplier = resource === 'rawmaterials' ? tech.rawOutput : resource === 'research' ? tech.researchOutput : 1;
+        const techMultiplier = resource === 'rawmaterials'
+          ? tech.rawOutput
+          : resource === 'research' ? tech.researchOutput * traits.researchOutput : 1;
         let output = amount * workforceEfficiency * techMultiplier;
         if (resource === 'rawmaterials' && stats.requiresOreProximity) {
           output *= depositMultiplier;
@@ -215,18 +254,22 @@ export class EconomyService {
         consumption[resource as ResourceType] = (consumption[resource as ResourceType] ?? 0) + amount;
       }
 
-      energyProduction += (stats.energyProduction ?? 0) * tech.energyOutput;
+      energyProduction += (stats.energyProduction ?? 0) * tech.energyOutput * traits.energyOutput;
       energyConsumption += stats.energyConsumption ?? 0;
     }
 
     const pop = planet.population || 0;
     if (pop > 0) {
-      production['credits'] = (production['credits'] ?? 0) + pop * 0.1;
+      production['credits'] = (production['credits'] ?? 0) + pop * POPULATION_CREDIT_RATE;
       // Small population-driven raw trickle (local salvage and extraction).
       // Not scaled by workforce: it guarantees that a faction which lost its
       // factories and has no ore can still slowly afford to rebuild one, so
       // raw-material costs can never deadlock an economy.
       production['rawmaterials'] = (production['rawmaterials'] ?? 0) + pop * POPULATION_RAW_RATE;
+      // Gas giants: flat atmospheric harvesting (planet-types.ts), never depleted.
+      if (traits.gasHarvest > 0 && planet.factionId && planet.factionId !== 'independent') {
+        production['rawmaterials'] = (production['rawmaterials'] ?? 0) + traits.gasHarvest;
+      }
     }
 
     const net: ResourceRates = {};
@@ -356,7 +399,8 @@ export class EconomyService {
 
   /*
    * getPopulationCapacity: planet population ceiling from residential
-   * buildings' population field (100/300/700). Reuses existing data.
+   * buildings' population field (100/300/700) × the planet type's
+   * populationCapacity (planet-types.ts).
    */
   getPopulationCapacity(planet: PlanetTile): number {
     let capacity = 0;
@@ -367,7 +411,7 @@ export class EconomyService {
         capacity += stats.population ?? 0;
       }
     }
-    return capacity;
+    return Math.floor(capacity * planetTypeTraits(planet.type).populationCapacity);
   }
 
   /*
@@ -410,9 +454,10 @@ export class EconomyService {
     let buildingUpkeep = 0;
     let administration = 0;
     const adminShare = administrationShare(ownedPlanets.length);
+    const upkeepScale = empireUpkeepScale(ownedPlanets.length);
 
     for (const planet of ownedPlanets) {
-      const entry = this.buildPlanetEntry(planet, difficultyIncomeMultiplier, adminShare, faction);
+      const entry = this.buildPlanetEntry(planet, difficultyIncomeMultiplier, adminShare, faction, upkeepScale);
       totalPopulation += entry.population;
       totalEfficiency += entry.efficiency;
       administration += entry.administration ?? 0;
@@ -428,19 +473,20 @@ export class EconomyService {
 
     let shipUpkeep = 0;
     for (const fleet of ownedFleets) {
-      for (const entry of this.shipUpkeepEntries(fleet.name, fleet.ships.filter((s) => !s.destroyed), 1, faction)) {
+      for (const entry of this.shipUpkeepEntries(fleet.name, fleet.ships.filter((s) => !s.destroyed), upkeepScale, faction)) {
         shipUpkeep += entry.totalCost;
         fleetExpenses.push(entry);
       }
     }
     const reserve = shipStock?.find((s) => s.factionId === factionId)?.ships ?? [];
-    for (const entry of this.shipUpkeepEntries(RESERVE_FLEET_LABEL, reserve, RESERVE_SHIP_UPKEEP_FACTOR, faction)) {
+    for (const entry of this.shipUpkeepEntries(RESERVE_FLEET_LABEL, reserve, RESERVE_SHIP_UPKEEP_FACTOR * upkeepScale, faction)) {
       shipUpkeep += entry.totalCost;
       fleetExpenses.push(entry);
     }
+    const stationUpkeep = this.getStationUpkeepPerSecond(factionId, starSystems, faction, upkeepScale);
     // Building upkeep is already inside the planets' credit consumption.
-    factionConsumption['credits'] = (factionConsumption['credits'] ?? 0) + shipUpkeep;
-    factionNet['credits'] = (factionNet['credits'] ?? 0) - shipUpkeep;
+    factionConsumption['credits'] = (factionConsumption['credits'] ?? 0) + shipUpkeep + stationUpkeep;
+    factionNet['credits'] = (factionNet['credits'] ?? 0) - shipUpkeep - stationUpkeep;
 
     // Asteroid mining stations (mining-station.ts): a faction-level raw source,
     // not tied to any planet. applyEconomyDelta replaces this rate with the
@@ -453,7 +499,7 @@ export class EconomyService {
     depositMining += miningRate;
 
     const income = factionProduction['credits'] ?? 0;
-    const expense = buildingUpkeep + administration + shipUpkeep;
+    const expense = buildingUpkeep + administration + shipUpkeep + stationUpkeep;
     return {
       incomePerSecond: income,
       expensePerSecond: expense,
@@ -461,6 +507,8 @@ export class EconomyService {
       buildingUpkeepPerSecond: buildingUpkeep,
       administrationPerSecond: administration,
       shipUpkeepPerSecond: shipUpkeep,
+      stationUpkeepPerSecond: stationUpkeep,
+      upkeepScale,
       unpaidUpkeepPerSecond: 0,
       depositMiningPerSecond: depositMining,
       totalPopulation,
@@ -609,16 +657,51 @@ export class EconomyService {
   /*
    * Upkeep in credits per second of one building / one ship of a type.
    * Exposed so the AI prices the ongoing cost of a purchase with the same
-   * conversion the economy tick uses.
+   * conversion the economy tick uses. `scale` is the owner's empire upkeep
+   * scale (getEmpireUpkeepScale); without it the base rate is returned.
    */
-  getBuildingUpkeepPerSecond(buildingName: string, owner?: Faction | null): number {
+  getBuildingUpkeepPerSecond(buildingName: string, owner?: Faction | null, scale = 1): number {
     return (this.buildingStatsByName.get(buildingName)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT
-      * this.research.getModifiers(owner).buildingUpkeep;
+      * this.research.getModifiers(owner).buildingUpkeep * scale;
   }
 
-  getShipUpkeepPerSecond(shipTypeId: string, owner?: Faction | null): number {
+  getShipUpkeepPerSecond(shipTypeId: string, owner?: Faction | null, scale = 1): number {
     return (this.shipService.getShipType(shipTypeId)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT
-      * this.research.getModifiers(owner).shipUpkeep;
+      * this.research.getModifiers(owner).shipUpkeep * scale;
+  }
+
+  /* Empire upkeep scale of a faction (empireUpkeepScale of its owned planet count). */
+  getEmpireUpkeepScale(factionId: string, starSystems: StarSystem[]): number {
+    return empireUpkeepScale(this.getOwnedPlanets(factionId, starSystems).length);
+  }
+
+  /* Upkeep in credits per second of one space base / one mining station. */
+  getStationUpkeepRates(owner?: Faction | null, scale = 1): { spaceBase: number; miningStation: number } {
+    const factor = UPKEEP_CREDITS_PER_POINT * this.research.getModifiers(owner).buildingUpkeep * scale;
+    return { spaceBase: SPACE_BASE_UPKEEP_POINTS * factor, miningStation: MINING_STATION_UPKEEP_POINTS * factor };
+  }
+
+  /*
+   * Upkeep of all of a faction's stations: space bases from the live
+   * registry, mining stations from the asteroids (depleted ones included —
+   * a station stays until it is destroyed).
+   */
+  private getStationUpkeepPerSecond(
+    factionId: string,
+    starSystems: StarSystem[],
+    owner: Faction | null | undefined,
+    scale: number,
+  ): number {
+    const bases = this.spaceBases?.basesOf(factionId).length ?? 0;
+    let stations = 0;
+    for (const system of starSystems) {
+      for (const asteroid of system.asteroidBelt?.asteroids ?? []) {
+        if (asteroid.miningStation?.factionId === factionId) stations++;
+      }
+    }
+    if (bases === 0 && stations === 0) return 0;
+    const rates = this.getStationUpkeepRates(owner, scale);
+    return bases * rates.spaceBase + stations * rates.miningStation;
   }
 
   /* Technology modifiers of a faction (same source every economy rule uses). */
@@ -636,9 +719,10 @@ export class EconomyService {
     difficultyIncomeMultiplier: number,
     adminShare: number,
     owner: Faction | null | undefined,
+    upkeepScale: number,
   ): PlanetEconomyEntry {
     const economy = this.calculatePlanetEconomy(planet, owner);
-    const buildingUpkeep = this.calculatePlanetMaintenance(planet, owner);
+    const buildingUpkeep = this.calculatePlanetMaintenance(planet, owner, upkeepScale);
     const creditIncome = (economy.production['credits'] ?? 0) * economy.efficiency * economy.incomeMultiplier
       * difficultyIncomeMultiplier;
     const administration = creditIncome * adminShare;
@@ -673,7 +757,7 @@ export class EconomyService {
       energyConsumption: economy.energyConsumption,
       energyBalance: economy.energyBalance,
       efficiency: economy.efficiency,
-      buildings: this.getPlanetBuildingExpenses(planet, owner),
+      buildings: this.getPlanetBuildingExpenses(planet, owner, upkeepScale),
       satisfaction: economy.satisfaction,
       incomeMultiplier: economy.incomeMultiplier,
       workforceAvailable: economy.workforceAvailable,
@@ -731,7 +815,7 @@ export class EconomyService {
   getPlanetTax(planet: PlanetTile): number {
     const pop = planet.population || 0;
     const factories = (planet.buildings ?? []).filter((b) => b.name === 'Spaceship Factory').length;
-    return Math.floor(pop * 0.1) + factories * 500;
+    return Math.floor(pop * POPULATION_CREDIT_RATE) + factories * 500;
   }
 
   /*
@@ -742,25 +826,26 @@ export class EconomyService {
     const owner = factions.find((f) => f.id === planet.factionId);
     const ownedCount = starSystems.length > 0 ? this.getOwnedPlanets(planet.factionId, starSystems).length : 1;
     return this.buildPlanetEntry(
-      planet, gainMultiplier(owner), administrationShare(ownedCount), owner,
+      planet, gainMultiplier(owner), administrationShare(ownedCount), owner, empireUpkeepScale(ownedCount),
     );
   }
 
   /* Building upkeep of a planet in credits per second. */
-  private calculatePlanetMaintenance(planet: PlanetTile, owner: Faction | null | undefined): number {
+  private calculatePlanetMaintenance(planet: PlanetTile, owner: Faction | null | undefined, scale: number): number {
     let expense = 0;
+    const planetScale = scale * planetTypeTraits(planet.type).buildingUpkeep;
     for (const building of planet.buildings ?? []) {
-      expense += this.getBuildingUpkeepPerSecond(building.name, owner);
+      expense += this.getBuildingUpkeepPerSecond(building.name, owner, planetScale);
     }
     return expense;
   }
 
-  private getPlanetBuildingExpenses(planet: PlanetTile, owner: Faction | null | undefined): BuildingExpenseEntry[] {
+  private getPlanetBuildingExpenses(planet: PlanetTile, owner: Faction | null | undefined, scale: number): BuildingExpenseEntry[] {
     const buildingCounts = new Map<string, number>();
     const buildingCosts = new Map<string, number>();
 
     for (const building of planet.buildings ?? []) {
-      const cost = this.getBuildingUpkeepPerSecond(building.name, owner);
+      const cost = this.getBuildingUpkeepPerSecond(building.name, owner, scale * planetTypeTraits(planet.type).buildingUpkeep);
       if (cost > 0) {
         buildingCounts.set(building.name, (buildingCounts.get(building.name) || 0) + 1);
         buildingCosts.set(building.name, (buildingCosts.get(building.name) || 0) + cost);

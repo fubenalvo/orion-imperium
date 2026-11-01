@@ -1,3 +1,4 @@
+import { planetTypeTraits } from '../planet-types';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { UpperCasePipe } from '@angular/common';
@@ -32,6 +33,11 @@ export class StarMapPlanetInfoComponent {
   @Input() getEnergyForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
+
+  /* What the planet's type changes in the economy (planet-types.ts). */
+  get planetTypeSummary(): string {
+    return planetTypeTraits(this.planet?.type).summary;
+  }
   @Input() colonization: PlanetColonizationVm | null = null;
 
   /*

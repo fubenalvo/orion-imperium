@@ -178,26 +178,28 @@ const COLONY_BUILDINGS: readonly PlanetBuilding[] = [
 ];
 
 interface FleetTemplate {
-  shipType: string;
-  count: number;
+  ships: { shipType: string; count: number }[];
   speed: number;
 }
 
 /*
- * Starting fleets. 'standard' is the legacy player roster (ORION: 2
- * frigates, PEGASUS: 3 cruisers) and is used for the human and for
- * Normal AI so the start is symmetric. Speeds match the legacy map.
+ * Starting fleets, one entry per fleet. The AI's preset follows its
+ * difficulty ('standard' = Normal). The human starts with 'player': one small
+ * scouting fleet (2 scouts + 1 fighter). It keeps the starting upkeep low —
+ * the empire's money should go into its own build-up, not into a navy it
+ * did not choose — and the homeworld's turret is the early defense.
  */
-const FLEET_PRESETS: Readonly<Record<'reduced' | 'standard' | 'reinforced', FleetTemplate[]>> = {
-  reduced: [{ shipType: 'frigate', count: 2, speed: 8 }],
+const FLEET_PRESETS: Readonly<Record<'player' | 'reduced' | 'standard' | 'reinforced', FleetTemplate[]>> = {
+  player: [{ ships: [{ shipType: 'scout', count: 2 }, { shipType: 'fighter', count: 1 }], speed: 8 }],
+  reduced: [{ ships: [{ shipType: 'frigate', count: 2 }], speed: 8 }],
   standard: [
-    { shipType: 'frigate', count: 2, speed: 8 },
-    { shipType: 'cruiser', count: 3, speed: 6 },
+    { ships: [{ shipType: 'frigate', count: 2 }], speed: 8 },
+    { ships: [{ shipType: 'cruiser', count: 3 }], speed: 6 },
   ],
   reinforced: [
-    { shipType: 'frigate', count: 2, speed: 8 },
-    { shipType: 'cruiser', count: 3, speed: 6 },
-    { shipType: 'destroyer', count: 4, speed: 7 },
+    { ships: [{ shipType: 'frigate', count: 2 }], speed: 8 },
+    { ships: [{ shipType: 'cruiser', count: 3 }], speed: 6 },
+    { ships: [{ shipType: 'destroyer', count: 4 }], speed: 7 },
   ],
 };
 const PLAYER_FLEET_NAMES = ['ORION', 'PEGASUS', 'PHOENIX'];
@@ -609,7 +611,7 @@ export class GalaxyGeneratorService {
       const isAi = participant.setup.controller === 'ai';
       const presetName = isAi
         ? AI_DIFFICULTY_PROFILES[participant.setup.difficulty].startingFleetPreset
-        : 'standard';
+        : 'player';
 
       FLEET_PRESETS[presetName].forEach((template, fleetIndex) => {
         const name = isAi
@@ -617,10 +619,11 @@ export class GalaxyGeneratorService {
           : (PLAYER_FLEET_NAMES[fleetIndex] ?? `FLEET-${nextFleetId}`);
         const pos = this.placeFleetNearHome(rng, preset, center, home, occupied);
         occupied.add(`${pos.x}-${pos.y}`);
-        const ships = Array.from({ length: template.count }, (_, k) => ({
+        const types = template.ships.flatMap((group) => Array.from({ length: group.count }, () => group.shipType));
+        const ships = types.map((type, k) => ({
           id: nextShipId++,
           name: `${name}-${k + 1}`,
-          type: template.shipType,
+          type,
         }));
         fleets.push({
           id: nextFleetId++,

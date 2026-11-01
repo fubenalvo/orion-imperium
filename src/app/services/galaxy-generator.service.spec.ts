@@ -243,8 +243,10 @@ describe('GalaxyGeneratorService', () => {
       return {
         credits: ai.currencies['credits'],
         planets: data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === 'enemy1').length,
-        ships: data.fleets.filter((f) => f.factionId === 'enemy1').flatMap((f) => f.ships).length,
+        // Strength, not ship count: Easy starts with 3 light ships, Normal with 2 frigates.
+        ships: new ShipService().calculateFleetStrength(data.fleets.filter((f) => f.factionId === 'enemy1').flatMap((f) => f.ships)),
         playerShips: data.fleets.filter((f) => f.factionId === 'player').flatMap((f) => f.ships).length,
+        playerFleets: data.fleets.filter((f) => f.factionId === 'player').length,
       };
     };
     const easy = withDifficulty('easy');
@@ -256,9 +258,11 @@ describe('GalaxyGeneratorService', () => {
     expect(normal.planets).toBeLessThan(hard.planets);
     expect(easy.ships).toBeLessThan(normal.ships);
     expect(normal.ships).toBeLessThan(hard.ships);
-    // Normal AI mirrors the human start; the human start never changes.
-    expect(normal.ships).toBe(normal.playerShips);
+    // The human always starts with one small scouting fleet (2 scouts +
+    // 1 fighter), whatever the AI difficulty.
+    expect(normal.playerShips).toBe(3);
     expect(easy.playerShips).toBe(hard.playerShips);
+    expect(normal.playerFleets).toBe(1);
   });
 
   it('throws a GalaxyGenerationError for impossible configurations', () => {

@@ -348,6 +348,25 @@
         "energy": 25
       },
       "defense": null
+    },
+    {
+      "id": "trading_post",
+      "name": "Trading Post",
+      "role": "trade",
+      "energyConsumption": 10,
+      "energyProduction": 0,
+      "maintenanceCost": 15,
+      "size": 2,
+      "population": 0,
+      "workforce": 20,
+      "moraleRate": 0,
+      "price": 2500,
+      "rawMaterialCost": 600,
+      "production": {},
+      "consumption": {
+        "energy": 10
+      },
+      "defense": null
     }
   ]
 }

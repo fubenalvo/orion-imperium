@@ -25,7 +25,7 @@
       "researchCost": 0,
       "prerequisites": [],
       "unlocksShips": [],
-      "unlocksBuildings": ["small_residential", "mining_complex"]
+      "unlocksBuildings": ["small_residential", "mining_complex", "trading_post"]
     },
     {
       "id": "basic_power",

@@ -794,13 +794,17 @@ export interface PlanetEconomy {
  */
 export interface EconomyBreakdown {
   incomePerSecond: number;
-  /* Total upkeep in credits/s (buildings + fleet ships + reserve ships). */
+  /* Total expense in credits/s (buildings + administration + fleet and reserve ships + stations). */
   expensePerSecond: number;
   netPerSecond: number;
   buildingUpkeepPerSecond: number;
   /* Colony administration (EconomyService.administrationShare × planet income). */
   administrationPerSecond: number;
   shipUpkeepPerSecond: number;
+  /* Space bases and asteroid mining stations. */
+  stationUpkeepPerSecond: number;
+  /* Empire upkeep scale already applied to every upkeep above (EconomyService.empireUpkeepScale). */
+  upkeepScale: number;
   /* Upkeep that could not be paid on the last applied tick (arrears); 0 otherwise. */
   unpaidUpkeepPerSecond: number;
   /*

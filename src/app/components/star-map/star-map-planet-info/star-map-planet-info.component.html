@@ -59,6 +59,10 @@
           <span class="ui-stat__label"><img src="icon-efficiency.png" alt="" width="14" height="14" /> Workforce eff.</span>
           <span class="ui-stat__value">{{ (planetEconomy.workforceEfficiency * 100) | number: '1.0-0' }}%</span>
         </div>
+        <div class="ui-stat">
+          <span class="ui-stat__label">World type</span>
+          <span class="ui-stat__value">{{ planetTypeSummary }}</span>
+        </div>
         @if (planetEconomy.habitabilityDrift !== 0) {
           <div class="ui-stat">
             <span class="ui-stat__label">Habitability</span>

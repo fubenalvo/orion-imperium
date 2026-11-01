@@ -69,7 +69,7 @@ export const RESEARCH_COST_GROWTH_PER_TECH = 0.02;
  * Research points stay the scarce, lab-produced resource; credits make
  * research compete with construction and the fleet (docs/research.md).
  */
-export const RESEARCH_CREDITS_PER_POINT = 2;
+export const RESEARCH_CREDITS_PER_POINT = 4;
 
 /* What a technology costs a faction right now; both parts are paid at once. */
 export interface ResearchPrice {

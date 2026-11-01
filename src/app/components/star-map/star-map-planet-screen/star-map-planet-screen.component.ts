@@ -1,4 +1,13 @@
 import {
+  TRADE_BUY_CREDITS_PER_RAW,
+  TRADE_LOTS,
+  TRADE_SELL_CREDITS_PER_RAW,
+  TradeDirection,
+  hasTradingPost,
+  quoteTrade,
+} from '../trade';
+import { planetTypeTraits } from '../planet-types';
+import {
   Component,
   Input,
   Output,
@@ -69,7 +78,7 @@ export interface BuildingType {
   requiresOreProximity?: boolean;
 }
 
-export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production';
+export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production' | 'trade';
 
 /** Predefined camera distances for the planet surface view. */
 export type PlanetSurfaceZoomLevel = 'close' | 'medium' | 'far';
@@ -181,6 +190,11 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Input() getEnergyForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
+
+  /* What the planet's type changes in the economy (planet-types.ts). */
+  get planetTypeSummary(): string {
+    return planetTypeTraits(this.planet?.type).summary;
+  }
   @Input() getPlayerCredits: () => number = () => 0;
   @Input() getPlayerRawMaterials: () => number = () => 0;
 
@@ -206,6 +220,27 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Output() spaceportFleetNameChange = new EventEmitter<string>();
   @Output() openProductionTab = new EventEmitter<void>();
   @Output() openSpaceportTab = new EventEmitter<void>();
+  /* A Trading Post exchange; StarMap validates and applies it (trade.ts). */
+  @Output() tradeRequest = new EventEmitter<{ planetId: number; direction: TradeDirection; raw: number }>();
+
+  readonly tradeLots = TRADE_LOTS;
+  readonly tradeBuyRate = TRADE_BUY_CREDITS_PER_RAW;
+  readonly tradeSellRate = TRADE_SELL_CREDITS_PER_RAW;
+
+  tradeCredits(direction: TradeDirection, raw: number): number {
+    return quoteTrade(direction, raw).credits;
+  }
+
+  canTrade(direction: TradeDirection, raw: number): boolean {
+    return direction === 'buyRaw'
+      ? this.getPlayerCredits() >= this.tradeCredits(direction, raw)
+      : this.getPlayerRawMaterials() >= raw;
+  }
+
+  requestTrade(direction: TradeDirection, raw: number): void {
+    if (!this.planet || !this.canTrade(direction, raw)) return;
+    this.tradeRequest.emit({ planetId: this.planet.id, direction, raw });
+  }
 
   readonly cellVw = PLANET_SURFACE_CELL_VW;
   readonly margin = PLANET_SURFACE_MARGIN;
@@ -380,6 +415,9 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     }
     if (this.hasSpaceport()) {
       tabs.push('assembly');
+    }
+    if (this.planet?.factionId === 'player' && hasTradingPost(this.planet)) {
+      tabs.push('trade');
     }
     return tabs;
   }

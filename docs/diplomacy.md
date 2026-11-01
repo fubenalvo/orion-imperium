@@ -117,7 +117,7 @@ Deterministic and explainable.
 | Empty treasury | +0.15 (credits < 20% of scale) |
 | Temperament | personality `peaceBias` |
 
-`scale` ≈ one minute of the AI's income (`max(2000, population × 0.1 × 60)`); **peace value** = pressure × scale, in credits: what ending this war is worth to the AI (negative = it wants to be paid).
+`scale` ≈ one minute of the AI's income (`max(2000, population × POPULATION_CREDIT_RATE × 60)`, the same income rate as the economy); **peace value** = pressure × scale, in credits: what ending this war is worth to the AI (negative = it wants to be paid).
 
 **Treaty evaluation** — `evaluateTreaty`: terms value for the AI (`termsValue`: credits ×1, raw materials ×1.2; given resources count negative). The AI **accepts iff the terms are feasible and terms + peace value ≥ 0**. The acceptance meter is `0.5 + margin / (2 × scale)`, so 0.5 is exactly the threshold; the dialog shows the margin in credits and every factor.
 

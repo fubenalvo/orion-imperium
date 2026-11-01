@@ -1,6 +1,6 @@
 # Economy
 
-The faction economy: the three resources (credits, raw materials, research points), finite raw-material deposits, what everything costs, how upkeep is charged, and the rules the AI follows to stay solvent. Player and AI use exactly the same rules and code paths.
+The faction economy: the three resources (credits, raw materials, research points), finite raw-material deposits, planet types, what everything costs, how upkeep is charged, the Trading Post exchange, and the rules the AI follows to stay solvent. Player and AI use exactly the same rules and code paths.
 
 Design goal: raw materials come only from **finite deposits** on planets and asteroids, and warships are mostly raw materials, so an empire's deposits run dry over time and expansion (new colonies, asteroid mining) becomes an economic necessity rather than an arbitrary bonus.
 
@@ -28,7 +28,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 - **Research** (stock): research points from research labs (unchanged). Spent only on technologies, always together with credits ([Research](./research.md)).
 - **One-off windfalls:** collecting a drifting asteroid adds its cargo (raw materials and/or research points) directly to the collecting faction's stock, outside the economy tick. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids).
 - **Energy** (flow, never stored): every owned planet has a colony core (+10) plus its power buildings. An energy-short planet produces at `production / consumption` efficiency, and the shortfall lowers its satisfaction drift in proportion ([Energy and satisfaction](#energy-and-satisfaction)).
-- **Population**: capped by housing; `0.1 credits/s` per inhabitant at 100% satisfaction.
+- **Population**: capped by housing × the planet type's population factor ([Planet types](#planet-types)); `POPULATION_CREDIT_RATE` = `0.085 credits/s` per inhabitant at 100% satisfaction (was 0.1, lowered against the credit glut).
 
 ## Finite deposits
 
@@ -89,26 +89,71 @@ Order within one tick (per faction):
 
 `calculateEconomy` returns effective per-second rates; the HUD (`FactionCurrenciesComponent`) and the planet screen show these numbers, and the tick applies exactly them:
 
-- planet credit income = `pop × 0.1 × energy efficiency × satisfaction/100 × AI difficulty multiplier`
+- planet credit income = `pop × 0.085 × energy efficiency × satisfaction/100 × AI difficulty multiplier`
 - raw/research production = `building output (workforce-scaled) × energy efficiency × AI difficulty multiplier` (+ the population raw trickle); a mine's raw output is also × deposit richness, and 0 once its deposit is depleted
 - `depositMiningPerSecond` = the deposit-mining part of raw production (planet mines + stations); the HUD's raw breakdown shows it next to the population trickle
-- `expensePerSecond` = building upkeep + colony administration + ship upkeep
+- `expensePerSecond` = building upkeep + colony administration + ship upkeep + station upkeep (all upkeep already × the empire upkeep scale; `upkeepScale` in the breakdown)
 - `netPerSecond = incomePerSecond − expensePerSecond`; `net['credits']` is the same number
 
 The AI difficulty multiplier (`ai-difficulty.ts`) scales production only, never costs, and is 1 for the human. War exhaustion above 25 reduces the same gains linearly down to −30% at 100 for the human and the AI alike (`gainMultiplier` = difficulty × (1 − exhaustion penalty); see [Diplomacy](./diplomacy.md#war-exhaustion)). Peace treaties move credits and raw materials between factions outside the economy tick ([Diplomacy](./diplomacy.md#peace-treaties-peace-treatyts)), and so do paid credit demands at peace ([Financial demands](./diplomacy.md#financial-demands-and-ultimatums)). Both go through the one atomic transfer (`resource-transfer.ts` `transferResources`): every amount is checked against the giver's whole-unit stock first, and either all of it moves or nothing does, so diplomacy can never make credits negative. An AI never pays a demand out of its spending reserve (`EnemyEconomyService.getSpendingReserve`) and never more than 60% of its credits; an AI's own demand never asks for more than half of the target's credits.
 
 ## Upkeep
 
-`maintenanceCost` in the data files is in **upkeep points per second**; one point costs `UPKEEP_CREDITS_PER_POINT = 0.3` credits/s (the single upkeep tuning knob).
+Upkeep is the economy's main **credit sink**: it grows with the empire, so a large empire's income does not pile up unspent.
 
-- **Buildings**: every building instance on an owned planet.
-- **Fleet ships**: every non-destroyed ship in a non-destroyed fleet of the faction.
+`maintenanceCost` in the data files is in **upkeep points per second**; one point costs `UPKEEP_CREDITS_PER_POINT = 0.3` credits/s (the base rate), multiplied by the **empire upkeep scale**.
+
+- **Empire upkeep scale** (`empireUpkeepScale`): `1 + min(0.8, 0.07 × (owned planets − 1))` — ×1 with one planet, ×1.35 with six, ×1.7 with eleven, ×1.8 from thirteen. It applies to every upkeep below (buildings, fleet and reserve ships, stations), not to administration. A one-planet start pays the base rate, so the early build-up is unchanged; the cost bites as the empire grows. A flat higher base rate (0.4–0.5) was tried and starved the early game: Spaceports came minutes late, the first warships did not come at all, and an AI lost its homeworld. The HUD's credit overlay shows the current scale under Expenses.
+- **Buildings**: every building instance on an owned planet, × the planet type's upkeep factor ([Planet types](#planet-types)).
+- **Fleet ships**: every non-destroyed ship in a non-destroyed fleet of the faction. Ship upkeep points grow faster than combat strength with hull size (`ship-data.json`): scout 2, fighter 4, corvette 7, frigate 12, destroyer 20, cruiser 32, carrier 40, battleship 64, battlecruiser 70, dreadnought 120 (colonizer 5, outpost ship 6). Light hulls are ~1.3–1.5× their old upkeep, capital ships ~2–2.2×, so a large heavy navy is the most expensive thing an empire can keep.
 - **Reserve ships** (faction ship stock): `RESERVE_SHIP_UPKEEP_FACTOR = 0.5` of the fleet rate — mothballed, but not free, so the stock is not an upkeep loophole.
+- **Stations**: every space base costs `SPACE_BASE_UPKEEP_POINTS = 25` points, every asteroid mining station `MINING_STATION_UPKEEP_POINTS = 15` (also on a depleted asteroid — a station stays until destroyed). Stations are structures, so the building-upkeep technology modifier applies. Bases come from the live `SpaceBaseService` registry, mining stations from the asteroids.
 - **Colony administration**: every owned planet beyond the first adds `3%` of each planet's credit income as an expense, capped at `45%` (`administrationShare`). A fresh colony raises the share on the whole empire before its own income grows, so over-expansion costs real money, while total income can never turn negative from administration alone.
 
 Ownership changes, destruction, fleet creation/disbanding and production completion need no bookkeeping: upkeep is recomputed from the current state on every tick.
 
-Reference homeworld at game start (1400 pop, 2 Large Residential, Fusion Plant, Laser Turret, Research Lab, starting fleet of 2 frigates + 3 cruisers): income 140/s, building upkeep 32.7/s, fleet upkeep 21/s, net ≈ 86/s.
+Reference homeworld at game start (earthlike, 1400 pop, 2 Large Residential, Fusion Plant, Laser Turret, Research Lab; the human's starting fleet of 2 scouts + 1 fighter; one planet, so scale ×1): income 119/s, building upkeep 32.7/s, fleet upkeep 2.4/s, net ≈ 84/s. A Normal AI starts with 2 frigates (7.2/s).
+
+Effect of the 2026-11 credit-sink changes (empire upkeep scale, station upkeep, progressive ship upkeep, smaller starting fleets, population income 0.085, research 4 credits per point, planet types), measured in `ai-simulation.spec.ts` (economy validation, 30-minute games, 3 and 5 AIs):
+
+| At minute 30 | Before | After |
+| --- | --- | --- |
+| Unspent credits | 46–207k (average 136k) | 9–29k (average 16k) |
+| Unspent raw materials | small | 26–59k (average 46k) |
+| Upkeep share of gross income | 59–72% | 72–83% |
+| Ships per AI | 43–93 | 18–29 |
+| Technologies | 22–31 | 15–20 |
+| Ticks in arrears | 0 | 0 |
+
+Credits are now the binding resource and raw materials pile up instead; the Trading Post is the (expensive) valve between them. The game is deliberately slower; the simulation thresholds were adjusted to the new pace.
+
+## Planet types
+
+`planet-types.ts` (`PLANET_TYPE_TRAITS`) is the source of truth for what a planet's type changes; the satisfaction drift stays in `PLANET_TYPE_HABITABILITY` (`star-map.models.ts`). The earthlike world is the ideal home; every other type is a trade-off — a lower population ceiling (= less credit income) and pricier building upkeep (heating, cooling, domes) — against one advantage:
+
+| Type | Population ceiling | Building upkeep | Advantage | Satisfaction drift |
+| --- | --- | --- | --- | --- |
+| Earthlike | 100% | ×1 | — | 0 |
+| Mars-like | 75% | ×1.15 | deposit mining ×1.25 | −0.03/s |
+| Desert | 70% | ×1.15 | deposit mining ×1.25 | −0.05/s |
+| Venus-like | 60% | ×1.3 | power buildings ×1.25 (geothermal; not the colony core) | −0.05/s |
+| Ice | 60% | ×1.3 | research buildings ×1.25 | −0.08/s |
+| Gas giant | 50% | ×1.2 | gas harvesting: +3 raw/s while populated (never depleted) | 0 |
+
+- The ceiling multiplies the housing capacity (`getPopulationCapacity`, floored); growth fills the remaining capacity, so a harsh world also grows to a smaller size.
+- The upkeep factor multiplies every building on that planet, on top of the empire upkeep scale; the AI prices a new building for that planet the same way.
+- Homeworlds are always earthlike. A planet whose population is above its ceiling (an older save, an AI starting colony) drops to the ceiling on the next economy tick.
+- The planet info panel and the planet screen show the type's effects ("World type").
+- AI colonization scores a type by `0.4 + 0.6 × ceiling / upkeep factor` (earthlike 1.0 … gas giant ≈ 0.65, see [AI Pipeline](./ai-pipeline.md)).
+
+## Trading Post
+
+`trading_post` (`planet-data.json`, role `trade`): a 2×2 building (2500 credits, 600 raw, 15 upkeep points, 10 energy, 20 workforce), unlocked by the starting technology Basic Industry. A planet with a Trading Post gets a TRADE tab on the planet screen, where its owner exchanges credits and raw materials in lots of 100 / 500 / 1000 (`trade.ts`):
+
+- buying raw costs `TRADE_BUY_CREDITS_PER_RAW` = 4 credits per unit (price rounded up);
+- selling raw pays `TRADE_SELL_CREDITS_PER_RAW` = 0.25 credits per unit (proceeds rounded down).
+
+The rates are deliberately bad: a round trip keeps 1/16 of the value, buying the raw part of a cruiser (1200) costs 4800 credits, and a Mining Complex produces raw at ~0.4 credits of upkeep per unit. It is a last resort when one resource runs dry, not a way to run an economy. Every trade is atomic and re-checked by `executeTrade` (post on the planet, owned by the trader, enough stock); a refused trade changes nothing. The post does not need power or workforce to trade. The AI has no trade logic and never builds the post (no construction rule selects the `trade` role).
 
 ## Prices
 
@@ -141,7 +186,7 @@ Ships (credits / raw materials): Scout 50/150, Fighter 75/225, Corvette 120/360,
 
 Rationale: early basics (housing, solar, turret) cost a few seconds to a minute of starting net income; core infrastructure (factory, Spaceport) costs about a minute each; large/specialised buildings cost several minutes. Every building also adds permanent upkeep, so a building is a trade-off against warships and expansion. Warships keep their credit `cost` because it also sets build time (`cost × 0.1 / factory power`) and is the ship's "value" for war losses and border penalties; their weight moved to raw materials, so one mine (~15/s) pays for a cruiser in about 80 seconds and a large fleet needs several deposits. The colonizer and outpost ship carry an explicit `buildTime` (10 s and 35 s, as before) because their credit price rose.
 
-Research prices (research points from the tree, scaled by technologies already researched, plus `RESEARCH_CREDITS_PER_POINT` = 2 credits per point) are described in [Research](./research.md). Technology bonuses change several economy rates (energy, raw and research output, building and ship upkeep, population growth); `EconomyService` applies them through `ResearchService.getModifiers` for the owning faction, so the HUD, the economy tick and the AI see the same numbers.
+Research prices (research points from the tree, scaled by technologies already researched, plus `RESEARCH_CREDITS_PER_POINT` = 4 credits per point) are described in [Research](./research.md). Technology bonuses change several economy rates (energy, raw and research output, building and ship upkeep, population growth); `EconomyService` applies them through `ResearchService.getModifiers` for the owning faction, so the HUD, the economy tick and the AI see the same numbers.
 
 ## Purchases
 
@@ -154,8 +199,8 @@ All building and ship purchases go through `resource-cost.ts` (`buildingCost`, `
 
 Full details in [AI Pipeline](./ai-pipeline.md#ai-economy-manager-enemyeconomyservice). The AI uses the same costs and the same `EconomyService` numbers as the HUD:
 
-- **Reserve**: optional purchases leave credits and raw materials for committed needs: next colonizer, a missing factory or Spaceport (only while net income is positive), the first housing of every colony, the first mine on an unmined live deposit, the credits of a technology whose research points are already banked, and the next warship.
-- **Upkeep headroom**: a purchase's upkeep must fit the projected net (current net minus queued ships' upkeep): emergency power — always; core (housing, factory, Spaceport) — net ≥ 0, or a deficit the treasury can carry for 300 s; warships — leave `10% / personality military preference` of gross income; optional buildings — leave 25%. The gap keeps ~15% of income structurally available for warship upkeep.
+- **Reserve**: optional purchases leave credits and raw materials for committed needs: next colonizer, a missing factory or Spaceport (only while net income is positive), the first housing of every colony, the first mine on an unmined live deposit, the credits of a technology whose research points are already banked (for the technologist: of the technology research is saving for), and the next warship.
+- **Upkeep headroom**: a purchase's upkeep (priced with the faction's empire upkeep scale) must fit the projected net (current net minus queued ships' upkeep): emergency power — always; core (housing, factory, Spaceport) — net ≥ 0, or a deficit the treasury can carry for 300 s; warships — leave `10% / personality military preference` of gross income; optional buildings — leave 25%. The gap keeps ~15% of income structurally available for warship upkeep.
 - **Military target** includes the strength that 12% of gross income can sustain in upkeep, so the navy scales with the economy.
 - **Space**: while a factory, a Spaceport or the first mine on a live deposit is missing, no other building may take the last room for it.
 - **Raw materials**: every owned planet with a live deposit gets a Mining Complex (never a depleted one); while raw materials are the binding constraint (`isRawConstrained`: credits for two preferred warships but not their raw materials) a large deposit gets a second one and no extra factories are built. Warships save for the preferred hull when income covers the gap within 90 s instead of buying the cheapest hull.
@@ -170,6 +215,7 @@ No save version bump; every new field is optional and filled on load (`SaveGameS
 - `SystemAsteroid.totalRawMaterials` / `extractionRate`: an untouched deposit's original size is its remaining amount; a deposit that already had a station is regenerated from the belt's own generator version to recover its original size. Rates come from a deterministic hash.
 - `SystemAsteroid.surveyedBy` (AI surveys) starts empty.
 - Existing credits, raw materials, research points, buildings, mines and stations are untouched. Old saves keep their homeworld as it was (only new games guarantee a homeworld deposit).
+- The 2026-11 balance values (income, upkeep, research price, planet types) apply to old saves at once: nothing about them is stored. A non-earthlike planet above its new population ceiling drops to it on the first tick; existing starting fleets stay as they were; the Trading Post is available immediately (Basic Industry is a starting technology).
 
 Missing `rawmaterials`/`research` read as 0. Production orders without `paid` (written before this economy) are treated as credits-only (`ship cost × quantity`), so cancelling them refunds credits only; a malformed `paid` falls back to the same rule. Loading never charges, refunds or re-applies upkeep: everything is derived from the saved state, and the economy accumulator restarts at 0.
 

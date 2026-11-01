@@ -98,7 +98,7 @@ DEPLOY BASE in the fleet panel (player) — the AI does not deploy bases yet but
 
 `SpaceBaseService.deploy` re-checks, removes one outpost ship, creates the base on the fleet's cell (named after the nearest star, e.g. "Vega Outpost"), bumps the revision (territory and sensors update at once) and retires a fleet left without living ships, like colonization does.
 
-A base is permanent and immobile. It cannot be moved, carried or captured; it only ends by destruction. Its only functions are observation (a sensor source of `sensorRange` = 6 cells + research bonus for a player base — the game's "radar station") and territory. It has no economy, upkeep, research or production.
+A base is permanent and immobile. It cannot be moved, carried or captured; it only ends by destruction. Its only functions are observation (a sensor source of `sensorRange` = 6 cells + research bonus for a player base — the game's "radar station") and territory. It has no economy, research or production; it does cost upkeep (25 points/s, see [Economy](./economy.md#upkeep)).
 
 ### Combat
 
@@ -142,6 +142,8 @@ DEPLOY MINING in the fleet panel (player; it replaces DEPLOY BASE while the flee
   - the system is not in another empire's territory (`systemTerritoryOwner` is the deployer or nobody: the same own-or-neutral rule as bases and colonization).
 
 `deployMiningStation` re-checks, removes one outpost ship, sets `asteroid.miningStation = { factionId }` and retires a fleet left without living ships, exactly like a base deployment. No battle, territory or sensor change follows. The new station defends itself at its owner's current turret level ([Station defense](#station-defense)).
+
+A mining station costs upkeep (15 points/s, see [Economy](./economy.md#upkeep)) for as long as it stands, also after its asteroid is depleted.
 
 Storing the station on the asteroid ties it to its asteroid, system and owner by construction and makes a second station on the same asteroid unrepresentable.
 

@@ -35,7 +35,7 @@
       "battleMoveRange": 6,
       "cost": 75,
       "rawMaterialCost": 225,
-      "maintenanceCost": 3,
+      "maintenanceCost": 4,
       "fireRate": 4
     },
     {
@@ -54,7 +54,7 @@
       "battleMoveRange": 6,
       "cost": 120,
       "rawMaterialCost": 360,
-      "maintenanceCost": 5,
+      "maintenanceCost": 7,
       "fireRate": 3
     },
     {
@@ -73,7 +73,7 @@
       "battleMoveRange": 5,
       "cost": 180,
       "rawMaterialCost": 540,
-      "maintenanceCost": 8,
+      "maintenanceCost": 12,
       "fireRate": 2.2
     },
     {
@@ -92,7 +92,7 @@
       "battleMoveRange": 4,
       "cost": 260,
       "rawMaterialCost": 780,
-      "maintenanceCost": 12,
+      "maintenanceCost": 20,
       "fireRate": 1.6
     },
     {
@@ -111,7 +111,7 @@
       "battleMoveRange": 3,
       "cost": 400,
       "rawMaterialCost": 1200,
-      "maintenanceCost": 18,
+      "maintenanceCost": 32,
       "fireRate": 1.2
     },
     {
@@ -130,7 +130,7 @@
       "battleMoveRange": 2,
       "cost": 500,
       "rawMaterialCost": 1500,
-      "maintenanceCost": 22,
+      "maintenanceCost": 40,
       "fireRate": 1.5
     },
     {
@@ -149,7 +149,7 @@
       "battleMoveRange": 2,
       "cost": 700,
       "rawMaterialCost": 2100,
-      "maintenanceCost": 32,
+      "maintenanceCost": 64,
       "fireRate": 0.75
     },
     {
@@ -168,7 +168,7 @@
       "battleMoveRange": 3,
       "cost": 750,
       "rawMaterialCost": 2250,
-      "maintenanceCost": 35,
+      "maintenanceCost": 70,
       "fireRate": 0.9
     },
     {
@@ -187,7 +187,7 @@
       "battleMoveRange": 2,
       "cost": 1200,
       "rawMaterialCost": 3600,
-      "maintenanceCost": 55,
+      "maintenanceCost": 120,
       "fireRate": 0.5
     },
     {

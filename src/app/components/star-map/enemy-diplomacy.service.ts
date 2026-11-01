@@ -28,6 +28,7 @@ import {
 } from './diplomatic-demand';
 import { availableResource } from './resource-transfer';
 import { EnemyEconomyService } from './enemy-economy.service';
+import { POPULATION_CREDIT_RATE } from '../../services/economy.service';
 import {
   PeaceTreaty,
   TreatyItem,
@@ -733,13 +734,13 @@ export class EnemyDiplomacyService {
     return this.militaryStrength(other.id, ctx.fleets) / Math.max(1, this.militaryStrength(self.id, ctx.fleets));
   }
 
-  /* About one minute of income: population pays 0.1 credits/s per inhabitant. */
+  /* About one minute of income: population pays POPULATION_CREDIT_RATE credits/s per inhabitant. */
   private scaleOf(ai: Faction, ctx: DiplomacyContext): number {
     const population = ctx.starSystems
       .flatMap((s) => s.planetsTiles)
       .filter((p) => p.factionId === ai.id)
       .reduce((sum, p) => sum + (p.population ?? 0), 0);
-    return Math.max(2000, population * 0.1 * 60);
+    return Math.max(2000, population * POPULATION_CREDIT_RATE * 60);
   }
 
   /* Shortest distance between the two empires' systems (fleets for a faction without planets). */

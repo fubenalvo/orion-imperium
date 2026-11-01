@@ -791,8 +791,9 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     for (const [factionId, trace] of result.traces) {
       expect(trace.factoryAt, `${factionId} factory`).not.toBeNull();
       expect(trace.spaceportAt, `${factionId} spaceport`).not.toBeNull();
-      // Factory (3000) + Spaceport (4000) from a 1000-credit start at ~85 credits/s net.
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(180);
+      // Factory (3000) + Spaceport (4000) from a 1000-credit start at ~65–75
+      // credits/s net (population income 0.08/inhabitant since 2026-11).
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(240);
       expect(trace.firstColonizationAt!, `${factionId} first colony time`).toBeLessThan(300);
       expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(2);
       // Every owned planet (except possibly a colony founded in the last
@@ -922,9 +923,9 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     for (const [factionId, trace] of result.traces) {
       expect(trace.spaceportAt, `${factionId} spaceport`).not.toBeNull();
       // The first Mining Complex (1500 credits) comes first, then 4000
-      // credits + 1000 raw at ~80 credits/s net (homeworld income minus
-      // upkeep) plus other committed needs: about two minutes.
-      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(180);
+      // credits + 1000 raw at ~65–75 credits/s net (homeworld income minus
+      // upkeep) plus other committed needs: about three minutes.
+      expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(240);
       if (trace.firstResearchBuildingAt !== null) {
         expect(trace.firstResearchBuildingAt, `${factionId} research before spaceport`).toBeGreaterThan(trace.spaceportAt!);
       }
@@ -1047,8 +1048,10 @@ describe('AI simulation — Phase 3 research and military operations', () => {
     vi.restoreAllMocks();
   });
 
-  it('two AIs research many technologies over 15 minutes, respecting prerequisites and costs, and field heavier hulls', () => {
-    const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 900, dt: 1 / 60, removePlayerFleets: true };
+  it('two AIs research many technologies over 20 minutes, respecting prerequisites and costs, and field heavier hulls', () => {
+    // 20 minutes: research costs more credits and income is lower since
+    // 2026-11, so the first heavier hull is unlocked later.
+    const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 1200, dt: 1 / 60, removePlayerFleets: true };
     const result = runScenario(options);
     const research = TestBed.inject(EnemyResearchService);
     const researchService = TestBed.inject(ResearchService);
@@ -1058,7 +1061,9 @@ describe('AI simulation — Phase 3 research and military operations', () => {
     for (const [factionId, trace] of result.traces) {
       const faction = result.data.factions.find((f) => f.id === factionId)!;
       const history = research.getResearchHistory(factionId);
-      expect(history.length, `${factionId} technologies researched`).toBeGreaterThanOrEqual(8);
+      // Research costs 4 credits per point (since 2026-11) on top of the
+      // research points, so a run buys fewer technologies than before.
+      expect(history.length, `${factionId} technologies researched`).toBeGreaterThanOrEqual(5);
       expect(new Set(history).size, `${factionId} no duplicate research`).toBe(history.length);
 
       // Each technology's prerequisites were owned before it was bought.
@@ -1089,7 +1094,9 @@ describe('AI simulation — Phase 3 research and military operations', () => {
   });
 
   it('produced ships are assembled into new fleets and reinforce existing fleets at the Spaceport', () => {
-    const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true };
+    // 15 minutes: with the empire upkeep scale (economy.md) the navy grows
+    // more slowly, and the first reinforcement can come after minute 10.
+    const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 900, dt: 1 / 60, removePlayerFleets: true };
     const result = runScenario(options);
 
     expectHealthyAiFactions(result, options);
@@ -1476,7 +1483,7 @@ describe('AI simulation — Phase 4 planet capture and game outcomes', () => {
     const options: ScenarioOptions = {
       // Premise: the AIs act against the player/neutrals, not each other.
       aiAlliance: true,
-      size: 'medium', aiCount: 2, seconds: 400, dt: 1 / 60, removePlayerFleets: true,
+      size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         // enemy1 loses every planet but keeps its fleets.
         for (const planet of data.starSystems.flatMap((sy) => sy.planetsTiles)) {
@@ -1624,7 +1631,9 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     const options: ScenarioOptions = {
       // Premise: the AIs act against the player/neutrals, not each other.
       aiAlliance: true,
-      size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
+      // 15 minutes: Normal AIs start with 2 frigates only (2026-11), so
+      // the defense against the two cruisers takes longer to build.
+      size: 'medium', aiCount: 2, seconds: 900, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         withPersonalities(['balanced'])(data);
         // This scenario is about objective handling, not the economy: a
@@ -1635,10 +1644,13 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
           faction.currencies['rawmaterials'] = 20000;
           faction.currencies['credits'] = 20000;
         }
-        // Two cruisers parked 4 cells from enemy1's home: a 'defend' strategy trigger.
+        // A cruiser parked 4 cells from enemy1's home: a 'defend' strategy
+        // trigger. One cruiser outguns the Normal AI's 2 starting frigates
+        // (2026-11); two made the threat so large that defense took most of
+        // the run.
         const home = homeSystemOf(data, 'enemy1');
         const pos = near(data, home, 4, 0);
-        data.fleets.push(playerFleet(pos.x, pos.y, 'cruiser', 2));
+        data.fleets.push(playerFleet(pos.x, pos.y, 'cruiser', 1));
       },
     };
     const result = runScenario(options);
@@ -1688,8 +1700,10 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
         const who = `${label} ${row.factionId} (${row.personality})`;
         expect(row.inactiveWindows, `${who} inactive 5-minute windows`).toBe(0);
         expect(row.planetsEnd, `${who} planet growth`).toBeGreaterThan(row.planetsStart);
-        // Research costs are balanced for a ~30–40 minute tree (research-tree.json).
-        expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(8);
+        // Research costs are balanced for a long tree (research-tree.json) and
+        // cost 4 credits per point, so short runs see few technologies (an
+        // Easy militarist on a small map: 4).
+        expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(4);
         expect(row.deadlocks, `${who} deadlock replans`).toBeLessThanOrEqual(3);
         expect(row.creditsSpent, `${who} spends resources`).toBeGreaterThan(0);
       }
@@ -1734,13 +1748,14 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
 
     expect(sum(militarist, 'combatBuilt'), 'militarists build more warships').toBeGreaterThan(sum(expansionist, 'combatBuilt'));
     expect(sum(expansionist, 'colonizations'), 'expansionists colonize at least as much').toBeGreaterThanOrEqual(sum(militarist, 'colonizations'));
-    expect(sum(technologist, 'techs'), 'technologists research at least as much').toBeGreaterThanOrEqual(sum(militarist, 'techs'));
-    // The tree takes ~30–40 minutes (research-tree.json costs), so a 15-minute
-    // game compares an early milestone: technologists reach it sooner.
-    // Research cost grows with every technology, so "first to N technologies"
-    // rewards buying cheap ones; research volume (base cost acquired) is the
-    // measure of research investment.
-    expect(sum(technologist, 'researchVolume'), 'technologists research more').toBeGreaterThan(sum(militarist, 'researchVolume'));
+    // Research cost grows with every technology and credits (4 per point)
+    // are every faction's research bottleneck, so the number of technologies
+    // rewards buying cheap ones. Research volume (base cost acquired) is the
+    // measure of research investment: technologists fund research before
+    // expansion and keep a smaller navy (fundsResearchFirst, militaryTarget),
+    // and must clearly out-research militarists.
+    expect(sum(technologist, 'researchVolume'), 'technologists research clearly more')
+      .toBeGreaterThanOrEqual(1.1 * sum(militarist, 'researchVolume'));
   });
 });
 
@@ -1802,7 +1817,8 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
       // Research costs target a ~30–40 minute tree, and labs compete with
       // warships for upkeep headroom, so research-light personalities on Easy
       // finish about half the tree in 40 minutes.
-      expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(15);
+      // 40 minutes; an Easy militarist (income ×0.75, war first) reaches 11.
+      expect(row.techs, `${who} technologies`).toBeGreaterThanOrEqual(11);
       expect(row.deadlocks, `${who} deadlock replans`).toBeLessThanOrEqual(6);
     }
     // Bounded AI state: nothing grows with game time beyond the entity counts.
@@ -1828,7 +1844,8 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
     const { result } = longRun({ size: 'large', aiCount: 5, seconds: 1800, dt: 1 / 30 });
     const ships = result.data.fleets.filter((f) => !f.destroyed).reduce((n, f) => n + f.ships.filter((s) => !s.destroyed).length, 0);
     const planets = result.data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId !== 'unhabited').length;
-    expect(ships, 'entity count reached').toBeGreaterThan(150);
+    // Navies are smaller since ship upkeep grows with hull size (2026-11).
+    expect(ships, 'entity count reached').toBeGreaterThan(100);
     expect(planets).toBeGreaterThan(15);
     // Measured AI cost per frame (all five factions together).
     expect(result.aiTickMs.perFrame, 'average AI ms per frame').toBeLessThan(2);
@@ -1970,7 +1987,7 @@ describe('AI simulation — economy validation', () => {
       }
       // Research progression: early technologies arrive within the first
       // ~15 minutes, the full tree takes a long session (not minutes).
-      expect(row.techs, `${row.who} technologies after 30 minutes`).toBeGreaterThanOrEqual(15);
+      expect(row.techs, `${row.who} technologies after 30 minutes`).toBeGreaterThanOrEqual(12);
       if (row.treeDoneAt !== null) {
         expect(row.treeDoneAt, `${row.who} full tree time`).toBeGreaterThan(1200);
       }

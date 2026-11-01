@@ -94,9 +94,26 @@ export class EnemyResearchService {
     private readonly spaceBaseService: SpaceBaseService,
   ) {}
 
+  /*
+   * Technology each faction is currently saving for (selectTechnology
+   * chose to wait for it). EnemyEconomyService reserves its credit price so
+   * construction does not spend the credits research is waiting for — the
+   * two used to protect different technologies. In memory only: a reload
+   * recomputes it at the next research decision.
+   */
+  private readonly targets = new Map<string, string>();
+
   reset(): void {
     this.accumulators.clear();
     this.history.clear();
+    this.targets.clear();
+  }
+
+  /* The technology the faction is saving for, if it is still available. */
+  getResearchTarget(faction: Faction): Technology | undefined {
+    const id = this.targets.get(faction.id);
+    if (!id || (faction.researchedTechnologies ?? []).includes(id)) return undefined;
+    return this.researchService.getTechnology(id);
   }
 
   /* Technologies researched by the AI in this session, in order (diagnostics/tests). */
@@ -151,6 +168,7 @@ export class EnemyResearchService {
       .getAllTechnologies()
       .filter((tech) => !researched.has(tech.id) && tech.prerequisites.every((p) => researched.has(p)));
     if (available.length === 0) {
+      this.targets.delete(faction.id);
       return undefined;
     }
 
@@ -177,9 +195,11 @@ export class EnemyResearchService {
           && creditShortfall / context.creditIncome <= EnemyResearchService.SAVE_HORIZON));
       const worthWaiting = !bestAffordable || best.score >= bestAffordable.score * EnemyResearchService.SAVE_SCORE_RATIO;
       if (reachable && worthWaiting) {
-        return undefined; // save research points for `best`
+        this.targets.set(faction.id, best.tech.id);
+        return undefined; // save research points and credits for `best`
       }
     }
+    this.targets.delete(faction.id);
     return bestAffordable?.tech;
   }
 

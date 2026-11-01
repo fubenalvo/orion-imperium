@@ -1,3 +1,5 @@
+import { EnemyResearchService } from './enemy-research.service';
+import { planetTypeTraits } from './planet-types';
 import { Injectable } from '@angular/core';
 import {
   Faction,
@@ -127,6 +129,8 @@ interface ConstructionRule {
 interface ConstructionBudget {
   cost: ResourceCost;
   upkeepAllowance: number;
+  /* The faction's empire upkeep scale; a new building's upkeep is priced with it. */
+  upkeepScale: number;
   /*
    * Core buildings the faction still lacks (Spaceport, Spaceship Factory),
    * the owned planets, and how many of the missing ones fit right now. No
@@ -236,6 +240,7 @@ export class EnemyEconomyService {
     private readonly spaceportService: SpaceportService,
     private readonly fleetAssemblyService: FleetAssemblyService,
     private readonly planService: EnemyPlanService,
+    private readonly enemyResearch: EnemyResearchService,
   ) {}
 
   reset(): void {
@@ -383,15 +388,42 @@ export class EnemyEconomyService {
       }
     }
 
-    // Research points already banked for a technology are waiting only for
-    // its credit price (research costs both): keep those credits.
-    reserve = addCosts(reserve, { credits: this.readyResearchCredits(faction), rawmaterials: 0 });
+    // Research credits: the price of the technology research is waiting for
+    // (see researchCreditReserve).
+    reserve = addCosts(reserve, { credits: this.researchCreditReserve(faction), rawmaterials: 0 });
 
     if (includeMilitary && this.militaryNeed(faction, starSystems, context).strength > 0) {
       const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
       if (ship) reserve = addCosts(reserve, shipCost(ship));
     }
     return reserve;
+  }
+
+  /*
+   * Credits construction and the navy must leave for research. Research
+   * costs research points AND credits (4 per point), and credits are the
+   * scarcer of the two, so research only progresses if its credits are not
+   * spent elsewhere first.
+   * - A research-funding personality (fundsResearchFirst — the
+   *   technologist): the credit price of EnemyResearchService's current
+   *   target (the technology it is saving for), as soon as it is the target,
+   *   so the credits are ready when the points arrive.
+   * - Everyone else: the cheapest available technology whose points are
+   *   banked (readyResearchCredits), what research will buy next. Reserving
+   *   the (often dearer) target for every faction was tried: with the
+   *   starting research points banked it held back the early build-up of
+   *   all AIs.
+   */
+  getResearchCreditReserve(faction: Faction): number {
+    return this.researchCreditReserve(faction);
+  }
+
+  private researchCreditReserve(faction: Faction): number {
+    if (getAiPersonalityProfile(faction).fundsResearchFirst) {
+      const target = this.enemyResearch.getResearchTarget(faction);
+      if (target) return this.researchService.getResearchPrice(faction, target).credits;
+    }
+    return this.readyResearchCredits(faction);
   }
 
   /*
@@ -430,13 +462,15 @@ export class EnemyEconomyService {
     faction: Faction,
     starSystems: StarSystem[],
     context: EconomyContext,
-  ): { income: number; net: number; rawNet: number; researchNet: number } {
+  ): { income: number; net: number; rawNet: number; researchNet: number; upkeepScale: number } {
     const breakdown = this.economyService.calculateEconomy(
       faction.id, context.factions ?? [faction], starSystems, context.fleets, context.shipStock,
     );
+    const upkeepScale = breakdown.upkeepScale;
     const queuedUpkeep = this.pendingOrders(faction.id, context)
-      .reduce((sum, o) => sum + o.quantity * this.economyService.getShipUpkeepPerSecond(o.shipTypeId, faction), 0);
+      .reduce((sum, o) => sum + o.quantity * this.economyService.getShipUpkeepPerSecond(o.shipTypeId, faction, upkeepScale), 0);
     return {
+      upkeepScale,
       income: breakdown.incomePerSecond,
       net: breakdown.netPerSecond - queuedUpkeep,
       rawNet: breakdown.net['rawmaterials'] ?? 0,
@@ -470,6 +504,24 @@ export class EnemyEconomyService {
     const points = faction.currencies['research'] ?? 0;
     if (points >= dearest.research || (faction.currencies['credits'] ?? 0) < dearest.credits) return false;
     return researchNet <= 0 || (dearest.research - points) / researchNet > EnemyEconomyService.RESEARCH_STARVED_SECONDS;
+  }
+
+  /*
+   * Research is held back by credits, not by labs: the banked research
+   * points already pay for an available technology, but the credits do not
+   * (research also costs RESEARCH_CREDITS_PER_POINT credits per point). More
+   * research buildings would then only add upkeep and slow research down
+   * further, so construction skips them until the credits catch up.
+   */
+  private isResearchCreditBound(faction: Faction): boolean {
+    const researched = new Set(faction.researchedTechnologies ?? []);
+    const points = faction.currencies['research'] ?? 0;
+    const credits = faction.currencies['credits'] ?? 0;
+    const covered = this.researchService.getAllTechnologies()
+      .filter((t) => !researched.has(t.id) && t.prerequisites.every((p) => researched.has(p)))
+      .map((t) => this.researchService.getResearchPrice(faction, t))
+      .filter((price) => points >= price.research);
+    return covered.length > 0 && covered.every((price) => credits < price.credits);
   }
 
   /* Upkeep (credits/s) a new purchase in this tier may add. */
@@ -635,12 +687,15 @@ export class EnemyEconomyService {
     // too slow): research buildings move ahead of defense and growth, and
     // they no longer wait behind the next warship's share of the reserve.
     const researchStarved = this.isResearchStarved(faction, finances.researchNet);
-    const researchFirst = posture.primary === 'research' || posture.researchBuildingsPerPlanet > 1 || researchStarved;
+    const researchCreditBound = this.isResearchCreditBound(faction);
+    const researchFirst = !researchCreditBound
+      && (posture.primary === 'research' || posture.researchBuildingsPerPlanet > 1 || researchStarved);
+    const researchTiers = researchCreditBound ? [] : [researchTier, researchUpgradeTier];
     const ordered = posture.primary === 'stabilize'
       ? core
       : researchFirst
-        ? [...core, miningTier, researchTier, researchUpgradeTier, defenseTier, growthTier, factoryTier]
-        : [...core, miningTier, defenseTier, growthTier, researchTier, researchUpgradeTier, factoryTier];
+        ? [...core, miningTier, ...researchTiers, defenseTier, growthTier, factoryTier]
+        : [...core, miningTier, defenseTier, growthTier, ...researchTiers, factoryTier];
 
     // While the navy is below target, optional buildings also leave upkeep
     // headroom for the next warship (the upkeep counterpart of the credit
@@ -650,13 +705,16 @@ export class EnemyEconomyService {
       && this.militaryNeed(faction, starSystems, context).strength > 0
       ? this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity)
       : undefined;
-    const militaryUpkeepReserve = nextWarship ? this.economyService.getShipUpkeepPerSecond(nextWarship.id, faction) : 0;
+    const militaryUpkeepReserve = nextWarship
+      ? this.economyService.getShipUpkeepPerSecond(nextWarship.id, faction, finances.upkeepScale)
+      : 0;
 
     for (const rule of ordered) {
       const budget: ConstructionBudget = {
         cost: { credits: faction.currencies['credits'] ?? 0, rawmaterials: faction.currencies['rawmaterials'] ?? 0 },
         upkeepAllowance: this.upkeepAllowance(rule.upkeep, finances, faction.currencies['credits'] ?? 0)
           - (rule.upkeep === 'optional' ? militaryUpkeepReserve : 0),
+        upkeepScale: finances.upkeepScale,
         coreSites,
       };
       if (rule.respectsReserve) {
@@ -691,7 +749,8 @@ export class EnemyEconomyService {
       if (budget.cost.credits < cost.credits || budget.cost.rawmaterials < cost.rawmaterials) {
         continue;
       }
-      if (this.economyService.getBuildingUpkeepPerSecond(building.name, faction) > budget.upkeepAllowance) {
+      const planetUpkeepScale = budget.upkeepScale * planetTypeTraits(planet.type).buildingUpkeep;
+      if (this.economyService.getBuildingUpkeepPerSecond(building.name, faction, planetUpkeepScale) > budget.upkeepAllowance) {
         continue;
       }
       const placement = this.choosePlacement(planet, building, gridSize, budget.coreSites);
@@ -812,14 +871,12 @@ export class EnemyEconomyService {
    * needsHousingGrowth: Housing raises the population cap and therefore
    * credit income. A planet without any housing (a fresh colony) can never
    * grow, so it always qualifies; otherwise only near-full planets do.
-   * Capacity is read from planet-data.json directly so the rule does not
-   * depend on EconomyService helpers beyond calculatePlanetEconomy.
    */
   private needsHousingGrowth(planet: PlanetTile): boolean {
-    const capacity = planet.buildings.reduce((sum, b) => {
-      const def = this.findBuildingByName(b.name);
-      return def?.role === 'housing' ? sum + (def.population ?? 0) : sum;
-    }, 0);
+    // EconomyService's capacity includes the planet type's population
+    // factor (planet-types.ts); the raw housing sum would never be reached
+    // on a harsh world, and its housing would never grow.
+    const capacity = this.economyService.getPopulationCapacity(planet);
     if (capacity <= 0) {
       return true;
     }
@@ -886,14 +943,16 @@ export class EnemyEconomyService {
       const finances = this.getProjectedNet(faction, starSystems, context);
       const militaryPreference = Math.max(0.5, getAiPersonalityProfile(faction).militaryTarget);
       const upkeepAllowance = finances.net - finances.income * EnemyEconomyService.UPKEEP_MARGIN_SHARE / militaryPreference;
-      const preferred = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, upkeepAllowance);
+      const preferred = this.selectMilitaryShip(
+        faction, { credits: Infinity, rawmaterials: Infinity }, upkeepAllowance, finances.upkeepScale,
+      );
       if (preferred && this.worthSavingFor(preferred, budget, finances)) {
         break;
       }
       const preferredCost = preferred ? shipCost(preferred) : undefined;
       const ship = preferred && preferredCost!.credits <= budget.credits && preferredCost!.rawmaterials <= budget.rawmaterials
         ? preferred
-        : this.selectMilitaryShip(faction, budget, upkeepAllowance);
+        : this.selectMilitaryShip(faction, budget, upkeepAllowance, finances.upkeepScale);
       if (!ship) {
         break;
       }
@@ -1037,12 +1096,13 @@ export class EnemyEconomyService {
   /* Combat strength MILITARY_INCOME_SHARE of gross income can keep in upkeep. */
   private incomeSupportedStrength(faction: Faction, starSystems: StarSystem[], context: EconomyContext): number {
     const hull = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
-    const upkeep = hull ? this.economyService.getShipUpkeepPerSecond(hull.id, faction) : 0;
+    const finances = this.getProjectedNet(faction, starSystems, context);
+    const upkeep = hull ? this.economyService.getShipUpkeepPerSecond(hull.id, faction, finances.upkeepScale) : 0;
     if (!hull || upkeep <= 0) {
       return 0;
     }
     const strengthPerUpkeep = this.shipService.calculateFleetStrength([{ type: hull.id }]) / upkeep;
-    const income = this.getProjectedNet(faction, starSystems, context).income;
+    const income = finances.income;
     return income * EnemyEconomyService.MILITARY_INCOME_SHARE * strengthPerUpkeep;
   }
 
@@ -1066,14 +1126,19 @@ export class EnemyEconomyService {
    * Both credits and raw materials must fit the budget, and the hull's
    * upkeep must fit the faction's upkeep allowance (credits/s).
    */
-  private selectMilitaryShip(faction: Faction, budget: ResourceCost, upkeepAllowance: number): ShipType | undefined {
+  private selectMilitaryShip(
+    faction: Faction,
+    budget: ResourceCost,
+    upkeepAllowance: number,
+    upkeepScale = 1,
+  ): ShipType | undefined {
     const candidates = this.shipService
       .getAllShipTypes()
       .filter((t) => {
         const cost = shipCost(t);
         return isCombatShipType(t) && t.cost > 0
           && cost.credits <= budget.credits && cost.rawmaterials <= budget.rawmaterials
-          && this.economyService.getShipUpkeepPerSecond(t.id, faction) <= upkeepAllowance
+          && this.economyService.getShipUpkeepPerSecond(t.id, faction, upkeepScale) <= upkeepAllowance
           && this.researchService.isShipUnlocked(faction, t.id);
       });
     if (candidates.length === 0) {

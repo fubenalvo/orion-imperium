@@ -98,7 +98,11 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
   planets receive the identical terrain on first load. See [Planet Surface](./planet-surface.md).
 - **Starting assets:** 1000 credits / 2500 raw materials / 1000 research (scaled for AI by difficulty), a raw-material deposit on every homeworld (deposit tiles placed on free ground after the starting buildings; the finite reserve comes from `ensurePlanetDeposits`, see [Economy](./economy.md#economic-safety)), the
   four basic technologies, and fleets placed 3–6 cells from the home system on free cells. The
-  human always gets the legacy roster (ORION: 2 frigates, PEGASUS: 3 cruisers).
+  human always starts with one small scouting fleet (ORION: 2 scouts + 1 fighter), which keeps
+  the starting upkeep low; the AI's starting fleet follows its difficulty (Easy: the same as the
+  human, Normal: 2 frigates, Hard: 2 frigates + 3 cruisers; `startingFleetPreset` in
+  `ai-difficulty.ts`, `FLEET_PRESETS` in `galaxy-generator.service.ts`). One fleet template can mix
+  ship types.
 - **Visibility:** every star system starts `explored: true` — star positions and names are known
   and drawn on the galaxy view and minimap, as on every legacy-map game. Fog of war still covers
   grid cells (`exploredGridCells` starts `[]`; a *missing* field means a legacy all-explored save),

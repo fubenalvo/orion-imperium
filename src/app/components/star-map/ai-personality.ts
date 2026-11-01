@@ -33,6 +33,12 @@ export type { AiPersonality } from './star-map.models';
  * - `factoriesPerPlanet`: Spaceship Factories the economy manager adds per
  *   planet. AI factions are usually rich enough to keep every factory
  *   busy, so factory count is what actually limits warship output.
+ * - `fundsResearchFirst`: research credits come before expansion. Research
+ *   costs credits (4 per point) and credits are every faction's bottleneck,
+ *   so a research personality only researches more if it spends a bigger
+ *   share of its credits on it: its research reserve is kept even from
+ *   colonizer purchases (warships and optional buildings keep it for every
+ *   personality; see EnemyEconomyService.getResearchCreditReserve).
  *
  * Invariant: 'balanced' is neutral (all weights 1, the Phase 4 behavior).
  * Factions without `aiPersonality` (older saves, the legacy map) are
@@ -51,6 +57,7 @@ export interface AiPersonalityProfile {
   parallelMilitaryProduction: boolean;
   factoriesPerPlanet: number;
   concurrentColonizations: number;
+  fundsResearchFirst: boolean;
 }
 
 export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonalityProfile>> = {
@@ -67,6 +74,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     parallelMilitaryProduction: false,
     factoriesPerPlanet: 1,
     concurrentColonizations: 1,
+    fundsResearchFirst: false,
   },
   expansionist: {
     id: 'expansionist',
@@ -81,6 +89,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     parallelMilitaryProduction: false,
     factoriesPerPlanet: 1,
     concurrentColonizations: 2,
+    fundsResearchFirst: false,
   },
   militarist: {
     id: 'militarist',
@@ -95,12 +104,15 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     parallelMilitaryProduction: true,
     factoriesPerPlanet: 2,
     concurrentColonizations: 1,
+    fundsResearchFirst: false,
   },
   technologist: {
     id: 'technologist',
     label: 'Technologist',
-    weights: { economy: 1.1, defense: 1, expansion: 0.9, offense: 0.8, research: 1.6 },
-    militaryTarget: 0.9,
+    // A scientific empire: a smaller navy and slower expansion pay for
+    // research (credits are the research bottleneck, see fundsResearchFirst).
+    weights: { economy: 1.1, defense: 1, expansion: 0.75, offense: 0.8, research: 1.6 },
+    militaryTarget: 0.6,
     assaultMinSurvival: 0.6,
     homeGuard: 0.35,
     parallelColonizationMaxThreat: 1,
@@ -109,6 +121,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     parallelMilitaryProduction: false,
     factoriesPerPlanet: 1,
     concurrentColonizations: 1,
+    fundsResearchFirst: true,
   },
 };
 

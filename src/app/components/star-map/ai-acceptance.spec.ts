@@ -196,8 +196,8 @@ describe('AI acceptance (real StarMap sessions)', () => {
     startGame({ ...createDefaultNewGameConfig('medium'), seed: 4711 });
     const map = createStarMap();
     // Long enough for a first completed action under the economy rules
-    // (the first factory is affordable after ~40 s).
-    run(map, 90);
+    // (lower population income since 2026-11: the first purchase comes later).
+    run(map, 150);
     expect(map.aiDebugVisible).toBe(false);
     map.handleKeyboard(new KeyboardEvent('keydown', { key: 'F9' }));
     expect(map.aiDebugVisible).toBe(true);
@@ -206,7 +206,10 @@ describe('AI acceptance (real StarMap sessions)', () => {
     for (const key of ['priority', 'strategy', 'goal', 'action', 'colonizationGoal', 'fleets', 'shortages', 'recentReplans', 'secondsSinceProgress', 'intel'] as const) {
       expect(snapshot[key], key).toBeDefined();
     }
-    expect(snapshot.lastCompleted, 'last completed action').toBeDefined();
+    // Personalities are random per seed; a technologist funds research
+    // before its first colonizer (fundsResearchFirst), so not every faction
+    // has completed an action yet — but the panel must expose the one that did.
+    expect(map.aiDebugSnapshots.some((sn) => sn.lastCompleted !== undefined), 'last completed action').toBe(true);
     // Console output is off by default.
     expect(TestBed.inject(EnemyDebugService).consoleEnabled).toBe(false);
     map.handleKeyboard(new KeyboardEvent('keydown', { key: 'F9' }));

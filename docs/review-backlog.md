@@ -32,15 +32,12 @@ On the galaxy map system panel.
 
 ## P2 – Balance
 
-### 10. [Balance] Credit glut [Played + Code]
+### 10. [Balance] Credit glut [Played + Code] — mostly done
 
-- **Evidence:** 15k credits at minute 4, 38k at minute 8; in the AI simulation, AIs hold 80–177k unspent credits at minute 30.
-- **Consequences:**
-  - peace is trivially cheap (250 credits ≈ 2 s of income);
-  - the credit part of research prices does not matter;
-  - building prices do not matter either.
-- **Files:** `src/app/services/economy.service.ts`, `planet-data.json`, `ship-data.json`, `docs/economy.md`
-- **Suggestion** (pick one or more): lower population income (0.1 per inhabitant), higher upkeep, meaningful credit sinks (building upgrades, rush construction, scaled ship upkeep). Run `ai-simulation.spec.ts` first to get a baseline.
+- **Done (2026-11-01):** upkeep as the credit sink (empire upkeep scale, station upkeep, progressive ship upkeep), smaller starting fleets, population income 0.085, research 4 credits per point, planet types, and the Trading Post as an expensive credits ↔ raw valve ([Economy](./economy.md#upkeep)). AI treasuries at minute 30: 136k → ~16k average.
+- **Open:**
+  - Raw materials now pile up (26–59k at minute 30): consider a stronger raw sink or less raw income.
+  - Measure in play: early-game pace, the player's 1-planet treasury.
 
 ### 11. [Balance] Peace is too cheap [Played]
 

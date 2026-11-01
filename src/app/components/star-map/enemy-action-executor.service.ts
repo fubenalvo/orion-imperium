@@ -1,3 +1,4 @@
+import { getAiPersonalityProfile } from './ai-personality';
 import { Injectable } from '@angular/core';
 import {
   Faction,
@@ -184,6 +185,12 @@ export class EnemyActionExecutor {
     }
 
     if (!canAffordCost(faction, shipCost(shipType))) {
+      return false;
+    }
+    // A research-funding personality (the technologist) expands only with
+    // the credits its research does not need.
+    if (getAiPersonalityProfile(faction).fundsResearchFirst
+      && (faction.currencies['credits'] ?? 0) - this.enemyEconomyService.getResearchCreditReserve(faction) < shipCost(shipType).credits) {
       return false;
     }
 

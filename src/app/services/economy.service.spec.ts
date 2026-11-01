@@ -375,11 +375,13 @@ describe('EconomyService — habitability & workforce', () => {
       expect(economy.calculatePopulationGrowth(planet, 1)).toBe(0);
     });
 
-    it('desert habitability (hab -0.05) reduces growth to 95% of earthlike', () => {
+    it('desert habitability (hab -0.05) and its smaller ceiling slow growth', () => {
       const earth = makePlanet(1, 'earthlike', [b('Small Residential Block')], { satisfaction: 100, population: 0 });
       const des = makePlanet(2, 'desert', [b('Small Residential Block')], { satisfaction: 100, population: 0 });
       const earthGrowth = economy.calculatePopulationGrowth(earth, 1);
-      expect(economy.calculatePopulationGrowth(des, 1)).toBeCloseTo(0.95 * earthGrowth, 5);
+      // Growth fills the remaining capacity; the desert ceiling is 70% (planet-types.ts).
+      const ceilingRatio = economy.getPopulationCapacity(des) / economy.getPopulationCapacity(earth);
+      expect(economy.calculatePopulationGrowth(des, 1)).toBeCloseTo(0.95 * ceilingRatio * earthGrowth, 5);
     });
 
     it('50% satisfaction halves growth', () => {

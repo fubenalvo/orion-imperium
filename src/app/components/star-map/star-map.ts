@@ -33,6 +33,7 @@ import { ResearchService } from '../../services/research.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
+import { TradeDirection, executeTrade } from './trade';
 import { checkBuildingPlacement } from './building-placement';
 import starMapData from './star-map-data.json';
 import shipData from './ship-data.json';
@@ -1506,6 +1507,24 @@ loadError = '';
       y: event.y,
     });
 
+    this.cdr.detectChanges();
+  }
+
+  /*
+   * Trading Post exchange from the planet screen. trade.ts re-checks every
+   * rule (post on the planet, owner, stock), so a stale button can never
+   * trade at a loss of resources the player no longer has.
+   */
+  onTradeRequest(event: { planetId: number; direction: TradeDirection; raw: number }): void {
+    const player = this.factions.find((f) => f.id === 'player');
+    const planet = this.starSystems.flatMap((s) => s.planetsTiles ?? []).find((p) => p.id === event.planetId);
+    if (!player) return;
+    const result = executeTrade(player, planet, event.direction, event.raw);
+    if (!result.ok) return;
+    const { quote } = result;
+    this.showMapNotice(quote.direction === 'buyRaw'
+      ? `Trading Post: bought ${quote.raw} raw materials for ${quote.credits} credits.`
+      : `Trading Post: sold ${quote.raw} raw materials for ${quote.credits} credits.`);
     this.cdr.detectChanges();
   }
 

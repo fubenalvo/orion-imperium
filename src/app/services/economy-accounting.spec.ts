@@ -2,11 +2,18 @@ import { TestBed } from '@angular/core/testing';
 import {
   ADMINISTRATION_MAX_SHARE,
   ADMINISTRATION_SHARE_PER_PLANET,
+  EMPIRE_UPKEEP_MAX_SCALE,
+  EMPIRE_UPKEEP_SCALE_PER_PLANET,
   EconomyService,
+  MINING_STATION_UPKEEP_POINTS,
   RESERVE_SHIP_UPKEEP_FACTOR,
+  SPACE_BASE_UPKEEP_POINTS,
   UPKEEP_CREDITS_PER_POINT,
   administrationShare,
+  empireUpkeepScale,
 } from './economy.service';
+import { SpaceBaseService } from '../components/star-map/space-base.service';
+import { PLANET_TYPE_TRAITS } from '../components/star-map/planet-types';
 import { ProductionService } from './production.service';
 import { FleetAssemblyService } from './fleet-assembly.service';
 import { ShipService } from './ship.service';
@@ -391,5 +398,121 @@ describe('Economy accounting — legacy save compatibility', () => {
     expect(loaded.production![0].ordersByPlanet[1][0].paid).toBeUndefined();
     expect(loaded.shipStock![0].ships).toHaveLength(1);
     if (typeof localStorage !== 'undefined') localStorage.clear();
+  });
+});
+
+describe('Economy accounting — empire upkeep scale and stations', () => {
+  let economy: EconomyService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    economy = TestBed.inject(EconomyService);
+    TestBed.inject(SpaceBaseService).restore([]);
+  });
+
+  it('scales with owned planets beyond the first, up to the cap', () => {
+    expect(empireUpkeepScale(0)).toBe(1);
+    expect(empireUpkeepScale(1)).toBe(1);
+    expect(empireUpkeepScale(3)).toBeCloseTo(1 + 2 * EMPIRE_UPKEEP_SCALE_PER_PLANET, 10);
+    expect(empireUpkeepScale(100)).toBe(1 + EMPIRE_UPKEEP_MAX_SCALE);
+  });
+
+  it('applies the scale to building and ship upkeep, but a one-planet empire pays the base rate', () => {
+    const f = faction();
+    const ships = [fleet([{ type: 'frigate' }])];
+    const one = economy.calculateEconomy('player', [f], [system([homeworld()])], ships);
+    expect(one.upkeepScale).toBe(1);
+
+    const colony = homeworld({ id: 2, name: 'Colony', buildings: [], population: 0 });
+    const two = economy.calculateEconomy('player', [f], [system([homeworld(), colony])], ships);
+    const scale = 1 + EMPIRE_UPKEEP_SCALE_PER_PLANET;
+    expect(two.upkeepScale).toBeCloseTo(scale, 10);
+    expect(two.buildingUpkeepPerSecond).toBeCloseTo(one.buildingUpkeepPerSecond * scale, 6);
+    expect(two.shipUpkeepPerSecond).toBeCloseTo(one.shipUpkeepPerSecond * scale, 6);
+  });
+
+  it('charges upkeep for space bases and mining stations (also on a depleted asteroid)', () => {
+    const f = faction();
+    TestBed.inject(SpaceBaseService).restore([
+      { id: 1, name: 'Vega Outpost', factionId: 'player', x: 5, y: 5 },
+      { id: 2, name: 'Other', factionId: 'enemy1', x: 9, y: 9 },
+    ]);
+    const asteroid = (factionId: string | null, rawMaterials: number) => ({
+      col: 1, row: 1, rawMaterials, surveyed: true,
+      ...(factionId ? { miningStation: { factionId } } : {}),
+    });
+    const sys = {
+      ...system([homeworld()]),
+      asteroidBelt: { asteroids: [asteroid('player', 500), asteroid('player', 0), asteroid('enemy1', 500), asteroid(null, 500)] },
+    } as unknown as StarSystem;
+
+    const breakdown = economy.calculateEconomy('player', [f], [sys], []);
+    const expected = (SPACE_BASE_UPKEEP_POINTS + 2 * MINING_STATION_UPKEEP_POINTS) * UPKEEP_CREDITS_PER_POINT;
+    expect(breakdown.stationUpkeepPerSecond).toBeCloseTo(expected, 6);
+    expect(breakdown.expensePerSecond).toBeCloseTo(
+      breakdown.buildingUpkeepPerSecond + breakdown.administrationPerSecond + breakdown.shipUpkeepPerSecond + expected,
+      6,
+    );
+  });
+});
+
+describe('Economy accounting — planet types', () => {
+  let economy: EconomyService;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    economy = TestBed.inject(EconomyService);
+  });
+
+  const world = (type: PlanetTile['type'], buildings: PlanetTile['buildings'], overrides: Partial<PlanetTile> = {}) =>
+    homeworld({ type, buildings, ...overrides });
+
+  it('earthlike is the neutral reference', () => {
+    const t = PLANET_TYPE_TRAITS.earthlike;
+    expect([t.populationCapacity, t.buildingUpkeep, t.depositMining, t.researchOutput, t.energyOutput, t.gasHarvest])
+      .toEqual([1, 1, 1, 1, 1, 0]);
+  });
+
+  it('scales the population ceiling by type', () => {
+    const housing = [{ name: 'Large Residential Block', size: 3, x: 0, y: 0 }];
+    expect(economy.getPopulationCapacity(world('earthlike', housing))).toBe(700);
+    expect(economy.getPopulationCapacity(world('ice', housing))).toBe(Math.floor(700 * PLANET_TYPE_TRAITS.ice.populationCapacity));
+    expect(economy.getPopulationCapacity(world('gasgiant', housing))).toBe(350);
+  });
+
+  it('makes building upkeep pricier on harsh worlds', () => {
+    const f = faction();
+    const buildings = [{ name: 'Fusion Power Plant', size: 3, x: 0, y: 0 }];
+    const earth = economy.calculateEconomy('player', [f], [system([world('earthlike', buildings)])], []);
+    const ice = economy.calculateEconomy('player', [f], [system([world('ice', buildings)])], []);
+    expect(ice.buildingUpkeepPerSecond).toBeCloseTo(earth.buildingUpkeepPerSecond * PLANET_TYPE_TRAITS.ice.buildingUpkeep, 6);
+  });
+
+  it('applies each type advantage', () => {
+    const lab = [{ name: 'Research Laboratory', size: 2, x: 0, y: 0 }, { name: 'Large Residential Block', size: 3, x: 3, y: 0 }];
+    const earthLab = economy.calculatePlanetEconomy(world('earthlike', lab));
+    const iceLab = economy.calculatePlanetEconomy(world('ice', lab));
+    expect(iceLab.production['research']).toBeCloseTo((earthLab.production['research'] ?? 0) * PLANET_TYPE_TRAITS.ice.researchOutput, 6);
+
+    const plant = [{ name: 'Fusion Power Plant', size: 3, x: 0, y: 0 }];
+    const earthPower = economy.calculatePlanetEconomy(world('earthlike', plant));
+    const venusPower = economy.calculatePlanetEconomy(world('venuslike', plant));
+    // The colony core's energy is the same on every type; only the plant is boosted.
+    const plantEnergy = (planetData as { buildings: { name: string; energyProduction?: number }[] }).buildings
+      .find((b) => b.name === 'Fusion Power Plant')!.energyProduction ?? 0;
+    expect(venusPower.energyProduction - earthPower.energyProduction)
+      .toBeCloseTo(plantEnergy * (PLANET_TYPE_TRAITS.venuslike.energyOutput - 1), 6);
+
+    const gas = economy.calculatePlanetEconomy(world('gasgiant', [], { population: 100 }));
+    const earth = economy.calculatePlanetEconomy(world('earthlike', [], { population: 100 }));
+    expect((gas.production['rawmaterials'] ?? 0) - (earth.production['rawmaterials'] ?? 0)).toBeCloseTo(PLANET_TYPE_TRAITS.gasgiant.gasHarvest, 6);
+  });
+
+  it('boosts deposit mining on Mars-like and desert worlds', () => {
+    const mine = [{ name: 'Mining Complex', size: 3, x: 0, y: 0 }, { name: 'Large Residential Block', size: 3, x: 3, y: 0 }];
+    const deposit = { rawDeposit: { total: 10000, remaining: 10000, richness: 1 }, resourceTiles: [{ x: 0, y: 3 }] } as Partial<PlanetTile>;
+    const earth = economy.calculatePlanetEconomy(world('earthlike', mine, deposit));
+    const desert = economy.calculatePlanetEconomy(world('desert', mine, deposit));
+    expect(desert.depositMining).toBeCloseTo(earth.depositMining * PLANET_TYPE_TRAITS.desert.depositMining, 6);
   });
 });

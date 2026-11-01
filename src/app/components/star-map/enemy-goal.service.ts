@@ -1,3 +1,4 @@
+import { planetTypeTraits } from './planet-types';
 import { Injectable } from '@angular/core';
 import {
   Fleet,
@@ -689,21 +690,17 @@ export class EnemyGoalService {
     return value;
   }
 
+  /*
+   * Colony value of the planet type (planet-types.ts): the population
+   * ceiling (= credit income) relative to the building upkeep, softened so
+   * a harsh world is a weaker target, not a worthless one (its advantage —
+   * mining, research, energy, gas — and its deposit, weighed separately,
+   * still count). Earthlike 1.0; Mars ≈ 0.79, desert ≈ 0.77, Venus and
+   * ice ≈ 0.68, gas giant ≈ 0.65.
+   */
   private getHabitabilityWeight(planet: StarSystem['planetsTiles'][0]): number {
-    switch (planet.type) {
-      case 'earthlike':
-      case 'gasgiant':
-        return 1.0;
-      case 'desert':
-      case 'venuslike':
-        return 0.8;
-      case 'marslike':
-        return 0.9;
-      case 'ice':
-        return 0.7;
-      default:
-        return 1.0;
-    }
+    const traits = planetTypeTraits(planet.type);
+    return 0.4 + 0.6 * (traits.populationCapacity / traits.buildingUpkeep);
   }
 
   private getSizeWeight(planet: StarSystem['planetsTiles'][0]): number {

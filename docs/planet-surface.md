@@ -241,7 +241,7 @@ id with dashes), generated from geometry by `scripts/building-sprites/`:
   sci-fi colony: round towers with domed caps, glowing ribbon windows,
   floating halo rings, arches, tube bridges, glass bio-domes and spires
   with glowing tips on bevelled base slabs with luminous edges; cyan is the
-  colony light, red marks beacons and medical, hazard yellow industry).
+  colony light, red marks beacons and medical, hazard yellow industry, gold trade — the Trading Post).
   Each design draws back to front, since SVG paints in document order.
 - `generate.mjs` — writes one file per building in `planet-data.json` and
   fails if a building has no design, so a new building cannot ship without

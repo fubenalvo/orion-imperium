@@ -123,6 +123,18 @@
               <span>Ship upkeep</span>
               <span>-{{ economyBreakdown.shipUpkeepPerSecond | number:'1.0-1' }}/sec</span>
             </div>
+            @if (economyBreakdown.upkeepScale > 1) {
+              <div class="hud-overlay__row" title="Every planet beyond the first makes all upkeep more expensive.">
+                <span>Empire size: upkeep ×{{ economyBreakdown.upkeepScale | number:'1.2-2' }}</span>
+                <span></span>
+              </div>
+            }
+            @if (economyBreakdown.stationUpkeepPerSecond > 0) {
+              <div class="hud-overlay__row">
+                <span>Station upkeep (bases, mining)</span>
+                <span>-{{ economyBreakdown.stationUpkeepPerSecond | number:'1.0-1' }}/sec</span>
+              </div>
+            }
             @if (economyBreakdown.unpaidUpkeepPerSecond > 0) {
               <div class="hud-overlay__row hud-overlay__row--expense">
                 <span>Unpaid upkeep (planets lose satisfaction)</span>

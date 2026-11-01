@@ -103,7 +103,7 @@ In-system asteroid belt (rules: [Game Systems](./game-systems.md#star-system-vie
 - `id`, `index`, `name`: identity
 - `factionId`: owning faction (use `'unhabited'` for uncolonized worlds)
 - `x`, `y`: top-left cell (1-indexed) of the planet's 2×2 block on the 36×14 system grid (`system-grid.ts`; `getPlanetGridPosition()` falls back to an index-based layout for values off the grid). Saves before version 8 stored cells of the old 18×10 grid and are converted on load (`2x − 1`, `2y − 1`). `xOffset`/`yOffset` are legacy and unused.
- - `type`: `'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert'`. Also determines the planet's base morale/satisfaction drift per second via `PLANET_TYPE_HABITABILITY` (`star-map.models.ts`): `earthlike 0`, `marslike -0.03`, `venuslike -0.05`, `gasgiant 0`, `ice -0.08`, `desert -0.05`.
+ - `type`: `'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert'`. Its economic traits (population ceiling, building upkeep, one advantage) are in `planet-types.ts` ([Economy](./economy.md#planet-types)). Also determines the planet's base morale/satisfaction drift per second via `PLANET_TYPE_HABITABILITY` (`star-map.models.ts`): `earthlike 0`, `marslike -0.03`, `venuslike -0.05`, `gasgiant 0`, `ice -0.08`, `desert -0.05`.
  - `size`: `'huge' | 'big' | 'medium' | 'small' | 'tiny'`
   - `population`: float (not floored); grown each economy tick by `EconomyService.applyEconomyDelta` per the rule in `docs/invariants.md` (§ Population Growth Invariants), and clamped to the planet's residential `populationCapacity`. Older saves may omit it (treated as `0`).
  - `buildings`: `PlanetBuilding[]`
@@ -268,7 +268,7 @@ Returned by `buildBattleOutcome()` and stored on `BattleService` via `setBattleR
 - `ResourceType`: `'credits' | 'rawmaterials' | 'research' | 'energy'`
 - `ResourceRates`: `Partial<Record<ResourceType, number>>`
 - `PlanetEconomy`: `{ production, consumption, net, energyProduction, energyConsumption, energyBalance, efficiency, satisfaction, incomeMultiplier, workforceAvailable, workforceRequired, workforceEfficiency, habitabilityDrift, buildingMoraleBonus }`. `satisfaction` is the current value (0..100) and `incomeMultiplier = satisfaction / 100` is the factor applied to credit production from this planet. `workforceEfficiency` (0..1) is the fraction of required workforce that is available and scales building production; `habitabilityDrift` is the planet-type base morale drift and `buildingMoraleBonus` is the aggregate building morale contribution.
-- `EconomyBreakdown`: aggregated per-faction `{ incomePerSecond, expensePerSecond, netPerSecond, totalPopulation, planets, fleetExpenses, production, consumption, net, efficiency }`
+- `EconomyBreakdown`: aggregated per-faction `{ incomePerSecond, expensePerSecond, netPerSecond, buildingUpkeepPerSecond, administrationPerSecond, shipUpkeepPerSecond, stationUpkeepPerSecond, upkeepScale, totalPopulation, planets, fleetExpenses, production, consumption, net, efficiency }`; `upkeepScale` is the empire upkeep scale already applied to every upkeep figure ([Economy](./economy.md#upkeep))
 - `PlanetEconomyEntry`: per-planet view inside an `EconomyBreakdown`; also carries `satisfaction`, `incomeMultiplier`, and the workforce/morale fields (`workforceAvailable`, `workforceRequired`, `workforceEfficiency`, `habitabilityDrift`, `buildingMoraleBonus`) for UI rendering.
 - `BuildingExpenseEntry`: per-building maintenance breakdown
 - `FleetExpenseEntry`: per-fleet/per-ship-type maintenance breakdown
