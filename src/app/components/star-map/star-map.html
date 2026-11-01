@@ -206,12 +206,14 @@
       </app-star-map-fleet-info>
     }
 
-    <!-- FLEET BUTTONS -->
+    <!-- PLANET + FLEET ROSTER -->
     <app-star-map-fleet-buttons
       [fleets]="visibleFleets"
+      [systems]="starSystems"
       [selectedFleetId]="selectedFleet?.id ?? null"
       [getFactionColor]="boundGetFactionColor"
       (selectFleet)="selectFleet($event)"
+      (openPlanet)="openPlanetFromRoster($event)"
     >
     </app-star-map-fleet-buttons>
 

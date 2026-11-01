@@ -178,7 +178,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 - Terrain layers (nebulae, belts, black hole, no-fly ring) are rendered below the fog cells (z 4 < 5).
 - A fleet's effective sensor range is `max(fleet.sensorRange, maxShipRange)` where `maxShipRange` is the highest `ShipType.range` among the fleet's non-destroyed ships (0 if no non-destroyed ships). Computed by `StarMapSensorService.getFleetSensorRange()`.
 - Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` (minimum floor) defaults to 3.
-- `visibleFleets` filters out both destroyed fleets and fleets hidden by fog-of-war. The fleet-buttons sidebar and minimap use this filtered list.
+- `visibleFleets` filters out both destroyed fleets and fleets hidden by fog-of-war. The fleet list of the top-left roster (star-map-fleet-buttons) and the minimap use this filtered list.
 - Nebula sensor penalty is applied in exactly one place (`StarMapSensorService.isGalaxyCellSensed` / `getGalaxySensorCells`) and used by both the player layer and `EnemyIntelService`; it never stacks (source and target inside → one multiplier).
 
 ## Galaxy Terrain & Event Invariants

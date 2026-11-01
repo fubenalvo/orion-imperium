@@ -150,7 +150,7 @@ import { StarMapFleetInfoComponent } from './star-map-fleet-info/star-map-fleet-
 import { StarMapSystemInfoComponent } from './star-map-system-info/star-map-system-info.component';
 import { PlanetColonizationVm, StarMapPlanetInfoComponent } from './star-map-planet-info/star-map-planet-info.component';
 import { StarMapPlanetScreenComponent, TradePostView } from './star-map-planet-screen/star-map-planet-screen.component';
-import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
+import { RosterPlanet, StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
 import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
 import { StarMapGalaxyViewComponent } from './star-map-galaxy-view/star-map-galaxy-view.component';
@@ -2739,6 +2739,26 @@ loadError = '';
     }
     this.saveGame();
     this.currentView = 'planet';
+  }
+
+  /*
+   * Jumps from the galaxy map roster straight into a planet's surface view.
+   * The planet's system becomes the selected system and its fleets are
+   * placed like enterSystem() does, so "back" from the planet lands in a
+   * consistent system view; the map camera is centered on the system so
+   * leaving the system returns there too.
+   */
+  openPlanetFromRoster({ system, planet }: RosterPlanet): void {
+    this.saveGame();
+    this.selectedFleet = null;
+    this.selectedFleetAction = null;
+    this.fleetMoveError = null;
+    this.selectedSystem = system;
+    this.selectedPlanetTile = planet;
+    this.centerCameraOnGridPosition(system.x, system.y);
+    this.initFleetsInSystem(system);
+    this.currentView = 'planet';
+    this.cdr.detectChanges();
   }
 
   /** Exits the planet surface view back to the system view. */

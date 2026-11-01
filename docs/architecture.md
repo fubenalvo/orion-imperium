@@ -110,7 +110,7 @@ src/app/
       star-map-context-menu/
         → Disambiguates clicks on overlapping objects (fleets/systems/planets)
       star-map-fleet-buttons/
-        → Sidebar list of all visible fleets
+        → Top-left roster: player planets (click opens planet view) above player fleets (click selects)
       star-map-fleet-info/
         → Selected fleet detail panel (ships, totals, actions, ORGANIZE FLEETS)
       star-map-fleet-manager/

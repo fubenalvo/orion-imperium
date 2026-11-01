@@ -17,7 +17,7 @@ Sources of truth:
 | `src/styles/_ui.scss` | SCSS mixins for the same building blocks (`@use 'ui';`). Mixins only, so using the partial costs nothing until a mixin is included |
 | `src/styles/_hud-controls.scss` | Header-sized buttons (`hud-button`, `-active`, `-dimmed`), scaled by `--gh-u` |
 | `src/styles/_hud-panel.scss` | `hud-frame` / `hud-accent-notches` / `hud-panel`: aliases of `ui.glass` + `ui.brackets` for stylesheets that want the panel look on their own selector |
-| `src/styles/_hud-panels.scss` | Global rules for the star map's floating panels (system / fleet / planet info cards, fleet roster, context menu) and the header detail overlay (`.hud-overlay`). Loaded at the end of `styles.scss` with `meta.load-css`, so its placement rules win over `.panel-style` |
+| `src/styles/_hud-panels.scss` | Global rules for the star map's floating panels (system / fleet / planet info cards, planet + fleet roster, context menu) and the header detail overlay (`.hud-overlay`). Loaded at the end of `styles.scss` with `meta.load-css`, so its placement rules win over `.panel-style` |
 
 ### Tokens
 
@@ -153,7 +153,7 @@ times a second and its RGB sub-pixel stripes blurred small text.
 | Screen | Treatment |
 |---|---|
 | Header (all in-game screens) | Glass bar, bottom hairline brightest under the centre; diamond-marked title; the time controls sit in one bracketed tray (see [Game Header](#game-header)) |
-| Star map | Fleet roster (top left, faction-colored diamond per fleet), bottom-left info cards (system, fleet, asteroid, civilian trader) with headline figures, one navigation console (d-pad + minimap) bottom right, context menu as a glass list |
+| Star map | Roster column top left (`.map-roster`): a Planets list of the player's planets above the Fleets list, same list style with a faction-colored diamond per entry; each list scrolls on its own inside the shared height budget. Clicking a planet opens its surface view directly (its system becomes the selected system, so Back lands in the system view); clicking a fleet selects it, bottom-left info cards (system, fleet, asteroid, civilian trader) with headline figures, one navigation console (d-pad + minimap) bottom right, context menu as a glass list |
 | System view | The planet info card uses identity chip, a three-figure strip (population, energy, tax) and grouped stat rows; uninhabited planets add a Colonization note (`.planet-info__note`, dim prose) explaining the next step; the scene stays dominant. The fleet panel shows a primary COLONIZE action button beside MOVE while the fleet can colonize |
 | Planet view | Opaque command sidebar: header, underline tabs, then the active tab. Details: headline block with a satisfaction meter, grouped stats, building list. Build: cards with warm cost text (unaffordable = warning edge, locked = faint). Production / assembly are sections of the sidebar, not nested boxes. Surface d-pad and zoom selector are small glass instruments |
 | Fleet command | Modal glass sheet: location title with fleet/ship figures, a hint strip that follows the selection, an optional Reserve column (sunken surface, Spaceport stock) followed by fleet columns on raised surfaces edged in the faction color (class rows with faction-tinted ship SVGs, hull meters, accent-lit selection), dashed "transfer here" strips and new-fleet slot, sunken footer with change chips and Reset / Cancel / Apply (see [Fleet Organization](./fleet-organization.md#ui)) |

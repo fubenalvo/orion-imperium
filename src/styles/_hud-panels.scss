@@ -332,35 +332,56 @@
 }
 
 /* =========================================================
-   FLEET ROSTER (player fleets, top left)
+   MAP ROSTER (player planets above player fleets, top left)
    ========================================================= */
 
-.fleet-buttons {
+/* The column owns the placement and the height budget; each list panel
+   shrinks and scrolls on its own so a long planet list never pushes the
+   fleets off screen. */
+.map-roster {
   position: absolute;
   top: calc(var(--game-header-h) + var(--ui-edge));
   left: var(--ui-edge);
   display: flex;
   flex-direction: column;
-  gap: 0.2em;
+  gap: 0.45em;
   width: clamp(150px, 12vw, 210px);
   max-height: calc(100dvh - var(--game-header-h) - var(--ui-edge) * 2 - 330px);
-  padding: 0.55em 0.45em 0.5em;
-  overflow-y: auto;
-  overflow-x: hidden;
   z-index: 50;
-  @include ui.scroll;
-
-  &:empty {
-    display: none;
-  }
 
   @include mobile-view {
     top: calc(var(--game-header-h) + 4px);
     left: 4px;
     width: 96px;
     max-height: calc(100dvh - var(--game-header-h) - 140px);
+  }
+}
+
+/* The panel itself must not scroll: its corner brackets (ui.brackets) sit
+   1px outside the box, which inside a scroll container counts as overflow
+   and shows a scrollbar even for a single entry. Only the inner list
+   scrolls, so the scrollbar appears only when the entries do not fit. */
+.fleet-buttons {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0.55em 0.45em 0.5em;
+
+  @include mobile-view {
     padding: 0.3em;
   }
+}
+
+.fleet-buttons__list {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  gap: 0.2em;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  @include ui.scroll;
 }
 
 .fleet-buttons__title {
