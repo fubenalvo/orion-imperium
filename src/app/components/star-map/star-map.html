@@ -108,6 +108,9 @@
       [isFleetInNebula]="boundIsFleetInNebula"
       [fleetHeading]="boundGalaxyFleetHeading"
       [onAsteroidClick]="boundOnAsteroidClick"
+      [traders]="visibleTraders"
+      [onTraderClick]="boundOnTraderClick"
+      [onTraderContextMenu]="boundOnTraderContextMenu"
       [fleets]="visibleFleets"
       [selectedSystem]="selectedSystem"
       [selectedFleet]="selectedFleet"
@@ -155,6 +158,15 @@
         (intercept)="onInterceptAsteroid($event)"
         (close)="deselectAsteroid()"
       ></app-star-map-asteroid-info>
+    }
+
+    <!-- SELECTED CIVILIAN TRADER -->
+    @if (traderPanelVm) {
+      <app-star-map-trader-info
+        [vm]="traderPanelVm"
+        (raid)="onRaidTrader($event)"
+        (close)="deselectTrader()"
+      ></app-star-map-trader-info>
     }
 
     <!-- SELECTED FLEET INFO -->
@@ -368,6 +380,7 @@
           [productionBuildError]="productionBuildError"
           [spaceportError]="spaceportError"
           [isBuildingUnlocked]="isBuildingUnlocked"
+          [getTradePostVm]="boundGetTradePostVm"
           (backToStarMap)="leavePlanetView()"
           (buildConfirmed)="onBuildingConfirmed($event)"
           (queueOrder)="onQueueOrder($event)"

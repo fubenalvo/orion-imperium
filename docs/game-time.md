@@ -110,6 +110,8 @@ Arrow keys continue to pan the camera (step-based, not time-dependent).
 | System | Affected? | Notes |
 |--------|-----------|-------|
 | Fleet movement | Yes | `movement = speed × nebulaFactor × gameDeltaTime` |
+| Saved game clock | Yes | `StarMap` adds every `gameDeltaTime` to `StarMapData.gameSeconds` (saved, restored on load, missing = 0); the AI reads it for time-based rules such as the civilization assault gate ([Trade Network](./trade-network.md#ai)). `GameTimeService.gameElapsedTime` is per session and resets on every load |
+| Civilian traders | Yes | Docking, travel, respawns and raid damage advance with `gameDeltaTime` ([Trade Network](./trade-network.md)) |
 | Drifting asteroids | Yes | Spawn timer, movement and intercept re-aiming advance with `gameDeltaTime` (frozen while paused) |
 | Production progress | Yes | `progress += gameDeltaTime / buildTime` |
 | Economy (satisfaction, resources) | Yes | `delta += rate × gameDeltaTime` |

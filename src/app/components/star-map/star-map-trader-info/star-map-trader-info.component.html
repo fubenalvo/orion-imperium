@@ -1,0 +1,90 @@
+@if (vm) {
+  <div class="trader-info panel-style" (click)="$event.stopPropagation()">
+    <div class="panel-style__title">
+      <span class="trader-info__title">Civilian Trader</span>
+      <button class="close-btn" type="button" (click)="close.emit()" aria-label="Close">X</button>
+    </div>
+
+    <div class="system-info__content">
+      <div class="ui-stat">
+        <span class="ui-stat__label">Affiliation</span>
+        <span class="ui-stat__value" [style.color]="vm.affiliationColor">{{ vm.affiliation }}</span>
+      </div>
+      <div class="ui-stat">
+        <span class="ui-stat__label">Home post</span>
+        <span class="ui-stat__value">{{ vm.homePost }}</span>
+      </div>
+
+      <div class="ui-label">Route</div>
+      <div class="trader-info__route">
+        <span>{{ vm.from }}</span>
+        <span class="trader-info__arrow" aria-hidden="true">&rarr;</span>
+        <span>{{ vm.to }}</span>
+      </div>
+      @if (vm.etaSeconds !== null) {
+        <div class="ui-stat">
+          <span class="ui-stat__label">Arrives in</span>
+          <span class="ui-stat__value">{{ formatSeconds(vm.etaSeconds) }}</span>
+        </div>
+      }
+
+      <div class="ui-label">Cargo</div>
+      <div class="ui-stat ui-stat--positive">
+        <span class="ui-stat__label">{{ vm.goods }}</span>
+        <span class="ui-stat__value">{{ vm.cargoCredits }} CR</span>
+      </div>
+      <div class="ui-stat">
+        <span class="ui-stat__label">Hull</span>
+        <span class="ui-stat__value">{{ vm.hullPercent }}%</span>
+      </div>
+
+      @if (vm.raid; as raidVm) {
+        <div class="ui-label">Raid with</div>
+        @if (raidVm.blocked) {
+          <div class="trader-info__hint">{{ raidVm.blocked }}</div>
+        } @else {
+          @if (raidVm.warning) {
+            <div class="ui-notice ui-notice--warning" role="note">{{ raidVm.warning }}</div>
+          }
+          @for (fleet of raidVm.fleets; track fleet.fleetId) {
+            <div class="trader-info__fleet">
+              <span class="trader-info__fleet-name">{{ fleet.name }}</span>
+              @switch (fleet.status) {
+                @case ('raiding') {
+                  <span class="ui-chip ui-chip--danger">RAIDING</span>
+                }
+                @case ('ready') {
+                  <button type="button" class="action-btn" (click)="raid.emit(fleet.fleetId); $event.stopPropagation()">
+                    RAID{{ fleet.etaSeconds !== null ? ' · ~' + formatSeconds(fleet.etaSeconds) : '' }}
+                  </button>
+                }
+                @case ('no-warships') {
+                  <span class="ui-chip">NO WARSHIPS</span>
+                }
+                @default {
+                  <span class="ui-chip ui-chip--danger">OUT OF REACH</span>
+                }
+              }
+            </div>
+          } @empty {
+            <div class="trader-info__hint">No fleets available.</div>
+          }
+        }
+      }
+
+      <div class="trader-info__hint">
+        @switch (vm.relation) {
+          @case ('own') {
+            Pays your treasury when it delivers. Unarmed: keep raiders away from its route.
+          }
+          @case ('civilian') {
+            An independent civilian ship. Its delivery pays no empire.
+          }
+          @default {
+            Pays {{ vm.affiliation }} when it delivers.
+          }
+        }
+      </div>
+    </div>
+  </div>
+}

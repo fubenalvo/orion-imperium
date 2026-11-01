@@ -474,7 +474,34 @@
 
           @case ('trade') {
             <div class="planet-sidebar__trade">
-              <div class="ui-label">Trading Post</div>
+              @if (planet && getTradePostVm(planet); as network) {
+                <div class="ui-label">Trade network</div>
+                <div class="planet-sidebar__build-hint">
+                  This post's traders fly cargo to other Trading Posts and pay you on delivery.
+                </div>
+                <div class="ui-stat">
+                  <span class="ui-stat__label">Your traders</span>
+                  <span class="ui-stat__value"
+                    >{{ network.travelling }} en route · {{ network.docked }} docked{{
+                      network.respawning > 0 ? ' · ' + network.respawning + ' rebuilding' : ''
+                    }}</span
+                  >
+                </div>
+                <div class="ui-stat">
+                  <span class="ui-stat__label">Inbound traders</span>
+                  <span class="ui-stat__value">{{ network.inbound }}</span>
+                </div>
+                <div class="ui-stat">
+                  <span class="ui-stat__label">Network</span>
+                  <span class="ui-stat__value">{{ network.nodes }} posts · {{ network.traders }} traders</span>
+                </div>
+                <div class="ui-stat ui-stat--positive">
+                  <span class="ui-stat__label">Empire trade income ({{ network.windowMinutes }} min)</span>
+                  <span class="ui-stat__value">+{{ network.recentIncome }} CR</span>
+                </div>
+              }
+
+              <div class="ui-label">Trading Post exchange</div>
               <div class="planet-sidebar__build-hint">
                 Exchange at a steep markup &mdash; a last resort when one resource runs dry.
               </div>
@@ -517,9 +544,14 @@
             <div class="planet-sidebar__identity">
               <span class="ui-chip">{{ planet?.type | uppercase }}</span>
               <span class="planet-sidebar__faction" [style.color]="getFactionColor(planet!.factionId)">{{
-                getFactionName(planet!.factionId)
+                planet!.civilization ?? getFactionName(planet!.factionId)
               }}</span>
             </div>
+            @if (planet?.civilization) {
+              <div class="planet-sidebar__build-hint">
+                Independent civilization: neutral, no fleets, trades with every Trading Post. It can be conquered.
+              </div>
+            }
 
             <div class="planet-sidebar__hero">
               <div class="ui-figure">

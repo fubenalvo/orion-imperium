@@ -33,7 +33,7 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 | Basic Engineering / Science / Industry / Power | 0 | 0 | Starting unlock | Scout, Fighter, Colonizer; Factory, Spaceport, turrets; Small Research Lab; Small Residential, Mining Complex; Solar Array |
 | Advanced Engineering | 1 | 800 | Unlock | Corvette, Frigate |
 | Military Engineering | 1 | 1000 | Unlock | Destroyer, Planetary Shield |
-| Advanced Industry | 1 | 800 | Unlock + bonus | Park, Entertainment Center; −10% building upkeep (EconomyService) |
+| Advanced Industry | 1 | 800 | Unlock + bonus | Park, Entertainment Center, Bank; −10% building upkeep (EconomyService) |
 | Improved Power | 1 | 600 | Bonus | +15% energy from power buildings (EconomyService) |
 | Advanced Science | 1 | 700 | Unlock | Hospital, School |
 | Basic Radar | 1 | 500 | Bonus | +1 sensor range (sensors, AI intel) |

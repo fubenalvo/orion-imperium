@@ -45,7 +45,9 @@ describe('GalaxyGeneratorService', () => {
         }
       }
     }
-  });
+    // 150 galaxies with validation: well under the default 5 s alone, but not
+    // always under full-suite load.
+  }, 30_000);
 
   it('produces galaxies that differ in dimensions and content per size', () => {
     const stats = SIZES.map((size) => {
@@ -73,7 +75,12 @@ describe('GalaxyGeneratorService', () => {
     const reference = legacyMap as unknown as StarMapData;
     const referencePlanets = planetCount(reference);
     const config = configFor('large', 3);
-    const maps = SEEDS.map((seed) => generator.generate(config, seed));
+    // Independent civilizations are extra systems on top of the preset
+    // (generator v7); the scale is about the regular systems.
+    const maps = SEEDS.map((seed) => generator.generate(config, seed)).map((data) => ({
+      ...data,
+      starSystems: data.starSystems.filter((s) => !s.planetsTiles.some((p) => p.civilization !== undefined)),
+    }));
 
     for (const data of maps) {
       expect(data.map.width).toBe(reference.map.width);
@@ -147,7 +154,7 @@ describe('GalaxyGeneratorService', () => {
     const c = generator.generate(config, 43);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(JSON.stringify(a.starSystems)).not.toBe(JSON.stringify(c.starSystems));
-    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: 6 });
+    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: 7 });
   });
 
   it('generates unique ids and names with valid references', () => {

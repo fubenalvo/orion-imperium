@@ -42,7 +42,7 @@ import {
 } from '../star-map-spaceport-panel/star-map-spaceport-panel.component';
 import planetData from '../planet-data.json';
 import { getBlockedMask } from '../planet-surface/planet-surface';
-import { PLACEMENT_ERROR_MESSAGES, checkBuildingPlacement } from '../building-placement';
+import { PLACEMENT_ERROR_MESSAGES, checkBuildingPlacement, isBuildingLimitReached } from '../building-placement';
 import { PLANET_SURFACE_MARGIN } from '../planet-surface/planet-surface-field';
 import {
   SurfaceRenderResult,
@@ -76,9 +76,23 @@ export interface BuildingType {
     shieldRegen?: number;
   } | null;
   requiresOreProximity?: boolean;
+  maxPerPlanet?: number;
 }
 
 export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production' | 'trade';
+
+/* Trade network figures on the TRADE tab (docs/trade-network.md); built by StarMap. */
+export interface TradePostView {
+  nodes: number;
+  traders: number;
+  docked: number;
+  travelling: number;
+  respawning: number;
+  inbound: number;
+  /* Credits the planet's owner earned from deliveries in the last `windowMinutes`. */
+  recentIncome: number;
+  windowMinutes: number;
+}
 
 /** Predefined camera distances for the planet surface view. */
 export type PlanetSurfaceZoomLevel = 'close' | 'medium' | 'far';
@@ -206,6 +220,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Input() productionBuildError: string | null = null;
   @Input() spaceportError: string | null = null;
   @Input() isBuildingUnlocked: (buildingId: string) => boolean = () => false;
+  @Input() getTradePostVm: (planet: PlanetTile) => TradePostView | null = () => null;
 
   @Output() backToStarMap = new EventEmitter<void>();
   @Output() buildConfirmed = new EventEmitter<{ buildingId: string; x: number; y: number }>();
@@ -558,10 +573,13 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   /*
    * Why this building cannot be built on this planet regardless of money
-   * (a mine needs a deposit that is not empty), as a short tag; null if it can.
+   * (the per-planet cap is reached, or a mine needs a deposit that is not
+   * empty), as a short tag; null if it can.
    */
   getSiteBlocker(building: BuildingType): string | null {
-    if (!building.requiresOreProximity || !this.planet) return null;
+    if (!this.planet) return null;
+    if (isBuildingLimitReached(this.planet, building)) return building.maxPerPlanet === 1 ? 'ALREADY BUILT' : 'LIMIT REACHED';
+    if (!building.requiresOreProximity) return null;
     const blocker = depositMiningBlocker(this.planet);
     if (blocker === 'no_deposit') return 'NO DEPOSIT';
     if (blocker === 'depleted') return 'DEPLETED';

@@ -450,6 +450,28 @@
       </div>
     }
 
+    <!-- CIVILIAN TRADERS in flight (docked ones sit on their star system) -->
+    @for (trader of traders; track trader.id) {
+      <div
+        class="trader-cell"
+        [class.trader-cell--selected]="trader.selected"
+        [style.left]="trader.left + 'vw'"
+        [style.top]="trader.top + 'vw'"
+        [style.--trader-color]="trader.color"
+      >
+        <button
+          class="trader"
+          type="button"
+          [attr.aria-label]="trader.label"
+          [title]="trader.label"
+          (click)="onTraderClick(trader.id, $event)"
+          (contextmenu)="onTraderContextMenu(trader.id, $event)"
+        >
+          <span class="trader__hull" [style.transform]="'rotate(' + trader.angleDeg + 'deg)'"></span>
+        </button>
+      </div>
+    }
+
     <!-- EXPLORATION ANOMALIES: discovered, not yet visited. Informational only:
          a click bubbles to the map, so a move order onto the marker works. -->
     @for (anomaly of anomalies; track anomaly.id) {

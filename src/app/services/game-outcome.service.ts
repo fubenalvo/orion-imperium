@@ -35,7 +35,9 @@ export type GameOutcome = 'inProgress' | 'victory' | 'defeat';
  *     hostile planets exist.
  *  3. Victory: every inhabited planet (population > 0 or any building) is
  *     allied or owned by an AI faction at peace with the player —
- *     independent (rebel) planets therefore still block victory — and no
+ *     independent (rebel) planets therefore still block victory, while
+ *     independent civilization planets (`PlanetTile.civilization`) never
+ *     count at all — and no
  *     AI faction at war with the player has a living fleet. Peace partners
  *     do not block victory (diplomatic victory, docs/diplomacy.md), but if
  *     any of them still owns an inhabited planet the allied side must own
@@ -87,6 +89,9 @@ export class GameOutcomeService {
     const inhabitedPlanets: PlanetTile[] = [];
     for (const planet of allPlanets) {
       if (planet.factionId === 'unhabited') continue;
+      // Independent civilizations take no part in the final reckoning: they
+      // never block a conquest victory (a captured one counts as usual).
+      if (planet.factionId === 'independent' && planet.civilization !== undefined) continue;
       if ((planet.population ?? 0) <= 0 && !(planet.buildings ?? []).length) continue;
       inhabitedPlanets.push(planet);
     }

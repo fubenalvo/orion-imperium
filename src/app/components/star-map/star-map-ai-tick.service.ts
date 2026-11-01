@@ -97,8 +97,11 @@ export class StarMapAiTickService {
       starSystems: StarSystem[];
       shipStock: FactionShipStock[];
       production: FactionProduction[];
+      /* Game seconds played (StarMapData.gameSeconds); missing = 0, the opening. */
+      gameSeconds?: number;
     },
   ): boolean {
+    this.enemyFleetService.setGameSeconds(data.gameSeconds ?? 0);
     // Treaties first: every layer below reads hostility (diplomacy.ts), so
     // a peace or war signed this frame is respected by the whole pipeline.
     const diplomacyChanged = this.enemyDiplomacyService.tick(gameDeltaTime, data);

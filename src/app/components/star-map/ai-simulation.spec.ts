@@ -7,6 +7,7 @@ import { EconomyService } from '../../services/economy.service';
 import { ShipService } from '../../services/ship.service';
 import { AiDifficulty, Faction, GalaxySize, StarMapData } from './star-map.models';
 import { StarMapAiTickService } from './star-map-ai-tick.service';
+import { TradeNetworkService, TraderRaid } from './trade-network.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { EnemyActionService } from './enemy-action.service';
 import { EnemyResearchService } from './enemy-research.service';
@@ -26,7 +27,8 @@ import { ResearchService } from '../../services/research.service';
 import { Fleet } from './star-map.models';
 import { ensurePlanetResources } from './star-map-resources.util';
 import { getPlanetGridSize } from './star-map-display.util';
-import { areFactionsHostile, normalizeRelations } from './diplomacy';
+import { areFactionsHostile, getRelationKind, normalizeRelations } from './diplomacy';
+import { getAiPersonalityProfile } from './ai-personality';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import { BattleService } from '../../services/battle.service';
@@ -64,6 +66,12 @@ interface ScenarioOptions {
   seconds: number;
   /* Fixed frame delta, or 'jitter' for a deterministic 30–120 fps mix. */
   dt: number | 'jitter';
+  /*
+   * Generate independent civilizations (default off: these scenarios predate
+   * them and assert AI behavior on the regular galaxy; how the AI treats
+   * civilizations is covered separately).
+   */
+  civilizations?: boolean;
   removePlayerFleets?: boolean;
   difficulty?: AiDifficulty;
   seed?: number;
@@ -149,6 +157,8 @@ interface OwnershipChange {
 
 interface ScenarioResult {
   data: StarMapData;
+  /* Traders destroyed by raids (the harness runs the trade network like StarMap). */
+  traderRaids: (TraderRaid & { time: number })[];
   ownershipChanges: OwnershipChange[];
   playerBattles: { time: number; planetId: number; winner: string }[];
   outcome: GameOutcome;
@@ -179,7 +189,9 @@ function generate(options: ScenarioOptions): StarMapData {
       difficulty: options.difficulty ?? aiTemplate.difficulty,
     })),
   ];
-  const data = TestBed.inject(GalaxyGeneratorService).generate(config, options.seed ?? 31337);
+  const data = TestBed.inject(GalaxyGeneratorService).generate(config, options.seed ?? 31337, {
+    civilizations: options.civilizations ?? false,
+  });
   // Mirrors StarMap.ensureResourceTiles on load: ore deposits on ~20% of
   // planets plus every homeworld, each with its finite reserve.
   ensurePlanetResources(data.starSystems.flatMap((s) => s.planetsTiles), getPlanetGridSize);
@@ -324,6 +336,10 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
   const outcomes = TestBed.inject(GameOutcomeService);
   outcomes.reset();
   const ownershipChanges: OwnershipChange[] = [];
+  // Mirrors StarMap: the civilian trade network runs every frame.
+  const tradeNetwork = TestBed.inject(TradeNetworkService);
+  tradeNetwork.restore(data.tradeNetwork, data.galaxy?.seed ?? 0, data.starSystems);
+  const traderRaids: (TraderRaid & { time: number })[] = [];
   const playerBattles: { time: number; planetId: number; winner: string }[] = [];
   let outcome: GameOutcome = 'inProgress';
   let outcomeAt: number | null = null;
@@ -368,6 +384,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       production.rebaseFromSave(data.production);
       movement.initializeCoordinates(data.fleets, data.starSystems);
       aiTick.resetAiPipeline();
+      tradeNetwork.restore(tradeNetwork.serialize(), data.galaxy?.seed ?? 0, data.starSystems);
       savedAndLoaded = true;
     }
 
@@ -408,6 +425,9 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
         aiBattles++;
       },
     );
+    for (const raid of tradeNetwork.tick(dt, { starSystems: data.starSystems, factions: data.factions, fleets: data.fleets }).raids) {
+      traderRaids.push({ ...raid, time });
+    }
     const creditsBeforeTick = new Map(data.factions.map((f) => [f.id, f.currencies['credits'] ?? 0] as const));
     const rawBeforeTick = new Map(data.factions.map((f) => [f.id, f.currencies['rawmaterials'] ?? 0] as const));
     const techsBeforeTick = new Map(data.factions.map((f) => [f.id, (f.researchedTechnologies ?? []).length] as const));
@@ -418,6 +438,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       starSystems: data.starSystems,
       shipStock: data.shipStock!,
       production: data.production!,
+      gameSeconds: time,
     });
     const tickMs = performance.now() - tickStart;
     aiTickTotal += tickMs;
@@ -594,7 +615,7 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
   colonizationSpy.mockRestore();
   goalSpy.mockRestore();
   return {
-    data, frames, changedFrames, traces, colonizerFleetHijacks, ownershipChanges, playerBattles, outcome, outcomeAt, fogViolations, aiBattles,
+    data, traderRaids, frames, changedFrames, traces, colonizerFleetHijacks, ownershipChanges, playerBattles, outcome, outcomeAt, fogViolations, aiBattles,
     aiTickMs: { total: aiTickTotal, max: aiTickMax, perFrame: aiTickTotal / Math.max(1, frames) },
   };
 }
@@ -655,6 +676,59 @@ describe('AI simulation (headless multi-minute games)', () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
+
+  it('with independent civilizations the AIs stay healthy; captured civilization worlds lose their tag', () => {
+    const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true, civilizations: true };
+    const result = runScenario(options);
+    expectHealthyAiFactions(result, options);
+    const planets = result.data.starSystems.flatMap((s) => s.planetsTiles);
+    // A tag survives only on a planet the civilization still holds.
+    expect(planets.filter((p) => p.civilization !== undefined).every((p) => p.factionId === 'independent')).toBe(true);
+    // Every capture of a civilization world went through the ownership pathway, which drops the tag.
+    for (const change of result.ownershipChanges.filter((c) => c.from === 'independent')) {
+      expect(planets.find((p) => p.id === change.planetId)?.civilization).toBeUndefined();
+    }
+  });
+
+  /*
+   * docs/trade-network.md#ai. Seed 31339 gives a technologist and a balanced
+   * AI (both build commerce without a surplus); 31337 an expansionist and a
+   * militarist. Not a health check: over 20 minutes the AIs may fight each other.
+   */
+  it.each([31339, 31337])('AIs invest in Banks and Trading Posts by personality, respect the civilization gate and raid only allowed traders (seed %i)', (seed) => {
+    const civilizationPlanets = new Set<number>();
+    const options: ScenarioOptions = {
+      size: 'medium', aiCount: 2, seconds: 1200, dt: 1 / 60, removePlayerFleets: true, civilizations: true, seed,
+      prepare: (data) => {
+        for (const planet of data.starSystems.flatMap((s) => s.planetsTiles)) {
+          if (planet.civilization !== undefined) civilizationPlanets.add(planet.id);
+        }
+      },
+    };
+    const result = runScenario(options);
+    const planets = result.data.starSystems.flatMap((s) => s.planetsTiles);
+    const owned = (factionId: string, building: string) =>
+      planets.filter((p) => p.factionId === factionId && p.buildings.some((b) => b.name === building)).length;
+    for (const faction of result.data.factions.filter((f) => f.ai)) {
+      const profile = getAiPersonalityProfile(faction);
+      // Every personality ends up with a Trading Post; those that build Banks without a surplus have one.
+      expect(owned(faction.id, 'Trading Post'), `${faction.id} (${faction.aiPersonality}) trading posts`).toBeGreaterThanOrEqual(1);
+      if (profile.commerce.bankShare >= 0.5) {
+        expect(owned(faction.id, 'Bank'), `${faction.id} (${faction.aiPersonality}) banks`).toBeGreaterThanOrEqual(1);
+      }
+    }
+    // No civilization world falls before its captor's civilizationAssaultAfter.
+    for (const change of result.ownershipChanges.filter((c) => civilizationPlanets.has(c.planetId) && c.from === 'independent')) {
+      const captor = result.data.factions.find((f) => f.id === change.to);
+      expect(change.time, `${change.to} took a civilization world`).toBeGreaterThanOrEqual(getAiPersonalityProfile(captor).civilizationAssaultAfter);
+    }
+    // AI raids only hit civilian traders or a war enemy's.
+    for (const raid of result.traderRaids) {
+      const raider = result.data.factions.find((f) => f.id === raid.raiderFactionId)!;
+      const owner = raid.ownerId ? result.data.factions.find((f) => f.id === raid.ownerId) : undefined;
+      if (owner) expect(getRelationKind(raider, owner), `${raider.id} raided ${owner.id}`).not.toBe('peace');
+    }
+  }, 120_000);
 
   it('two AIs on a medium map without player fleets develop infrastructure and colonize', () => {
     const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true };

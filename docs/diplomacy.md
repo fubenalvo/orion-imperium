@@ -57,13 +57,13 @@ The UI shows durations as game time through `formatGameDuration` (`diplomacy.ts`
 
 ## Opinion
 
-A's opinion of B. Changes: B declares war on A −30; B breaks a truce with A −60; peace signed +10 both; B takes one of A's planets by force −10; drift per minute of game time: +1 at peace up to +60, −0.5 at war down to −50.
+A's opinion of B. Changes: B declares war on A −30; B breaks a truce with A −60; peace signed +10 both; B takes one of A's planets by force −10; B raids one of A's traders while at peace −(5 + cargo / 200), at most −20 ([Trade Network](./trade-network.md#raids)); drift per minute of game time: +1 at peace up to +60, −0.5 at war down to −50.
 
 **Effective opinion** = opinion + 0.5 × the other's reputation (clamped). This is how reputation reaches *every* faction: each AI judges a faction by its own history with it plus that faction's general trustworthiness.
 
 ## Reputation
 
-Declaring war −5; not carrying out a refused ultimatum −3; **surprise attack** −15 (the declarer attacks — fleet battle, planet battle or capture — within 1 minute of game time after its own declaration; once per war); breaking a truce −40; a truce that runs out unbroken +5 for both; while at war with nobody +0.5 per minute up to +50.
+Declaring war −5; not carrying out a refused ultimatum −3; **surprise attack** −15 (the declarer attacks — fleet battle, planet battle or capture — within 1 minute of game time after its own declaration; once per war); breaking a truce −40; raiding a peace partner's trader −2, a civilian trader −1 ([Trade Network](./trade-network.md#raids)); a truce that runs out unbroken +5 for both; while at war with nobody +0.5 per minute up to +50.
 
 ## War exhaustion
 

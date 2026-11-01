@@ -1,6 +1,6 @@
 # Economy
 
-The faction economy: the three resources (credits, raw materials, research points), finite raw-material deposits, planet types, what everything costs, how upkeep is charged, the Trading Post exchange, and the rules the AI follows to stay solvent. Player and AI use exactly the same rules and code paths.
+The faction economy: the three resources (credits, raw materials, research points), finite raw-material deposits, planet types, what everything costs, how upkeep is charged, the Bank, the Trading Post exchange, and the rules the AI follows to stay solvent. Player and AI use exactly the same rules and code paths.
 
 Design goal: raw materials come only from **finite deposits** on planets and asteroids, and warships are mostly raw materials, so an empire's deposits run dry over time and expansion (new colonies, asteroid mining) becomes an economic necessity rather than an arbitrary bonus.
 
@@ -18,6 +18,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 | Asteroid station extraction | `mining-station.ts` |
 | Income, upkeep, administration, arrears, the economy tick | `EconomyService` (`src/app/services/economy.service.ts`) |
 | Purchase rules (afford / pay / refund) | `src/app/services/resource-cost.ts` |
+| Per-planet building cap (`maxPerPlanet`) | `building-placement.ts` (`isBuildingLimitReached`) |
 | Ship order charging and refunds | `ProductionService` |
 | AI spending policy | `EnemyEconomyService` |
 
@@ -26,6 +27,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 - **Credits** (stock, integer): population income minus upkeep. The universal currency: buildings (mostly), research (together with research points), the credit part of ships, and all upkeep.
 - **Raw materials** (stock): the physical industrial resource. Produced only by extracting **finite deposits** ([Finite deposits](#finite-deposits)) — a Mining Complex on a planet deposit (15/s × deposit richness, workforce- and energy-scaled) and asteroid mining stations (each asteroid's own rate) — plus a small population trickle of `0.002 × population`/s, the one never-depleting source ([Economic safety](#economic-safety)). The Spaceship Factory produces no raw materials. Spent mostly on ships, partly on buildings.
 - **Research** (stock): research points from research labs (unchanged). Spent only on technologies, always together with credits ([Research](./research.md)).
+- **Trade deliveries:** civilian traders pay credits to the owners of the Trading Posts they connect, on arrival and outside the economy tick ([Trade Network](./trade-network.md#cargo-and-payout)).
 - **One-off windfalls:** collecting a drifting asteroid adds its cargo (raw materials and/or research points) directly to the collecting faction's stock, outside the economy tick. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids).
 - **Energy** (flow, never stored): every owned planet has a colony core (+10) plus its power buildings. An energy-short planet produces at `production / consumption` efficiency, and the shortfall lowers its satisfaction drift in proportion ([Energy and satisfaction](#energy-and-satisfaction)).
 - **Population**: capped by housing × the planet type's population factor ([Planet types](#planet-types)); `POPULATION_CREDIT_RATE` = `0.085 credits/s` per inhabitant at 100% satisfaction (was 0.1, lowered against the credit glut).
@@ -146,14 +148,22 @@ Credits are now the binding resource and raw materials pile up instead; the Trad
 - The planet info panel and the planet screen show the type's effects ("World type").
 - AI colonization scores a type by `0.4 + 0.6 × ceiling / upkeep factor` (earthlike 1.0 … gas giant ≈ 0.65, see [AI Pipeline](./ai-pipeline.md)).
 
+## Bank
+
+`bank` (`planet-data.json`, role `finance`): a 2×2 building (3000 credits, 750 raw, 10 upkeep points, 8 energy, 40 workforce) that produces **12 credits/s**, unlocked by Advanced Industry. It is an ordinary credit-producing building: its output is scaled by workforce, energy efficiency and satisfaction like every building's credit production, so an independent planet's Bank earns nothing. At most one per planet (`maxPerPlanet`, see below), so Banks add up across planets but cannot be stacked on the homeworld. Net value at full output: about +9 credits/s with one planet (upkeep 3/s) and about +6.6 at the largest empire upkeep scale (×1.8), before the planet type's upkeep factor — the price is repaid in roughly 5–6 minutes. The AI builds Banks by personality ([Trade Network](./trade-network.md#ai)).
+
+## Per-planet building cap
+
+A building with `maxPerPlanet` in `planet-data.json` (Bank and Trading Post: 1) cannot be placed on a planet that already holds that many (`isBuildingLimitReached`, checked first by `checkBuildingPlacement` and by the AI's placement search). The build list marks it ALREADY BUILT. A planet that holds more from an older save keeps them; only new ones are refused.
+
 ## Trading Post
 
-`trading_post` (`planet-data.json`, role `trade`): a 2×2 building (2500 credits, 600 raw, 15 upkeep points, 10 energy, 20 workforce), unlocked by the starting technology Basic Industry. A planet with a Trading Post gets a TRADE tab on the planet screen, where its owner exchanges credits and raw materials in lots of 100 / 500 / 1000 (`trade.ts`):
+`trading_post` (`planet-data.json`, role `trade`): a 2×2 building (2500 credits, 600 raw, 15 upkeep points, 10 energy, 20 workforce, at most one per planet), unlocked by the starting technology Basic Industry. A planet with a Trading Post gets a TRADE tab on the planet screen, where its owner exchanges credits and raw materials in lots of 100 / 500 / 1000 (`trade.ts`):
 
 - buying raw costs `TRADE_BUY_CREDITS_PER_RAW` = 4 credits per unit (price rounded up);
 - selling raw pays `TRADE_SELL_CREDITS_PER_RAW` = 0.25 credits per unit (proceeds rounded down).
 
-The rates are deliberately bad: a round trip keeps 1/16 of the value, buying the raw part of a cruiser (1200) costs 4800 credits, and a Mining Complex produces raw at ~0.4 credits of upkeep per unit. It is a last resort when one resource runs dry, not a way to run an economy. Every trade is atomic and re-checked by `executeTrade` (post on the planet, owned by the trader, enough stock); a refused trade changes nothing. The post does not need power or workforce to trade. The AI has no trade logic and never builds the post (no construction rule selects the `trade` role).
+The rates are deliberately bad: a round trip keeps 1/16 of the value, buying the raw part of a cruiser (1200) costs 4800 credits, and a Mining Complex produces raw at ~0.4 credits of upkeep per unit. It is a last resort when one resource runs dry, not a way to run an economy. Every trade is atomic and re-checked by `executeTrade` (post on the planet, owned by the trader, enough stock); a refused trade changes nothing. The post does not need power or workforce to trade. The AI never uses the exchange; it builds posts by personality for the trade network ([Trade Network](./trade-network.md#ai)). Every planet with a Trading Post is also a node of the civilian trade network and keeps two traders ([Trade Network](./trade-network.md)). Their deliveries pay the post owner the cargo value and the destination owner a 20% port fee, in credits, outside the economy tick (a windfall like collected asteroids).
 
 ## Prices
 
@@ -181,6 +191,7 @@ Buildings (credits / raw materials):
 | Military | Spaceport | 4000/1000 |
 | Defense | Laser / Missile Turret / Planetary Shield | 800/200, 1000/250, 3500/875 |
 | Social | Central Park / School / Hospital / Entertainment Center | 800/200, 1500/375, 2000/500, 3000/750 |
+| Finance / trade | Bank / Trading Post | 3000/750, 2500/600 |
 
 Ships (credits / raw materials): Scout 50/150, Fighter 75/225, Corvette 120/360, Frigate 180/540, Destroyer 260/780, Cruiser 400/1,200, Carrier 500/1,500, Battleship 700/2,100, Battlecruiser 750/2,250, Dreadnought 1,200/3,600.
 

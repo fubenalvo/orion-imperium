@@ -76,6 +76,10 @@ export class PlanetOwnershipService {
     }
 
     planet.factionId = newOwnerId;
+    // The independent civilization is gone once anyone else holds the planet
+    // (docs/trade-network.md#independent-civilizations); a later rebellion
+    // makes an ordinary rebel planet, not the civilization again.
+    delete planet.civilization;
     this.revisionCounter++;
     // War bookkeeping (docs/diplomacy.md): a planet taken by force raises the
     // loser's war exhaustion and lowers its opinion of the taker; taking it

@@ -9,6 +9,7 @@ import legacyStarMapData from '../components/star-map/star-map-data.json';
 import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
 import { normalizeRelations } from '../components/star-map/diplomacy';
 import { generateAnomalies, sanitizeAnomalyState } from '../components/star-map/anomalies';
+import { createInitialTradeNetworkState } from '../components/star-map/trade-network';
 import { ShipStockService } from './ship-stock.service';
 
 /*
@@ -365,6 +366,12 @@ export class SaveGameService {
         specialObjects: data.specialObjects ?? [],
         asteroidBelts: data.asteroidBelts ?? [],
       });
+    }
+
+    // v11: civilian trade network. Older saves start empty; the traders of
+    // their Trading Posts are created by TradeNetworkService.restore.
+    if (data.tradeNetwork === undefined) {
+      data.tradeNetwork = createInitialTradeNetworkState(data.galaxy?.seed ?? 0);
     }
 
     // Every load: ship ids must be unique across fleets and stock. Older

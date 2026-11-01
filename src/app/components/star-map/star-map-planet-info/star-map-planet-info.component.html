@@ -18,8 +18,13 @@
     <div class="system-info__content">
       <div class="planet-info__identity">
         <span class="ui-chip">{{ planet?.type | uppercase }}</span>
-        <span class="planet-info__faction">{{ getFactionName(planet!.factionId) }}</span>
+        <span class="planet-info__faction">{{ planet!.civilization ?? getFactionName(planet!.factionId) }}</span>
       </div>
+      @if (planet?.civilization) {
+        <div class="planet-info__civilization">
+          Independent civilization: neutral, no fleets, trades with every Trading Post. It can be conquered.
+        </div>
+      }
 
       <div class="planet-info__figures">
         <div class="ui-figure">

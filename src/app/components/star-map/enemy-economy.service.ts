@@ -25,6 +25,11 @@ import { ResourceCost, addCosts, buildingCost, canAffordCost, payCost, shipCost 
 import { hostileFactionIds } from './diplomacy';
 import { depositMiningBlocker, DEPOSIT_MINING_BUILDING_NAMES } from './raw-deposits';
 import { hasLivingOutpostShip } from './space-base';
+import { isBuildingLimitReached } from './building-placement';
+import { TRADING_POST_NAME } from './trade';
+import { TRADING_POST_EXPECTED_INCOME } from './trade-network';
+
+const BANK_NAME = 'Bank';
 
 /*
  * =========================================================
@@ -100,6 +105,10 @@ interface BuildingDef {
   rawMaterialCost?: number;
   population?: number;
   requiresOreProximity?: boolean;
+  maxPerPlanet?: number;
+  production?: { credits?: number };
+  workforce?: number;
+  energyConsumption?: number;
 }
 
 interface ConstructionDecision {
@@ -185,6 +194,10 @@ export class EnemyEconomyService {
   // Just above the most expensive single building (Spaceport, 4000), so
   // only credits no planned purchase needs count as surplus.
   private static readonly HOARD_THRESHOLD = 5000;
+  // A large surplus: commerce buildings switch to the personality's `rich` numbers.
+  private static readonly COMMERCE_RICH_CREDITS = 15000;
+  // Banks and Trading Posts only go on planets at least this populated.
+  private static readonly COMMERCE_MIN_POPULATION = 600;
   /*
    * Share of gross credit income that must remain as net income after a
    * purchase's upkeep. Warships keep a small buffer (scaled by personality);
@@ -691,11 +704,18 @@ export class EnemyEconomyService {
     const researchFirst = !researchCreditBound
       && (posture.primary === 'research' || posture.researchBuildingsPerPlanet > 1 || researchStarved);
     const researchTiers = researchCreditBound ? [] : [researchTier, researchUpgradeTier];
+    // Banks and Trading Posts (docs/trade-network.md#ai): optional, in
+    // personality-set numbers, after research and before extra factories.
+    const commerceTier: ConstructionRule = {
+      respectsReserve: true,
+      upkeep: 'optional',
+      candidates: (planet, economy) => this.commerceCandidates(faction, planet, planets, economy),
+    };
     const ordered = posture.primary === 'stabilize'
       ? core
       : researchFirst
-        ? [...core, miningTier, ...researchTiers, defenseTier, growthTier, factoryTier]
-        : [...core, miningTier, defenseTier, growthTier, ...researchTiers, factoryTier];
+        ? [...core, miningTier, ...researchTiers, defenseTier, growthTier, commerceTier, factoryTier]
+        : [...core, miningTier, defenseTier, growthTier, ...researchTiers, commerceTier, factoryTier];
 
     // While the navy is below target, optional buildings also leave upkeep
     // headroom for the next warship (the upkeep counterpart of the credit
@@ -750,7 +770,13 @@ export class EnemyEconomyService {
         continue;
       }
       const planetUpkeepScale = budget.upkeepScale * planetTypeTraits(planet.type).buildingUpkeep;
-      if (this.economyService.getBuildingUpkeepPerSecond(building.name, faction, planetUpkeepScale) > budget.upkeepAllowance) {
+      // Net of the building's own credit income (the Bank's output, a Trading
+      // Post's expected trade): one that earns more than it costs improves the
+      // budget, so it is allowed even when the headroom is already used up.
+      const netUpkeep = this.economyService.getBuildingUpkeepPerSecond(building.name, faction, planetUpkeepScale)
+        - (building.production?.credits ?? 0)
+        - (building.name === TRADING_POST_NAME ? TRADING_POST_EXPECTED_INCOME : 0);
+      if (netUpkeep > 0 && netUpkeep > budget.upkeepAllowance) {
         continue;
       }
       const placement = this.choosePlacement(planet, building, gridSize, budget.coreSites);
@@ -996,6 +1022,41 @@ export class EnemyEconomyService {
 
   private isWealthy(faction: Faction): boolean {
     return (faction.currencies['credits'] ?? 0) > EnemyEconomyService.HOARD_THRESHOLD;
+  }
+
+  /*
+   * Bank / Trading Post wanted on this planet (personality `commerce`):
+   * Banks on up to ceil(bankShare × owned planets) populated planets, one
+   * each; Trading Posts on up to `tradingPosts` planets. With a large credit
+   * surplus (COMMERCE_RICH_CREDITS) the `rich` values apply instead — the
+   * only time a militarist builds them. Only established planets
+   * (COMMERCE_MIN_POPULATION) qualify: on a fresh colony the Bank's 40
+   * workforce and the post's energy held back its growth and slowed
+   * colonization (measured in ai-simulation.spec.ts). Price and upkeep are
+   * checked by the tier's normal optional-building rules.
+   */
+  private commerceCandidates(faction: Faction, planet: PlanetTile, planets: PlanetTile[], economy: PlanetEconomySnapshot): BuildingDef[] {
+    const profile = getAiPersonalityProfile(faction).commerce;
+    const rich = (faction.currencies['credits'] ?? 0) > EnemyEconomyService.COMMERCE_RICH_CREDITS;
+    const bankShare = rich ? profile.richBankShare : profile.bankShare;
+    const postLimit = rich ? profile.richTradingPosts : profile.tradingPosts;
+    if ((planet.population ?? 0) < EnemyEconomyService.COMMERCE_MIN_POPULATION) return [];
+    // Spare workers and energy only: commerce must not create or deepen a
+    // shortage (the generic safety check tolerates an existing deficit, and
+    // a short homeworld would slow its factories and colonizer production).
+    const spareWorkforce = economy.workforceAvailable - economy.workforceRequired;
+    const spareEnergy = economy.energyProduction - economy.energyConsumption;
+    const fits = (def: BuildingDef) => (def.workforce ?? 0) <= spareWorkforce && (def.energyConsumption ?? 0) <= spareEnergy;
+    const candidates: BuildingDef[] = [];
+    const has = (p: PlanetTile, name: string) => p.buildings.some((b) => b.name === name);
+    if (!has(planet, BANK_NAME)
+      && planets.filter((p) => has(p, BANK_NAME)).length < Math.ceil(bankShare * planets.length)) {
+      candidates.push(...this.unlockedById(faction, 'bank').filter(fits));
+    }
+    if (!has(planet, TRADING_POST_NAME) && planets.filter((p) => has(p, TRADING_POST_NAME)).length < postLimit) {
+      candidates.push(...this.unlockedById(faction, 'trading_post').filter(fits));
+    }
+    return candidates;
   }
 
   /*
@@ -1249,6 +1310,7 @@ export class EnemyEconomyService {
     const requiresOre = building.requiresOreProximity === true;
     // A mine only makes sense on a deposit that is not empty.
     if (requiresOre && depositMiningBlocker(planet) !== null) return [];
+    if (isBuildingLimitReached(planet, building)) return [];
     const resourceTiles = planet.resourceTiles ?? [];
     return centerOutPlacementOrder(gridSize, building.size)
       .filter(({ x, y }) => this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre))
@@ -1258,6 +1320,7 @@ export class EnemyEconomyService {
   private findValidPlacement(planet: PlanetTile, building: BuildingDef, gridSize: number): { x: number; y: number } | undefined {
     const requiresOre = building.requiresOreProximity === true;
     if (requiresOre && depositMiningBlocker(planet) !== null) return undefined;
+    if (isBuildingLimitReached(planet, building)) return undefined;
     const resourceTiles = planet.resourceTiles ?? [];
     const spot = centerOutPlacementOrder(gridSize, building.size).find(({ x, y }) =>
       this.canPlace(planet, building.size, x, y, resourceTiles, requiresOre),

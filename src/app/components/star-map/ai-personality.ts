@@ -39,6 +39,15 @@ export type { AiPersonality } from './star-map.models';
  *   share of its credits on it: its research reserve is kept even from
  *   colonizer purchases (warships and optional buildings keep it for every
  *   personality; see EnemyEconomyService.getResearchCreditReserve).
+ * - `commerce`: Banks and Trading Posts (EnemyEconomyService commerce tier,
+ *   docs/trade-network.md#ai). `bankShare` is the share of owned planets
+ *   that get a Bank (at most one each), `tradingPosts` the number of posts
+ *   the faction keeps; the `rich` values apply instead while the faction has
+ *   a large credit surplus (a militarist builds them only then).
+ * - `civilizationAssaultAfter`: game seconds before the faction may attack
+ *   an independent civilization world (docs/trade-network.md#ai). Keeps
+ *   civilizations alive through the opening; a militarist strikes first, a
+ *   technologist much later.
  *
  * Invariant: 'balanced' is neutral (all weights 1, the Phase 4 behavior).
  * Factions without `aiPersonality` (older saves, the legacy map) are
@@ -58,6 +67,8 @@ export interface AiPersonalityProfile {
   factoriesPerPlanet: number;
   concurrentColonizations: number;
   fundsResearchFirst: boolean;
+  commerce: { bankShare: number; tradingPosts: number; richBankShare: number; richTradingPosts: number };
+  civilizationAssaultAfter: number;
 }
 
 export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonalityProfile>> = {
@@ -75,6 +86,8 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     factoriesPerPlanet: 1,
     concurrentColonizations: 1,
     fundsResearchFirst: false,
+    commerce: { bankShare: 0.5, tradingPosts: 1, richBankShare: 1, richTradingPosts: 1 },
+    civilizationAssaultAfter: 720,
   },
   expansionist: {
     id: 'expansionist',
@@ -90,6 +103,8 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     factoriesPerPlanet: 1,
     concurrentColonizations: 2,
     fundsResearchFirst: false,
+    commerce: { bankShare: 0.34, tradingPosts: 2, richBankShare: 0.5, richTradingPosts: 2 },
+    civilizationAssaultAfter: 600,
   },
   militarist: {
     id: 'militarist',
@@ -105,6 +120,8 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     factoriesPerPlanet: 2,
     concurrentColonizations: 1,
     fundsResearchFirst: false,
+    commerce: { bankShare: 0, tradingPosts: 0, richBankShare: 0.5, richTradingPosts: 1 },
+    civilizationAssaultAfter: 480,
   },
   technologist: {
     id: 'technologist',
@@ -122,6 +139,8 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     factoriesPerPlanet: 1,
     concurrentColonizations: 1,
     fundsResearchFirst: true,
+    commerce: { bankShare: 1, tradingPosts: 2, richBankShare: 1, richTradingPosts: 2 },
+    civilizationAssaultAfter: 1200,
   },
 };
 

@@ -114,7 +114,7 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
 - **Start view:** `defaultView` opens the human homeworld; the camera is centered on the home
   system so leaving the planet view lands there.
 - **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }` (current
-  generator version: 5). `seed` is the
+  generator version: 7). `seed` is the
   seed that actually produced the galaxy (after retries).
 
 ## AI difficulty (`components/star-map/ai-difficulty.ts`)
@@ -158,6 +158,10 @@ save version 5, `asteroidBelts` are persisted; older saves get an empty list. Si
 planet surfaces are doubled and `PlanetTile.surface` is persisted; older layouts are re-centered and
 get terrain generated around them ([Planet Surface](./planet-surface.md#save-compatibility-save-version-6)).
 
+## Independent civilizations (generator v7)
+
+After everything above, `generateCivilizationSystems` adds 3 / 4 / 5 extra star systems (small / medium / large) with neutral civilization worlds — a Bank, a Trading Post and light defenses on each capital — from their own rng stream, so the regular systems, fleets, nebulae and belts of a seed are unchanged. They keep the usual spacing and clearances, stay well away from home systems and reachable from them; a civilization without a valid position is skipped. The preset's `systemCount` counts only the regular systems. Details: [Trade Network](./trade-network.md#independent-civilizations). Headless simulations may pass `{ civilizations: false }` as a third `generate` argument; New Game never does.
+
 ## Validation (`services/galaxy-validation.ts`)
 
 `validateGeneratedGalaxy` runs `validateSaveData` and then strict checks a fresh galaxy must pass:
@@ -166,5 +170,5 @@ unique system and planet names, valid faction references, coordinates inside the
 the black hole clearance, minimum system spacing, known buildings placed inside the surface without
 overlap and off terrain obstacles (settled planets must carry a valid surface), known ship types, a homeworld and fleet for every participant, exactly one human
 `'player'`, a valid difficulty for each AI, `defaultView` on the human homeworld, at least one
-nebula and none covering a home system, an initialized asteroid event state, asteroid belts that cover no system or starting fleet and leave every home connected to every system, and factions that
+nebula and none covering a home system, an initialized asteroid event state, asteroid belts that cover no system or starting fleet and leave every home connected to every system, civilization systems that are extra to the preset count (at most the configured number), independent, free of player planets and each with a Bank and a Trading Post, and factions that
 match the config (names, colors, controllers, difficulties).

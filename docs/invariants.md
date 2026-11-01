@@ -320,3 +320,12 @@ See [Planet Capture](./planet-capture.md).
 - **Exactly once:** an anomaly activates only from `hidden`/`discovered`, and a choice applies only to an `active` anomaly, which it moves to `resolved` in the same call. A refused choice (not pending, unaffordable, finder gone) changes nothing.
 - **Persisted immediately:** every anomaly state change is saved at once, so a battle-return reload never replays or loses an event.
 - **Pirates are virtual:** the ambush fleet (id below −30 000 000, faction `'pirates'`) never enters `fleets`; its loot is paid once, from the battle result. See [Exploration Anomalies](./exploration-anomalies.md).
+
+## Trade network
+
+- **One trader per slot:** at most one trader exists per `(homePlanetId, slot)`; only `reconcileTraders` creates traders, and it is idempotent, so loads, battle returns and repeated reconciliation never duplicate one.
+- **Traders are not fleets:** they never enter `StarMapData.fleets`, so upkeep, the AI, battle detection and fleet UI never see them.
+- **Raid markers follow the role:** an AI fleet carries `raidTraderId` only while EnemyFleetService has it in the `raid` role; the AI never raids a peace partner's trader.
+- **Raids need an order:** a fleet damages a trader only while its `raidTraderId` names it, it has a living warship, it is within raid range, and `raidBlocker` allows it (never own, allied or docked traders). A raid never changes a treaty by itself.
+- **Civilization tag:** `PlanetTile.civilization` exists only on `independent` planets; only the galaxy generator sets it and every ownership change removes it. Tagged planets never block victory; untagged rebel planets do.
+- **Derived affiliation and nodes:** who a trader works for is its home planet's current owner, and the set of nodes comes from planet buildings; neither is stored. See [Trade Network](./trade-network.md).

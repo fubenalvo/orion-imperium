@@ -366,7 +366,30 @@
       "consumption": {
         "energy": 10
       },
-      "defense": null
+      "defense": null,
+      "maxPerPlanet": 1
+    },
+    {
+      "id": "bank",
+      "name": "Bank",
+      "role": "finance",
+      "energyConsumption": 8,
+      "energyProduction": 0,
+      "maintenanceCost": 10,
+      "size": 2,
+      "population": 0,
+      "workforce": 40,
+      "moraleRate": 0,
+      "price": 3000,
+      "rawMaterialCost": 750,
+      "production": {
+        "credits": 12
+      },
+      "consumption": {
+        "energy": 8
+      },
+      "defense": null,
+      "maxPerPlanet": 1
     }
   ]
 }

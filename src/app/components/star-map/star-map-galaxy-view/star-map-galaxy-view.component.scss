@@ -230,6 +230,63 @@
   border-color: var(--color-success, #39c96f);
 }
 
+/* =========================================================
+   CIVILIAN TRADERS (docs/trade-network.md)
+   Same layer as asteroids: above fog and trails, below fleets.
+   A small boxy hauler: container segments in a hull outlined in the
+   affiliation color, deliberately plainer than the fleet ship glyph.
+   ========================================================= */
+
+.trader-cell {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 13;
+  will-change: left, top;
+}
+
+.trader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4vw;
+  height: 1.4vw;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.trader__hull {
+  width: 0.95vw;
+  height: 0.42vw;
+  border: 1px solid var(--trader-color, #ffcc00);
+  border-radius: 0.08vw 0.22vw 0.22vw 0.08vw;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 210, 122, 0.85) 0 0.2vw, rgba(40, 34, 20, 0.9) 0.2vw 0.26vw),
+    #2a2414;
+  box-shadow: 0 0 4px color-mix(in srgb, var(--trader-color, #ffcc00) 70%, transparent);
+}
+
+.trader:hover .trader__hull,
+.trader-cell--selected .trader__hull {
+  box-shadow: 0 0 9px 2px color-mix(in srgb, var(--trader-color, #ffcc00) 80%, transparent);
+}
+
+.trader-cell--selected .trader::after {
+  content: '';
+  position: absolute;
+  inset: -0.15vw;
+  border: 1px dashed var(--trader-color, #ffcc00);
+  border-radius: 50%;
+  animation: asteroid-ring 3s linear infinite;
+}
+
 @keyframes asteroid-pulse {
   from {
     filter: brightness(0.9);

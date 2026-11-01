@@ -605,6 +605,41 @@ function tradingPost(p, f) {
   p.glow(mu, mv, 0.66, 0.04, RED);
 }
 
+/*
+ * Bank: a gold-lit treasury. A round vault tower under a golden halo at
+ * the back, a records annex on the right, and a long white hall with a
+ * colonnade and front steps; a stack of credit coins floats above the hall.
+ */
+function bank(p, f) {
+  plate(p, f, CONCRETE, GOLD);
+
+  // Vault tower (back left).
+  p.halo(0.45, 0.45, 0.4, 0.75, GOLD, () => {
+    p.roundTower(0.45, 0.45, 0.26, 0.05, 1.0, WALL, GOLD, { domeTint: GOLD, spire: 0.28 });
+  }, 1.8);
+
+  // Records annex (back right).
+  block(p, 1.05, 0.15, 0.5, 0.5, 0.05, 0.6, { wall: WALL_DARK, light: GOLD, bands: 2 });
+
+  // Main hall with a gold cornice.
+  const hall = p.box(0.2, 0.82, 1.3, 0.4, 0.05, 0.42, WHITE, WALL_DARK);
+  p.bands('right', hall, 0.12, 0.36, 2, GOLD);
+  p.box(0.17, 0.79, 1.36, 0.58, 0.42, 0.48, METAL, METAL, { edges: true });
+  p.stripe({ u: 0.17, v: 0.79, du: 1.36, dv: 0.58 }, 0.445, GOLD, 0.02);
+
+  // Colonnade under the cornice, then the front steps.
+  for (let k = 0; k < 6; k++) {
+    p.cylinder(0.28 + k * 0.24, 1.29, 0.035, 0.05, 0.42, WHITE, WHITE);
+  }
+  p.box(0.2, 1.37, 1.3, 0.12, 0.05, 0.08, CONCRETE, [150, 154, 160]);
+
+  // Floating credit coins.
+  for (let k = 0; k < 3; k++) {
+    p.disc(1.15, 1.0, 0.13, 0.75 + k * 0.05, css(GOLD, 1.1 - k * 0.08, 0.9), { stroke: css([255, 240, 200]), width: 0.8, filter: 'glow' });
+  }
+  p.glow(1.15, 1.0, 0.85, 0.14, GOLD);
+}
+
 // ---------------------------------------------------------------- military
 
 function spaceport(p, f) {
@@ -696,6 +731,7 @@ export const BUILDINGS = {
   small_research_lab: smallResearchLab,
   research_lab: researchLab,
   trading_post: tradingPost,
+  bank,
 };
 
 export function renderBuilding(id, size, inset) {

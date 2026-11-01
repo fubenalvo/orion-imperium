@@ -1,4 +1,4 @@
-import { StarMapData, PLANET_SIZE_MAP, PlanetSize, PlanetTile, PlanetType } from '../components/star-map/star-map.models';
+import { StarMapData, PLANET_SIZE_MAP, PlanetSize, PlanetTile, PlanetType, StarSystem } from '../components/star-map/star-map.models';
 import {
   getBlockedMask,
   getPlanetGridSize,
@@ -12,6 +12,7 @@ import { assignFactionIds, mapCenter, PLAYER_FACTION_ID } from './galaxy-generat
 import { isPointInNebula } from '../components/star-map/nebula';
 import { areSystemsConnected, beltAxisDistance, beltNavigationRadius } from '../components/star-map/asteroid-belts';
 import { buildNavObstacles } from '../components/star-map/fleet-navigation';
+import { CIVILIZATION_CONFIG } from '../components/star-map/civilizations';
 
 /*
  * Strict validation of a freshly generated galaxy.
@@ -143,8 +144,30 @@ export function validateGeneratedGalaxy(data: StarMapData, config?: NewGameConfi
       validateSurface(planet, errors);
     }
   }
-  if (preset && data.starSystems.length !== preset.systemCount) {
-    errors.push(`expected ${preset.systemCount} systems, found ${data.starSystems.length}`);
+  // Independent civilizations (generator v7) live in extra systems on top of
+  // the preset's regular ones; a galaxy may get fewer when there is no room.
+  const isCivilizationSystem = (s: StarSystem) => s.planetsTiles.some((p) => p.civilization !== undefined);
+  const regularSystems = data.starSystems.filter((s) => !isCivilizationSystem(s));
+  const civilizationSystems = data.starSystems.filter(isCivilizationSystem);
+  if (preset && regularSystems.length !== preset.systemCount) {
+    errors.push(`expected ${preset.systemCount} systems, found ${regularSystems.length}`);
+  }
+  if (preset && civilizationSystems.length > (CIVILIZATION_CONFIG.systemsBySize[preset.id] ?? 0)) {
+    errors.push(`too many civilization systems (${civilizationSystems.length})`);
+  }
+  for (const system of civilizationSystems) {
+    for (const planet of system.planetsTiles) {
+      if (planet.civilization !== undefined && planet.factionId !== 'independent') {
+        errors.push(`civilization planet ${planet.id} is not independent`);
+      }
+      if (participants.some((f) => f.id === planet.factionId)) {
+        errors.push(`civilization system ${system.id} contains a player planet`);
+      }
+    }
+    const hasHub = system.planetsTiles.some(
+      (p) => p.civilization !== undefined && p.buildings.some((b) => b.name === 'Bank') && p.buildings.some((b) => b.name === 'Trading Post'),
+    );
+    if (!hasHub) errors.push(`civilization system ${system.id} has no planet with a Bank and a Trading Post`);
   }
   if (preset) {
     for (let i = 0; i < data.starSystems.length; i++) {

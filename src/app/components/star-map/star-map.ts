@@ -35,6 +35,9 @@ import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navi
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
 import { TradeDirection, executeTrade } from './trade';
 import { checkBuildingPlacement } from './building-placement';
+import { TRADE_INCOME_WINDOW_SECONDS, TradeNetworkService, TraderRaid } from './trade-network.service';
+import { RaidBlocker, TRADE_NETWORK_CONFIG, raidBlocker } from './trade-network';
+import { RaidOrderHooks, updateRaidOrders } from './fleet-raid-orders';
 import starMapData from './star-map-data.json';
 import shipData from './ship-data.json';
 import planetData from './planet-data.json';
@@ -58,6 +61,7 @@ import {
   FleetTrail,
   StarSystem,
   PlanetTile,
+  Trader,
   ShipType,
   FleetShipTypeSummary,
   ContextMenuItem,
@@ -72,7 +76,7 @@ import {
   SystemAsteroid,
   getAiFactionIds,
 } from './star-map.models';
-import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration } from './diplomacy';
+import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration, getRelationKind, isNeutralFaction } from './diplomacy';
 import { DemandFailure, DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
 import { DiplomacyContext, EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { DEMAND_RULES, DemandInvalidReason, DemandKind, FOLLOW_THROUGH_SECONDS, describeDemandInvalid } from './diplomatic-demand';
@@ -105,11 +109,16 @@ import {
   AsteroidPanelViewModel,
 } from './star-map-asteroid-info/star-map-asteroid-info.component';
 import {
+  StarMapTraderInfoComponent,
+  TraderPanelViewModel,
+} from './star-map-trader-info/star-map-trader-info.component';
+import {
   AsteroidMapView,
   BlackHoleRingView,
   NebulaView,
   SpaceBaseMapView,
   TerritoryShapeView,
+  TraderMapView,
 } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import {
   createMulberry32,
@@ -140,7 +149,7 @@ import { PlanetStabilityState, planetStabilityNotices } from './planet-stability
 import { StarMapFleetInfoComponent } from './star-map-fleet-info/star-map-fleet-info.component';
 import { StarMapSystemInfoComponent } from './star-map-system-info/star-map-system-info.component';
 import { PlanetColonizationVm, StarMapPlanetInfoComponent } from './star-map-planet-info/star-map-planet-info.component';
-import { StarMapPlanetScreenComponent } from './star-map-planet-screen/star-map-planet-screen.component';
+import { StarMapPlanetScreenComponent, TradePostView } from './star-map-planet-screen/star-map-planet-screen.component';
 import { StarMapFleetButtonsComponent } from './star-map-fleet-buttons/star-map-fleet-buttons.component';
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
 import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
@@ -221,6 +230,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapDiplomacyComponent,
     StarMapPeaceNegotiationComponent,
     StarMapAsteroidInfoComponent,
+    StarMapTraderInfoComponent,
     StarMapFleetManagerComponent,
     StarMapAnomalyEventComponent,
   ],
@@ -269,6 +279,13 @@ loadError = '';
   asteroidPanelVm: AsteroidPanelViewModel | null = null;
   asteroidPanelMessage: string | null = null;
   private asteroidPanelClock = 0;
+  // Civilian trader selection / panel state (traders live in
+  // TradeNetworkService). At most one of asteroid and trader is selected.
+  selectedTraderId: number | null = null;
+  traderPanelVm: TraderPanelViewModel | null = null;
+  private traderPanelClock = 0;
+  // Game seconds played, saved as StarMapData.gameSeconds.
+  private gameSeconds = 0;
   // Short gameplay notice on the galaxy HUD (asteroid collected, route blocked…).
   mapNotice: string | null = null;
   private mapNoticeClock = 0;
@@ -487,6 +504,7 @@ loadError = '';
     public aiDebugService: EnemyDebugService,
     private terrainService: StarMapTerrainService,
     private asteroidService: DriftingAsteroidService,
+    private tradeNetworkService: TradeNetworkService,
     private fleetOrganizationService: FleetOrganizationService,
     private diplomacyService: DiplomacyService,
     private enemyDiplomacyService: EnemyDiplomacyService,
@@ -720,6 +738,8 @@ loadError = '';
   selectAsteroid(asteroidId: number): void {
     this.selectedAsteroidId = asteroidId;
     this.asteroidPanelMessage = null;
+    this.selectedTraderId = null;
+    this.traderPanelVm = null;
     this.selectedSystem = null;
     this.refreshAsteroidPanel();
     this.cdr.detectChanges();
@@ -741,6 +761,7 @@ loadError = '';
     const result = this.asteroidService.orderIntercept(fleet, this.selectedAsteroidId);
     if (result.ok) {
       fleet.attackFleetId = null;
+      fleet.raidTraderId = null;
       this.asteroidPanelMessage = null;
       if (this.selectedFleet?.id === fleet.id) {
         this.fleetMoveError = null;
@@ -787,6 +808,228 @@ loadError = '';
       cargo,
       secondsToExit: asteroidRemainingSeconds(asteroid),
       fleets,
+    };
+  }
+
+  /* ---------- Civilian traders (docs/trade-network.md) ---------- */
+
+  private findPlanetWithSystem(planetId: number): { planet: PlanetTile; system: StarSystem } | null {
+    for (const system of this.starSystems) {
+      const planet = system.planetsTiles?.find((p) => p.id === planetId);
+      if (planet) return { planet, system };
+    }
+    return null;
+  }
+
+  /*
+   * Only travelling traders are drawn (a docked one sits on its star system).
+   * Fog of war follows the fleet rule: the player's own network is always
+   * known; other traders only inside the player's sensor coverage.
+   */
+  isTraderVisible(trader: Trader): boolean {
+    if (trader.status !== 'travelling') return false;
+    if (!this.sensorRangeEnabled) return true;
+    if (this.findPlanetWithSystem(trader.homePlanetId)?.planet.factionId === 'player') return true;
+    const key = `${Math.floor(trader.x)}-${Math.floor(trader.y)}`;
+    return this.sensorRangeCells.has(key) || this.sensorPreviewCells.has(key);
+  }
+
+  get visibleTraders(): TraderMapView[] {
+    const views: TraderMapView[] = [];
+    for (const trader of this.tradeNetworkService.traders) {
+      if (!this.isTraderVisible(trader)) continue;
+      const next = this.tradeNetworkService.getRoute(trader)[0];
+      const ownerId = this.findPlanetWithSystem(trader.homePlanetId)?.planet.factionId ?? 'independent';
+      views.push({
+        id: trader.id,
+        left: (trader.x - 0.5) * this.cellSizeVw,
+        top: (trader.y - 0.5) * this.cellSizeVh,
+        angleDeg: next ? (Math.atan2(next.y - trader.y, next.x - trader.x) * 180) / Math.PI : 0,
+        color: this.getFactionColor(ownerId),
+        label: `Trader · ${trader.cargo?.goods ?? 'empty'}`,
+        selected: this.selectedTraderId === trader.id,
+      });
+    }
+    return views;
+  }
+
+  onTraderClick(traderId: number, event: MouseEvent): void {
+    event.stopPropagation();
+    if (this.contextMenu) {
+      this.closeContextMenu();
+      return;
+    }
+    this.selectTrader(traderId);
+  }
+
+  selectTrader(traderId: number): void {
+    this.selectedTraderId = traderId;
+    this.selectedAsteroidId = null;
+    this.asteroidPanelVm = null;
+    this.asteroidPanelMessage = null;
+    this.selectedSystem = null;
+    this.refreshTraderPanel();
+    this.cdr.detectChanges();
+  }
+
+  deselectTrader(): void {
+    this.selectedTraderId = null;
+    this.traderPanelVm = null;
+    this.cdr.detectChanges();
+  }
+
+  /* Rebuilds the trader panel; throttled from the game loop like the asteroid panel. */
+  private refreshTraderPanel(): void {
+    const trader = this.selectedTraderId == null ? undefined : this.tradeNetworkService.getTrader(this.selectedTraderId);
+    if (!trader || !this.isTraderVisible(trader)) {
+      this.selectedTraderId = null;
+      this.traderPanelVm = null;
+      return;
+    }
+    const home = this.findPlanetWithSystem(trader.homePlanetId);
+    const from = this.findPlanetWithSystem(trader.portPlanetId);
+    const to = trader.destinationPlanetId === null ? null : this.findPlanetWithSystem(trader.destinationPlanetId);
+    const ownerId = home?.planet.factionId ?? 'independent';
+    const owner = this.factions.find((f) => f.id === ownerId);
+    const civilian = !owner || isNeutralFaction(owner);
+    const route = this.tradeNetworkService.getRoute(trader);
+    const placeName = (place: { planet: PlanetTile; system: StarSystem } | null) =>
+      place ? `${place.planet.name} (${place.system.name})` : 'Unknown';
+    this.traderPanelVm = {
+      id: trader.id,
+      affiliation: civilian ? 'Independent' : this.getFactionName(ownerId),
+      affiliationColor: this.getFactionColor(civilian ? 'independent' : ownerId),
+      relation: ownerId === 'player' ? 'own' : civilian ? 'civilian' : 'foreign',
+      homePost: placeName(home),
+      from: placeName(from),
+      to: placeName(to),
+      goods: trader.cargo?.goods ?? 'Empty hold',
+      cargoCredits: trader.cargo?.credits ?? 0,
+      etaSeconds: route.length > 0
+        ? this.terrainService.nebulaField.pathTravelSeconds([{ x: trader.x, y: trader.y }, ...route], TRADE_NETWORK_CONFIG.speed)
+        : null,
+      hullPercent: Math.round((100 * trader.hull) / TRADE_NETWORK_CONFIG.hull),
+      raid: ownerId === 'player' ? null : this.traderRaidSection(trader, owner),
+    };
+  }
+
+  /* RAID choices of the trader panel; estimates plan routes, so this is throttled with the panel. */
+  private traderRaidSection(trader: Trader, owner: Faction | undefined): NonNullable<TraderPanelViewModel['raid']> {
+    const player = this.factions.find((f) => f.id === 'player');
+    if (raidBlocker(player, owner) === 'allied_trader') {
+      return { blocked: 'An allied trader: it cannot be raided.', warning: null, fleets: [] };
+    }
+    let warning: string | null = null;
+    if (!owner || isNeutralFaction(owner)) {
+      warning = 'Piracy against civilians costs a little reputation.';
+    } else if (player && getRelationKind(player, owner) === 'peace') {
+      warning = `${owner.name} is at peace with you: raiding its trader costs opinion and reputation (no war by itself).`;
+    }
+    const fleets = this.fleets
+      .filter((f) => f.factionId === 'player' && !f.destroyed && f.ships.some((s) => !s.destroyed))
+      .map((fleet) => {
+        if (fleet.raidTraderId === trader.id) {
+          return { fleetId: fleet.id, name: fleet.name, status: 'raiding' as const, etaSeconds: null };
+        }
+        if (this.tradeNetworkService.raidDamagePerSecond(fleet) <= 0) {
+          return { fleetId: fleet.id, name: fleet.name, status: 'no-warships' as const, etaSeconds: null };
+        }
+        const eta = this.movementService.estimateTravelSeconds(
+          { x: fleet.x, y: fleet.y },
+          { x: trader.x, y: trader.y },
+          StarMapMovementService.galaxyCellsPerSecond(fleet),
+        );
+        return Number.isFinite(eta)
+          ? { fleetId: fleet.id, name: fleet.name, status: 'ready' as const, etaSeconds: eta }
+          : { fleetId: fleet.id, name: fleet.name, status: 'unreachable' as const, etaSeconds: null };
+      });
+    return { blocked: null, warning, fleets };
+  }
+
+  /* Why the fleet's faction may not raid this trader (trade-network.ts raidBlocker), or null. */
+  traderRaidBlocker(fleet: Fleet, trader: Trader): RaidBlocker | null {
+    const raider = this.factions.find((f) => f.id === fleet.factionId);
+    return raidBlocker(raider, this.tradeNetworkService.traderOwner(trader, this.starSystems, this.factions));
+  }
+
+  /*
+   * Orders a player fleet to raid the selected trader: a pursuit validated
+   * like a move (fleet-raid-orders.ts keeps re-aiming it). Replaces any other
+   * order of the fleet.
+   */
+  onRaidTrader(fleetId: number): void {
+    const fleet = this.fleets.find((f) => f.id === fleetId && f.factionId === 'player' && !f.destroyed);
+    const trader = this.selectedTraderId == null ? undefined : this.tradeNetworkService.getTrader(this.selectedTraderId);
+    if (!fleet || !trader || trader.status !== 'travelling' || this.traderRaidBlocker(fleet, trader)) return;
+    if (this.tradeNetworkService.raidDamagePerSecond(fleet) <= 0) {
+      this.showMapNotice(`${fleet.name} has no warships to raid with.`);
+      return;
+    }
+    if (!this.movementService.planGalaxyRoute({ x: fleet.x, y: fleet.y }, { x: trader.x, y: trader.y }).ok) {
+      this.showMapNotice(`${fleet.name}: no safe route to the trader.`);
+      return;
+    }
+    fleet.interceptAsteroidId = null;
+    fleet.attackFleetId = null;
+    fleet.raidTraderId = trader.id;
+    fleet.targetX = trader.x;
+    fleet.targetY = trader.y;
+    if (this.selectedFleet?.id === fleet.id) {
+      this.fleetMoveError = null;
+      this.targetX = trader.x;
+      this.targetY = trader.y;
+    }
+    this.simStateDirty = true;
+    this.saveGame();
+    this.refreshTraderPanel();
+    this.cdr.detectChanges();
+  }
+
+  /* Right-click on a trader with a commandable fleet selected: raid it. */
+  onTraderContextMenu(traderId: number, event: MouseEvent): void {
+    if (this.consumeRightClick(event)) return;
+    const fleet = this.commandableFleet();
+    if (!fleet) return;
+    this.selectedFleetAction = null;
+    this.selectTrader(traderId);
+    this.onRaidTrader(fleet.id);
+  }
+
+  /*
+   * Notices for traders destroyed by raids. A raid the player took part in
+   * (as raider or as the trader's owner) is saved at once, like a collected
+   * asteroid, so a battle-return reload cannot bring the trader back.
+   */
+  private handleTraderRaids(raids: readonly TraderRaid[]): boolean {
+    let playerInvolved = false;
+    for (const raid of raids) {
+      if (this.selectedTraderId === raid.traderId) {
+        this.selectedTraderId = null;
+        this.traderPanelVm = null;
+      }
+      const raider = this.fleets.find((f) => f.id === raid.raiderFleetId);
+      if (raid.raiderFactionId === 'player') {
+        playerInvolved = true;
+        const cost = raid.opinion > 0
+          ? ` ${this.getFactionName(raid.ownerId!)} resents it (opinion −${raid.opinion}, reputation −${raid.reputation}).`
+          : raid.reputation > 0 ? ` Piracy costs reputation (−${raid.reputation}).` : '';
+        this.showMapNotice(`${raider?.name ?? 'Your fleet'} raided a trader: +${raid.loot} credits.${cost}`);
+      } else if (raid.ownerId === 'player') {
+        playerInvolved = true;
+        this.showMapNotice(`${this.getFactionName(raid.raiderFactionId)} raided one of your traders (${raid.cargoCredits} credits lost).`);
+      }
+    }
+    if (playerInvolved) this.saveGame();
+    return raids.length > 0;
+  }
+
+  /* Network figures for the TRADE tab of a planet with a Trading Post. */
+  getTradePostVm(planet: PlanetTile): TradePostView {
+    const stats = this.tradeNetworkService.postStats(planet.id);
+    return {
+      ...stats,
+      recentIncome: this.tradeNetworkService.recentIncome(planet.factionId),
+      windowMinutes: TRADE_INCOME_WINDOW_SECONDS / 60,
     };
   }
 
@@ -844,6 +1087,9 @@ loadError = '';
   }
 
   readonly boundOnAsteroidClick = this.onAsteroidClick.bind(this);
+  readonly boundOnTraderClick = this.onTraderClick.bind(this);
+  readonly boundOnTraderContextMenu = this.onTraderContextMenu.bind(this);
+  readonly boundGetTradePostVm = this.getTradePostVm.bind(this);
   readonly boundOnSpaceBaseClick = this.onSpaceBaseClick.bind(this);
   readonly boundIsFleetInNebula = this.isFleetInNebula.bind(this);
 
@@ -1487,7 +1733,7 @@ loadError = '';
 
     const buildingDef = (
       planetData as {
-        buildings: { id: string; price: number; rawMaterialCost?: number; size: number; name: string; requiresOreProximity?: boolean }[];
+        buildings: { id: string; price: number; rawMaterialCost?: number; size: number; name: string; maxPerPlanet?: number; requiresOreProximity?: boolean }[];
       }
     ).buildings.find((b) => b.id === event.buildingId);
     if (!buildingDef) return;
@@ -2705,6 +2951,43 @@ loadError = '';
     },
   };
 
+  private readonly raidOrderHooks: RaidOrderHooks = {
+    getTrader: (id) => this.tradeNetworkService.getTrader(id),
+    isVisible: (trader) => this.isTraderVisible(trader),
+    canRaid: (raider, trader) => this.traderRaidBlocker(raider, trader) === null,
+    retarget: (raider, x, y) => {
+      if (!this.movementService.planGalaxyRoute({ x: raider.x, y: raider.y }, { x, y }).ok) {
+        return false;
+      }
+      raider.interceptAsteroidId = null;
+      raider.attackFleetId = null;
+      raider.targetX = x;
+      raider.targetY = y;
+      if (this.selectedFleet?.id === raider.id && this.currentView === 'map') {
+        this.targetX = x;
+        this.targetY = y;
+      }
+      return true;
+    },
+  };
+
+  /* Re-aims raiding fleets; tells the player when a raid ends without a kill. */
+  private updateRaidOrders(): boolean {
+    const { ended, retargeted } = updateRaidOrders(this.fleets, this.raidOrderHooks);
+    for (const end of ended) {
+      if (end.reason === 'docked') {
+        this.showMapNotice(`${end.raider.name}: the trader reached port. Raid cancelled.`);
+      } else if (end.reason === 'lost-contact') {
+        this.showMapNotice(`${end.raider.name} lost contact with the trader.`);
+      } else if (end.reason === 'no-route') {
+        this.showMapNotice(`${end.raider.name}: no safe route to the trader. Raid cancelled.`);
+      } else if (end.reason === 'not-allowed') {
+        this.showMapNotice(`${end.raider.name}: that trader may no longer be raided. Raid cancelled.`);
+      }
+    }
+    return retargeted || ended.length > 0;
+  }
+
   /* Re-aims pursuing fleets; tells the player when an attack order ends without a fight. */
   private updateAttackOrders(): boolean {
     const { ended, retargeted } = updateAttackOrders(this.fleets, this.attackOrderHooks);
@@ -2906,6 +3189,7 @@ loadError = '';
     if (this.currentView === 'system') {
       if (this.selectedSystem && this.selectedFleet.system?.id === this.selectedSystem.id) {
         this.selectedFleet.attackFleetId = null;
+        this.selectedFleet.raidTraderId = null;
         this.selectedFleet.system.targetX = x;
         this.selectedFleet.system.targetY = y;
         this.targetX = x;
@@ -2932,9 +3216,10 @@ loadError = '';
         this.cdr.detectChanges();
         return false;
       }
-      // A manual order replaces any asteroid intercept or attack order.
+      // A manual order replaces any asteroid intercept, attack or raid order.
       this.selectedFleet.interceptAsteroidId = null;
       this.selectedFleet.attackFleetId = null;
+      this.selectedFleet.raidTraderId = null;
       this.selectedFleet.targetX = x;
       this.selectedFleet.targetY = y;
       this.targetX = x;
@@ -3293,7 +3578,8 @@ loadError = '';
     });
     const borderNotices = this.handleBorderEvents();
     const attackOrdersChanged = gameDeltaTime > 0 && this.updateAttackOrders();
-    const didMoveFleets = this.updateFleets(gameDeltaTime) || attackOrdersChanged;
+    const raidOrdersChanged = gameDeltaTime > 0 && this.updateRaidOrders();
+    const didMoveFleets = this.updateFleets(gameDeltaTime) || attackOrdersChanged || raidOrdersChanged;
     const headingsChanged = this.updateFleetHeadings(gameDeltaTime);
     const asteroidResult = this.asteroidService.tick(
       gameDeltaTime,
@@ -3303,12 +3589,20 @@ loadError = '';
       this.mapHeight,
     );
     const asteroidsChanged = this.updateAsteroidUi(asteroidResult, gameDeltaTime);
+    const tradeResult = this.tradeNetworkService.tick(gameDeltaTime, {
+      starSystems: this.starSystems,
+      factions: this.factions,
+      fleets: this.fleets,
+    });
+    const tradeChanged = this.handleTraderRaids(tradeResult.raids) || tradeResult.changed;
+    this.gameSeconds += gameDeltaTime;
     const aiChanged = this.aiTickService.tick(gameDeltaTime, {
       fleets: this.fleets,
       factions: this.factions,
       starSystems: this.starSystems,
       shipStock: this.shipStock,
       production: this.production,
+      gameSeconds: this.gameSeconds,
     });
 
     const diplomacyChanged = this.handleDiplomacyEvents();
@@ -3392,7 +3686,7 @@ loadError = '';
     }
 
     if (
-      didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged ||
+      didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged || tradeChanged ||
       diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged
     ) {
       this.ngZone.run(() => this.cdr.detectChanges());
@@ -3428,6 +3722,14 @@ loadError = '';
       this.mapNoticeClock += gameDeltaTime;
       if (this.mapNoticeClock >= StarMap.MAP_NOTICE_SECONDS) {
         this.mapNotice = null;
+        changed = true;
+      }
+    }
+    if (this.selectedTraderId != null) {
+      this.traderPanelClock += gameDeltaTime;
+      if (this.traderPanelClock >= 0.5 || !this.tradeNetworkService.getTrader(this.selectedTraderId)) {
+        this.traderPanelClock = 0;
+        this.refreshTraderPanel();
         changed = true;
       }
     }
@@ -3885,6 +4187,8 @@ loadError = '';
       spaceBases: this.spaceBaseService.serialize(),
       diplomaticDemands: this.diplomacyService.serializeDemands(),
       anomalies: this.anomalyService.serialize(),
+      tradeNetwork: this.tradeNetworkService.serialize(),
+      gameSeconds: this.gameSeconds,
     };
   }
 
@@ -3980,6 +4284,8 @@ loadError = '';
       specialObjects: this.specialObjects,
       asteroidBelts: this.asteroidBelts,
     });
+    this.tradeNetworkService.restore(data.tradeNetwork, this.galaxy?.seed ?? 0, this.starSystems);
+    this.gameSeconds = Number.isFinite(data.gameSeconds) ? Math.max(0, data.gameSeconds!) : 0;
     // A pending event re-opens from the restored state on the next frame.
     this.anomalyEvent = null;
     this.anomalyError = null;
@@ -3991,6 +4297,8 @@ loadError = '';
     this.selectedAsteroidId = null;
     this.asteroidPanelVm = null;
     this.asteroidPanelMessage = null;
+    this.selectedTraderId = null;
+    this.traderPanelVm = null;
     this.mapNotice = null;
     this.shipStock = data.shipStock ?? [];
     this.production = data.production ?? [];

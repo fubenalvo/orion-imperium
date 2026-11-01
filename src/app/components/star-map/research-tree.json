@@ -89,7 +89,7 @@
       "researchCost": 800,
       "prerequisites": ["basic_industry"],
       "unlocksShips": [],
-      "unlocksBuildings": ["entertainment_center", "park"],
+      "unlocksBuildings": ["entertainment_center", "park", "bank"],
       "bonuses": [{ "type": "buildingUpkeep", "value": -0.1 }]
     },
     {

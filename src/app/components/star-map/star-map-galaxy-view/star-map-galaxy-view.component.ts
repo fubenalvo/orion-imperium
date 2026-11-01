@@ -76,6 +76,22 @@ export interface AsteroidMapView {
 }
 
 /*
+ * A visible travelling civilian trader (docs/trade-network.md), in world vw.
+ * Docked traders are not drawn: they sit on their star system.
+ */
+export interface TraderMapView {
+  id: number;
+  left: number;
+  top: number;
+  /* Screen heading toward the next route point (CSS rotate degrees). */
+  angleDeg: number;
+  /* Home post owner's color (neutral civilians: the independent gold). */
+  color: string;
+  label: string;
+  selected: boolean;
+}
+
+/*
  * A discovered but unvisited exploration anomaly (docs/exploration-anomalies.md),
  * in world vw. System and asteroid sites are drawn at the corner of the
  * star's cell (`inSystem`). The type is not revealed before a visit.
@@ -129,6 +145,7 @@ export class StarMapGalaxyViewComponent {
   @Input() belts: BeltView[] = [];
   @Input() blackHoleRings: BlackHoleRingView[] = [];
   @Input() asteroids: AsteroidMapView[] = [];
+  @Input() traders: TraderMapView[] = [];
   @Input() territories: TerritoryShapeView[] = [];
   @Input() spaceBases: SpaceBaseMapView[] = [];
   @Input() anomalies: AnomalyMapView[] = [];
@@ -143,6 +160,9 @@ export class StarMapGalaxyViewComponent {
   /* Screen heading of a fleet's ship (CSS rotate degrees); see fleet-heading.ts. */
   @Input() fleetHeading: (fleet: Fleet) => number = () => 0;
   @Input() onAsteroidClick: (asteroidId: number, event: MouseEvent) => void = () => {};
+  @Input() onTraderClick: (traderId: number, event: MouseEvent) => void = () => {};
+  /* Right-click on a trader with a player fleet selected: raid order. */
+  @Input() onTraderContextMenu: (traderId: number, event: MouseEvent) => void = () => {};
   @Input() selectedSystem: StarSystem | null = null;
   @Input() selectedFleet: Fleet | null = null;
   @Input() targetX: number | null = null;

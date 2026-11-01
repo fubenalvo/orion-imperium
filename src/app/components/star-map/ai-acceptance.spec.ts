@@ -111,7 +111,9 @@ describe('AI acceptance (real StarMap sessions)', () => {
       expect(new Set(targets).size, 'distinct colonization targets').toBe(targets.length);
     }
     expect(states.size).toBeGreaterThan(1);
-  });
+    // A real six-faction session on the large map: ~2 s alone, but it can
+    // exceed the default 5 s under full-suite load.
+  }, 30_000);
 
   it('AT-11: save/load during AI activity resumes without duplicates or lost progress', () => {
     startGame({ ...createDefaultNewGameConfig('medium'), seed: 4711 });

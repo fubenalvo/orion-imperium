@@ -258,6 +258,14 @@ export interface PlanetTile {
    * the grace is over. Optional and saved; absent = no grace (old saves).
    */
   rebellionGraceSeconds?: number;
+  /*
+   * Name of the independent civilization living here (civilizations.ts,
+   * docs/trade-network.md#independent-civilizations). Set only by the
+   * galaxy generator on `independent` planets; any ownership change removes
+   * it (PlanetOwnershipService), so a captured or later rebel planet is an
+   * ordinary planet. Such planets never block conquest victory.
+   */
+  civilization?: string;
   resourceTiles?: ResourceDeposit[];
   /*
    * Finite raw-material reserve of the planet (raw-deposits.ts,
@@ -660,6 +668,88 @@ export interface StarMapData {
    * resolved) is the source of truth and is never regenerated.
    */
   anomalies?: AnomalyState;
+  /*
+   * Civilian trade network (save version 11+; docs/trade-network.md): the
+   * Trader ships and their pending respawns. Older saves get an empty state;
+   * TradeNetworkService then creates the traders of every existing Trading
+   * Post. The set of posts is derived from planet buildings, never saved.
+   */
+  tradeNetwork?: TradeNetworkState;
+  /*
+   * Game seconds played (scaled game time: paused = 0, 3x = three per real
+   * second). Saved so rules that depend on how long the game has run (the
+   * AI's civilization assault gate) survive loads. Missing = 0 (older saves).
+   */
+  gameSeconds?: number;
+}
+
+/* ---------- Civilian trade network (trade-network.ts) ---------- */
+
+/* Goods in a trader's hold, valued in credits (no separate resource). */
+export interface TraderCargo {
+  credits: number;
+  /* Display label of the goods (cosmetic). */
+  goods: string;
+}
+
+/*
+ * docked: waiting at `portPlanetId` until `dockSeconds` runs out.
+ * travelling: flying from `portPlanetId` to `destinationPlanetId`.
+ */
+export type TraderStatus = 'docked' | 'travelling';
+
+/*
+ * One civilian trader. It belongs to slot `slot` of the Trading Post on
+ * `homePlanetId`; (homePlanetId, slot) is unique among living traders, which
+ * is what prevents duplicates on load and on every reconciliation. Its
+ * affiliation (who earns from it, who may raid it) is the home planet's
+ * current owner — derived, never stored, so a captured post needs no update.
+ * `x`/`y` are galaxy cells like `Fleet.x/y`.
+ */
+export interface Trader {
+  id: number;
+  homePlanetId: number;
+  slot: number;
+  x: number;
+  y: number;
+  status: TraderStatus;
+  /* Planet the trader is docked at, or the one it departed from. */
+  portPlanetId: number;
+  /* The port before `portPlanetId`; avoided as the next destination (no ping-pong). */
+  lastPortPlanetId?: number | null;
+  destinationPlanetId: number | null;
+  dockSeconds: number;
+  cargo: TraderCargo | null;
+  hull: number;
+  /* Its slot no longer exists: it finishes its trip and is then removed. */
+  retiring?: boolean;
+}
+
+/* A destroyed trader's slot, refilled when `secondsLeft` runs out. */
+export interface TraderRespawn {
+  homePlanetId: number;
+  slot: number;
+  secondsLeft: number;
+}
+
+/*
+ * Recent trader losses of one home node: each loss doubles the next respawn
+ * delay; forgotten after a quiet period (TRADE_NETWORK_CONFIG.lossMemorySeconds).
+ */
+export interface TraderLossRecord {
+  homePlanetId: number;
+  count: number;
+  quietSeconds: number;
+}
+
+export interface TradeNetworkState {
+  version: number;
+  nextId: number;
+  rngState: number;
+  traders: Trader[];
+  respawns: TraderRespawn[];
+  /* Optional: saves made before raids existed have none. */
+  losses?: TraderLossRecord[];
 }
 
 /* ---------- Exploration anomalies (anomalies.ts) ---------- */
@@ -897,6 +987,8 @@ export interface BuildingStats {
    * extraction from the planet's finite deposit (raw-deposits.ts).
    */
   requiresOreProximity?: boolean;
+  /* Most instances one planet may hold (building-placement.ts); missing = no cap. */
+  maxPerPlanet?: number;
 }
 
 export interface ContextMenuItem {
@@ -975,6 +1067,13 @@ export interface Fleet {
    * quarry stays visible; cleared by any manual move or intercept order.
    */
   attackFleetId?: number | null;
+  /*
+   * Raid order: id of the civilian trader this fleet hunts
+   * (docs/trade-network.md#raids). Only a fleet carrying this marker damages
+   * that trader, so passing near a trader never raids it by accident. Player
+   * fleets are steered by fleet-raid-orders.ts; any other order clears it.
+   */
+  raidTraderId?: number | null;
 }
 
 export interface CapabilityRequirement {

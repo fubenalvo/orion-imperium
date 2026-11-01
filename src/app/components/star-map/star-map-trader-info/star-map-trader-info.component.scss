@@ -1,0 +1,63 @@
+@use 'mixins' as *;
+
+/* Same slot as the asteroid panel (right of the fleet panel); only one of them is open at a time. */
+.trader-info {
+  position: absolute;
+  left: calc(var(--ui-edge) * 2 + clamp(270px, 24vw, 380px));
+  bottom: var(--ui-edge);
+  width: clamp(250px, 21vw, 340px);
+  z-index: 30;
+  animation: panel-rise 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @include compact-view {
+    left: auto;
+    right: 4px;
+    bottom: 4px;
+    width: min(44vw, 230px);
+    max-height: min(55dvh, calc(100dvh - var(--game-header-h) - 8px));
+    overflow-y: auto;
+  }
+}
+
+/* Civilian trade is gold throughout (Trading Post sprite, map glyph). */
+.trader-info__title {
+  color: #ffd27a;
+}
+
+.trader-info__route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.15em 0;
+  color: var(--ui-ink);
+}
+
+.trader-info__arrow {
+  color: #ffd27a;
+}
+
+.trader-info__fleet {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.15em 0;
+}
+
+.trader-info__fleet-name {
+  overflow: hidden;
+  color: var(--ui-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trader-info__fleet .action-btn {
+  flex: 0 0 auto;
+}
+
+.trader-info__hint {
+  margin-top: 0.4em;
+  color: var(--ui-ink-dim);
+  font-size: 0.85em;
+}

@@ -28,6 +28,7 @@ import { SAVE_VERSION } from './save-validation';
 import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
 import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star-map/diplomacy';
+import { generateCivilizationSystems } from '../components/star-map/civilizations';
 
 /*
  * =========================================================
@@ -60,6 +61,9 @@ import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star
  * - asteroid belts (generateGalaxyAsteroidBelts) are impassable walls kept
  *   clear of systems, starting fleets, the black hole and each other, and
  *   never disconnect a home system from any other system. Own rng stream.
+ * - independent civilizations (generateCivilizationSystems) are EXTRA star
+ *   systems placed after everything else from their own rng stream, so the
+ *   preset's regular systems, fleets, nebulae and belts stay as they were;
  * - every system gets its in-system asteroid belt
  *   (generateSystemAsteroidBelt), derived from the seed and the system id;
  * - settled planets get their surface terrain (generatePlanetSurface)
@@ -87,8 +91,12 @@ import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star
  * 5: belts curve as gentle arcs instead of a single kink.
  * 6: planet surfaces: doubled grids, centered starting layouts and the
  *    persisted `PlanetTile.surface` terrain (docs/planet-surface.md).
+ * 7: independent civilizations in extra star systems (civilizations.ts);
+ *    everything else is unchanged for a seed.
  */
-export const GALAXY_GENERATOR_VERSION = 6;
+export const GALAXY_GENERATOR_VERSION = 7;
+/* Derives the civilization rng stream from the seed (keeps the main stream untouched). */
+const CIVILIZATION_RNG_SALT = 0x6c1b7a55;
 export const BLACK_HOLE_SIZE = { width: 4, height: 4 } as const;
 export const PLAYER_FACTION_ID = 'player';
 
@@ -313,7 +321,11 @@ export function initialAsteroidEvents(seed: number): AsteroidEventState {
 
 @Injectable({ providedIn: 'root' })
 export class GalaxyGeneratorService {
-  generate(config: NewGameConfig, seed: number): StarMapData {
+  /*
+   * `options.civilizations` (default true) is for headless simulations that
+   * study the regular galaxy; New Game always generates civilizations.
+   */
+  generate(config: NewGameConfig, seed: number, options: { civilizations?: boolean } = {}): StarMapData {
     const preset = GALAXY_SIZE_PRESETS[config.galaxySize];
     if (!preset) {
       throw new GalaxyGenerationError(`Unknown galaxy size "${config.galaxySize}"`);
@@ -427,6 +439,41 @@ export class GalaxyGeneratorService {
       fleets.map((f) => ({ x: f.x, y: f.y })),
       specialObjects,
     );
+
+    // Independent civilizations: extra systems placed last, from their own
+    // rng stream, so everything above is identical to generator v6 for a seed.
+    const civilizationRng = createMulberry32(((seed >>> 0) ^ CIVILIZATION_RNG_SALT) >>> 0);
+    const civilizationNames = new PlanetNameGenerator(
+      civilizationRng,
+      starSystems.flatMap((s) => s.planetsTiles.map((p) => p.name)),
+    );
+    const civilizationSystems = options.civilizations === false ? [] : generateCivilizationSystems({
+      rng: civilizationRng,
+      width: preset.width,
+      height: preset.height,
+      center,
+      minSystemSpacing: preset.minSystemSpacing,
+      blackHoleClearance: preset.blackHoleClearance,
+      edgeMargin: preset.edgeMargin,
+      galaxySize: preset.id,
+      starSystems,
+      homeSystems,
+      fleets,
+      asteroidBelts,
+      specialObjects,
+      starNames: starNames.slice(positions.length),
+      nextPlanetId,
+      planetName: () => civilizationNames.next(),
+      planetLayout: PLANET_SYSTEM_LAYOUT,
+      planetTypes: PLANET_TYPES,
+      planetSizes: PLANET_SIZES,
+      starColors: STAR_COLORS,
+    });
+    for (const planet of civilizationSystems.flatMap((s) => s.planetsTiles)) {
+      if (planet.buildings.length > 0) planet.surface = generatePlanetSurface(planet, seed);
+    }
+    ensureSystemAsteroidBelts(civilizationSystems, seed);
+    starSystems.push(...civilizationSystems);
 
     return {
       saveVersion: SAVE_VERSION,
@@ -679,9 +726,12 @@ export class GalaxyGeneratorService {
  * galaxy is required, not cosmetic: EconomyService resolves planets by name.
  */
 class PlanetNameGenerator {
-  private readonly used = new Set<string>();
+  private readonly used: Set<string>;
 
-  constructor(private readonly rng: Rng) {}
+  /* `taken`: names already in the galaxy (a second generator must not repeat them). */
+  constructor(private readonly rng: Rng, taken: Iterable<string> = []) {
+    this.used = new Set(taken);
+  }
 
   next(): string {
     for (let attempt = 0; attempt < 50; attempt++) {

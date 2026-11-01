@@ -49,8 +49,11 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
  * - 10: exploration `anomalies` (docs/exploration-anomalies.md). Older saves
  *      get the deterministic anomaly set of their galaxy once, from
  *      SaveGameService.migrateSave.
+ * - 11: civilian trade network `tradeNetwork` (docs/trade-network.md). Older
+ *      saves get an empty state; the traders of existing Trading Posts are
+ *      created on load (TradeNetworkService).
  */
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 /*
  * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
@@ -551,6 +554,12 @@ export function validateSaveData(
   if (save.anomalies !== undefined
     && (!save.anomalies || typeof save.anomalies !== 'object' || !Array.isArray(save.anomalies.anomalies))) {
     warnings.push(warning('anomalies_invalid', 'anomalies', 'anomalies is malformed and will be regenerated'));
+  }
+  // The trade network is sanitized by TradeNetworkService.restore; a broken
+  // state is rebuilt from the Trading Posts and must not block the load.
+  if (save.tradeNetwork !== undefined
+    && (!save.tradeNetwork || typeof save.tradeNetwork !== 'object' || !Array.isArray(save.tradeNetwork.traders))) {
+    warnings.push(warning('trade_network_invalid', 'tradeNetwork', 'tradeNetwork is malformed and will be rebuilt'));
   }
   if (save.diplomaticDemands !== undefined && !Array.isArray(save.diplomaticDemands)) {
     warnings.push(warning('demands_not_array', 'diplomaticDemands', 'diplomaticDemands is not an array and will be ignored'));

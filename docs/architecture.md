@@ -50,6 +50,9 @@ src/app/
           and generation (see docs/star-map-terrain.md)
       drifting-asteroid.service.ts / drifting-asteroids.ts
         → Drifting asteroid events: spawn, movement, collection, intercepts
+      trade-network.service.ts / trade-network.ts
+        → Civilian trade network: traders (not fleets), Trading Post nodes,
+          slot reconciliation (docs/trade-network.md)
       star-map-asteroid-info/
         → Selected asteroid panel (cargo, time left, INTERCEPT per fleet)
       star-map-battle-detection.service.ts

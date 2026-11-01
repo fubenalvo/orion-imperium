@@ -65,8 +65,11 @@ describe('Small galaxy regression', () => {
     const preset = GALAXY_SIZE_PRESETS.small;
     for (const seed of [1, 2, 3, 189352119, 4242]) {
       const data = new GalaxyGeneratorService().generate(smallConfig(seed), seed);
-      const planets = data.starSystems.flatMap((s) => s.planetsTiles);
-      expect(data.starSystems).toHaveLength(preset.systemCount);
+      // Independent civilizations live in extra systems on top of the preset.
+      const regular = data.starSystems.filter((s) => !s.planetsTiles.some((p) => p.civilization !== undefined));
+      const planets = regular.flatMap((s) => s.planetsTiles);
+      expect(regular).toHaveLength(preset.systemCount);
+      expect(data.starSystems.length - regular.length).toBeLessThanOrEqual(3);
       expect(planets.length).toBeGreaterThanOrEqual(preset.systemCount);
       expect(planets.length).toBeLessThanOrEqual(preset.systemCount * preset.planetCountWeights.length);
       expect(data.starSystems.every((s) => s.planetsTiles.length > 0)).toBe(true);
@@ -91,12 +94,16 @@ describe('Small galaxy regression', () => {
       expect(faction.currencies['credits']).toBeGreaterThan(0);
     }
     // Ownership rules: the human owns only its homeworld; Normal AIs own
-    // homeworld + 1 colony; everything else starts 'unhabited'.
+    // homeworld + 1 colony; independent civilizations own their tagged
+    // worlds; everything else starts 'unhabited'.
+    const civilizationWorlds = planets.filter((p) => p.civilization !== undefined);
+    expect(civilizationWorlds.length).toBeGreaterThan(0);
+    expect(civilizationWorlds.every((p) => p.factionId === 'independent')).toBe(true);
     expect(planets.filter((p) => p.factionId === 'player')).toHaveLength(1);
     expect(planets.filter((p) => p.factionId === 'enemy1')).toHaveLength(2);
     expect(planets.filter((p) => p.factionId === 'enemy2')).toHaveLength(2);
-    expect(planets.filter((p) => p.factionId === 'unhabited')).toHaveLength(planets.length - 5);
-    expect(planets.filter((p) => p.factionId === 'independent')).toHaveLength(0);
+    expect(planets.filter((p) => p.factionId === 'unhabited')).toHaveLength(planets.length - 5 - civilizationWorlds.length);
+    expect(planets.filter((p) => p.factionId === 'independent')).toHaveLength(civilizationWorlds.length);
   });
 
   it('renders every generated star system on the galaxy view and minimap', () => {

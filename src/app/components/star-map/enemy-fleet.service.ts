@@ -10,8 +10,11 @@ import { EnemyReachService } from './enemy-reach.service';
 import { AI_COLONIZATION_REACH } from './ai-queries';
 import { DriftingAsteroidService } from './drifting-asteroid.service';
 import { asteroidPosition } from './drifting-asteroids';
-import { areFactionsHostile, hostileFactionIds } from './diplomacy';
+import { areFactionsHostile, getRelationKind, hostileFactionIds, isNeutralFaction } from './diplomacy';
 import { hasLivingOutpostShip } from './space-base';
+import { TradeNetworkService } from './trade-network.service';
+import { raidBlocker } from './trade-network';
+import { getAiPersonalityProfile } from './ai-personality';
 
 /*
  * =========================================================
@@ -63,6 +66,18 @@ import { hasLivingOutpostShip } from './space-base';
  *               (DriftingAsteroidService.planIntercept); dropped when the
  *               asteroid is gone or out of reach. Collection and rewards
  *               follow the same proximity rule as for the player.
+ *   raid      — opportunistic: one free fleet with a warship (never the home
+ *               guard) raids a travelling civilian trader it can see near its
+ *               territory (docs/trade-network.md#ai). Only traders of war
+ *               enemies and civilian (neutral) traders, never a peace
+ *               partner's. The fleet carries Fleet.raidTraderId (which is what
+ *               lets TradeNetworkService damage the trader) only while it has
+ *               this role. Dropped when the trader docks, is gone, leaves
+ *               sight, stops being a valid target, or after RAID_TIMEOUT.
+ *
+ * Independent civilization worlds are assault targets only after the
+ * personality's civilizationAssaultAfter seconds of game time (saved game
+ * clock, setGameSeconds), so civilizations survive the opening.
  *
  * Ownership: fleets carrying a colonizer or an outpost ship (EnemyMiningService) and fleets commanded by a
  * current move_to_target / defend action belong to the pipeline and are
@@ -88,7 +103,7 @@ import { hasLivingOutpostShip } from './space-base';
  * intercepted; remembered ones still count as danger. Assault launches use
  * the real state (`real`), which re-validates the target.
  */
-export type AiFleetRole = 'garrison' | 'intercept' | 'retreat' | 'regroup' | 'assault' | 'explore' | 'salvage';
+export type AiFleetRole = 'garrison' | 'intercept' | 'retreat' | 'regroup' | 'assault' | 'explore' | 'salvage' | 'raid';
 
 interface FleetAssignment {
   role: AiFleetRole;
@@ -101,6 +116,8 @@ interface FleetAssignment {
   launched?: boolean;
   // Salvage: drifting asteroid being intercepted.
   asteroidId?: number;
+  // Raid: civilian trader being hunted.
+  traderId?: number;
   since: number;
 }
 
@@ -136,6 +153,11 @@ export class EnemyFleetService {
   private static readonly SALVAGE_MAX_ETA = 150;
   // …and whose meeting point is this close to AI territory (cells).
   private static readonly SALVAGE_TERRITORY_RANGE = 45;
+  // Raid: a trader this close to the fleet (cells)…
+  private static readonly RAID_MAX_DISTANCE = 30;
+  // …and this close to AI territory; a hunt lasts at most RAID_TIMEOUT s.
+  private static readonly RAID_TERRITORY_RANGE = 45;
+  private static readonly RAID_TIMEOUT = 150;
 
   private readonly accumulators = new Map<string, number>();
   private readonly clocks = new Map<string, number>();
@@ -145,6 +167,8 @@ export class EnemyFleetService {
   // `${factionId}:${planetId}` → clock time when the target may be retried.
   private readonly failedAssaults = new Map<string, number>();
   private readonly assaultReports: AssaultReport[] = [];
+  // Game seconds played (saved game clock), set by StarMapAiTickService each tick.
+  private gameSeconds = 0;
 
   constructor(
     private readonly shipService: ShipService,
@@ -154,7 +178,12 @@ export class EnemyFleetService {
     private readonly intelService: EnemyIntelService,
     private readonly reachService: EnemyReachService,
     private readonly asteroidService: DriftingAsteroidService,
+    private readonly tradeNetwork: TradeNetworkService,
   ) {}
+
+  setGameSeconds(seconds: number): void {
+    this.gameSeconds = seconds;
+  }
 
   reset(): void {
     this.accumulators.clear();
@@ -402,6 +431,25 @@ export class EnemyFleetService {
         changed = true;
       }
 
+      // 3d. Continue a raid while the trader is still a valid, visible target.
+      if (current?.role === 'raid' && current.traderId != null) {
+        const trader = this.raidableTrader(faction, factions, real.starSystems, current.traderId);
+        if (trader && clock - current.since <= EnemyFleetService.RAID_TIMEOUT) {
+          fleet.raidTraderId = trader.id;
+          // Re-aim once the trader moved a full cell (as for salvage).
+          if (fleet.targetX === null || fleet.targetY === null
+            || Math.abs(fleet.targetX - trader.x) >= 1 || Math.abs(fleet.targetY - trader.y) >= 1) {
+            changed = this.moveTo(fleet, trader.x, trader.y) || changed;
+          }
+          continue;
+        }
+        this.assignments.delete(fleet.id);
+        fleet.raidTraderId = null;
+        fleet.targetX = null;
+        fleet.targetY = null;
+        changed = true;
+      }
+
       // 3. Continue a still-valid interception.
       if (current?.role === 'intercept' && this.isInterceptStillValid(current, fleet, hostiles, ownedSystems, canWin, managed, clock)) {
         const target = hostiles.find((h) => h.id === current.targetFleetId)!;
@@ -469,9 +517,21 @@ export class EnemyFleetService {
     // 4e. Opportunistic asteroid salvage with one free fleet.
     changed = this.planSalvage(faction, ownedSystems, home, free, managed, clock) || changed;
 
+    // 4f. Opportunistic trader raid with one free warship fleet.
+    changed = this.planRaid(faction, factions, real.starSystems, ownedSystems, home, free, managed, clock) || changed;
+
     // 5. Garrison duty for everyone else.
     if (home) {
       changed = this.assignGarrisons(free, ownedSystems, home, clock) || changed;
+    }
+
+    // A raid marker lets TradeNetworkService damage a trader, so it must
+    // never outlive the raid role (retreat, regroup, pipeline takeover…).
+    for (const fleet of real.fleets) {
+      if (fleet.factionId === faction.id && fleet.raidTraderId != null && this.assignments.get(fleet.id)?.role !== 'raid') {
+        fleet.raidTraderId = null;
+        changed = true;
+      }
     }
     return changed;
   }
@@ -588,6 +648,65 @@ export class EnemyFleetService {
     this.assignments.set(best.fleet.id, { role: 'salvage', asteroidId: best.asteroidId, since: clock });
     free.splice(free.indexOf(best.fleet), 1);
     return this.moveTo(best.fleet, best.point.x, best.point.y);
+  }
+
+  /*
+   * The trader if this faction may raid it now: travelling, seen by the
+   * faction, allowed by raidBlocker, and civilian or a war enemy's — never a
+   * peace partner's (the AI does not pay the opinion cost of piracy).
+   */
+  private raidableTrader(faction: Faction, factions: Faction[], realSystems: StarSystem[], traderId: number) {
+    const trader = this.tradeNetwork.getTrader(traderId);
+    if (!trader || trader.status !== 'travelling') return undefined;
+    if (!this.intelService.isPointSensed(faction.id, trader.x, trader.y)) return undefined;
+    const owner = this.tradeNetwork.traderOwner(trader, realSystems, factions);
+    if (raidBlocker(faction, owner)) return undefined;
+    if (owner && !isNeutralFaction(owner) && getRelationKind(faction, owner) !== 'war') return undefined;
+    return trader;
+  }
+
+  private planRaid(
+    faction: Faction,
+    factions: Faction[],
+    realSystems: StarSystem[],
+    ownedSystems: StarSystem[],
+    home: StarSystem | undefined,
+    free: Fleet[],
+    managed: Fleet[],
+    clock: number,
+  ): boolean {
+    if (free.length === 0 || ownedSystems.length === 0 || this.tradeNetwork.traders.length === 0) return false;
+    if (managed.some((f) => this.assignments.get(f.id)?.role === 'raid')) return false;
+    const homeGuard = home
+      ? free
+        .filter((f) => this.cellKey(f.x, f.y) === this.cellKey(home.x, home.y))
+        .sort((a, b) => this.strength(b) - this.strength(a))[0]
+      : undefined;
+    const raiders = free.filter((f) => f.id !== homeGuard?.id && this.tradeNetwork.raidDamagePerSecond(f) > 0);
+    if (raiders.length === 0) return false;
+    // Traders another fleet already hunts are left alone.
+    const claimed = new Set([...this.assignments.values()].filter((a) => a.role === 'raid').map((a) => a.traderId));
+
+    let best: { fleet: Fleet; traderId: number; x: number; y: number; distance: number } | null = null;
+    for (const candidate of this.tradeNetwork.traders) {
+      if (claimed.has(candidate.id)) continue;
+      const trader = this.raidableTrader(faction, factions, realSystems, candidate.id);
+      if (!trader) continue;
+      if (ownedSystems.reduce((min, s) => Math.min(min, this.distance(trader, s)), Infinity) > EnemyFleetService.RAID_TERRITORY_RANGE) continue;
+      for (const fleet of raiders) {
+        const distance = this.distance(fleet, trader);
+        if (distance > EnemyFleetService.RAID_MAX_DISTANCE) continue;
+        if (!best || distance < best.distance || (distance === best.distance && fleet.id < best.fleet.id)) {
+          best = { fleet, traderId: trader.id, x: trader.x, y: trader.y, distance };
+        }
+      }
+    }
+    if (!best) return false;
+    this.assignments.set(best.fleet.id, { role: 'raid', traderId: best.traderId, since: clock });
+    best.fleet.raidTraderId = best.traderId;
+    free.splice(free.indexOf(best.fleet), 1);
+    this.moveTo(best.fleet, best.x, best.y);
+    return true;
   }
 
   private isAssaultStillValid(
@@ -733,6 +852,12 @@ export class EnemyFleetService {
           continue;
         }
         if ((this.failedAssaults.get(`${faction.id}:${planet.id}`) ?? -Infinity) > clock) {
+          continue;
+        }
+        // Independent civilizations are left alone through the opening
+        // (personality-dependent, saved game clock).
+        if (planet.civilization !== undefined && planet.factionId === 'independent'
+          && this.gameSeconds < getAiPersonalityProfile(faction).civilizationAssaultAfter) {
           continue;
         }
         const value = 1 + (planet.population ?? 0) / 100 + planet.buildings.length;

@@ -3,6 +3,9 @@ import { EnemyFleetService } from './enemy-fleet.service';
 import { Faction, Fleet, StarSystem } from './star-map.models';
 import { DriftingAsteroidService } from './drifting-asteroid.service';
 import { GameSettingsService } from '../../services/game-settings.service';
+import { TradeNetworkService } from './trade-network.service';
+import { createInitialTradeNetworkState } from './trade-network';
+import { AI_PERSONALITY_PROFILES } from './ai-personality';
 
 /*
  * Unit tests for AI fleet operations with the real ShipService strength
@@ -253,5 +256,128 @@ describe('EnemyFleetService salvage re-aiming', () => {
     expect(service.tick(2, factions[1], factions, systems, [guard, hunter], new Set())).toBe(false);
     expect({ x: hunter.targetX, y: hunter.targetY }).toEqual(target);
     TestBed.inject(GameSettingsService).setFogOfWarEnabled(true);
+  });
+});
+
+/*
+ * Trader raids and the civilization assault gate (docs/trade-network.md#ai).
+ */
+describe('EnemyFleetService trader raids and civilizations', () => {
+  let service: EnemyFleetService;
+  let trade: TradeNetworkService;
+  let factions: Faction[];
+  const POST = { name: 'Trading Post', size: 2, x: 0, y: 0 };
+
+  const system = (id: string, x: number, planet: StarSystem['planetsTiles'][number]): StarSystem =>
+    ({ id, name: id, x, y: 10, planets: 1, color: '#fff', planetsTiles: [planet] }) as StarSystem;
+  const planet = (id: number, factionId: string, extra: Partial<StarSystem['planetsTiles'][number]> = {}) =>
+    ({ id, index: 0, name: `P${id}`, factionId, x: 12, y: 3, type: 'earthlike', size: 'medium', population: 500, explored: true, buildings: [], ...extra }) as StarSystem['planetsTiles'][number];
+  // Trade nodes the AI does not assault in these tests: civilization worlds
+  // (gated at game second 0) and a heavily defended player world.
+  const FORT = [POST, ...Array.from({ length: 8 }, (_, i) => ({ name: 'Laser Turret', size: 1, x: 3 + i, y: 3 })), { name: 'Planetary Shield', size: 2, x: 3, y: 5 }];
+  const systems = (traderHomeOwner: string): StarSystem[] => [
+    system('home', 10, planet(1, 'enemy1', { population: 1000, buildings: [{ name: 'Spaceport', size: 4, x: 0, y: 0 }] })),
+    system('origin', 40, traderHomeOwner === 'independent'
+      ? planet(2, 'independent', { buildings: [POST], civilization: 'Veyra Concord' })
+      : planet(2, traderHomeOwner, { buildings: FORT })),
+    system('far', 70, planet(3, 'independent', { buildings: [POST], civilization: 'Aurel Compact' })),
+  ];
+  const fleet = (id: number, x: number, types = ['destroyer']): Fleet => ({
+    id, name: `F${id}`, factionId: 'enemy1', x, y: 10, targetX: null, targetY: null, speed: 8, system: null,
+    ships: types.map((type, i) => ({ id: id * 10 + i, name: type, type })),
+  });
+
+  /* One travelling trader of planet 2 at (x, 11); the other slots wait. */
+  const withTrader = (sys: StarSystem[], x: number) => {
+    const state = createInitialTradeNetworkState(1);
+    state.traders.push({
+      id: 1, homePlanetId: 2, slot: 0, x, y: 11, status: 'travelling', portPlanetId: 2,
+      destinationPlanetId: 3, dockSeconds: 0, cargo: { credits: 800, goods: 'Alloys' }, hull: 300,
+    });
+    state.nextId = 2;
+    state.respawns.push({ homePlanetId: 2, slot: 1, secondsLeft: 1e6 }, { homePlanetId: 3, slot: 0, secondsLeft: 1e6 }, { homePlanetId: 3, slot: 1, secondsLeft: 1e6 });
+    trade.restore(state, 1, sys);
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    TestBed.inject(GameSettingsService).setFogOfWarEnabled(false);
+    service = TestBed.inject(EnemyFleetService);
+    trade = TestBed.inject(TradeNetworkService);
+    factions = [
+      { id: 'player', name: 'Player', color: '#8cc4ff', team: 1, ai: false, currencies: {} },
+      { id: 'enemy1', name: 'Enemy 1', color: '#d65757', team: 2, ai: true, aiDifficulty: 'normal', aiPersonality: 'balanced', currencies: {} },
+      { id: 'independent', name: 'Independent', color: '#ffcc00', team: 0, ai: false, currencies: {} },
+    ] as Faction[];
+  });
+
+  afterEach(() => TestBed.inject(GameSettingsService).setFogOfWarEnabled(true));
+
+  it('sends a free warship fleet (not the home guard) to raid a civilian trader nearby', () => {
+    const sys = systems('independent');
+    withTrader(sys, 25);
+    const guard = fleet(1, 10);
+    const raider = fleet(2, 18);
+    service.tick(2, factions[1], factions, sys, [guard, raider], new Set());
+    expect(service.getAssignment(2)?.role).toBe('raid');
+    expect(raider.raidTraderId).toBe(1);
+    expect([raider.targetX, raider.targetY]).toEqual([25, 11]);
+    expect(guard.raidTraderId ?? null).toBeNull();
+  });
+
+  it('never raids a peace partner’s trader, but does raid a war enemy’s', () => {
+    const sys = systems('player');
+    withTrader(sys, 25);
+    factions[0].relations = { enemy1: { state: 'peace', lockRemaining: 0 } };
+    factions[1].relations = { player: { state: 'peace', lockRemaining: 0 } };
+    const raider = fleet(2, 18);
+    service.tick(2, factions[1], factions, sys, [fleet(1, 10), raider], new Set());
+    expect(service.getAssignment(2)?.role).not.toBe('raid');
+
+    factions[0].relations = { enemy1: { state: 'war', lockRemaining: 0 } };
+    factions[1].relations = { player: { state: 'war', lockRemaining: 0 } };
+    service.tick(2, factions[1], factions, sys, [fleet(1, 10), raider], new Set());
+    expect(service.getAssignment(2)?.role).toBe('raid');
+  });
+
+  it('drops the raid and its marker once the trader docks', () => {
+    const sys = systems('independent');
+    withTrader(sys, 25);
+    const raider = fleet(2, 18);
+    const fleets = [fleet(1, 10), raider];
+    service.tick(2, factions[1], factions, sys, fleets, new Set());
+    expect(raider.raidTraderId).toBe(1);
+    const trader = trade.getTrader(1)!;
+    trader.status = 'docked';
+    trader.destinationPlanetId = null;
+    service.tick(2, factions[1], factions, sys, fleets, new Set());
+    expect(service.getAssignment(2)?.role).not.toBe('raid');
+    expect(raider.raidTraderId).toBeNull();
+  });
+
+  it('a fleet without warships never raids', () => {
+    const sys = systems('independent');
+    withTrader(sys, 25);
+    const scouts = fleet(2, 18, ['scout']);
+    service.tick(2, factions[1], factions, sys, [fleet(1, 10), scouts], new Set());
+    expect(service.getAssignment(2)?.role).not.toBe('raid');
+  });
+
+  it('leaves an independent civilization alone until its personality gate, then may assault it', () => {
+    const civ = planet(5, 'independent', { civilization: 'Veyra Concord' });
+    const sys = [systems('independent')[0], system('civ', 30, civ)];
+    trade.restore(createInitialTradeNetworkState(1), 1, sys);
+    const fleets = () => [fleet(1, 10), fleet(2, 12, ['destroyer', 'destroyer']), fleet(3, 12, ['destroyer'])];
+
+    service.setGameSeconds(0);
+    const early = fleets();
+    service.tick(2, factions[1], factions, sys, early, new Set());
+    expect(early.some((f) => service.getAssignment(f.id)?.role === 'assault')).toBe(false);
+
+    service.reset();
+    service.setGameSeconds(AI_PERSONALITY_PROFILES.balanced.civilizationAssaultAfter);
+    const late = fleets();
+    service.tick(2, factions[1], factions, sys, late, new Set());
+    expect(late.some((f) => service.getAssignment(f.id)?.role === 'assault' && service.getAssignment(f.id)?.planetId === 5)).toBe(true);
   });
 });
