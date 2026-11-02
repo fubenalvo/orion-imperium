@@ -1,12 +1,8 @@
 import { Injectable } from '@angular/core';
-import { PlanetTile, StarMapData } from '../components/star-map/star-map.models';
-import { getPlanetGridSize, legacyPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
-import { generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
+import { StarMapData } from '../components/star-map/star-map.models';
 import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
 import { ensurePlanetDeposits } from '../components/star-map/raw-deposits';
-import { SAVE_VERSION, CURRENT_MAP_GRID, validateSaveData } from './save-validation';
-import legacyStarMapData from '../components/star-map/star-map-data.json';
-import { generateGalaxyNebulae, initialAsteroidEvents, markStarPositionsKnown } from './galaxy-generator.service';
+import { isSupportedSaveVersion, validateSaveData } from './save-validation';
 import { normalizeRelations } from '../components/star-map/diplomacy';
 import { generateAnomalies, sanitizeAnomalyState } from '../components/star-map/anomalies';
 import { createInitialTradeNetworkState } from '../components/star-map/trade-network';
@@ -35,6 +31,18 @@ import { ShipStockService } from './ship-stock.service';
 export interface SaveSlot {
   data: StarMapData | null;
   date: string | null;
+  /*
+   * True when the slot holds a save whose format this game no longer loads
+   * (isSupportedSaveVersion). The slot still lists so the player sees it and
+   * may overwrite it; activation refuses it.
+   */
+  incompatible?: boolean;
+}
+
+/* Slot text shown instead of the date for an incompatible save. */
+export function incompatibleSlotLabel(slot: SaveSlot): string {
+  const version = slot.data?.gameVersion;
+  return version ? `Incompatible (v${version})` : 'Incompatible (older version)';
 }
 
 export const SaveSlotId = {
@@ -104,9 +112,12 @@ export class SaveGameService {
       try {
         const slot = parsed[i] as { data?: StarMapData | null; date?: string | null } | undefined;
         if (slot && typeof slot === 'object' && slot.data) {
-          const migrated = this.migrateSave(slot.data as StarMapData);
-          if (this.isSlotShapeValid(migrated)) {
-            slots[i] = { data: migrated, date: slot.date ?? null };
+          const normalized = this.normalizeSave(slot.data as StarMapData);
+          if (this.isSlotShapeValid(normalized)) {
+            slots[i] = { data: normalized, date: slot.date ?? null };
+            if (!isSupportedSaveVersion(normalized)) {
+              slots[i].incompatible = true;
+            }
           } else {
             sawCorruptSlot = true;
             slots[i] = { data: null, date: null };
@@ -143,7 +154,7 @@ export class SaveGameService {
     };
 
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(slots));
+      localStorage.setItem(this.storageKey, this.serializeSlots(slots));
       this.lastError = null;
       return true;
     } catch {
@@ -157,7 +168,7 @@ export class SaveGameService {
     if (!slot.data) {
       return null;
     }
-    return this.migrateSave(slot.data);
+    return this.normalizeSave(slot.data);
   }
 
   /*
@@ -178,7 +189,7 @@ export class SaveGameService {
       return false;
     }
     if (slotIndex !== SaveSlotId.AUTOSAVE) {
-      if (!this.saveToSlot(SaveSlotId.AUTOSAVE, this.migrateSave(slot.data))) {
+      if (!this.saveToSlot(SaveSlotId.AUTOSAVE, this.normalizeSave(slot.data))) {
         this.currentSlot = previousSlot;
         return false;
       }
@@ -197,164 +208,56 @@ export class SaveGameService {
   }
 
   /*
-   * migrateSave: Backfills optional fields introduced after the original
-   * save format and runs the versioned legacy migration.
+   * normalizeSave: Completes and repairs a supported save in place. Runs on
+   * every slot read, activation and load, so it must stay idempotent.
    *
-   * Version 0 -> SAVE_VERSION conversions are intentionally placed here
-   * (not in StarMap) so the same migration runs on slot reads, activation,
-   * and saves, and so it can be made idempotent in one place.
+   * It is not a migration: saves below MIN_SUPPORTED_SAVE_VERSION are
+   * returned untouched (validateSaveData rejects them) and the version is
+   * never raised. What it does:
+   * - initializes state a freshly generated galaxy does not carry yet
+   *   (GalaxyGeneratorService leaves spaceBases, diplomaticDemands,
+   *   anomalies and tradeNetwork to the first load);
+   * - repairs that every load needs (relations, in-system asteroid belts,
+   *   planet deposits, unique ship ids).
    */
-  migrateSave(data: StarMapData): StarMapData {
-    if (!data || typeof data !== 'object') {
+  normalizeSave(data: StarMapData): StarMapData {
+    if (!isSupportedSaveVersion(data)) {
       return data;
     }
 
-    const version = typeof data.saveVersion === 'number' ? data.saveVersion : 0;
-
-    if (!data.shipStock) {
-      data.shipStock = [];
-    }
-    if (!data.production) {
-      data.production = [];
-    }
-    if (data.gameOutcome === undefined || data.gameOutcome === null) {
-      data.gameOutcome = 'inProgress';
-    }
-
     const systems = Array.isArray(data.starSystems) ? data.starSystems : [];
+    const factions = Array.isArray(data.factions) ? data.factions : [];
+
     for (const system of systems) {
       const planets = Array.isArray(system?.planetsTiles) ? system.planetsTiles : [];
       for (const planet of planets) {
+        // Generated planets other than homeworlds start without the array.
         if (!planet.resourceTiles) {
           planet.resourceTiles = [];
         }
       }
     }
 
-    const factions = Array.isArray(data.factions) ? data.factions : [];
-    for (const faction of factions) {
-      if (faction.ai === undefined) {
-        // Old saves lack the ai flag; derive it from team (team 2+ = AI-controlled).
-        faction.ai = faction.team >= 2;
-      }
-      if (faction.ai === true && faction.aiDifficulty === undefined) {
-        // Pre-difficulty saves: 'normal' reproduces the original AI tuning.
-        faction.aiDifficulty = 'normal';
-      }
-      if (!faction.researchedTechnologies) {
-        faction.researchedTechnologies = [
-          'basic_engineering',
-          'basic_science',
-          'basic_industry',
-          'basic_power',
-        ];
-      }
-    }
-
-    // Diplomacy: every load (any version) repairs/fills treaty relations.
-    // Saves from before diplomacy keep their teams — all AIs on team 2 stay
-    // permanent allies — and every human/AI pair starts at war, which is
-    // exactly the old hostility rule. Idempotent.
+    // Fills and repairs treaty relations (missing pairs become war, values
+    // are clamped, symmetric fields reconciled). Idempotent.
     normalizeRelations(factions.filter((f) => f && typeof f === 'object'));
 
-    if (data.map && data.map.width === 200) {
-      this.migrateLegacyGrid(data);
-    }
-
-    // Before v3 the black hole was not saved; StarMap always rendered it
-    // from star-map-data.json. Every such save came from that legacy map,
-    // so restore its special objects (only when they fit the save's grid).
-    // Galaxies from generator v1 hid every star system except the human's
-    // home, so no other system could be found. Reveal star positions
-    // (planet details and cell fog are untouched). Idempotent.
-    if (data.galaxy && typeof data.galaxy.generatorVersion === 'number' && data.galaxy.generatorVersion < 2) {
-      markStarPositionsKnown(systems);
-    }
-
-    if (data.specialObjects === undefined && !data.galaxy) {
-      const legacyObjects = (legacyStarMapData as StarMapData).specialObjects ?? [];
-      const width = data.map?.width ?? 0;
-      const height = data.map?.height ?? 0;
-      data.specialObjects = legacyObjects
-        .filter((o) => o.x + o.width - 1 <= width && o.y + o.height - 1 <= height)
-        .map((o) => ({ ...o }));
-    }
-
-    // v4: terrain and events. Saves without nebulae get the deterministic
-    // set for their seed (legacy-map saves use seed 0) exactly once; after
-    // the next save the clouds are persisted and never regenerated.
-    if (data.nebulae === undefined && data.map && data.map.width > 0 && data.map.height > 0) {
-      const homes = systems
-        .filter((s) => Array.isArray(s?.planetsTiles) && s.planetsTiles.some((p) => {
-          const owner = factions.find((f) => f.id === p.factionId);
-          return !!owner && owner.team !== 0;
-        }))
-        .map((s) => ({ x: s.x, y: s.y }));
-      data.nebulae = generateGalaxyNebulae(
-        data.galaxy?.seed ?? 0,
-        data.map.width,
-        data.map.height,
-        data.galaxy?.size ?? 'large',
-        homes,
-        data.specialObjects ?? [],
-      );
-    }
-    // v5: belts are impassable. Inserting them into a game in progress could
-    // cut fleets off from home, so saves made before belts existed get none.
-    if (data.asteroidBelts === undefined) {
-      data.asteroidBelts = [];
-    }
-    // v7: space bases. Saves from before bases existed simply have none.
     if (data.spaceBases === undefined) {
       data.spaceBases = [];
     }
-    // v9: open credit demands. Older saves have none.
     if (!Array.isArray(data.diplomaticDemands)) {
       data.diplomaticDemands = [];
     }
-    if (data.asteroidEvents === undefined) {
-      data.asteroidEvents = initialAsteroidEvents(data.galaxy?.seed ?? 0);
-    }
 
-    // v6: planet surfaces doubled in size. Layouts made on the old grid are
-    // moved to the middle of the new grid (the old grid always fits), then
-    // terrain is generated around the existing buildings and deposits.
-    if (version < 6) {
-      for (const system of systems) {
-        const planets = Array.isArray(system?.planetsTiles) ? system.planetsTiles : [];
-        for (const planet of planets) {
-          this.migrateLegacySurface(planet, data.galaxy?.seed ?? 0);
-        }
-      }
-    }
-
-    // v8: the system view grid doubled (system-grid.ts). A planet now covers
-    // a 2×2 block whose top-left cell is (2x-1, 2y-1), which keeps it at the
-    // same on-screen position. Fleet positions inside systems are vw and stay.
-    if (version < 8) {
-      for (const system of systems) {
-        const planets = Array.isArray(system?.planetsTiles) ? system.planetsTiles : [];
-        for (const planet of planets) {
-          if (planet && typeof planet.x === 'number' && typeof planet.y === 'number') {
-            planet.x = 2 * planet.x - 1;
-            planet.y = 2 * planet.y - 1;
-          }
-        }
-      }
-    }
-    // Every load: systems without an in-system asteroid belt get their
-    // deterministic one (needs planet positions on the current grid, above),
-    // and belts saved before finite deposits get each asteroid's original
-    // reserve and extraction rate.
+    // Systems without an in-system asteroid belt get their deterministic one,
+    // and planets with deposit tiles get their finite reserve if missing;
+    // saved belts and reserves (including depleted ones) are kept.
     ensureSystemAsteroidBelts(systems, data.galaxy?.seed ?? 0);
-    // Every load: planets with deposit tiles get their finite reserve if the
-    // save predates it (a full deposit); saved reserves, including depleted
-    // ones, are kept as they are. No version bump: the field is optional.
     ensurePlanetDeposits(systems.flatMap((s) => (Array.isArray(s?.planetsTiles) ? s.planetsTiles : [])));
 
-    // v10: exploration anomalies. A game without them (new game, older save,
-    // or a malformed state) gets its galaxy's deterministic set exactly once;
-    // needs the asteroid belts above. A saved state is kept as it is.
+    // A game without a valid anomaly state (a new game, or malformed state)
+    // gets its galaxy's deterministic set exactly once; needs the asteroid
+    // belts above. A saved state is kept as it is.
     if (!sanitizeAnomalyState(data.anomalies) && data.map && data.map.width > 0 && data.map.height > 0) {
       data.anomalies = generateAnomalies({
         seed: data.galaxy?.seed ?? 0,
@@ -368,124 +271,48 @@ export class SaveGameService {
       });
     }
 
-    // v11: civilian trade network. Older saves start empty; the traders of
-    // their Trading Posts are created by TradeNetworkService.restore.
+    // A new game starts with an empty trade network; the traders of its
+    // Trading Posts are created by TradeNetworkService.restore.
     if (data.tradeNetwork === undefined) {
       data.tradeNetwork = createInitialTradeNetworkState(data.galaxy?.seed ?? 0);
     }
 
-    // Every load: ship ids must be unique across fleets and stock. Older
-    // saves can hold duplicates from multi-ship production orders. No
-    // version bump: the repair is idempotent.
+    // Ship ids must be unique across fleets and stock. Idempotent repair.
     ShipStockService.repairDuplicateShipIds(data);
 
-    if (version < SAVE_VERSION) {
-      data.saveVersion = SAVE_VERSION;
-    }
-
     return data;
-  }
-
-  private migrateLegacySurface(planet: PlanetTile, galaxySeed: number): void {
-    if (!planet || typeof planet !== 'object') {
-      return;
-    }
-    const offset = Math.floor((getPlanetGridSize(planet) - legacyPlanetGridSize(planet)) / 2);
-    for (const item of [...(Array.isArray(planet.buildings) ? planet.buildings : []), ...(planet.resourceTiles ?? [])]) {
-      if (item && typeof item.x === 'number' && typeof item.y === 'number') {
-        item.x += offset;
-        item.y += offset;
-      }
-    }
-    planet.surface = generatePlanetSurface(planet, galaxySeed);
-  }
-
-  /*
-   * migrateLegacyGrid: Converts the old 200vw map (map.width === 200)
-   * to 1-indexed grid cells using a 2vw reference cell size, then pins
-   * the map to the current grid dimensions so the migration never runs
-   * twice. System-view coordinates are converted with the 5vw reference
-   * cell size used by StarMapMovementService.
-   */
-  private migrateLegacyGrid(data: StarMapData): void {
-    const mapRefCellSize = 2;
-    const systemRefCellSize = 5;
-    const maxX = CURRENT_MAP_GRID.width;
-    const maxY = CURRENT_MAP_GRID.height;
-    const maxSystemCol = 18;
-    const maxSystemRow = 10;
-
-    const toGrid = (value: unknown, refCellSize: number, max: number): number | unknown => {
-      if (typeof value !== 'number' || !Number.isFinite(value)) {
-        return value;
-      }
-      const grid = Math.floor(value / refCellSize) + 1;
-      return Math.max(1, Math.min(grid, max));
-    };
-
-    if (data.map) {
-      data.map.width = maxX;
-      data.map.height = maxY;
-    }
-
-    for (const system of Array.isArray(data.starSystems) ? data.starSystems : []) {
-      system.x = toGrid(system.x, mapRefCellSize, maxX) as number;
-      system.y = toGrid(system.y, mapRefCellSize, maxY) as number;
-    }
-
-    for (const fleet of Array.isArray(data.fleets) ? data.fleets : []) {
-      fleet.x = toGrid(fleet.x, mapRefCellSize, maxX) as number;
-      fleet.y = toGrid(fleet.y, mapRefCellSize, maxY) as number;
-      if (typeof fleet.targetX === 'number') {
-        fleet.targetX = toGrid(fleet.targetX, mapRefCellSize, maxX) as number;
-      }
-      if (typeof fleet.targetY === 'number') {
-        fleet.targetY = toGrid(fleet.targetY, mapRefCellSize, maxY) as number;
-      }
-      if (fleet.system) {
-        fleet.system.x = toGrid(fleet.system.x, systemRefCellSize, maxSystemCol) as number;
-        fleet.system.y = toGrid(fleet.system.y, systemRefCellSize, maxSystemRow) as number;
-        if (typeof fleet.system.targetX === 'number') {
-          fleet.system.targetX = toGrid(fleet.system.targetX, systemRefCellSize, maxSystemCol) as number;
-        }
-        if (typeof fleet.system.targetY === 'number') {
-          fleet.system.targetY = toGrid(fleet.system.targetY, systemRefCellSize, maxSystemRow) as number;
-        }
-      }
-    }
-
-    if (typeof data.targetX === 'number') {
-      data.targetX = toGrid(data.targetX, mapRefCellSize, maxX) as number;
-    }
-    if (typeof data.targetY === 'number') {
-      data.targetY = toGrid(data.targetY, mapRefCellSize, maxY) as number;
-    }
   }
 
   clearSlot(slotIndex: number): void {
     const slots = this.getSlots();
     slots[slotIndex] = { data: null, date: null };
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(slots));
+      localStorage.setItem(this.storageKey, this.serializeSlots(slots));
       this.lastError = null;
     } catch {
       this.lastError = 'save_quota_error';
     }
   }
 
+  /* True when at least one slot holds a save this game can load. */
   hasAnySave(): boolean {
-    return this.getSlots().some((slot) => slot.data !== null);
+    return this.getSlots().some((slot) => slot.data !== null && !slot.incompatible);
   }
 
   /*
-   * getMostRecentSlotIndex: Returns the index of the save slot with the
-   * latest date. Returns null if no saves exist or no readable date exists.
+   * getMostRecentSlotIndex: Returns the index of the loadable save slot with
+   * the latest date. Returns null if no loadable save with a readable date
+   * exists; incompatible saves are skipped so the game never tries to resume
+   * one.
    */
   getMostRecentSlotIndex(): number | null {
     const slots = this.getSlots();
     let bestIndex: number | null = null;
     let bestDate: number | null = null;
     for (let i = 0; i < slots.length; i++) {
+      if (slots[i].incompatible) {
+        continue;
+      }
       const dateValue = this.parseSlotDate(slots[i].date);
       if (dateValue !== null && (bestDate === null || dateValue > bestDate)) {
         bestDate = dateValue;
@@ -503,6 +330,11 @@ export class SaveGameService {
     return Number.isFinite(timestamp) ? timestamp : null;
   }
 
+  // Only data and date are stored; `incompatible` is derived on every read.
+  private serializeSlots(slots: SaveSlot[]): string {
+    return JSON.stringify(slots.map((slot) => ({ data: slot.data, date: slot.date })));
+  }
+
   private emptySlots(): SaveSlot[] {
     return Array.from({ length: this.slotCount }, () => ({ data: null, date: null }));
   }
@@ -510,7 +342,7 @@ export class SaveGameService {
   /*
    * isSlotShapeValid: Top-level structural check applied while listing slots.
    * Deliberately permissive (empty arrays are accepted at list time) so
-   * battle-screen autosaves and legacy seeds still list; strict domain
+   * battle-screen autosaves and incompatible saves still list; strict domain
    * validation is intentionally NOT applied here — it belongs to activation
    * and load so partial data can never be destroyed by a list read.
    */

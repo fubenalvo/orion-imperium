@@ -28,6 +28,7 @@ import { AiPersonality, Faction, Fleet, StarMapData, StarSystem } from './star-m
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { DiplomacyContext, EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { SaveGameService } from '../../services/save-game.service';
+import { SAVE_VERSION } from '../../services/save-validation';
 
 /*
  * Financial demands and ultimatums (docs/diplomacy.md). Every scenario uses
@@ -367,8 +368,8 @@ describe('financial demands and ultimatums', () => {
     diplomacy.tick(DEMAND_RESPONSE_SECONDS, factions, loaded);
     ai.tick(0.01, loaded);
     expect(getRelationKind(loaded.a, loaded.player)).toBe('war');
-    // Old saves (no list) load with none; malformed entries are dropped.
-    const migrated = TestBed.inject(SaveGameService).migrateSave({ factions: [], starSystems: [], fleets: [], map: { width: 10, height: 10, cellSizeVw: 2, cellSizeVh: 2 } } as unknown as StarMapData);
+    // A new game (no list yet) loads with none; malformed entries are dropped.
+    const migrated = TestBed.inject(SaveGameService).normalizeSave({ saveVersion: SAVE_VERSION, factions: [], starSystems: [], fleets: [], map: { width: 10, height: 10, cellSizeVw: 2, cellSizeVh: 2 } } as unknown as StarMapData);
     expect(migrated.diplomaticDemands).toEqual([]);
     diplomacy.restoreDemands([{ id: 'x' }, null, { ...demand, kind: 'planet' }], factions);
     expect(diplomacy.getDemands()).toHaveLength(0);

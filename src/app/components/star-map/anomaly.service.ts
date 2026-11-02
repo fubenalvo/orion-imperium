@@ -107,8 +107,8 @@ export class AnomalyService {
   ) {}
 
   /*
-   * Restores the saved state. Saves always carry it after migration; the
-   * generation fallback only covers data that bypassed migrateSave.
+   * Restores the saved state. Saves always carry it after normalizeSave; the
+   * generation fallback only covers data that bypassed it.
    */
   restore(saved: AnomalyState | undefined, fallback?: AnomalyGenerationInput): void {
     const clean = sanitizeAnomalyState(saved);

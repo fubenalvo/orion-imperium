@@ -53,7 +53,7 @@ The existing `SpecialObject` with `type: 'blackhole'` is the obstacle; no second
 - Count: small 3, medium 4, large 5 (`NEBULA_CONFIG.countBySize`); radius 12–19% of the map height before lobes (≈ 13–20 cells on small, 22–34 on large maps).
 - Spread: the map is split into ~2× as many zones as nebulae; each nebula goes to a random point in a different random zone.
 - Rejected placements: covering a home system (edge + 4 cells), touching a black hole no-fly zone (+4 cells), heavy overlap with another nebula, or mostly off-map. After bounded attempts a nebula is skipped, so fewer than requested is possible, invalid never.
-- Persisted in `StarMapData.nebulae`; **loading never regenerates them**. Saves older than v4 get the deterministic set for their seed once in `SaveGameService.migrateSave` (legacy-map saves use seed 0); systems owned by a major faction are kept clear.
+- Persisted in `StarMapData.nebulae`; **loading never regenerates them**. Systems owned by a major faction are kept clear.
 - Galaxy validation requires ≥ 1 well-formed nebula and no homeworld system inside one.
 
 ### Movement penalty
@@ -157,7 +157,6 @@ One SVG layer in grid units inside the transformed world (scales with zoom) at z
 
 ## Known limitations
 
-- Asteroid belts only exist in games started after they were added (older saves load without belts).
 - AI distance heuristics (reach, threat radii) remain straight-line, so belts make some AI targets slower to reach than the AI expects; movement itself always respects the belts.
 
 - AI strategic estimates (colonization reach, timeouts) still use straight-line distances; actual travel includes detours and nebula slowdown, so they are slightly optimistic near the black hole or nebulae.

@@ -251,9 +251,7 @@ src/app/
 - 5 slots: 1 autosave (slot 0) + 4 manual (slots 1–4), localStorage key `orion_save_slots`
 - Full StarMapData snapshot per slot
 - Autosave triggers: entering/leaving systems, pausing, exiting to menu, battle trigger, component destroy
-  - Migration: shipStock/production backfill, vw→grid (legacy width=200 saves), destroyedFleetId, resourceTiles, researchedTechnologies (defaults to 4 starting techs), ai flag (derived from team: team 2 → ai: true)
-  - `researchedTechnologies` migration: if missing, defaults to `['basic_engineering', 'basic_science', 'basic_industry', 'basic_power']`
-  - `ai` flag migration: if missing, set to `faction.team === 2` — replaces the old hardcoded `enemy1`/`enemy2` ID set for identifying AI-controlled factions
+  - Version gate: only supported save formats load; there is no legacy migration. See [Versioning](./versioning.md).
 
 ### 4.11 Research Tree
 - Data-driven system: 18 technologies defined in `research-tree.json`
@@ -598,7 +596,7 @@ System-level overview of the whole AI pipeline (ownership, scheduling, invariant
 
 ## 7. Kezdeti adatok
 
-> New games are procedurally generated since save version 3 (see [New Game Generation](./new-game-generation.md)). The data below describes the legacy `star-map-data.json` map, which is now only the Large-size reference and the migration source for older saves.
+> New games are procedurally generated since save version 3 (see [New Game Generation](./new-game-generation.md)). The data below describes the legacy `star-map-data.json` map, which is now only the Large-size reference.
 
   ### Factions
   - Player (team 1, blue, 1000 credits/rawmaterials/research, 4 researched techs, ai=false)

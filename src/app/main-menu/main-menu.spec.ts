@@ -5,6 +5,7 @@ import { MainMenu } from './main-menu';
 import { SaveGameService, SaveSlotId } from '../services/save-game.service';
 import { NewGameService } from '../services/new-game.service';
 import { createDefaultNewGameConfig } from '../services/new-game-config';
+import { SAVE_VERSION } from '../services/save-validation';
 
 interface MockBeforeInstallPromptEvent extends Event {
   prompt: () => void;
@@ -80,6 +81,7 @@ describe('MainMenu', () => {
   it('should activate the chosen slot before navigating on load game', () => {
     // Seed a manual slot.
     saveGameService.saveToSlot(1, {
+      saveVersion: SAVE_VERSION,
       factions: [{ id: 'player', name: 'Player', color: '#fff', team: 1, ai: false, currencies: { credits: 0, rawmaterials: 0, research: 0 } }],
       map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
       starSystems: [

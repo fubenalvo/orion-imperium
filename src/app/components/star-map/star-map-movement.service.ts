@@ -395,9 +395,9 @@ export class StarMapMovementService {
 
   /*
    * initializeCoordinates: Ensures all fleets and systems have grid cell
-   * coordinates. Legacy vw->grid conversion is centralized in
-   * SaveGameService.migrateSave so it is versioned and idempotent; the
-   * grid columns/rows here come from the current map constants.
+   * coordinates. Saves always use grid coordinates (the legacy vw format is
+   * no longer supported, docs/versioning.md); the grid columns/rows here come
+   * from the current map constants.
    */
   initializeCoordinates(fleets: Fleet[], starSystems: StarSystem[]): void {
     for (const fleet of fleets) {

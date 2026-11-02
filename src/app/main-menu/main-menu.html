@@ -100,6 +100,8 @@
               type="button"
               class="save-slot"
               [class.save-slot--empty]="!slot.data"
+              [class.save-slot--incompatible]="slot.incompatible"
+              [disabled]="slot.incompatible"
               (click)="loadGame($index)"
             >
               @if ($index === 0) {
@@ -107,7 +109,11 @@
               } @else {
                 <span class="save-slot__index">Slot {{ $index + 1 }}</span>
               }
-              <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+              @if (slot.incompatible) {
+                <span class="save-slot__date">{{ incompatibleLabel(slot) }}</span>
+              } @else {
+                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+              }
             </button>
           }
           <button
@@ -151,6 +157,6 @@
   }
 
   <footer class="main-menu__footer">
-    <span class="game-version">v0.2</span>
+    <span class="game-version">v{{ gameVersion }}</span>
   </footer>
 </main>

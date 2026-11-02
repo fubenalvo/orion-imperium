@@ -192,8 +192,8 @@ Only battles with a human side open the battle screen. Two AI factions at war th
 
 ## Persistence and save compatibility
 
-- Open demands are saved in `StarMapData.diplomaticDemands` (save version 9; older saves get `[]`) and restored by `DiplomacyService.restoreDemands` after every load (also the reload after a battle), which drops malformed entries, unknown factions and pairs no longer at peace. Demand cooldowns, memories and empty threats are optional fields on `Faction` and `FactionRelation` that `normalizeRelations` defaults and clamps.
-- `Faction.relations` and `Faction.reputation` are saved with the factions; no save-version bump. `SaveGameService.migrateSave` runs `normalizeRelations` on every load: missing entries become war, missing values get defaults (opinion 0, exhaustion 0, counters 0, reputation 0), values are clamped, symmetric fields are reconciled (disagreement → war). Diplomacy v0 saves load with their war/peace states; a v0 peace has no truce.
+- Open demands are saved in `StarMapData.diplomaticDemands` (a new game gets `[]` from `SaveGameService.normalizeSave` on its first load) and restored by `DiplomacyService.restoreDemands` after every load (also the reload after a battle), which drops malformed entries, unknown factions and pairs no longer at peace. Demand cooldowns, memories and empty threats are optional fields on `Faction` and `FactionRelation` that `normalizeRelations` defaults and clamps.
+- `Faction.relations` and `Faction.reputation` are saved with the factions; no save-version bump. `SaveGameService.normalizeSave` runs `normalizeRelations` on every load: missing entries become war, missing values get defaults (opinion 0, exhaustion 0, counters 0, reputation 0), values are clamped, symmetric fields are reconciled (disagreement → war).
 - Not saved (rebuilt within one decision interval): open AI peace proposals (unlike demands, see above), proposal cooldowns, the event queue, the AI decision clock, an open negotiation. `resetAiPipeline` clears them on a genuine load / new game; a battle-screen round trip keeps them.
 
 ## Testing

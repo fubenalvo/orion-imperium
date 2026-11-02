@@ -31,14 +31,6 @@ export function getPlanetGridSize(planet: { size: PlanetSize | string }): number
   return gridSizeForNumericSize(PLANET_SIZE_MAP[planet.size as PlanetSize] ?? 3);
 }
 
-/**
- * Grid side length used before surfaces were doubled (save version < 6).
- * Only the save migration may use this.
- */
-export function legacyPlanetGridSize(planet: { size: PlanetSize | string }): number {
-  return (PLANET_SIZE_MAP[planet.size as PlanetSize] ?? 3) * 2 + 3;
-}
-
 /** Deterministic per-planet surface seed derived from the galaxy seed. */
 export function planetSurfaceSeed(galaxySeed: number, planetId: number): number {
   let h = (galaxySeed >>> 0) ^ Math.imul(planetId + 0x632be5ab, 0x9e3779b1);

@@ -666,6 +666,19 @@
     }
   }
 
+  // A save from an unsupported format (docs/versioning.md): listed so the
+  // player knows it is there, but it cannot be loaded.
+  &--incompatible {
+    border-left-color: rgba(var(--ui-danger-rgb), 0.55);
+    background: linear-gradient(90deg, rgba(var(--ui-danger-rgb), 0.1), transparent);
+    color: var(--ink-faint);
+    cursor: not-allowed;
+
+    .save-slot__date {
+      color: var(--ui-danger-text);
+    }
+  }
+
   &--close {
     justify-content: center;
     margin-top: clamp(4px, 1.2dvh, 14px);

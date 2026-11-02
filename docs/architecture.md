@@ -100,7 +100,8 @@ src/app/
           both views; render-only heading trackers updated by StarMap's loop
       star-map-data.json
         → Legacy hand-made galaxy: reference scale for the Large preset and
-          source for migrating pre-v3 saves (no longer used to start games)
+          initial field values of StarMap before a save loads (never used to
+          start a game)
       ai-difficulty.ts
         → Per-faction AI difficulty profiles read by strategy/economy/generator
       ship-data.json
@@ -160,9 +161,12 @@ src/app/
     fleet-organization.service.ts
       → Co-location rule and atomic, validated apply of fleet merge/split plans
     save-game.service.ts
-      → localStorage persistence, 5 save slots, "most recent" lookup, migration
+      → localStorage persistence, 5 save slots, "most recent" lookup,
+        normalizeSave (first-load init + repairs; no legacy migration),
+        incompatible-slot flag (docs/versioning.md)
     save-validation.ts
-      → SAVE_VERSION and the structural save gate
+      → SAVE_VERSION, MIN_SUPPORTED_SAVE_VERSION, isSupportedSaveVersion and
+        the structural save gate
     new-game.models.ts / new-game-config.ts
       → New Game config types, galaxy size presets, config validation helpers
     galaxy-generator.service.ts

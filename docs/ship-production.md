@@ -108,8 +108,8 @@ touches a fleet and the fleet never touches the factory. Entries are
 captured with `producedAtTick` and `originPlanetId` for debug, but those
 fields are not consulted by any current gameplay logic.
 
-`SaveGameService.migrateSave` backfills `shipStock: []` and
-`production: []` for older saves so the round-trip survives reload.
+The galaxy generator writes `shipStock: []` and `production: []`, so the
+round-trip survives reload.
 
 ## Resource handling
 
@@ -120,9 +120,8 @@ cancelled.
 
 ## Save / load
 
-`StarMapData.shipStock` and `StarMapData.production` are optional fields.
-`SaveGameService.migrateSave` backfills `[]` for both on load so older saves
-keep working. Production progress and per-fleet composition persist via the
+`StarMapData.shipStock` and `StarMapData.production` are optional in the
+type; new games start with `[]` for both. Production progress and per-fleet composition persist via the
 existing root-state persistence. Orders record what they were charged in
 `paid`; orders from saves without it are refunded as credits-only.
 

@@ -150,26 +150,6 @@ describe('Small galaxy regression', () => {
     expect(fleet.targetY).toBe(target.y);
   });
 
-  it('repairs Small saves created by generator v1 without regenerating them', () => {
-    const data = startGame(smallConfig(5));
-    // Recreate the v1 bug state in the stored save.
-    data.galaxy!.generatorVersion = 1;
-    for (const s of data.starSystems) s.explored = s.planetsTiles.some((p) => p.factionId === 'player');
-    saves.saveToSlot(2, data);
-    const generate = vi.spyOn(TestBed.inject(GalaxyGeneratorService), 'generate');
-
-    saves.currentSlot = null;
-    expect(saves.activateSlot(2)).toBe(true);
-    const { map } = openGalaxyView();
-
-    expect(generate).not.toHaveBeenCalled();
-    expect(map.exploredStarSystems).toHaveLength(data.starSystems.length);
-    expect(map.starSystems.map((s) => [s.id, s.x, s.y])).toEqual(data.starSystems.map((s) => [s.id, s.x, s.y]));
-    // Planet-level fog is preserved by the repair.
-    const planetsExplored = map.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.explored).length;
-    expect(planetsExplored).toBe(data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.explored).length);
-  });
-
   it('save → load restores the same Small galaxy', () => {
     const data = startGame(smallConfig(31));
     const first = openGalaxyView().map;

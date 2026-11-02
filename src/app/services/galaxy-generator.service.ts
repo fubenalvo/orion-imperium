@@ -25,6 +25,7 @@ import { AI_PERSONALITIES } from '../components/star-map/ai-personality';
 import { centerLayout, generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
 import { getPlanetGridSize } from '../components/star-map/planet-surface/planet-surface';
 import { SAVE_VERSION } from './save-validation';
+import { GAME_VERSION } from '../game-version';
 import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
 import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star-map/diplomacy';
@@ -84,7 +85,7 @@ import { generateCivilizationSystems } from '../components/star-map/civilization
 
 /*
  * 1: initial version (only the human home system started `explored`, which
- *    hid every other star — see markStarPositionsKnown).
+ *    hid every other star — see the visibility rule at the end of this file).
  * 2: every star system starts `explored` (positions known); planets stay unexplored.
  * 3: nebulae and the drifting-asteroid event state are generated.
  * 4: impassable asteroid belts are generated.
@@ -388,7 +389,7 @@ export class GalaxyGeneratorService {
         y: pos.y,
         planets: planetsTiles.length,
         color: pick(rng, STAR_COLORS),
-        // Star positions are known from the start; see markStarPositionsKnown.
+        // Star positions are known from the start; see the visibility rule at the end of this file.
         explored: true,
         planetsTiles,
       };
@@ -481,6 +482,7 @@ export class GalaxyGeneratorService {
 
     return {
       saveVersion: SAVE_VERSION,
+      gameVersion: GAME_VERSION,
       galaxy: {
         size: preset.id,
         seed: seed >>> 0,
@@ -765,13 +767,8 @@ class PlanetNameGenerator {
  * systems revealed (its JSON has no exploredGridCells, so StarMap.loadGame
  * marks them all explored). Generator v1 hid all but the home system; with
  * sensor ranges of 3–5 cells and systems 20+ cells apart, the player could
- * not find any other system. Also used by SaveGameService to repair v1 saves.
+ * not find any other system.
  */
-export function markStarPositionsKnown(starSystems: StarSystem[]): void {
-  for (const system of starSystems) {
-    system.explored = true;
-  }
-}
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);

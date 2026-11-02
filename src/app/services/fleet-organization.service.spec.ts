@@ -14,7 +14,7 @@ import {
   FLEET_NAME_MAX_LENGTH,
 } from './fleet-organization.service';
 import { SaveGameService } from './save-game.service';
-import { validateSaveData } from './save-validation';
+import { SAVE_VERSION, validateSaveData } from './save-validation';
 
 let shipSeq = 0;
 const ship = (type: string, extra: Partial<FleetShip> = {}): FleetShip => ({
@@ -592,6 +592,7 @@ describe('FleetOrganizationService', () => {
       expect(result.ok).toBe(true);
 
       const data: StarMapData = {
+        saveVersion: SAVE_VERSION,
         factions: [PLAYER],
         map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
         starSystems: [

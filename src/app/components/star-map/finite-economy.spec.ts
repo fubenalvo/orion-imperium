@@ -11,6 +11,7 @@ import {
 } from './star-map.models';
 import { EconomyService, POPULATION_RAW_RATE } from '../../services/economy.service';
 import { SaveGameService } from '../../services/save-game.service';
+import { SAVE_VERSION } from '../../services/save-validation';
 import { ProductionService } from '../../services/production.service';
 import { ShipService } from '../../services/ship.service';
 import { buildingCost, payCost, shipCost } from '../../services/resource-cost';
@@ -251,6 +252,7 @@ describe('finite raw-material deposits', () => {
 
   describe('save / load (4, 13)', () => {
     const save = (systems: StarSystem[], f: Faction[]): StarMapData => ({
+      saveVersion: SAVE_VERSION,
       factions: f,
       map: { width: W, height: H, cellSizeVw: 2, cellSizeVh: 2 },
       starSystems: systems,
@@ -276,7 +278,7 @@ describe('finite raw-material deposits', () => {
       saves.clearSlot(1);
     });
 
-    it('a save from before finite deposits loads with full reserves and keeps all progress', () => {
+    it('loading repairs missing deposit reserves with full reserves and keeps all progress', () => {
       const f = factions();
       f[0].currencies = { credits: 12345, rawmaterials: 678, research: 910 };
       const planet = miningPlanet(1, 'player', { total: 0, remaining: 0, richness: 1 });
@@ -298,7 +300,7 @@ describe('finite raw-material deposits', () => {
       const data = save([sys], f);
       data.galaxy = { size: 'small', seed: 99, generatorVersion: 3 };
 
-      const migrated = TestBed.inject(SaveGameService).migrateSave(data);
+      const migrated = TestBed.inject(SaveGameService).normalizeSave(data);
       const [p1, p2] = migrated.starSystems[0].planetsTiles;
       expect(p1.rawDeposit).toEqual(generatePlanetDeposit(p1));
       expect(p1.rawDeposit!.remaining).toBe(p1.rawDeposit!.total);
@@ -311,7 +313,7 @@ describe('finite raw-material deposits', () => {
       expect(migratedRich.extractionRate).toBe(asteroidExtractionRate(99, 'home', rich.col, rich.row));
       // Idempotent: a second load changes nothing.
       const again = JSON.parse(JSON.stringify(migrated));
-      TestBed.inject(SaveGameService).migrateSave(again);
+      TestBed.inject(SaveGameService).normalizeSave(again);
       expect(again.starSystems).toEqual(JSON.parse(JSON.stringify(migrated.starSystems)));
       ensureSystemAsteroidBelts(again.starSystems, 99);
       expect(again.starSystems).toEqual(JSON.parse(JSON.stringify(migrated.starSystems)));

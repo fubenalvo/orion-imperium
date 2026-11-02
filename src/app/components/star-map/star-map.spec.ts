@@ -343,6 +343,7 @@ describe('StarMap', () => {
     // code fell into when it read currentSlot instead of autosave.
     const seedStaleManualSnapshot = (): void => {
       saveGameService.saveToSlot(1, {
+        saveVersion: SAVE_VERSION,
         factions: component.factions,
         map: { width: 100, height: 60, cellSizeVw: 2, cellSizeVh: 2 },
         starSystems: component.starSystems,

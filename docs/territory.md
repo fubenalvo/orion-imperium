@@ -183,7 +183,7 @@ Deposit cards show the remaining amount and the asteroid's extraction rate. Stat
 
 ## Persistence and save compatibility
 
-- `StarMapData.spaceBases` (save version 7). `migrateSave` gives older saves `[]`; `validateSaveData` rejects a non-array and only warns about malformed entries, which `SpaceBaseService.restore` drops. A destroyed base is removed, so every stored base is alive. Base ids are `max + 1`.
+- `StarMapData.spaceBases`. `normalizeSave` gives a new game `[]` on its first load; `validateSaveData` rejects a non-array and only warns about malformed entries, which `SpaceBaseService.restore` drops. A destroyed base is removed, so every stored base is alive. Base ids are `max + 1`.
 - `FactionRelation.borderIncidents` and `passageRights` are optional relation fields (no version bump of their own); `normalizeRelations` keeps them (passage only at peace).
 - Territory, the active violation set and the cache are runtime only.
 - Station defense state is the optional `hullCurrent` and `shieldPoolCurrent` on `SpaceBase` and `MiningStation` (no version bump; missing = full). Turret counts are never saved — they follow the saved research.

@@ -23,7 +23,7 @@ MainMenu.newGame ─▶ NewGameService.startNewGame
 
 If any step fails, the errors are shown on the setup screen and nothing is activated. The legacy
 `star-map-data.json` is no longer used to start games; it remains the reference for the Large
-preset and the source for migrating pre-v3 saves.
+preset.
 
 ## Configuration (`services/new-game.models.ts`, `services/new-game-config.ts`)
 
@@ -53,8 +53,7 @@ system density. **Large is the legacy map's scale** and must stay so.
 | Large  | 300×180 | 14      | 1–6                | 6           |
 
 Planet counts per non-home system are weighted like the legacy map (4×1, 4×2, 3×3, 2×4, 1×6).
-Home systems have at least 3 planets. A map width of exactly 200 must never be used: it marks the
-pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSave`.
+Home systems have at least 3 planets.
 
 ## Generation (`services/galaxy-generator.service.ts`)
 
@@ -111,8 +110,7 @@ pre-grid legacy save format and would be rescaled by `SaveGameService.migrateSav
   enemy fleets (sensor range) and planet details (only the human homeworld starts
   `PlanetTile.explored`). `StarSystem.explored` decides whether a system is rendered at all, and
   sensor ranges (3–5 cells) are far shorter than system spacing (≥ 22 cells), so hiding systems
-  made the rest of the galaxy undiscoverable (generator v1 bug). `migrateSave` reveals star
-  positions in saves with `galaxy.generatorVersion < 2`.
+  made the rest of the galaxy undiscoverable (generator v1 bug).
 - **Start view:** `defaultView` opens the human homeworld; the camera is centered on the home
   system so leaving the planet view lands there.
 - **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }` (current
@@ -151,14 +149,11 @@ neutral profile. What each personality changes is documented in
 ## Persistence
 
 A generated galaxy is an ordinary `StarMapData` save. Loading restores the stored snapshot and
-never calls the generator. Since save version 3, `StarMap` persists `specialObjects` and `galaxy`
-and reads `map.width/height` from the save. `migrateSave` backfills the legacy black hole for
-pre-v3 saves (only when it fits the save's grid) and sets `aiDifficulty: 'normal'` on AI factions
-that lack it. Since save version 4, `nebulae` and `asteroidEvents` are persisted; `migrateSave`
-generates the deterministic nebula set (and a fresh asteroid state) once for older saves. Since
-save version 5, `asteroidBelts` are persisted; older saves get an empty list. Since save version 6,
-planet surfaces are doubled and `PlanetTile.surface` is persisted; older layouts are re-centered and
-get terrain generated around them ([Planet Surface](./planet-surface.md#save-compatibility-save-version-6)).
+never calls the generator. `StarMap` persists `specialObjects`, `galaxy`, `nebulae`,
+`asteroidEvents`, `asteroidBelts` and `PlanetTile.surface`, and reads `map.width/height` from the
+save. The generated save carries `saveVersion` and `gameVersion`; the state it leaves out (space
+bases, demands, anomalies, trade network) is created by `SaveGameService.normalizeSave` on the first
+load. Saves of unsupported formats are rejected ([Versioning](./versioning.md)).
 
 ## Independent civilizations (generator v7)
 

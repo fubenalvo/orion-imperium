@@ -88,6 +88,6 @@ See [UI Styling](./ui-styling.md) for the design system.
 
 ## Save compatibility
 
-Save version 10 adds `StarMapData.anomalies`. `SaveGameService.migrateSave` generates the galaxy's set when the field is missing or malformed (older saves, new games), after the in-system asteroid belts exist. A saved state is kept as is; `sanitizeAnomalyState` drops malformed entries and turns an `active` entry without a fleet id back into `discovered`.
+`StarMapData.anomalies` is saved. `SaveGameService.normalizeSave` generates the galaxy's set when the field is missing or malformed (a new game's first load), after the in-system asteroid belts exist. A saved state is kept as is; `sanitizeAnomalyState` drops malformed entries and turns an `active` entry without a fleet id back into `discovered`.
 
 Related: [Star Map Terrain](./star-map-terrain.md) (drifting asteroids, the other map event), [Battle Rules](./battle-rules.md), [Diplomacy](./diplomacy.md), [Economy](./economy.md).

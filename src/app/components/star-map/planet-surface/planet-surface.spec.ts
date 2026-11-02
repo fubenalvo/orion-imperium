@@ -9,7 +9,6 @@ import {
   isFootprintBlocked,
   isSurfaceCellBlocked,
   isWellFormedBlockedMask,
-  legacyPlanetGridSize,
   planetSurfaceSeed,
 } from './planet-surface';
 import {
@@ -48,10 +47,7 @@ function blockedCount(p: PlanetTile): number {
 }
 
 describe('planet surface grid', () => {
-  it('doubles every size category and keeps their progression', () => {
-    for (const size of SIZES) {
-      expect(getPlanetGridSize({ size })).toBe(legacyPlanetGridSize({ size }) * 2);
-    }
+  it('keeps the grid size progression of the size categories', () => {
     expect(SIZES.map((size) => getPlanetGridSize({ size }))).toEqual([10, 14, 18, 22, 22]);
   });
 

@@ -252,6 +252,17 @@
     cursor: not-allowed;
   }
 
+  // Unsupported save format (docs/versioning.md): listed, not loadable.
+  &--incompatible {
+    border-left-color: rgba(var(--ui-danger-rgb), 0.55);
+    color: var(--ui-ink-faint);
+    cursor: not-allowed;
+
+    .save-slot__date {
+      color: var(--ui-danger-text);
+    }
+  }
+
   &--empty {
     border-left-color: rgba(70, 101, 111, 0.6);
     background: linear-gradient(90deg, rgba(6, 16, 22, 0.55), transparent);

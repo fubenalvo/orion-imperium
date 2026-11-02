@@ -218,28 +218,27 @@ describe('trade network persistence', () => {
     expect(service.traders.map((t) => t.slot).sort()).toEqual([0, 1]);
   });
 
-  it('older saves get an empty network and the current save version', () => {
+  it('a new game (no network yet) starts with an empty network', () => {
     const factions = [
       { id: 'player', name: 'P', color: '#00f', team: 1, ai: false, currencies: { credits: 0, rawmaterials: 0, research: 0 } },
       { id: 'independent', name: 'I', color: '#ffcc00', team: 0, ai: false, currencies: {} },
       { id: 'unhabited', name: 'U', color: '#666666', team: 0, ai: false, currencies: {} },
     ] as unknown as Faction[];
-    const old: StarMapData = {
-      saveVersion: 10,
+    const fresh: StarMapData = {
+      saveVersion: SAVE_VERSION,
       galaxy: { size: 'small', seed: 12, generatorVersion: 5 },
       factions,
       map: { width: 180, height: 108, cellSizeVw: 2, cellSizeVh: 2 },
       starSystems: [],
       fleets: [],
     } as unknown as StarMapData;
-    const migrated = TestBed.inject(SaveGameService).migrateSave(old);
+    const migrated = TestBed.inject(SaveGameService).normalizeSave(fresh);
     expect(migrated.saveVersion).toBe(SAVE_VERSION);
-    expect(SAVE_VERSION).toBe(11);
     expect(migrated.tradeNetwork).toEqual(createInitialTradeNetworkState(12));
   });
 
   it('a malformed network is a warning, not a load error', () => {
-    const result = validateSaveData({ tradeNetwork: { traders: 'nope' } } as unknown as StarMapData);
+    const result = validateSaveData({ saveVersion: SAVE_VERSION, tradeNetwork: { traders: 'nope' } } as unknown as StarMapData);
     expect(result.warnings.some((w) => w.code === 'trade_network_invalid')).toBe(true);
     expect(result.errors.some((e) => e.code === 'trade_network_invalid')).toBe(false);
   });

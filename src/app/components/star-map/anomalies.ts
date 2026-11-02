@@ -26,8 +26,8 @@ import { OUTPOST_SHIP_TYPE } from './space-base';
  * the live state and StarMap wires it into the game loop and the UI.
  *
  * - Generation is deterministic from the galaxy seed (own rng stream) and
- *   runs once per game: new games and saves from before anomalies existed
- *   get it from SaveGameService.migrateSave; afterwards the saved state is
+ *   runs once per game: a new game gets it from SaveGameService.normalizeSave
+ *   on its first load; afterwards the saved state is
  *   authoritative.
  * - Lifecycle: hidden → discovered → active → resolved (see AnomalyStatus).
  *   Only the human player discovers and triggers anomalies; AI fleets never

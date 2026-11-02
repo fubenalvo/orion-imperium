@@ -13,9 +13,12 @@ interface ShipDataFile {
 /*
  * Save format versioning and validation.
  *
- * `SAVE_VERSION` is the current on-disk format version. Saves without the
- * field are treated as version 0 and migrated on first load; migration must
- * be idempotent so repeated load/save cycles never drift.
+ * `SAVE_VERSION` is the current on-disk format version: an integer bumped
+ * whenever the saved data shape changes. `MIN_SUPPORTED_SAVE_VERSION` is the
+ * oldest format the game still loads. A save below it, or without a version,
+ * is rejected with `save_version_unsupported` and never migrated; see
+ * docs/versioning.md for when the minimum may be raised (a MINOR release)
+ * and when a format change needs a migration (within a MINOR release).
  *
  * `validateSaveData` is the single structural gate shared by the save slot
  * activation path and StarMap.loadGame. It must never throw on malformed
@@ -26,41 +29,30 @@ export const KNOWN_SHIP_TYPES: ReadonlySet<string> = new Set(
 );
 
 /*
- * Version history:
- * - 0/1: legacy saves (pre-versioning, vw→grid migration).
- * - 2: grid coordinates, gameOutcome.
- * - 3: map dimensions vary per galaxy (procedural generation), plus the
- *      persisted `specialObjects`, `galaxy` metadata and `Faction.aiDifficulty`.
- * - 4: `nebulae`, `asteroidEvents` and `Fleet.interceptAsteroidId`
- *      (docs/star-map-terrain.md). Older saves are backfilled by
- *      SaveGameService.migrateSave.
- * - 5: `asteroidBelts` (impassable barriers). Older saves get none.
- * - 6: planet surfaces doubled in size plus persisted `PlanetTile.surface`
- *      terrain. Older layouts are re-centered on the bigger grid and get
- *      terrain generated around them (docs/planet-surface.md).
- * - 7: `spaceBases` (docs/territory.md). Older saves get none. Territory
- *      is derived, never saved.
- * - 8: the system view grid doubled (system-grid.ts): `PlanetTile.x/y` is
- *      the top-left cell of a 2×2 block; older values are converted. Adds
- *      `StarSystem.asteroidBelt`, backfilled deterministically on load.
- * - 9: open credit demands `diplomaticDemands` (docs/diplomacy.md) plus the
- *      optional demand fields on `Faction` and `FactionRelation`. Older
- *      saves get [] and default values (normalizeRelations).
- * - 10: exploration `anomalies` (docs/exploration-anomalies.md). Older saves
- *      get the deterministic anomaly set of their galaxy once, from
- *      SaveGameService.migrateSave.
- * - 11: civilian trade network `tradeNetwork` (docs/trade-network.md). Older
- *      saves get an empty state; the traders of existing Trading Posts are
- *      created on load (TradeNetworkService).
+ * Version history (only supported formats are listed):
+ * - 12: baseline of release 0.3.0. Every older format (0–11) was dropped
+ *       together with its migration code; such saves are rejected.
  */
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
+export const MIN_SUPPORTED_SAVE_VERSION = 12;
 
 /*
- * Grid of the legacy star-map-data.json map. Only used to migrate pre-grid
- * (map.width === 200) saves, which all came from that map. Generated
- * galaxies carry their own dimensions in `map`.
+ * True when the save's format can be loaded by this game version. Shared by
+ * slot listing (to label incompatible slots), SaveGameService.normalizeSave
+ * (which leaves unsupported data untouched) and validateSaveData.
  */
-export const CURRENT_MAP_GRID = { width: 300, height: 180 } as const;
+export function isSupportedSaveVersion(data: unknown): boolean {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+  const version = (data as Partial<StarMapData>).saveVersion;
+  return (
+    typeof version === 'number' &&
+    Number.isInteger(version) &&
+    version >= MIN_SUPPORTED_SAVE_VERSION &&
+    version <= SAVE_VERSION
+  );
+}
 
 export interface SaveValidationIssue {
   code: string;
@@ -99,20 +91,20 @@ export function validateSaveData(
 
   const save = data as Partial<StarMapData>;
 
-  if (
-    save.saveVersion !== undefined &&
-    (typeof save.saveVersion !== 'number' ||
-      !Number.isInteger(save.saveVersion) ||
-      save.saveVersion < 0 ||
-      save.saveVersion > SAVE_VERSION)
-  ) {
+  if (!isSupportedSaveVersion(save)) {
+    const newer = typeof save.saveVersion === 'number' && save.saveVersion > SAVE_VERSION;
+    const writtenBy = typeof save.gameVersion === 'string' ? ` (saved by v${save.gameVersion})` : '';
     errors.push(
       error(
-        'save_version_invalid',
+        'save_version_unsupported',
         'saveVersion',
-        `saveVersion must be an integer between 0 and ${SAVE_VERSION}`,
+        newer
+          ? `This save comes from a newer game version${writtenBy} and cannot be loaded`
+          : `This save comes from an older, incompatible game version${writtenBy} and cannot be loaded`,
       ),
     );
+    // Nothing else is checked: an unsupported format has a different shape.
+    return { ok: false, errors, warnings };
   }
 
   if (!Array.isArray(save.factions)) {

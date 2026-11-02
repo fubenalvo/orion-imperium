@@ -1,6 +1,5 @@
-import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
-import { Fleet, PlanetTile, StarMapData, StarSystem } from './star-map.models';
+import { Fleet, PlanetTile, StarSystem } from './star-map.models';
 import {
   SYSTEM_ASTEROID_CONFIG,
   ensureSystemAsteroidBelts,
@@ -15,8 +14,6 @@ import {
   systemCellCenterVw,
 } from './system-grid';
 import { StarMapMovementService } from './star-map-movement.service';
-import { SaveGameService } from '../../services/save-game.service';
-import { SAVE_VERSION } from '../../services/save-validation';
 
 /*
  * In-system asteroid belts and the doubled system grid
@@ -210,41 +207,5 @@ describe('asteroid survey', () => {
     const elsewhere = fleetAt(3, 'player', 'other', at.x, at.y);
     expect(surveySystemAsteroids([ai, dead, elsewhere], [sys])).toEqual([]);
     expect(rich.surveyed).toBe(false);
-  });
-});
-
-describe('save migration v8', () => {
-  const legacySave = (): StarMapData =>
-    ({
-      saveVersion: 7,
-      factions: [{ id: 'player', name: 'P', color: '#fff', team: 1, currencies: {} }],
-      map: { width: 60, height: 40, cellSizeVw: 2, cellSizeVh: 2 },
-      starSystems: [
-        {
-          ...system('old', 2),
-          planetsTiles: [planet(1, { x: 12, y: 3 }), planet(2, { x: 10, y: 5 })],
-        },
-      ],
-      fleets: [],
-    }) as unknown as StarMapData;
-
-  it('converts planet positions to the doubled grid once and adds belts', () => {
-    const saves = TestBed.inject(SaveGameService);
-    const migrated = saves.migrateSave(legacySave());
-    const planets = migrated.starSystems[0].planetsTiles;
-    expect(planets.map((p) => [p.x, p.y])).toEqual([
-      [23, 5],
-      [19, 9],
-    ]);
-    expect(migrated.saveVersion).toBe(SAVE_VERSION);
-    expect(migrated.starSystems[0].asteroidBelt?.asteroids.length).toBeGreaterThan(0);
-
-    // Idempotent: a second pass changes nothing.
-    const again = saves.migrateSave(structuredClone(migrated));
-    expect(again.starSystems[0].planetsTiles.map((p) => [p.x, p.y])).toEqual([
-      [23, 5],
-      [19, 9],
-    ]);
-    expect(again.starSystems[0].asteroidBelt).toEqual(migrated.starSystems[0].asteroidBelt);
   });
 });

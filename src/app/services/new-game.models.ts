@@ -9,9 +9,6 @@ import { AiDifficulty, GalaxySize } from '../components/star-map/star-map.models
  * ratio — the minimap is a fixed 240×144 px widget — and a similar system
  * density, so movement times and sensor coverage feel the same per system.
  *
- * Map widths must never be 200: SaveGameService.migrateSave treats
- * `map.width === 200` as the pre-grid legacy format and would rescale it.
- *
  * See docs/new-game-generation.md for the full generation rules.
  */
 

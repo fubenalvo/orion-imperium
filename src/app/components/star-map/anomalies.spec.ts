@@ -382,7 +382,7 @@ describe('exploration anomalies', () => {
 
   describe('save and load', () => {
     const save = (anomalies?: AnomalyState): StarMapData => ({
-      saveVersion: 9,
+      saveVersion: SAVE_VERSION,
       galaxy: { size: 'small', seed: 77, generatorVersion: 2 },
       factions,
       map: { width: W, height: H, cellSizeVw: 2, cellSizeVh: 2 },
@@ -391,12 +391,11 @@ describe('exploration anomalies', () => {
       ...(anomalies ? { anomalies } : {}),
     });
 
-    it('older saves get their galaxy’s deterministic anomalies once', () => {
+    it('a new game (no anomaly state yet) gets its galaxy’s deterministic anomalies once', () => {
       const saves = TestBed.inject(SaveGameService);
-      const migrated = saves.migrateSave(save());
-      expect(migrated.saveVersion).toBe(SAVE_VERSION);
+      const migrated = saves.normalizeSave(save());
       expect(migrated.anomalies!.anomalies.length).toBeGreaterThan(0);
-      expect(migrated.anomalies).toEqual(saves.migrateSave(save()).anomalies);
+      expect(migrated.anomalies).toEqual(saves.normalizeSave(save()).anomalies);
     });
 
     it('anomaly states survive a save slot round trip and are not regenerated', () => {

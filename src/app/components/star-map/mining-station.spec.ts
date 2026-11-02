@@ -6,6 +6,7 @@ import { TerritoryService } from './territory.service';
 import { StarMapMovementService } from './star-map-movement.service';
 import { EconomyService } from '../../services/economy.service';
 import { SaveGameService } from '../../services/save-game.service';
+import { SAVE_VERSION } from '../../services/save-validation';
 import { normalizeRelations } from './diplomacy';
 import { OUTPOST_SHIP_TYPE } from './space-base';
 import { systemCellCenterVw } from './system-grid';
@@ -286,6 +287,7 @@ describe('asteroid mining stations', () => {
 
   describe('save / load', () => {
     const save = (systems: StarSystem[]): StarMapData => ({
+      saveVersion: SAVE_VERSION,
       factions: makeFactions(),
       map: { width: W, height: H, cellSizeVw: 2, cellSizeVh: 2 },
       starSystems: systems,
@@ -311,7 +313,7 @@ describe('asteroid mining stations', () => {
       const systems = [makeSystem('home', 30, 30, 'player')];
       asteroidAt(systems[0], RICH).miningStation = { factionId: 42 } as unknown as { factionId: string };
       asteroidAt(systems[0], BARREN).miningStation = { factionId: 'player' };
-      const migrated = TestBed.inject(SaveGameService).migrateSave(save(systems));
+      const migrated = TestBed.inject(SaveGameService).normalizeSave(save(systems));
       const belt = migrated.starSystems[0].asteroidBelt!;
       expect(belt.radiusVw).toBe(40); // the hand-made belt was kept
       expect(asteroidAt(migrated.starSystems[0], RICH).miningStation).toBeUndefined();

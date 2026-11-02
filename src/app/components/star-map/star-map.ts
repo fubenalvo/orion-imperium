@@ -14,6 +14,7 @@ import { ShipService } from '../../services/ship.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { generatePlanetSurface, needsSurface } from './planet-surface/planet-surface-generator';
 import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
+import { GAME_VERSION } from '../../game-version';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
 import { GameSettingsService } from '../../services/game-settings.service';
@@ -4223,6 +4224,7 @@ loadError = '';
   private serializeGameState(): StarMapData {
     return {
       saveVersion: SAVE_VERSION,
+      gameVersion: GAME_VERSION,
       galaxy: this.galaxy,
       factions: this.factions,
       specialObjects: this.specialObjects,
@@ -4403,9 +4405,8 @@ loadError = '';
       }
     }
 
-    // Legacy grid migration is performed by SaveGameService.migrateSave
-    // (versioned and idempotent). Here we only renormalize values that
-    // depend on the current building set.
+    // Saves reach this point normalized by SaveGameService.normalizeSave.
+    // Here we only renormalize values that depend on the current building set.
     this.planetBattleService.reconcilePlanetShields(this.starSystems);
 
     if (data.destroyedFleetId != null) {

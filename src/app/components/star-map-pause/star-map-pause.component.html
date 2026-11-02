@@ -58,6 +58,8 @@
               type="button"
               class="save-slot"
               [class.save-slot--empty]="!slot.data"
+              [class.save-slot--incompatible]="slot.incompatible"
+              [disabled]="slot.incompatible"
               (click)="onSelectSlot($index)"
             >
               @if ($index === SaveSlotId.AUTOSAVE) {
@@ -65,7 +67,11 @@
               } @else {
                 <span class="save-slot__index">Slot {{ $index + 1 }}</span>
               }
-              <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+              @if (slot.incompatible) {
+                <span class="save-slot__date">{{ incompatibleLabel(slot) }}</span>
+              } @else {
+                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+              }
             </button>
           }
         </div>

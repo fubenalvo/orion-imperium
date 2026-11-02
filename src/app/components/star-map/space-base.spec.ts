@@ -232,6 +232,7 @@ describe('space bases', () => {
 
   describe('save / load', () => {
     const baseSave = (overrides: Partial<StarMapData> = {}): StarMapData => ({
+      saveVersion: SAVE_VERSION,
       factions: makeFactions(),
       map: { width: W, height: H, cellSizeVw: 2, cellSizeVh: 2 },
       starSystems: [system('home', 30, 30, 'player')],
@@ -239,11 +240,10 @@ describe('space bases', () => {
       ...overrides,
     });
 
-    it('older saves load with no bases and the current save version', () => {
-      const migrated = TestBed.inject(SaveGameService).migrateSave(baseSave({ saveVersion: 6 }));
-      expect(migrated.spaceBases).toEqual([]);
-      expect(migrated.saveVersion).toBe(SAVE_VERSION);
-      expect(SAVE_VERSION).toBeGreaterThanOrEqual(8);
+    it('a new game (no spaceBases field yet) loads with no bases', () => {
+      const normalized = TestBed.inject(SaveGameService).normalizeSave(baseSave());
+      expect(normalized.spaceBases).toEqual([]);
+      expect(normalized.saveVersion).toBe(SAVE_VERSION);
     });
 
     it('bases survive a save slot round trip and restore the same territory', () => {

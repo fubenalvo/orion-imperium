@@ -4,9 +4,11 @@ import {
   SaveGameService,
   SaveSlot,
   SaveSlotId,
+  incompatibleSlotLabel,
   MANUAL_SLOT_START,
 } from '../services/save-game.service';
 import { GameSettingsService } from '../services/game-settings.service';
+import { GAME_VERSION } from '../game-version';
 import { NewGameService } from '../services/new-game.service';
 import { NewGameConfig } from '../services/new-game.models';
 import { createDefaultNewGameConfig } from '../services/new-game-config';
@@ -24,6 +26,7 @@ interface BeforeInstallPromptEvent extends Event {
   templateUrl: './main-menu.html',
 })
 export class MainMenu implements OnInit, OnDestroy {
+  readonly gameVersion = GAME_VERSION;
   showNewGameSetup = false;
   newGameErrors: string[] = [];
   startingNewGame = false;
@@ -131,6 +134,10 @@ export class MainMenu implements OnInit, OnDestroy {
 
     const d = new Date(date);
     return d.toLocaleString();
+  }
+
+  incompatibleLabel(slot: SaveSlot): string {
+    return incompatibleSlotLabel(slot);
   }
 
   onInstallClick(): void {

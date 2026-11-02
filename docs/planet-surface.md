@@ -33,8 +33,7 @@ Related: [Data Models](./data-models.md) (`PlanetTile.surface`),
 - Coordinates are 0-indexed cells; a building's `x`/`y` is its top-left cell
   and it covers `size × size` cells. Deposits occupy one cell.
 - Every system that places or validates buildings uses `getPlanetGridSize`
-  (planet screen, AI construction, galaxy generator and validator, save
-  migration). `legacyPlanetGridSize` exists only for the v6 save migration.
+  (planet screen, AI construction, galaxy generator and validator).
 
 ## Terrain data (`PlanetTile.surface`)
 
@@ -65,7 +64,6 @@ interface PlanetSurface {
 |---|---|
 | New game, settled planets (homeworlds, AI starting colonies) | `GalaxyGeneratorService.generate`, after starting buildings are placed |
 | New game, every other planet | `StarMap.ensurePlanetSurfaces` on the first load (before deposits are generated), then persisted by the next save |
-| Saves older than v6 | `SaveGameService.migrateSave` (see below) |
 | Any planet with a missing/stale record | `StarMap.ensurePlanetSurfaces` on load |
 
 Generation is deterministic for (galaxy seed, planet id, type, size,
@@ -160,16 +158,10 @@ needs to tell old and new records apart.
   spot free of buildings and deposits (the surface record is replaced, so
   the mask cache stays valid). See [Economy](./economy.md#colony-cores).
 
-## Save compatibility (save version 6)
+## Save compatibility
 
-For saves older than v6, `migrateSave` (once, idempotent through
-`saveVersion`):
-
-1. moves every building and deposit by `floor((N_new - N_old) / 2)` — the old
-   layout always fits and ends up centered on the doubled grid;
-2. generates the surface with those cells kept clear.
-
-Players therefore keep every building; nothing ends up on terrain.
+`PlanetTile.surface` is saved. Saves from before the doubled surface grid are
+no longer supported ([Versioning](./versioning.md)).
 
 ## Rendering
 

@@ -235,8 +235,7 @@ export function getAiFactionIds(factions: Faction[]): string[] {
  * PlanetTile represents a single planet within a star system.
  *
  * NOTE: x and y are the 1-indexed top-left cell of the planet's 2×2 block
- * on the system view grid (system-grid.ts; save version 8 doubled the grid,
- * older saves are converted by SaveGameService.migrateSave).
+ * on the system view grid (system-grid.ts).
  */
 export interface PlanetTile {
   id: number;
@@ -590,16 +589,22 @@ export interface SpaceBase {
 
 export interface StarMapData {
   /*
-   * Save format version. Missing (older saves) is treated as 0 and
-   * migrated on first load; additional future fields must bump this.
+   * Save format version (SAVE_VERSION). A save below
+   * MIN_SUPPORTED_SAVE_VERSION, or without the field, is rejected on load
+   * instead of migrated (docs/versioning.md).
    */
   saveVersion?: number;
+  /*
+   * Game release (GAME_VERSION) that wrote the save. Informational only:
+   * compatibility is decided by saveVersion; this is shown to the player
+   * when a save is rejected.
+   */
+  gameVersion?: string;
   galaxy?: GalaxyInfo;
   factions: Faction[];
   /*
    * Map entities with no gameplay ownership (currently the central black
-   * hole). Persisted since save version 3; older saves are backfilled from
-   * the legacy star-map-data.json by SaveGameService.migrateSave.
+   * hole). Written by the galaxy generator and persisted.
    */
   specialObjects?: SpecialObject[];
   /*
@@ -637,39 +642,38 @@ export interface StarMapData {
   };
   gameOutcome?: GameOutcome;
   /*
-   * Nebula regions (save version 4+). Generated at New Game; older saves
-   * get a deterministic set from SaveGameService.migrateSave once.
+   * Nebula regions. Generated at New Game, persisted, never regenerated.
    */
   nebulae?: Nebula[];
-  /* Drifting asteroid events (save version 4+). */
+  /* Drifting asteroid events. */
   asteroidEvents?: AsteroidEventState;
   /*
-   * Impassable asteroid belts (save version 5+). Generated at New Game and
+   * Impassable asteroid belts. Generated at New Game and
    * persisted; saves made before belts existed load with none (adding a
    * barrier to a running game could cut off fleets and territory).
    */
   asteroidBelts?: AsteroidBelt[];
   /*
-   * Space bases (save version 7+); older saves get []. Territory itself is
+   * Space bases; a new game gets [] on its first load (normalizeSave). Territory itself is
    * never stored: it is derived from planet owners and these bases.
    */
   spaceBases?: SpaceBase[];
   /*
-   * Open credit demands (save version 9+): AI demands waiting for the
+   * Open credit demands: AI demands waiting for the
    * human's answer and the human's refused threats waiting for a decision
    * (diplomatic-demand.ts). Older saves get []. Restored by
    * DiplomacyService.restoreDemands, which drops invalid entries.
    */
   diplomaticDemands?: DiplomaticDemand[];
   /*
-   * Exploration anomalies (save version 10+; docs/exploration-anomalies.md).
-   * Older saves get a deterministic set from SaveGameService.migrateSave
-   * once; after that the persisted state (hidden / discovered / active /
+   * Exploration anomalies (docs/exploration-anomalies.md). A new game gets
+   * its deterministic set from SaveGameService.normalizeSave on the first
+   * load; after that the persisted state (hidden / discovered / active /
    * resolved) is the source of truth and is never regenerated.
    */
   anomalies?: AnomalyState;
   /*
-   * Civilian trade network (save version 11+; docs/trade-network.md): the
+   * Civilian trade network (docs/trade-network.md): the
    * Trader ships and their pending respawns. Older saves get an empty state;
    * TradeNetworkService then creates the traders of every existing Trading
    * Post. The set of posts is derived from planet buildings, never saved.

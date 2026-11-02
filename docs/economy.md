@@ -248,7 +248,7 @@ Full details in [AI Pipeline](./ai-pipeline.md#ai-economy-manager-enemyeconomyse
 
 ## Save compatibility
 
-No save version bump; every new field is optional and filled on load (`SaveGameService.migrateSave` and `StarMap.ensureResourceTiles`, both idempotent):
+No save version bump; every new field is optional and filled on load (`SaveGameService.normalizeSave` and `StarMap.ensureResourceTiles`, both idempotent). Since 0.3.0 only format 12+ saves load at all ([Versioning](./versioning.md)); the repairs below remain as idempotent load-time fallbacks:
 
 - `PlanetTile.rawDeposit`: planets with deposit tiles but no reserve (saves from before finite deposits) get their deterministic deposit, full. Saved reserves — partly mined or depleted — are kept exactly; a malformed one is regenerated. Planets without tiles never have one.
 - `SystemAsteroid.totalRawMaterials` / `extractionRate`: an untouched deposit's original size is its remaining amount; a deposit that already had a station is regenerated from the belt's own generator version to recover its original size. Rates come from a deterministic hash.
