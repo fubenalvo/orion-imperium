@@ -11,9 +11,13 @@ import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { normalizeRelations } from './diplomacy';
 import { DysonRing, dysonWedgeAt } from './dyson-ring';
+import { ProductionService } from '../../services/production.service';
+import { FactionProduction, PlanetTile, StarSystem } from './star-map.models';
 import {
   DYSON_ANCHOR_SHIP_TYPE,
   DYSON_ANCHOR_UPKEEP_POINTS,
+  DYSON_BONUS_VALUES,
+  dysonBonusEffects,
   DYSON_TECHNOLOGY_ID,
   dysonWedgeOwners,
   validateAnchorDeployment,
@@ -174,6 +178,73 @@ describe('Dyson anchors', () => {
       }).base!;
       expect(bases.chooseBonus(radar.id, 'player', 'stellar_power')).toBe(false);
       expect(bases.demolish(radar.id, 'player')).toBe(false);
+    });
+  });
+
+  describe('bonus effects', () => {
+    /* Two completed player anchors with `bonus`, plus one still under construction. */
+    const anchorsWith = (bonus: 'stellar_power' | 'orbital_foundries' | 'swarm_observatory') => {
+      const factions = makeFactions();
+      for (const slot of [0, 1]) {
+        const anchor = bases.deployAnchor(onSlot(slot + 1, 'player', slot), factions).base!;
+        bases.chooseBonus(anchor.id, 'player', bonus);
+      }
+      complete();
+      const site = bases.deployAnchor(onSlot(9, 'player', 5), factions).base!;
+      bases.chooseBonus(site.id, 'player', bonus);
+      return factions;
+    };
+
+    const homeSystem = (buildings: string[]): StarSystem => ({
+      id: 'home', name: 'home', x: 10, y: 10, planets: 1, color: '#fff', explored: true,
+      planetsTiles: [{
+        id: 1, index: 0, name: 'Home', factionId: 'player', x: 1, y: 1, type: 'earthlike', size: 'medium', population: 100,
+        explored: true, resourceTiles: [],
+        buildings: buildings.map((name, i) => ({ name, size: 2, x: i * 3, y: 0 })),
+      } as PlanetTile],
+    });
+
+    it('only completed anchors of the faction count, and same bonuses add up', () => {
+      anchorsWith('stellar_power');
+      expect(dysonBonusEffects(bases.bases, 'player').energyOutput).toBeCloseTo(2 * DYSON_BONUS_VALUES.energyOutputPerAnchor);
+      expect(dysonBonusEffects(bases.bases, 'enemy1')).toEqual({ energyOutput: 0, shipRawCostMultiplier: 1, researchPerSecond: 0 });
+    });
+
+    it('Stellar Power raises the energy of power plants', () => {
+      const factions = anchorsWith('stellar_power');
+      const economy = TestBed.inject(EconomyService);
+      const planet = homeSystem(['Solar Array']).planetsTiles[0];
+      const withBonus = economy.calculatePlanetEconomy(planet, factions[0]).energyProduction;
+      bases.restore([]);
+      const without = economy.calculatePlanetEconomy(planet, factions[0]).energyProduction;
+      expect(without).toBeGreaterThan(0);
+      // Additive to the (here neutral) research multiplier: ×(1 + 0.02).
+      expect(withBonus / without).toBeCloseTo(1 + 2 * DYSON_BONUS_VALUES.energyOutputPerAnchor, 6);
+    });
+
+    it('Swarm Observatory adds research income that the economy tick pays out', () => {
+      const factions = anchorsWith('swarm_observatory');
+      const economy = TestBed.inject(EconomyService);
+      const systems = [homeSystem([])];
+      const net = economy.calculateEconomy('player', factions, systems, []).net['research'] ?? 0;
+      bases.restore([]);
+      const baseline = economy.calculateEconomy('player', factions, systems, []).net['research'] ?? 0;
+      expect(net - baseline).toBeCloseTo(2 * DYSON_BONUS_VALUES.researchPerSecondPerAnchor, 9);
+    });
+
+    it('Orbital Foundries lowers the raw materials charged for ships (credits unchanged)', () => {
+      const factions = anchorsWith('orbital_foundries');
+      factions[0].currencies = { credits: 100000, rawmaterials: 100000, research: 0 };
+      const systems = [homeSystem(['Spaceship Factory'])];
+      const production: FactionProduction[] = [];
+      const ships = TestBed.inject(ShipService);
+      const frigate = ships.getShipType('frigate')!;
+      const result = TestBed.inject(ProductionService).queueOrder({ production }, 'player', 1, 'frigate', 2, systems, factions);
+      expect(result.ok).toBe(true);
+      const unitRaw = Math.round(frigate.rawMaterialCost! * (1 - 2 * DYSON_BONUS_VALUES.shipRawDiscountPerAnchor));
+      expect(unitRaw).toBeLessThan(frigate.rawMaterialCost!);
+      expect(factions[0].currencies['rawmaterials']).toBe(100000 - 2 * unitRaw);
+      expect(factions[0].currencies['credits']).toBe(100000 - 2 * frigate.cost);
     });
   });
 

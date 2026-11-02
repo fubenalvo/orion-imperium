@@ -10,7 +10,7 @@ import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
 import { extractMiningStations, miningRatePerSecond } from '../components/star-map/mining-station';
 import { SpaceBaseService } from '../components/star-map/space-base.service';
 import { isStationComplete } from '../components/star-map/station-construction';
-import { DYSON_ANCHOR_UPKEEP_POINTS, isDysonAnchor } from '../components/star-map/dyson-anchor';
+import { DYSON_ANCHOR_UPKEEP_POINTS, DysonBonusEffects, NO_DYSON_BONUS, dysonBonusEffects, isDysonAnchor } from '../components/star-map/dyson-anchor';
 import { planetTypeTraits } from '../components/star-map/planet-types';
 
 import {
@@ -229,11 +229,14 @@ export class EconomyService {
    * should be applied to credits production.
    *
    * `owner` applies the owner's technology modifiers (energy, raw-material
-   * and research output of buildings). Without it the result is the
-   * technology-free baseline; every economy and AI path passes the owner.
+   * and research output of buildings) and its Dyson anchor bonuses (energy).
+   * Without it the result is the technology-free baseline; every economy and
+   * AI path passes the owner.
    */
   calculatePlanetEconomy(planet: PlanetTile, owner?: Faction | null): PlanetEconomy {
     const tech = this.research.getModifiers(owner);
+    // Stellar Power anchors add to the power multiplier like research bonuses do.
+    const dysonEnergy = owner ? this.getDysonBonusEffects(owner.id).energyOutput : 0;
     const traits = planetTypeTraits(planet.type);
     const production: ResourceRates = {};
     const consumption: ResourceRates = {};
@@ -273,7 +276,7 @@ export class EconomyService {
         consumption[resource as ResourceType] = (consumption[resource as ResourceType] ?? 0) + amount;
       }
 
-      const energyMultiplier = stats.role === 'core' ? 1 : tech.energyOutput * traits.energyOutput;
+      const energyMultiplier = stats.role === 'core' ? 1 : (tech.energyOutput + dysonEnergy) * traits.energyOutput;
       energyProduction += (stats.energyProduction ?? 0) * energyMultiplier;
       energyConsumption += stats.energyConsumption ?? 0;
     }
@@ -516,6 +519,13 @@ export class EconomyService {
     }
     depositMining += miningRate;
 
+    // Swarm Observatory anchors (dyson-anchor.ts): a flat faction-level research source.
+    const dysonResearch = this.getDysonBonusEffects(factionId).researchPerSecond;
+    if (dysonResearch > 0) {
+      factionProduction['research'] = (factionProduction['research'] ?? 0) + dysonResearch;
+      factionNet['research'] = (factionNet['research'] ?? 0) + dysonResearch;
+    }
+
     const income = factionProduction['credits'] ?? 0;
     const expense = buildingUpkeep + administration + shipUpkeep + stationUpkeep;
     return {
@@ -732,6 +742,11 @@ export class EconomyService {
     if (bases === 0 && stations === 0 && anchors === 0) return 0;
     const rates = this.getStationUpkeepRates(owner, scale);
     return bases * rates.spaceBase + stations * rates.miningStation + anchors * rates.dysonAnchor;
+  }
+
+  /* Summed bonuses of a faction's completed Dyson anchors (none without the base registry). */
+  getDysonBonusEffects(factionId: string): DysonBonusEffects {
+    return this.spaceBases ? dysonBonusEffects(this.spaceBases.bases, factionId) : NO_DYSON_BONUS;
   }
 
   /* Technology modifiers of a faction (same source every economy rule uses). */

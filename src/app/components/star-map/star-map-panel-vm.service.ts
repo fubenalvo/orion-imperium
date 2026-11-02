@@ -57,7 +57,8 @@ export class StarMapPanelVmService {
     const shipBuildTimes: Record<string, number> = {};
     for (const t of buildable) {
       shipCosts[t.id] = t.cost;
-      shipRawCosts[t.id] = t.rawMaterialCost ?? 0;
+      // What queueing actually charges: includes the Orbital Foundries discount.
+      shipRawCosts[t.id] = this.productionService.shipCostFor(t, 'player').rawmaterials;
       shipBuildTimes[t.id] = t.buildTime ?? Math.max(1, t.cost * 0.1);
     }
     return {

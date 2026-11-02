@@ -11,6 +11,8 @@ import { ShipService, ShipType, ProductionBuildingKind } from './ship.service';
 import { ShipStockService } from './ship-stock.service';
 import { ResourceCost, payCost, refundCost, scaleCost, shipCost } from './resource-cost';
 import { ResearchService } from './research.service';
+import { SpaceBaseService } from '../components/star-map/space-base.service';
+import { discountedShipRawCost, dysonBonusEffects } from '../components/star-map/dyson-anchor';
 
 export interface ProductionResult {
   ok: boolean;
@@ -67,8 +69,24 @@ export class ProductionService {
     private shipService: ShipService,
     private shipStockService: ShipStockService,
     @Optional() research?: ResearchService,
+    @Optional() private readonly spaceBases?: SpaceBaseService,
   ) {
     this.research = research ?? new ResearchService();
+  }
+
+  /*
+   * What `quantity` ships of a type cost this faction: the ship-data price
+   * with the faction's Orbital Foundries discount on raw materials
+   * (dyson-anchor.ts). The AI's affordability checks use the undiscounted
+   * shipCost, which can only be more cautious.
+   */
+  shipCostFor(shipType: ShipType, factionId: string, quantity = 1): ResourceCost {
+    const multiplier = this.spaceBases ? dysonBonusEffects(this.spaceBases.bases, factionId).shipRawCostMultiplier : 1;
+    const base = shipCost(shipType, 1);
+    return {
+      credits: base.credits * quantity,
+      rawmaterials: discountedShipRawCost(base.rawmaterials, multiplier) * quantity,
+    };
   }
 
   /*
@@ -179,7 +197,7 @@ export class ProductionService {
     if (!faction) {
       return { ok: false, reason: 'invalid_type' };
     }
-    const totalCost = shipCost(shipType, Math.floor(quantity));
+    const totalCost = this.shipCostFor(shipType, factionId, Math.floor(quantity));
     if (!payCost(faction, totalCost)) {
       return { ok: false, reason: 'insufficient_resources' };
     }

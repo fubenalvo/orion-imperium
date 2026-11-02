@@ -24,8 +24,12 @@ import { isStationComplete } from './station-construction';
  * - Upkeep: DYSON_ANCHOR_UPKEEP_POINTS, more than a radar base.
  * - Bonus: the owner picks one DysonBonusId once (during construction or
  *   after); it cannot be changed. DEMOLISH removes the anchor without a
- *   refund and frees the slot. Bonus effects are not implemented yet
- *   (docs/dyson-swarm.md, phase 3); the pick is stored and shown.
+ *   refund and frees the slot. Only completed anchors of the faction count;
+ *   bonuses of the same kind add up (dysonBonusEffects). Where each effect
+ *   applies: energy in EconomyService.calculatePlanetEconomy, research in
+ *   EconomyService.calculateEconomy, the ship raw-material discount in
+ *   ProductionService.queueOrder (what is charged) and the player's
+ *   production panel (what is shown).
  * - Visibility: every anchor is shown to every faction regardless of fog.
  * - Sensors: a completed anchor is a sensor source like a radar base.
  */
@@ -54,6 +58,59 @@ export const DYSON_BONUSES: readonly DysonBonusDef[] = [
   { id: 'orbital_foundries', name: 'Orbital Foundries', description: '−1% raw-material cost of ship production' },
   { id: 'swarm_observatory', name: 'Swarm Observatory', description: '+1 research point every 10 s' },
 ];
+
+/*
+ * Effect per anchor. Value check against the anchor's upkeep (60 points ≈
+ * 18 credits/s before the empire scale): 0.1 research/s is worth about
+ * 0.4 credits/s at the 4-credits-per-point research price, and 1% of a
+ * typical late empire's power or ship raw spending is of the same small
+ * order, so the swarm stays a net sink (docs/dyson-swarm.md).
+ */
+export const DYSON_BONUS_VALUES = {
+  /* Added to the faction's power-building energy multiplier (research bonuses add the same way). */
+  energyOutputPerAnchor: 0.01,
+  /* Share of a ship's raw-material cost removed per anchor. */
+  shipRawDiscountPerAnchor: 0.01,
+  /* Research points per second of game time per anchor (1 every 10 s). */
+  researchPerSecondPerAnchor: 0.1,
+} as const;
+
+export interface DysonBonusEffects {
+  /* Add to the power-building energy multiplier. */
+  energyOutput: number;
+  /* Multiply a ship's raw-material cost by this (≤ 1). */
+  shipRawCostMultiplier: number;
+  researchPerSecond: number;
+}
+
+export const NO_DYSON_BONUS: DysonBonusEffects = { energyOutput: 0, shipRawCostMultiplier: 1, researchPerSecond: 0 };
+
+/* Completed anchors of `factionId` that carry `bonus`. */
+export function dysonBonusCount(bases: readonly SpaceBase[], factionId: string, bonus: DysonBonusId): number {
+  let count = 0;
+  for (const base of bases) {
+    if (isDysonAnchor(base) && base.factionId === factionId && base.dysonBonus === bonus && isStationComplete(base)) count++;
+  }
+  return count;
+}
+
+/* The faction's summed anchor bonuses. */
+export function dysonBonusEffects(bases: readonly SpaceBase[], factionId: string): DysonBonusEffects {
+  const power = dysonBonusCount(bases, factionId, 'stellar_power');
+  const foundries = dysonBonusCount(bases, factionId, 'orbital_foundries');
+  const observatories = dysonBonusCount(bases, factionId, 'swarm_observatory');
+  if (power === 0 && foundries === 0 && observatories === 0) return NO_DYSON_BONUS;
+  return {
+    energyOutput: power * DYSON_BONUS_VALUES.energyOutputPerAnchor,
+    shipRawCostMultiplier: Math.max(0, 1 - foundries * DYSON_BONUS_VALUES.shipRawDiscountPerAnchor),
+    researchPerSecond: observatories * DYSON_BONUS_VALUES.researchPerSecondPerAnchor,
+  };
+}
+
+/* A ship's raw-material cost per unit after the Orbital Foundries discount (whole units). */
+export function discountedShipRawCost(rawMaterialCost: number, multiplier: number): number {
+  return Math.round(rawMaterialCost * multiplier);
+}
 
 export function isDysonBonusId(value: unknown): value is DysonBonusId {
   return DYSON_BONUSES.some((b) => b.id === value);

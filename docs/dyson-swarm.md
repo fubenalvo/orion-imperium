@@ -6,8 +6,9 @@ Status: **design agreed on 2026-11-02.**
 | --- | --- |
 | 0. Station construction time | implemented ([Territory](./territory.md#construction)) |
 | 1. Ring geometry | implemented (this section: [Ring geometry](#ring-geometry)) |
-| 2. Technology, ship, deployment, anchor panel | implemented ([Implementation (phase 2)](#implementation-phase-2)); bonus effects are not active yet |
-| 3–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
+| 2. Technology, ship, deployment, anchor panel | implemented ([Implementation (phase 2)](#implementation-phase-2)) |
+| 3. Upkeep and bonuses | implemented ([Anchor bonuses](#anchor-bonuses); the upkeep came with phase 2) |
+| 4–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
 
 The Dyson Swarm is a late-game **alternative victory** and **credit / raw-material sink**. Eight fixed anchor slots ring the central black hole. A faction that holds a completed Dyson Anchor on **every** slot and keeps all of them for a 5-minute warm-up wins. Anchors are expensive to bring there, expensive to keep, cannot be captured and are visible to everyone, so an empire heading for this victory becomes the obvious target of the others.
 
@@ -152,7 +153,6 @@ This is a general rule for every station, introduced together with the swarm (ph
   - **Anchor panel:** clicking an anchor opens `StarMapAnchorInfoComponent`, with owner, construction progress, defense, the bonus and DEMOLISH… behind an inline confirmation. The owner can pick the bonus once.
   - **Notices:** deploying, completing and demolishing your own anchor show a map notice.
 - **Not yet:**
-  - bonus effects (phase 3; the panel says so);
   - global news and the warm-up (phase 4);
   - diplomacy (phase 5);
   - the AI (phase 6). AI factions never build the constructor: it is not a combat ship.
@@ -163,11 +163,17 @@ Each anchor provides **one small empire-wide bonus**. The owner picks it **once*
 
 Rule: bonuses must stay **well below the anchor's upkeep in value**, so the swarm remains a net sink and a holder pays for its victory attempt. The starting set is deliberately tiny; more may be designed later:
 
-| Bonus | Effect per anchor (starting value) |
-|---|---|
-| Stellar power | +1% energy output of power-producing buildings |
-| Orbital foundries | −1% raw-material cost of ship production |
-| Swarm observatory | + X research points every Y seconds (research costs 4 credits per point, so keep X/Y at a small fraction of the anchor's credit upkeep) |
+| Bonus | Effect per anchor (`DYSON_BONUS_VALUES`) | Applied in |
+|---|---|---|
+| Stellar Power | +0.01 to the power-building energy multiplier, added to the research multiplier like a research bonus (so +1% of base output each) | `EconomyService.calculatePlanetEconomy` (all economy, AI and planet-screen paths) |
+| Orbital Foundries | −1% raw-material cost of every ship (per unit, rounded to whole units); credits unchanged | `ProductionService.shipCostFor`: what `queueOrder` charges and the player's production panel shows |
+| Swarm Observatory | +0.1 research points per second (1 every 10 s), a flat faction-level source like asteroid mining | `EconomyService.calculateEconomy` (production and net); the economy tick pays it out |
+
+Rules shared by all three:
+- `dysonBonusEffects` sums the bonuses of the faction's **completed** anchors. A construction site counts nothing, and its panel says the bonus takes effect on completion.
+- The AI's affordability checks still use the undiscounted ship price (`shipCost`), which can only make them more cautious. The AI does not pick bonuses yet (phase 6).
+
+Value check: an anchor costs 60 upkeep points ≈ 18 credits/s before the empire upkeep scale. A Swarm Observatory's 0.1 research/s is worth about 0.4 credits/s at the 4-credits-per-point research price. The other two are 1% of power output or ship raw spending.
 
 No credit-income or upkeep-reduction bonus: that would undo the sink.
 

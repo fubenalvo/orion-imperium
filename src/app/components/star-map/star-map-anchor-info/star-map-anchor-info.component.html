@@ -46,8 +46,8 @@
       } @else {
         <div class="anchor-info__hint">No bonus chosen yet.</div>
       }
-      @if (vm.bonus || vm.own) {
-        <div class="anchor-info__hint">Bonus effects are not active yet.</div>
+      @if (vm.bonus && vm.building) {
+        <div class="anchor-info__hint">Takes effect when construction completes.</div>
       }
 
       @if (vm.own) {

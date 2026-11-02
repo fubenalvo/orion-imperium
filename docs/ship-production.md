@@ -114,7 +114,10 @@ round-trip survives reload.
 ## Resource handling
 
 Resource costs are deducted from `faction.currencies` **at queue time** (one
-transaction per `queueOrder` call). Production tick does not re-deduct. This
+transaction per `queueOrder` call). The price is `ProductionService.shipCostFor`:
+the ship-data price with the faction's Orbital Foundries raw-material discount
+from completed Dyson anchors ([Dyson Swarm](./dyson-swarm.md#anchor-bonuses));
+the player's production panel shows the same price. Production tick does not re-deduct. This
 keeps accounting simple and avoids partial deductions if production is
 cancelled.
 
