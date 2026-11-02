@@ -4,6 +4,7 @@ import { Faction, FactionProduction, FactionShipStock, Fleet, PlanetTile, SpaceB
 import { EnemyDysonService } from './enemy-dyson.service';
 import { EnemyEconomyService } from './enemy-economy.service';
 import { EnemyResearchService } from './enemy-research.service';
+import { EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { SpaceBaseService } from './space-base.service';
 import { DysonRingService } from './dyson-ring.service';
 import { DysonVictoryService } from './dyson-victory.service';
@@ -28,7 +29,7 @@ const TICK = EnemyDysonService.DECISION_INTERVAL;
 
 const faction = (id: string, team: number, personality: AiPersonality | null, extra: Partial<Faction> = {}): Faction => ({
   id, name: id, color: '#fff', team, ai: personality !== null, aiPersonality: personality ?? undefined,
-  currencies: { credits: 100000, rawmaterials: 50000, research: 0 },
+  currencies: { credits: 500000, rawmaterials: 100000, research: 0 },
   researchedTechnologies: ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power', DYSON_TECHNOLOGY_ID],
   ...extra,
 } as Faction);
@@ -63,7 +64,7 @@ describe('EnemyDysonService', () => {
     service = TestBed.inject(EnemyDysonService);
     service.reset();
     // Upkeep headroom is the economy manager's projection; plenty here.
-    vi.spyOn(TestBed.inject(EnemyEconomyService), 'getProjectedNet').mockReturnValue({ income: 200, net: 150, rawNet: 10, researchNet: 0, upkeepScale: 1 });
+    vi.spyOn(TestBed.inject(EnemyEconomyService), 'getProjectedNet').mockReturnValue({ income: 2000, net: 1000, rawNet: 10, researchNet: 0, upkeepScale: 1 });
   });
 
   const world = (factions: Faction[], fleets: Fleet[] = []) => ({
@@ -91,9 +92,10 @@ describe('EnemyDysonService', () => {
       const orders = (id: string) => Object.values(data.production.find((p) => p.factionId === id)?.ordersByPlanet ?? {}).flat();
       expect(orders('enemy1').map((o) => o.shipTypeId)).toEqual([DYSON_ANCHOR_SHIP_TYPE]);
       expect(orders('enemy2')).toEqual([]);
-      // Only one at a time.
+      // A technologist runs at most two constructors at once (phase 7).
       service.tick(TICK, tech, data, new Set());
-      expect(orders('enemy1')).toHaveLength(1);
+      service.tick(TICK, tech, data, new Set());
+      expect(orders('enemy1')).toHaveLength(EnemyDysonService.MAX_CONSTRUCTORS.always);
     });
 
     it('a balanced empire builds only with a large credit surplus', () => {
@@ -202,6 +204,29 @@ describe('EnemyDysonService', () => {
       service.tick(TICK, mil, data, new Set());
       expect(service.getOrderedFleetIds().size).toBe(0);
       expect(hunter.targetX).toBeNull();
+    });
+  });
+
+  describe('contesting a full ring', () => {
+    it('a builder facing a full ring it does not own hunts the rival with the most anchors, and refuses peace with it', () => {
+      const tech = faction('enemy1', 2, 'technologist');
+      const rival = faction('enemy2', 3, 'balanced');
+      const data = world([tech, rival]);
+      normalizeRelations(data.factions);
+      startPeace(tech, rival, 0);
+      bases.restore([...anchorsOf('enemy1', [0, 1, 2, 3, 4, 5]), ...anchorsOf('enemy2', [6, 7])]);
+      expect(service.isHuntTarget(tech, rival, data.factions)).toBe(true);
+      service.tick(TICK, tech, data, new Set());
+      expect(getRelationKind(tech, rival)).toBe('war');
+
+      // No AI–AI settlement ends the hunt: the hunter refuses even generous terms.
+      const generous = { proposerId: 'enemy2', recipientId: 'enemy1', items: [{ kind: 'credits' as const, giverId: 'enemy2', amount: 50000 }] };
+      const ctx = { factions: data.factions, fleets: data.fleets, starSystems: data.starSystems };
+      expect(TestBed.inject(EnemyDiplomacyService).evaluateTreaty(tech, generous, ctx).accept).toBe(false);
+
+      // With a free slot left there is nothing to contest (below its normal threshold of 6).
+      bases.restore([...anchorsOf('enemy1', [0, 1, 2, 3, 4]), ...anchorsOf('enemy2', [6, 7])]);
+      expect(service.isHuntTarget(tech, rival, data.factions)).toBe(false);
     });
   });
 

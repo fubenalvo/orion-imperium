@@ -11,7 +11,7 @@ Status: **design agreed on 2026-11-02.**
 | 4. Victory and news | implemented ([Victory](#victory-the-warm-up), [Global news](#global-news)) |
 | 5. Diplomacy | implemented ([Diplomacy](#diplomacy)); the AI's peace refusal during a warm-up came with it |
 | 6. AI | implemented ([AI](#ai)) |
-| 7. Tuning and acceptance tests | not done | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
+| 7. Tuning and acceptance tests | done ([Tuning](#tuning-phase-7)) | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
 
 The Dyson Swarm is a late-game **alternative victory** and **credit / raw-material sink**. Eight fixed anchor slots ring the central black hole. A faction that holds a completed Dyson Anchor on **every** slot and keeps all of them for a 5-minute warm-up wins. Anchors are expensive to bring there, expensive to keep, cannot be captured and are visible to everyone, so an empire heading for this victory becomes the obvious target of the others.
 
@@ -106,10 +106,10 @@ This is a general rule for every station, introduced together with the swarm (ph
   - It is the most expensive technology; the next most expensive cost 4,500.
   - Prerequisites: Applied Science and Advanced Power, the ends of the research and power branches, so the technologist reaches it first. That puts it at depth 4 of the tree.
 - **Ship:** *Swarm Constructor* (`swarm_constructor`, role `DysonAnchor`).
-  - **Very expensive:** 15,000 credits and 6,000 raw materials. 120 s build time, 10 upkeep points.
+  - **Very expensive:** 100,000 credits and 10,000 raw materials (phase 7). 120 s build time, 10 upkeep points.
   - **Very slow:** speed 1, half the outpost ship's speed of 2.
   - **Fragile:** 40 HP, no shield, attack 1, defense 1. Its battle icon is `public/ships/swarm_constructor.svg`.
-  - All values are starting values for the phase 7 tuning.
+  - Prices and upkeep were set by the phase 7 measurement ([Tuning](#tuning-phase-7)).
   - It is not a combat ship (`isCombatShipType` excludes it, like the outpost ship).
   - It is built and moved like any ship: in a fleet, with escorts. A fleet moves at its slowest ship's speed, so escorts slow down with it.
 - **No cap** on how many anchor ships a faction may build or have in flight.
@@ -125,7 +125,7 @@ This is a general rule for every station, introduced together with the swarm (ph
 3. **Completed anchor.**
    - Defense: the shared [station defense](./territory.md#station-defense), exactly like an ordinary space base: core hull, 0–3 turrets from Turret Research, shield pool. Stronger defenses may come later.
    - Territory: its wedge.
-   - Upkeep: higher than a base's (base 25 points/s, anchor about 60 points/s, tuned in phase 7), scaled by the empire upkeep scale like all station upkeep.
+   - Upkeep: 300 points/s (a radar base costs 25), scaled by the empire upkeep scale like all station upkeep ([Tuning](#tuning-phase-7)).
    - Sensor: a completed anchor is a sensor source exactly like a space base (radar), with the same range and research bonus. A construction site senses nothing.
 4. **End.** An anchor ends in one of two ways:
    - **Destroyed** in battle. It is never captured.
@@ -149,7 +149,7 @@ This is a general rule for every station, introduced together with the swarm (ph
   - battles (`checkBaseBattles`, station defense, construction site while being built);
   - sensors (a completed anchor is in `completeBases`, the radar sources);
   - save (`StarMapData.spaceBases`).
-- **Upkeep:** `DYSON_ANCHOR_UPKEEP_POINTS` = 60, in `EconomyService.getStationUpkeepPerSecond`. A radar base costs 25.
+- **Upkeep:** `DYSON_ANCHOR_UPKEEP_POINTS` = 300 (phase 7), in `EconomyService.getStationUpkeepPerSecond`. A radar base costs 25.
 - **UI:**
   - **Fleet panel:** a DEPLOY ANCHOR button is shown when the fleet carries a Swarm Constructor. When the button is disabled, the panel explains why.
   - **Map:** anchor markers are always visible regardless of fog. They show a gold frame and a round core, and get a highlight while their panel is open.
@@ -173,7 +173,7 @@ Rules shared by all three:
 - `dysonBonusEffects` sums the bonuses of the faction's **completed** anchors. A construction site counts nothing, and its panel says the bonus takes effect on completion.
 - The AI's affordability checks still use the undiscounted ship price (`shipCost`), which can only make them more cautious. The AI does not pick bonuses yet (phase 6).
 
-Value check: an anchor costs 60 upkeep points ≈ 18 credits/s before the empire upkeep scale. A Swarm Observatory's 0.1 research/s is worth about 0.4 credits/s at the 4-credits-per-point research price. The other two are 1% of power output or ship raw spending.
+Value check: an anchor costs 300 upkeep points ≈ 90 credits/s before the empire upkeep scale. A Swarm Observatory's 0.1 research/s is worth about 0.4 credits/s at the 4-credits-per-point research price. The other two are 1% of power output or ship raw spending.
 
 No credit-income or upkeep-reduction bonus: that would undo the sink.
 
@@ -290,12 +290,14 @@ Threat response, the same for every personality, scaled by its aggression:
 **`EnemyDysonService`:** runs every 3 s per AI faction, after the asteroid mining in `StarMapAiTickService`.
 
 1. **Build** (if `build` ≠ `never` and the technology is researched).
-   - **Queueing:** one constructor at a time (none queued, in stock or flying), only with a free slot, the full price in hand (plus the surplus for `rich`), a Spaceport, a Spaceship Factory and upkeep headroom. The headroom check is `EnemyEconomyService.getProjectedNet` minus the anchor's upkeep, which must stay ≥ 5 credits/s.
+   - **Queueing:** at most `MAX_CONSTRUCTORS` constructors queued, in stock or flying at once: 2 for `always`, 1 for `rich`. A new one is queued only with a free slot, the full price in hand (plus the surplus for `rich`), a Spaceport, a Spaceship Factory and upkeep headroom. The headroom check is `EnemyEconomyService.getProjectedNet` minus the upkeep of every anchor under way (this one included), which must stay ≥ 5 credits/s.
    - **Escort:** a stocked constructor leaves the first Spaceport with up to 3 stocked warships, so the fleet moves at the constructor's speed.
-   - **Deployment:** the fleet flies to the nearest free slot and deploys through `SpaceBaseService.deployAnchor`, the player's rule. If the slot was taken meanwhile, it retargets.
+   - **Deployment:** the fleet flies to the nearest free slot no other own constructor is heading for, and deploys through `SpaceBaseService.deployAnchor`, the player's rule. If the slot was taken meanwhile, it retargets.
    - **Bonus:** picked at once. Swarm Observatory for `always` builders, Orbital Foundries otherwise.
 2. **Hunt.**
    - **Target:** a rival with ≥ `huntAnchors` anchors (sites included), or — for every personality — the holder of a running warm-up, which takes precedence.
+   - **Contest:** a builder (`build` ≠ `never`, technology researched) that finds the ring full without owning all of it targets the rival with the most anchors, whatever its threshold.
+   - **No peace with the target:** `EnemyDiplomacyService` refuses peace with the empire the AI is hunting (`EnemyDysonService.isHuntTarget`), as with a warm-up holder. Otherwise an AI–AI settlement a minute after the declaration, and its 10-minute truce, ended every hunt.
    - **War:** at peace the AI declares war (free: casus belli). A truce is broken only against a warm-up holder.
    - **Fleets:** at war, free combat fleets get a hunt order. Normally that is one fleet with ≥ 3 living warships (completed anchors have turrets). During a warm-up it is every free fleet but one, kept home, whatever its size.
    - **Targets on the ring:** hunters fly onto the target's anchor cells, construction sites first, then the nearest. The ordinary base battle (`checkBaseBattles`) does the rest.
@@ -310,7 +312,7 @@ Threat response, the same for every personality, scaled by its aggression:
 **State:** the decision clock and the orders, in memory, cleared by `resetAiPipeline` (kept across a battle return like all AI memory).
 
 **Tests:**
-- `enemy-dyson.spec.ts`: building by personality, escort, slot choice, deployment and bonus, a free war and site-first targeting, threshold and weak-fleet refusal, truce breach and all-but-one during a warm-up, reserved fleets untouched, release, guard, research value.
+- `enemy-dyson.spec.ts`: building by personality (two parallel constructors for a technologist), escort, slot choice, deployment and bonus, a free war and site-first targeting, threshold and weak-fleet refusal, truce breach and all-but-one during a warm-up, reserved fleets untouched, release, contesting a full ring with peace refused, guard, research value.
 - `enemy-dyson.starmap.spec.ts`: the real game loop. A militarist fleet destroys a rival AI's anchors, and a technologist's constructor reaches the ring and deploys.
 
 **Limitations:**
@@ -319,7 +321,35 @@ Threat response, the same for every personality, scaled by its aggression:
 - Guards are not sized by the threat.
 - The AI never demolishes anchors.
 - No coalition logic (by design).
-- Whether AIs reach Stellar Engineering in normal games, and how often they win with the swarm, is measured in phase 7.
+- The swarm is late-game: see [Tuning](#tuning-phase-7) for when AIs get there.
+
+## Tuning (phase 7)
+
+**Measured** with headless 90-minute games (`ai-simulation.spec.ts`, "AI simulation — Dyson Swarm", 1/10 s frames, the passive stand-in player).
+
+**Medium map, 3 AIs** (technologist, militarist, balanced):
+- Stellar Engineering at ~51 min (technologist) and ~55 min (balanced); the militarist never researches it.
+- First anchors ~13 min later, then one every 3–5 minutes. The ring is full at ~82 min, split between the two builders.
+- After that the builders contest it, and the militarist hunts the technologist. Anchors are destroyed on both sides; no warm-up within 90 min.
+- Anchor upkeep: 7–12% of the technologist's gross income, 2–4% for the much richer balanced empire.
+- The swarm cost the technologist ~1.1M credits (stock 3.1M → 1.95M by minute 90).
+
+**Large map, 4 AIs:** Stellar Engineering at 62–78 min, one technologist not at all. 3 anchors each for the two builders; raw materials are tight for some.
+
+**Changes from these runs:**
+- **Price and upkeep:** ship 15,000 → 100,000 credits and 6,000 → 10,000 raw materials; anchor upkeep 60 → 300 points. Late AI economies earn 5–12k credits/s and hold millions by minute 90, so the old prices were negligible.
+- **Pace:** a technologist runs two constructors at once (one each took ~10 minutes per anchor).
+- **Stalemate:** builders contest a full ring, and an AI refuses peace with its hunt target. Before this, two builders froze the ring at 4 + 4, and peace settlements ended every hunt.
+- **Harness gap fixed:** the simulation now runs station battles (`checkBaseBattles`, `checkMiningStationBattles`) like StarMap. Before, hunters stood on anchor cells without fighting, and mining stations were never attacked in simulations.
+
+**Acceptance test** (same file, medium scenario, ~70 s):
+- the technologist researches Stellar Engineering and builds ≥ 3 anchors;
+- the militarist never builds;
+- at least one anchor is destroyed;
+- the technologist's anchor upkeep is ≥ 3% of its gross income;
+- no AI has rejected production orders or lasting arrears.
+
+**Conclusion:** the Dyson Swarm is a late-game path. AIs reach it after ~50–80 minutes, and between rival builders and hunters a full ring rarely survives long. A player focused on it can get there sooner. Credit stockpiles still grow into the millions late in long games: the swarm absorbs a share of it, not all of it ([Economy](./economy.md)).
 
 ## Implementation phases
 
@@ -353,6 +383,6 @@ Each phase updates this document and the documents it touches.
 
 ## Open questions
 
-- Exact technology prerequisites and costs of the technology, ship and upkeep (phases 2 and 7).
-- Opinion hit per anchor, and the target share of credit income for holding the full ring (phases 5 and 7).
-- The construction site's hull value (phase 0).
+- Whether the full-ring upkeep should grow with the number of anchors held (progressive), so the final slots cost more than the first.
+- Late-game credit stockpiles in long games are larger than any current sink, the swarm included.
+- The construction site's hull value (300) and the bonus sizes were not tuned by simulation.

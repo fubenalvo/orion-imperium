@@ -38,6 +38,7 @@ import {
   validateTreaty,
 } from './peace-treaty';
 import { DysonVictoryService } from './dyson-victory.service';
+import { EnemyDysonService } from './enemy-dyson.service';
 
 /*
  * =========================================================
@@ -261,15 +262,20 @@ export class EnemyDiplomacyService {
     private readonly diplomacy: DiplomacyService,
     private readonly enemyEconomy: EnemyEconomyService,
     private readonly dysonVictory: DysonVictoryService,
+    private readonly enemyDyson: EnemyDysonService,
   ) {}
 
   /*
-   * Is `faction` counting down a Dyson warm-up (docs/dyson-swarm.md)? No AI
-   * makes or accepts peace with it then: a truce would shield the warm-up.
+   * No peace for the Dyson Swarm (docs/dyson-swarm.md): an AI neither makes
+   * nor accepts peace with an empire counting down a warm-up (a truce would
+   * shield it), nor with the empire it is hunting for the swarm (a
+   * settlement would end the hunt before its fleets arrive).
    */
-  private isDysonWarmupHolder(faction: Faction | undefined): boolean {
+  private blocksPeace(ai: Faction, enemy: Faction | undefined, ctx: DiplomacyContext): boolean {
+    if (!enemy) return false;
     const warmup = this.dysonVictory.warmup;
-    return !!faction && !!warmup && warmup.remaining > 0 && warmup.factionId === faction.id;
+    if (warmup && warmup.remaining > 0 && warmup.factionId === enemy.id) return true;
+    return this.enemyDyson.isHuntTarget(ai, enemy, ctx.factions);
   }
 
   reset(): void {
@@ -343,9 +349,9 @@ export class EnemyDiplomacyService {
       add('treasury', 'Empty treasury', 0.15);
     }
     add('personality', 'Temperament', this.profileOf(ai).peaceBias);
-    if (this.isDysonWarmupHolder(enemy)) {
+    if (this.blocksPeace(ai, enemy, ctx)) {
       // Shown on the acceptance meter; evaluateTreaty also refuses outright.
-      add('dyson', 'Dyson warm-up running', -2);
+      add('dyson', 'Dyson Swarm', -2);
     }
 
     const pressure = factors.reduce((sum, f) => sum + f.value, 0);
@@ -374,8 +380,8 @@ export class EnemyDiplomacyService {
       termsValue,
       peaceValue: assessment.peaceValue,
       margin,
-      acceptance: this.isDysonWarmupHolder(enemy) ? 0 : clamp(0.5 + margin / (2 * assessment.scale), 0, 1),
-      accept: validation.ok && margin >= 0 && !this.isDysonWarmupHolder(enemy),
+      acceptance: this.blocksPeace(ai, enemy, ctx) ? 0 : clamp(0.5 + margin / (2 * assessment.scale), 0, 1),
+      accept: validation.ok && margin >= 0 && !this.blocksPeace(ai, enemy, ctx),
       assessment,
     };
   }
@@ -386,7 +392,7 @@ export class EnemyDiplomacyService {
     if (evaluation.accept) return { decision: 'accept', evaluation };
     if (!evaluation.validation.ok) return { decision: 'refuse', evaluation };
     // No terms buy peace from an AI while the other side's Dyson warm-up runs.
-    if (this.isDysonWarmupHolder(ctx.factions.find((f) => f.id === otherParty(treaty, ai.id)))) {
+    if (this.blocksPeace(ai, ctx.factions.find((f) => f.id === otherParty(treaty, ai.id)), ctx)) {
       return { decision: 'refuse', evaluation };
     }
     const counter = this.counterOffer(ai, treaty, ctx);

@@ -39,13 +39,17 @@ import {
  *
  *  1. Build (`build` 'always' = technologist; 'rich' = balanced with a large
  *     credit surplus; 'never' otherwise). With Stellar Engineering, a free
- *     slot, the full price in hand and upkeep headroom, ONE Swarm
- *     Constructor at a time is queued; from stock it is assembled into a
- *     fleet with up to ESCORT_SHIPS stocked warships as escort; the fleet
- *     flies to the nearest free slot and deploys there, then picks a bonus.
+ *     slot, the full price in hand and upkeep headroom, a Swarm Constructor
+ *     is queued — up to MAX_CONSTRUCTORS (by plan) queued, stocked or flying
+ *     at once; from stock it is assembled into a fleet with up to
+ *     ESCORT_SHIPS stocked warships as escort; each fleet flies to the
+ *     nearest free slot no other own constructor is heading for, deploys
+ *     there and picks a bonus.
  *  2. Hunt. Another empire is a target when it holds `huntAnchors` anchors
  *     (sites included) — or, for every personality, while its warm-up
- *     runs. At peace the AI declares war (free: the Dyson casus belli); a
+ *     runs. A builder that finds the ring full without owning all of it
+ *     contests it: the rival with the most anchors becomes its target
+ *     (phase 7: two builders used to split the ring and freeze it). At peace the AI declares war (free: the Dyson casus belli); a
  *     truce is broken only during a warm-up. At war, combat fleets are sent
  *     onto the target's anchor cells (sites first, then the nearest), where
  *     the ordinary base battle starts: one fleet normally, every fleet but
@@ -78,6 +82,11 @@ export class EnemyDysonService {
   /* Living warships an ordinary (non-warm-up) hunt fleet needs: completed anchors have turrets. */
   static readonly MIN_HUNT_WARSHIPS = 3;
   static readonly GUARD_MIN_ANCHORS = 3;
+  /*
+   * Constructors a faction keeps queued, stocked or flying at once. One per
+   * builder made a full ring take two hours after the technology (phase 7).
+   */
+  static readonly MAX_CONSTRUCTORS: Record<'always' | 'rich', number> = { always: 2, rich: 1 };
 
   private readonly accumulators = new Map<string, number>();
   /* Fleet id → its Dyson combat order. */
@@ -142,11 +151,30 @@ export class EnemyDysonService {
     const plan = getAiPersonalityProfile(faction).dyson.build;
     if (plan === 'never' || !this.researchService.isShipUnlocked(faction, DYSON_ANCHOR_SHIP_TYPE)) return false;
 
-    const fleet = data.fleets.find((f) => f.factionId === faction.id && EnemyDysonService.isConstructorFleet(f));
-    if (fleet) return this.driveConstructor(faction, fleet, data);
-    if (this.freeSlots().length === 0) return false;
+    let changed = false;
+    const fleets = data.fleets.filter((f) => f.factionId === faction.id && EnemyDysonService.isConstructorFleet(f));
+    for (const fleet of fleets) {
+      changed = this.driveConstructor(faction, fleet, data, fleets) || changed;
+    }
+    if (this.freeSlots().length === 0) return changed;
     if (this.assembleConstructor(faction, data)) return true;
-    return this.queueConstructor(faction, data, plan);
+    if (this.constructorsInProgress(faction, data) >= EnemyDysonService.MAX_CONSTRUCTORS[plan]) return changed;
+    return this.queueConstructor(faction, data, plan) || changed;
+  }
+
+  /* Swarm Constructors queued, in stock or in fleets. */
+  private constructorsInProgress(
+    faction: Faction,
+    data: { fleets: Fleet[]; shipStock: FactionShipStock[]; production: FactionProduction[] },
+  ): number {
+    const queued = Object.values(data.production.find((p) => p.factionId === faction.id)?.ordersByPlanet ?? {})
+      .flat()
+      .filter((o) => o.shipTypeId === DYSON_ANCHOR_SHIP_TYPE).length;
+    const stocked = (data.shipStock.find((s) => s.factionId === faction.id)?.ships ?? []).filter((s) => s.type === DYSON_ANCHOR_SHIP_TYPE).length;
+    const flying = data.fleets
+      .filter((f) => f.factionId === faction.id && !f.destroyed)
+      .reduce((n, f) => n + f.ships.filter((s) => s.type === DYSON_ANCHOR_SHIP_TYPE && !s.destroyed).length, 0);
+    return queued + stocked + flying;
   }
 
   private freeSlots() {
@@ -154,7 +182,7 @@ export class EnemyDysonService {
     return ring.slots.filter((slot) => !this.bases.anchorOnSlot(slot.index));
   }
 
-  /* One constructor at a time: none queued, in stock or flying (the caller checked fleets). */
+  /* Queues one more constructor (the caller checked the per-plan limit). */
   private queueConstructor(
     faction: Faction,
     data: { factions: Faction[]; starSystems: StarSystem[]; fleets: Fleet[]; shipStock: FactionShipStock[]; production: FactionProduction[] },
@@ -162,17 +190,15 @@ export class EnemyDysonService {
   ): boolean {
     const type = this.shipService.getShipType(DYSON_ANCHOR_SHIP_TYPE);
     if (!type) return false;
-    const orders = Object.values(data.production.find((p) => p.factionId === faction.id)?.ordersByPlanet ?? {}).flat();
-    if (orders.some((o) => o.shipTypeId === DYSON_ANCHOR_SHIP_TYPE)) return false;
-    if (data.shipStock.find((s) => s.factionId === faction.id)?.ships.some((s) => s.type === DYSON_ANCHOR_SHIP_TYPE)) return false;
-
     const cost = this.productionService.shipCostFor(type, faction.id);
     const surplus = plan === 'rich' ? EnemyDysonService.RICH_CREDIT_SURPLUS : 0;
     if (!canAffordCost(faction, { credits: cost.credits + surplus, rawmaterials: cost.rawmaterials })) return false;
     // The anchor's upkeep must fit the projected net income with a margin.
     const context = { fleets: data.fleets, shipStock: data.shipStock, production: data.production, factions: data.factions };
     const projected = this.enemyEconomy.getProjectedNet(faction, data.starSystems, context);
-    const anchorUpkeep = DYSON_ANCHOR_UPKEEP_POINTS * UPKEEP_CREDITS_PER_POINT * projected.upkeepScale;
+    // Counts every constructor already under way, so parallel builds never overcommit.
+    const pending = 1 + this.constructorsInProgress(faction, data);
+    const anchorUpkeep = pending * DYSON_ANCHOR_UPKEEP_POINTS * UPKEEP_CREDITS_PER_POINT * projected.upkeepScale;
     if (projected.net - anchorUpkeep < EnemyDysonService.UPKEEP_MARGIN) return false;
     if (this.spaceportService.listSpaceports(faction.id, data.starSystems).length === 0) return false;
 
@@ -215,8 +241,13 @@ export class EnemyDysonService {
     }).ok;
   }
 
-  /* Fly to the nearest free slot; deploy on it; pick the bonus. */
-  private driveConstructor(faction: Faction, fleet: Fleet, data: { factions: Faction[]; starSystems: StarSystem[] }): boolean {
+  /* Fly to the nearest free slot no other own constructor heads for; deploy on it; pick the bonus. */
+  private driveConstructor(
+    faction: Faction,
+    fleet: Fleet,
+    data: { factions: Faction[]; starSystems: StarSystem[] },
+    ownConstructors: readonly Fleet[],
+  ): boolean {
     if (fleet.targetX !== null || fleet.targetY !== null) return false; // travelling
     const check = this.bases.checkAnchor(fleet, data.factions);
     if (check.ok) {
@@ -224,7 +255,11 @@ export class EnemyDysonService {
       if (result.base) this.bases.chooseBonus(result.base.id, faction.id, this.chooseBonus(faction));
       return !!result.base;
     }
-    const slot = this.freeSlots().sort(
+    const claimed = new Set(
+      ownConstructors.filter((f) => f !== fleet && f.targetX !== null).map((f) => `${f.targetX},${f.targetY}`),
+    );
+    const open = this.freeSlots().filter((s) => !claimed.has(`${s.col},${s.row}`));
+    const slot = (open.length > 0 ? open : this.freeSlots()).sort(
       (a, b) => Math.hypot(a.col - fleet.x, a.row - fleet.y) - Math.hypot(b.col - fleet.x, b.row - fleet.y) || a.index - b.index,
     )[0];
     if (!slot) return false;
@@ -243,6 +278,17 @@ export class EnemyDysonService {
   // Hunting another empire's anchors
   // ---------------------------------------------------------------
 
+  /*
+   * Is `other` the empire `faction` is hunting for the Dyson Swarm right now?
+   * EnemyDiplomacyService then refuses peace with it: an AI–AI settlement a
+   * minute after the free declaration (and the truce that follows) would
+   * otherwise end every hunt before a fleet arrives (phase 7).
+   */
+  isHuntTarget(faction: Faction, other: Faction, factions: Faction[]): boolean {
+    if (faction.ai !== true || !this.ring.ring) return false;
+    return this.huntTarget(faction, { factions })?.target.id === other.id;
+  }
+
   /* The empire this faction should stop now, or undefined. A running warm-up beats everything. */
   private huntTarget(faction: Faction, data: { factions: Faction[] }): { target: Faction; warmup: boolean } | undefined {
     const warmup = this.victory.warmup;
@@ -250,7 +296,13 @@ export class EnemyDysonService {
       const target = data.factions.find((f) => f.id === warmup.factionId);
       if (target && isTreatyPair(faction, target)) return { target, warmup: true };
     }
-    const threshold = getAiPersonalityProfile(faction).dyson.huntAnchors;
+    const profile = getAiPersonalityProfile(faction).dyson;
+    // A builder facing a full ring it does not own contests it from the first rival anchor.
+    const contesting = profile.build !== 'never'
+      && this.researchService.isShipUnlocked(faction, DYSON_ANCHOR_SHIP_TYPE)
+      && this.freeSlots().length === 0
+      && dysonAnchorCount(this.bases.bases, faction.id) < this.ring.ring!.slots.length;
+    const threshold = contesting ? 1 : profile.huntAnchors;
     let best: { target: Faction; count: number } | undefined;
     for (const other of data.factions) {
       if (other.id === faction.id || !isTreatyPair(faction, other)) continue;

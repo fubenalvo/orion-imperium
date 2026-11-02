@@ -36,8 +36,14 @@ import { isStationComplete } from './station-construction';
 export const DYSON_ANCHOR_SHIP_TYPE = 'swarm_constructor';
 export const DYSON_TECHNOLOGY_ID = 'stellar_engineering';
 
-/* Upkeep points per second of a completed anchor (a radar base costs 25). Tuned in phase 7. */
-export const DYSON_ANCHOR_UPKEEP_POINTS = 60;
+/*
+ * Upkeep points per second of a completed anchor (a radar base costs 25).
+ * Phase 7 measurement (docs/dyson-swarm.md, "Tuning"): late AI economies
+ * earn 5–12k credits/s by minute 90, so a full ring of 8 must cost a real
+ * share of that: 300 points ≈ 90 credits/s each at the base rate, ×1.8 at
+ * the largest empire scale.
+ */
+export const DYSON_ANCHOR_UPKEEP_POINTS = 300;
 
 export type DysonBonusId = 'stellar_power' | 'orbital_foundries' | 'swarm_observatory';
 
@@ -60,8 +66,8 @@ export const DYSON_BONUSES: readonly DysonBonusDef[] = [
 ];
 
 /*
- * Effect per anchor. Value check against the anchor's upkeep (60 points ≈
- * 18 credits/s before the empire scale): 0.1 research/s is worth about
+ * Effect per anchor. Value check against the anchor's upkeep (300 points ≈
+ * 90 credits/s before the empire scale): 0.1 research/s is worth about
  * 0.4 credits/s at the 4-credits-per-point research price, and 1% of a
  * typical late empire's power or ship raw spending is of the same small
  * order, so the swarm stays a net sink (docs/dyson-swarm.md).

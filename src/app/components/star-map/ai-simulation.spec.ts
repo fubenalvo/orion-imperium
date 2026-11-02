@@ -103,6 +103,8 @@ interface ScenarioOptions {
    * long before the end and the AIs should keep playing each other.
    */
   continueAfterOutcome?: boolean;
+  /* Called after every simulated frame (measurement hooks, e.g. the Dyson Swarm run). */
+  onFrame?: (data: StarMapData, time: number) => void;
 }
 
 interface FactionTrace {
@@ -431,6 +433,17 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
         aiBattles++;
       },
     );
+    // Station battles (space bases incl. Dyson anchors, mining stations), as
+    // StarMap.updateFleets runs them after fleet battles. AI vs AI is
+    // auto-resolved inside; the passive stand-in player owns no stations, so
+    // a station battle with the player never happens here.
+    const stationBattleScreen = () => TestBed.inject(BattleService).clearBattle();
+    battleDetection.checkBaseBattles(data.fleets, data.factions, stationBattleScreen, triggeredBattles, () => {
+      aiBattles++;
+    });
+    battleDetection.checkMiningStationBattles(data.fleets, data.factions, data.starSystems, stationBattleScreen, triggeredBattles, () => {
+      aiBattles++;
+    });
     // Station construction advances like in StarMap.updateStationConstruction.
     TestBed.inject(SpaceBaseService).advanceConstruction(dt);
     advanceMiningStationConstruction(data.starSystems, dt);
@@ -603,12 +616,15 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
       }
     }
 
-    // Outcome check on ownership changes, as StarMap.gameLoopCallback does.
-    if (ownership.revision !== lastRevision) {
+    // Outcome check on ownership changes, as StarMap.gameLoopCallback does,
+    // and when a Dyson warm-up completes (StarMap.updateDysonSwarm).
+    const dysonWarmup = TestBed.inject(DysonVictoryService).serialize();
+    if (ownership.revision !== lastRevision || (dysonWarmup && dysonWarmup.remaining <= 0)) {
       lastRevision = ownership.revision;
-      outcome = outcomes.evaluate({ ...data, gameOutcome: outcome });
+      outcome = outcomes.evaluate({ ...data, gameOutcome: outcome, dysonWarmup });
       if (outcome !== 'inProgress' && outcomeAt === null) outcomeAt = time;
     }
+    options.onFrame?.(data, time);
 
     // A fleet carrying a colonizer must only ever head for a star system
     // (its colonization destination), never chase a fleet.
@@ -2140,3 +2156,139 @@ describe('AI simulation — economy validation', () => {
   }, 180_000);
 });
 
+
+/*
+ * Dyson Swarm measurement (docs/dyson-swarm.md, phase 7): long games with a
+ * technologist builder, a militarist hunter and a balanced empire. Reports
+ * when Stellar Engineering arrives, how many anchors are built and lost,
+ * what the swarm costs against income, and whether a warm-up starts.
+ */
+interface DysonRow {
+  who: string;
+  stellarAt: number | null;
+  constructorsOrdered: number;
+  anchorsBuilt: number;
+  anchorsLost: number;
+  peakAnchors: number;
+  finalAnchors: number;
+  anchorUpkeepShare: number;
+  credits: number;
+  raw: number;
+  grossIncomePerSecond: number;
+  /* Game seconds at which each of the faction's anchors appeared. */
+  anchorTimes: number[];
+}
+
+function runDysonScenario(options: ScenarioOptions) {
+  const bases = () => TestBed.inject(SpaceBaseService).bases.filter((b) => b.kind === 'dyson');
+  const seen = new Map<number, string>();
+  const anchorTimes = new Map<string, number[]>();
+  const lost = new Map<string, number>();
+  const peak = new Map<string, number>();
+  const ordered = new Map<string, Set<number>>();
+  let warmupsStarted = 0;
+  let lastWarmup: string | null = null;
+  const result = runScenario({
+    ...options,
+    onFrame: (data, time) => {
+      const now = bases();
+      const ids = new Set(now.map((b) => b.id));
+      for (const [id, owner] of seen) {
+        if (!ids.has(id)) {
+          lost.set(owner, (lost.get(owner) ?? 0) + 1);
+          seen.delete(id);
+        }
+      }
+      for (const b of now) {
+        if (!seen.has(b.id)) anchorTimes.set(b.factionId, [...(anchorTimes.get(b.factionId) ?? []), Math.round(time)]);
+        seen.set(b.id, b.factionId);
+      }
+      const counts = new Map<string, number>();
+      for (const b of now) counts.set(b.factionId, (counts.get(b.factionId) ?? 0) + 1);
+      for (const [owner, count] of counts) peak.set(owner, Math.max(peak.get(owner) ?? 0, count));
+      for (const p of data.production ?? []) {
+        for (const order of Object.values(p.ordersByPlanet).flat()) {
+          if (order.shipTypeId !== 'swarm_constructor') continue;
+          const set = ordered.get(p.factionId) ?? new Set<number>();
+          set.add(order.id);
+          ordered.set(p.factionId, set);
+        }
+      }
+      const warmup = TestBed.inject(DysonVictoryService).warmup;
+      const key = warmup ? warmup.factionId : null;
+      if (key && key !== lastWarmup) warmupsStarted++;
+      lastWarmup = key;
+    },
+  });
+  const economy = TestBed.inject(EconomyService);
+  const built = new Map<string, number>();
+  for (const owner of [...seen.values()]) built.set(owner, (built.get(owner) ?? 0) + 1);
+  const rows: DysonRow[] = result.data.factions.filter((f) => f.ai).map((f) => {
+    const breakdown = economy.calculateEconomy(f.id, result.data.factions, result.data.starSystems, result.data.fleets, result.data.shipStock);
+    const anchors = bases().filter((b) => b.factionId === f.id && b.constructionRemaining === undefined).length;
+    const rate = economy.getStationUpkeepRates(f, breakdown.upkeepScale).dysonAnchor;
+    const trace = result.traces.get(f.id)!;
+    const stellarIndex = trace.researchOrder.indexOf('stellar_engineering');
+    return {
+      who: `${f.id} (${f.aiPersonality})`,
+      stellarAt: stellarIndex >= 0 ? Math.round(trace.researchOrderTimes[stellarIndex]) : null,
+      constructorsOrdered: ordered.get(f.id)?.size ?? 0,
+      anchorsBuilt: (built.get(f.id) ?? 0) + (lost.get(f.id) ?? 0),
+      anchorsLost: lost.get(f.id) ?? 0,
+      peakAnchors: peak.get(f.id) ?? 0,
+      finalAnchors: anchors,
+      anchorUpkeepShare: Math.round((100 * anchors * rate) / Math.max(1, breakdown.incomePerSecond)),
+      credits: Math.round(f.currencies['credits'] ?? 0),
+      raw: Math.round(f.currencies['rawmaterials'] ?? 0),
+      anchorTimes: anchorTimes.get(f.id) ?? [],
+      grossIncomePerSecond: Math.round(breakdown.incomePerSecond),
+    };
+  });
+  return { result, rows, warmupsStarted };
+}
+
+describe('AI simulation — Dyson Swarm', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /*
+   * Phase 7 acceptance (docs/dyson-swarm.md, "Tuning"). Measured on this
+   * scenario: Stellar Engineering at ~51 min (technologist) and ~55 min
+   * (balanced), 4–6 anchors each by minute 90, the ring full by ~82 min and
+   * then contested, anchors lost to hunts, anchor upkeep 7–12% of a
+   * builder's income, no warm-up within 90 minutes.
+   */
+  it('a technologist builds anchors, others contest them, and the swarm costs real money (90 minutes)', () => {
+    const options: ScenarioOptions = {
+      size: 'medium', aiCount: 3, seconds: 5400, dt: 1 / 10, continueAfterOutcome: true, resolvePlayerFleetBattles: true,
+      prepare: withPersonalities(['technologist', 'militarist', 'balanced']),
+    };
+    const { result, rows, warmupsStarted } = runDysonScenario(options);
+    (globalThis as any).process?.stdout?.write(
+      `DYSON METRICS ${JSON.stringify({ rows, warmupsStarted, outcome: result.outcome, outcomeAt: result.outcomeAt })}
+`,
+    );
+    const row = (personality: string) => rows.find((r) => r.who.includes(`(${personality})`))!;
+    const tech = row('technologist');
+    // The technologist pursues the swarm: the technology, then several anchors.
+    expect(tech.stellarAt, 'technologist researches Stellar Engineering').not.toBeNull();
+    expect(tech.anchorsBuilt, 'technologist anchors built').toBeGreaterThanOrEqual(3);
+    // Militarists never build.
+    expect(row('militarist').constructorsOrdered, 'militarist constructors').toBe(0);
+    // The ring is fought over: hunts and contests destroy anchors.
+    expect(rows.reduce((n, r) => n + r.anchorsLost, 0), 'anchors destroyed').toBeGreaterThan(0);
+    // The swarm is a real cost for its builder, and never drives it into arrears.
+    expect(tech.anchorUpkeepShare, 'technologist anchor upkeep, % of gross income').toBeGreaterThanOrEqual(3);
+    for (const r of rows) {
+      const trace = result.traces.get(r.who.split(' ')[0])!;
+      expect(trace.failedOrders, `${r.who} rejected production orders`).toBe(0);
+      expect(trace.arrearsTicks, `${r.who} ticks in arrears`).toBeLessThanOrEqual(10);
+    }
+  }, 300_000);
+});

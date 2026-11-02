@@ -258,9 +258,9 @@
       "speed": 1,
       "range": 1,
       "battleMoveRange": 1,
-      "cost": 15000,
+      "cost": 100000,
       "buildTime": 120,
-      "rawMaterialCost": 6000,
+      "rawMaterialCost": 10000,
       "maintenanceCost": 10,
       "fireRate": 1
     }
