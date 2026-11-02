@@ -19,7 +19,7 @@
       <span class="ui-stat__label">
         <img src="icon-star-map.png" alt="" width="14" height="14" /> Status
       </span>
-      <span class="ui-stat__value">UNEXPLORED</span>
+      <span class="ui-stat__value system-info__status" [attr.data-tone]="status.tone">{{ status.label | uppercase }}</span>
     </div>
   </div>
 

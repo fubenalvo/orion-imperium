@@ -221,6 +221,7 @@
     @if (selectedSystem) {
       <app-star-map-system-info
         [system]="selectedSystem"
+        [charted]="isSystemCharted(selectedSystem)"
         [getFactionName]="boundGetFactionName"
         (enterSystem)="enterSystem()"
         (close)="deselectSystem()"

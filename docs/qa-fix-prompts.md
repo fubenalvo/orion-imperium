@@ -20,19 +20,9 @@ Fixed on 2026-11-01: colony brake (`canSupportNewColony`), conquest brake (`canS
 
 ---
 
-## 2. [Bug/UI] Star system panel always shows status "UNEXPLORED"
+## 2. Done — Star system panel always shows status "UNEXPLORED"
 
-**Problem.** The system info panel shows `Status: UNEXPLORED` for every system, including the player's home system (backlog item 7).
-
-**Cause.** The value is hard-coded in `src/app/components/star-map/star-map-system-info/star-map-system-info.component.html` (line ~22: `<span class="ui-stat__value">UNEXPLORED</span>`).
-
-**Task.** Bind the status to real state: use the existing exploration / fog-of-war data (see `docs/star-map-terrain.md`, `StarMapSensorService` and the explored/charted flags on systems) to show at least *Unexplored*, *Explored* and, where it makes sense, the owner (e.g. *Your system*, *Enemy*, *Contested*). Use only information the player legitimately has.
-
-**Acceptance.**
-- Home system shows an explored/owned status from the first frame.
-- An uncharted system still shows *Unexplored*; after a player fleet visits it, the status changes.
-- A component test covers the three cases.
-- Remove backlog item 7 from `docs/review-backlog.md`.
+Fixed on 2026-11-02: the galaxy-map system panel derives its status from player knowledge only — *Unexplored* until the system's cell was in player sensor range (`exploredGridCells`; `StarSystem.explored` is always true and cannot be used), then *Explored*, *Your system*, the owning empire's name or *Contested*, with owners taken only from the player's own and explored planets. See `getSystemStatus` in `star-map-system-info.component.ts` and [Invariants](./invariants.md).
 
 ---
 

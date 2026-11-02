@@ -2702,6 +2702,19 @@ loadError = '';
     this.cdr.detectChanges();
   }
 
+  /*
+   * Whether the player has ever had sensor coverage of a system's galaxy
+   * cell (the persistent exploredGridCells set). StarSystem.explored is not
+   * usable for this: every generated system has it set from the start.
+   * With fog of war off the whole map counts as charted.
+   */
+  isSystemCharted(system: StarSystem): boolean {
+    if (!this.sensorRangeEnabled) return true;
+    const col = system.gridCol ?? Math.floor(system.x);
+    const row = system.gridRow ?? Math.floor(system.y);
+    return this.exploredGridCells.has(`${col}-${row}`);
+  }
+
   /** Clears the currently selected star system. */
   deselectSystem(): void {
     this.selectedSystem = null;

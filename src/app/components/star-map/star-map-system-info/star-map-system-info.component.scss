@@ -1,0 +1,13 @@
+.system-info__status {
+  &[data-tone='unexplored'] {
+    color: var(--ui-ink-dim);
+  }
+
+  &[data-tone='own'] {
+    color: var(--ui-success);
+  }
+
+  &[data-tone='contested'] {
+    color: var(--ui-warning);
+  }
+}

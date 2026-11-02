@@ -18,9 +18,7 @@ No open items.
 
 ## P1 – Important bugs
 
-### 7. [Bug] The player's own home system shows status "UNEXPLORED" [Played]
-
-On the galaxy map system panel.
+No open items.
 
 ---
 

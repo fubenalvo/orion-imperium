@@ -233,6 +233,7 @@ See [New Game Generation](./new-game-generation.md) for the rules behind these.
 - The black hole's cell span is centered exactly on the map midpoint, and no star system or starting fleet lies within the preset's `blackHoleClearance`.
 - A new game is activated (and `/star-map` navigated to) only after `validateGeneratedGalaxy` passes.
 - Every star system of a generated galaxy is `explored` (rendered) from the start; fog of war applies to cells, enemy fleets and planet details only. Hiding systems makes them undiscoverable because sensor ranges are much shorter than system spacing.
+- Because of that, `StarSystem.explored` must not be used to tell the player whether a system was explored. The galaxy-map system panel status (`getSystemStatus`) counts a system as charted only when its cell is in `exploredGridCells` (or fog of war is off, or the player owns a planet there), and reveals owners only from the player's own planets and explored planets.
 - The same config + seed always produces the same galaxy; the generator must use only its seeded RNG.
 - `aiDifficulty: 'normal'` (or missing) must reproduce the pre-difficulty AI behavior: income multiplier 1, attack advantage 1.2.
 - Map widths of exactly 200 are reserved for the legacy pre-grid save format.
