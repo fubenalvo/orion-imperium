@@ -14,6 +14,14 @@ import { ShipService } from '../../services/ship.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { generatePlanetSurface, needsSurface } from './planet-surface/planet-surface-generator';
 import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
+import {
+  STATION_CONSTRUCTION_SECONDS,
+  advanceMiningStationConstruction,
+  allMiningStations,
+  constructionProgress,
+  describeConstruction,
+  isStationComplete,
+} from './station-construction';
 import { GAME_VERSION } from '../../game-version';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
@@ -290,6 +298,8 @@ loadError = '';
   private gameSeconds = 0;
   // Short gameplay notice on the galaxy HUD (asteroid collected, route blocked…).
   mapNotice: string | null = null;
+  /* Throttles redraws of construction progress to once per second of game time. */
+  private constructionRedrawClock = 0;
   private mapNoticeClock = 0;
   private static readonly MAP_NOTICE_SECONDS = 6;
   /* Player planets whose energy shortage was already announced (planet-stability.ts; not persisted). */
@@ -1204,6 +1214,8 @@ loadError = '';
         top: (b.y - 0.5) * this.cellSizeVh,
         claimRadiusVw: TERRITORY_CONFIG.baseClaimRadius * this.cellSizeVw,
         turrets: this.getStationTurrets(b.factionId),
+        building: !isStationComplete(b),
+        buildProgress: constructionProgress(b, STATION_CONSTRUCTION_SECONDS.spaceBase),
       }));
   }
 
@@ -1224,6 +1236,12 @@ loadError = '';
     const base = this.spaceBaseService.getBase(baseId);
     if (!base) return;
     const owner = base.factionId === 'player' ? 'your' : this.getFactionName(base.factionId);
+    if (!isStationComplete(base)) {
+      this.showMapNotice(
+        `${base.name}: ${owner} space base. ${describeConstruction(base)}: no territory, sensors or defenses until complete.`,
+      );
+      return;
+    }
     const defense = describeStationDefense(base, this.getStationTurrets(base.factionId));
     this.showMapNotice(`${base.name}: ${owner} space base. Claims ${TERRITORY_CONFIG.baseClaimRadius} cells around it. ${defense}.`);
   }
@@ -1260,7 +1278,10 @@ loadError = '';
       if (!result.check.ok) this.showMapNotice(describeDeploymentFailure(result.check.reason));
       return;
     }
-    this.showMapNotice(`${result.base.name} deployed. Your territory grows around it.`);
+    this.showMapNotice(
+      `${result.base.name}: construction started. It claims territory and senses once complete ` +
+        `(${STATION_CONSTRUCTION_SECONDS.spaceBase} s), and is defenseless until then.`,
+    );
     if (result.fleetRetired) {
       this.deselectFleet();
     }
@@ -1311,7 +1332,8 @@ loadError = '';
       return;
     }
     this.showMapNotice(
-      `Mining station deployed in the ${result.system.name} asteroid belt: ` +
+      `Mining station under construction in the ${result.system.name} asteroid belt ` +
+        `(${STATION_CONSTRUCTION_SECONDS.miningStation} s, defenseless until then): it will extract ` +
         `${stationExtractionRate(result.asteroid)} raw materials/s from a ` +
         `${Math.floor(result.asteroid.rawMaterials).toLocaleString('en-US')} deposit.`,
     );
@@ -3664,6 +3686,7 @@ loadError = '';
       fleets: this.fleets,
     });
     const tradeChanged = this.handleTraderRaids(tradeResult.raids) || tradeResult.changed;
+    const constructionChanged = this.updateStationConstruction(gameDeltaTime);
     this.gameSeconds += gameDeltaTime;
     const aiChanged = this.aiTickService.tick(gameDeltaTime, {
       fleets: this.fleets,
@@ -3756,7 +3779,7 @@ loadError = '';
 
     if (
       didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged || tradeChanged ||
-      diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged
+      diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged || constructionChanged
     ) {
       this.ngZone.run(() => this.cdr.detectChanges());
       this.simStateDirty = true;
@@ -3770,6 +3793,41 @@ loadError = '';
       this.autosaveAccumulator = 0;
       this.simStateDirty = false;
     }
+  }
+
+  /*
+   * Advances every station under construction (station-construction.ts).
+   * A completed base bumps the base registry revision, so territory and
+   * sensors pick it up on this frame's refresh. Returns true when the view
+   * must redraw: a completion, or once per second while sites progress.
+   */
+  private updateStationConstruction(gameDeltaTime: number): boolean {
+    if (!(gameDeltaTime > 0)) return false;
+    const bases = this.spaceBaseService.advanceConstruction(gameDeltaTime);
+    const mines = advanceMiningStationConstruction(this.starSystems, gameDeltaTime);
+    const ownBase = bases.find((b) => b.factionId === 'player');
+    const ownMine = mines.find((m) => m.asteroid.miningStation?.factionId === 'player');
+    if (ownBase) {
+      this.showMapNotice(`${ownBase.name} is complete: it now claims territory and senses around it.`);
+    } else if (ownMine) {
+      this.showMapNotice(`Mining station in the ${ownMine.system.name} belt is complete and extracting.`);
+    }
+    if (bases.length > 0) {
+      this.refreshTerritoryViews();
+      this.updateSensorVisibility(true);
+    }
+    if (bases.length > 0 || mines.length > 0) {
+      this.constructionRedrawClock = 0;
+      return true;
+    }
+    const building =
+      this.spaceBaseService.bases.some((b) => !isStationComplete(b)) ||
+      allMiningStations(this.starSystems).some(({ asteroid }) => !isStationComplete(asteroid.miningStation!));
+    if (!building) return false;
+    this.constructionRedrawClock += gameDeltaTime;
+    if (this.constructionRedrawClock < 1) return false;
+    this.constructionRedrawClock = 0;
+    return true;
   }
 
   /*
@@ -3938,7 +3996,8 @@ loadError = '';
       this.factions,
       this.movementService.gridColumns,
       this.movementService.gridRows,
-      this.spaceBaseService.bases,
+      // Construction sites sense nothing (station-construction.ts).
+      this.spaceBaseService.completeBases,
     );
     this.sensorRangeCells = layer.cells;
     this.sensorPreviewCells = layer.preview;

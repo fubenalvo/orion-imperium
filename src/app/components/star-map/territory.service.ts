@@ -39,7 +39,8 @@ export class TerritoryService {
     const height = this.movement.gridRows;
     const key = [starSystems, factions, this.ownership.revision, this.bases.revision, width, height];
     if (!this.cached || key.some((part, i) => part !== this.key[i])) {
-      this.cached = computeTerritory(starSystems, this.bases.bases, factions, width, height);
+      // Construction sites claim nothing; completion bumps the base revision.
+      this.cached = computeTerritory(starSystems, this.bases.completeBases, factions, width, height);
       this.key = key;
     }
     return this.cached;

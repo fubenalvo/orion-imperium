@@ -3,6 +3,7 @@ import { NgClass } from '@angular/common';
 import { Fleet, FleetTrail, PlanetTile, StarSystem, SystemAsteroid } from '../star-map.models';
 import { AsteroidHint } from '../mining-station';
 import { depletionFraction } from '../raw-deposits';
+import { isStationComplete } from '../station-construction';
 import { StarMapMovementService } from '../star-map-movement.service';
 import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
 import {
@@ -95,8 +96,17 @@ export class StarMapSystemGridViewComponent {
     if (this.hoveredAsteroid === asteroid) this.hoveredAsteroid = null;
   }
 
+  /* The asteroid holds a mining station that is still under construction. */
+  isStationBuilding(asteroid: SystemAsteroid): boolean {
+    return !!asteroid.miningStation && !isStationComplete(asteroid.miningStation);
+  }
+
   floor(value: number): number {
     return Math.floor(value);
+  }
+
+  ceil(value: number): number {
+    return Math.ceil(value);
   }
 
   /* Share of the asteroid's original deposit still left (0…100). */

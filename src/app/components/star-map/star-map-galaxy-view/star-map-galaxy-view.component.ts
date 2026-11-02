@@ -52,6 +52,10 @@ export interface SpaceBaseMapView {
   claimRadiusVw: number;
   /* Defense turrets (owner's Turret Research level, 0–3; station-defense.ts). */
   turrets: number;
+  /* Construction site (station-construction.ts): no claim, no turrets yet. */
+  building: boolean;
+  /* 0 … 1 share of the construction done; 1 for a complete base. */
+  buildProgress: number;
 }
 
 /* Black hole no-fly zone outline in SVG grid units. */

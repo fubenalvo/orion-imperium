@@ -8,6 +8,7 @@ import {
   validateBaseDeployment,
 } from './space-base';
 import { StationDefenseState } from './station-defense';
+import { STATION_CONSTRUCTION_SECONDS, advanceStationConstruction, isStationComplete } from './station-construction';
 
 /*
  * =========================================================
@@ -20,6 +21,11 @@ import { StationDefenseState } from './station-defense';
  * change (deploy, destroy, restore) bumps `revision`, which
  * TerritoryService uses to know the territory must be rebuilt — territory
  * changes are event-driven, never recomputed per frame.
+ *
+ * A deployed base is a construction site for STATION_CONSTRUCTION_SECONDS
+ * .spaceBase of game time (station-construction.ts). `bases` lists sites
+ * too (they reserve their spot); `completeBases` is what territory, sensors
+ * and upkeep read. Completion bumps `revision` like a deploy does.
  *
  * The battle screen applies a base battle to the autosave snapshot, not to
  * this registry (removeBaseFromList); the reload after the battle restores
@@ -36,6 +42,11 @@ export class SpaceBaseService {
 
   get revision(): number {
     return this.revisionCounter;
+  }
+
+  /* Finished bases: the only ones that claim territory, sense and pay upkeep. */
+  get completeBases(): SpaceBase[] {
+    return this.list.filter(isStationComplete);
   }
 
   /* Replaces the registry with the saved bases (malformed entries dropped). */
@@ -58,8 +69,19 @@ export class SpaceBaseService {
     return this.list.find((b) => b.x === col && b.y === row);
   }
 
+  /* Every base of a faction, construction sites included. */
   basesOf(factionId: string): SpaceBase[] {
     return this.list.filter((b) => b.factionId === factionId);
+  }
+
+  /*
+   * Advances every base under construction by `deltaSeconds` of game time
+   * and returns the bases that completed in this step.
+   */
+  advanceConstruction(deltaSeconds: number): SpaceBase[] {
+    const completed = this.list.filter((b) => advanceStationConstruction(b, deltaSeconds));
+    if (completed.length > 0) this.revisionCounter++;
+    return completed;
   }
 
   check(fleet: Fleet, ctx: DeployContext): BaseDeploymentCheck {
@@ -68,7 +90,7 @@ export class SpaceBaseService {
 
   /*
    * Deploys a base from `fleet` (player DEPLOY BASE command or AI). Re-checks
-   * the rules, consumes one outpost ship and retires a fleet left without
+   * the rules, starts the base as a construction site, consumes one outpost ship and retires a fleet left without
    * living ships, the way colonization does. Returns the new base, or the
    * failed check (nothing changed).
    */
@@ -84,6 +106,7 @@ export class SpaceBaseService {
       factionId: fleet.factionId,
       x: check.col,
       y: check.row,
+      constructionRemaining: STATION_CONSTRUCTION_SECONDS.spaceBase,
     };
     this.list.push(base);
     this.revisionCounter++;

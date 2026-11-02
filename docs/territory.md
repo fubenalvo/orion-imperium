@@ -96,7 +96,7 @@ DEPLOY BASE in the fleet panel (player) — the AI does not deploy bases yet but
 - a cell that is **not another empire's territory** (own or neutral space only — at war and at peace alike);
 - at least `minBaseSpacing` = 10 cells from every other base, own or foreign.
 
-`SpaceBaseService.deploy` re-checks, removes one outpost ship, creates the base on the fleet's cell (named after the nearest star, e.g. "Vega Outpost"), bumps the revision (territory and sensors update at once) and retires a fleet left without living ships, like colonization does.
+`SpaceBaseService.deploy` re-checks, removes one outpost ship, creates the base on the fleet's cell (named after the nearest star, e.g. "Vega Outpost") as a [construction site](#construction) and retires a fleet left without living ships, like colonization does. The base claims territory and senses only once complete (60 s).
 
 A base is permanent and immobile. It cannot be moved, carried or captured; it only ends by destruction. Its only functions are observation (a sensor source of `sensorRange` = 6 cells + research bonus for a player base — the game's "radar station") and territory. It has no economy, research or production; it does cost upkeep (25 points/s, see [Economy](./economy.md#upkeep)).
 
@@ -104,7 +104,7 @@ A base is permanent and immobile. It cannot be moved, carried or captured; it on
 
 A fleet whose faction is at war with a base's owner and enters the base's cell attacks it (`checkBaseBattles`, after fleet-vs-fleet detection each frame; a pair is triggered once until the next battle return). The base fights with the shared [station defense](#station-defense) model:
 
-- `buildBaseDefenseFleet` produces the virtual defense fleet (id `-(10 000 000 + base.id)`, never written back) from the base's persisted hull and shield and its owner's current turret level.
+- `buildBaseDefenseFleet` produces the virtual defense fleet (id `-(10 000 000 + base.id)`, never written back) from the base's persisted hull and shield and its owner's current turret level, or the passive construction site while the base is being built ([Construction](#construction)).
 - The battle is a `Battle` of `type: 'planet'` with `spaceBaseId` set (and no `planetId`).
 - `BattleOutcomeService.applyStationBattleOutcome`: on attacker victory the base is removed — its territory claim and its sensor coverage disappear with it (the sensor layer reads the live registry every frame, territory is rebuilt on the registry revision) — otherwise it keeps its remaining shield and hull. The AI-vs-AI path applies the result to the live registry (`SpaceBaseService.destroy` / `setDefenseState`); the battle screen applies it to the autosave snapshot and the reload after the battle restores the registry from it.
 
@@ -118,12 +118,40 @@ Space bases and mining stations are both **stations** and share one defense mode
 | Turrets | 0–3, added in the order `laser_turret`, `laser_turret`, `missile_turret` (the planet turret buildings, same stats as on planets). The count is the **owner's** Turret Research level: Turret Research I, II and III each add one (`stationTurrets` bonus, summed by `ResearchService.getModifiers`, clamped by `stationTurretCount`). |
 | Shield | One shared pool of 250 (+12 regeneration per regen tick) over every immobile unit, persisted after a battle (`shieldPoolCurrent`), like a planetary shield. |
 | Destruction | The station is destroyed when the attacker wins (core and every turret destroyed). A station is never captured. |
+| Under construction | A single passive `construction_site` unit instead of core, turrets and shield ([Construction](#construction)). |
 
 **Turret Research I–III** (`turret_research_1..3`) is one empire-wide progression for every station type — there are no type-specific turret technologies. The level is derived from `researchedTechnologies` whenever a station battle is built or a marker is drawn and is never stored on a station, so researching a level upgrades every existing base and mining station at once, a newly deployed station starts at the current level, and a save always shows the turrets of its saved research.
 
 **Combat path.** A station battle is a `type: 'planet'` battle (static defenses) naming its station with `spaceBaseId` or `miningStation` (`{ systemId, col, row }`, the asteroid), never `planetId`. A human side opens the battle screen ("STATION BATTLE", result DESTROYED / DEFENDED); AI vs AI is auto-resolved at once (`autoResolveBattle`) and applied to the live state. Both types end in `BattleOutcomeService.applyStationBattleOutcome`, which writes back the attacker roster and war losses, removes a destroyed station or stores the survivor's shield and hull.
 
 **Display.** Both markers show one small lit pip per turret in the owner's color along their top edge (`_station-turrets.scss`); the base keeps its turning ring, the mining station its rotated frame. The base click notice and the mining station hover card add `Turrets n/3 · Hull h/900`.
+
+## Construction
+
+Stations are not finished on deployment (`station-construction.ts`). Deployment consumes the outpost ship and leaves a **construction site** on the station's spot. The station completes after a fixed construction time of scaled game time:
+
+| Station | `STATION_CONSTRUCTION_SECONDS` |
+| --- | --- |
+| Space base | 60 s |
+| Mining station | 180 s |
+
+The site is a real `SpaceBase` / `MiningStation` record with `constructionRemaining` set (seconds left). What that means:
+
+- **It reserves its spot.** One station per asteroid and the base spacing count sites. The AI treats an asteroid with a site as taken, so it never sends a second outpost ship there.
+- **It has none of the station's functions.** Every consumer asks `isStationComplete`:
+  - territory: `TerritoryService` reads `SpaceBaseService.completeBases`;
+  - sensors: `StarMap.updateSensorVisibility` passes `completeBases`;
+  - extraction and the HUD rate: `activeMiningStationsOf`;
+  - upkeep: `EconomyService.getStationUpkeepPerSecond`.
+- **It can be attacked** by the usual station battle rules. It fights as a single `construction_site` unit (`CONSTRUCTION_SITE_STATS`: 300 HP, no attack, no turrets, no shield), so any hostile warship fleet destroys it without losses. The ship is lost with it.
+- **Completion:** `StarMap.updateStationConstruction` advances every site each frame by the scaled delta, so a paused game freezes it. The headless simulation does the same.
+  - A completed base bumps `SpaceBaseService.revision`, so territory and sensors update on the same frame.
+  - The site's battle damage is dropped: the finished station starts at full hull and shield.
+  - The player gets a map notice when one of their own stations completes.
+- **Display:**
+  - A base site is a dim, still silhouette with a progress arc in the owner's color. It shows no claim ring and no turret pips.
+  - A mining site has a dotted frame labelled `BUILDING · n S`.
+  - The base click notice and the mining hover card say "Under construction · n s left". A foreign site's hover card does not reveal the deposit.
 
 ## Mining stations
 
@@ -141,15 +169,15 @@ DEPLOY MINING in the fleet panel (player; it replaces DEPLOY BASE while the flee
   - `rawMaterials > 0` (barren rocks are never targets),
   - the system is not in another empire's territory (`systemTerritoryOwner` is the deployer or nobody: the same own-or-neutral rule as bases and colonization).
 
-`deployMiningStation` re-checks, removes one outpost ship, sets `asteroid.miningStation = { factionId }` and retires a fleet left without living ships, exactly like a base deployment. No battle, territory or sensor change follows. The new station defends itself at its owner's current turret level ([Station defense](#station-defense)).
+`deployMiningStation` re-checks, removes one outpost ship, sets `asteroid.miningStation = { factionId, constructionRemaining: 180 }` and retires a fleet left without living ships, exactly like a base deployment. No battle, territory or sensor change follows. The station is a [construction site](#construction) for 180 s, and extracts and pays upkeep only once complete. After that it defends itself at its owner's current turret level ([Station defense](#station-defense)).
 
-A mining station costs upkeep (15 points/s, see [Economy](./economy.md#upkeep)) while its asteroid still has raw materials. A station on a depleted asteroid is idle and costs nothing: stations cannot be dismantled, so an upkeep on dead stations would be a permanent drain (in the 2026-11-01 QA runs most AI stations were depleted by minute 40, and they were the largest part of a shrunken empire's deficit).
+A completed mining station costs upkeep (15 points/s, see [Economy](./economy.md#upkeep)) while its asteroid still has raw materials. A station on a depleted asteroid is idle and costs nothing: stations cannot be dismantled, so an upkeep on dead stations would be a permanent drain (in the 2026-11-01 QA runs most AI stations were depleted by minute 40, and they were the largest part of a shrunken empire's deficit).
 
 Storing the station on the asteroid ties it to its asteroid, system and owner by construction and makes a second station on the same asteroid unrepresentable.
 
 ### Extraction
 
-Each station with a remaining deposit extracts its asteroid's own `extractionRate` (3–8 raw materials per second of game time, generated per asteroid; `MINING_STATION_CONFIG.extractionPerSecond` = 5 is only the fallback) × the faction's gain multiplier (AI difficulty × war exhaustion, like building output). It runs inside the economy tick, not on its own timer:
+Each completed station with a remaining deposit extracts its asteroid's own `extractionRate` (3–8 raw materials per second of game time, generated per asteroid; `MINING_STATION_CONFIG.extractionPerSecond` = 5 is only the fallback) × the faction's gain multiplier (AI difficulty × war exhaustion, like building output). It runs inside the economy tick, not on its own timer:
 
 - `calculateEconomy` adds the stations' nominal rate to the faction's raw production and net, so the HUD shows it.
 - `applyEconomyDelta` replaces that nominal rate with what `extractMiningStations` actually takes this tick: each station takes at most its remaining deposit and subtracts it from `asteroid.rawMaterials`. A deposit never goes negative and nothing is credited twice.
@@ -187,6 +215,7 @@ Deposit cards show the remaining amount and the asteroid's extraction rate. Stat
 - `FactionRelation.borderIncidents` and `passageRights` are optional relation fields (no version bump of their own); `normalizeRelations` keeps them (passage only at peace).
 - Territory, the active violation set and the cache are runtime only.
 - Station defense state is the optional `hullCurrent` and `shieldPoolCurrent` on `SpaceBase` and `MiningStation` (no version bump; missing = full). Turret counts are never saved — they follow the saved research.
+- Construction state is the optional `constructionRemaining` on `SpaceBase` and `MiningStation` (no version bump; missing or not a positive number = complete), so a reload continues a site's timer.
 - Mining stations are saved as the optional `SystemAsteroid.miningStation` inside `StarSystem.asteroidBelt` (no version bump; older saves simply have none). `ensureSystemAsteroidBelts` drops a malformed station on load instead of regenerating the belt, so survey state and other stations are kept. The remaining deposit (`rawMaterials`, fractional while being mined), the original size (`totalRawMaterials`), the rate (`extractionRate`) and AI surveys (`surveyedBy`) are saved with it; belts from before these fields get them on load ([Economy](./economy.md#save-compatibility)).
 
 ## Edge cases
@@ -202,9 +231,9 @@ Deposit cards show the remaining amount and the asteroid's extraction rate. Stat
 ## Testing
 
 - `territory.spec.ts`: claim owner (majority, population and id ties, neutrals), disc radius, overlap rule (system beats base, nearest, older), render shapes, cache invalidation on ownership change and on base restore/destroy, colonization rule (peace blocks, war allows, own/neutral space; the AI goal layer skips a peace partner's system and targets it at war), border violations (size scaling, ongoing cost, no war, intruder view unchanged, repeats cost more, war / passage / own territory exempt, load seeding, incident decay and normalization).
-- `mining-station.spec.ts`: every mining deployment rule, deploy mutation (ship consumed, station on the right asteroid and system, owner faction, fleet retirement), one station per asteroid, barren asteroids refused, base deployment still working from the same ship type, extraction in the economy tick (owner only, deposit capped and depleted, depleted station kept), hover tones, save slot round trip and malformed-station cleanup.
-- `space-base.spec.ts`: every deployment rule, deploy mutation (ship consumed, name, territory), fleet retirement and spacing, peace partner territory, base as player sensor source, defense roster and persisted shield, AI-vs-AI destruction removing the claim, no battle at peace, player base battle transport, battle-screen outcome (removal, surviving shield, wiped attacker), save migration, slot round trip, validation of malformed bases.
-- `station-defense.spec.ts`: one turret research progression (three technologies, no per-type variants), levels 0–III giving 0–3 turrets to existing bases and mining stations alike (owner's research, not the attacker's), new deployments at the current level, roster with persisted hull and shield, AI-vs-AI mining station destruction (extraction stops, deposit stays), a holding station keeping shield and hull, trigger rules (war, stopped, in the system, warship only), player station battle transport, isolation from other stations / bases / planets, a destroyed player base leaving the sensor layer, battle-screen outcome on mining stations, separate station functions, hover defense line, save/load of defense state with research-derived turrets.
+- `mining-station.spec.ts`: every mining deployment rule, deploy mutation (ship consumed, station on the right asteroid and system as a construction site, owner faction, fleet retirement), no extraction or upkeep before completion, one station per asteroid, barren asteroids refused, base deployment still working from the same ship type, extraction in the economy tick (owner only, deposit capped and depleted, depleted station kept), hover tones, save slot round trip and malformed-station cleanup.
+- `space-base.spec.ts`: every deployment rule, deploy mutation (ship consumed, name, territory only after completion), fleet retirement and spacing, peace partner territory, base as player sensor source, defense roster and persisted shield, AI-vs-AI destruction removing the claim, no battle at peace, player base battle transport, battle-screen outcome (removal, surviving shield, wiped attacker), save migration, slot round trip, validation of malformed bases.
+- `station-defense.spec.ts`: construction sites (passive roster, destroyed by any warship fleet without losses, completion dropping site damage, frozen while paused), one turret research progression (three technologies, no per-type variants), levels 0–III giving 0–3 turrets to existing bases and mining stations alike (owner's research, not the attacker's), new deployments at the current level, roster with persisted hull and shield, AI-vs-AI mining station destruction (extraction stops, deposit stays), a holding station keeping shield and hull, trigger rules (war, stopped, in the system, warship only), player station battle transport, isolation from other stations / bases / planets, a destroyed player base leaving the sensor layer, battle-screen outcome on mining stations, separate station functions, hover defense line, save/load of defense state with research-derived turrets.
 
 ## Known limitations
 

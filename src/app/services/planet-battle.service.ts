@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Fleet, FleetShip, PlanetTile, StarSystem } from '../components/star-map/star-map.models';
 import planetData from '../components/star-map/planet-data.json';
 import { STATION_CORE_STATS } from '../components/star-map/station-defense';
+import { CONSTRUCTION_SITE_STATS } from '../components/star-map/station-construction';
 
 /*
  * =========================================================
@@ -233,17 +234,20 @@ export class PlanetBattleService {
   } | null {
     // The station core (every station type, station-defense.ts) is a virtual
     // defense unit too, so station battles reuse the planet-defense stat path instead of a parallel one.
-    if (typeId === STATION_CORE_STATS.id) {
-      return {
-        id: STATION_CORE_STATS.id,
-        name: STATION_CORE_STATS.name,
-        hitPoints: STATION_CORE_STATS.hitPoints,
-        attack: STATION_CORE_STATS.attack,
-        defense: STATION_CORE_STATS.defense,
-        attackType: STATION_CORE_STATS.attackType,
-        weakness: STATION_CORE_STATS.weakness,
-        role: STATION_CORE_STATS.role,
-      };
+    // A station under construction fights as its construction site, which never fires.
+    for (const stats of [STATION_CORE_STATS, CONSTRUCTION_SITE_STATS]) {
+      if (typeId === stats.id) {
+        return {
+          id: stats.id,
+          name: stats.name,
+          hitPoints: stats.hitPoints,
+          attack: stats.attack,
+          defense: stats.defense,
+          attackType: stats.attackType,
+          weakness: stats.weakness,
+          role: stats.role,
+        };
+      }
     }
     const def = this.buildingDefs.find((d) => d.id === typeId);
     if (!def) return null;

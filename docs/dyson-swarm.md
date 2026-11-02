@@ -1,6 +1,6 @@
 # Dyson Swarm (Design — not implemented)
 
-Status: **design agreed on 2026-11-02, nothing implemented yet.** This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
+Status: **design agreed on 2026-11-02. Phase 0 (station construction time) is implemented ([Territory](./territory.md#construction)); the swarm itself is not.** This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
 
 The Dyson Swarm is a late-game **alternative victory** and **credit / raw-material sink**. Eight fixed anchor slots ring the central black hole. A faction that holds a completed Dyson Anchor on **every** slot and keeps all of them for a 5-minute warm-up wins. Anchors are expensive to bring there, expensive to keep, cannot be captured and are visible to everyone, so an empire heading for this victory becomes the obvious target of the others.
 

@@ -2,6 +2,7 @@ import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
 import planetData from '../../star-map/planet-data.json';
 import { STATION_CORE_STATS } from '../../star-map/station-defense';
+import { CONSTRUCTION_SITE_STATS } from '../../star-map/station-construction';
 import { CombatClass, getHullClass } from '../../star-map/hull-class';
 import { BATTLE_SPEED_MULTIPLIER } from './battle.types';
 
@@ -69,6 +70,7 @@ const VIRTUAL_RANGE_LOOKUP: Record<string, number> = {
       .map((b) => [b.id, b.range as number]),
   ),
   [STATION_CORE_STATS.id]: STATION_CORE_STATS.range,
+  [CONSTRUCTION_SITE_STATS.id]: CONSTRUCTION_SITE_STATS.range,
 };
 
 /* Virtual defense building fire rates (planet-data.json, shots per second), plus the space base core. */
@@ -79,6 +81,7 @@ const VIRTUAL_FIRE_RATE_LOOKUP: Record<string, number> = {
       .map((b) => [b.id, b.fireRate as number]),
   ),
   [STATION_CORE_STATS.id]: STATION_CORE_STATS.fireRate,
+  [CONSTRUCTION_SITE_STATS.id]: CONSTRUCTION_SITE_STATS.fireRate,
 };
 
 export function getBattleShipStats(

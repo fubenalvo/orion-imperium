@@ -9,6 +9,7 @@ import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
 import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
 import { extractMiningStations, miningRatePerSecond } from '../components/star-map/mining-station';
 import { SpaceBaseService } from '../components/star-map/space-base.service';
+import { isStationComplete } from '../components/star-map/station-construction';
 import { planetTypeTraits } from '../components/star-map/planet-types';
 
 import {
@@ -698,9 +699,9 @@ export class EconomyService {
   }
 
   /*
-   * Upkeep of all of a faction's stations: space bases from the live
-   * registry, mining stations from the asteroids (depleted ones included —
-   * a station stays until it is destroyed).
+   * Upkeep of a faction's completed stations: space bases from the live
+   * registry, mining stations from the asteroids (only those still holding
+   * raw materials, see below).
    */
   private getStationUpkeepPerSecond(
     factionId: string,
@@ -708,14 +709,16 @@ export class EconomyService {
     owner: Faction | null | undefined,
     scale: number,
   ): number {
-    const bases = this.spaceBases?.basesOf(factionId).length ?? 0;
+    // Construction sites pay nothing until complete (station-construction.ts).
+    const bases = this.spaceBases?.basesOf(factionId).filter(isStationComplete).length ?? 0;
     let stations = 0;
     for (const system of starSystems) {
       for (const asteroid of system.asteroidBelt?.asteroids ?? []) {
         // A station on a depleted asteroid is idle and pays nothing: it
         // cannot be dismantled, so charging it would be a permanent sink
         // that outlives the empire's ability to pay (QA 2026-11-01).
-        if (asteroid.miningStation?.factionId === factionId && asteroid.rawMaterials > 0) stations++;
+        const station = asteroid.miningStation;
+        if (station?.factionId === factionId && isStationComplete(station) && asteroid.rawMaterials > 0) stations++;
       }
     }
     if (bases === 0 && stations === 0) return 0;

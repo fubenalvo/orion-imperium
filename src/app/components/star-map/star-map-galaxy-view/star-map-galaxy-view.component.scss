@@ -474,6 +474,33 @@
   opacity: 0.9;
 }
 
+/* Construction site (station-construction.ts): a dim, still silhouette with
+   a progress arc in the owner's color filling clockwise around it. */
+.space-base__progress {
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  background: conic-gradient(var(--base-color) calc(var(--build-progress, 0) * 1turn), transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 60%, #000 62%);
+  mask: radial-gradient(circle, transparent 60%, #000 62%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.space-base-cell--building {
+  .space-base__ring {
+    border-style: dotted;
+    box-shadow: none;
+    opacity: 0.5;
+    animation: none;
+  }
+
+  .space-base__core {
+    box-shadow: none;
+    opacity: 0.45;
+  }
+}
+
 @keyframes space-base-spin {
   to {
     transform: rotate(360deg);

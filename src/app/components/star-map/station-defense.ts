@@ -1,4 +1,5 @@
 import { Fleet, FleetShip, StarSystem, SystemAsteroid } from './star-map.models';
+import { CONSTRUCTION_SITE_STATS } from './station-construction';
 
 /*
  * =========================================================
@@ -23,6 +24,10 @@ import { Fleet, FleetShip, StarSystem, SystemAsteroid } from './star-map.models'
  *   and a newly deployed station starts with the current level.
  * - Shield: one shared pool over all immobile units, persisted between
  *   battles (`shieldPoolCurrent`), like a planet's planetary shield.
+ *
+ * - Construction: a station still under construction (station-construction.ts)
+ *   fights as a single CONSTRUCTION_SITE_STATS unit instead — no turrets, no
+ *   shield, no attack — and is destroyed like any station when it loses.
  *
  * Combat goes through the planet-battle path (Battle.type 'planet') of the
  * battle minigame and the auto-resolver; the battle names its station with
@@ -98,6 +103,8 @@ export interface StationDefenseInput extends StationDefenseState {
   x: number;
   y: number;
   turretCount: number;
+  /* The station is a construction site: one passive unit, no turrets or shield. */
+  underConstruction?: boolean;
 }
 
 export type StationDefenseFleet = Fleet & {
@@ -113,6 +120,7 @@ export type StationDefenseFleet = Fleet & {
  * battle minigame and the auto-resolver treat it like a planet's defenses.
  */
 export function buildStationDefenseFleet(input: StationDefenseInput): StationDefenseFleet {
+  if (input.underConstruction) return buildConstructionSiteFleet(input);
   const turrets = STATION_DEFENSE_CONFIG.turretTypeIds.slice(0, stationTurretCount(input.turretCount));
   const ships: FleetShip[] = [
     {
@@ -147,6 +155,40 @@ export function buildStationDefenseFleet(input: StationDefenseInput): StationDef
     shieldPool: current,
     shieldPoolRegen: STATION_DEFENSE_CONFIG.shieldRegen,
     shieldPoolMax: max,
+  };
+}
+
+/*
+ * A construction site's roster: one unit that cannot fire, with the site's
+ * persisted hull, under an empty shield pool that never regenerates.
+ */
+function buildConstructionSiteFleet(input: StationDefenseInput): StationDefenseFleet {
+  const max = CONSTRUCTION_SITE_STATS.hitPoints;
+  const hull = input.hullCurrent;
+  const currentHp = typeof hull === 'number' && Number.isFinite(hull) && hull > 0 ? Math.min(hull, max) : max;
+  return {
+    id: input.fleetId,
+    name: `${input.name} Construction Site`,
+    factionId: input.factionId,
+    x: input.x,
+    y: input.y,
+    targetX: null,
+    targetY: null,
+    speed: 0,
+    system: null,
+    ships: [
+      {
+        id: STATION_CORE_UNIT_ID,
+        name: `${input.name} Construction Site`,
+        type: CONSTRUCTION_SITE_STATS.id,
+        currentHp,
+        destroyed: false,
+      },
+    ],
+    destroyed: false,
+    shieldPool: 0,
+    shieldPoolRegen: 0,
+    shieldPoolMax: 0,
   };
 }
 

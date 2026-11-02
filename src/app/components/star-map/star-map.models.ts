@@ -385,6 +385,8 @@ export interface MiningStation {
   factionId: string;
   shieldPoolCurrent?: number;
   hullCurrent?: number;
+  /* Seconds of game time until the station is complete; missing = complete (station-construction.ts). */
+  constructionRemaining?: number;
 }
 
 export interface FleetShip {
@@ -585,6 +587,8 @@ export interface SpaceBase {
   shieldPoolCurrent?: number;
   /* Station core hit points left after a battle (station-defense.ts). Missing = full. */
   hullCurrent?: number;
+  /* Seconds of game time until the base is complete; missing = complete (station-construction.ts). */
+  constructionRemaining?: number;
 }
 
 export interface StarMapData {

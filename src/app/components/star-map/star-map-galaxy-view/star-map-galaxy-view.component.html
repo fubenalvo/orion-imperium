@@ -167,6 +167,7 @@
           />
         }
         @for (base of spaceBases; track base.id) {
+          @if (!base.building) {
           <circle
             class="territory__base-claim"
             [attr.cx]="base.left / cellSizeVw"
@@ -174,6 +175,7 @@
             [attr.r]="base.claimRadiusVw / cellSizeVw + 0.5"
             [attr.stroke]="base.color"
           />
+          }
         }
       </svg>
     }
@@ -242,6 +244,8 @@
       <div
         class="space-base-cell"
         [class.space-base-cell--own]="base.own"
+        [class.space-base-cell--building]="base.building"
+        [style.--build-progress]="base.buildProgress"
         [style.left]="base.left + 'vw'"
         [style.top]="base.top + 'vw'"
         [style.--base-color]="base.color"
@@ -249,13 +253,16 @@
         <button
           class="space-base"
           type="button"
-          [attr.aria-label]="base.name + ' (' + base.ownerName + ' space base)'"
-          [title]="base.name + ' — ' + base.ownerName + ' space base'"
+          [attr.aria-label]="base.name + ' (' + base.ownerName + (base.building ? ' space base, under construction)' : ' space base)')"
+          [title]="base.name + ' — ' + base.ownerName + (base.building ? ' space base (under construction)' : ' space base')"
           (click)="onSpaceBaseClick(base.id)"
         >
+          @if (base.building) {
+            <span class="space-base__progress" aria-hidden="true"></span>
+          }
           <span class="space-base__ring" aria-hidden="true"></span>
           <span class="space-base__core" aria-hidden="true"></span>
-          @if (base.turrets > 0) {
+          @if (base.turrets > 0 && !base.building) {
             <span class="station-turrets" aria-hidden="true">
               @for (t of turretSlots(base.turrets); track $index) {
                 <span class="station-turret"></span>

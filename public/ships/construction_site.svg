@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ship" viewBox="0 0 160 150" preserveAspectRatio="xMidYMid meet">
+  <!-- Construction Site (a station still being built, station-construction.ts): the station core's
+       cross frame and hub with an open, unfinished habitat ring and scaffold struts. Same viewBox and
+       scale as station_core.svg (100 units = 1 battlefield unit). Faction accents use currentColor;
+       the light group reads the ship-engine / engine-glow CSS custom properties. See docs/battle-screen.md. -->
+  <rect x="74" y="4" width="12" height="142" rx="3" fill="#3d6662" stroke="#08131c" stroke-width="1.6"/>
+  <rect x="9" y="69" width="142" height="12" rx="3" fill="#3d6662" stroke="#08131c" stroke-width="1.6"/>
+  <circle cx="80" cy="75" r="58" fill="none" stroke="#08131c" stroke-width="18" stroke-dasharray="120 62"/>
+  <circle cx="80" cy="75" r="58" fill="none" stroke="#6f8f8a" stroke-width="14" stroke-dasharray="120 62"/>
+  <circle cx="80" cy="75" r="58" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 6"/>
+  <g fill="none" stroke="#9ac9c2" stroke-width="2" stroke-linecap="round">
+    <path d="M38 33 L58 53 M122 33 L102 53 M38 117 L58 97 M122 117 L102 97"/>
+    <path d="M45 26 L45 40 M115 26 L115 40 M45 110 L45 124 M115 110 L115 124"/>
+  </g>
+  <circle cx="80" cy="75" r="28" fill="#4f7f79" stroke="#08131c" stroke-width="2.4" stroke-dasharray="14 6"/>
+  <circle cx="80" cy="75" r="18" fill="#9ac9c2" stroke="#08131c" stroke-width="1.6"/>
+  <circle cx="80" cy="75" r="8" fill="currentColor" stroke="#08131c" stroke-width="1.2"/>
+  <g style="fill: var(--ship-engine, #ffd27a); opacity: var(--engine-glow, 1)">
+    <circle cx="148" cy="75" r="2.6"/>
+    <circle cx="12" cy="75" r="2.6"/>
+    <circle cx="80" cy="7" r="2.6"/>
+    <circle cx="80" cy="143" r="2.6"/>
+  </g>
+</svg>

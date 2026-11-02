@@ -418,6 +418,19 @@
 }
 
 /* A station whose deposit is empty: still part of the world, visibly idle. */
+/* Construction site (station-construction.ts): a dim, dotted, unlit frame. */
+.system-asteroid--building {
+  .system-asteroid__station {
+    border-style: dotted;
+    opacity: 0.6;
+    box-shadow: none;
+
+    &::after {
+      display: none;
+    }
+  }
+}
+
 .system-asteroid--depleted {
   .system-asteroid__station {
     border-style: dashed;

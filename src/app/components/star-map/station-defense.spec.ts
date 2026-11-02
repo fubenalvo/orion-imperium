@@ -23,6 +23,14 @@ import {
   stationTurretCount,
 } from './station-defense';
 import { Battle, BattleOutcome } from '../battle-screen/battle/battle.types';
+import {
+  CONSTRUCTION_SITE_STATS,
+  STATION_CONSTRUCTION_SECONDS,
+  advanceMiningStationConstruction,
+  advanceStationConstruction,
+  isStationComplete,
+} from './station-construction';
+import { ShipService } from '../../services/ship.service';
 
 /*
  * Unified station defense (docs/territory.md, "Station defense"): space
@@ -159,6 +167,9 @@ describe('unified station defense', () => {
       const outposts = fleet(1, 'enemy1', 60, 40, [OUTPOST_SHIP_TYPE]);
       const deployed = bases.deploy(outposts, { factions, starSystems: [], territory: territory.get([], factions), width: W, height: H });
       expect(deployed.base).not.toBeNull();
+      // Under construction it fights as the passive site; once complete, with the current level.
+      expect(attackBase(factions, deployed.base!).ships.map((u) => u.type)).toEqual([CONSTRUCTION_SITE_STATS.id]);
+      bases.advanceConstruction(STATION_CONSTRUCTION_SECONDS.spaceBase);
       expect(turretTypes(attackBase(factions, deployed.base!))).toHaveLength(2);
 
       const system = makeSystem('S', 30, 30);
@@ -167,7 +178,49 @@ describe('unified station defense', () => {
       miner.system = { id: 'S', x: center.x, y: center.y, targetX: null, targetY: null };
       const result = deployMiningStation({ fleet: miner, factions, starSystems: [system], territory: territory.get([system], factions) });
       expect(result.ok).toBe(true);
+      advanceMiningStationConstruction([system], STATION_CONSTRUCTION_SECONDS.miningStation);
       expect(turretTypes(attackMiningStation(factions, system))).toHaveLength(2);
+    });
+  });
+
+  describe('construction sites', () => {
+    it('roster: one passive site unit with its persisted hull, no turrets and no shield', () => {
+      const site = buildStationDefenseFleet({
+        fleetId: -5, name: 'X', factionId: 'enemy1', x: 1, y: 1, turretCount: 3, hullCurrent: 120, underConstruction: true,
+      });
+      expect(site.ships).toEqual([expect.objectContaining({ id: STATION_CORE_UNIT_ID, type: CONSTRUCTION_SITE_STATS.id, currentHp: 120 })]);
+      expect(site.shieldPool).toBe(0);
+      expect(site.shieldPoolMax).toBe(0);
+      expect(CONSTRUCTION_SITE_STATS.attack).toBe(0);
+    });
+
+    it('AI vs AI: any warship fleet destroys a mining station site, and the attacker loses nothing', () => {
+      const factions = makeFactions();
+      research(byId(factions, 'enemy1'), 3);
+      const system = makeSystem('S', 30, 30, { '10,5': 'enemy1' });
+      rock(system, ROCK_A).miningStation!.constructionRemaining = 100;
+      const attacker = fleet(5, 'enemy2', 30.5, 30.5, ['fighter']);
+
+      detection.checkMiningStationBattles([attacker], factions, [system], vi.fn(), new Set(), vi.fn());
+      expect(rock(system, ROCK_A).miningStation).toBeUndefined();
+      expect(attacker.destroyed).not.toBe(true);
+      expect(attacker.ships.every((sh) => !sh.destroyed)).toBe(true);
+      // The site never fires: the fighter keeps its full hull.
+      const fighterHp = TestBed.inject(ShipService).getShipType('fighter')!.hitPoints;
+      expect(attacker.ships[0].currentHp ?? fighterHp).toBe(fighterHp);
+    });
+
+    it('completion drops the site damage: the finished station starts at full hull and shield', () => {
+      const station = { factionId: 'enemy1', constructionRemaining: 5, hullCurrent: 40, shieldPoolCurrent: 0 };
+      expect(advanceStationConstruction(station, 2)).toBe(false);
+      expect(station.constructionRemaining).toBe(3);
+      expect(advanceStationConstruction(station, 3)).toBe(true);
+      expect(station).toEqual({ factionId: 'enemy1' });
+      expect(isStationComplete(station)).toBe(true);
+      // Paused game: nothing moves.
+      const paused = { factionId: 'x', constructionRemaining: 5 };
+      expect(advanceStationConstruction(paused, 0)).toBe(false);
+      expect(paused.constructionRemaining).toBe(5);
     });
   });
 

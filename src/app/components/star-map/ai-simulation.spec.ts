@@ -33,6 +33,8 @@ import { DiplomacyService } from '../../services/diplomacy.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import { BattleService } from '../../services/battle.service';
 import { OUTPOST_SHIP_TYPE } from './space-base';
+import { advanceMiningStationConstruction } from './station-construction';
+import { SpaceBaseService } from './space-base.service';
 
 /* Non-combat hulls: colonizers and outpost ships (consumed when used). */
 const isCivilianShip = (type: string) => type === 'colonizer' || type === OUTPOST_SHIP_TYPE;
@@ -425,6 +427,9 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
         aiBattles++;
       },
     );
+    // Station construction advances like in StarMap.updateStationConstruction.
+    TestBed.inject(SpaceBaseService).advanceConstruction(dt);
+    advanceMiningStationConstruction(data.starSystems, dt);
     for (const raid of tradeNetwork.tick(dt, { starSystems: data.starSystems, factions: data.factions, fleets: data.fleets }).raids) {
       traderRaids.push({ ...raid, time });
     }

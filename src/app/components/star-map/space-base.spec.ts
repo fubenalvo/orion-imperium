@@ -21,6 +21,7 @@ import {
 import { TERRITORY_CONFIG } from './territory';
 import { MAX_STATION_TURRETS, STATION_DEFENSE_CONFIG } from './station-defense';
 import { BattleOutcome } from '../battle-screen/battle/battle.types';
+import { STATION_CONSTRUCTION_SECONDS } from './station-construction';
 
 /*
  * Space bases (docs/territory.md): deployment rules and mutation, the base
@@ -114,6 +115,13 @@ describe('space bases', () => {
     expect(result.base).toMatchObject({ id: 1, factionId: 'player', x: 60, y: 40, name: 'home Outpost' });
     expect(result.base && 'fleetRetired' in result && result.fleetRetired).toBe(false);
     expect(f.ships.map((s) => s.type)).toEqual(['frigate']);
+    // A construction site claims nothing; completion bumps the revision and the claim appears.
+    expect(result.base!.constructionRemaining).toBe(STATION_CONSTRUCTION_SECONDS.spaceBase);
+    expect(bases.completeBases).toHaveLength(0);
+    expect(territory.get(systems, factions).ownerAt(60, 40)).toBeNull();
+    expect(bases.advanceConstruction(STATION_CONSTRUCTION_SECONDS.spaceBase - 1)).toHaveLength(0);
+    expect(bases.advanceConstruction(1).map((b) => b.id)).toEqual([1]);
+    expect(result.base!.constructionRemaining).toBeUndefined();
     expect(territory.get(systems, factions).ownerAt(60 + TERRITORY_CONFIG.baseClaimRadius, 40)).toBe('player');
     expect(territory.get(systems, factions).ownerAt(60 + TERRITORY_CONFIG.baseClaimRadius + 1, 40)).toBeNull();
   });

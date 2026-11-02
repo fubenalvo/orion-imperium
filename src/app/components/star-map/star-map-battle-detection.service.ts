@@ -16,6 +16,7 @@ import {
   stationDefenseStateFromOutcome,
   stationTurretCount,
 } from './station-defense';
+import { isStationComplete } from './station-construction';
 import { isCombatShipType } from './ai-queries';
 
 /*
@@ -138,6 +139,7 @@ export class StarMapBattleDetectionService {
             turretCount: this.stationTurretsOf(owner),
             shieldPoolCurrent: station.shieldPoolCurrent,
             hullCurrent: station.hullCurrent,
+            underConstruction: !isStationComplete(station),
           });
           const battle = this.buildStationBattle(fleet, attacker, owner, defense, name, {
             miningStation: { systemId: system.id, col: asteroid.col, row: asteroid.row },

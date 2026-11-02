@@ -52,6 +52,8 @@ export const SHIP_ICONS: Readonly<Record<string, ShipIconDef>> = {
   laser_turret: icon('laser_turret', 112, 100),
   missile_turret: icon('missile_turret', 116, 108),
   station_core: icon('station_core', 160, 150),
+  // A station under construction (station-construction.ts).
+  construction_site: icon('construction_site', 160, 150),
 };
 
 /* Used only for a type id with no entry (e.g. a newly added ship type before

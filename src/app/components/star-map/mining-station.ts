@@ -4,6 +4,7 @@ import { systemCellAtVw } from './system-grid';
 import { TerritoryMap } from './territory';
 import { depletionFraction, isAsteroidSurveyedBy } from './raw-deposits';
 import { describeStationDefense } from './station-defense';
+import { STATION_CONSTRUCTION_SECONDS, describeConstruction, isStationComplete } from './station-construction';
 
 /*
  * =========================================================
@@ -19,7 +20,10 @@ import { describeStationDefense } from './station-defense';
  *   so an asteroid can never hold two stations and the station is always tied
  *   to its asteroid and system. It is saved with the system's belt.
  * - Deployment consumes one outpost ship, exactly like a base deployment,
- *   and retires a fleet left without living ships.
+ *   and retires a fleet left without living ships. The station is a
+ *   construction site for STATION_CONSTRUCTION_SECONDS.miningStation
+ *   (station-construction.ts): it already occupies its asteroid but
+ *   extracts nothing and pays no upkeep until complete.
  * - A station extracts raw materials from its deposit during the economy tick
  *   (EconomyService) at the asteroid's own `extractionRate` until the
  *   deposit is empty. A depleted station stays on its asteroid (it is
@@ -164,7 +168,10 @@ export function deployMiningStation(
   const { fleet } = input;
   const index = fleet.ships.findIndex((s) => s.type === OUTPOST_SHIP_TYPE && !s.destroyed);
   fleet.ships.splice(index, 1);
-  check.asteroid.miningStation = { factionId: fleet.factionId };
+  check.asteroid.miningStation = {
+    factionId: fleet.factionId,
+    constructionRemaining: STATION_CONSTRUCTION_SECONDS.miningStation,
+  };
 
   const fleetRetired = !fleet.ships.some((s) => !s.destroyed);
   if (fleetRetired) {
@@ -177,12 +184,13 @@ export function deployMiningStation(
   return { ok: true, system: check.system, asteroid: check.asteroid, fleetRetired };
 }
 
-/* Stations of a faction that still have raw materials to extract. */
+/* Completed stations of a faction that still have raw materials to extract. */
 export function activeMiningStationsOf(factionId: string, starSystems: readonly StarSystem[]): SystemAsteroid[] {
   const result: SystemAsteroid[] = [];
   for (const system of starSystems) {
     for (const asteroid of system.asteroidBelt?.asteroids ?? []) {
-      if (asteroid.miningStation?.factionId === factionId && asteroid.rawMaterials > 0) {
+      const station = asteroid.miningStation;
+      if (station?.factionId === factionId && isStationComplete(station) && asteroid.rawMaterials > 0) {
         result.push(asteroid);
       }
     }
@@ -260,6 +268,17 @@ export function describeAsteroidReserve(asteroid: SystemAsteroid): string {
 export function describeAsteroidForFaction(input: AsteroidHintInput): AsteroidHint {
   const { factionId, system, asteroid } = input;
   const station = asteroid.miningStation;
+  if (station && !isStationComplete(station)) {
+    const own = station.factionId === factionId;
+    return {
+      tone: own ? 'own' : 'invalid',
+      title: own ? 'Your mining station · under construction' : `${input.factionName(station.factionId)} mining station · under construction`,
+      // A foreign site does not reveal the deposit, like a finished foreign station.
+      detail: own
+        ? `${describeConstruction(station)} · ${describeAsteroidReserve(asteroid)}. Defenseless until complete.`
+        : `${describeConstruction(station)}. Defenseless until complete.`,
+    };
+  }
   if (station) {
     const depleted = asteroid.rawMaterials <= 0;
     const defense = input.stationTurrets ? ` · ${describeStationDefense(station, input.stationTurrets(station.factionId))}` : '';

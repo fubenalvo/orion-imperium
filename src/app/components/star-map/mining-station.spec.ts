@@ -9,6 +9,7 @@ import { SaveGameService } from '../../services/save-game.service';
 import { SAVE_VERSION } from '../../services/save-validation';
 import { normalizeRelations } from './diplomacy';
 import { OUTPOST_SHIP_TYPE } from './space-base';
+import { STATION_CONSTRUCTION_SECONDS, advanceMiningStationConstruction } from './station-construction';
 import { systemCellCenterVw } from './system-grid';
 import {
   MINING_STATION_CONFIG,
@@ -135,7 +136,11 @@ describe('asteroid mining stations', () => {
       expect(result.ok).toBe(true);
       expect(f.ships.filter((s) => s.type === OUTPOST_SHIP_TYPE)).toHaveLength(1);
       expect(f.destroyed).toBeFalsy();
-      expect(asteroidAt(systems[0], RICH).miningStation).toEqual({ factionId: 'player' });
+      // The station starts as a construction site.
+      expect(asteroidAt(systems[0], RICH).miningStation).toEqual({
+        factionId: 'player',
+        constructionRemaining: STATION_CONSTRUCTION_SECONDS.miningStation,
+      });
       // No other asteroid, and no other system's same cell, got a station.
       expect(systems[0].asteroidBelt!.asteroids.filter((a) => a.miningStation)).toHaveLength(1);
       expect(asteroidAt(systems[1], RICH).miningStation).toBeUndefined();
@@ -171,7 +176,7 @@ describe('asteroid mining stations', () => {
       asteroidAt(systems[0], RICH).surveyedBy = ['enemy1'];
       const result = deployMiningStation(input(fleet(1, 'enemy1', [OUTPOST_SHIP_TYPE], 'vex'), factions, systems));
       expect(result.ok).toBe(true);
-      expect(asteroidAt(systems[0], RICH).miningStation).toEqual({ factionId: 'enemy1' });
+      expect(asteroidAt(systems[0], RICH).miningStation?.factionId).toBe('enemy1');
     });
 
     it('a deposit surveyed only by the player is unknown to an AI faction', () => {
@@ -208,6 +213,13 @@ describe('asteroid mining stations', () => {
       const economy = TestBed.inject(EconomyService);
       const without = economy.calculateEconomy('player', factions, systems, []).net['rawmaterials'] ?? 0;
       deployMiningStation(input(fleet(1, 'player', [OUTPOST_SHIP_TYPE], 'home'), factions, systems));
+      // A construction site extracts nothing and pays no upkeep.
+      expect(miningRatePerSecond('player', systems, 1)).toBe(0);
+      expect(economy.calculateEconomy('player', factions, systems, []).net['rawmaterials']).toBeCloseTo(without);
+      expect(economy.calculateEconomy('player', factions, systems, []).stationUpkeepPerSecond).toBe(0);
+      expect(advanceMiningStationConstruction(systems, STATION_CONSTRUCTION_SECONDS.miningStation - 1)).toHaveLength(0);
+      expect(advanceMiningStationConstruction(systems, 1)).toHaveLength(1);
+      expect(economy.calculateEconomy('player', factions, systems, []).stationUpkeepPerSecond).toBeGreaterThan(0);
 
       const rate = MINING_STATION_CONFIG.extractionPerSecond;
       expect(miningRatePerSecond('player', systems, 1)).toBe(rate);
@@ -230,6 +242,7 @@ describe('asteroid mining stations', () => {
       const systems = [makeSystem('home', 30, 30, 'player')];
       const economy = TestBed.inject(EconomyService);
       deployMiningStation(input(fleet(1, 'player', [OUTPOST_SHIP_TYPE], 'home'), factions, systems));
+      advanceMiningStationConstruction(systems, STATION_CONSTRUCTION_SECONDS.miningStation);
       asteroidAt(systems[0], RICH).rawMaterials = 7;
       const without = economy.calculateEconomy('player', factions, systems, []).net['rawmaterials']! - MINING_STATION_CONFIG.extractionPerSecond;
 
@@ -298,13 +311,18 @@ describe('asteroid mining stations', () => {
       const factions = makeFactions();
       const systems = [makeSystem('home', 30, 30, 'player')];
       deployMiningStation(input(fleet(1, 'player', [OUTPOST_SHIP_TYPE], 'home'), factions, systems));
+      advanceMiningStationConstruction(systems, 30);
       asteroidAt(systems[0], RICH).rawMaterials = 2412.5;
 
       const saves = TestBed.inject(SaveGameService);
       saves.saveToSlot(1, save(systems));
       const loaded = saves.loadFromSlot(1)!;
       const asteroid = asteroidAt(loaded.starSystems[0], RICH);
-      expect(asteroid.miningStation).toEqual({ factionId: 'player' });
+      // The construction timer survives the round trip.
+      expect(asteroid.miningStation).toEqual({
+        factionId: 'player',
+        constructionRemaining: STATION_CONSTRUCTION_SECONDS.miningStation - 30,
+      });
       expect(asteroid.rawMaterials).toBe(2412.5);
       saves.clearSlot(1);
     });

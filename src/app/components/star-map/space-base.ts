@@ -1,6 +1,7 @@
 import { Faction, Fleet, SpaceBase, StarSystem } from './star-map.models';
 import { TerritoryMap } from './territory';
 import { buildStationDefenseFleet, StationDefenseFleet } from './station-defense';
+import { isStationComplete } from './station-construction';
 
 /*
  * =========================================================
@@ -160,7 +161,8 @@ export function nameSpaceBase(col: number, row: number, starSystems: readonly St
 /*
  * The base's defense roster for a battle (shared station defense model):
  * core, `turretCount` turrets (the owner's Turret Research level) and the
- * persisted shield pool and hull.
+ * persisted shield pool and hull — or the passive construction site while
+ * the base is still being built.
  */
 export function buildBaseDefenseFleet(base: SpaceBase, turretCount: number): StationDefenseFleet {
   return buildStationDefenseFleet({
@@ -172,5 +174,6 @@ export function buildBaseDefenseFleet(base: SpaceBase, turretCount: number): Sta
     turretCount,
     shieldPoolCurrent: base.shieldPoolCurrent,
     hullCurrent: base.hullCurrent,
+    underConstruction: !isStationComplete(base),
   });
 }
