@@ -19,6 +19,7 @@ import {
   PLAYER_DEMAND_COOLDOWN_SECONDS,
   REPUTATION_EMPTY_THREAT,
 } from '../diplomatic-demand';
+import { DYSON_CASUS_BELLI_ANCHORS } from '../dyson-anchor';
 
 export type { DiplomacyRowVm } from '../star-map-diplomacy-vm';
 
@@ -99,6 +100,16 @@ export class StarMapDiplomacyComponent {
     `Attacking them within ${formatGameDuration(SURPRISE_ATTACK_WINDOW_SECONDS)} of game time after the declaration counts as a surprise attack (reputation ${REPUTATION_SURPRISE_ATTACK}).`;
   readonly breachConsequence =
     `Treachery: your reputation ${REPUTATION_TREATY_BROKEN} (every empire trusts you less), their opinion of you ${OPINION_TREATY_BROKEN}.`;
+
+  /* Consequence text of the inline confirmation; a Dyson casus belli waives the reputation costs. */
+  consequenceFor(row: DiplomacyRowVm, action: 'war' | 'breach'): string {
+    if (!row.dysonCasusBelli) return action === 'war' ? this.warConsequence : this.breachConsequence;
+    const opinion = action === 'war' ? OPINION_WAR_DECLARED : OPINION_TREATY_BROKEN;
+    return (
+      `Casus belli: ${row.name} is building the Dyson swarm (${DYSON_CASUS_BELLI_ANCHORS}+ anchors). ` +
+      `No reputation cost and no surprise-attack penalty; their opinion of you ${opinion}.`
+    );
+  }
 
   readonly strengthLabels: Record<DiplomacyRowVm['strength'], string> = {
     weaker: 'Weaker fleet than yours',

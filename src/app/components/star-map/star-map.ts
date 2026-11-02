@@ -2090,9 +2090,12 @@ loadError = '';
     const player = this.getPlayerFaction();
     const target = this.factions.find((f) => f.id === factionId);
     if (!player || !target) return;
+    const casusBelli = this.diplomacyService.isDysonCasusBelli(target);
     const result = this.diplomacyService.declareWar(player, target);
     this.diplomacyMessage = result.ok
-      ? `You declared war on ${target.name}. Reputation and their opinion of you dropped.`
+      ? casusBelli
+        ? `You declared war on ${target.name} to stop their Dyson swarm. No reputation was lost; their opinion of you dropped.`
+        : `You declared war on ${target.name}. Reputation and their opinion of you dropped.`
       : this.describeDiplomacyFailure(target, result.reason, result.waitSeconds);
     if (result.ok) this.afterTreatyChange();
   }
@@ -2101,9 +2104,12 @@ loadError = '';
     const player = this.getPlayerFaction();
     const target = this.factions.find((f) => f.id === factionId);
     if (!player || !target) return;
+    const casusBelli = this.diplomacyService.isDysonCasusBelli(target);
     const result = this.diplomacyService.breakTreaty(player, target);
     this.diplomacyMessage = result.ok
-      ? `You broke the treaty with ${target.name}. Every empire now trusts you less.`
+      ? casusBelli
+        ? `You broke the treaty with ${target.name} to stop their Dyson swarm. No reputation was lost.`
+        : `You broke the treaty with ${target.name}. Every empire now trusts you less.`
       : this.describeDiplomacyFailure(target, result.reason, result.waitSeconds);
     if (result.ok) this.afterTreatyChange();
   }
@@ -2382,12 +2388,12 @@ loadError = '';
       const involvesPlayer = event.initiatorId === 'player' || event.targetId === 'player';
       switch (event.kind) {
         case 'war':
-          lines.push(event.targetId === 'player'
+          lines.push((event.targetId === 'player'
             ? `${name(event.initiatorId)} declared war on you!`
-            : `${name(event.initiatorId)} declared war on ${name(event.targetId)}.`);
+            : `${name(event.initiatorId)} declared war on ${name(event.targetId)}.`) + (event.dysonCasusBelli ? ' Casus belli: the Dyson swarm.' : ''));
           break;
         case 'breach':
-          lines.push(`${name(event.initiatorId)} broke its treaty with ${name(event.targetId)}!`);
+          lines.push(`${name(event.initiatorId)} broke its treaty with ${name(event.targetId)}!` + (event.dysonCasusBelli ? ' Casus belli: the Dyson swarm.' : ''));
           break;
         case 'peace':
           lines.push(`${name(event.initiatorId)} and ${name(event.targetId)} signed peace.`);

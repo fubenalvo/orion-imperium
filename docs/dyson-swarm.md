@@ -9,7 +9,8 @@ Status: **design agreed on 2026-11-02.**
 | 2. Technology, ship, deployment, anchor panel | implemented ([Implementation (phase 2)](#implementation-phase-2)) |
 | 3. Upkeep and bonuses | implemented ([Anchor bonuses](#anchor-bonuses); the upkeep came with phase 2) |
 | 4. Victory and news | implemented ([Victory](#victory-the-warm-up), [Global news](#global-news)) |
-| 5–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
+| 5. Diplomacy | implemented ([Diplomacy](#diplomacy)); the AI's peace refusal during a warm-up came with it |
+| 6–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
 
 The Dyson Swarm is a late-game **alternative victory** and **credit / raw-material sink**. Eight fixed anchor slots ring the central black hole. A faction that holds a completed Dyson Anchor on **every** slot and keeps all of them for a 5-minute warm-up wins. Anchors are expensive to bring there, expensive to keep, cannot be captured and are visible to everyone, so an empire heading for this victory becomes the obvious target of the others.
 
@@ -154,7 +155,6 @@ This is a general rule for every station, introduced together with the swarm (ph
   - **Anchor panel:** clicking an anchor opens `StarMapAnchorInfoComponent`, with owner, construction progress, defense, the bonus and DEMOLISH… behind an inline confirmation. The owner can pick the bonus once.
   - **Notices:** deploying, completing and demolishing your own anchor show a map notice.
 - **Not yet:**
-  - diplomacy (phase 5);
   - the AI (phase 6). AI factions never build the constructor: it is not a combat ship.
 
 ## Anchor bonuses
@@ -231,7 +231,7 @@ The human player gets them as ordinary map notices, which are transient; no pers
 
 ## Diplomacy
 
-- **Opinion:** starting each anchor (deployment) lowers every other faction's opinion of the builder. One-off per anchor; the amount is tuned in phase 5.
+- **Opinion:** starting each anchor (deployment) lowers every other faction's opinion of the builder by `DYSON_ANCHOR_OPINION_PENALTY` = 8, once per anchor. The full ring costs 64 opinion with every empire.
 - **Casus belli:** a faction holding **3 or more anchors** (construction sites count) is a legitimate target. Against it:
   - declaring war costs **no reputation** (normally −5);
   - **breaking a truce** is allowed and costs no reputation (normally −40);
@@ -243,6 +243,19 @@ The human player gets them as ordinary map notices, which are transient; no pers
 
   The waiver only applies to actions against the casus belli target, and only while it holds 3+ anchors. It is checked at the moment of the declaration or the breach.
 - Anchors are stations: they can only be attacked at war. A border violation in a wedge at peace costs opinion like any trespass ([Territory](./territory.md#border-violations)).
+- **No peace during a warm-up:** while a faction's warm-up runs, no AI proposes or accepts peace with it. Otherwise a truce could shield the warm-up.
+
+**Implementation.**
+- **Constants (`dyson-anchor.ts`):** `DYSON_ANCHOR_OPINION_PENALTY`, `DYSON_CASUS_BELLI_ANCHORS` = 3, `dysonAnchorCount` (construction sites included).
+- **Opinion:** applied in `SpaceBaseService.deployAnchor` to every treaty partner of the builder, so player and AI deployments are treated the same way.
+- **Casus belli:** `DiplomacyService.isDysonCasusBelli(target)` is checked inside `declareWar` and `breakTreaty`.
+  - The reputation change is skipped.
+  - The new war is pre-marked `surpriseRecorded`, so `recordHostileAct` never charges the surprise penalty.
+  - The event carries `dysonCasusBelli`, so the notice says "Casus belli: the Dyson swarm".
+  - The Diplomacy screen's confirmation (`consequenceFor`, `DiplomacyRowVm.dysonCasusBelli`) states the waived costs.
+- **No peace during a warm-up:** `EnemyDiplomacyService.assessWar` adds the visible factor `dyson` ("Dyson warm-up running", −2). `evaluateTreaty` refuses outright (acceptance 0) when the other side is the warm-up holder, and `respondToProposal` makes no counter-offer. This covers AI offers to the player, answers to the player's offers, and AI–AI settlements.
+- **Tests:** `dyson-diplomacy.spec.ts`.
+- **Not yet (phase 6):** AI factions do not use the casus belli on their own initiative, and do not break truces with a warm-up holder.
 
 ## AI
 

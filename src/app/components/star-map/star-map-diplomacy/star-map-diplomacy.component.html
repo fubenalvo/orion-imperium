@@ -208,7 +208,7 @@
 
             @if (isConfirming(row.id, 'war') || isConfirming(row.id, 'breach')) {
               <div class="ui-notice ui-notice--danger diplomacy__confirm" role="alert">
-                <span>{{ isConfirming(row.id, 'war') ? warConsequence : breachConsequence }}</span>
+                <span>{{ consequenceFor(row, isConfirming(row.id, 'war') ? 'war' : 'breach') }}</span>
                 <span class="diplomacy__actions">
                   <button class="btn-danger" type="button" (click)="confirm()">{{ isConfirming(row.id, 'war') ? 'CONFIRM WAR' : 'BREAK TREATY' }}</button>
                   <button type="button" (click)="confirming = null">CANCEL</button>

@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Optional } from '@angular/core';
 import { Faction, FactionProduction } from '../components/star-map/star-map.models';
 import {
   OPINION_PEACE_SIGNED,
@@ -45,6 +45,8 @@ import {
   resourceTotal,
   validateTreaty,
 } from '../components/star-map/peace-treaty';
+import { SpaceBaseService } from '../components/star-map/space-base.service';
+import { DYSON_CASUS_BELLI_ANCHORS, dysonAnchorCount } from '../components/star-map/dyson-anchor';
 
 /*
  * =========================================================
@@ -57,6 +59,9 @@ import {
  *    victim's opinion drop;
  *  - breakTreaty: the only way to end a running truce; a heavy reputation
  *    and opinion penalty;
+ *  - Dyson casus belli (isDysonCasusBelli): against an empire holding 3+
+ *    Dyson anchors, both cost no reputation and the war carries no
+ *    surprise-attack penalty; the victim's opinion still drops;
  *  - executeTreaty: ends a war with a peace treaty. All-or-nothing: the
  *    terms are re-validated first and only then are resources moved,
  *    peace and the truce started and exhaustion reset. Treaties carry
@@ -109,6 +114,8 @@ export interface DiplomacyEvent {
   kind: DiplomacyEventKind;
   initiatorId: string;
   targetId: string;
+  /* War or breach against a Dyson casus belli target: no reputation cost. */
+  dysonCasusBelli?: boolean;
   /* Peace: the executed terms (for notices). */
   treaty?: PeaceTreaty;
   /* Demand events: a copy of the demand concerned. */
@@ -146,6 +153,23 @@ export class DiplomacyService {
   /* Pending demands whose answer time ran out; EnemyDiplomacyService handles them as refusals. */
   private expiredDemands: DiplomaticDemand[] = [];
   private nextDemandId = 1;
+
+  constructor(@Optional() private readonly spaceBases?: SpaceBaseService) {}
+
+  /*
+   * Is `target` a legitimate target because of its Dyson anchors
+   * (dyson-anchor.ts)? Checked at the moment of the declaration or breach.
+   */
+  isDysonCasusBelli(target: Faction): boolean {
+    return !!this.spaceBases && dysonAnchorCount(this.spaceBases.bases, target.id) >= DYSON_CASUS_BELLI_ANCHORS;
+  }
+
+  /* Waives the surprise-attack penalty for the war just started against a casus belli target. */
+  private waiveSurpriseAttack(initiator: Faction, target: Faction): void {
+    for (const relation of [getRelation(initiator, target), getRelation(target, initiator)]) {
+      if (relation) relation.surpriseRecorded = true;
+    }
+  }
 
   reset(): void {
     this.events = [];
@@ -200,11 +224,13 @@ export class DiplomacyService {
   declareWar(initiator: Faction, target: Faction): DiplomacyResult {
     const check = this.canDeclareWar(initiator, target);
     if (!check.ok) return check;
+    const casusBelli = this.isDysonCasusBelli(target);
     startWar(initiator, target, WAR_MIN_DURATION_SECONDS, initiator.id);
-    adjustReputation(initiator, REPUTATION_WAR_DECLARED);
+    if (casusBelli) this.waiveSurpriseAttack(initiator, target);
+    else adjustReputation(initiator, REPUTATION_WAR_DECLARED);
     adjustOpinion(target, initiator, OPINION_WAR_DECLARED);
     this.afterTreatyChange(initiator.id, target.id);
-    this.events.push({ kind: 'war', initiatorId: initiator.id, targetId: target.id });
+    this.events.push({ kind: 'war', initiatorId: initiator.id, targetId: target.id, dysonCasusBelli: casusBelli || undefined });
     return { ok: true };
   }
 
@@ -212,11 +238,13 @@ export class DiplomacyService {
   breakTreaty(initiator: Faction, target: Faction): DiplomacyResult {
     const check = this.canBreakTreaty(initiator, target);
     if (!check.ok) return check;
+    const casusBelli = this.isDysonCasusBelli(target);
     startWar(initiator, target, WAR_MIN_DURATION_SECONDS, initiator.id);
-    adjustReputation(initiator, REPUTATION_TREATY_BROKEN);
+    if (casusBelli) this.waiveSurpriseAttack(initiator, target);
+    else adjustReputation(initiator, REPUTATION_TREATY_BROKEN);
     adjustOpinion(target, initiator, OPINION_TREATY_BROKEN);
     this.afterTreatyChange(initiator.id, target.id);
-    this.events.push({ kind: 'breach', initiatorId: initiator.id, targetId: target.id });
+    this.events.push({ kind: 'breach', initiatorId: initiator.id, targetId: target.id, dysonCasusBelli: casusBelli || undefined });
     return { ok: true };
   }
 

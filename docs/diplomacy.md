@@ -63,7 +63,7 @@ A's opinion of B. Changes: B declares war on A −30; B breaks a truce with A �
 
 ## Reputation
 
-Declaring war −5; not carrying out a refused ultimatum −3; **surprise attack** −15 (the declarer attacks — fleet battle, planet battle or capture — within 1 minute of game time after its own declaration; once per war); breaking a truce −40; raiding a peace partner's trader −2, a civilian trader −1 ([Trade Network](./trade-network.md#raids)); a truce that runs out unbroken +5 for both; while at war with nobody +0.5 per minute up to +50.
+Declaring war −5 (0 against an empire with 3+ Dyson anchors, see [Dyson Swarm](./dyson-swarm.md#diplomacy)); not carrying out a refused ultimatum −3; **surprise attack** −15 (the declarer attacks — fleet battle, planet battle or capture — within 1 minute of game time after its own declaration; once per war); breaking a truce −40 (0 against a Dyson casus belli target, whose war also carries no surprise-attack penalty); raiding a peace partner's trader −2, a civilian trader −1 ([Trade Network](./trade-network.md#raids)); a truce that runs out unbroken +5 for both; while at war with nobody +0.5 per minute up to +50.
 
 ## War exhaustion
 

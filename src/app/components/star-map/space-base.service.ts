@@ -10,8 +10,10 @@ import {
 import { StationDefenseState } from './station-defense';
 import { DysonRingService } from './dyson-ring.service';
 import { DysonRing } from './dyson-ring';
+import { adjustOpinion, isTreatyPair } from './diplomacy';
 import {
   AnchorDeploymentCheck,
+  DYSON_ANCHOR_OPINION_PENALTY,
   DYSON_ANCHOR_SHIP_TYPE,
   DysonBonusId,
   dysonAnchorName,
@@ -171,6 +173,13 @@ export class SpaceBaseService {
     };
     this.list.push(base);
     this.revisionCounter++;
+    // Every other empire resents the builder (dyson-anchor.ts, once per anchor).
+    const builder = factions.find((f) => f.id === fleet.factionId);
+    for (const other of factions) {
+      if (builder && other !== builder && isTreatyPair(other, builder)) {
+        adjustOpinion(other, builder, DYSON_ANCHOR_OPINION_PENALTY);
+      }
+    }
     return { base, fleetRetired: this.retireIfEmpty(fleet) };
   }
 

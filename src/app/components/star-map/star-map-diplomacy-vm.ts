@@ -108,6 +108,8 @@ export interface DiplomacyRowVm {
   canNegotiate: boolean;
   canDeclareWar: boolean;
   canBreakTreaty: boolean;
+  /* They hold 3+ Dyson anchors: war and treaty breach cost you no reputation. */
+  dysonCasusBelli: boolean;
   offer?: DiplomacyOfferVm;
   incomingDemand?: IncomingDemandVm;
   followThrough?: FollowThroughVm;
@@ -219,6 +221,7 @@ export function buildDiplomacyRows(
         canNegotiate: negotiate.ok && f.ai === true,
         canDeclareWar: diplomacy.canDeclareWar(player, f).ok,
         canBreakTreaty: diplomacy.canBreakTreaty(player, f).ok,
+        dysonCasusBelli: diplomacy.isDysonCasusBelli(f),
         offer: offer
           ? { secondsLeft: offer.secondsLeft, timeLeftLabel: formatGameDuration(offer.secondsLeft), summary: summarizeTreaty(offer.treaty, player.id, world) }
           : undefined,

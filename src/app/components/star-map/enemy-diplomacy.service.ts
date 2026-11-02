@@ -37,6 +37,7 @@ import {
   otherParty,
   validateTreaty,
 } from './peace-treaty';
+import { DysonVictoryService } from './dyson-victory.service';
 
 /*
  * =========================================================
@@ -259,7 +260,17 @@ export class EnemyDiplomacyService {
     private readonly shipService: ShipService,
     private readonly diplomacy: DiplomacyService,
     private readonly enemyEconomy: EnemyEconomyService,
+    private readonly dysonVictory: DysonVictoryService,
   ) {}
+
+  /*
+   * Is `faction` counting down a Dyson warm-up (docs/dyson-swarm.md)? No AI
+   * makes or accepts peace with it then: a truce would shield the warm-up.
+   */
+  private isDysonWarmupHolder(faction: Faction | undefined): boolean {
+    const warmup = this.dysonVictory.warmup;
+    return !!faction && !!warmup && warmup.remaining > 0 && warmup.factionId === faction.id;
+  }
 
   reset(): void {
     this.accumulator = 0;
@@ -332,6 +343,10 @@ export class EnemyDiplomacyService {
       add('treasury', 'Empty treasury', 0.15);
     }
     add('personality', 'Temperament', this.profileOf(ai).peaceBias);
+    if (this.isDysonWarmupHolder(enemy)) {
+      // Shown on the acceptance meter; evaluateTreaty also refuses outright.
+      add('dyson', 'Dyson warm-up running', -2);
+    }
 
     const pressure = factors.reduce((sum, f) => sum + f.value, 0);
     return { pressure, scale, peaceValue: pressure * scale, factors };
@@ -359,8 +374,8 @@ export class EnemyDiplomacyService {
       termsValue,
       peaceValue: assessment.peaceValue,
       margin,
-      acceptance: clamp(0.5 + margin / (2 * assessment.scale), 0, 1),
-      accept: validation.ok && margin >= 0,
+      acceptance: this.isDysonWarmupHolder(enemy) ? 0 : clamp(0.5 + margin / (2 * assessment.scale), 0, 1),
+      accept: validation.ok && margin >= 0 && !this.isDysonWarmupHolder(enemy),
       assessment,
     };
   }
@@ -370,6 +385,10 @@ export class EnemyDiplomacyService {
     const evaluation = this.evaluateTreaty(ai, treaty, ctx);
     if (evaluation.accept) return { decision: 'accept', evaluation };
     if (!evaluation.validation.ok) return { decision: 'refuse', evaluation };
+    // No terms buy peace from an AI while the other side's Dyson warm-up runs.
+    if (this.isDysonWarmupHolder(ctx.factions.find((f) => f.id === otherParty(treaty, ai.id)))) {
+      return { decision: 'refuse', evaluation };
+    }
     const counter = this.counterOffer(ai, treaty, ctx);
     return counter ? { decision: 'counter', evaluation, counter } : { decision: 'refuse', evaluation };
   }

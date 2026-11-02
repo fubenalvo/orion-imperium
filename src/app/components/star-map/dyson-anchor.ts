@@ -83,6 +83,24 @@ export interface DysonBonusEffects {
   researchPerSecond: number;
 }
 
+/*
+ * Diplomacy (docs/dyson-swarm.md, "Diplomacy"):
+ * - every anchor deployment lowers every other empire's opinion of the
+ *   builder once (SpaceBaseService.deployAnchor);
+ * - an empire holding DYSON_CASUS_BELLI_ANCHORS or more anchors (sites
+ *   included) is a legitimate target: declaring war on it or breaking a
+ *   truce with it costs no reputation, and the surprise-attack penalty does
+ *   not apply to that war (DiplomacyService). The target's own opinion of
+ *   the declarer still drops as usual.
+ */
+export const DYSON_ANCHOR_OPINION_PENALTY = -8;
+export const DYSON_CASUS_BELLI_ANCHORS = 3;
+
+/* Anchors of a faction, construction sites included. */
+export function dysonAnchorCount(bases: readonly SpaceBase[], factionId: string): number {
+  return bases.filter((b) => isDysonAnchor(b) && b.factionId === factionId).length;
+}
+
 export const NO_DYSON_BONUS: DysonBonusEffects = { energyOutput: 0, shipRawCostMultiplier: 1, researchPerSecond: 0 };
 
 /* Completed anchors of `factionId` that carry `bonus`. */
