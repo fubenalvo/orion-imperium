@@ -42,51 +42,74 @@
     <div class="production-panel__overlay" (click)="closeBuildMenu.emit()">
       <div class="production-panel__modal" (click)="$event.stopPropagation()">
         <div class="production-panel__modal-title">NEW PRODUCTION ORDER</div>
+        <div class="production-panel__modal-body">
+          <!-- The hull-class counter cycle in one line (hull-class.ts). -->
+          <div class="production-panel__cycle" aria-label="Hull class counters">
+            Light beats Heavy · Heavy beats Medium · Medium beats Light
+          </div>
 
-        <div class="production-panel__types">
-          @if (selectedTypeId == null) {
-            @for (type of vm.buildable; track type.id) {
-              <button class="production-panel__type" type="button" (click)="pickType(type.id)">
-                <span class="production-panel__type-name">{{ type.name }}</span>
-                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr · {{ vm.shipRawCosts?.[type.id] ?? 0 }} rm / unit</span>
-                <span class="production-panel__type-build">{{ vm.shipBuildTimes[type.id] }}s @1 fac</span>
-              </button>
+          <div class="production-panel__types">
+            @if (selectedTypeId == null) {
+              @for (type of vm.buildable; track type.id) {
+                <button class="production-panel__type" type="button" (click)="pickType(type.id)">
+                  <span class="production-panel__type-name">{{ type.name }}</span>
+                  @if (isCombat(type)) {
+                    <app-hull-role [shipType]="type" [compact]="true"></app-hull-role>
+                  }
+                  <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr · {{ vm.shipRawCosts?.[type.id] ?? 0 }} rm / unit</span>
+                  <span class="production-panel__type-build">{{ vm.shipBuildTimes[type.id] }}s @1 fac</span>
+                </button>
+              }
+            } @else {
+              @for (type of vm.buildable; track type.id) {
+                <button
+                  class="production-panel__type"
+                  type="button"
+                  [class.production-panel__type--selected]="type.id === selectedTypeId"
+                  (click)="pickType(type.id)"
+                >
+                  <span class="production-panel__type-name">{{ type.name }}</span>
+                  @if (isCombat(type)) {
+                    <app-hull-role [shipType]="type" [compact]="true"></app-hull-role>
+                  }
+                  <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr · {{ vm.shipRawCosts?.[type.id] ?? 0 }} rm / unit</span>
+                </button>
+              }
             }
-          } @else {
-            @for (type of vm.buildable; track type.id) {
+          </div>
+
+          @if (selectedType; as type) {
+            <div class="production-panel__details">
+              <div class="production-panel__details-title">{{ type.name }} · {{ type.role }}</div>
+              @if (isCombat(type)) {
+                <app-hull-role [shipType]="type" [stats]="true"></app-hull-role>
+              } @else {
+                <p class="production-panel__details-note">Civilian hull: does not fight.</p>
+              }
+            </div>
+          }
+
+          @if (selectedTypeId) {
+            <div class="production-panel__quantity">
+              <button type="button" (click)="changeQuantity(-1)">−</button>
+              <span class="production-panel__quantity-value">{{ selectedQuantity }}</span>
+              <button type="button" (click)="changeQuantity(1)">+</button>
+            </div>
+            <div class="production-panel__total">Total: {{ totalCost() }} cr · {{ totalRawCost() }} rm</div>
+            @if (!canQueue()) {
+              <div class="production-panel__error">{{ missingResourceLabel() }}</div>
+            }
+            <div class="production-panel__modal-actions">
+              <button type="button" (click)="closeBuildMenu.emit()">CANCEL</button>
               <button
-                class="production-panel__type"
                 type="button"
-                [class.production-panel__type--selected]="type.id === selectedTypeId"
-                (click)="pickType(type.id)"
-              >
-                <span class="production-panel__type-name">{{ type.name }}</span>
-                <span class="production-panel__type-cost">{{ vm.shipCosts[type.id] }} cr · {{ vm.shipRawCosts?.[type.id] ?? 0 }} rm / unit</span>
-              </button>
-            }
+                class="btn-primary"
+                [disabled]="!canQueue()"
+                (click)="confirmQueue()"
+              >QUEUE</button>
+            </div>
           }
         </div>
-
-        @if (selectedTypeId) {
-          <div class="production-panel__quantity">
-            <button type="button" (click)="changeQuantity(-1)">−</button>
-            <span class="production-panel__quantity-value">{{ selectedQuantity }}</span>
-            <button type="button" (click)="changeQuantity(1)">+</button>
-          </div>
-          <div class="production-panel__total">Total: {{ totalCost() }} cr · {{ totalRawCost() }} rm</div>
-          @if (!canQueue()) {
-            <div class="production-panel__error">{{ missingResourceLabel() }}</div>
-          }
-          <div class="production-panel__modal-actions">
-            <button type="button" (click)="closeBuildMenu.emit()">CANCEL</button>
-            <button
-              type="button"
-              class="btn-primary"
-              [disabled]="!canQueue()"
-              (click)="confirmQueue()"
-            >QUEUE</button>
-          </div>
-        }
       </div>
     </div>
   }

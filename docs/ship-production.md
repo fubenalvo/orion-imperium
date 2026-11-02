@@ -133,6 +133,18 @@ at queue time (all-or-nothing, `resource-cost.ts`). Completion and fleet
 assembly never charge again. Ships cost upkeep while they exist: full rate in
 a fleet, half rate in the stock. See [Economy](./economy.md).
 
+## Hull classes in the production dialog
+
+Every combat hull belongs to a [hull class](./battle-rules.md#hull-classes) (light / medium /
+heavy). The "New production order" dialog shows the counter cycle in one line, a class badge and
+"beats X · weak to Y" on every combat ship card, and for the selected hull its role, the exact
+bonuses (+35% vs the class it beats, +35% taken from the class it is weak to, +50% siege for heavy
+hulls) and its key stats (attack and weapon type, hull / shield, armour as a damage reduction,
+range / speed), plus the shield-aura line for the carrier. All texts come from `hull-class.ts` (`describeHullRole`) through the shared
+`HullRoleComponent`, so they always match combat. The modal scrolls in its body only, so the
+corner brackets stay in place. The AI picks hulls by class too
+([AI Pipeline](./ai-pipeline.md#military-production-and-deployment)).
+
 ## Edge case handling
 
 See `docs/invariants.md` for the production-specific invariants. Notable

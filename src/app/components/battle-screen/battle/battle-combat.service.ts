@@ -15,16 +15,15 @@ import {
   PROJECTILE_SPEED_VW_PER_S,
   REFERENCE_FIRE_RATE,
   battleDebug,
-  nextVolleyDueMs,
+  volleyDecision,
   volleyShare,
 } from './battle.types';
 import {
   checkVictory,
-  computeCarrierBoostTargets,
   canAttack,
   effectiveAttackRange,
-  weaponMultiplier,
-  applyShieldRegen,
+  referenceVolleyDamage,
+  shieldAuraFor,
   absoluteDistanceRangeUnits,
 } from './battle-grid';
 import { rememberAutoTarget, selectFireTarget } from './battle-targeting';
@@ -64,10 +63,9 @@ import { BattleTimeService } from './battle-time.service';
  * line of fire is missed. The damage rule itself (applyVolleyDamage) is
  * unchanged and shared with the auto-resolver, which has no projectiles.
  *
- * The Carrier has one special action: Shield Pulse. It restores the
- * Carrier's shieldRegen to every friendly stack within its reach (capped at
- * each ship's maxShield) and consumes the Carrier's fire cooldown, so it
- * replaces one volley rather than being free.
+ * The carrier has no active ability: its shield aura is passive and applied
+ * in the damage formula (shieldAuraFor in battle-grid.ts), so it never
+ * costs a volley.
  */
 
 /* ±fraction of the fire interval varied per volley. Small enough that the
@@ -128,19 +126,22 @@ export function applyVolleyDamage(
   if (!front) {
     return { damage: 0, kills: 0, targetDestroyed: target.destroyed };
   }
-  const raw = totalAttack - front.defense;
-  // The attacker's weapon type is taken from its front ship (stacks
-  // are homogeneous by type per buildStacks).
+  // The attacker's weapon type and class come from its front ship's stack
+  // (stacks are homogeneous by type per buildStacks). Armour is a
+  // percentage of the whole reference volley, applied before the fire-rate
+  // split, so neither stack grouping nor fire rate changes its effect.
+  // At REFERENCE_FIRE_RATE (share 1) this is exactly the reference volley
+  // and the carry stays 0.
   const attackerFront = attacker.ships.find((s) => s.alive);
-  const multiplier = weaponMultiplier(
-    attackerFront?.attackType ?? 'kinetic',
-    front.weakness ?? 'energy',
+  const referenceDamage = referenceVolleyDamage(
+    { totalAttack, attackType: attackerFront?.attackType ?? 'kinetic', hullClass: attacker.hullClass },
+    {
+      defense: front.defense,
+      weakness: front.weakness ?? 'energy',
+      hullClass: target.hullClass,
+      auraReduction: shieldAuraFor(state, target),
+    },
   );
-  // Defense is subtracted from the whole reference volley, then the volley
-  // is split by fire rate — subtracting it per small shot would let armour
-  // erase fast-firing classes. At REFERENCE_FIRE_RATE (share 1) this is
-  // exactly the reference volley and the carry stays 0.
-  const referenceDamage = Math.max(1, Math.floor(raw * multiplier));
   const carry = (state.damageCarry ??= {});
   const exact = referenceDamage * volleyShare(attacker) + (carry[attacker.stackId] ?? 0);
   // Epsilon guards against 0.9999… float remainders swallowing a point.
@@ -278,12 +279,17 @@ export class BattleCombatService {
       if (!target) {
         continue;
       }
-      stack.attackCooldownUntil = nextVolleyDueMs(
+      const decision = volleyDecision(
         stack.attackCooldownUntil,
         now,
         this.fireIntervalMs(stack) * fireJitter(stack.stackId, now),
       );
+      stack.attackCooldownUntil = decision.nextDueMs;
       rememberAutoTarget(stack, target);
+      if (!decision.fire) {
+        // Weapons charging after an idle gap (see volleyDecision).
+        continue;
+      }
       void this.attackStack(state, stack.stackId, target.stackId);
     }
   }
@@ -450,66 +456,5 @@ export class BattleCombatService {
     const resolve = this.projectileResolvers.get(id);
     this.projectileResolvers.delete(id);
     resolve?.();
-  }
-
-  /*
-   * Whether a Shield Pulse would do anything right now: the Carrier is
-   * alive, stationary, not animating, off cooldown, and at least one ally in
-   * reach has missing shield. Pure read — used by the UI button and the AI.
-   */
-  canCarrierBoost(state: BattleModelState, carrierStackId: string): boolean {
-    const carrier = state.stacks.find((s) => s.stackId === carrierStackId && !s.destroyed);
-    if (!carrier || carrier.typeId !== 'carrier' || state.winner) {
-      return false;
-    }
-    if (carrier.moving || carrier.immobile || carrier.firing || this.anim.isStackBusy(carrier.stackId)) {
-      return false;
-    }
-    if (!this.isFireReady(carrier)) {
-      return false;
-    }
-    const regen = carrier.ships.find((s) => s.alive)?.shieldRegen ?? 0;
-    if (regen <= 0) {
-      return false;
-    }
-    const targetIds = new Set(computeCarrierBoostTargets(state, carrier));
-    return state.stacks.some(
-      (s) =>
-        targetIds.has(s.stackId) &&
-        s.ships.some((ship) => ship.alive && (ship.maxShield ?? 0) > (ship.shield ?? 0)),
-    );
-  }
-
-  /*
-   * Carrier Shield Pulse. Restores the Carrier's front-ship shieldRegen to
-   * every friendly ship within reach, capped at maxShield, and consumes the
-   * Carrier's fire cooldown. Returns false (and costs nothing) when the
-   * pulse would not restore any shield.
-   */
-  carrierShieldBoost(state: BattleModelState, carrierStackId: string): boolean {
-    if (!this.canCarrierBoost(state, carrierStackId)) {
-      return false;
-    }
-    const carrier = state.stacks.find((s) => s.stackId === carrierStackId)!;
-    const regen = carrier.ships.find((s) => s.alive)?.shieldRegen ?? 0;
-
-    const targetIds = new Set(computeCarrierBoostTargets(state, carrier));
-    for (const stack of state.stacks) {
-      if (!targetIds.has(stack.stackId)) {
-        continue;
-      }
-      for (const ship of stack.ships) {
-        if (!ship.alive) {
-          continue;
-        }
-        const max = ship.maxShield ?? 0;
-        if (max <= 0) {
-          continue;
-        }
-        ship.shield = applyShieldRegen(ship.shield ?? 0, max, regen);
-      }
-    }
-    carrier.attackCooldownUntil = this.time.battleElapsedMs + this.fireIntervalMs(carrier);
-    return true;
   }
 }

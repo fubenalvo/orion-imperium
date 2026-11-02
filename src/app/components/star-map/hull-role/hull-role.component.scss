@@ -1,0 +1,112 @@
+@use 'ui';
+
+/* Class colors: one hue per hull class, reused by the badge everywhere. */
+.hull-role__badge {
+  @include ui.chip(var(--hull-class-color, var(--ui-accent)));
+  text-transform: uppercase;
+
+  &[data-class='light'] {
+    --hull-class-color: var(--ui-accent);
+  }
+
+  &[data-class='medium'] {
+    --hull-class-color: var(--ui-warm);
+  }
+
+  &[data-class='heavy'] {
+    --hull-class-color: var(--ui-danger-text);
+  }
+}
+
+/* Full mode; the compact modifier below overrides it (keep this order). */
+.hull-role {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+/* Badge and the "beats · weak to" text stay whole; the text drops below the
+   badge when the container is too narrow (production cards). */
+.hull-role--compact {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25em 0.45em;
+}
+
+.hull-role__vs {
+  white-space: nowrap;
+  display: inline-flex;
+  gap: 0.35em;
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.04em;
+}
+
+.hull-role__sep {
+  color: var(--ui-ink-faint);
+}
+
+.hull-role__strong {
+  color: var(--ui-success);
+}
+
+.hull-role__weak {
+  color: var(--ui-danger-text);
+}
+
+.hull-role__siege {
+  color: var(--ui-warm);
+}
+
+/* Same shield blue as the aura ring in battle. */
+.hull-role__aura {
+  color: var(--ui-shield);
+}
+
+.hull-role__summary {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.3;
+}
+
+.hull-role__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  margin: 0;
+  padding: 0;
+  font-size: var(--ui-fs-xs);
+  list-style: none;
+}
+
+.hull-role__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.2em 0.9em;
+  margin: 0.2em 0 0;
+  font-size: var(--ui-fs-xs);
+
+  > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5em;
+    min-width: 0;
+  }
+
+  dt {
+    color: var(--ui-ink-dim);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ui-ink);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 520px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -7,6 +7,8 @@ import {
 import { CommonModule } from '@angular/common';
 import { PlanetTile, ProductionOrder, StarSystem } from '../../../components/star-map/star-map.models';
 import { ShipType } from '../../../services/ship.service';
+import { HullRoleComponent } from '../hull-role/hull-role.component';
+import { isCombatShipType } from '../ai-queries';
 
 export interface QueueOrderRequest {
   shipTypeId: string;
@@ -33,7 +35,7 @@ export interface ProductionPanelViewModel {
 @Component({
   selector: 'app-star-map-production-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HullRoleComponent],
   templateUrl: './star-map-production-panel.component.html',
   styleUrl: './star-map-production-panel.component.scss',
 })
@@ -49,6 +51,15 @@ export class StarMapProductionPanelComponent {
 
   selectedTypeId: string | null = null;
   selectedQuantity = 1;
+
+  get selectedType(): ShipType | null {
+    return this.vm?.buildable.find((t) => t.id === this.selectedTypeId) ?? null;
+  }
+
+  /* Civilian hulls (scout, colonizer, outpost ship) have no combat role to explain. */
+  isCombat(type: ShipType): boolean {
+    return isCombatShipType(type);
+  }
 
   pickType(shipTypeId: string): void {
     this.selectedTypeId = shipTypeId;

@@ -6,7 +6,11 @@ import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { GameTimeService } from '../../services/game-time.service';
-import { FleetShip, BattleStack, BattleModelState } from './battle/battle.types';
+import { FleetShip, BattleStack, BattleModelState, FIRE_RATE_MULTIPLIER } from './battle/battle.types';
+
+/* Battle timing scales with FIRE_RATE_MULTIPLIER (fire intervals and the
+ * weapon charge); test windows are written for 1.0 and scaled with it. */
+const M = FIRE_RATE_MULTIPLIER;
 import { BattleAnimationService } from './battle/battle-animation.service';
 import { BattleTimeService } from './battle/battle-time.service';
 import { BattleGameLoopService } from './battle/battle-game-loop.service';
@@ -247,21 +251,22 @@ describe('BattleScreenComponent', () => {
   it('fires every stack of both sides on its own class cadence', async () => {
     const { state, a, e1, e2 } = standardSetup();
     await runFrames(16);
-    // A, E1 and E2 fired on the first frame (B starts out of reach); their
-    // bolts are in flight.
-    expect(state.projectiles).toHaveLength(3);
+    // Weapons charge one interval before the first volley (volleyDecision),
+    // so nothing has fired on the first frame.
+    expect(state.projectiles).toHaveLength(0);
     expect(component.projectiles).toBe(state.projectiles);
 
-    // Fighter 4/s vs frigate 2.2/s (±8% jitter per volley): over ~1 s the
-    // fighter lands ~4–5 volleys, each frigate ~2–3.
-    await runFrames(1000);
+    // Fighter 4/s vs frigate 2.2/s (both ÷ M, ±8% jitter per volley): over
+    // M × ~1 s, after a M × 250 ms / 455 ms charge, the fighter lands ~3–4
+    // volleys and each frigate ~1–2.
+    await runFrames(1000 * M);
     const fighterVolleys = volleys(state, a.stackId, e1.stackId);
     const frigateVolleys = (id: string) => state.log.filter((e) => e.attackerStack === id && e.defenderStack === a.stackId).length;
-    expect(fighterVolleys).toBeGreaterThanOrEqual(4);
-    expect(fighterVolleys).toBeLessThanOrEqual(5);
+    expect(fighterVolleys).toBeGreaterThanOrEqual(3);
+    expect(fighterVolleys).toBeLessThanOrEqual(4);
     for (const e of [e1, e2]) {
-      expect(frigateVolleys(e.stackId)).toBeGreaterThanOrEqual(2);
-      expect(frigateVolleys(e.stackId)).toBeLessThanOrEqual(3);
+      expect(frigateVolleys(e.stackId)).toBeGreaterThanOrEqual(1);
+      expect(frigateVolleys(e.stackId)).toBeLessThanOrEqual(2);
     }
   });
 
@@ -274,7 +279,7 @@ describe('BattleScreenComponent', () => {
     expect(component.selectedStackId).toBe(b.stackId);
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
 
-    await runFrames(1500);
+    await runFrames(1500 * M);
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
     expect(volleys(state, a.stackId, e2.stackId)).toBeGreaterThanOrEqual(2);
     expect(volleys(state, a.stackId, e1.stackId)).toBe(0);
@@ -287,7 +292,7 @@ describe('BattleScreenComponent', () => {
 
     component.onStackClick(a.stackId);
     component.onStackClick(e2.stackId);
-    await runFrames(800);
+    await runFrames(800 * M);
 
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
     expect(a.moveToAttackTargetId).toBe(e2.stackId);
@@ -303,7 +308,7 @@ describe('BattleScreenComponent', () => {
 
     component.onStackClick(a.stackId);
     component.onStackClick(e2.stackId);
-    await runFrames(1500);
+    await runFrames(1500 * M);
 
     expect(e2.destroyed).toBe(true);
     expect(a.explicitAttackTargetId).toBeNull();
@@ -359,7 +364,7 @@ describe('BattleScreenComponent', () => {
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
 
     component.toggleBattlePause();
-    await runFrames(500);
+    await runFrames(500 * M);
     expect(a.x).not.toBe(x);
     expect(state.log.length).toBeGreaterThan(0);
   });
@@ -447,7 +452,7 @@ describe('BattleScreenComponent', () => {
     tank(fighter);
     place(fighter, turret.col - 6, turret.row);
 
-    await runFrames(800);
+    await runFrames(800 * M);
     expect(volleys(state, turret.stackId, fighter.stackId)).toBeGreaterThanOrEqual(1);
   });
 
@@ -485,7 +490,7 @@ describe('BattleScreenComponent', () => {
     sub.unsubscribe();
   });
 
-  it('doCarrierBoost triggers change detection when ending the battle', () => {
+  it('shows the carrier shield aura: a ring, covered allies and the panel text', () => {
     battleService.setBattle({
       fleet1: {
         id: 1,
@@ -509,25 +514,24 @@ describe('BattleScreenComponent', () => {
     const state = component['state']!;
     const carrier = state.stacks.find((s) => s.typeId === 'carrier')!;
     const ally = state.stacks.find((s) => s.typeId === 'fighter')!;
-    const enemy = state.stacks.find((s) => !s.destroyed && s.side === 'defender')!;
-    // Place enemy in range of carrier but also need ally in range of enemy for boost targets.
-    enemy.col = carrier.col + 2;
-    enemy.row = carrier.row;
-    ally.col = carrier.col - 2;
+    ally.col = carrier.col + 2;
     ally.row = carrier.row;
-    // Shield Pulse only fires when an ally in reach is missing shield.
-    ally.ships[0].shield = 0;
-    // Destroy enemy ships so carrierShieldBoost sets winner after boosting ally shields.
-    // Actually carrierShieldBoost only checks range — it will set winner if enemy is wiped.
-    // Since enemy still has alive ships, winner won't be set. Instead we just verify
-    // detectChanges is called regardless of winner state.
-    const detectChangesSpy = vi.spyOn((component as any).cdr, 'detectChanges');
+    ally.x = carrier.x + 3.8;
+    ally.y = carrier.y;
+
+    expect(component.auraRings.map((r) => r.stackId)).toEqual([carrier.stackId]);
+    expect(component.auraRings[0].radiusVw).toBeCloseTo((carrier.attackRange + 1) * 3.5);
+    expect(component.auraCoveredIds).toEqual([ally.stackId]);
 
     component.selectedStackId = carrier.stackId;
-    component['doCarrierBoost']();
+    expect(component.selectedAuraText).toBe('SHIELD AURA: this carrier and allies in its range take 15% less damage');
+    component.selectedStackId = ally.stackId;
+    expect(component.selectedAuraText).toBeNull();
 
-    expect(detectChangesSpy).toHaveBeenCalled();
-    detectChangesSpy.mockRestore();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('.aura-ring')).toHaveLength(1);
+    expect(el.querySelector('.carrier-boost-btn')).toBeNull();
   });
 
   it('backToStarMap persists the outcome, sets the loser id, navigates, and resumes time', async () => {

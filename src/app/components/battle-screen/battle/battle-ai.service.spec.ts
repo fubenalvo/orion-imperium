@@ -80,7 +80,7 @@ describe('BattleAiService', () => {
   };
 
   /*
-   * The AI only decides movement and Carrier Shield Pulse. Firing belongs
+   * The AI only decides movement. Firing belongs
    * to BattleCombatService.runFireControl (see battle-combat.service.spec)
    * and target scoring to battle-targeting (see battle-targeting.spec).
    */

@@ -1,0 +1,35 @@
+@if (compact) {
+  <span class="hull-role hull-role--compact">
+    <span class="hull-role__badge" [attr.data-class]="role.hullClass">{{ role.label }}</span>
+    <span class="hull-role__vs" [title]="role.strongLine + '. ' + role.weakLine + '.'">
+      <span class="hull-role__strong">beats {{ classLabel(strongAgainst) }}</span>
+      <span class="hull-role__sep">·</span>
+      <span class="hull-role__weak">weak to {{ classLabel(weakAgainst) }}</span>
+    </span>
+  </span>
+} @else {
+  <div class="hull-role">
+    <div class="hull-role__head">
+      <span class="hull-role__badge" [attr.data-class]="role.hullClass">{{ role.label }} hull</span>
+    </div>
+    <p class="hull-role__summary">{{ role.summary }}</p>
+    <ul class="hull-role__lines">
+      <li class="hull-role__strong">▲ {{ role.strongLine }}</li>
+      <li class="hull-role__weak">▼ {{ role.weakLine }}</li>
+      @if (role.siegeLine) {
+        <li class="hull-role__siege">◆ {{ role.siegeLine }}</li>
+      }
+      @if (role.auraLine) {
+        <li class="hull-role__aura">◈ {{ role.auraLine }}</li>
+      }
+    </ul>
+    @if (stats) {
+      <dl class="hull-role__stats">
+        <div><dt>Attack</dt><dd>{{ shipType.attack }} {{ shipType.attackType }}</dd></div>
+        <div><dt>Hull / Shield</dt><dd>{{ shipType.hitPoints }} / {{ shipType.shield }}</dd></div>
+        <div><dt>Armor</dt><dd>{{ shipType.defense }} (−{{ armorPercent }}% damage)</dd></div>
+        <div><dt>Range / Speed</dt><dd>{{ shipType.range }} / {{ shipType.speed }}</dd></div>
+      </dl>
+    }
+  </div>
+}

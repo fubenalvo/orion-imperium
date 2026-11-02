@@ -1,4 +1,4 @@
-{
+﻿{
   "technologies": [
     {
       "id": "basic_engineering",
@@ -77,7 +77,7 @@
       "id": "advanced_shipyards",
       "name": "Advanced Shipyards",
       "description": "Constructing capital-class warships and carriers.",
-      "researchCost": 2600,
+      "researchCost": 2200,
       "prerequisites": ["orbital_engineering"],
       "unlocksShips": ["cruiser", "carrier"],
       "unlocksBuildings": []
@@ -272,7 +272,7 @@
       "id": "capital_ship_technology",
       "name": "Capital Ship Technology",
       "description": "Ultra-heavy warship construction and advanced dreadnought systems.",
-      "researchCost": 5500,
+      "researchCost": 4500,
       "prerequisites": ["advanced_weapons"],
       "unlocksShips": ["battleship", "battlecruiser", "dreadnought"],
       "unlocksBuildings": []

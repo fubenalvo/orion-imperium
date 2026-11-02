@@ -64,7 +64,8 @@
         [attackTargetIds]="attackTargetIds"
         [orderTargetId]="orderTargetId"
         [rangeRing]="selectedRangeRing"
-        [carrierBoostTargetIds]="carrierBoostTargetIds"
+        [auraRings]="auraRings"
+        [auraCoveredIds]="auraCoveredIds"
         [playerSides]="playerSides"
         [effects]="effects"
         [projectiles]="projectiles"
@@ -126,6 +127,10 @@
               </div>
             </div>
 
+            @if (selectedAuraText; as aura) {
+              <div class="selection-aura">{{ aura }}</div>
+            }
+
             @if (isSelectedPlayerStack) {
               <div class="selection-col selection-col--orders">
                 <span class="selection-order">{{ selectedOrderLabel }}</span>
@@ -153,11 +158,7 @@
         }
 
         <div class="battle-screen__actions">
-          @if (!battleOver) {
-            @if (canCarrierBoost) {
-              <button class="carrier-boost-btn" type="button" (click)="doCarrierBoost()">SHIELD PULSE</button>
-            }
-          } @else {
+          @if (battleOver) {
             <button class="back-btn btn-primary" type="button" (click)="backToStarMap()">BACK TO STAR MAP</button>
           }
           <div class="battle-screen__hint" aria-live="polite">

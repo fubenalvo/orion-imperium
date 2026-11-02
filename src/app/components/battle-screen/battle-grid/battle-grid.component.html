@@ -27,6 +27,18 @@
     ></div>
   }
 
+  <!-- CARRIER SHIELD AURAS (passive; reach = the carrier's gun reach) -->
+  @for (ring of auraRings; track ring.stackId) {
+    <div
+      class="aura-ring"
+      [class.aura-ring--own]="playerSides.includes(ring.side)"
+      [style.left]="u(ring.x)"
+      [style.top]="u(ring.y)"
+      [style.width]="u(ring.radiusVw * 2)"
+      [style.height]="u(ring.radiusVw * 2)"
+    ></div>
+  }
+
   <!-- CONNECTION LINE (selected stack → move target) -->
   @if (getConnectionLine(); as line) {
     <div
@@ -63,7 +75,7 @@
            class="stack"
            [ngClass]="stackClasses(stack)"
            [class.stack--defender]="stack.side === 'defender'"
-           [class.carrier-boost-target]="isCarrierBoostTarget(stack.stackId)"
+           [class.stack--aura]="isAuraCovered(stack.stackId)"
            [style.--faction-color]="factionColor(stack)"
            type="button"
            [attr.aria-label]="stackAriaLabel(stack)"

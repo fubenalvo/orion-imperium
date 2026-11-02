@@ -2,6 +2,9 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Faction, Technology } from '../star-map.models';
 import { ResearchService, TechnologyStatus } from '../../../services/research.service';
+import { ShipService, ShipType } from '../../../services/ship.service';
+import { HullRoleComponent } from '../hull-role/hull-role.component';
+import { isCombatShipType } from '../ai-queries';
 
 export type ResearchFilter = 'all' | TechnologyStatus;
 
@@ -15,7 +18,7 @@ export interface ResearchTierGroup {
 @Component({
   selector: 'app-star-map-research-tree',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, HullRoleComponent],
   templateUrl: './star-map-research-tree.component.html',
   styleUrl: './star-map-research-tree.component.scss',
 })
@@ -49,7 +52,10 @@ export class StarMapResearchTreeComponent {
    */
   private tierById: Map<string, number> | null = null;
 
-  constructor(public researchService: ResearchService) {}
+  constructor(
+    public researchService: ResearchService,
+    private readonly shipService: ShipService,
+  ) {}
 
   getTier(tech: Technology): number {
     if (!this.tierById) {
@@ -206,6 +212,13 @@ export class StarMapResearchTreeComponent {
   /* Mechanical effects (from the data the rules read), separate from flavour text. */
   getEffects(tech: Technology): string[] {
     return this.researchService.describeEffects(tech);
+  }
+
+  /* Combat hulls this technology unlocks, shown with their hull-class role. */
+  getUnlockedCombatShips(tech: Technology): ShipType[] {
+    return tech.unlocksShips
+      .map((id) => this.shipService.getShipType(id))
+      .filter((t): t is ShipType => isCombatShipType(t));
   }
 
   getDependentNames(tech: Technology): string[] {

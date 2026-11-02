@@ -78,11 +78,11 @@ src/app/components/battle-screen/
     ├── battle-grid.ts              # Pure grid math (bounds, distance, paths)
     ├── battle-game-loop.service.ts # RAF loop (raw real-time delta)
     ├── battle-movement.service.ts  # Grid movement (vw-based targeting)
-    ├── battle-combat.service.ts    # Fire control (all stacks), attack resolution, Shield Pulse
+    ├── battle-combat.service.ts    # Fire control (all stacks), attack resolution
     ├── battle-targeting.ts         # Fire-target selection: manual order, sticky target, modes
     ├── battle-animation.service.ts # Per-stack animation lock
     ├── battle-time.service.ts      # Battle-local clock (pause / speed, frame-driven waits)
-    ├── battle-ai.service.ts        # Tactical AI (movement + Shield Pulse) for enemy side / AUTO
+    ├── battle-ai.service.ts        # Tactical AI (movement only) for enemy side / AUTO
     ├── battle-test-clock.ts        # Test-only: drives the battle clock from fake timers
     ├── battle-result.ts            # BattleOutcome builder
     ├── battle-heading.ts           # Presentation-only ship facing (turns toward movement)
@@ -113,8 +113,9 @@ PROJECTILE_HITBOX_SCALE = 0.925  // Hitbox = drawn stack box
 AI_ACTION_INTERVAL_MS = 400        // AI / AUTO decision tick
 AI_ACTION_COOLDOWN_MS = 1000       // Per-stack AI re-plan cooldown
 MOVE_REPLAN_INTERVAL_MS = 150      // Chase re-planning + manual order upkeep
-FIRE_RATE_MULTIPLIER = 1.0         // Volley interval = 1000 / fireRate ms × this
-SHIELD_REGEN_INTERVAL_MS = 2000    // Shield regeneration tick
+FIRE_RATE_MULTIPLIER = 3.0         // Volley interval = 1000 / fireRate ms × this (sets battle length)
+BATTLE_SPEED_MULTIPLIER = 0.6      // Battle movement speed = ship-data speed × this (battle only)
+SHIELD_REGEN_INTERVAL_MS = 6000    // Shield regeneration tick (2000 × FIRE_RATE_MULTIPLIER)
 BATTLE_DEBUG_LOG = false           // Enables battleDebug() console traces
 ```
 
@@ -130,7 +131,7 @@ derives sizes from the same 72/28 and 38/16 numbers; keep them in sync with the 
 **Screen layout** (`battle-screen.component.scss`): a three-row CSS grid — the shared
 `GameHeaderComponent` (title, fleet match-up as subtitle, time controls + AUTO, planet shield /
 PAUSED; see [UI Styling → Game Header](./ui-styling.md#game-header)), the battlefield row, and
-the bottom command bar (selected-unit panel, Shield Pulse / Back, path-blocked hint).
+the bottom command bar (selected-unit panel with the carrier aura line, Back, path-blocked hint).
 
 - The HUD rows have **fixed heights** (`--battle-hud-top-h`, `--battle-hud-bottom-h`).
   Selecting/deselecting a unit, switching between friendly (with targeting buttons) and enemy
@@ -166,8 +167,10 @@ result overlay (20) — HUD controls can never be covered by battlefield content
 
 `BattleGridComponent.stackZIndex()` implements the ship part; its constants must stay consistent
 with the tokens. Hover is a quiet outline; selection is a bright border, a glow scaled with `--u`
-(so it never spills over neighbouring cells) and a soft ground light. Reach and Shield Pulse
-highlights pulse the frame's glow, never the ship's opacity.
+(so it never spills over neighbouring cells) and a soft ground light. Reach highlights pulse the
+frame's glow, never the ship's opacity. Carrier shield auras are drawn under the stacks as
+breathing shield-blue discs (`.aura-ring`), and covered friendly stacks get a steady shield-blue
+glow (`.stack--aura`); see [Battle Rules](./battle-rules.md#carrier-shield-aura).
 
 **Backdrop.** The three parallax layers (`.battle-bg-deep` / `-nebula` / `-foreground`) are built
 from the shared space mixins (see [UI Styling](./ui-styling.md#space-scenery)): deep stars and a
@@ -386,12 +389,12 @@ advances `BattleTimeService` with the real delta (clamped to 0.1 s) and calls
 `gameLoopCallback` (all accumulators use battle time):
 ```typescript
 updateStackPositions()                         // every frame
-ai.playAction(state)          every 400 ms     // enemy side: movement / Shield Pulse
+ai.playAction(state)          every 400 ms     // enemy side: movement
 ai.playAction(state, true)    every 400 ms     // AUTO only: player side, skips manual orders
 movement.maintainAttackOrders()  every 150 ms  // re-chase out-of-reach manual targets
 movement.updateMoveToAttackTargets() every 150 ms // re-plan chasing destinations
 combat.runFireControl()                        // every frame, every stack, both sides
-regenerateAllShields()        every 2000 ms
+regenerateAllShields()        every SHIELD_REGEN_INTERVAL_MS (6000 ms)
 checkVictory(); anim.tick()                    // always, so the result overlay appears
 ```
 
@@ -494,7 +497,7 @@ global `isBusy` count. `run(fn, stackId)` balances begin/end even if `fn` throws
 `wait(ms)` delegates to `BattleTimeService.wait()` (battle time: frozen while paused).
 
 - Volleys do not use the lock (bolts and effects are battle state, see §6). `isStackBusy` is
-  still respected by fire control and Shield Pulse.
+  still respected by fire control.
 - `showBattleResult` requires a winner, `!isBusy`, and empty `state.projectiles` and
   `state.effects`, so the overlay appears after the final hit has played out. Player input is
   never blocked by animations.
@@ -507,9 +510,8 @@ global `isBusy` count. `run(fn, stackId)` balances begin/end even if `fn` throws
 async playAction(state, controlPlayerSides = false):
 for each stack of the controlled side (enemy side, or player side for AUTO):
   skip if immobile, moving, on AI cooldown, or holding a manual order
-  1. Carrier with an ally < 50% shield in reach → Shield Pulse
-  2. Any enemy in reach → hold (fire control shoots)
-  3. Else moveToAttack(nearest enemy)
+  1. Any enemy in reach → hold (fire control shoots)
+  2. Else moveToAttack(nearest enemy)
   on any command → actionCooldownUntil = now + AI_ACTION_COOLDOWN_MS
 ```
 - Deterministic, greedy; never fires; no strategic knowledge.
@@ -672,8 +674,6 @@ reset(): void                                      // speed=1, isPaused=false, e
 **Orders while paused:**
 - There is no command queue. Move and attack orders are stored on the stack immediately and
   take effect when the simulation resumes, so any number of stacks can be ordered during a pause.
-- Shield Pulse applies immediately (it is an instant shield change) and starts the Carrier's
-  fire cooldown, which only runs down after resuming.
 
 **Header Controls** (rendered by the shared `GameHeaderComponent`; the battle passes
 `battleSpeedOptions` that map the internal speeds to the same 1x / 3x labels as the star map):
@@ -694,7 +694,6 @@ reset(): void                                      // speed=1, isPaused=false, e
 | Move | Click a free cell | Stack selected, clear straight path |
 | Attack order | Click any enemy | Stack selected; out-of-reach targets are chased |
 | Targeting mode | TARGET buttons in the selection panel | Own stack selected |
-| Shield Pulse | SHIELD PULSE button | Carrier selected, stationary, off cooldown, ally missing shield |
 
 **Visual Feedback:**
 - **Friend / foe** (fixed scheme, independent of faction colors; `playerSides` input on the grid):
@@ -719,7 +718,7 @@ reset(): void                                      // speed=1, isPaused=false, e
 | `battle-state.spec.ts` | No input mutation, stack grouping, slot deployment (38×16), centre-out rows, no overlap of wide stacks on either side, turrets outermost, stat resolution |
 | `battle-grid.spec.ts` | Grid bounds (38×16), physical range unit, reach tolerance, linePath, occupancy / reservations, reachable cells, attack targets, move-to-attack cells, approach fallback |
 | `battle-targeting.spec.ts` | All four modes, tie-breaks, invalid targets, manual priority, opportunistic fire, sticky target, mode change, planetary shield durability |
-| `battle-combat.service.spec.ts` | Damage formula, shields, weapon matchup, bolt lifecycle, fixed aim, straight constant-speed flight, natural misses, target-only hits, volley snapshot, no damage after victory, swept hitbox test, fire-control cadence (both sides), turrets fire, dead-order cleanup, simultaneous kills, no fire after victory, pause freezes cooldowns, Shield Pulse gating/cooldown |
+| `battle-combat.service.spec.ts` | Damage formula, shields, weapon matchup, bolt lifecycle, fixed aim, straight constant-speed flight, natural misses, target-only hits, volley snapshot, no damage after victory, swept hitbox test, fire-control cadence (both sides), turrets fire, dead-order cleanup, simultaneous kills, no fire after victory, pause freezes cooldowns, weapon charge before the first volley |
 | `battle-ai.service.spec.ts` | Holds when in reach (never fires), moves toward enemies, every idle stack per tick, determinism, immobile skipped, AUTO drives player side only and skips manual orders |
 | `battle-movement.service.spec.ts` | Moves, bounds/occupancy, re-planning while chasing |
 | `battle-screen.component.spec.ts` | Frame-stepped integration: equal cadence, order persistence across selection, chase + opportunistic fire, order cleared on kill, order replacement, AUTO vs manual, pause, targeting mode UI, turrets fire, full battles complete (AUTO on/off), persistence/outcome |
@@ -826,7 +825,7 @@ several sit in per-frame paths.
 | Phase 5 | Result mapping, StarMap integration, planet battles |
 | Phase 6 | Cell size fix (5vw → 2.5vw), debug logging |
 | Phase 7 | **Real-time conversion**: Removed AP system, removed turn cycling, replaced `BattleTurnService` with `BattleGameLoopService` (RAF), added speed-based VW movement, AI acts every 200ms, timer-based shield regen |
-| Phase 8 | **Grid doubled to 38×16** with physical range units; shared fire control with equal cadence for both sides; persistent manual attack orders with chasing and opportunistic fire; per-stack targeting modes; AI limited to movement/Shield Pulse; AUTO respects manual orders; turrets fire; command queue removed; occupancy-map grid searches; debug logging gated |
+| Phase 8 | **Grid doubled to 38×16** with physical range units; shared fire control with equal cadence for both sides; persistent manual attack orders with chasing and opportunistic fire; per-stack targeting modes; AI limited to movement (Shield Pulse at the time; replaced by the passive carrier aura on 2026-11-02); AUTO respects manual orders; turrets fire; command queue removed; occupancy-map grid searches; debug logging gated |
 
 ---
 
@@ -844,4 +843,4 @@ several sit in per-frame paths.
 
 ## Non-interactive resolution
 
-`battle/battle-auto-resolve.ts` resolves a `Battle` without the screen (AI assaults on non-player planets and AI battle forecasts). It reuses `createBattleState`, `compareTargets`, `applyVolleyDamage` (the damage function `BattleCombatService.attackStack` calls), `regenerateAllShields`, `checkVictory` and `buildBattleOutcome`; it ignores grid range/movement, has no animation delays, skips the Carrier Shield Pulse and treats a battle undecided after 300 s as a draw held by the defender. Rules and rationale: [Planet Capture](./planet-capture.md#auto-resolver-battle-auto-resolvets).
+`battle/battle-auto-resolve.ts` resolves a `Battle` without the screen (AI assaults on non-player planets and AI battle forecasts). It reuses `createBattleState`, `compareTargets`, `applyVolleyDamage` (the damage function `BattleCombatService.attackStack` calls), `regenerateAllShields`, `checkVictory` and `buildBattleOutcome`; it ignores grid range/movement, has no animation delays, lets the carrier shield aura cover every ally (no positions) and treats a battle undecided after 300 s as a draw held by the defender. Rules and rationale: [Planet Capture](./planet-capture.md#auto-resolver-battle-auto-resolvets).

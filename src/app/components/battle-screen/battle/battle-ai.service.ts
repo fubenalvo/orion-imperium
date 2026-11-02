@@ -15,17 +15,18 @@ import { BattleTimeService } from './battle-time.service';
  * — it has no knowledge of the strategic enemy-ai / strategy / goal /
  * action layers, which keeps the minigame self-contained.
  *
- * The AI decides movement and Carrier Shield Pulse only. It never fires:
+ * The AI decides movement only. It never fires:
  * firing is the shared per-stack fire control in BattleCombatService, which
  * gives both sides the same fire cadence regardless of fleet size.
  *
  * Every AI tick (AI_ACTION_INTERVAL_MS) each controlled stack whose
  * AI_ACTION_COOLDOWN_MS has expired gets at most one decision:
- *   1. Carrier: Shield Pulse if an ally in reach is below 50% shield.
- *   2. An enemy is already in reach: hold position (fire control shoots).
- *   3. Otherwise move toward the nearest enemy (move-to-attack, falling
+ *   1. An enemy is already in reach: hold position (fire control shoots).
+ *   2. Otherwise move toward the nearest enemy (move-to-attack, falling
  *      back to the closest reachable approach cell when no firing cell
  *      is free).
+ * The carrier's shield aura is passive (battle-grid.ts), so carriers need
+ * no special decision.
  *
  * The same controller drives AUTO battle for player stacks. Player stacks
  * holding a manual order (attack target or in-flight move) are never
@@ -69,13 +70,6 @@ export class BattleAiService {
   }
 
   private async decide(state: BattleModelState, stack: BattleStack): Promise<boolean> {
-    if (stack.typeId === 'carrier' && this.hasLowShieldAlly(state, stack)) {
-      if (this.combat.carrierShieldBoost(state, stack.stackId)) {
-        battleDebug(`[AI-PULSE] ${stack.stackId}`);
-        return true;
-      }
-    }
-
     const enemies = state.stacks.filter((s) => !s.destroyed && s.side !== stack.side);
     if (enemies.some((e) => canAttack(stack, e))) {
       return false;
@@ -110,23 +104,5 @@ export class BattleAiService {
     return state.stacks.filter(
       (s) => !s.destroyed && isSidePlayerControlled(state, s.side) === controlPlayerSides,
     );
-  }
-
-  /* Any friendly stack within the carrier's reach below 50% total shield. */
-  private hasLowShieldAlly(state: BattleModelState, carrier: BattleStack): boolean {
-    return state.stacks.some((s) => {
-      if (s.destroyed || s.side !== carrier.side || s.stackId === carrier.stackId) {
-        return false;
-      }
-      if (!canAttack(carrier, s)) {
-        return false;
-      }
-      const totalMaxShield = s.ships.reduce((sum, sh) => sum + (sh.alive ? sh.maxShield ?? 0 : 0), 0);
-      if (totalMaxShield <= 0) {
-        return false;
-      }
-      const totalShield = s.ships.reduce((sum, sh) => sum + (sh.alive ? sh.shield ?? 0 : 0), 0);
-      return totalShield / totalMaxShield < 0.5;
-    });
   }
 }

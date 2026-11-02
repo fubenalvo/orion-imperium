@@ -1,6 +1,6 @@
 import shipData from '../../star-map/ship-data.json';
 import planetData from '../../star-map/planet-data.json';
-import { BattleModelState, BattleShip, BattleStack, REFERENCE_FIRE_RATE, nextVolleyDueMs, volleyShare } from './battle.types';
+import { BattleModelState, BattleShip, BattleStack, REFERENCE_FIRE_RATE, nextVolleyDueMs, volleyDecision, volleyShare } from './battle.types';
 import { applyVolleyDamage, fireJitter, shotScale } from './battle-combat.service';
 import { firepower } from './battle-targeting';
 
@@ -54,25 +54,25 @@ describe('per-class fire rate', () => {
   });
 
   it('keeps damage per second equal to the reference cadence for every rate', () => {
-    // Reference: 15 attack - 3 defense = 12 per reference volley at 1.5/s.
-    const expectedPerSecond = 12 * REFERENCE_FIRE_RATE;
+    // Reference: floor(15 × 100 / (100 + 3)) = 14 per reference volley at 1.5/s.
+    const expectedPerSecond = 14 * REFERENCE_FIRE_RATE;
     for (const rate of [4, 3, 2.2, 1.5, 0.9, 0.5]) {
       const total = damageOver(stack('a' + rate, rate, [ship()]), 60);
       expect(Math.abs(total - expectedPerSecond * 60), `rate ${rate}`).toBeLessThanOrEqual(1);
     }
   });
 
-  it('subtracts defense from the reference volley, not from each small shot', () => {
-    // 4 shots/s with 15 attack vs defense 3: per-shot subtraction would leave
-    // (15 * 0.375 - 3) = 2.6 per shot; the rule keeps 12 * 0.375 = 4.5.
+  it('applies armour to the reference volley, not to each small shot', () => {
+    // 4 shots/s with 15 attack vs defense 3: the reference volley is 14,
+    // so each shot deals 14 × 0.375 = 5.25.
     const total = damageOver(stack('f', 4, [ship()]), 10);
-    expect(total).toBeCloseTo(4.5 * 40, -1);
+    expect(total).toBeCloseTo(5.25 * 40, -1);
   });
 
   it('is identical to the old single-volley damage at the reference rate', () => {
     const state = freshState();
     const target = stack('t', 1, [ship({ hp: 500, maxHp: 500, defense: 3 })], 'defender');
-    expect(applyVolleyDamage(state, stack('r', REFERENCE_FIRE_RATE, [ship(), ship()]), target).damage).toBe(27);
+    expect(applyVolleyDamage(state, stack('r', REFERENCE_FIRE_RATE, [ship(), ship()]), target).damage).toBe(29);
     expect(state.damageCarry!['r']).toBe(0);
   });
 
@@ -100,6 +100,13 @@ describe('volley scheduling', () => {
     }
     expect(shots).toBeGreaterThanOrEqual(40);
     expect(shots).toBeLessThanOrEqual(41);
+  });
+
+  it('charges one interval before the first volley after an idle gap', () => {
+    expect(volleyDecision(undefined, 0, 2000)).toEqual({ fire: false, nextDueMs: 2000 });
+    expect(volleyDecision(1000, 5000, 250)).toEqual({ fire: false, nextDueMs: 5250 });
+    // Sustained fire: the charge has just completed, so the volley goes out.
+    expect(volleyDecision(2000, 2000, 2000)).toEqual({ fire: true, nextDueMs: 4000 });
   });
 
   it('restarts from now after an idle gap (no stored burst)', () => {

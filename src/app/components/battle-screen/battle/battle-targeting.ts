@@ -9,7 +9,8 @@ import {
   absoluteDistanceRangeUnits,
   canAttack,
   computeTargetScore,
-  weaponMultiplier,
+  referenceVolleyDamage,
+  shieldAuraFor,
 } from './battle-grid';
 
 /*
@@ -72,20 +73,22 @@ export function firepower(stack: BattleStack): number {
   return attack * REFERENCE_FIRE_RATE;
 }
 
-/* Damage one REFERENCE volley of `attacker` would deal to `target` (same
- * formula as applyVolleyDamage before the fire-rate split: front-ship
- * defense, weapon matchup, floor of 1). Equal to damage per
+/* Damage one REFERENCE volley of `attacker` would deal to `target` (the
+ * shared referenceVolleyDamage formula of applyVolleyDamage, before the
+ * fire-rate split). Equal to damage per
  * 1 / REFERENCE_FIRE_RATE seconds for every class, so rankings stay
  * comparable across fire rates. */
-export function expectedVolleyDamage(attacker: BattleStack, target: BattleStack): number {
+export function expectedVolleyDamage(attacker: BattleStack, target: BattleStack, state?: BattleModelState): number {
   const totalAttack = aliveShips(attacker).reduce((sum, s) => sum + s.attack, 0);
   const front = target.ships.find((s) => s.alive);
   if (!front) {
     return 0;
   }
   const attackerFront = attacker.ships.find((s) => s.alive);
-  const multiplier = weaponMultiplier(attackerFront?.attackType ?? 'kinetic', front.weakness ?? 'energy');
-  return Math.max(1, Math.floor((totalAttack - front.defense) * multiplier));
+  return referenceVolleyDamage(
+    { totalAttack, attackType: attackerFront?.attackType ?? 'kinetic', hullClass: attacker.hullClass },
+    { defense: front.defense, weakness: front.weakness ?? 'energy', hullClass: target.hullClass, auraReduction: state ? shieldAuraFor(state, target) : 0 },
+  );
 }
 
 /* Reference volleys (see expectedVolleyDamage) this attacker needs to destroy
@@ -93,7 +96,7 @@ export function expectedVolleyDamage(attacker: BattleStack, target: BattleStack)
  * and spill-over of defense between ships — a ranking heuristic, not a
  * simulation. */
 export function volleysToKill(state: BattleModelState, attacker: BattleStack, target: BattleStack): number {
-  const damage = expectedVolleyDamage(attacker, target);
+  const damage = expectedVolleyDamage(attacker, target, state);
   if (damage <= 0) {
     return Infinity;
   }

@@ -161,13 +161,15 @@ Read from `ship-data.json`:
 
 - `id`: type key (e.g. `'frigate'`, `'cruiser'`, `'colonizer'`)
 - `name`, `role`: display info
+- `hullClass`: `'light' | 'medium' | 'heavy'` — the size class of the combat counter cycle (light beats heavy, heavy beats medium, medium beats light; heavy hulls also besiege static defenses). Table, armour rule and player texts: `hull-class.ts`; rules: [Battle Rules](./battle-rules.md#hull-classes). Missing or unknown values count as medium.
 - `hitPoints`, `shield`, `shieldRegen`: defense stats.
   `hitPoints` is reduced by damage. `shield` absorbs damage before hull HP.
   `shieldRegen` regenerates shield per ship at the start of each side's turn via `BattleTurnService.endTurn()`.
 - `attack`, `attackType`, `weakness`: offense stats. `attack` is the base
   damage. `attackType` and `weakness` drive the weapon effectiveness table in
-  `battle-grid.ts` via `weaponMultiplier()` in `battle-combat.service.ts`.
-- `defense`: flat damage reduction per ship
+  `battle-grid.ts` (`weaponMultiplier`, part of `referenceVolleyDamage`).
+- `shieldAura` (optional, carrier only): passive aura — the carrier and allies within its gun reach take this share less damage (0.15); auras do not stack. [Battle Rules](./battle-rules.md#carrier-shield-aura)
+- `defense`: armour — reduces incoming damage by `defense / (100 + defense)` (a percentage, so it does not depend on stack grouping)
 - `speed`, `range`, `cost`: `range` is used as each ship's sensor contribution (fleets take the max ship range as a floor above `Fleet.sensorRange`); `cost` is not currently used in gameplay logic
 - `rawMaterialCost`: raw materials charged per ship at queue time (with `cost` credits)
 - `maintenanceCost`: upkeep points per second; `EconomyService` charges `× UPKEEP_CREDITS_PER_POINT` (0.3) credits, half in the ship stock

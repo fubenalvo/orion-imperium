@@ -19,7 +19,9 @@ import {
   getMoveToAttackCells,
   findBestMoveToAttackCell,
   getMoveToAttackTargetIds,
-  computeCarrierBoostTargets,
+  computeAuraCoveredStackIds,
+  referenceVolleyDamage,
+  shieldAuraFor,
   vwToStackCell,
   findApproachCell,
   canAttack,
@@ -318,20 +320,57 @@ describe('battle-grid', () => {
     expect(isAbsolutePositionInRange(a, justOutside, rangeCells)).toBe(false);
   });
 
-  it('computeCarrierBoostTargets uses absolute range and ignores non-carrier type', () => {
-    const carrier = { ...baseStack(), stackId: 'carrier:0', typeId: 'carrier', attackRange: 4 };
-    placeStack(carrier, 2, 4); // reach (4 + 1) * 3.5 = 17.5vw
-    const allyNear = { ...baseStack(), stackId: 'ally:near', side: 'attacker' as const };
-    placeStack(allyNear, 4, 4); // 2 cells ≈ 3.8vw
-    const allyFar = { ...baseStack(), stackId: 'ally:far', side: 'attacker' as const };
-    placeStack(allyFar, 14, 4); // 12 cells ≈ 22.7vw > 17.5vw
-    const enemy = { ...baseStack(), stackId: 'enemy:0', side: 'defender' as const };
-    placeStack(enemy, 3, 4); // in reach, but enemy side
-    const state = makeState([carrier, allyNear, allyFar, enemy]);
-    const targets = computeCarrierBoostTargets(state, carrier);
-    expect(targets).toContain('ally:near');
-    expect(targets).not.toContain('ally:far');
-    expect(targets).not.toContain('enemy:0');
+  describe('carrier shield aura', () => {
+    const ship = (shield: number, maxShield = 100, shieldRegen = 0) =>
+      ({ shipId: 1, name: 's', typeId: 'x', hp: 50, maxHp: 50, shield, maxShield, shieldRegen, attackType: 'kinetic', weakness: 'energy', attack: 10, defense: 0, alive: true });
+    const carrierAt = (col: number, id = 'carrier:0', aura = 0.08) => {
+      const carrier = { ...baseStack(), stackId: id, typeId: 'carrier', attackRange: 4, shieldAura: aura, ships: [ship(0, 200)] };
+      placeStack(carrier, col, 4); // reach (4 + 1) * 3.5 = 17.5vw
+      return carrier;
+    };
+    const allyAt = (id: string, col: number, side: 'attacker' | 'defender' = 'attacker') => {
+      const stack = { ...baseStack(), stackId: id, side, ships: [ship(0)] };
+      placeStack(stack, col, 4);
+      return stack;
+    };
+
+    it('covers the carrier and friendly stacks within its gun reach, never enemies', () => {
+      const carrier = carrierAt(2);
+      const near = allyAt('ally:near', 4); // 2 cells ≈ 3.8vw
+      const far = allyAt('ally:far', 14); // 12 cells ≈ 22.7vw > 17.5vw
+      const enemy = allyAt('enemy:0', 3, 'defender');
+      const state = makeState([carrier, near, far, enemy]);
+      expect(shieldAuraFor(state, carrier)).toBe(0.08);
+      expect(shieldAuraFor(state, near)).toBe(0.08);
+      expect(shieldAuraFor(state, far)).toBe(0);
+      expect(shieldAuraFor(state, enemy)).toBe(0);
+      // The grid highlights covered allies; the carrier shows its own ring instead.
+      expect(computeAuraCoveredStackIds(state)).toEqual(['ally:near']);
+      // The auto-resolver has no positions: every ally of a living carrier is covered.
+      expect(shieldAuraFor(state, far, true)).toBe(0.08);
+    });
+
+    it('reduces every volley against a covered stack by the aura share', () => {
+      const attacker = { totalAttack: 100, attackType: 'kinetic', hullClass: 'medium' as const };
+      const target = { defense: 0, weakness: 'none', hullClass: 'medium' as const };
+      expect(referenceVolleyDamage(attacker, target)).toBe(100);
+      expect(referenceVolleyDamage(attacker, { ...target, auraReduction: 0.15 })).toBe(85);
+    });
+
+    it('does not stack: several carriers give the strongest aura once', () => {
+      const a = carrierAt(2, 'carrier:a');
+      const b = carrierAt(3, 'carrier:b', 0.1);
+      const near = allyAt('ally:near', 4);
+      expect(shieldAuraFor(makeState([a, b, near]), near)).toBe(0.1);
+    });
+
+    it('ends when the carrier is destroyed', () => {
+      const carrier = carrierAt(2);
+      const near = allyAt('ally:near', 4);
+      carrier.ships[0].alive = false;
+      carrier.destroyed = true;
+      expect(shieldAuraFor(makeState([carrier, near]), near)).toBe(0);
+    });
   });
 
   it('getMoveToAttackCells finds cells within absolute range of the target position', () => {

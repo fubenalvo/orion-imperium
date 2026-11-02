@@ -8,7 +8,7 @@ import {
   DEFAULT_TARGETING_MODE,
   FIRE_RATE_MULTIPLIER,
   REFERENCE_FIRE_RATE,
-  nextVolleyDueMs,
+  volleyDecision,
   SHIELD_REGEN_INTERVAL_MS,
 } from './battle.types';
 import { createBattleState } from './battle-state';
@@ -29,9 +29,10 @@ import { buildBattleOutcome } from './battle-result';
  *  - stacks, ship stats, planet defense stacks and the shared planetary
  *    shield pool come from createBattleState (identical setup);
  *  - every stack fires on its own cadence (1 / fireRate s ×
- *    FIRE_RATE_MULTIPLIER, scheduled with nextVolleyDueMs so the 50 ms
- *    step does not round intervals up), like
- *    BattleCombatService.runFireControl minus its visual-only jitter;
+ *    FIRE_RATE_MULTIPLIER, with the same one-interval weapon charge at the
+ *    start, via volleyDecision so the 50 ms step does not round intervals
+ *    up), like BattleCombatService.runFireControl minus its visual-only
+ *    jitter;
  *  - volley damage is applyVolleyDamage, the exact function the animated
  *    battle uses;
  *  - targets are chosen with the stack's targeting mode via
@@ -47,7 +48,8 @@ import { buildBattleOutcome } from './battle-result';
  *  - No laser bolts: every volley hits instantly. In the interactive battle
  *    bolts are aimed once and can miss a target that moves out of their
  *    path, so fast stacks at long range fare slightly better there.
- *  - Carrier Shield Pulse is not used.
+ *  - The carrier shield aura covers every ally of a living carrier
+ *    (no positions here; state.auraCoversAllAllies), see shieldAuraFor.
  *  - A battle still undecided after `maxBattleMs` is a draw: the
  *    defender holds (winner 'defender', attacker not wiped out). The
  *    minigame itself has no time limit.
@@ -68,6 +70,7 @@ export function autoResolveBattle(
   maxBattleMs = AUTO_RESOLVE_MAX_BATTLE_MS,
 ): AutoResolveResult {
   const state = createBattleState(battle, shipService, planetBattleService);
+  state.auraCoversAllAllies = true;
   const nextFireAt = new Map<string, number>();
   let now = 0;
   let nextRegenAt = SHIELD_REGEN_INTERVAL_MS;
@@ -94,8 +97,12 @@ export function autoResolveBattle(
       if (!target) {
         continue;
       }
-      nextFireAt.set(stack.stackId, nextVolleyDueMs(nextFireAt.get(stack.stackId), now, fireIntervalMs(stack)));
+      const decision = volleyDecision(nextFireAt.get(stack.stackId), now, fireIntervalMs(stack));
+      nextFireAt.set(stack.stackId, decision.nextDueMs);
       stack.autoTargetId = target.stackId;
+      if (!decision.fire) {
+        continue;
+      }
       applyVolleyDamage(state, stack, target);
       checkVictory(state);
     }

@@ -1,4 +1,5 @@
 import { EnemyResearchService } from './enemy-research.service';
+import { HULL_CLASSES, HULL_CLASS_INFO, HullClass, getHullClass } from './hull-class';
 import { planetTypeTraits } from './planet-types';
 import { Injectable } from '@angular/core';
 import {
@@ -187,6 +188,14 @@ export class EnemyEconomyService {
   private static readonly THREAT_COVER = 1.5;
   private static readonly WEALTHY_TARGET_MULTIPLIER = 2;
   private static readonly MILITARY_SHIP_CAP = 24;
+  /*
+   * Base share of each hull class (by ship cost) in an AI navy, before the
+   * counter to the enemy's known fleets is mixed in (preferredHullClass).
+   * Only unlocked classes count, renormalized.
+   */
+  private static readonly HULL_CLASS_BASE_MIX: Record<HullClass, number> = { light: 0.3, medium: 0.4, heavy: 0.3 };
+  /* One carrier (shield-aura hull) per this many combat ships; see wantsSupportHull. */
+  private static readonly SUPPORT_SHIPS_PER_HULL = 8;
   private static readonly WEALTHY_SHIP_CAP = 60;
   // A home fleet at this size is not reinforced further; new ships form a new fleet.
   private static readonly MAX_FLEET_SHIPS = 12;
@@ -406,7 +415,7 @@ export class EnemyEconomyService {
     reserve = addCosts(reserve, { credits: this.researchCreditReserve(faction), rawmaterials: 0 });
 
     if (includeMilitary && this.militaryNeed(faction, starSystems, context).strength > 0) {
-      const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
+      const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity, 1, context);
       if (ship) reserve = addCosts(reserve, shipCost(ship));
     }
     return reserve;
@@ -723,7 +732,7 @@ export class EnemyEconomyService {
     // up all headroom, and military production starves.
     const nextWarship = this.spaceportService.hasSpaceport(faction.id, starSystems)
       && this.militaryNeed(faction, starSystems, context).strength > 0
-      ? this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity)
+      ? this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity, 1, context)
       : undefined;
     const militaryUpkeepReserve = nextWarship
       ? this.economyService.getShipUpkeepPerSecond(nextWarship.id, faction, finances.upkeepScale)
@@ -970,7 +979,7 @@ export class EnemyEconomyService {
       const militaryPreference = Math.max(0.5, getAiPersonalityProfile(faction).militaryTarget);
       const upkeepAllowance = finances.net - finances.income * EnemyEconomyService.UPKEEP_MARGIN_SHARE / militaryPreference;
       const preferred = this.selectMilitaryShip(
-        faction, { credits: Infinity, rawmaterials: Infinity }, upkeepAllowance, finances.upkeepScale,
+        faction, { credits: Infinity, rawmaterials: Infinity }, upkeepAllowance, finances.upkeepScale, context,
       );
       if (preferred && this.worthSavingFor(preferred, budget, finances)) {
         break;
@@ -978,7 +987,7 @@ export class EnemyEconomyService {
       const preferredCost = preferred ? shipCost(preferred) : undefined;
       const ship = preferred && preferredCost!.credits <= budget.credits && preferredCost!.rawmaterials <= budget.rawmaterials
         ? preferred
-        : this.selectMilitaryShip(faction, budget, upkeepAllowance, finances.upkeepScale);
+        : this.selectMilitaryShip(faction, budget, upkeepAllowance, finances.upkeepScale, context);
       if (!ship) {
         break;
       }
@@ -1156,7 +1165,7 @@ export class EnemyEconomyService {
 
   /* Combat strength MILITARY_INCOME_SHARE of gross income can keep in upkeep. */
   private incomeSupportedStrength(faction: Faction, starSystems: StarSystem[], context: EconomyContext): number {
-    const hull = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
+    const hull = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity, 1, context);
     const finances = this.getProjectedNet(faction, starSystems, context);
     const upkeep = hull ? this.economyService.getShipUpkeepPerSecond(hull.id, faction, finances.upkeepScale) : 0;
     if (!hull || upkeep <= 0) {
@@ -1178,12 +1187,15 @@ export class EnemyEconomyService {
   }
 
   /*
-   * selectMilitaryShip: Strength per credit is nearly flat across hulls
-   * and build time is proportional to cost, so with a comfortable budget
-   * the binding limit is the ship-count cap — prefer the strongest
-   * unlocked hull costing at most a quarter of the budget. When credits
-   * are tight, take the best strength per credit that is affordable.
-   * Research therefore pays off militarily by unlocking heavier hulls.
+   * selectMilitaryShip: Picks the hull class first (preferredHullClass:
+   * the class the faction's navy lacks most against its target mix), then
+   * the hull within that class. Within a class, with a comfortable budget
+   * the binding limit is the ship-count cap, so it prefers the strongest
+   * unlocked hull costing at most a quarter of the budget; when credits
+   * are tight, it takes the best strength per credit that is affordable.
+   * Research therefore pays off militarily by unlocking heavier hulls of
+   * each class. When no hull of the preferred class fits, any class may be
+   * chosen. Without a context (no fleet data) the class step is skipped.
    * Both credits and raw materials must fit the budget, and the hull's
    * upkeep must fit the faction's upkeep allowance (credits/s).
    */
@@ -1192,6 +1204,7 @@ export class EnemyEconomyService {
     budget: ResourceCost,
     upkeepAllowance: number,
     upkeepScale = 1,
+    context?: EconomyContext,
   ): ShipType | undefined {
     const candidates = this.shipService
       .getAllShipTypes()
@@ -1205,13 +1218,114 @@ export class EnemyEconomyService {
     if (candidates.length === 0) {
       return undefined;
     }
+    const preferredClass = context ? this.preferredHullClass(faction, context) : null;
+    const inClass = preferredClass ? candidates.filter((t) => getHullClass(t) === preferredClass) : [];
+    const pool = inClass.length > 0 ? inClass : candidates;
+    // Support hulls (shield aura, i.e. the carrier) when the navy is big
+    // enough to need one; see wantsSupportHull.
+    const support = context ? pool.filter((t) => (t.shieldAura ?? 0) > 0) : [];
+    if (support.length > 0 && this.wantsSupportHull(faction, context!)) {
+      return [...support].sort((a, b) => (b.shieldAura ?? 0) - (a.shieldAura ?? 0) || a.cost - b.cost)[0];
+    }
     const strength = (t: ShipType) => this.shipService.calculateFleetStrength([{ type: t.id }]);
-    const comfortable = candidates.filter((t) => t.cost * 4 <= budget.credits && (t.rawMaterialCost ?? 0) * 4 <= budget.rawmaterials);
+    const comfortable = pool.filter((t) => t.cost * 4 <= budget.credits && (t.rawMaterialCost ?? 0) * 4 <= budget.rawmaterials);
     if (comfortable.length > 0) {
       return [...comfortable].sort((a, b) => strength(b) - strength(a) || a.cost - b.cost || a.id.localeCompare(b.id))[0];
     }
     const value = (t: ShipType) => strength(t) / t.cost;
-    return [...candidates].sort((a, b) => value(b) - value(a) || a.cost - b.cost || a.id.localeCompare(b.id))[0];
+    return [...pool].sort((a, b) => value(b) - value(a) || a.cost - b.cost || a.id.localeCompare(b.id))[0];
+  }
+
+  /*
+   * wantsSupportHull: One shield-aura hull (carrier) per SUPPORT_SHIPS_PER_HULL
+   * combat ships once the navy (fleets + stock + queued) has at least that
+   * many. Auras do not stack (battle-grid.ts shieldAuraFor), so more would
+   * only add a weak gun; fewer leaves larger fleets without the aura. The
+   * carrier is a medium hull, so this applies when the medium class is
+   * chosen (or nothing else of the preferred class fits).
+   */
+  private wantsSupportHull(faction: Faction, context: EconomyContext): boolean {
+    const isSupport = (type: string) => (this.shipService.getShipType(type)?.shieldAura ?? 0) > 0;
+    const isCombat = (type: string) => isCombatShipType(this.shipService.getShipType(type));
+    const fleetShips = context.fleets
+      .filter((f) => f.factionId === faction.id && !f.destroyed)
+      .flatMap((f) => f.ships.filter((s) => !s.destroyed).map((s) => ({ type: s.type, quantity: 1 })));
+    const stockShips = (context.shipStock.find((s) => s.factionId === faction.id)?.ships ?? []).map((s) => ({ type: s.type, quantity: 1 }));
+    const queued = this.pendingOrders(faction.id, context).map((o) => ({ type: o.shipTypeId, quantity: o.quantity }));
+    const all = [...fleetShips, ...stockShips, ...queued].filter((s) => isCombat(s.type));
+    const total = all.reduce((sum, s) => sum + s.quantity, 0);
+    const support = all.filter((s) => isSupport(s.type)).reduce((sum, s) => sum + s.quantity, 0);
+    return total >= EnemyEconomyService.SUPPORT_SHIPS_PER_HULL
+      && support < Math.floor(total / EnemyEconomyService.SUPPORT_SHIPS_PER_HULL);
+  }
+
+  /*
+   * preferredHullClass: The hull class (hull-class.ts counter cycle) the
+   * faction should build next. Target mix = half a base mix
+   * (HULL_CLASS_BASE_MIX) and half a counter mix: each class is wanted in
+   * proportion to the share of the hostile navy it beats (light counters
+   * heavy, medium counters light, heavy counters medium), measured by ship
+   * cost over the hostile fleets the faction knows (fog of war:
+   * perceivedFleets). Only classes with an unlocked combat hull count. The
+   * class with the largest shortfall of the own navy (fleets + stock +
+   * queued orders, by cost) against the target wins. A faction with a
+   * single unlocked class simply builds that class.
+   */
+  private preferredHullClass(faction: Faction, context: EconomyContext): HullClass | null {
+    const unlockedClasses = new Set(
+      this.shipService
+        .getAllShipTypes()
+        .filter((t) => isCombatShipType(t) && t.cost > 0 && this.researchService.isShipUnlocked(faction, t.id))
+        .map((t) => getHullClass(t)),
+    );
+    const classes = HULL_CLASSES.filter((c) => unlockedClasses.has(c));
+    if (classes.length <= 1) {
+      return classes[0] ?? null;
+    }
+
+    const valueByClass = (ships: { type: string; quantity?: number }[]): Record<HullClass, number> => {
+      const totals: Record<HullClass, number> = { light: 0, medium: 0, heavy: 0 };
+      for (const ship of ships) {
+        const type = this.shipService.getShipType(ship.type);
+        if (!type || !isCombatShipType(type)) continue;
+        totals[getHullClass(type)] += type.cost * (ship.quantity ?? 1);
+      }
+      return totals;
+    };
+
+    const hostile = hostileFactionIds(faction, context.factions ?? []);
+    const enemyShips = (context.perceivedFleets ?? context.fleets)
+      .filter((f) => hostile.has(f.factionId) && !f.destroyed)
+      .flatMap((f) => f.ships.filter((s) => !s.destroyed));
+    const enemyTotals = valueByClass(enemyShips);
+
+    const baseSum = classes.reduce((acc, c) => acc + EnemyEconomyService.HULL_CLASS_BASE_MIX[c], 0);
+    const counterSum = classes.reduce((acc, c) => acc + enemyTotals[HULL_CLASS_INFO[c].strongAgainst], 0);
+    const target = (c: HullClass): number => {
+      const base = EnemyEconomyService.HULL_CLASS_BASE_MIX[c] / baseSum;
+      const counter = counterSum > 0 ? enemyTotals[HULL_CLASS_INFO[c].strongAgainst] / counterSum : base;
+      return 0.5 * base + 0.5 * counter;
+    };
+
+    const ownFleetShips = context.fleets
+      .filter((f) => f.factionId === faction.id && !f.destroyed)
+      .flatMap((f) => f.ships.filter((s) => !s.destroyed));
+    const stockShips = context.shipStock.find((s) => s.factionId === faction.id)?.ships ?? [];
+    const queued = this.pendingOrders(faction.id, context).map((o) => ({ type: o.shipTypeId, quantity: o.quantity }));
+    const ownTotals = valueByClass([...ownFleetShips, ...stockShips, ...queued]);
+    const ownSum = classes.reduce((acc, c) => acc + ownTotals[c], 0);
+
+    // Deterministic: ties keep the HULL_CLASSES order (light, medium, heavy).
+    let best: HullClass = classes[0];
+    let bestGap = -Infinity;
+    for (const c of classes) {
+      const gap = target(c) - (ownSum > 0 ? ownTotals[c] / ownSum : 0);
+      if (gap > bestGap + 1e-9) {
+        best = c;
+        bestGap = gap;
+      }
+    }
+    return best;
   }
 
   /*

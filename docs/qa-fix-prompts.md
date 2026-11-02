@@ -47,12 +47,13 @@ Fixed on 2026-11-01: a request for N ships is queued as N single-ship orders (fu
 
 ---
 
-## 5. [Balance] Heavy hulls are less cost-efficient than destroyers; the AI builds a destroyer monoculture
+## 5. Done — Heavy hulls were not worth it; the AI built a destroyer monoculture
 
-**Problem.** Across all runs the AIs built mostly destroyers (22–31 per faction), a few cruisers and dreadnoughts, and **never a battleship or carrier**. Per `docs/battle-rules.md`, damage per second is independent of `fireRate` (reference volley), so efficiency is roughly `attack / cost`. From `ship-data.json` (raw cost is always 3× credit cost, so ratios hold for both):
+Fixed on 2026-11-02 with a hull-class counter cycle: light beats heavy, heavy beats medium, medium beats light (±35%), heavy hulls +50% against static defenses (`hull-class.ts`, [Battle Rules](./battle-rules.md#hull-classes)). Found and fixed on the way: armour was a flat subtraction per volley, so fleets of up to 28 ships (one ship per stack) were crippled by armour while larger fleets ignored it; it is now a percentage. Every engagement also opened with a free full volley that let slow heavy classes front-load up to 2 s of damage; weapons now charge one interval first. The weapon-type table was softened to 1.2 / 1.0 / 0.8 so the hull class decides fights, and heavy hulls (plus frigate and cruiser) got stat buffs, heavy upkeep slightly lower. `hull-balance.spec.ts` asserts the cycle for every hull pair at equal budgets (numbers in Battle Rules). The AI builds by class (target mix + counter to the enemy it sees) ([AI Pipeline](./ai-pipeline.md#military-production-and-deployment)). Production dialog and research cards explain each hull's role.
 
-| Hull | attack / credit | (HP + shield) / credit | upkeep / cost |
-|---|---|---|---|
+**Not met by decision:** "two classes above destroyer by minute 40". Heavy hulls are meant for the second half of a game. The two hull-class unlocks were made slightly cheaper (Advanced Shipyards 2600 → 2200, Capital Ship Technology 5500 → 4500 points; credits follow); on small maps the AIs now reach the heavy class at minutes 35–44 and build dreadnoughts, on medium maps around the hour mark. See [Research](./research.md#progression-rationale).
+
+---|---|---|---|
 | fighter | 0.20 | 1.07 | 5% |
 | corvette | 0.18 | 1.17 | 6% |
 | destroyer | 0.17 | 1.12 | 8% |
@@ -74,18 +75,9 @@ Heavy hulls are 20–35% worse per credit in firepower, not better in durability
 
 ---
 
-## 6. [Balance] The carrier is never worth building
+## 6. Done — The carrier was never worth building
 
-**Problem.** The carrier has attack 30 for 500 credits (0.06 attack/credit, a third of a destroyer) and its only special is Shield Pulse (restores `shieldRegen` to allies in reach, replacing its volley). No AI built one in ~2.5 hours of simulated play. See prompt 5 for the efficiency table.
-
-**Files.** `src/app/components/star-map/ship-data.json`, `docs/battle-rules.md` (Carrier Shield Pulse), battle AI in `src/app/components/battle-screen/battle/`, AI hull selection in `enemy-economy.service.ts`.
-
-**Task.** Make the carrier a real support choice: e.g. Shield Pulse restores a percentage of max shield (not the flat `shieldRegen`) to every ally in reach, or the carrier launches fighter stacks at battle start, or it grants a passive shield-regen aura that does not cost its volley. Then let the AI include carriers in fleets above a size threshold.
-
-**Acceptance.**
-- Auto-resolve comparison: a fleet with one carrier beats the same-cost fleet without it in a mid-size battle.
-- AI simulations: carriers appear in Normal/Hard fleets by minute 40.
-- Update `docs/battle-rules.md` and `docs/ai-pipeline.md` (military production).
+Fixed on 2026-11-02: the active Shield Pulse was replaced by a passive **shield aura** — the carrier and allies within its gun reach take 15% less damage, auras do not stack, no volley is spent. A shield-*regeneration* aura was tried first and measured as worthless (fleet battles end in a few seconds, regen ticks every 2 s). Carrier hull / shield / armour raised to 420 / 280 / 16 so it survives the focus fire it attracts. Equal-cost auto-resolve: one carrier improves destroyer, cruiser and frigate fleets; a carrier-only fleet loses to everything (`hull-balance.spec.ts`). The aura is visible in battle (shield-blue disc, glow on covered ships, panel text) and in the production dialog. The AI adds one carrier per 8 combat ships ([AI Pipeline](./ai-pipeline.md#military-production-and-deployment)); like cruisers it needs Advanced Shipyards, so carriers appear only after that research (typically the second half of a game), not by minute 40. See [Battle Rules](./battle-rules.md#carrier-shield-aura).
 
 ---
 

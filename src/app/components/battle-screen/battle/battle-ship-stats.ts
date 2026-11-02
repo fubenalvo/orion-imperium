@@ -2,6 +2,8 @@ import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
 import planetData from '../../star-map/planet-data.json';
 import { STATION_CORE_STATS } from '../../star-map/station-defense';
+import { CombatClass, getHullClass } from '../../star-map/hull-class';
+import { BATTLE_SPEED_MULTIPLIER } from './battle.types';
 
 /*
  * =========================================================
@@ -29,10 +31,14 @@ export interface BattleShipStats {
   attackType: string;
   weakness: string;
   role: string;
-  /* Real-time movement speed in vw/s (from ship-data.json speed). */
+  /* Size class for the counter cycle; 'structure' for static defenses (hull-class.ts). */
+  hullClass: CombatClass;
+  /* Real-time movement speed in vw/s: ship-data.json speed × BATTLE_SPEED_MULTIPLIER. */
   speed: number;
   /* Shots per second (from ship-data.json fireRate). */
   fireRate: number;
+  /* Passive shield aura: damage reduction for covered allies (carrier), 0 for every other unit. */
+  shieldAura: number;
 }
 
 const TIER_LOOKUP: Record<string, number> = {
@@ -97,8 +103,10 @@ export function getBattleShipStats(
       attackType: shipType.attackType ?? 'kinetic',
       weakness: shipType.weakness ?? 'energy',
       role: shipType.role ?? 'Light Combat',
-      speed: shipType.speed,
+      hullClass: getHullClass(shipType),
+      speed: shipType.speed * BATTLE_SPEED_MULTIPLIER,
       fireRate: shipType.fireRate ?? 1.5,
+      shieldAura: shipType.shieldAura ?? 0,
     };
   }
 
@@ -121,8 +129,10 @@ export function getBattleShipStats(
       attackType: virtual.attackType ?? 'kinetic',
       weakness: virtual.weakness ?? 'energy',
       role: virtual.role ?? 'defense',
+      hullClass: 'structure',
       speed: 0,
       fireRate: VIRTUAL_FIRE_RATE_LOOKUP[typeId] ?? 1.5,
+      shieldAura: 0,
     };
   }
 
@@ -140,7 +150,9 @@ export function getBattleShipStats(
     attackType: 'kinetic',
     weakness: 'energy',
     role: 'Light Combat',
+    hullClass: 'structure',
     speed: 0,
     fireRate: 1.5,
+    shieldAura: 0,
   };
 }

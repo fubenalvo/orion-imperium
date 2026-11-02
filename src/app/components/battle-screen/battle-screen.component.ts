@@ -41,7 +41,9 @@ import {
 import { createBattleState, isSidePlayerControlled } from './battle/battle-state';
 import {
   getAttackTargetIds as computeAttackTargetIds,
-  computeCarrierBoostTargets,
+  computeAuraCoveredStackIds,
+  isShieldAuraSource,
+  shieldAuraRadiusVw,
   checkVictory,
   updateStackPositions,
   regenerateAllShields,
@@ -648,25 +650,33 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     return max > 0 ? Math.max(0, this.selectedTotalHp / max) : 0;
   }
 
-  /* Carrier Shield Pulse availability for the selected player Carrier.
-   * Delegates to BattleCombatService so the button and the action share
-   * the same rules (stationary, off fire cooldown, an ally needs shield). */
-  get canCarrierBoost(): boolean {
-    if (!this.state || !this.canAct) {
-      return false;
+  /*
+   * Carrier shield aura (battle-grid.ts): one ring per living aura source,
+   * on both sides, so the player sees their own and the enemy's aura reach.
+   * Pure reads of battle state, recomputed every frame like the stacks.
+   */
+  get auraRings(): { stackId: string; x: number; y: number; radiusVw: number; side: BattleSide }[] {
+    if (!this.state) {
+      return [];
     }
-    const stack = this.selectedStack();
-    if (!stack || !isSidePlayerControlled(this.state, stack.side)) {
-      return false;
-    }
-    return this.combat.canCarrierBoost(this.state, stack.stackId);
+    return this.state.stacks
+      .filter((s) => isShieldAuraSource(s))
+      .map((s) => ({ stackId: s.stackId, x: s.x, y: s.y, radiusVw: shieldAuraRadiusVw(s), side: s.side }));
   }
 
-  /* Friendly stacks that would be restored by a Shield Pulse. Pure read
-   * of existing state — used only to highlight them in the grid. */
-  get carrierBoostTargetIds(): string[] {
+  /* Friendly stacks currently inside an aura (grid highlight). */
+  get auraCoveredIds(): string[] {
+    return this.state ? computeAuraCoveredStackIds(this.state) : [];
+  }
+
+  /* Selection panel line for a selected carrier: what its aura does. */
+  get selectedAuraText(): string | null {
     const stack = this.selectedStack();
-    return stack && this.state ? computeCarrierBoostTargets(this.state, stack) : [];
+    if (!stack || !isShieldAuraSource(stack)) {
+      return null;
+    }
+    const percent = Math.round((stack.shieldAura ?? 0) * 100);
+    return `SHIELD AURA: this carrier and allies in its range take ${percent}% less damage`;
   }
 
   /* Move line from selected stack to its move target.
@@ -709,18 +719,6 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       from: { x: stack.x ?? 0, y: stack.y ?? 0 },
       to: { x: target.x ?? 0, y: target.y ?? 0 },
     };
-  }
-
-  doCarrierBoost(): boolean {
-    const stack = this.selectedStack();
-    if (!stack || !this.state) {
-      return false;
-    }
-    const success = this.combat.carrierShieldBoost(this.state, stack.stackId);
-    if (success) {
-      this.cdr.detectChanges();
-    }
-    return success;
   }
 
   private startGameLoop(): void {

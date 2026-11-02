@@ -365,23 +365,6 @@
   min-width: calc(var(--hu) * 9);
 }
 
-/* Carrier ability: shield-tinted so it reads as a shield action. */
-.carrier-boost-btn {
-  min-height: 0;
-  padding: calc(var(--hu) * 0.5) calc(var(--hu) * 1.1);
-  border-color: color-mix(in srgb, var(--ui-shield) 55%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--ui-shield) 22%, transparent), color-mix(in srgb, var(--ui-shield) 6%, transparent));
-  color: #bfeaff;
-  font-size: calc(var(--hu) * 0.85);
-  letter-spacing: 0.22em;
-  white-space: nowrap;
-}
-
-.carrier-boost-btn:hover {
-  border-color: var(--ui-shield);
-  box-shadow: 0 0 14px color-mix(in srgb, var(--ui-shield) 45%, transparent);
-}
-
 /* Reserved line height so the error message appearing never moves the
  * buttons above it. */
 .battle-screen__hint {
@@ -573,6 +556,16 @@
   min-width: calc(var(--hu) * 4.5);
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* Carrier shield aura description (selected carrier, either side). */
+.selection-aura {
+  align-self: center;
+  max-width: calc(var(--hu) * 22);
+  color: #bfeaff;
+  font-size: calc(var(--hu) * 0.8);
+  letter-spacing: 0.1em;
+  line-height: 1.25;
 }
 
 .selection-order {

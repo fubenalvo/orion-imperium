@@ -308,6 +308,30 @@
   list-style: none;
 }
 
+.research-tree__card-ships {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Name on its own line, the role line below it: cards are too narrow for both side by side. */
+.research-tree__card-ship {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2em;
+  font-size: var(--ui-fs-xs);
+}
+
+.research-tree__card-ship-name {
+  color: var(--ui-ink);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .research-tree__card-effect {
   display: flex;
   align-items: baseline;

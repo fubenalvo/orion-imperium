@@ -1,4 +1,5 @@
 import type { BattleModelState, BattleStack, GridCell } from './battle.types';
+import { CombatClass, armorFactor, hullClassMultiplier } from '../../star-map/hull-class';
 import { maneuverSpeedFactor } from './battle-heading';
 import {
   BATTLE_GRID_COLUMNS,
@@ -108,18 +109,20 @@ export function canAttack(attacker: BattleStack, target: BattleStack): boolean {
  *
  * Every ship declares one attackType and one weakness in ship-data.json.
  * This table maps (attacker attackType, target weakness) to a per-volley
- * damage multiplier. The target's own weakness type is resisted (0.5x);
- * each attacker type also has one strong matchup (1.5x) and one neutral
- * matchup (1.0x). Pure and deterministic — no randomness, no per-ship
- * abilities, no ammo or cooldowns.
+ * damage multiplier. The target's own weakness type is resisted (0.8x);
+ * each attacker type also has one strong matchup (1.2x) and one neutral
+ * matchup (1.0x). Deliberately milder than the hull-class counter cycle
+ * (hull-class.ts), which is the primary matchup rule: at 1.5x / 0.5x the
+ * weapon type decided most fights and hid the hull roles. Pure and
+ * deterministic.
  */
 
 export type WeaponType = 'kinetic' | 'energy' | 'missile';
 
 const WEAPON_EFFECTIVENESS: Record<WeaponType, Record<WeaponType, number>> = {
-  kinetic: { kinetic: 0.5, energy: 1.5, missile: 1.0 },
-  energy: { kinetic: 1.0, energy: 0.5, missile: 1.5 },
-  missile: { kinetic: 1.5, energy: 1.0, missile: 0.5 },
+  kinetic: { kinetic: 0.8, energy: 1.2, missile: 1.0 },
+  energy: { kinetic: 1.0, energy: 0.8, missile: 1.2 },
+  missile: { kinetic: 1.2, energy: 1.0, missile: 0.8 },
 };
 
 export function weaponMultiplier(attackerType: string, targetWeakness: string): number {
@@ -131,9 +134,31 @@ export function weaponMultiplier(attackerType: string, targetWeakness: string): 
 }
 
 /*
+ * Damage of one REFERENCE volley (the damage per 1 / REFERENCE_FIRE_RATE s,
+ * before the fire-rate split): the stack's summed attack, scaled by the
+ * weapon-type table, the hull-class counter cycle, the front target
+ * ship's armour (a percentage, see hull-class.ts armorFactor) and the
+ * carrier shield aura covering the target (shieldAuraFor), floored with a
+ * minimum of 1. The single formula behind applyVolleyDamage (animated
+ * battle and auto-resolve) and the targeting estimate, so they cannot
+ * drift apart. Stacks without a hull class (hand-built tests) count as
+ * medium.
+ */
+export function referenceVolleyDamage(
+  attacker: { totalAttack: number; attackType: string; hullClass?: CombatClass },
+  target: { defense: number; weakness: string; hullClass?: CombatClass; auraReduction?: number },
+): number {
+  const multiplier =
+    weaponMultiplier(attacker.attackType, target.weakness) *
+    hullClassMultiplier(attacker.hullClass ?? 'medium', target.hullClass ?? 'medium') *
+    (1 - (target.auraReduction ?? 0));
+  return Math.max(1, Math.floor(attacker.totalAttack * multiplier * armorFactor(target.defense)));
+}
+
+/*
  * Applies one shield-regen tick, capped at max. Kept as a single pure
- * helper so per-ship regen, shared planetary-pool regen, and Carrier Shield
- * Pulse cannot drift apart.
+ * helper so per-ship regen and shared planetary-pool regen cannot drift
+ * apart.
  */
 export function applyShieldRegen(current: number, max: number, regen: number): number {
   if (regen <= 0 || max <= 0) {
@@ -578,24 +603,55 @@ export function getAttackTargetIds(state: BattleModelState, stack: BattleStack):
 }
 
 /*
- * Friendly stacks within a Carrier's current attack reach (ids only). Used by
- * the Shield Pulse action and to highlight which allies would be restored.
+ * =========================================================
+ *  CARRIER SHIELD AURA
+ *  =========================================================
+ *
+ * A stack with `shieldAura` > 0 (the carrier, from ship-data.json) is an
+ * aura source while it has a living ship. Every friendly stack covered by
+ * a source (the source itself, or within the source's attack reach — the
+ * same reach as its guns) takes `shieldAura` less damage from every volley
+ * (referenceVolleyDamage). Auras do not stack: a stack takes the strongest
+ * covering aura only, so extra carriers add nothing. The aura is passive;
+ * it never costs the carrier a volley.
+ *
+ * Why a damage reduction and not shield regeneration: fleet battles end in
+ * a few seconds, so a regeneration aura (applied every 2 s) measured as
+ * worthless at any strength (2026-11-02).
+ *
+ * The auto-resolver has no positions (every stack is engaged with every
+ * other); it sets `state.auraCoversAllAllies`, and every ally of a living
+ * source is covered.
  */
-export function computeCarrierBoostTargets(
-  state: BattleModelState,
-  carrier: BattleStack,
-): string[] {
-  if (carrier.typeId !== 'carrier' || carrier.destroyed) {
-    return [];
+export function isShieldAuraSource(stack: BattleStack): boolean {
+  return !stack.destroyed && (stack.shieldAura ?? 0) > 0 && stack.ships.some((s) => s.alive);
+}
+
+/* Radius (vw) of a source's aura: its effective attack reach. */
+export function shieldAuraRadiusVw(source: BattleStack): number {
+  return effectiveAttackRange(source) * BATTLE_RANGE_UNIT_VW;
+}
+
+export function isCoveredByAura(source: BattleStack, stack: BattleStack, coversAll = false): boolean {
+  if (!isShieldAuraSource(source) || stack.destroyed || source.side !== stack.side) return false;
+  return coversAll || source.stackId === stack.stackId || canAttack(source, stack);
+}
+
+/* The strongest aura covering `stack` (0 when none). */
+export function shieldAuraFor(state: BattleModelState, stack: BattleStack, coversAll = state.auraCoversAllAllies ?? false): number {
+  let best = 0;
+  for (const source of state.stacks) {
+    if (isCoveredByAura(source, stack, coversAll)) {
+      best = Math.max(best, source.shieldAura ?? 0);
+    }
   }
+  return best;
+}
+
+/* Living friendly stacks under some aura, excluding the sources themselves (grid highlight). */
+export function computeAuraCoveredStackIds(state: BattleModelState): string[] {
   return state.stacks
-    .filter(
-      (s) =>
-        !s.destroyed &&
-        s.side === carrier.side &&
-        s.stackId !== carrier.stackId &&
-        canAttack(carrier, s),
-    )
+    .filter((s) => !s.destroyed && !isShieldAuraSource(s) && shieldAuraFor(state, s) > 0)
     .map((s) => s.stackId);
 }
 

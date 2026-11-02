@@ -261,22 +261,41 @@
   z-index: var(--z-field);
 }
 
-/* Highlight friendly stacks a selected Carrier could restore with Shield
- * Pulse. Cyan ring — distinct from the red attack-target and orange
- * move-to-attack-target highlights. */
-.stack.carrier-boost-target {
-  border-color: #3ec8ff;
-  animation: carrier-boost-pulse 1.4s ease-in-out infinite;
+/* Carrier shield aura: a soft shield-blue disc with a slowly breathing rim
+ * around every living carrier. Own auras are a little stronger than enemy
+ * ones; both stay below the stacks and never take clicks. Shield blue keeps
+ * it distinct from the accent range ring and the red / orange target
+ * highlights. */
+.aura-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(92, 200, 255, 0.22);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(92, 200, 255, 0.07) 0%, rgba(92, 200, 255, 0.03) 70%, rgba(92, 200, 255, 0.1) 100%);
+  pointer-events: none;
+  z-index: var(--z-field);
+  animation: aura-breathe 3.2s ease-in-out infinite;
 }
 
-@keyframes carrier-boost-pulse {
+.aura-ring--own {
+  border-color: rgba(92, 200, 255, 0.4);
+}
+
+@keyframes aura-breathe {
   0%,
   100% {
-    box-shadow: 0 0 calc(var(--u) * 0.2) rgba(62, 200, 255, 0.5);
+    box-shadow: inset 0 0 calc(var(--u) * 0.6) rgba(92, 200, 255, 0.12);
+    opacity: 0.75;
   }
   50% {
-    box-shadow: 0 0 calc(var(--u) * 0.45) rgba(62, 200, 255, 0.9);
+    box-shadow: inset 0 0 calc(var(--u) * 1.4) rgba(92, 200, 255, 0.28);
+    opacity: 1;
   }
+}
+
+/* Friendly stack inside an aura: steady shield glow. */
+.stack.stack--aura {
+  box-shadow: 0 0 calc(var(--u) * 0.35) rgba(92, 200, 255, 0.55);
 }
 
 .stack__icons {
@@ -629,7 +648,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .stack.attack-target,
-  .stack.carrier-boost-target,
+  .aura-ring,
   .stack.firing,
   .stack__ship::after,
   .connection-line {

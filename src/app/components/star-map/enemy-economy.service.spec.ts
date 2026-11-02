@@ -234,4 +234,61 @@ describe('EnemyEconomyService', () => {
     expect(added.filter((name) => optional.includes(name))).toEqual([]);
     expect(Object.values(production[0]?.ordersByPlanet ?? {}).flat()).toHaveLength(0);
   });
+  describe('hull class choice (counter cycle, hull-class.ts)', () => {
+    const ALL_HULLS = [
+      'basic_engineering', 'advanced_engineering', 'military_engineering', 'orbital_engineering',
+      'advanced_shipyards', 'advanced_weapons', 'capital_ship_technology',
+    ];
+    const armed = (): Faction => ({ ...faction(100000), researchedTechnologies: ALL_HULLS });
+    const rival: Faction = { id: 'enemy2', name: 'Enemy 2', color: '#0f0', team: 3, ai: true, currencies: {} };
+    let nextShipId = 1;
+    const fleetOf = (factionId: string, types: string[], id = nextShipId++): Fleet => ({
+      id,
+      name: `F${id}`,
+      factionId,
+      x: 10,
+      y: 10,
+      targetX: null,
+      targetY: null,
+      speed: 3,
+      system: null,
+      ships: types.map((type) => ({ id: nextShipId++, name: type, type })),
+    });
+    const preferred = (f: Faction, fleets: Fleet[]): string =>
+      (service as unknown as { preferredHullClass(f: Faction, c: EconomyContext): string }).preferredHullClass(f, {
+        ...context(fleets),
+        factions: [f, rival],
+      });
+
+    it('counters the hostile navy it knows: light vs heavy, medium vs light, heavy vs medium', () => {
+      const f = armed();
+      const own = fleetOf('enemy1', ['frigate', 'destroyer', 'battleship']);
+      expect(preferred(f, [own, fleetOf('enemy2', ['dreadnought', 'dreadnought', 'battleship'])])).toBe('light');
+      expect(preferred(f, [own, fleetOf('enemy2', Array(20).fill('fighter'))])).toBe('medium');
+      expect(preferred(f, [own, fleetOf('enemy2', Array(10).fill('cruiser'))])).toBe('heavy');
+    });
+
+    it('without known enemies it fills the base mix', () => {
+      const f = armed();
+      expect(preferred(f, [fleetOf('enemy1', Array(10).fill('frigate'))])).not.toBe('light');
+    });
+
+    it('adds one carrier per 8 warships once the navy is that big, never a carrier-only navy', () => {
+      const f = armed();
+      const select = (fleets: Fleet[]) =>
+        (service as unknown as {
+          selectMilitaryShip(f: Faction, b: { credits: number; rawmaterials: number }, u: number, s: number, c: EconomyContext): { id: string } | undefined;
+        }).selectMilitaryShip(f, { credits: 1e6, rawmaterials: 1e6 }, Infinity, 1, { ...context(fleets), factions: [f, rival] });
+      // A light-hull navy facing light hulls: medium is the preferred class.
+      const enemy = fleetOf('enemy2', Array(20).fill('fighter'));
+      expect(select([fleetOf('enemy1', Array(4).fill('frigate')), enemy])!.id).toBe('cruiser');
+      expect(select([fleetOf('enemy1', Array(8).fill('frigate')), enemy])!.id).toBe('carrier');
+      expect(select([fleetOf('enemy1', [...Array(8).fill('frigate'), 'carrier']), enemy])!.id).toBe('cruiser');
+    });
+
+    it('only considers unlocked classes', () => {
+      const f = { ...faction(100000), researchedTechnologies: ['basic_engineering', 'advanced_engineering'] };
+      expect(preferred(f, [fleetOf('enemy2', ['dreadnought'])])).toBe('light');
+    });
+  });
 });

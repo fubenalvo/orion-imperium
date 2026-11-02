@@ -415,12 +415,15 @@ describe('Research tree UI feedback', () => {
     TestBed.configureTestingModule({});
     const research = TestBed.inject(ResearchService);
     const { StarMapResearchTreeComponent } = await import('../components/star-map/star-map-research-tree/star-map-research-tree.component');
-    const ui = new StarMapResearchTreeComponent(research);
+    const ui = new StarMapResearchTreeComponent(research, TestBed.inject(ShipService));
     ui.faction = faction([], { currencies: { research: 100 } });
     ui.researchPerSecond = 10;
 
     expect(ui.getEffects(research.getTechnology('improved_power')!)).toEqual(['+15% energy from power buildings']);
     expect(ui.getEffects(research.getTechnology('advanced_engineering')!)[0]).toBe('Unlocks ships: Corvette, Frigate');
+    // Combat hulls a technology unlocks are listed for their hull-class role.
+    expect(ui.getUnlockedCombatShips(research.getTechnology('advanced_engineering')!).map((t) => t.id)).toEqual(['corvette', 'frigate']);
+    expect(ui.getUnlockedCombatShips(research.getTechnology('basic_engineering')!).map((t) => t.id)).toEqual(['fighter']);
     expect(ui.getBlockerText(research.getTechnology('fusion_power')!)).toBe('Requires Improved Power');
     // 600 − 100 = 500 RP at 10 RP/s.
     expect(ui.getBlockerText(research.getTechnology('improved_power')!)).toBe('Need 500 more RP (~50 s at 10.0 RP/s)');

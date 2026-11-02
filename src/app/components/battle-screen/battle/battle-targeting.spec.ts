@@ -95,14 +95,14 @@ describe('battle-targeting', () => {
     expect(selectBestTarget(state, atk, 'weakest')!.typeId).toBe('colonizer');
   });
 
-  it('estimates volley damage with the same defense and weapon-matchup rules as combat', () => {
+  it('estimates volley damage with the same armour, weapon and hull-class rules as combat', () => {
     const { state, atk } = mixedSetup();
-    // Battleship: attack 90, kinetic. Scout: defense 2, weakness energy.
-    // WEAPON_EFFECTIVENESS.kinetic.energy = 1.5.
+    // Battleship: attack 105, kinetic, heavy. Scout: defense 2, weakness
+    // energy, light → kinetic vs energy 1.2, heavy vs light 0.75.
     const scout = byType(state, 'scout');
-    expect(expectedVolleyDamage(atk, scout)).toBe(Math.floor((90 - 2) * 1.5));
-    // Dreadnought: defense 28, weakness missile → kinetic vs missile = 1.0.
-    expect(expectedVolleyDamage(atk, byType(state, 'dreadnought'))).toBe(90 - 28);
+    expect(expectedVolleyDamage(atk, scout)).toBe(Math.floor(105 * 1.2 * 0.75 * (100 / 102)));
+    // Dreadnought: defense 35, weakness missile, heavy → 1.0 and 1.0.
+    expect(expectedVolleyDamage(atk, byType(state, 'dreadnought'))).toBe(Math.floor(105 * (100 / 135)));
   });
 
   it('firepower picks the greatest attack output', () => {

@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { BATTLE_SPEED_MULTIPLIER } from './battle.types';
 import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
 import { getBattleShipStats } from './battle-ship-stats';
@@ -29,13 +30,13 @@ describe('battle-ship-stats', () => {
     expect(stats('dreadnought').tier).toBe(5);
   });
 
-  it('uses ShipType.speed for movement speed', () => {
+  it('uses ShipType.speed × BATTLE_SPEED_MULTIPLIER for movement speed', () => {
     for (const typeId of ['fighter', 'frigate', 'cruiser', 'battleship', 'dreadnought']) {
       const s = stats(typeId);
       expect(s.speed).toBeGreaterThan(0);
     }
-    expect(stats('fighter').speed).toBe(5);
-    expect(stats('dreadnought').speed).toBe(1);
+    expect(stats('fighter').speed).toBeCloseTo(5 * BATTLE_SPEED_MULTIPLIER);
+    expect(stats('dreadnought').speed).toBeCloseTo(1 * BATTLE_SPEED_MULTIPLIER);
   });
 
   it('uses range for attack range', () => {
@@ -50,8 +51,15 @@ describe('battle-ship-stats', () => {
   it('carries combat stats from the ship definition', () => {
     const frigate = stats('frigate');
     expect(frigate.maxHp).toBe(130);
-    expect(frigate.attack).toBe(28);
+    expect(frigate.attack).toBe(30);
     expect(frigate.defense).toBe(8);
+  });
+
+  it('carries the hull class, and marks defense buildings as structures', () => {
+    expect(stats('fighter').hullClass).toBe('light');
+    expect(stats('destroyer').hullClass).toBe('medium');
+    expect(stats('dreadnought').hullClass).toBe('heavy');
+    expect(stats('laser_turret').hullClass).toBe('structure');
   });
 
   it('carries weapon type and weakness from the ship definition', () => {
@@ -84,7 +92,7 @@ describe('battle-ship-stats', () => {
     expect(frigate.shieldRegen).toBe(5);
 
     const dreadnought = stats('dreadnought');
-    expect(dreadnought.shield).toBe(400);
+    expect(dreadnought.shield).toBe(480);
     expect(dreadnought.shieldRegen).toBe(6);
   });
 

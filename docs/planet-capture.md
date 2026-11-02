@@ -61,7 +61,7 @@ Simplifications (results can differ from a battle the player would fight):
 
 - no grid movement or range — every stack is engaged with every enemy from the start;
 - no laser bolts: every volley hits instantly, while in the interactive battle a bolt is aimed once and misses a target that moves out of its path (see [Battle Rules](./battle-rules.md#combat));
-- the Carrier Shield Pulse is not used;
+- the carrier shield aura covers every ally of a living carrier (no positions);
 - a battle undecided after 300 s of battle time is a **draw**: the defender holds the planet and neither side is wiped out (the minigame has no time limit).
 
 The AI also uses the resolver as a **forecast** before committing an assault (no game state is touched).

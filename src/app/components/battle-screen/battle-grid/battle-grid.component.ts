@@ -58,7 +58,10 @@ export class BattleGridComponent {
   @Input() orderTargetId: string | null = null;
   /* Effective reach of the selected stack, drawn as a circle. */
   @Input() rangeRing: { x: number; y: number; radiusVw: number } | null = null;
-  @Input() carrierBoostTargetIds: string[] = [];
+  /* Carrier shield aura rings (one per living carrier stack, both sides). */
+  @Input() auraRings: { stackId: string; x: number; y: number; radiusVw: number; side: BattleSide }[] = [];
+  /* Friendly stacks inside an aura: drawn with a soft shield glow. */
+  @Input() auraCoveredIds: string[] = [];
   /* Sides the player controls. Drives the friend/foe markers, which are
    * deliberately independent of faction colors (two factions can have
    * near-identical colors, and the player may be attacker or defender). */
@@ -159,8 +162,8 @@ export class BattleGridComponent {
     return this.attackTargetIds.includes(stackId);
   }
 
-  isCarrierBoostTarget(stackId: string): boolean {
-    return this.carrierBoostTargetIds.includes(stackId);
+  isAuraCovered(stackId: string): boolean {
+    return this.auraCoveredIds.includes(stackId);
   }
 
   stackSize(stack: BattleStack): number {

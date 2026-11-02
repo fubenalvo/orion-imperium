@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
 import { Battle, FleetShip } from './battle.types';
-import { BattleModelState, BattleStack, REFERENCE_FIRE_RATE } from './battle.types';
+import { BattleModelState, BattleStack, FIRE_RATE_MULTIPLIER, REFERENCE_FIRE_RATE } from './battle.types';
 import { createBattleState, getStacks } from './battle-state';
 import { BattleCombatService, segmentHitsStack } from './battle-combat.service';
 import { BattleAnimationService } from './battle-animation.service';
@@ -111,7 +111,7 @@ describe('BattleCombatService', () => {
     return merged;
   };
 
-  it('applies max(1, totalAttack - frontDefense) to the front shield', async () => {
+  it('applies the armour-reduced reference volley to the front shield', async () => {
     const state = setup(
       Array.from({ length: 5 }, (_, i) => fleetShip(i, 'fighter')),
       [fleetShip(100, 'frigate')],
@@ -126,7 +126,8 @@ describe('BattleCombatService', () => {
     await vi.advanceTimersByTimeAsync(5000);
     await p;
 
-    expect(def.ships[0].shield).toBe(shieldBefore - 67);
+    // floor(5 × 15 × 100 / (100 + 8)) = 69: armour is a percentage (hull-class.ts).
+    expect(def.ships[0].shield).toBe(shieldBefore - 69);
     expect(def.ships[0].hp).toBe(hpBefore);
     expect(def.ships[0].alive).toBe(true);
     expect(state.log).toHaveLength(1);
@@ -152,7 +153,8 @@ describe('BattleCombatService', () => {
     );
     expect(dead).toHaveLength(1);
     expect(wounded).toHaveLength(1);
-    expect(wounded[0].hp).toBe(11);
+    // floor(75 × 1.2 × 100 / 102) = 88: 60 kills the first scout, 28 hit the second.
+    expect(wounded[0].hp).toBe(32);
     expect(wounded[0].shield).toBe(0);
     expect(state.log[0].kills).toBe(1);
   });
@@ -303,7 +305,7 @@ describe('BattleCombatService', () => {
     await vi.advanceTimersByTimeAsync(5000);
     await p;
 
-    expect(def.ships[0].shield).toBe(shieldBefore - 7);
+    expect(def.ships[0].shield).toBe(shieldBefore - 13);
     expect(def.ships[0].hp).toBe(def.ships[0].maxHp);
     expect(def.ships[0].alive).toBe(true);
     expect(state.log[0].kills).toBe(0);
@@ -372,7 +374,7 @@ describe('BattleCombatService', () => {
     await p;
 
     expect(def.ships[0].shield).toBe(0);
-    expect(def.ships[0].hp).toBe(21);
+    expect(def.ships[0].hp).toBe(23);
     expect(def.ships[0].alive).toBe(true);
     expect(state.log[0].kills).toBe(0);
   });
@@ -389,8 +391,8 @@ describe('BattleCombatService', () => {
     def.ships[0].hp = 40;
     def.ships[0].maxHp = 40;
     def.ships[1].shield = 10;
-    def.ships[1].hp = 60;
-    def.ships[1].maxHp = 60;
+    def.ships[1].hp = 200;
+    def.ships[1].maxHp = 200;
 
     const p = combat.attackStack(state, atk.stackId, def.stackId);
     await vi.advanceTimersByTimeAsync(5000);
@@ -400,14 +402,16 @@ describe('BattleCombatService', () => {
     expect(def.ships[0].hp).toBe(0);
     expect(def.ships[0].alive).toBe(false);
     expect(def.ships[1].shield).toBe(0);
-    expect(def.ships[1].hp).toBe(41);
+    // floor(198 × 0.8 (energy vs energy) × 1.35 (medium vs light) × 100 / 102) = 209:
+    // 60 for the first ship, 10 shield and 139 hull of the second.
+    expect(def.ships[1].hp).toBe(61);
     expect(def.ships[1].alive).toBe(true);
     expect(def.destroyed).toBe(false);
     expect(state.winner).toBeNull();
     expect(state.log[0].kills).toBe(1);
   });
 
-  it('applies a strong (1.5x) multiplier for the strong matchup', async () => {
+  it('applies a strong (1.2x) multiplier for the strong matchup', async () => {
     const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'scout')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
@@ -420,8 +424,8 @@ describe('BattleCombatService', () => {
     await vi.advanceTimersByTimeAsync(5000);
     await p;
 
-    expect(def.ships[0].hp).toBe(21);
-    expect(state.log[0].damage).toBe(19);
+    expect(def.ships[0].hp).toBe(23);
+    expect(state.log[0].damage).toBe(17);
   });
 
   it('applies a neutral (1.0x) multiplier with no relationship', async () => {
@@ -437,11 +441,11 @@ describe('BattleCombatService', () => {
     await vi.advanceTimersByTimeAsync(5000);
     await p;
 
-    expect(def.ships[0].hp).toBe(123);
-    expect(state.log[0].damage).toBe(7);
+    expect(def.ships[0].hp).toBe(117);
+    expect(state.log[0].damage).toBe(13);
   });
 
-  it('applies a resistant (0.5x) multiplier when the target weakness resists the weapon', async () => {
+  it('applies a resistant (0.8x) multiplier when the target weakness resists the weapon', async () => {
     const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'corvette')]);
     const atk = getStacks(state, 'attacker')[0];
     const def = getStacks(state, 'defender')[0];
@@ -454,8 +458,8 @@ describe('BattleCombatService', () => {
     await vi.advanceTimersByTimeAsync(5000);
     await p;
 
-    expect(def.ships[0].hp).toBe(85);
-    expect(state.log[0].damage).toBe(5);
+    expect(def.ships[0].hp).toBe(79);
+    expect(state.log[0].damage).toBe(11);
   });
 
   it('aims the bolt at the target current visual position, not stale col/row', async () => {
@@ -563,8 +567,8 @@ describe('BattleCombatService', () => {
       atk.destroyed = true;
       await land(p);
 
-      // Same 67 damage as the live 5-fighter volley in the formula test.
-      expect(def.ships[0].shield).toBe(shieldBefore - 67);
+      // Same 69 damage as the live 5-fighter volley in the formula test.
+      expect(def.ships[0].shield).toBe(shieldBefore - 69);
     });
 
     it('stops dealing damage once the battle has a winner', async () => {
@@ -606,114 +610,6 @@ describe('BattleCombatService', () => {
 
     expect(state.log[0].damage).toBe(1);
     expect(def.ships[0].hp).toBe(89);
-  });
-
-  /*
-   * Carrier Shield Pulse. The Carrier uses its action to restore
-   * shieldRegen to every friendly stack within its attack range,
-   * capped at each ship's maxShield. Deterministic and non-damage —
-   * it reuses the same action gates (firing / moving lock) as a normal attack.
-   */
-  it('restores shieldRegen to a damaged friendly stack in range', () => {
-    const state = setup(
-      [fleetShip(0, 'carrier'), fleetShip(1, 'fighter')],
-      [fleetShip(100, 'frigate')],
-    );
-    const carrier = getStacks(state, 'attacker').find((s) => s.typeId === 'carrier')!;
-    const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
-    ally.col = carrier.col + 3;
-    ally.row = carrier.row;
-    syncPosition(ally);
-    ally.ships[0].shield = 10;
-    ally.ships[0].maxShield = 30;
-
-    const ok = combat.carrierShieldBoost(state, carrier.stackId);
-    expect(ok).toBe(true);
-    expect(ally.ships[0].shield).toBe(16);
-  });
-
-  it('caps the boost at each ship maxShield', () => {
-    const state = setup(
-      [fleetShip(0, 'carrier'), fleetShip(1, 'fighter')],
-      [fleetShip(100, 'frigate')],
-    );
-    const carrier = getStacks(state, 'attacker').find((s) => s.typeId === 'carrier')!;
-    const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
-    ally.col = carrier.col + 3;
-    ally.row = carrier.row;
-    syncPosition(ally);
-    ally.ships[0].shield = 28;
-    ally.ships[0].maxShield = 30;
-
-    combat.carrierShieldBoost(state, carrier.stackId);
-    expect(ally.ships[0].shield).toBe(30);
-  });
-
-  it('does not affect the Carrier itself', () => {
-    const state = setup(
-      [fleetShip(0, 'carrier'), fleetShip(1, 'fighter')],
-      [fleetShip(100, 'frigate')],
-    );
-    const carrier = getStacks(state, 'attacker').find((s) => s.typeId === 'carrier')!;
-    const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
-    ally.col = carrier.col + 3;
-    ally.row = carrier.row;
-    syncPosition(ally);
-    carrier.ships[0].shield = 100;
-    carrier.ships[0].maxShield = 220;
-
-    combat.carrierShieldBoost(state, carrier.stackId);
-    expect(carrier.ships[0].shield).toBe(100);
-  });
-
-  it('does not affect stacks out of range', () => {
-    const state = setup(
-      [fleetShip(0, 'carrier'), fleetShip(1, 'fighter')],
-      [fleetShip(100, 'frigate')],
-    );
-    const carrier = getStacks(state, 'attacker').find((s) => s.typeId === 'carrier')!;
-    const ally = getStacks(state, 'attacker').find((s) => s.typeId === 'fighter')!;
-    ally.col = carrier.col + 16; // ≈ 29vw, well beyond reach (4 + 1) * 3.5 = 17.5vw
-    ally.row = carrier.row;
-    syncPosition(ally);
-    ally.ships[0].shield = 10;
-    ally.ships[0].maxShield = 30;
-
-    combat.carrierShieldBoost(state, carrier.stackId);
-    expect(ally.ships[0].shield).toBe(10);
-  });
-
-  it('does not affect enemy stacks', () => {
-    const state = setup(
-      [fleetShip(0, 'carrier'), fleetShip(1, 'fighter')],
-      [fleetShip(100, 'frigate')],
-    );
-    const carrier = getStacks(state, 'attacker').find((s) => s.typeId === 'carrier')!;
-    const enemy = getStacks(state, 'defender')[0];
-    enemy.col = carrier.col + 3;
-    enemy.row = carrier.row;
-    syncPosition(enemy);
-    enemy.ships[0].shield = 50;
-    enemy.ships[0].maxShield = 80;
-
-    combat.carrierShieldBoost(state, carrier.stackId);
-    expect(enemy.ships[0].shield).toBe(50);
-  });
-
-  it('returns false for a non-Carrier stack', () => {
-    const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
-    const atk = getStacks(state, 'attacker')[0];
-    expect(combat.carrierShieldBoost(state, atk.stackId)).toBe(false);
-  });
-
-  it('returns false when the stack is firing', () => {
-    const state = setup(
-      [fleetShip(0, 'carrier'), fleetShip(1, 'fighter')],
-      [fleetShip(100, 'frigate')],
-    );
-    const carrier = getStacks(state, 'attacker').find((s) => s.typeId === 'carrier')!;
-    carrier.firing = true;
-    expect(combat.carrierShieldBoost(state, carrier.stackId)).toBe(false);
   });
 
   /*
@@ -884,11 +780,13 @@ describe('BattleCombatService', () => {
       tank(atk);
       tank(def);
 
-      // fireRate 1.5 → interval ≈ 667 ms: volleys at t≈0, 667, 1333.
-      await runFor(state, 1500);
-      expect(combat.fireIntervalMs(atk)).toBeCloseTo(1000 / 1.5);
-      expect(volleys(state, atk.stackId)).toBe(3);
-      expect(volleys(state, def.stackId)).toBe(3);
+      // fireRate 1.5 → interval I = 667 ms × FIRE_RATE_MULTIPLIER. Weapons
+      // charge one interval first (volleyDecision), so volleys at I and 2I.
+      const interval = (1000 / 1.5) * FIRE_RATE_MULTIPLIER;
+      await runFor(state, 2.25 * interval);
+      expect(combat.fireIntervalMs(atk)).toBeCloseTo(interval);
+      expect(volleys(state, atk.stackId)).toBe(2);
+      expect(volleys(state, def.stackId)).toBe(2);
     });
 
     it('fires each class on its own cadence (fighters often, dreadnoughts rarely)', async () => {
@@ -898,9 +796,10 @@ describe('BattleCombatService', () => {
       placeAdjacent(atk, def);
       tank(atk);
       tank(def);
-      await runFor(state, 2100);
+      await runFor(state, 2100 * FIRE_RATE_MULTIPLIER);
       expect(combat.fireIntervalMs(atk)).toBeLessThan(combat.fireIntervalMs(def));
-      // ~4/s vs ~0.5/s over 2 s (±1 for the per-volley jitter).
+      // 4/s vs 0.5/s (both ÷ FIRE_RATE_MULTIPLIER) over one dreadnought
+      // interval and a bit (±1 for the per-volley jitter).
       expect(volleys(state, atk.stackId)).toBeGreaterThanOrEqual(7);
       expect(volleys(state, def.stackId)).toBeLessThanOrEqual(2);
     });
@@ -914,8 +813,10 @@ describe('BattleCombatService', () => {
       syncPosition(atk);
       tank(atk);
 
-      // Bolt flight over ~10vw ≈ 200 ms; next volley only after ~667 ms.
-      await runFor(state, 500);
+      // Reference cadence (interval I = 667 ms × FIRE_RATE_MULTIPLIER): the
+      // turret charges, fires at I and its bolt crosses ~10vw in ≈230 ms;
+      // the next volley is only due at 2I.
+      await runFor(state, (1000 / 1.5) * FIRE_RATE_MULTIPLIER * 1.5);
       expect(volleys(state, turret.stackId)).toBe(1);
     });
 
@@ -951,7 +852,8 @@ describe('BattleCombatService', () => {
       a1.explicitAttackTargetId = target.stackId;
       a2.explicitAttackTargetId = target.stackId;
 
-      await runFor(state, 400);
+      // Both stacks finish charging after one interval I; the next volleys are due at 2I.
+      await runFor(state, (1000 / 1.5) * FIRE_RATE_MULTIPLIER * 1.5);
 
       expect(target.destroyed).toBe(true);
       const kills = state.log.filter((e) => e.defenderStack === target.stackId);
@@ -978,56 +880,19 @@ describe('BattleCombatService', () => {
       placeAdjacent(atk, def);
       tank(atk);
       tank(def);
-      // A volley is logged when its projectile lands (160 ms after firing).
-      await runFor(state, 200);
+      // Charge one interval I, then a volley is logged when its projectile
+      // lands (160 ms after firing); the next is due at 2I.
+      const interval = (1000 / 1.5) * FIRE_RATE_MULTIPLIER;
+      await runFor(state, interval + 300);
       expect(volleys(state, atk.stackId)).toBe(1);
 
       time.pause();
       await runFor(state, 2000);
       expect(volleys(state, atk.stackId)).toBe(1);
       time.resume();
-      await runFor(state, 700);
+      // Margin for the ±8% per-volley jitter of the second interval.
+      await runFor(state, interval * 1.2);
       expect(volleys(state, atk.stackId)).toBe(2);
-    });
-  });
-
-  describe('Carrier Shield Pulse gating', () => {
-    const carrierSetup = () => {
-      const state = setup(
-        [fleetShip(0, 'carrier'), fleetShip(1, 'fighter'), fleetShip(2, 'fighter')],
-        [fleetShip(100, 'frigate')],
-      );
-      const carrier = getStacks(state, 'attacker').find((s) => s.typeId === 'carrier')!;
-      const [ally, other] = getStacks(state, 'attacker').filter((s) => s.typeId === 'fighter');
-      ally.col = carrier.col + 3;
-      ally.row = carrier.row;
-      syncPosition(ally);
-      ally.ships[0].shield = 0;
-      return { state, carrier, ally, other };
-    };
-
-    it('consumes the carrier fire cooldown, so it cannot be spammed', () => {
-      const { state, carrier, ally } = carrierSetup();
-      expect(combat.carrierShieldBoost(state, carrier.stackId)).toBe(true);
-      expect(ally.ships[0].shield).toBe(6);
-      expect(combat.isFireReady(carrier)).toBe(false);
-      expect(combat.carrierShieldBoost(state, carrier.stackId)).toBe(false);
-      expect(ally.ships[0].shield).toBe(6);
-    });
-
-    it('refuses (and costs nothing) when no ally in reach is missing shield', () => {
-      const { state, carrier, ally } = carrierSetup();
-      ally.ships[0].shield = ally.ships[0].maxShield;
-      expect(combat.canCarrierBoost(state, carrier.stackId)).toBe(false);
-      expect(combat.carrierShieldBoost(state, carrier.stackId)).toBe(false);
-      expect(combat.isFireReady(carrier)).toBe(true);
-    });
-
-    it('is not blocked by another stack animating elsewhere', () => {
-      const { state, carrier, other } = carrierSetup();
-      anim.begin(other.stackId);
-      expect(combat.carrierShieldBoost(state, carrier.stackId)).toBe(true);
-      anim.end(other.stackId);
     });
   });
 });

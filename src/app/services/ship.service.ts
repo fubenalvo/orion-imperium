@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import shipData from '../components/star-map/ship-data.json';
+import { HullClass } from '../components/star-map/hull-class';
 
 export type ProductionBuildingKind = 'spaceship_factory' | 'orbital_factory';
 
@@ -7,6 +8,8 @@ export interface ShipType {
   id: string;
   name: string;
   role: string;
+  /* Size class for the combat counter cycle; see hull-class.ts. */
+  hullClass?: HullClass;
   hitPoints: number;
   shield: number;
   shieldRegen: number;
@@ -31,6 +34,12 @@ export interface ShipType {
   productionBuilding?: ProductionBuildingKind;
   /* Shots per second (from ship-data.json fireRate). */
   fireRate?: number;
+  /*
+   * Passive shield aura (carrier): share of incoming damage that covered
+   * allies do not take. See battle-grid.ts shieldAuraFor and
+   * docs/battle-rules.md#carrier-shield-aura.
+   */
+  shieldAura?: number;
 }
 
 const DEFAULT_BUILD_TIME_PER_COST = 0.1;

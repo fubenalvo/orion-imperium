@@ -1,4 +1,5 @@
 import type { MiningStationRef } from '../../star-map/station-defense';
+import type { CombatClass } from '../../star-map/hull-class';
 /*
  * =========================================================
  * BATTLE MINIGAME — CORE TYPES & CONSTANTS
@@ -38,7 +39,7 @@ export const BATTLE_CELL_HEIGHT_VW = BATTLE_FIELD_HEIGHT_VW / BATTLE_GRID_ROWS;
 export const BATTLE_RANGE_UNIT_VW = 3.5;
 
 /* AI decision interval (ms). Every tick the tactical AI re-plans movement
- * (and Carrier Shield Pulse) for every stack it controls whose
+ * for every stack it controls whose
  * AI_ACTION_COOLDOWN_MS has expired. Firing is NOT an AI decision: all
  * stacks on both sides fire through the shared fire-control pass in
  * BattleCombatService.runFireControl(). */
@@ -50,9 +51,19 @@ export const AI_ACTION_INTERVAL_MS = 400;
 export const AI_ACTION_COOLDOWN_MS = 1000;
 
 /* Global fire-rate multiplier. The interval between two volleys of a stack
- * is (1 / fireRate) s * FIRE_RATE_MULTIPLIER, identical for both sides.
+ * is (1 / fireRate) s * FIRE_RATE_MULTIPLIER, identical for both sides,
+ * while a volley's damage stays the same — so this also divides every
+ * class's damage per second and sets the length of a fight without
+ * changing any matchup. At 1.0 a mid-size fleet battle was over in 5–7 s
+ * of shooting; 3.0 (2026-11-02) makes it ~15–22 s.
  * <1 = faster, >1 = slower. No UI — purely a tuning constant. */
-export const FIRE_RATE_MULTIPLIER = 1.0;
+export const FIRE_RATE_MULTIPLIER = 3.0;
+
+/* Global battle movement multiplier on ship-data `speed` (vw/s). Battle
+ * only: the same `speed` drives galaxy movement, which must not change.
+ * 0.6 (2026-11-02) pairs with FIRE_RATE_MULTIPLIER for slower, readable
+ * battles (approach ~8–10 s instead of ~5 s). */
+export const BATTLE_SPEED_MULTIPLIER = 0.6;
 
 /*
  * Cadence the ship/turret `attack` stats are balanced for (shots/s).
@@ -75,6 +86,30 @@ export const REFERENCE_FIRE_RATE = 1.5;
 export function nextVolleyDueMs(previousDueMs: number | undefined, nowMs: number, intervalMs: number): number {
   const base = previousDueMs != null && nowMs - previousDueMs < intervalMs ? Math.min(previousDueMs, nowMs) : nowMs;
   return base + intervalMs;
+}
+
+/*
+ * Fire decision of a stack whose cooldown has elapsed and that has a target.
+ * Weapons charge: a stack that was idle (no volley due within the last
+ * interval, including the battle start) does not fire at once but starts a
+ * one-interval charge (`fire: false`, next due = now + interval). Without
+ * it every engagement opened with a free full volley, and a slow class
+ * front-loaded up to 2 s of damage at t = 0 (a dreadnought volley wiped a
+ * fighter stack before the fighters fired), breaking the rule that fire
+ * rate never changes damage per second. During sustained fire the volley
+ * goes out and the next one is scheduled with nextVolleyDueMs.
+ * Shared by BattleCombatService.runFireControl and the auto-resolver.
+ */
+export function volleyDecision(
+  previousDueMs: number | undefined,
+  nowMs: number,
+  intervalMs: number,
+): { fire: boolean; nextDueMs: number } {
+  const sustained = previousDueMs != null && previousDueMs > 0 && nowMs - previousDueMs < intervalMs;
+  if (!sustained) {
+    return { fire: false, nextDueMs: nowMs + intervalMs };
+  }
+  return { fire: true, nextDueMs: nextVolleyDueMs(previousDueMs, nowMs, intervalMs) };
 }
 
 /* Share of a reference volley that one volley of this stack deals. */
@@ -118,8 +153,11 @@ export const SNAP_DEADBAND_VW = 0;
  * it was kept in physical units when the grid was doubled. 0 disables it. */
 export const ATTACK_RANGE_TOLERANCE = 1;
 
-/* Shield regeneration interval (ms). All sides regenerate simultaneously. */
-export const SHIELD_REGEN_INTERVAL_MS = 2000;
+/* Shield regeneration interval (ms). All sides regenerate simultaneously.
+ * Scaled with FIRE_RATE_MULTIPLIER (2 s at 1.0) so a slower battle is the
+ * same fight played slower: regen per point of damage dealt — and with it
+ * every hull matchup — stays as balanced. */
+export const SHIELD_REGEN_INTERVAL_MS = 2000 * FIRE_RATE_MULTIPLIER;
 
 /*
  * A stack renders up to MAX_STACK_SIZE ship icons; larger fleets of a
@@ -229,6 +267,10 @@ export interface BattleStack {
   ships: BattleShip[];
   size: number;
   tier: number;
+  /* Size class for the counter cycle (hull-class.ts); stacks are homogeneous by type. Optional for hand-built test stacks (treated as medium). */
+  hullClass?: CombatClass;
+  /* Passive shield aura: damage reduction for covered allies (carrier, from ship-data.json); absent or 0 = none. */
+  shieldAura?: number;
   attackRange: number;
   immobile: boolean;
   moving: boolean;
@@ -276,8 +318,8 @@ export interface BattleStack {
    * targeting mode changes. */
   autoTargetId?: string | null;
 
-  /* Battle-elapsed ms at which this stack may fire its next volley (or
-   * Carrier Shield Pulse). Shared fire-rate cooldown for both sides. */
+  /* Battle-elapsed ms at which this stack may fire its next volley. Shared
+   * fire-rate cooldown for both sides. */
   attackCooldownUntil?: number;
 
   /* Battle-elapsed ms at which the AI may re-plan this stack after its last
@@ -393,6 +435,11 @@ export interface BattleModelState {
    * predate planet battles keep compiling without a new required field.
    */
   defenderShieldPool?: BattleShieldPool | null;
+  /*
+   * Auto-resolve only: there are no positions, so a carrier's shield aura
+   * covers every ally (see battle-grid.ts shieldAuraFor).
+   */
+  auraCoversAllAllies?: boolean;
   /*
    * Fractional damage carried per attacker stackId. A volley of a fast-firing
    * class is a fraction of a reference volley (see REFERENCE_FIRE_RATE);

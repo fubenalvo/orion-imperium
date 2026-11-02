@@ -49,13 +49,13 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 | Frigate Technology | 2 | 1500 | Bonus | +15% shields: all warships |
 | Destroyer Technology | 2 | 1800 | Bonus | +25% damage, +20% shields: Destroyer |
 | Advanced Weapons | 2 | 2400 | Bonus | +15% damage: all warships; prerequisite for capital ships |
-| Advanced Shipyards | 3 | 2600 | Unlock | Cruiser, Carrier |
+| Advanced Shipyards | 3 | 2200 | Unlock | Cruiser, Carrier |
 | Urban Infrastructure | 3 | 3000 | Unlock | Large Residential |
 | Advanced Power | 3 | 2500 | Bonus | +15% energy from power buildings (stacks to +30%) |
 | Applied Science | 3 | 3000 | Bonus | +25% research from research buildings |
 | Long-Range Radar | 3 | 3500 | Bonus | +1 sensor range |
 | Colonization Technology | 3 | 2200 | Bonus | +50% population growth (EconomyService) |
-| Capital Ship Technology | 3 | 5500 | Unlock | Battleship, Battlecruiser, Dreadnought |
+| Capital Ship Technology | 3 | 4500 | Unlock | Battleship, Battlecruiser, Dreadnought |
 | Cruiser Technology | 4 | 4500 | Bonus | +20% damage and shields: Cruiser, Battlecruiser |
 | Carrier Technology | 4 | 4500 | Bonus | −15% ship upkeep (fleet and reserve) |
 | Turret Research I | 1 | 700 | Bonus | +1 defense turret on every space base and mining station (`createBattleState` via the station defense roster, [Territory](./territory.md#station-defense)) |
@@ -66,7 +66,7 @@ Base total: 58,000 points. With cost scaling the full tree costs roughly 70–75
 
 ## Progression rationale
 
-Costs follow prerequisite depth and value (the average cost rises with depth — tested): one-step technologies 400–1000 (bought from the 1000 starting points and the first minutes of research income), two-step 1200–2400, three/four-step 2200–5500. Economic multipliers (energy, raw output, research, upkeep) are moderate (10–25%) so early ones help without making later ones irrelevant; capital ships and the heavy-hull technologies are the expensive late investments. Research competes with the rest of the economy through research-building prices and upkeep (labs cost 1000–3000 credits and 6–12 credits/s).
+Costs follow prerequisite depth and value (the average cost rises with depth — tested): one-step technologies 400–1000 (bought from the 1000 starting points and the first minutes of research income), two-step 1200–2400, three/four-step 2200–4500. The two hull-class unlocks were lowered on 2026-11-02 (Advanced Shipyards 2600 → 2200, Capital Ship Technology 5500 → 4500): each opens a whole [hull class](./battle-rules.md#hull-classes), which should not cost more than the cruiser / carrier stat upgrades (4500); before, most AIs reached the heavy class only after an hour or never. Heavy hulls are still meant for the second half of a game. Economic multipliers (energy, raw output, research, upkeep) are moderate (10–25%) so early ones help without making later ones irrelevant; capital ships and the heavy-hull technologies are the expensive late investments. Research competes with the rest of the economy through research-building prices and upkeep (labs cost 1000–3000 credits and 6–12 credits/s).
 
 Measured in the 30-minute economy validation simulation (`ai-simulation.spec.ts`, 3 AIs medium + 5 AIs large): 10th technology at 7–9 minutes; all depth-1 technologies by 15–26 minutes; only technologists finish the tree (~29 minutes); other personalities hold 20–29 of 31 technologies at 30 minutes. Before this rework the whole tree (then with no-op technologies) was bought in ~3.5 minutes (original costs) and ~20–25 minutes (uniform 5× costs).
 
@@ -76,7 +76,7 @@ Measured in the 30-minute economy validation simulation (`ai-simulation.spec.ts`
 
 ## UI
 
-The research screen shows, per technology: name, flavour description, **Effects** (generated from the data by `ResearchService.describeEffects`, so the text cannot drift from the rules), current price in RP and credits (the part the faction cannot pay is highlighted), prerequisites, what it leads to, status, and why it cannot be researched now (missing prerequisites, or the research points and/or credits still needed, each with the time at current income). An available technology that is not yet affordable also shows a meter of how much of its price is already banked (the scarcer resource decides).
+The research screen shows, per technology: name, flavour description, **Effects** (generated from the data by `ResearchService.describeEffects`, so the text cannot drift from the rules), current price in RP and credits (the part the faction cannot pay is highlighted), prerequisites, what it leads to, status, and why it cannot be researched now (missing prerequisites, or the research points and/or credits still needed, each with the time at current income). An available technology that is not yet affordable also shows a meter of how much of its price is already banked (the scarcer resource decides). A technology that unlocks combat hulls lists each hull with its [hull class](./battle-rules.md#hull-classes) badge and what it beats / is weak to (`HullRoleComponent`, the same texts as the production dialog).
 
 Layout (presentation only, no effect on the rules):
 

@@ -91,6 +91,17 @@
                   </ul>
                 }
 
+                @if (getUnlockedCombatShips(tech).length > 0) {
+                  <ul class="research-tree__card-ships" aria-label="Ship roles">
+                    @for (ship of getUnlockedCombatShips(tech); track ship.id) {
+                      <li class="research-tree__card-ship">
+                        <span class="research-tree__card-ship-name">{{ ship.name }}</span>
+                        <app-hull-role [shipType]="ship" [compact]="true"></app-hull-role>
+                      </li>
+                    }
+                  </ul>
+                }
+
                 @if (tech.prerequisites.length > 0) {
                   <div class="research-tree__card-prereqs">
                     <span class="research-tree__card-prereqs-label">Requires</span>

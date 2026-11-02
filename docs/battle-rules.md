@@ -73,7 +73,9 @@ battle returns to the map.
 ## Real-Time, Speed-Based
 
 Battles are **real-time** — there are no Action Points or turns. Stacks move continuously at
-their `speed` stat (vw/s, 1–5 from `ship-data.json`). Both sides act simultaneously.
+their `speed` stat × `BATTLE_SPEED_MULTIPLIER` (0.6; vw/s, so 0.6–3 from the 1–5 in
+`ship-data.json`). The multiplier is battle-only: the same `speed` drives galaxy movement. Both
+sides act simultaneously.
 
 The `range` stat is the attack range in range units (see [Tactical Grid](#tactical-grid)).
 Virtual defense buildings (turrets) are immobile (speed 0), use their building definition's
@@ -116,7 +118,8 @@ Ships cannot slide sideways or backwards at full speed: they turn into a course.
   is in reach. Stacks may fire while moving.
 - **Fire cadence is per class**, with the same rules for both sides: one volley every
   `(1 / fireRate) s × FIRE_RATE_MULTIPLIER` of battle time. Fleet size doesn't slow down the AI
-  side. `fireRate` comes from `ship-data.json` (turrets: `planet-data.json`):
+  side. `fireRate` comes from `ship-data.json` (turrets: `planet-data.json`); the table lists the
+  data values, actual volleys are `FIRE_RATE_MULTIPLIER` (3) times rarer:
 
   | Class | fireRate (/s) | Class | fireRate (/s) |
   |---|---|---|---|
@@ -132,17 +135,30 @@ Ships cannot slide sideways or backwards at full speed: they turn into a course.
   volley is scheduled from the previous due time (`nextVolleyDueMs`), so frame or step
   rounding never lowers the cadence. After an idle gap it restarts from now, so stacks can't
   store shots for a burst.
+- **Weapons charge.** A stack that was idle (battle start, or no volley due within the last
+  interval) does not fire at once: it charges for one full interval first
+  (`volleyDecision` in `battle.types.ts`, used by fire control and the auto-resolver alike). During
+  sustained fire volleys follow the cadence above. Without the charge every engagement opened with
+  a free full volley, and slow classes front-loaded up to one full interval of damage at t = 0 (a dreadnought
+  volley wiped a fighter stack before the fighters fired).
 - **Fire rate never changes damage per second.** Attack stats are balanced for
   `REFERENCE_FIRE_RATE = 1.5`. A volley deals `volleyShare = REFERENCE_FIRE_RATE / fireRate` of
   a *reference volley* (see damage below): a fighter deals 0.375 of one, 4 times a second, and
-  a dreadnought deals 3 of one, every 2 s. Leftover fractions carry to the stack's next volley
+  a dreadnought deals 3 of one, every 2 s (both at `FIRE_RATE_MULTIPLIER` 1). Leftover fractions carry to the stack's next volley
   (`state.damageCarry`), so damage per second matches the reference exactly. At `fireRate 1.5`
   a volley is exactly the old single volley.
+- **Battle length.** `FIRE_RATE_MULTIPLIER` (3, since 2026-11-02) stretches every interval while a
+  volley keeps its damage, so it divides every class's damage per second equally and sets how long
+  fights last without changing any matchup. `SHIELD_REGEN_INTERVAL_MS` scales with it (6 s), so
+  shield regeneration keeps the same weight per point of damage. Measured shooting time
+  (auto-resolve, all stacks engaged): 5 vs 5 frigates 14 s, 8 vs 8 mixed 18 s, 12 vs 12 destroyers
+  23 s, 40 vs 40 21 s, late 4 dreadnoughts + 8 cruisers per side 43 s (at multiplier 1: 5–7 s and
+  14 s). The approach before it takes roughly 8–10 s at the battle speed multiplier.
   - Fire rate does change *granularity*. Rapid-fire classes waste less overkill and spread
     damage more evenly, so they are slightly more effective against many small targets. Slow
     heavy volleys front-load damage. For example, in auto-resolve, 2 corvettes now beat 4 laser
     turrets without losses, where the old uniform cadence cost both sides 2 ships. With 5 turrets
-    the fight is close again.
+    the fight is close again. (Measured before the hull-class and armour changes below.)
 - **Whom to shoot** follows [Orders and Targeting](#orders-and-targeting).
 - **Reach**: target must be an enemy whose absolute `x/y` centre is within
   `(attackRange + ATTACK_RANGE_TOLERANCE) × BATTLE_RANGE_UNIT_VW` when the volley starts
@@ -166,17 +182,26 @@ Ships cannot slide sideways or backwards at full speed: they turn into a course.
     fixed at the moment of victory.
   - The fire cooldown is independent of flight time; a stack may have more than one bolt in
     flight.
-- **Reference volley = whole stack:** `totalAttack = Σ attack of alive ships in the firing
-  stack`; `raw = max(1, totalAttack − frontTargetShip.defense)`. Defense is per-ship (the
-  front target ship's `defense`), not summed. It's subtracted once per *reference* volley,
-  before the fire-rate split. Subtracting it from each small rapid-fire shot would let armor
-  erase light classes.
-- Weapon effectiveness scales raw damage by the attacker's `attackType` vs the front target
-  ship's `weakness` using the table in `battle-grid.ts`: each attacker type has one strong
-  matchup (1.5×), one neutral matchup (1.0×), and one resisted matchup (0.5×). The target's
-  own `weakness` type is the resisted matchup. `max(1, floor(...))` keeps the damage floor of
-  the reference volley. The applied damage is then `floor(reference × volleyShare + carry)`,
-  which can be 0 for a single light shot, with the remainder carried over.
+- **Reference volley** (`referenceVolleyDamage` in `battle-grid.ts`, the one formula behind
+  combat, auto-resolve and the targeting estimate):
+
+  `max(1, floor(totalAttack × weapon × hullClass × 100 / (100 + defense)))`
+
+  - `totalAttack` = Σ attack of the alive ships in the firing stack.
+  - `weapon`: the attacker's `attackType` vs the front target ship's `weakness`, from the table
+    in `battle-grid.ts`: one strong matchup (1.2×), one neutral (1.0×) and one resisted (0.8×);
+    the target's own `weakness` type is the resisted one. Deliberately milder than the hull-class
+    cycle: at the former 1.5× / 0.5× the weapon type decided most fights and hid the hull roles.
+  - `hullClass`: see [Hull Classes](#hull-classes).
+  - Carrier aura: a covered target takes 15% less, see [Carrier Shield Aura](#carrier-shield-aura).
+  - **Armour** is a percentage: `defense` (of the front target ship) reduces the volley by
+    `defense / (100 + defense)` (defense 28 → −22%). It used to be subtracted flat from each
+    volley, which made armour depend on stacking: fleets of up to 28 ships fight as one-ship
+    stacks, so a fighter's 15 attack minus a dreadnought's 28 defense left 1, while 29 ships in
+    stacks of five lost almost nothing to the same armour.
+
+  The applied damage is then `floor(reference × volleyShare + carry)`, which can be 0 for a
+  single light shot, with the remainder carried over.
 - Shield absorbs damage before hull: each ship's own `shield` absorbs first; only overflow
   reaches hull HP. A stack with no alive ships is destroyed.
 - **Simultaneous fire on one target:** damage is applied when a bolt hits. If the target was
@@ -184,6 +209,53 @@ Ships cannot slide sideways or backwards at full speed: they turn into a course.
   Victory is checked after every hit.
 - Each damaging volley appends a `BattleLogEntry` (round, side, stacks, gross volley damage,
   kills).
+
+## Hull Classes
+
+Every ship type has a `hullClass` in `ship-data.json`. The classes form a counter cycle;
+`src/app/components/star-map/hull-class.ts` is the single source of truth for the table, the
+armour rule and every player-facing text about it, and the AI uses the same table
+([AI Pipeline](./ai-pipeline.md#military-production-and-deployment)).
+
+| Class | Hulls | Strong vs (+35%) | Weak vs (takes +35%) | Why |
+|---|---|---|---|---|
+| Light | scout, fighter, corvette, frigate (and colonizer, outpost ship) | heavy | medium | big guns cannot track small, agile hulls |
+| Medium | destroyer, cruiser, carrier | light | heavy | fast, accurate escort fire |
+| Heavy | battleship, battlecruiser, dreadnought | medium | light | armour and heavy guns |
+
+- Damage multiplier by attacker → target class: strong 1.35×, neutral 1.0×, weak 0.75×.
+- **Siege:** heavy hulls deal 1.5× to static defenses (planet turrets, base and mining-station
+  cores: the `structure` class). Structures deal 1.0× to every class, and light / medium hulls
+  deal 1.0× to them.
+- The class lives on `BattleShipStats.hullClass` and `BattleStack.hullClass` (stacks are
+  homogeneous by type). A stack without a class (hand-built test stacks) counts as medium.
+- The player sees the class and its matchups in the production dialog (badge on every ship
+  card, full role, bonuses and stats for the selected hull) and on every research card that
+  unlocks a combat hull (`HullRoleComponent`, texts from `describeHullRole`).
+
+### Balance check
+
+`hull-balance.spec.ts` resolves every pair of combat hulls (carrier excluded: it is a support
+hull, checked separately in [Carrier Shield Aura](#carrier-shield-aura)) with equal credit budgets, both side assignments, and asserts
+the cycle for every pair at 6,000 and 14,400 credits plus "no hull wins every matchup".
+Measured remaining-budget score of the row hull (+ = row wins), 6,000 credits, 2026-11-02:
+
+| | fighter | corvette | frigate | destroyer | cruiser | battleship | battlecruiser | dreadnought |
+|---|---|---|---|---|---|---|---|---|
+| fighter | · | −0.01 | 0.51 | −0.91 | −0.93 | 0.68 | 0.68 | 0.50 |
+| corvette | 0.01 | · | 0.56 | −0.56 | −0.87 | 0.76 | 0.24 | 0.76 |
+| frigate | −0.51 | −0.56 | · | −0.65 | −0.93 | 0.42 | 0.54 | 0.66 |
+| destroyer | 0.91 | 0.56 | 0.65 | · | −0.47 | −0.82 | −0.75 | −0.80 |
+| cruiser | 0.93 | 0.87 | 0.93 | 0.47 | · | −0.82 | −0.88 | −1.00 |
+| battleship | −0.68 | −0.76 | −0.42 | 0.82 | 0.82 | · | 0.47 | −0.90 |
+| battlecruiser | −0.68 | −0.24 | −0.54 | 0.75 | 0.88 | −0.47 | · | −0.80 |
+| dreadnought | −0.50 | −0.76 | −0.66 | 0.80 | 1.00 | 0.90 | 0.80 | · |
+
+Within a class the later-researched hull is somewhat stronger (cruiser over destroyer,
+dreadnought over the other heavies), which keeps research worthwhile. With very small fleets
+(2,400 credits: 2–3 heavies against 9 destroyers) heavy vs medium is close; the battleship
+loses that one narrowly. Auto-resolve ignores range and movement, so the heavies' longer range
+and the light hulls' agility in the real battle are not part of these numbers.
 
 ## Orders and Targeting
 
@@ -215,7 +287,7 @@ Implemented in `battle-targeting.ts` (target choice), `BattleScreenComponent` (o
 |---|---|---|
 | `balanced` (default) | Original role-aware score: target role priority × 1000 + threat × 10 + role bonus + (range − distance) | — |
 | `strongest` | Highest remaining hull + shield (+ shared planetary shield for immobile turrets) | higher firepower |
-| `weakest` | Fewest reference volleys (= time to kill) for **this** attacker (uses the real damage formula: front defense, weapon matchup, floor 1) | lower durability |
+| `weakest` | Fewest reference volleys (= time to kill) for **this** attacker (uses the real reference-volley formula: front armour, weapon matchup, hull class, floor 1) | lower durability |
 | `firepower` | Highest Σ attack × `REFERENCE_FIRE_RATE` (damage per second; independent of fireRate) | lower durability |
 
 All modes finally break ties by distance (nearer first) and then `stackId`, so selection is
@@ -258,7 +330,7 @@ paused; the star-map `GameTimeService` stays paused during battle. Each frame
 3. **Re-planning** every `MOVE_REPLAN_INTERVAL_MS = 150` ms: manual attack orders re-issue
    their chase; chasing stacks re-plan their destination.
 4. **Fire control** for every stack (see [Combat](#combat)).
-5. **Shield regen** every `SHIELD_REGEN_INTERVAL_MS = 2000` ms for all living ships on both sides,
+5. **Shield regen** every `SHIELD_REGEN_INTERVAL_MS` (2000 ms × `FIRE_RATE_MULTIPLIER` = 6 s) for all living ships on both sides,
    plus the shared planetary shield pool. The `round` counter increments per regen tick.
 6. **Laser bolts and effects** advance (`updateProjectiles`) — also after victory, without
    damage, so the last bolts and explosion play out.
@@ -272,25 +344,45 @@ battle time. Player orders can still be given and take effect on resume.
 - The non-player side is controlled by a deterministic, greedy tactical AI (`BattleAiService`).
   It lives entirely inside the battle-screen module and has no knowledge of the strategic
   `enemy-*` AI layers.
-- The AI decides **movement and Carrier Shield Pulse only**; it never fires (fire control does).
-  Every AI tick, each controlled stack whose `AI_ACTION_COOLDOWN_MS` (1000 ms) has expired and
-  that is not moving gets one decision:
-  1. Carrier: Shield Pulse if an ally in reach is below 50 % shield.
-  2. An enemy is already in reach: hold position.
-  3. Otherwise move-to-attack the nearest enemy (approach fallback when blocked).
+- The AI decides **movement only**; it never fires (fire control does), and the carrier's
+  [shield aura](#carrier-shield-aura) is passive. Every AI tick, each controlled stack whose
+  `AI_ACTION_COOLDOWN_MS` (1000 ms) has expired and that is not moving gets one decision:
+  1. An enemy is already in reach: hold position.
+  2. Otherwise move-to-attack the nearest enemy (approach fallback when blocked).
 - Planet-defense buildings never move (they still fire).
 - **AUTO battle** (header toggle, persisted in `localStorage`, on by default) runs the same AI for
   the **player side only**. It never commands a player stack that holds a manual order (attack
   target, or an in-flight manual move) — manual orders always win. Enabling AUTO does not give the
   enemy extra decisions.
 
-## Carrier Shield Pulse
+## Carrier Shield Aura
 
-Restores the Carrier front ship's `shieldRegen` to every friendly ship within the Carrier's reach
-(capped at `maxShield`). It requires the Carrier to be stationary, not mid-volley and off fire
-cooldown, and at least one ally in reach must be missing shield (otherwise it does nothing and
-costs nothing). It **consumes the Carrier's fire cooldown**, so it replaces a volley and cannot
-be spammed. Other stacks animating elsewhere do not block it.
+The carrier (`shieldAura: 0.15` in `ship-data.json`) projects a passive shield field:
+
+- **Coverage:** the carrier itself and every friendly stack within its gun reach
+  (`(range + ATTACK_RANGE_TOLERANCE) × BATTLE_RANGE_UNIT_VW`, the same reach as its weapons).
+  The auto-resolver has no positions, so there every ally of a living carrier is covered
+  (`state.auraCoversAllAllies`).
+- **Effect:** covered stacks take 15% less damage from every volley — a factor in
+  `referenceVolleyDamage`, so animated combat, auto-resolve and the targeting estimate agree.
+- **No stacking:** a stack takes the strongest covering aura only. Extra carriers add a weak gun
+  and nothing else, so a carrier-only fleet loses to every equal-budget fleet.
+- **Passive:** it never costs the carrier a volley and needs no decision from the player or the
+  tactical AI. It ends when the carrier is destroyed.
+- **Why damage reduction, not regeneration:** fleet battles are over in a few seconds, so an aura
+  that regenerated shield on the regen tick measured as worthless at any strength
+  (2026-11-02). The old Shield Pulse (restores `shieldRegen`, costs a volley) had the same
+  problem and was replaced by the aura.
+- **Carrier stats** were raised with it (hull 420, shield 280, armour 16): the balanced targeting
+  mode shoots fleet-support ships first, and a fragile carrier died before its aura mattered.
+- **Balance check** (`hull-balance.spec.ts`, auto-resolve, equal cost): one carrier with 10
+  destroyers beats 12 destroyers, one with 6 cruisers beats 7 cruisers, one with 20 frigates
+  beats 23 frigates, two with 16 destroyers beat 20 destroyers; 10 carriers lose to 19 destroyers,
+  12 cruisers, 27 frigates and 4 dreadnoughts.
+- **Display:** every living carrier draws a breathing shield-blue disc of its aura reach (own
+  auras slightly brighter than enemy ones), covered friendly stacks get a steady shield-blue
+  glow, and a selected carrier's panel states the effect. The production dialog and research
+  cards show the aura line in the carrier's role (`describeHullRole`).
 
 ## Animation / State Locking
 
@@ -299,8 +391,8 @@ be spammed. Other stacks animating elsewhere do not block it.
   state advanced by `updateProjectiles` on battle time, so they freeze on pause and run faster
   at 2x. The firing stack's `firing` flag (recoil highlight) is derived from its bolts during
   the first `ANIMATION_MS.muzzle` of flight.
-- `BattleAnimationService` keeps its per-stack lock and battle-time `wait()`; fire control and
-  Shield Pulse still respect `isStackBusy`.
+- `BattleAnimationService` keeps its per-stack lock and battle-time `wait()`; fire control
+  still respects `isStackBusy`.
 - The result overlay appears once a winner is set **and** no bolt or effect remains, so the
   final hit is visible.
 - Movement is never blocked by animations.
