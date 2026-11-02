@@ -30,6 +30,7 @@ import {
   BuildingStats,
   PLANET_TYPE_HABITABILITY,
 } from '../components/star-map/star-map.models';
+import { comfortCoverage, comfortNeed, comfortProvided, excessShare, satisfactionTarget, stepSatisfaction } from '../components/star-map/comfort';
 
 /*
  * Multiplier on a faction's gains (credit income, raw and research output;
@@ -155,22 +156,6 @@ export function marginalColonyCost(breakdown: EconomyBreakdown, ownedPlanetCount
  */
 function providesHousing(stats: BuildingStats): boolean {
   return stats.role === 'housing' || stats.role === 'core';
-}
-
-/*
- * Energy part of the satisfaction drift, in points per second:
- * 1 − ENERGY_SHORTFALL_DRIFT_FACTOR × shortfall, floored at
- * ENERGY_MIN_SATISFACTION_DRIFT, where shortfall = 1 − efficiency (0..1).
- * Fully powered → +1/s; 4% short → +0.84/s (still recovering, but output is
- * 4% lower); 25% short → 0; 50% or more short → −1/s. A small overshoot
- * therefore costs output but no longer drives the planet into rebellion.
- */
-export const ENERGY_SHORTFALL_DRIFT_FACTOR = 4;
-export const ENERGY_MIN_SATISFACTION_DRIFT = -1;
-
-export function energySatisfactionDrift(efficiency: number): number {
-  const shortfall = Math.max(0, Math.min(1, 1 - efficiency));
-  return Math.max(ENERGY_MIN_SATISFACTION_DRIFT, 1 - ENERGY_SHORTFALL_DRIFT_FACTOR * shortfall);
 }
 
 export type { ResourceType, ResourceRates, PlanetEconomy };
@@ -304,7 +289,6 @@ export class EconomyService {
 
     const energyBalance = energyProduction - energyConsumption;
     const efficiency = energyProduction >= energyConsumption ? 1.0 : energyProduction / Math.max(energyConsumption, 1);
-    const energyDrift = energySatisfactionDrift(efficiency);
 
     // Satisfaction is clamped to [0, 100]; an independent planet always reads
     // as 0% so the multiplier is consistent even though the planet no longer
@@ -312,6 +296,19 @@ export class EconomyService {
     const rawSatisfaction = planet.factionId === 'independent' ? 0 : (planet.satisfaction ?? 100);
     const satisfaction = Math.max(0, Math.min(100, rawSatisfaction));
     const incomeMultiplier = satisfaction / 100;
+
+    // Comfort need (comfort.ts): the satisfaction target, not a positive
+    // energy drift, is the ceiling. Type and industry offsets only count
+    // above the free population, so the opening keeps 100%.
+    const comfortNeedPoints = comfortNeed(pop, planet.type);
+    const provided = comfortProvided(
+      (planet.buildings ?? []).map((b) => b.name),
+      (name) => this.buildingStatsByName.get(name)?.comfort ?? 0,
+    );
+    const coverage = comfortCoverage(comfortNeedPoints, provided.points);
+    const offsets = comfortNeedPoints > 0 ? habitabilityDrift + moraleBonus : 0;
+    const target = satisfactionTarget(coverage, excessShare(pop), efficiency, offsets, 0);
+    const drift = stepSatisfaction(satisfaction, target, 1) - satisfaction;
 
     return {
       production,
@@ -328,8 +325,12 @@ export class EconomyService {
       workforceEfficiency,
       habitabilityDrift,
       buildingMoraleBonus: moraleBonus,
-      energySatisfactionDrift: energyDrift,
-      satisfactionDrift: energyDrift + habitabilityDrift + moraleBonus,
+      comfortNeed: comfortNeedPoints,
+      comfortProvided: provided.points,
+      comfortFullSet: provided.fullSet,
+      comfortCoverage: coverage,
+      satisfactionTarget: target,
+      satisfactionDrift: drift,
       depositMining,
     };
   }
@@ -556,10 +557,10 @@ export class EconomyService {
    * frame-rate independent. Energy is a flow resource and is NOT stored.
    *
    * Order within a tick:
-   *  1. Satisfaction drift per owned planet (PlanetEconomy.satisfactionDrift):
-   *     the energy part (energySatisfactionDrift: +1/s when fully powered,
-   *     falling with the size of the shortfall down to −1/s) plus
-   *     habitability + building morale; clamped to [0, 100]. A planet in its
+   *  1. Satisfaction per owned planet moves toward its target
+   *     (PlanetEconomy.satisfactionTarget, comfort.ts: comfort coverage with
+   *     its floor × the energy factor, plus type / industry offsets above the
+   *     free population) at COMFORT_CONFIG.drift per second. A planet in its
    *     capture grace (`rebellionGraceSeconds`) never rebels; otherwise one reaching 0
    *     rebels (→ 'independent') BEFORE income is computed, so it neither
    *     pays its old owner nor costs it upkeep on that tick.
@@ -575,8 +576,8 @@ export class EconomyService {
    *  4. Arrears: credits never go below 0. If the treasury cannot cover the
    *     upkeep, the unpaid part is waived and every owned planet loses
    *     satisfaction at ARREARS_MORALE_PENALTY × (unpaid / upkeep) per
-   *     second. A small shortfall is outweighed by the positive energy drift; a
-   *     large one leads toward rebellion unless income recovers or upkeep
+   *     second. A small shortfall is recovered by the move toward the target;
+   *     a large one leads toward rebellion unless income recovers or upkeep
    *     is cut (e.g. by disbanding fleets into the cheaper reserve).
    *  5. Population growth on every owned planet.
    */
@@ -595,12 +596,11 @@ export class EconomyService {
       return this.calculateEconomy(factionId, factions, starSystems, fleets, shipStock);
     }
 
-    // 1) Satisfaction drift and rebellion.
+    // 1) Satisfaction moves toward its comfort target, then rebellion.
     for (const planet of this.getOwnedPlanets(factionId, starSystems)) {
       if (planet.factionId === 'independent') continue;
-      const drift = this.calculatePlanetEconomy(planet, faction).satisfactionDrift;
-      const current = planet.satisfaction ?? 100;
-      planet.satisfaction = Math.max(0, Math.min(100, current + drift * deltaTime));
+      const target = this.calculatePlanetEconomy(planet, faction).satisfactionTarget;
+      planet.satisfaction = stepSatisfaction(planet.satisfaction ?? 100, target, deltaTime);
       // Capture grace (PlanetOwnershipService): no rebellion until it runs out.
       if (planet.rebellionGraceSeconds !== undefined) {
         planet.rebellionGraceSeconds -= deltaTime;
@@ -811,6 +811,11 @@ export class EconomyService {
       habitabilityDrift: economy.habitabilityDrift,
       buildingMoraleBonus: economy.buildingMoraleBonus,
       satisfactionDrift: economy.satisfactionDrift,
+      satisfactionTarget: economy.satisfactionTarget,
+      comfortNeed: economy.comfortNeed,
+      comfortProvided: economy.comfortProvided,
+      comfortFullSet: economy.comfortFullSet,
+      comfortCoverage: economy.comfortCoverage,
       miningRate,
     };
   }

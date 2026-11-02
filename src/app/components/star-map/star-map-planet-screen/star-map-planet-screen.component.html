@@ -387,6 +387,9 @@
                             [class.planet-sidebar__price--short]="causesEnergyShortage(building)"
                             >{{ getBuildingEnergyDelta(building) > 0 ? '+' : '' }}{{ getBuildingEnergyDelta(building) }} EN</span
                           >
+                        }
+                        @if (building.comfort) {
+                          · <span class="planet-sidebar__build-comfort">+{{ building.comfort }} CF</span>
                         }</span
                       >
                     }
@@ -580,7 +583,22 @@
                   </div>
                   <span class="ui-meter">
                     <span class="ui-meter__fill" [style.width.%]="planetEconomy.satisfaction"></span>
+                    <span class="planet-sidebar__satisfaction-target" [style.left.%]="planetEconomy.satisfactionTarget"></span>
                   </span>
+                  <div class="planet-sidebar__comfort">
+                    @if (planetEconomy.comfortNeed > 0) {
+                      <span>
+                        Comfort {{ planetEconomy.comfortProvided | number: '1.0-1' }} / {{ planetEconomy.comfortNeed | number: '1.0-1' }}
+                        ({{ planetEconomy.comfortCoverage * 100 | number: '1.0-0' }}%)
+                        → target {{ planetEconomy.satisfactionTarget | number: '1.0-0' }}%
+                      </span>
+                      @if (planetEconomy.comfortFullSet) {
+                        <span class="planet-sidebar__comfort-set">Full set +15%</span>
+                      }
+                    } @else {
+                      <span>Comfort needed above {{ comfortFreePopulation | number }} people.</span>
+                    }
+                  </div>
                 </div>
               }
             </div>

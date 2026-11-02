@@ -58,6 +58,10 @@ import { DYSON_ANCHOR_SHIP_TYPE } from './dyson-anchor';
  * the faction legitimately knows (its own economy and fleets, perceived
  * hostile fleets), never from other factions' research.
  */
+const COMFORT_BUILDING_IDS = new Set(
+  (planetData as { buildings: { id: string; comfort?: number }[] }).buildings.filter((b) => (b.comfort ?? 0) > 0).map((b) => b.id),
+);
+
 @Injectable({ providedIn: 'root' })
 export class EnemyResearchService {
   static readonly DECISION_INTERVAL = 5;
@@ -80,6 +84,12 @@ export class EnemyResearchService {
     park: 0.2,
     entertainment_center: 0.2,
   };
+  /*
+   * Value of a comfort building (planet-data `comfort` > 0) once a planet
+   * needs comfort (comfort.ts): uncovered population earns less, and the
+   * economy manager builds these from then on (docs/late-economy.md).
+   */
+  private static readonly COMFORT_BUILDING_VALUE = 2.5;
   // Floor so effect-less leftovers (e.g. a bonus for hulls never built) still finish eventually.
   private static readonly MIN_VALUE = 0.05;
   private static readonly SAVE_HORIZON = 180;
@@ -240,8 +250,10 @@ export class EnemyResearchService {
     const owned = starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === faction.id);
     let tightestEnergyMargin = 1;
     let growthRoom = 0;
+    let comfortDemand = 0;
     for (const planet of owned) {
       const e = this.economyService.calculatePlanetEconomy(planet, faction);
+      if (e.comfortNeed > 0) comfortDemand++;
       if (e.energyProduction > 0 || e.energyConsumption > 0) {
         tightestEnergyMargin = Math.min(tightestEnergyMargin, (e.energyProduction - e.energyConsumption) / Math.max(1, e.energyProduction));
       }
@@ -268,6 +280,7 @@ export class EnemyResearchService {
       creditIncome: economy.netPerSecond,
       tightestEnergyMargin,
       growthRoom,
+      comfortDemand,
       planetCount: owned.length,
       stationCount: this.countStations(faction.id, starSystems),
       hasFactory: owned.some((p) => p.buildings.some((b) => b.name === 'Spaceship Factory')),
@@ -356,7 +369,10 @@ export class EnemyResearchService {
       if (this.researchService.isBuildingUnlocked(faction, buildingId)) {
         continue;
       }
-      value += (EnemyResearchService.BUILDING_VALUE[buildingId] ?? 0.2) * ctx.weights.economy;
+      const base = ctx.comfortDemand > 0 && COMFORT_BUILDING_IDS.has(buildingId)
+        ? EnemyResearchService.COMFORT_BUILDING_VALUE
+        : EnemyResearchService.BUILDING_VALUE[buildingId] ?? 0.2;
+      value += base * ctx.weights.economy;
     }
 
     for (const bonus of tech.bonuses ?? []) {
@@ -442,6 +458,8 @@ interface ResearchContext {
   tightestEnergyMargin: number;
   /* Owned planets below 90% of housing capacity. */
   growthRoom: number;
+  /* Owned planets whose population needs comfort (comfort.ts). */
+  comfortDemand: number;
   planetCount: number;
   /* Space bases + mining stations the faction owns (Turret Research targets). */
   stationCount: number;

@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EconomyService, energySatisfactionDrift, marginalColonyCost } from './economy.service';
-import { COLONY_RUNWAY_SECONDS, canSupportCapture, canSupportNewColony } from '../components/star-map/ai-queries';
+import { EconomyService, marginalColonyCost } from './economy.service';
+import { COLONY_RUNWAY_MAX_DEFICIT_SHARE, COLONY_RUNWAY_SECONDS, canSupportCapture, canSupportNewColony } from '../components/star-map/ai-queries';
 import { ShipService } from './ship.service';
 import { EconomyBreakdown, PlanetTile, PlanetType, StarSystem, Faction, Fleet } from '../components/star-map/star-map.models';
+import { satisfactionTarget } from '../components/star-map/comfort';
 
 /*
  * Unit tests for the habitability/morale drift and workforce mechanics added
@@ -83,21 +84,17 @@ describe('EconomyService — habitability & workforce', () => {
     });
   });
 
-  describe('4. entertainment buildings offset negative habitability drift', () => {
-    it('Entertainment Center (+0.08) fully offsets a desert (-0.05)', () => {
+  describe('4. comfort buildings work through comfort points, not morale (comfort.ts)', () => {
+    it('an Entertainment Center adds no morale; its effect is its comfort points', () => {
       const planet = makePlanet(1, 'desert', [b('Entertainment Center')]);
-      expect(economy.getMoraleDriftPerSecond(planet)).toBeCloseTo(-0.05 + 0.08, 5);
-    });
-
-    it('net drift becomes positive when offset', () => {
-      const planet = makePlanet(1, 'desert', [b('Entertainment Center')]);
-      expect(economy.getMoraleDriftPerSecond(planet)).toBeGreaterThan(0);
-    });
-
-    it('Central Park partially offsets ice', () => {
-      const planet = makePlanet(1, 'ice', [b('Central Park')]);
-      // ice -0.08 + park 0.03 = -0.05
       expect(economy.getMoraleDriftPerSecond(planet)).toBeCloseTo(-0.05, 5);
+      expect(economy.calculatePlanetEconomy(planet).comfortProvided).toBe(4);
+    });
+
+    it('a Central Park gives one comfort point on any world', () => {
+      const planet = makePlanet(1, 'ice', [b('Central Park')]);
+      expect(economy.getMoraleDriftPerSecond(planet)).toBeCloseTo(-0.08, 5);
+      expect(economy.calculatePlanetEconomy(planet).comfortProvided).toBe(1);
     });
   });
 
@@ -251,9 +248,8 @@ describe('EconomyService — habitability & workforce', () => {
       planetsTiles: [planet],
     });
 
-    it('desert morale drift (-0.05) is part of the per-second delta', () => {
-      // No buildings => fully powered by the colony core => energy drift +1; morale -0.05.
-      // Expected per-second change = (+1 - 0.05) * deltaTime = 0.95 * deltaTime.
+    it('satisfaction moves toward its target at 1/s of game time (a small desert colony targets 100%)', () => {
+      // Below the free population the type offset does not apply: the target is 100.
       const base = makePlanet(1, 'desert', [], { satisfaction: 90 });
       const cloneAt = (delta: number): PlanetTile => ({ ...base, satisfaction: 90 });
 
@@ -267,7 +263,7 @@ describe('EconomyService — habitability & workforce', () => {
 
       // 3x the game-time delta produces exactly 3x the satisfaction change.
       expect(changeAt3).toBeCloseTo(3 * changeAt1, 5);
-      expect(changeAt1).toBeCloseTo(0.95, 5);
+      expect(changeAt1).toBeCloseTo(1, 5);
     });
 
     it('linear in deltaTime proves 3x speed triples the morale tick', () => {
@@ -275,8 +271,7 @@ describe('EconomyService — habitability & workforce', () => {
       // (see game-time.service.spec.ts); the morale application multiplies
       // the total satisfaction drift by deltaTime, so a 3x delta yields a
       // 3x change. We assert linearity directly.
-      // Solar Array powers the planet (energy balanced => +1/s) and is neutral
-      // for morale; Central Park adds +0.03 morale. Total = 1.03/s.
+      // Toward the target (100%) at COMFORT_CONFIG.drift = 1/s.
       const base = makePlanet(2, 'earthlike', [b('Solar Array'), b('Central Park')], { satisfaction: 80 });
       const run = (delta: number): number => {
         const p = { ...base, satisfaction: 80 };
@@ -285,7 +280,7 @@ describe('EconomyService — habitability & workforce', () => {
       };
       const c1 = run(1);
       const c3 = run(3);
-      expect(c1).toBeCloseTo(1.03, 5);
+      expect(c1).toBeCloseTo(1, 5);
       expect(c3).toBeCloseTo(3 * c1, 5);
     });
   });
@@ -472,12 +467,12 @@ describe('EconomyService — energy shortfall and satisfaction', () => {
     economy.applyEconomyDelta('player', [faction], [system], [], seconds);
   };
 
-  it('energy drift is +1 when powered and falls with the shortfall down to -1', () => {
-    expect(energySatisfactionDrift(1)).toBe(1);
-    expect(energySatisfactionDrift(0.96)).toBeCloseTo(0.84, 6);
-    expect(energySatisfactionDrift(0.75)).toBeCloseTo(0, 6);
-    expect(energySatisfactionDrift(0.5)).toBe(-1);
-    expect(energySatisfactionDrift(0)).toBe(-1);
+  it('an energy shortfall lowers the satisfaction target: 4% short → 92, 25% short → 50, half power → 0', () => {
+    expect(satisfactionTarget(1, 1, 1, 0, 0)).toBe(100);
+    expect(satisfactionTarget(1, 1, 0.96, 0, 0)).toBeCloseTo(92, 6);
+    expect(satisfactionTarget(1, 1, 0.75, 0, 0)).toBeCloseTo(50, 6);
+    expect(satisfactionTarget(1, 1, 0.5, 0, 0)).toBe(0);
+    expect(satisfactionTarget(1, 1, 0, 0, 0)).toBe(0);
   });
 
   it('base values come from the core building: no core, no energy, housing or workforce', () => {
@@ -526,7 +521,7 @@ describe('EconomyService — energy shortfall and satisfaction', () => {
     ]);
     const e = economy.calculatePlanetEconomy(home);
     expect(e.efficiency).toBeLessThan(1);
-    expect(e.energySatisfactionDrift).toBeGreaterThan(0.7);
+    expect(e.satisfactionTarget).toBeGreaterThan(80);
     const before = home.satisfaction!;
     tick(home, 30);
     expect(home.factionId).toBe('player');
@@ -600,12 +595,21 @@ describe('marginalColonyCost / canSupportNewColony (AI over-expansion brake)', (
   });
 
   it('refuses a colony that drives net income negative unless the treasury covers the runway', () => {
-    // net 0 before the colony → negative after it.
-    const b = breakdown(500, 300, 200, 0);
-    const deficit = marginalColonyCost(b, 10);
+    // A small positive net that the colony turns into a small deficit.
+    const b = breakdown(1000, 500, 440, 0);
+    const deficit = marginalColonyCost(b, 10) - b.netPerSecond;
+    expect(deficit).toBeGreaterThan(0);
+    expect(deficit).toBeLessThan(COLONY_RUNWAY_MAX_DEFICIT_SHARE * 1000);
     expect(canSupportNewColony(b, 10, 0)).toBe(false);
     expect(canSupportNewColony(b, 10, deficit * COLONY_RUNWAY_SECONDS - 1)).toBe(false);
     expect(canSupportNewColony(b, 10, deficit * COLONY_RUNWAY_SECONDS + 1)).toBe(true);
+  });
+
+  it('never expands into a large lasting deficit, however full the treasury', () => {
+    // net 0 before: the colony's deficit exceeds the runway's share of income.
+    const b = breakdown(500, 300, 200, 0);
+    expect(marginalColonyCost(b, 10)).toBeGreaterThan(COLONY_RUNWAY_MAX_DEFICIT_SHARE * 500);
+    expect(canSupportNewColony(b, 10, 1e9)).toBe(false);
   });
 
   it('never blocks a faction without planets', () => {
@@ -626,6 +630,11 @@ describe('canSupportCapture (AI conquest brake)', () => {
     expect(canSupportCapture(20, -30, 8, 0)).toBe(false);
     expect(canSupportCapture(20, -30, 8, 30 * COLONY_RUNWAY_SECONDS - 1)).toBe(false);
     expect(canSupportCapture(20, -30, 8, 30 * COLONY_RUNWAY_SECONDS)).toBe(true);
+  });
+
+  it('refuses a deficit above the runway share of income, however full the treasury', () => {
+    expect(canSupportCapture(20, -30, 8, 1e9, 30 / COLONY_RUNWAY_MAX_DEFICIT_SHARE)).toBe(true);
+    expect(canSupportCapture(20, -30, 8, 1e9, 30 / COLONY_RUNWAY_MAX_DEFICIT_SHARE - 1)).toBe(false);
   });
 
   it('never blocks a faction without planets (its recovery route)', () => {

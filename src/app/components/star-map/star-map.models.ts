@@ -33,13 +33,12 @@ export const PLANET_TYPE_COLORS: Record<PlanetType, string> = {
 };
 
 /*
- * Per-second satisfaction drift imposed by a planet's type when it is owned
- * and populated. Habitable worlds (earthlike, gasgiant) impose no penalty;
- * harsher worlds drain satisfaction and must be offset with social
- * infrastructure. This is a *base* drift — building moraleRate bonuses are
- * added on top in EconomyService.applyEconomyDelta.
- *
- * Units: satisfaction points per second (game time).
+ * Satisfaction offset of a planet's type, in the old per-second drift units
+ * (× 100 = percentage points of the satisfaction target, comfort.ts
+ * satisfactionTarget). Habitable worlds (earthlike, gasgiant) impose none.
+ * It applies, with the buildings' moraleRate, only on a planet above the
+ * comfort free population. Population growth also reads it
+ * (habitabilityMultiplier = 1 + value).
  */
 export const PLANET_TYPE_HABITABILITY: Record<PlanetType, number> = {
   earthlike: 0,
@@ -883,12 +882,24 @@ export interface PlanetEconomy {
   workforceEfficiency: number;
   habitabilityDrift: number;
   buildingMoraleBonus: number;
-  /* Energy part of the satisfaction drift (economy.service energySatisfactionDrift), points/s. */
-  energySatisfactionDrift: number;
+  /* Comfort (comfort.ts, docs/late-economy.md): points needed by the population above the free amount. */
+  comfortNeed: number;
+  /* Comfort points the planet's buildings provide, full-set bonus included. */
+  comfortProvided: number;
+  /* All four comfort kinds are on the planet (the full-set bonus applies). */
+  comfortFullSet: boolean;
+  /* provided / need, 0 … 1 (1 when nothing is needed). */
+  comfortCoverage: number;
   /*
-   * Total satisfaction change per second the economy tick applies before
-   * arrears: energy part + habitability + building morale. Negative means
-   * the planet is heading toward rebellion at 0%.
+   * The satisfaction the planet moves toward, 0 … 100: comfort coverage
+   * (with the floor) × the energy factor, plus the type / industry offsets
+   * above the free population (comfort.ts satisfactionTarget).
+   */
+  satisfactionTarget: number;
+  /*
+   * Satisfaction change over the next second before arrears (toward the
+   * target at COMFORT_CONFIG.drift). Negative means falling; the planet
+   * heads for rebellion only when the target itself is 0.
    */
   satisfactionDrift: number;
   /*
@@ -961,6 +972,12 @@ export interface PlanetEconomyEntry {
   buildingMoraleBonus: number;
   /* See PlanetEconomy.satisfactionDrift (arrears not included). */
   satisfactionDrift: number;
+  /* Comfort and the satisfaction target: see the PlanetEconomy fields of the same names. */
+  satisfactionTarget: number;
+  comfortNeed: number;
+  comfortProvided: number;
+  comfortFullSet: boolean;
+  comfortCoverage: number;
   /* Effective raw/s this planet's mines extract from its deposit (included in production). */
   miningRate: number;
 }
@@ -997,6 +1014,8 @@ export interface BuildingStats {
   workforce?: number;
   providesWorkforce?: number;
   moraleRate?: number;
+  /* Comfort points the building provides (comfort.ts); 0/missing for non-comfort buildings. */
+  comfort?: number;
   defense?: {
     type: string;
     attack?: number;

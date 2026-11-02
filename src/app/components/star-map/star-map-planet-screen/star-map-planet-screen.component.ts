@@ -50,6 +50,7 @@ import {
   surfaceHazeColor,
 } from '../planet-surface/planet-surface-renderer';
 import { SettlementLayout, computeSettlementLayout } from '../planet-surface/planet-settlement';
+import { COMFORT_CONFIG } from '../comfort';
 
 export interface BuildingType {
   id: string;
@@ -62,6 +63,8 @@ export interface BuildingType {
   population: number;
   workforce: number;
   moraleRate: number;
+  /* Comfort points (comfort.ts); missing for non-comfort buildings. */
+  comfort?: number;
   energyConsumption: number;
   energyProduction: number;
   production?: ResourceRates;
@@ -367,16 +370,21 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   /*
    * Seconds until the planet rebels at its current satisfaction drift, or
-   * null when satisfaction is not falling. A planet under capture
-   * protection cannot rebel before the protection ends.
+   * null when it is not heading for 0%. Satisfaction moves toward its
+   * target (comfort.ts), so only a target of 0 (a severe energy shortage)
+   * ends in rebellion. A planet under capture protection cannot rebel
+   * before the protection ends.
    */
   get secondsToRebellion(): number | null {
     const economy = this.planetEconomy;
-    if (!economy || economy.satisfactionDrift >= 0) return null;
+    if (!economy || economy.satisfactionDrift >= 0 || economy.satisfactionTarget > 0) return null;
     const grace = this.rebellionGraceSeconds ?? 0;
     if (economy.satisfaction <= 0 && grace === 0) return null;
     return Math.max(grace, Math.ceil(economy.satisfaction / -economy.satisfactionDrift));
   }
+
+  /* Comfort line under satisfaction (comfort.ts): always shown, also below the free population. */
+  readonly comfortFreePopulation = COMFORT_CONFIG.freePopulation;
 
   activeTab: PlanetSidebarTab = 'details';
   isBuildMode = false;

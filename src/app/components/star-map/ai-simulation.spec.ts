@@ -39,7 +39,8 @@ import { DysonRingService } from './dyson-ring.service';
 import { DysonVictoryService } from './dyson-victory.service';
 
 /* Non-combat hulls: colonizers and outpost ships (consumed when used). */
-const isCivilianShip = (type: string) => type === 'colonizer' || type === OUTPOST_SHIP_TYPE;
+// Civilian ships are consumed by their mission (colony, station, Dyson anchor); combat accounting skips them.
+const isCivilianShip = (type: string) => type === 'colonizer' || type === OUTPOST_SHIP_TYPE || type === 'swarm_constructor';
 
 /*
  * =========================================================
@@ -528,9 +529,10 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     for (const ships of produced.producedShips) {
       const trace = traces.get(ships.factionId);
       if (!trace) continue;
-      if (ships.typeId === OUTPOST_SHIP_TYPE) {
-        // Outpost ships (EnemyMiningService) are consumed by mining stations;
-        // they are neither colonizers nor combat ships.
+      if (ships.typeId === OUTPOST_SHIP_TYPE || ships.typeId === 'swarm_constructor') {
+        // Outpost ships (EnemyMiningService) and Swarm Constructors
+        // (EnemyDysonService) are consumed by their stations; they are
+        // neither colonizers nor combat ships.
       } else if (ships.typeId === 'colonizer') {
         trace.colonizersProduced += ships.count;
       } else {
@@ -2291,4 +2293,193 @@ describe('AI simulation — Dyson Swarm', () => {
       expect(trace.arrearsTicks, `${r.who} ticks in arrears`).toBeLessThanOrEqual(10);
     }
   }, 300_000);
+});
+
+/*
+ * Late-game economy measurement (docs/late-economy.md). runEconomyScenario
+ * samples every AI faction at minutes 30 / 60 / 90 and tracks the longest
+ * negative-net streak, so the report and the acceptance test read the same
+ * numbers. The report itself is opt-in (ORION_ECONOMY_REPORT=1) because it
+ * runs two 90-minute games; the acceptance test runs by default.
+ */
+interface EconomySample {
+  minute: number;
+  who: string;
+  planets: number;
+  population: number;
+  income: number;
+  /* Share of gross income that comes from population, %. */
+  populationShare: number;
+  net: number;
+  /* Credits/s: buildings, administration, ships, stations. */
+  expenses: number[];
+  credits: number;
+  /* Credit stock in minutes of gross income. */
+  creditMinutes: number;
+  raw: number;
+  techs: number;
+  avgSatisfaction: number;
+  /* Average comfort coverage of planets above the free population, % (100 without such planets). */
+  avgCoverage: number;
+  /* The three most populous planets: type, population / capacity, comfort provided / need, satisfaction -> target, buildings. */
+  top: string[];
+}
+
+interface EconomySummary {
+  who: string;
+  personality: string;
+  spaceportAt: number | null;
+  firstColonyAt: number | null;
+  colonizations: number;
+  warships: number;
+  arrearsTicks: number;
+  failedOrders: number;
+  rebellions: number;
+  techs: number;
+  /* Longest run of consecutive seconds with a negative net income. */
+  longestNegativeNet: number;
+  income30: number;
+  /* Planets gained / lost: "<minute>m<from" and "<minute>m>to". */
+  gains: string[];
+  losses: string[];
+}
+
+// ORION_ECONOMY_MINUTES (comma-separated) overrides the sample minutes of the opt-in report.
+const ECONOMY_SAMPLE_MINUTES = String((globalThis as any).process?.env?.['ORION_ECONOMY_MINUTES'] ?? '30,60,90').split(',').map(Number);
+
+function runEconomyScenario(options: ScenarioOptions) {
+  const economy = TestBed.inject(EconomyService);
+  const samples: EconomySample[] = [];
+  const negativeRun = new Map<string, number>();
+  const longestNegative = new Map<string, number>();
+  const income30 = new Map<string, number>();
+  let lastSecond = -1;
+  const result = runScenario({
+    ...options,
+    onFrame: (data, time) => {
+      options.onFrame?.(data, time);
+      const second = Math.floor(time);
+      if (second === lastSecond) return;
+      lastSecond = second;
+      const minute = second / 60;
+      const sampling = Number.isInteger(minute) && ECONOMY_SAMPLE_MINUTES.includes(minute);
+      for (const f of data.factions.filter((x) => x.ai)) {
+        const b = economy.calculateEconomy(f.id, data.factions, data.starSystems, data.fleets, data.shipStock);
+        const run = b.netPerSecond < 0 ? (negativeRun.get(f.id) ?? 0) + 1 : 0;
+        negativeRun.set(f.id, run);
+        longestNegative.set(f.id, Math.max(longestNegative.get(f.id) ?? 0, run));
+        if (!sampling) continue;
+        if (minute === 30) income30.set(f.id, b.incomePerSecond);
+        const planets = data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === f.id);
+        const population = planets.reduce((n, p) => n + (p.population ?? 0), 0);
+        const coverages = planets
+          .map((p) => economy.calculatePlanetEconomy(p, f) as { comfortNeed?: number; comfortCoverage?: number })
+          .filter((e) => (e.comfortNeed ?? 0) > 0)
+          .map((e) => e.comfortCoverage ?? 1);
+        samples.push({
+          minute,
+          who: `${f.id}/${f.aiPersonality}`,
+          planets: planets.length,
+          population: Math.round(population),
+          income: Math.round(b.incomePerSecond),
+          populationShare: Math.round((100 * population * 0.085 * (b.incomePerSecond > 0 ? 1 : 0)) / Math.max(1, b.incomePerSecond)),
+          net: Math.round(b.netPerSecond),
+          expenses: [b.buildingUpkeepPerSecond, b.administrationPerSecond, b.shipUpkeepPerSecond, b.stationUpkeepPerSecond].map(Math.round),
+          credits: Math.round(f.currencies['credits'] ?? 0),
+          creditMinutes: Math.round(((f.currencies['credits'] ?? 0) / Math.max(1, b.incomePerSecond * 60)) * 10) / 10,
+          raw: Math.round(f.currencies['rawmaterials'] ?? 0),
+          techs: (f.researchedTechnologies ?? []).length,
+          avgSatisfaction: Math.round(planets.reduce((n, p) => n + (p.satisfaction ?? 100), 0) / Math.max(1, planets.length)),
+          avgCoverage: coverages.length === 0 ? 100 : Math.round((100 * coverages.reduce((n, c) => n + c, 0)) / coverages.length),
+          top: [...planets].sort((a, b) => (b.population ?? 0) - (a.population ?? 0)).slice(0, 3).map((p) => {
+            const e = economy.calculatePlanetEconomy(p, f);
+            return `${p.type}:${Math.round(p.population ?? 0)}/${Math.round(economy.getPopulationCapacity(p))} cf ${e.comfortProvided.toFixed(1)}/${e.comfortNeed.toFixed(1)} sat ${Math.round(p.satisfaction ?? 100)}->${Math.round(e.satisfactionTarget)} b${p.buildings.length}`;
+          }),
+        });
+      }
+    },
+  });
+  const summaries: EconomySummary[] = result.data.factions.filter((f) => f.ai).map((f) => {
+    const trace = result.traces.get(f.id)!;
+    return {
+      who: f.id,
+      personality: String(f.aiPersonality),
+      spaceportAt: trace.spaceportAt,
+      firstColonyAt: trace.firstColonizationAt,
+      colonizations: trace.colonizations,
+      warships: trace.combatShipsProduced,
+      arrearsTicks: trace.arrearsTicks,
+      failedOrders: trace.failedOrders,
+      rebellions: result.ownershipChanges.filter((c) => c.from === f.id && c.to === 'independent').length,
+      techs: (f.researchedTechnologies ?? []).length,
+      longestNegativeNet: longestNegative.get(f.id) ?? 0,
+      income30: Math.round(income30.get(f.id) ?? 0),
+      gains: result.ownershipChanges.filter((c) => c.to === f.id).map((c) => `${Math.round(c.time / 60)}m<${c.from}`),
+      losses: result.ownershipChanges.filter((c) => c.from === f.id).map((c) => `${Math.round(c.time / 60)}m>${c.to}`),
+    };
+  });
+  return { result, samples, summaries };
+}
+
+const ECONOMY_SCENARIOS: Record<string, ScenarioOptions> = {
+  'medium/3': {
+    size: 'medium', aiCount: 3, seconds: 5400, dt: 1 / 10, continueAfterOutcome: true, resolvePlayerFleetBattles: true,
+    prepare: withPersonalities(['technologist', 'militarist', 'balanced']),
+  },
+  'large/4': {
+    size: 'large', aiCount: 4, seconds: 5400, dt: 1 / 10, seed: 4242, continueAfterOutcome: true, resolvePlayerFleetBattles: true,
+    prepare: withPersonalities(['balanced', 'expansionist', 'militarist', 'technologist']),
+  },
+};
+
+describe.runIf((globalThis as any).process?.env?.['ORION_ECONOMY_REPORT'] === '1')('AI simulation — late economy report (opt-in)', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  for (const [label, options] of Object.entries(ECONOMY_SCENARIOS)) {
+    it(`report: ${label}, 90 minutes`, () => {
+      const { samples, summaries } = runEconomyScenario(options);
+      (globalThis as any).process?.stdout?.write(`ECONOMY REPORT ${label} ${JSON.stringify({ samples, summaries })}\n`);
+    }, 900_000);
+  }
+});
+
+/*
+ * Acceptance test of the late-economy rules (docs/late-economy.md,
+ * "Acceptance criteria"): the large map with all four personalities, 90
+ * minutes. Before comfort, every empire kept 18–34% of its gross income as
+ * surplus at minute 90; now no personality may get stuck while doing so.
+ */
+describe('AI simulation — late economy', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('large map, 4 personalities, 90 minutes: lower late surplus, no stuck AI', () => {
+    const { result, samples, summaries } = runEconomyScenario(ECONOMY_SCENARIOS['large/4']);
+    const economy = TestBed.inject(EconomyService);
+    for (const s of summaries) {
+      const label = `${s.who}/${s.personality}`;
+      expect(s.arrearsTicks, `${label} arrears`).toBeLessThanOrEqual(10);
+      expect(s.rebellions, `${label} rebellions`).toBe(0);
+      expect(s.failedOrders, `${label} rejected orders`).toBe(0);
+      expect(s.longestNegativeNet, `${label} negative-net streak (s)`).toBeLessThanOrEqual(300);
+      expect(s.techs, `${label} technologies`).toBeGreaterThanOrEqual(20);
+      expect(s.warships, `${label} warships`).toBeGreaterThan(0);
+      expect(s.colonizations, `${label} colonies`).toBeGreaterThanOrEqual(3);
+    }
+    for (const s of samples.filter((x) => x.minute === 90)) {
+      expect(s.net / s.income, `${s.who} late net share`).toBeLessThanOrEqual(0.2);
+    }
+    // The rule bites: every AI has planets that need comfort by minute 90.
+    for (const f of result.data.factions.filter((x) => x.ai)) {
+      const owned = result.data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId === f.id);
+      expect(owned.some((p) => economy.calculatePlanetEconomy(p, f).comfortNeed > 0), `${f.id} comfort need`).toBe(true);
+    }
+  }, 900_000);
 });

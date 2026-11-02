@@ -11,8 +11,8 @@ import { Faction, PlanetTile } from './star-map.models';
  * ~6 credits/s of upkeep (~0.4 credits per unit), and warships cost about
  * three times their credit price in raw materials.
  *
- * Rules (same for every faction; only the player uses it today — the AI
- * has no trade logic and never builds the post, see ai-pipeline.md):
+ * Rules (same for every faction; the AI buys raw materials here when it is
+ * raw-bound with surplus credits, EnemyEconomyService.buyRawMaterials):
  * - the planet must be owned by the trader and carry a Trading Post;
  * - a trade is atomic: it either happens in full or not at all;
  * - credits are whole units: a purchase rounds the price up, a sale rounds

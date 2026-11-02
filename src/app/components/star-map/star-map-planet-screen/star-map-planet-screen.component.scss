@@ -596,6 +596,39 @@
   line-height: 1.35;
 }
 
+.planet-sidebar__satisfaction .ui-meter {
+  position: relative;
+}
+
+/* Where satisfaction is heading (comfort.ts target). */
+.planet-sidebar__satisfaction-target {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ui-ink);
+  opacity: 0.8;
+}
+
+.planet-sidebar__build-comfort {
+  color: var(--ui-success, #7bd66b);
+}
+
+.planet-sidebar__comfort {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.2em 0.6em;
+  margin-top: 0.3em;
+  color: var(--ui-ink-dim);
+  font-size: 0.85em;
+}
+
+.planet-sidebar__comfort-set {
+  color: var(--ui-success, #7bd66b);
+}
+
 .planet-sidebar__satisfaction--warn {
   --meter-color: var(--ui-warning);
 }

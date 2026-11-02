@@ -357,6 +357,12 @@ export class EnemyActionService {
     const atTarget = this.isFleetAtSystem(fleetWithColonizer, system);
 
     if (atTarget) {
+      // The brake again at the moment of colonizing: a colonizer ordered
+      // while the economy was strong could otherwise settle once it no
+      // longer can carry the planet. The fleet waits at the target.
+      if (!this.canAffordNewColony(factionId, factions, starSystems, fleets, shipStock)) {
+        return this.createAction('develop', factionId, goal, undefined, undefined, undefined, 'colony_upkeep_unaffordable');
+      }
       return this.createAction('colonize', factionId, goal, planet.id, goal.targetSystemId, planet.id, 'Fleet with colonizer is at the target planet');
     }
 

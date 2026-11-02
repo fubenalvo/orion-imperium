@@ -95,11 +95,26 @@ export function getColonizationReach(faction: Faction | undefined): number {
 export const COLONY_RUNWAY_SECONDS = 300;
 
 /*
+ * The runway only covers a small deficit: at most this share of gross
+ * credit income. The deficit a new planet causes (administration share and
+ * upkeep scale on the whole empire) is permanent, and once comfort upkeep
+ * thinned late margins (docs/late-economy.md) a large treasury let an
+ * expansionist grow into a lasting negative net (14 planets, −116/s).
+ */
+export const COLONY_RUNWAY_MAX_DEFICIT_SHARE = 0.02;
+
+function runwayCovers(netAfter: number, credits: number, income: number): boolean {
+  return -netAfter <= COLONY_RUNWAY_MAX_DEFICIT_SHARE * income
+    && Math.max(0, credits) >= -netAfter * COLONY_RUNWAY_SECONDS;
+}
+
+/*
  * Over-expansion brake for the AI: one more planet raises administration
  * and the empire upkeep scale on the whole empire (marginalColonyCost).
  * The faction may start another colony only if its net credit income stays
  * non-negative afterwards, or its credits cover the resulting deficit for
- * COLONY_RUNWAY_SECONDS. Without this an expansionist kept colonizing at
+ * COLONY_RUNWAY_SECONDS, as long as that deficit stays small
+ * (COLONY_RUNWAY_MAX_DEFICIT_SHARE). Without this an expansionist kept colonizing at
  * ~0 net income and ended in permanent upkeep arrears.
  */
 export function canSupportNewColony(
@@ -109,7 +124,7 @@ export function canSupportNewColony(
 ): boolean {
   if (ownedPlanetCount === 0) return true;
   const netAfter = breakdown.netPerSecond - marginalColonyCost(breakdown, ownedPlanetCount);
-  return netAfter >= 0 || Math.max(0, credits) >= -netAfter * COLONY_RUNWAY_SECONDS;
+  return netAfter >= 0 || runwayCovers(netAfter, credits, breakdown.incomePerSecond);
 }
 
 /*
@@ -119,14 +134,21 @@ export function canSupportNewColony(
  * planet keeps its population and buildings, satisfaction at least
  * CAPTURE_MIN_SATISFACTION, and the empire pays the higher administration
  * share and upkeep scale). A capture is allowed when the faction stays
- * solvent, when the treasury covers the deficit for COLONY_RUNWAY_SECONDS,
- * when the capture improves the net (a struggling faction may still take a
+ * solvent, when the treasury covers a small deficit (at most
+ * COLONY_RUNWAY_MAX_DEFICIT_SHARE of `income`; no cap without it) for
+ * COLONY_RUNWAY_SECONDS, when the capture improves the net (a struggling faction may still take a
  * rich world), or when the faction owns no planet (its recovery route).
  * Without it a militarist conquered its way to ~-200 credits/s for the rest
  * of a game (QA 2026-11-01).
  */
-export function canSupportCapture(netBefore: number, netAfter: number, ownedPlanetCount: number, credits: number): boolean {
+export function canSupportCapture(
+  netBefore: number,
+  netAfter: number,
+  ownedPlanetCount: number,
+  credits: number,
+  income = Infinity,
+): boolean {
   if (ownedPlanetCount === 0) return true;
   if (netAfter >= 0 || netAfter > netBefore) return true;
-  return Math.max(0, credits) >= -netAfter * COLONY_RUNWAY_SECONDS;
+  return runwayCovers(netAfter, credits, income);
 }

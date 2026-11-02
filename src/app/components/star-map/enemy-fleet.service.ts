@@ -909,7 +909,7 @@ export class EnemyFleetService {
     for (const candidate of candidates) {
       if (affordable.length >= 3) break;
       const netAfter = this.projectedNetAfterCapture(faction, factions, real, candidate.planet);
-      if (canSupportCapture(before.netPerSecond, netAfter, ownedCount, faction.currencies['credits'] ?? 0)) {
+      if (canSupportCapture(before.netPerSecond, netAfter, ownedCount, faction.currencies['credits'] ?? 0, before.incomePerSecond)) {
         affordable.push(candidate);
       }
     }

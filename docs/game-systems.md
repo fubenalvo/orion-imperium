@@ -225,6 +225,7 @@ When no fleet battle started, `checkBaseBattles()` starts a static-defense battl
 - **Building stats** are read once from `planet-data.json` (indexed by `id` and by `name`) and applied generically, so adding a new building requires no code change.
 - **Population** contributes `population * 0.1` credits/s as a planet-level production source.
 - **Upkeep** is charged every economy tick: `maintenanceCost` points (× 0.3 credits) per building instance and per non-destroyed ship in non-destroyed fleets, half rate for ships in the stock, plus colony administration (3% of planet income per planet beyond the first, max 45%). At 0 credits unpaid upkeep costs satisfaction (arrears).
+- **Satisfaction** moves toward a per-planet target (1 point/s): comfort coverage of the population above 5,000, an energy-shortage factor and small type/industry offsets. Satisfaction multiplies credit income and growth; comfort is the late-game counterweight to population income ([Economy](./economy.md#comfort), [Late Economy](./late-economy.md)).
 - The same service exposes `getPlanetTax(planet)` (legacy `pop*0.1 + factories*500`) and `getPlanetEnergy(planet)` for callers that still expect them.
 - `EconomyService.applyEconomyDelta()` is called once per second for every faction. It mutates `faction.currencies`, planet satisfaction/population and (on rebellion) ownership; it never changes the saved snapshot directly.
 

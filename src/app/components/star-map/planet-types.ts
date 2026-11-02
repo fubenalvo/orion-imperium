@@ -3,7 +3,7 @@ import { PlanetType } from './star-map.models';
 /*
  * Planet type traits — the single source of truth for what a planet's type
  * changes in the economy (docs/economy.md, "Planet types"). Habitability
- * (satisfaction drift) stays in PLANET_TYPE_HABITABILITY.
+ * (satisfaction offset) stays in PLANET_TYPE_HABITABILITY, the comfort factor in comfort.ts.
  *
  * Design: the earthlike world is the ideal home (every factor 1). Every
  * other type is a trade-off: a lower population ceiling (= less credit

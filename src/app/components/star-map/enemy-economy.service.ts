@@ -12,7 +12,8 @@ import {
   StarSystem,
 } from './star-map.models';
 import { centerOutPlacementOrder, getPlanetGridSize, isFootprintBlocked } from './planet-surface/planet-surface';
-import { EconomyService } from '../../services/economy.service';
+import { EconomyService, POPULATION_CREDIT_RATE, administrationShare } from '../../services/economy.service';
+import { comfortNeed, comfortProvided } from './comfort';
 import { ResearchService } from '../../services/research.service';
 import { ShipService } from '../../services/ship.service';
 import { ProductionService } from '../../services/production.service';
@@ -27,7 +28,7 @@ import { hostileFactionIds } from './diplomacy';
 import { depositMiningBlocker, DEPOSIT_MINING_BUILDING_NAMES } from './raw-deposits';
 import { isCivilianMissionFleet } from './space-base';
 import { isBuildingLimitReached } from './building-placement';
-import { TRADING_POST_NAME } from './trade';
+import { TRADING_POST_NAME, TRADE_BUY_CREDITS_PER_RAW, executeTrade, hasTradingPost } from './trade';
 import { TRADING_POST_EXPECTED_INCOME } from './trade-network';
 
 const BANK_NAME = 'Bank';
@@ -64,10 +65,13 @@ const BANK_NAME = 'Bank';
  *  - Buildings, fleet ships and stocked ships pay upkeep every economy
  *    tick (EconomyService.applyEconomyDelta). Credits never go negative:
  *    unpaid upkeep (arrears) drains satisfaction toward rebellion, and a
- *    large energy deficit does the same (down to -1/s, in proportion to
- *    the shortfall; EconomyService.energySatisfactionDrift).
- *  - Credit income is population × 0.1 × satisfaction; population is
+ *    large energy deficit lowers the satisfaction target (0 at a 50%
+ *    shortfall; comfort.ts satisfactionTarget).
+ *  - Credit income is population × 0.085 × satisfaction; population is
  *    capped by housing capacity, so housing is the real growth building.
+ *    Above COMFORT_CONFIG.freePopulation a planet needs comfort buildings
+ *    (comfort.ts): uncovered population lowers the satisfaction target,
+ *    so the comfort tier runs before growth housing.
  *  - Ships are built by Spaceship Factories into the faction-wide stock;
  *    leaving the stock requires a Spaceport (FleetAssemblyService).
  *    FleetAssemblyService.reinforceFleet does not check where the fleet
@@ -110,6 +114,9 @@ interface BuildingDef {
   production?: { credits?: number };
   workforce?: number;
   energyConsumption?: number;
+  maintenanceCost?: number;
+  /* Comfort points (comfort.ts); comfort buildings only. */
+  comfort?: number;
 }
 
 interface ConstructionDecision {
@@ -121,9 +128,21 @@ interface ConstructionDecision {
 
 type PlanetEconomySnapshot = ReturnType<EconomyService['calculatePlanetEconomy']>;
 
-type UpkeepTier = 'emergency' | 'core' | 'optional';
+/*
+ * 'net': the purchase must keep the projected net non-negative, with no
+ * treasury runway (comfort: a building whose upkeep exceeds the income it
+ * restores must not push a faction into a lasting deficit).
+ */
+type UpkeepTier = 'emergency' | 'core' | 'net' | 'optional';
 
 interface ConstructionRule {
+  /*
+   * Credit income/s the building is expected to add on this planet (the
+   * comfort tier's satisfaction gain). It is deducted from the building's
+   * upkeep like a Bank's output, so an investment that pays for itself is
+   * allowed even at a negative net: the way out of a poverty trap.
+   */
+  incomeGain?: (planet: PlanetTile, building: BuildingDef) => number;
   /*
    * Whether this tier must leave the spending reserve untouched: entirely,
    * or only its credit part ('credits': mines, which produce the raw
@@ -141,6 +160,8 @@ interface ConstructionBudget {
   upkeepAllowance: number;
   /* The faction's empire upkeep scale; a new building's upkeep is priced with it. */
   upkeepScale: number;
+  /* The rule's ConstructionRule.incomeGain. */
+  incomeGain?: ConstructionRule['incomeGain'];
   /*
    * Core buildings the faction still lacks (Spaceport, Spaceship Factory),
    * the owned planets, and how many of the missing ones fit right now. No
@@ -166,6 +187,12 @@ export class EnemyEconomyService {
   private static readonly COOLDOWN_EPSILON = 1e-6;
   // A planet at this fraction of its housing capacity gets more housing.
   private static readonly HOUSING_GROWTH_THRESHOLD = 0.9;
+  // The comfort tier builds while a planet's coverage is below this.
+  private static readonly AI_COMFORT_TARGET = 1;
+  // Share of a housing block's expected net income counted before its people arrive (housingIncomeGain).
+  private static readonly HOUSING_GAIN_DISCOUNT = 0.5;
+  // Growth housing waits for comfort below this coverage (waitsForComfort).
+  private static readonly AI_COMFORT_MIN_FOR_HOUSING = 0.8;
   /*
    * Military target, in ShipService.calculateFleetStrength units (a
    * fighter is ~26, a destroyer ~84): a peacetime baseline per owned
@@ -249,10 +276,19 @@ export class EnemyEconomyService {
    * housing that creates income.
    */
   private static readonly CORE_RUNWAY_SECONDS = 300;
+  // Raw purchases (buyRawMaterials) leave this much gross income in credits untouched, and buy in lots of this size.
+  private static readonly RAW_PURCHASE_MARGIN_SECONDS = 300;
+  private static readonly RAW_PURCHASE_LOT = 500;
+  // Negative-net time after which an idle fleet goes into the reserve (reserveWeakestIdleFleet).
+  private static readonly DEFICIT_RESERVE_SECONDS = 120;
   private static readonly FACTORY_NAME = 'Spaceship Factory';
 
   private readonly accumulators = new Map<string, number>();
   private readonly constructionCooldowns = new Map<string, number>();
+  // Seconds of game time each faction's projected net has been negative in a row (decision granularity).
+  private readonly deficitSeconds = new Map<string, number>();
+  // deficitSeconds value at the faction's last reserveWeakestIdleFleet.
+  private readonly lastReserveAt = new Map<string, number>();
 
   constructor(
     private readonly economyService: EconomyService,
@@ -268,6 +304,8 @@ export class EnemyEconomyService {
   reset(): void {
     this.accumulators.clear();
     this.constructionCooldowns.clear();
+    this.deficitSeconds.clear();
+    this.lastReserveAt.clear();
   }
 
   /*
@@ -297,10 +335,82 @@ export class EnemyEconomyService {
     }
     this.accumulators.set(faction.id, Math.max(0, accumulator - EnemyEconomyService.DECISION_INTERVAL));
 
+    const net = this.getProjectedNet(faction, starSystems, context).net;
+    const deficit = net < 0 ? (this.deficitSeconds.get(faction.id) ?? 0) + EnemyEconomyService.DECISION_INTERVAL : 0;
+    this.deficitSeconds.set(faction.id, deficit);
+
     let changed = this.tryConstruct(faction, starSystems, context);
+    changed = this.buyRawMaterials(faction, starSystems, context) || changed;
     changed = this.manageMilitaryProduction(faction, starSystems, context) || changed;
-    changed = this.deployStockedCombatShips(faction, starSystems, context) || changed;
+    // Stocked ships pay half upkeep: in a lasting deficit they stay in the
+    // reserve, and every DEFICIT_RESERVE_SECONDS one more idle fleet joins
+    // them while the treasury cannot carry the deficit.
+    const lasting = deficit >= EnemyEconomyService.DEFICIT_RESERVE_SECONDS;
+    if (!lasting) {
+      this.lastReserveAt.delete(faction.id);
+      changed = this.deployStockedCombatShips(faction, starSystems, context) || changed;
+    } else if (deficit - (this.lastReserveAt.get(faction.id) ?? 0) >= EnemyEconomyService.DEFICIT_RESERVE_SECONDS
+      && (faction.currencies['credits'] ?? 0) < -net * EnemyEconomyService.CORE_RUNWAY_SECONDS
+      && this.reserveWeakestIdleFleet(faction, starSystems, context)) {
+      this.lastReserveAt.set(faction.id, deficit);
+      changed = true;
+    }
     return changed;
+  }
+
+  /*
+   * buyRawMaterials: the raw-bound surplus (docs/late-economy.md). A
+   * faction that cannot pay the raw part of its next warships but holds
+   * credits beyond its spending reserve plus RAW_PURCHASE_MARGIN_SECONDS of
+   * gross income buys the missing raw materials at its Trading Post, at the
+   * player's rate (trade.ts executeTrade). At most what two of its preferred
+   * warships lack, in whole lots, so the expensive exchange turns surplus
+   * credits into ships rather than a raw-material hoard.
+   */
+  private buyRawMaterials(faction: Faction, starSystems: StarSystem[], context: EconomyContext): boolean {
+    if (!this.isRawConstrained(faction)) return false;
+    const post = this.getOwnedPlanetsSorted(faction.id, starSystems).find((p) => hasTradingPost(p));
+    if (!post) return false;
+    const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
+    if (!ship) return false;
+    const finances = this.getProjectedNet(faction, starSystems, context);
+    const reserve = this.getSpendingReserve(faction, starSystems, context, true);
+    const spendable = (faction.currencies['credits'] ?? 0) - reserve.credits - shipCost(ship, 2).credits
+      - Math.max(0, finances.income) * EnemyEconomyService.RAW_PURCHASE_MARGIN_SECONDS;
+    const missing = shipCost(ship, 2).rawmaterials + reserve.rawmaterials - (faction.currencies['rawmaterials'] ?? 0);
+    const lot = EnemyEconomyService.RAW_PURCHASE_LOT;
+    const amount = Math.min(Math.ceil(missing / lot), Math.floor(spendable / (lot * TRADE_BUY_CREDITS_PER_RAW))) * lot;
+    if (amount <= 0) return false;
+    return executeTrade(faction, post, 'buyRaw', amount).ok;
+  }
+
+  /*
+   * reserveWeakestIdleFleet: the poverty-trap exit (docs/late-economy.md).
+   * After DEFICIT_RESERVE_SECONDS of negative net with a treasury that
+   * cannot carry it, the faction moves its weakest idle combat fleet parked
+   * at one of its Spaceports into the reserve (RESERVE_SHIP_UPKEEP_FACTOR:
+   * half upkeep), the player's rule (docs/fleet-organization.md). At most one
+   * fleet per DEFICIT_RESERVE_SECONDS; the reserve redeploys once the net
+   * is no longer negative.
+   */
+  private reserveWeakestIdleFleet(faction: Faction, starSystems: StarSystem[], context: EconomyContext): boolean {
+    const spaceports = this.getSortedSpaceports(faction.id, starSystems);
+    const atSpaceport = (f: Fleet) => spaceports.some(
+      (sp) => Math.floor(f.x) === Math.floor(sp.system.x) && Math.floor(f.y) === Math.floor(sp.system.y),
+    );
+    const fleet = context.fleets
+      .filter((f) =>
+        f.factionId === faction.id
+        && !f.destroyed
+        && f.targetX === null
+        && f.ships.some((s) => !s.destroyed && isCombatShipType(this.shipService.getShipType(s.type)))
+        && !f.ships.some((s) => !s.destroyed && !isCombatShipType(this.shipService.getShipType(s.type)))
+        && !isCivilianMissionFleet(f)
+        && atSpaceport(f))
+      .map((f) => ({ f, strength: this.shipService.calculateFleetStrength(f.ships.filter((s) => !s.destroyed)) }))
+      .sort((a, b) => a.strength - b.strength || a.f.id - b.f.id)[0]?.f;
+    if (!fleet) return false;
+    return this.fleetAssemblyService.disbandFleet({ fleets: context.fleets, shipStock: context.shipStock }, faction.id, fleet.id).ok;
   }
 
   /*
@@ -550,6 +660,7 @@ export class EnemyEconomyService {
   private upkeepAllowance(tier: UpkeepTier, finances: { income: number; net: number }, credits: number): number {
     if (tier === 'emergency') return Infinity;
     if (tier === 'core') return finances.net + Math.max(0, credits) / EnemyEconomyService.CORE_RUNWAY_SECONDS;
+    if (tier === 'net') return finances.net;
     return finances.net - finances.income * EnemyEconomyService.OPTIONAL_BUILDING_MARGIN_SHARE;
   }
 
@@ -568,6 +679,8 @@ export class EnemyEconomyService {
     const finances = this.getProjectedNet(faction, starSystems, context);
     const rawConstrained = this.isRawConstrained(faction);
     const hasActiveMine = planets.some((p) => depositMiningBlocker(p) === null && this.countMines(p) > 0);
+    const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(p, faction)] as const));
+    const needsComfort = [...economies.values()].some((e) => e.comfortNeed > 0);
 
     const rules: ConstructionRule[] = [
       {
@@ -619,11 +732,18 @@ export class EnemyEconomyService {
         // Housing raises the population cap and therefore income: it only
         // has to keep net income non-negative. Only the largest unlocked
         // block is built (saving up for it if needed): cheap small blocks
-        // would fill the surface with low-capacity housing.
+        // would fill the surface with low-capacity housing. Once the
+        // faction's planets need comfort, new people cost about what they
+        // earn (comfort, power, administration) and pay only after they
+        // arrive, so housing may no longer use the treasury runway: a wide
+        // expansionist otherwise grew into a lasting deficit.
         respectsReserve: true,
-        upkeep: 'core',
-        candidates: (planet) =>
-          this.needsHousingGrowth(planet)
+        upkeep: needsComfort ? 'net' : 'core',
+        incomeGain: needsComfort
+          ? (planet, building) => this.housingIncomeGain(faction, planet, building, administrationShare(planets.length), finances.upkeepScale)
+          : undefined,
+        candidates: (planet, economy) =>
+          this.needsHousingGrowth(planet) && !this.waitsForComfort(faction, planet, economy)
             ? [...this.unlockedByRole(faction, 'housing')].sort((a, b) => (b.population ?? 0) - (a.population ?? 0)).slice(0, 1)
             : [],
       },
@@ -660,7 +780,6 @@ export class EnemyEconomyService {
       },
     ];
 
-    const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(p, faction)] as const));
     // Sites protected from other construction (see choosePlacement): the
     // missing Spaceport and factory, and the first mine on a live deposit —
     // without this, cheaper buildings can surround the deposit tile before
@@ -720,11 +839,20 @@ export class EnemyEconomyService {
       upkeep: 'optional',
       candidates: (planet, economy) => this.commerceCandidates(faction, planet, planets, economy),
     };
+    // Comfort (comfort.ts, docs/late-economy.md): a core tier, before growth
+    // housing, and also while stabilizing, since missing comfort is one of
+    // the reasons a planet's satisfaction falls.
+    const comfortTier: ConstructionRule = {
+      respectsReserve: false,
+      upkeep: 'net',
+      candidates: (planet, economy) => this.comfortCandidates(faction, planet, economy),
+      incomeGain: (planet, building) => this.comfortIncomeGain(faction, planet, building, administrationShare(planets.length)),
+    };
     const ordered = posture.primary === 'stabilize'
-      ? core
+      ? [...core, comfortTier]
       : researchFirst
-        ? [...core, miningTier, ...researchTiers, defenseTier, growthTier, commerceTier, factoryTier]
-        : [...core, miningTier, defenseTier, growthTier, ...researchTiers, commerceTier, factoryTier];
+        ? [...core, miningTier, comfortTier, ...researchTiers, defenseTier, growthTier, commerceTier, factoryTier]
+        : [...core, miningTier, defenseTier, comfortTier, growthTier, ...researchTiers, commerceTier, factoryTier];
 
     // While the navy is below target, optional buildings also leave upkeep
     // headroom for the next warship (the upkeep counterpart of the credit
@@ -744,6 +872,7 @@ export class EnemyEconomyService {
         upkeepAllowance: this.upkeepAllowance(rule.upkeep, finances, faction.currencies['credits'] ?? 0)
           - (rule.upkeep === 'optional' ? militaryUpkeepReserve : 0),
         upkeepScale: finances.upkeepScale,
+        incomeGain: rule.incomeGain,
         coreSites,
       };
       if (rule.respectsReserve) {
@@ -752,7 +881,12 @@ export class EnemyEconomyService {
           : researchStarved && (rule === researchTier || rule === researchUpgradeTier)
             ? (researchReserve ??= this.getSpendingReserve(faction, starSystems, context, false))
             : (reserve ??= this.getSpendingReserve(faction, starSystems, context, true));
-        budget.cost.credits -= applied.credits;
+        // Growth housing that pays for itself (comfort era, incomeGain) does
+        // not wait for research credits: at a thin net, research otherwise
+        // took every credit above its reserve and a faction stopped growing
+        // for 40 minutes (large map, balanced, 2026-11-02 measurement).
+        const researchShare = rule === growthTier && needsComfort ? this.researchCreditReserve(faction) : 0;
+        budget.cost.credits -= Math.max(0, applied.credits - researchShare);
         if (rule.respectsReserve !== 'credits') budget.cost.rawmaterials -= applied.rawmaterials;
       }
       for (const planet of planets) {
@@ -784,7 +918,8 @@ export class EnemyEconomyService {
       // budget, so it is allowed even when the headroom is already used up.
       const netUpkeep = this.economyService.getBuildingUpkeepPerSecond(building.name, faction, planetUpkeepScale)
         - (building.production?.credits ?? 0)
-        - (building.name === TRADING_POST_NAME ? TRADING_POST_EXPECTED_INCOME : 0);
+        - (building.name === TRADING_POST_NAME ? TRADING_POST_EXPECTED_INCOME : 0)
+        - (budget.incomeGain?.(planet, building) ?? 0);
       if (netUpkeep > 0 && netUpkeep > budget.upkeepAllowance) {
         continue;
       }
@@ -900,6 +1035,85 @@ export class EnemyEconomyService {
        */
       workforceOk: building.role === 'power' || workforceAfter >= Math.min(0, workforceBefore),
     };
+  }
+
+  /*
+   * comfortCandidates: Comfort buildings for a planet whose coverage is
+   * below AI_COMFORT_TARGET, best first: the most needed comfort it adds
+   * (points beyond the need are wasted, a completed full set adds its
+   * bonus) per upkeep point. A small gap therefore gets a Park, not an
+   * Entertainment Center.
+   */
+  private comfortCandidates(faction: Faction, planet: PlanetTile, economy: PlanetEconomySnapshot): BuildingDef[] {
+    if (!(economy.comfortNeed > 0) || economy.comfortCoverage >= EnemyEconomyService.AI_COMFORT_TARGET) return [];
+    const pointsOf = (name: string) => this.findBuildingByName(name)?.comfort ?? 0;
+    const names = planet.buildings.map((b) => b.name);
+    const covered = Math.min(economy.comfortNeed, economy.comfortProvided);
+    const score = (b: BuildingDef) =>
+      (Math.min(economy.comfortNeed, comfortProvided([...names, b.name], pointsOf).points) - covered) / Math.max(1, b.maintenanceCost ?? 0);
+    return this.buildings()
+      .filter((b) => (b.comfort ?? 0) > 0 && this.researchService.isBuildingUnlocked(faction, b.id))
+      .map((b) => ({ b, score: score(b) }))
+      .sort((x, y) => y.score - x.score)
+      .map((x) => x.b);
+  }
+
+  /*
+   * Credit income/s a comfort building adds: the planet's population income
+   * times the rise of its satisfaction target, after colony administration
+   * (which takes its share of every credit the planet earns). Zero once the
+   * planet is covered, so it never justifies over-building.
+   */
+  private comfortIncomeGain(faction: Faction, planet: PlanetTile, building: BuildingDef, adminShare: number): number {
+    if (!(building.comfort && building.comfort > 0)) return 0;
+    const before = this.economyService.calculatePlanetEconomy(planet, faction);
+    const after = this.economyService.calculatePlanetEconomy({
+      ...planet,
+      buildings: [...planet.buildings, { name: building.name, size: building.size, x: -1, y: -1 }],
+    }, faction);
+    const rise = Math.max(0, after.satisfactionTarget - before.satisfactionTarget) / 100;
+    return (planet.population ?? 0) * POPULATION_CREDIT_RATE * rise * (1 - adminShare);
+  }
+
+  /*
+   * Expected credit income/s of a housing block once its people have
+   * arrived, net of what they cost: their income at the planet's
+   * satisfaction target after administration, minus the comfort upkeep
+   * their need adds (cheapest comfort per point) and the power upkeep of
+   * the block's energy, discounted by HOUSING_GAIN_DISCOUNT because the
+   * people arrive over minutes. With it, growth that pays for itself is
+   * still built at a zero net (the 'net' tier); without it a faction whose
+   * planets were full stopped growing for good.
+   */
+  private housingIncomeGain(faction: Faction, planet: PlanetTile, building: BuildingDef, adminShare: number, upkeepScale: number): number {
+    const people = building.population ?? 0;
+    if (people <= 0) return 0;
+    const economy = this.economyService.calculatePlanetEconomy(planet, faction);
+    const scale = upkeepScale * planetTypeTraits(planet.type).buildingUpkeep;
+    const upkeepPerComfort = Math.min(...this.buildings()
+      .filter((b) => (b.comfort ?? 0) > 0)
+      .map((b) => this.economyService.getBuildingUpkeepPerSecond(b.name, faction, scale) / (b.comfort ?? 1)));
+    const population = planet.population ?? 0;
+    const comfortCost = (comfortNeed(population + people, planet.type) - comfortNeed(population, planet.type)) * upkeepPerComfort;
+    const power = this.findBuilding('fusion_plant');
+    const energyCost = power
+      ? ((building.energyConsumption ?? 0) * this.economyService.getBuildingUpkeepPerSecond(power.name, faction, scale)) / 100
+      : 0;
+    const income = people * POPULATION_CREDIT_RATE * (economy.satisfactionTarget / 100) * (1 - adminShare);
+    return (income - comfortCost) * EnemyEconomyService.HOUSING_GAIN_DISCOUNT - energyCost;
+  }
+
+  /*
+   * waitsForComfort: growth housing waits while the planet's comfort is
+   * below AI_COMFORT_MIN_FOR_HOUSING and a comfort building could still go
+   * there; otherwise the credits keep going into housing whose new people
+   * only add to the uncovered need. With no comfort building unlocked or
+   * placeable, housing goes on (it still raises income).
+   */
+  private waitsForComfort(faction: Faction, planet: PlanetTile, economy: PlanetEconomySnapshot): boolean {
+    if (!(economy.comfortNeed > 0) || economy.comfortCoverage >= EnemyEconomyService.AI_COMFORT_MIN_FOR_HOUSING) return false;
+    const gridSize = getPlanetGridSize(planet);
+    return this.comfortCandidates(faction, planet, economy).some((b) => this.findValidPlacement(planet, b, gridSize) !== undefined);
   }
 
   /*
@@ -1048,7 +1262,10 @@ export class EnemyEconomyService {
     const profile = getAiPersonalityProfile(faction).commerce;
     const rich = (faction.currencies['credits'] ?? 0) > EnemyEconomyService.COMMERCE_RICH_CREDITS;
     const bankShare = rich ? profile.richBankShare : profile.bankShare;
-    const postLimit = rich ? profile.richTradingPosts : profile.tradingPosts;
+    // A raw-bound faction with surplus credits needs one post to buy raw
+    // materials (buyRawMaterials), whatever its personality's limit.
+    const postLimit = Math.max(rich ? profile.richTradingPosts : profile.tradingPosts,
+      rich && this.isRawConstrained(faction) ? 1 : 0);
     if ((planet.population ?? 0) < EnemyEconomyService.COMMERCE_MIN_POPULATION) return [];
     // Spare workers and energy only: commerce must not create or deepen a
     // shortage (the generic safety check tolerates an existing deficit, and

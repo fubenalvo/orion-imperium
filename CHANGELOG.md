@@ -5,6 +5,9 @@ All notable changes to Orion Imperium. Versioning rules: [docs/versioning.md](do
 ## [Unreleased]
 
 ### Changed
+- Comfort: a planet's people above 5,000 need comfort points from Central Parks (1), Schools (2), Hospitals (3) and Entertainment Centers (4), +15% with all four kinds. Harsher worlds need more (up to ×2 on ice). People without comfort earn as if at 60% satisfaction. The four buildings now cost much more upkeep (25 / 45 / 65 / 85 points) and no longer give morale. The planet screen shows need, provided points, coverage and the resulting target; the build list shows each building's comfort.
+- Satisfaction now moves toward a target (1 point per second) instead of drifting by a sum of rates. Full power no longer pushes it up by itself; an energy shortage lowers the target (to 0, rebellion, at half power). Planet type and industry offsets apply only above 5,000 people.
+- AI: builds comfort before more housing, buys raw materials at its Trading Post when raw materials hold back its warships and it has surplus credits, no longer settles colonies into a lasting deficit, and moves an idle fleet into the cheaper reserve during a lasting deficit. Late-game AI credit surpluses are about half of what they were.
 - Stations are no longer finished on deployment: a space base takes 60 s and a mining station 180 s of game time to build. Until complete a station claims no territory, senses nothing, extracts nothing and pays no upkeep, and it cannot fire back: any hostile warship fleet destroys the construction site.
 
 ### Added

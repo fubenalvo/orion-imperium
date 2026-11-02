@@ -29,7 +29,7 @@ Related: [Ship Production](./ship-production.md) (queue, stock, fleet assembly),
 - **Research** (stock): research points from research labs (unchanged). Spent only on technologies, always together with credits ([Research](./research.md)).
 - **Trade deliveries:** civilian traders pay credits to the owners of the Trading Posts they connect, on arrival and outside the economy tick ([Trade Network](./trade-network.md#cargo-and-payout)).
 - **One-off windfalls:** collecting a drifting asteroid adds its cargo (raw materials and/or research points) directly to the collecting faction's stock, outside the economy tick. See [Star Map Terrain](./star-map-terrain.md#drifting-asteroids).
-- **Energy** (flow, never stored): every owned planet has a core building (Colony Center +10, Capital +20; [Colony cores](#colony-cores)) plus its power buildings. An energy-short planet produces at `production / consumption` efficiency, and the shortfall lowers its satisfaction drift in proportion ([Energy and satisfaction](#energy-and-satisfaction)).
+- **Energy** (flow, never stored): every owned planet has a core building (Colony Center +10, Capital +20; [Colony cores](#colony-cores)) plus its power buildings. An energy-short planet produces at `production / consumption` efficiency, and the shortfall lowers its satisfaction target in proportion ([Energy and satisfaction](#energy-and-satisfaction)).
 - **Population**: capped by housing plus the core building × the planet type's population factor ([Planet types](#planet-types)); `POPULATION_CREDIT_RATE` = `0.085 credits/s` per inhabitant at 100% satisfaction (was 0.1, lowered against the credit glut).
 
 ## Finite deposits
@@ -62,16 +62,31 @@ Deposits run out, so the economy guarantees a way back:
 
 ## Energy and satisfaction
 
-Energy decides two things on a planet: production efficiency and the energy part of the satisfaction drift. Both come from `EconomyService.calculatePlanetEconomy`.
+Energy decides two things on a planet: production efficiency and the energy factor of the satisfaction target. Both come from `EconomyService.calculatePlanetEconomy`.
 
 - **Core building:** every planet owned by a faction has a core building ([Colony cores](#colony-cores)): the Colony Center gives 10 energy, the Capital 20. Core energy is flat (energy technologies and the Venus-like bonus scale only power buildings). It lets a new colony run its first housing blocks (3–12 energy each) before a Solar Array, and gives the homeworld (100 from its Fusion Power Plant) room for the usual first Mining Complex + Spaceship Factory.
 - **Efficiency:** `1` when production ≥ consumption, otherwise `production / consumption`. All building output and credit income are multiplied by it.
-- **Energy drift** (`energySatisfactionDrift`): `1 − 4 × shortfall`, at least `−1`, where `shortfall = 1 − efficiency`. Fully powered → +1/s; 4% short → +0.84/s; 25% short → 0; 50% or more short → −1/s. A small overshoot costs output but no longer leads to rebellion; a severe shortage still does (from 100% in ~100 s).
-- **Total drift** (`PlanetEconomy.satisfactionDrift`) = energy drift + habitability + building morale. The economy tick applies it (arrears come on top, see below).
+- **Satisfaction target** (`PlanetEconomy.satisfactionTarget`, pure rules in `comfort.ts`): satisfaction moves toward it at 1 point per second, up and down (`satisfactionDrift` is the change over the next second). Arrears come on top (see below).
+  - **Comfort part:** `100 × (1 − (1 − floor) × uncovered share)`, see [Comfort](#comfort). 100 on a planet that needs no comfort.
+  - **Energy factor:** `max(0, 1 − 2 × shortfall)`, where `shortfall = 1 − efficiency`. 4% short → target ×0.92; 25% short → ×0.5; 50% or more short → 0, which leads to rebellion. A small overshoot costs output and a little satisfaction, never the planet.
+  - **Offsets:** `100 × (habitability + building morale)` percentage points (ice −8, a factory −2, a mine or fusion plant −1). They apply only on a planet above the free population, so the opening keeps 100%.
+  - Clamped to 0 … 100. A fully powered planet is not pushed up by energy any more: the target is the ceiling.
+
+## Comfort
+
+The counterweight to population income in the mid and late game ([Late Economy](./late-economy.md) has the design, measurements and tuning). Rules in `comfort.ts` (`COMFORT_CONFIG`), derived each time from population and buildings; nothing is saved.
+
+- **Need:** `max(0, population − 5,000) × type factor / 500` comfort points. Type factors: earthlike 1, gas giant 1.3, Mars-like 1.4, desert 1.6, Venus-like 1.6, ice 2.
+- **Provided:** Central Park 1, School 2, Hospital 3, Entertainment Center 4 points (`planet-data.json` `comfort`); +15% with at least one of each of the four (full set).
+- **Coverage:** `provided / need`, at most 1 (1 when nothing is needed).
+- **Effect:** the people above the free population that coverage does not reach count at the floor (60%) in the satisfaction target: `uncovered share = (excess / population) × (1 − coverage)`. The target falls smoothly from the free population on (no cliff), every point counts, and comfort alone never drives a planet below 60% or into rebellion.
+- **Cost:** comfort buildings carry a high upkeep (Park 25, School 45, Hospital 65, Entertainment Center 85 points) and no morale. Both the upkeep and the lost income grow with population, i.e. with income; for a wide empire (higher upkeep scale and administration) a covered person costs about what they earn.
+- **Unlocks:** Advanced Industry (Park, Entertainment Center), Advanced Science (School, Hospital).
+- **Display:** the planet screen always shows need, provided points, coverage and the target (and from what population comfort starts); the build list shows each comfort building's `+N CF`.
 
 **Player feedback** (all derived, nothing saved):
 
-- Planet screen: the satisfaction figure shows the drift per second; a red alert appears while the planet is short on energy (with the output loss) or while satisfaction is falling (with the estimated seconds to rebellion).
+- Planet screen: the satisfaction meter marks the target and shows the drift per second; a red alert appears while the planet is short on energy (with the output loss) or while it is heading for rebellion (target 0, with the estimated seconds).
 - Build list: each building shows its energy use or output (`EN`), red when building it would leave the planet short; the tooltip and the placement panel show the planet's energy after building. The preview uses the listed values, so it slightly understates a power building's output under energy technologies.
 - Map notices (`planet-stability.ts`, from snapshots taken right before and after each economy tick): a player planet newly short on energy (once, again only after it recovered), satisfaction falling through 50% and 20%, and a planet lost to rebellion.
 
@@ -81,10 +96,10 @@ Energy decides two things on a planet: production efficiency and the energy part
 
 Order within one tick (per faction):
 
-1. **Satisfaction drift** on owned planets (the energy drift from [Energy and satisfaction](#energy-and-satisfaction), plus habitability and building morale). A planet reaching 0 rebels to `independent` *before* income is computed, so it neither pays nor costs its old owner on that tick.
+1. **Satisfaction** on owned planets moves toward its target ([Energy and satisfaction](#energy-and-satisfaction)). A planet reaching 0 rebels to `independent` *before* income is computed, so it neither pays nor costs its old owner on that tick.
 2. **Effective breakdown** (`calculateEconomy`) from the post-drift state; `net[r] × delta` is applied to raw materials and research, except that deposit mining (planet mines and asteroid stations, `depositMiningPerSecond`) adds what it actually extracted from each deposit this tick (each capped by what is left, and subtracted from it) instead of its nominal rate.
 3. **Credits**: `credits + carried fraction + netPerSecond × delta`, floored; the fractional remainder is carried per faction in memory (not saved — at most one credit is lost on reload).
-4. **Arrears**: credits never go below 0. If the treasury cannot cover the upkeep, the unpaid part is waived and every owned planet loses `2 × (unpaid / due)` satisfaction per second. A small shortfall is outweighed by a positive energy drift; a large one leads toward rebellion unless income recovers or upkeep is cut (disbanding a fleet moves its ships to the cheaper reserve).
+4. **Arrears**: credits never go below 0. If the treasury cannot cover the upkeep, the unpaid part is waived and every owned planet loses `2 × (unpaid / due)` satisfaction per second. A small shortfall is recovered by the move toward the target; a large one leads toward rebellion unless income recovers or upkeep is cut (disbanding a fleet moves its ships to the cheaper reserve).
 5. **Population growth.**
 
 ## Effective rates (what the HUD shows)
@@ -131,16 +146,18 @@ Credits are now the binding resource and raw materials pile up instead; the Trad
 
 ## Planet types
 
-`planet-types.ts` (`PLANET_TYPE_TRAITS`) is the source of truth for what a planet's type changes; the satisfaction drift stays in `PLANET_TYPE_HABITABILITY` (`star-map.models.ts`). The earthlike world is the ideal home; every other type is a trade-off — a lower population ceiling (= less credit income) and pricier building upkeep (heating, cooling, domes) — against one advantage:
+`planet-types.ts` (`PLANET_TYPE_TRAITS`) is the source of truth for what a planet's type changes; the satisfaction offset stays in `PLANET_TYPE_HABITABILITY` (`star-map.models.ts`) and the comfort factor in `comfort.ts`. The earthlike world is the ideal home; every other type is a trade-off — a lower population ceiling (= less credit income) and pricier building upkeep (heating, cooling, domes) — against one advantage:
 
-| Type | Population ceiling | Building upkeep | Advantage | Satisfaction drift |
-| --- | --- | --- | --- | --- |
-| Earthlike | 100% | ×1 | — | 0 |
-| Mars-like | 75% | ×1.15 | deposit mining ×1.25 | −0.03/s |
-| Desert | 70% | ×1.15 | deposit mining ×1.25 | −0.05/s |
-| Venus-like | 60% | ×1.3 | power buildings ×1.25 (geothermal; not the colony core) | −0.05/s |
-| Ice | 60% | ×1.3 | research buildings ×1.25 | −0.08/s |
-| Gas giant | 50% | ×1.2 | gas harvesting: +3 raw/s while populated (never depleted) | 0 |
+| Type | Population ceiling | Building upkeep | Advantage | Satisfaction offset | Comfort factor |
+| --- | --- | --- | --- | --- | --- |
+| Earthlike | 100% | ×1 | — | 0 | ×1 |
+| Mars-like | 75% | ×1.15 | deposit mining ×1.25 | −3 | ×1.4 |
+| Desert | 70% | ×1.15 | deposit mining ×1.25 | −5 | ×1.6 |
+| Venus-like | 60% | ×1.3 | power buildings ×1.25 (geothermal; not the colony core) | −5 | ×1.6 |
+| Ice | 60% | ×1.3 | research buildings ×1.25 | −8 | ×2 |
+| Gas giant | 50% | ×1.2 | gas harvesting: +3 raw/s while populated (never depleted) | 0 | ×1.3 |
+
+The satisfaction offset (percentage points of the target) and the comfort factor apply only above the free population ([Comfort](#comfort)).
 
 - The ceiling multiplies the housing capacity (`getPopulationCapacity`, floored); growth fills the remaining capacity, so a harsh world also grows to a smaller size.
 - The upkeep factor multiplies every building on that planet, on top of the empire upkeep scale; the AI prices a new building for that planet the same way.
@@ -189,7 +206,7 @@ A building with `maxPerPlanet` in `planet-data.json` (Bank and Trading Post: 1) 
 - buying raw costs `TRADE_BUY_CREDITS_PER_RAW` = 4 credits per unit (price rounded up);
 - selling raw pays `TRADE_SELL_CREDITS_PER_RAW` = 0.25 credits per unit (proceeds rounded down).
 
-The rates are deliberately bad: a round trip keeps 1/16 of the value, buying the raw part of a cruiser (1200) costs 4800 credits, and a Mining Complex produces raw at ~0.4 credits of upkeep per unit. It is a last resort when one resource runs dry, not a way to run an economy. Every trade is atomic and re-checked by `executeTrade` (post on the planet, owned by the trader, enough stock); a refused trade changes nothing. The post does not need power or workforce to trade. The AI never uses the exchange; it builds posts by personality for the trade network ([Trade Network](./trade-network.md#ai)). Every planet with a Trading Post is also a node of the civilian trade network and keeps two traders ([Trade Network](./trade-network.md)). Their deliveries pay the post owner the cargo value and the destination owner a 20% port fee, in credits, outside the economy tick (a windfall like collected asteroids).
+The rates are deliberately bad: a round trip keeps 1/16 of the value, buying the raw part of a cruiser (1200) costs 4800 credits, and a Mining Complex produces raw at ~0.4 credits of upkeep per unit. It is a last resort when one resource runs dry, not a way to run an economy. Every trade is atomic and re-checked by `executeTrade` (post on the planet, owned by the trader, enough stock); a refused trade changes nothing. The post does not need power or workforce to trade. The AI builds posts by personality for the trade network ([Trade Network](./trade-network.md#ai)) and buys raw materials at one only when raw materials, not credits, hold back its warships and it has a large credit surplus ([AI Pipeline](./ai-pipeline.md#raw-purchases-and-the-reserve-exit)). Every planet with a Trading Post is also a node of the civilian trade network and keeps two traders ([Trade Network](./trade-network.md)). Their deliveries pay the post owner the cargo value and the destination owner a 20% port fee, in credits, outside the economy tick (a windfall like collected asteroids).
 
 ## Prices
 
@@ -217,7 +234,7 @@ Buildings (credits / raw materials):
 | Industry | Mining Complex / Spaceship Factory | 1500/375, 3000/750 |
 | Military | Spaceport | 4000/1000 |
 | Defense | Laser / Missile Turret / Planetary Shield | 800/200, 1000/250, 3500/875 |
-| Social | Central Park / School / Hospital / Entertainment Center | 800/200, 1500/375, 2000/500, 3000/750 |
+| Social (comfort) | Central Park / School / Hospital / Entertainment Center | 800/200, 1500/375, 2000/500, 3000/750 ([Comfort](#comfort): 1/2/3/4 points, 25/45/65/85 upkeep points) |
 | Finance / trade | Bank / Trading Post | 3000/750, 2500/600 |
 
 Ships (credits / raw materials): Scout 50/150, Fighter 75/225, Corvette 120/360, Frigate 180/540, Destroyer 260/780, Cruiser 400/1,200, Carrier 500/1,500, Battleship 700/2,100, Battlecruiser 750/2,250, Dreadnought 1,200/3,600.
@@ -266,7 +283,7 @@ Buildings complete instantly. Adding construction time would need: a persistent 
 ## Known limitations
 
 - The fractional credit carry is in memory (≤ 1 credit lost per load).
-- Late-game AI factions still accumulate a credit surplus (~50–350k after 30 minutes), now with raw materials as the binding constraint on their fleets; research prices absorb part of it. In 90-minute medium games (the Dyson measurement, [Dyson Swarm](./dyson-swarm.md#tuning-phase-7)) gross incomes reach 5–12k credits/s and stocks 1–5 million; the swarm (100k per constructor, 300 upkeep points per anchor) absorbs a share of it, not all of it.
+- Late-game AI factions still hold a credit stock, but smaller: with comfort ([Late Economy](./late-economy.md#results)) the 90-minute net is 0–21% of gross income (was 18–41%) and the stock 0–4 minutes of income (was up to 6.7). The rest is mostly navies at their ship cap; the Dyson Swarm ([Dyson Swarm](./dyson-swarm.md#tuning-phase-7)) and AI raw purchases at the Trading Post absorb part of it.
 - No ship dismantling or recycling: the only recovery from exhausted deposits is expansion (plus the trickle and drifting asteroids).
 - Mining stations cannot be captured or dismantled, but hostile warships stopped in their system attack and can destroy them, which stops extraction; Turret Research I–III arms them ([Territory](./territory.md#station-defense)).
-- A planet 25% or more short on energy loses satisfaction; a faction whose only planet is in that state with less than a Solar Array's price (600) may not recover in time.
+- A planet 25% or more short on energy heads for half satisfaction or less; a faction whose only planet is in that state with less than a Solar Array's price (600) may not recover in time.
