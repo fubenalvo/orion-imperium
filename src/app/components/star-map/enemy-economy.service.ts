@@ -25,7 +25,7 @@ import planetData from './planet-data.json';
 import { ResourceCost, addCosts, buildingCost, canAffordCost, payCost, shipCost } from '../../services/resource-cost';
 import { hostileFactionIds } from './diplomacy';
 import { depositMiningBlocker, DEPOSIT_MINING_BUILDING_NAMES } from './raw-deposits';
-import { hasLivingOutpostShip } from './space-base';
+import { isCivilianMissionFleet } from './space-base';
 import { isBuildingLimitReached } from './building-placement';
 import { TRADING_POST_NAME } from './trade';
 import { TRADING_POST_EXPECTED_INCOME } from './trade-network';
@@ -1106,7 +1106,7 @@ export class EnemyEconomyService {
           && f.targetX === null
           && f.ships.some((s) => !s.destroyed)
           && !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed)
-          && !hasLivingOutpostShip(f)
+          && !isCivilianMissionFleet(f)
           && f.ships.filter((s) => !s.destroyed).length < EnemyEconomyService.MAX_FLEET_SHIPS
           && Math.floor(f.x) === Math.floor(spaceport.system.x)
           && Math.floor(f.y) === Math.floor(spaceport.system.y),

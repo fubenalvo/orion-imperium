@@ -69,6 +69,16 @@ export interface AiPersonalityProfile {
   fundsResearchFirst: boolean;
   commerce: { bankShare: number; tradingPosts: number; richBankShare: number; richTradingPosts: number };
   civilizationAssaultAfter: number;
+  /*
+   * Dyson Swarm behavior (docs/dyson-swarm.md, "AI"; EnemyDysonService):
+   *  - build: 'always' pursues the swarm once researched, 'rich' builds
+   *    anchors only with a large credit surplus, 'never' does not build;
+   *  - huntAnchors: another empire holding this many anchors (sites
+   *    included) becomes a target — war (casus belli) and anchor assaults.
+   *    During a running warm-up every personality hunts the holder.
+   *  - researchValue: worth of Stellar Engineering in technology scoring.
+   */
+  dyson: { build: 'always' | 'rich' | 'never'; huntAnchors: number; researchValue: number };
 }
 
 export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonalityProfile>> = {
@@ -88,6 +98,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: false,
     commerce: { bankShare: 0.5, tradingPosts: 1, richBankShare: 1, richTradingPosts: 1 },
     civilizationAssaultAfter: 720,
+    dyson: { build: 'rich', huntAnchors: 5, researchValue: 2 },
   },
   expansionist: {
     id: 'expansionist',
@@ -105,6 +116,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: false,
     commerce: { bankShare: 0.34, tradingPosts: 2, richBankShare: 0.5, richTradingPosts: 2 },
     civilizationAssaultAfter: 600,
+    dyson: { build: 'never', huntAnchors: 6, researchValue: 0 },
   },
   militarist: {
     id: 'militarist',
@@ -122,6 +134,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: false,
     commerce: { bankShare: 0, tradingPosts: 0, richBankShare: 0.5, richTradingPosts: 1 },
     civilizationAssaultAfter: 480,
+    dyson: { build: 'never', huntAnchors: 3, researchValue: 0 },
   },
   technologist: {
     id: 'technologist',
@@ -141,6 +154,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: true,
     commerce: { bankShare: 1, tradingPosts: 2, richBankShare: 1, richTradingPosts: 2 },
     civilizationAssaultAfter: 1200,
+    dyson: { build: 'always', huntAnchors: 6, researchValue: 8 },
   },
 };
 

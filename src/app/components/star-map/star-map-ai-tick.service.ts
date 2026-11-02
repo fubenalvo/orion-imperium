@@ -14,6 +14,8 @@ import { EnemyProgressService } from './enemy-progress.service';
 import { EnemyReachService } from './enemy-reach.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { EnemyMiningService } from './enemy-mining.service';
+import { EnemyDysonService } from './enemy-dyson.service';
+import { isCivilianMissionFleet } from './space-base';
 import { Battle } from '../battle-screen/battle/battle.types';
 import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiFactionIds } from './star-map.models';
 import { EnemyDiplomacyService } from './enemy-diplomacy.service';
@@ -43,6 +45,8 @@ import { DiplomacyService } from '../../services/diplomacy.service';
  *    move_to_target / defend action) — EnemyActionExecutor;
  *  - fleets carrying an outpost ship — EnemyMiningService (asteroid
  *    surveying and mining-station deployment);
+ *  - fleets carrying a Swarm Constructor and the combat fleets on a Dyson
+ *    hunt or guard order — EnemyDysonService (docs/dyson-swarm.md, "AI");
  *  - every other AI fleet — EnemyFleetService (garrison, intercept,
  *    retreat, regroup roles);
  *  - EnemyAiService (legacy reactive pursuit) only acts on AI fleets
@@ -72,6 +76,7 @@ export class StarMapAiTickService {
     private enemyDiplomacyService: EnemyDiplomacyService,
     private diplomacyService: DiplomacyService,
     private enemyMiningService: EnemyMiningService,
+    private enemyDysonService: EnemyDysonService,
   ) {}
 
   // Cadence of the parallel colonization objective's action evaluation.
@@ -298,6 +303,8 @@ export class StarMapAiTickService {
       }) || economyChanged;
       // Asteroid mining (outpost ships) renews raw supply as deposits run dry.
       economyChanged = this.enemyMiningService.tick(gameDeltaTime, faction, data, viewOf(faction.id)) || economyChanged;
+      // Dyson Swarm: build anchors, hunt a rival's anchors, guard own ones.
+      economyChanged = this.enemyDysonService.tick(gameDeltaTime, faction, data, pipelineFleetIds) || economyChanged;
     }
 
     // Deadlock detection last, with the state every layer produced this frame.
@@ -344,6 +351,7 @@ export class StarMapAiTickService {
     this.enemyReachService.reset();
     this.enemyIntelService.reset();
     this.enemyMiningService.reset();
+    this.enemyDysonService.reset();
     this.colonizationAccumulators.clear();
   }
 
@@ -388,7 +396,9 @@ export class StarMapAiTickService {
    *    for 'attack' it is the player's fleet, so it is not reserved);
    *  - every AI fleet carrying a living colonizer, so a colonization
    *    run is never diverted into a chase between action ticks;
-   *  - every AI fleet carrying a living outpost ship (EnemyMiningService).
+   *  - every AI fleet carrying a living outpost ship (EnemyMiningService)
+   *    or Swarm Constructor, and every fleet on a Dyson order
+   *    (EnemyDysonService).
    */
   private getReservedFleetIds(fleets: Fleet[], factions: Faction[]): Set<number> {
     const reserved = new Set<number>();
@@ -404,10 +414,11 @@ export class StarMapAiTickService {
     for (const fleet of fleets) {
       if (aiFactionSet.has(fleet.factionId)
         && !fleet.destroyed
-        && (fleet.ships.some((ship) => ship.type === 'colonizer' && !ship.destroyed) || EnemyMiningService.isMiningFleet(fleet))) {
+        && (fleet.ships.some((ship) => ship.type === 'colonizer' && !ship.destroyed) || isCivilianMissionFleet(fleet))) {
         reserved.add(fleet.id);
       }
     }
+    for (const fleetId of this.enemyDysonService.getOrderedFleetIds()) reserved.add(fleetId);
     return reserved;
   }
 }

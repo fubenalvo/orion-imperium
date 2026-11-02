@@ -53,6 +53,16 @@ export function hasLivingOutpostShip(fleet: Fleet): boolean {
   return (fleet.ships ?? []).some((s) => s.type === OUTPOST_SHIP_TYPE && !s.destroyed);
 }
 
+/*
+ * A fleet on a civilian building mission: it carries a living outpost ship
+ * (EnemyMiningService) or Swarm Constructor (EnemyDysonService). AI layers
+ * that pick fleets for combat roles, goals, reinforcement or stuck-fleet
+ * recovery skip these; their mission service is their only writer.
+ */
+export function isCivilianMissionFleet(fleet: Fleet): boolean {
+  return (fleet.ships ?? []).some((s) => (s.type === OUTPOST_SHIP_TYPE || s.type === 'swarm_constructor') && !s.destroyed);
+}
+
 export type BaseDeploymentFailure =
   | 'no_outpost_ship'
   | 'fleet_moving'

@@ -10,7 +10,8 @@ Status: **design agreed on 2026-11-02.**
 | 3. Upkeep and bonuses | implemented ([Anchor bonuses](#anchor-bonuses); the upkeep came with phase 2) |
 | 4. Victory and news | implemented ([Victory](#victory-the-warm-up), [Global news](#global-news)) |
 | 5. Diplomacy | implemented ([Diplomacy](#diplomacy)); the AI's peace refusal during a warm-up came with it |
-| 6–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
+| 6. AI | implemented ([AI](#ai)) |
+| 7. Tuning and acceptance tests | not done | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
 
 The Dyson Swarm is a late-game **alternative victory** and **credit / raw-material sink**. Eight fixed anchor slots ring the central black hole. A faction that holds a completed Dyson Anchor on **every** slot and keeps all of them for a 5-minute warm-up wins. Anchors are expensive to bring there, expensive to keep, cannot be captured and are visible to everyone, so an empire heading for this victory becomes the obvious target of the others.
 
@@ -155,7 +156,6 @@ This is a general rule for every station, introduced together with the swarm (ph
   - **Anchor panel:** clicking an anchor opens `StarMapAnchorInfoComponent`, with owner, construction progress, defense, the bonus and DEMOLISH… behind an inline confirmation. The owner can pick the bonus once.
   - **Notices:** deploying, completing and demolishing your own anchor show a map notice.
 - **Not yet:**
-  - the AI (phase 6). AI factions never build the constructor: it is not a combat ship.
 
 ## Anchor bonuses
 
@@ -201,7 +201,7 @@ No credit-income or upkeep-reduction bonus: that would undo the sink.
 - **Display:**
   - the countdown banner (`.dyson-countdown`, bottom centre) shows `DYSON SWARM · holder · m:ss`;
   - the game-end dialog uses its own Dyson wording (`StarMap.dysonWinnerName`).
-- **Not covered yet:** the headless AI simulation does not tick the warm-up. No AI builds anchors before phase 6.
+- The headless AI simulation ticks the warm-up too (no outcome check there).
 - **Tests:** `dyson-victory.spec.ts` covers the pure rules, the outcome rule and the news diff. `dyson-victory.starmap.spec.ts` covers a real StarMap session: player victory with the save round trip, and AI defeat after a cancelled and restarted warm-up.
 
 ## Global news
@@ -255,7 +255,7 @@ The human player gets them as ordinary map notices, which are transient; no pers
   - The Diplomacy screen's confirmation (`consequenceFor`, `DiplomacyRowVm.dysonCasusBelli`) states the waived costs.
 - **No peace during a warm-up:** `EnemyDiplomacyService.assessWar` adds the visible factor `dyson` ("Dyson warm-up running", −2). `evaluateTreaty` refuses outright (acceptance 0) when the other side is the warm-up holder, and `respondToProposal` makes no counter-offer. This covers AI offers to the player, answers to the player's offers, and AI–AI settlements.
 - **Tests:** `dyson-diplomacy.spec.ts`.
-- **Not yet (phase 6):** AI factions do not use the casus belli on their own initiative, and do not break truces with a warm-up holder.
+- The AI uses the casus belli and breaks truces against a warm-up holder through `EnemyDysonService` ([AI](#ai)).
 
 ## AI
 
@@ -275,16 +275,51 @@ Threat response, the same for every personality, scaled by its aggression:
   - **Any** personality may break a truce with the holder. Today only treacherous personalities break truces.
   - No AI accepts or proposes peace with a faction whose warm-up is running.
 
-New AI capabilities needed. None of them exist today; the AI neither attacks nor defends stations ([Territory](./territory.md#limitations)):
+### Implementation (phase 6)
 
-1. **Station assault objective:** pick a reachable hostile anchor or site, run a battle forecast against the station defense, gather, strike. Later reusable for bases and mining stations.
-2. **Anchor defense:** a garrison near its own anchors, sized by the threat.
-3. **Build decision:**
-   - the anchor's upkeep fits the projected net (like every AI purchase);
-   - a free slot exists;
-   - the route is safe enough, otherwise send an escort.
-4. **Bonus choice** from the faction's needs.
-5. The AI never demolishes (first version).
+**Personality data:** `ai-personality.ts` `dyson`.
+
+| | balanced | expansionist | militarist | technologist |
+|---|---|---|---|---|
+| `build` | `rich` (credits ≥ price + 40,000) | `never` | `never` | `always` |
+| `huntAnchors` (anchors that make a rival a target) | 5 | 6 | 3 | 6 |
+| `researchValue` (worth of Stellar Engineering) | 2 | 0 | 0 | 8 |
+
+**Research:** `EnemyResearchService.directValue` adds `researchValue` for the technology that unlocks the Swarm Constructor; the lookahead pulls Applied Science and Advanced Power along. Without this, a non-combat ship unlock would be worth nothing.
+
+**`EnemyDysonService`:** runs every 3 s per AI faction, after the asteroid mining in `StarMapAiTickService`.
+
+1. **Build** (if `build` ≠ `never` and the technology is researched).
+   - **Queueing:** one constructor at a time (none queued, in stock or flying), only with a free slot, the full price in hand (plus the surplus for `rich`), a Spaceport, a Spaceship Factory and upkeep headroom. The headroom check is `EnemyEconomyService.getProjectedNet` minus the anchor's upkeep, which must stay ≥ 5 credits/s.
+   - **Escort:** a stocked constructor leaves the first Spaceport with up to 3 stocked warships, so the fleet moves at the constructor's speed.
+   - **Deployment:** the fleet flies to the nearest free slot and deploys through `SpaceBaseService.deployAnchor`, the player's rule. If the slot was taken meanwhile, it retargets.
+   - **Bonus:** picked at once. Swarm Observatory for `always` builders, Orbital Foundries otherwise.
+2. **Hunt.**
+   - **Target:** a rival with ≥ `huntAnchors` anchors (sites included), or — for every personality — the holder of a running warm-up, which takes precedence.
+   - **War:** at peace the AI declares war (free: casus belli). A truce is broken only against a warm-up holder.
+   - **Fleets:** at war, free combat fleets get a hunt order. Normally that is one fleet with ≥ 3 living warships (completed anchors have turrets). During a warm-up it is every free fleet but one, kept home, whatever its size.
+   - **Targets on the ring:** hunters fly onto the target's anchor cells, construction sites first, then the nearest. The ordinary base battle (`checkBaseBattles`) does the rest.
+3. **Guard.** A builder with ≥ 3 completed anchors parks its second-strongest free combat fleet on its own anchor nearest to that fleet. The strongest fleet stays with `EnemyFleetService` for home defense and assaults. An attacker reaching that cell meets the guard first.
+
+**Ownership:**
+- Fleets carrying a Swarm Constructor (`isCivilianMissionFleet`, shared with outpost fleets) and fleets on a Dyson order (`getOrderedFleetIds`) are reserved by `StarMapAiTickService.getReservedFleetIds`.
+- `EnemyFleetService`, goal fleet selection, warship deployment and the action executor skip them.
+- `EnemyProgressService` clears a stuck Dyson fleet's target so the service re-plans.
+- **Releasing an order:** it ends when the target no longer qualifies or has no anchors left, the war is over, the fleet has no warships, or the guard's anchors fall below 3. The fleet then returns to `EnemyFleetService`.
+
+**State:** the decision clock and the orders, in memory, cleared by `resetAiPipeline` (kept across a battle return like all AI memory).
+
+**Tests:**
+- `enemy-dyson.spec.ts`: building by personality, escort, slot choice, deployment and bonus, a free war and site-first targeting, threshold and weak-fleet refusal, truce breach and all-but-one during a warm-up, reserved fleets untouched, release, guard, research value.
+- `enemy-dyson.starmap.spec.ts`: the real game loop. A militarist fleet destroys a rival AI's anchors, and a technologist's constructor reaches the ring and deploys.
+
+**Limitations:**
+- No battle forecast against a station's defense: the 3-warship rule stands in for it.
+- One hunt target at a time.
+- Guards are not sized by the threat.
+- The AI never demolishes anchors.
+- No coalition logic (by design).
+- Whether AIs reach Stellar Engineering in normal games, and how often they win with the swarm, is measured in phase 7.
 
 ## Implementation phases
 

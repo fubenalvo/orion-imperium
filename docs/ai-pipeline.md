@@ -115,6 +115,7 @@ Data in `ai-personality.ts` and `ai-difficulty.ts`. Personalities never change r
 | factories per planet / parallel military production | 1 / no | 1 / no | 2 / yes | 1 / no |
 | research buildings per planet | 1 | 1 | 1 | 2 (and research first) |
 | funds research first (`fundsResearchFirst`) | no | no | no | yes |
+| Dyson Swarm (`dyson`: build / hunt at anchors / Stellar Engineering value) | rich / 5 / 2 | never / 6 / 0 | never / 3 / 0 | always / 6 / 8 |
 
 Credits are every faction's research bottleneck (research costs 4 credits per point), so more labs alone do not make a faction research more. The technologist therefore pays for research with a smaller navy (military target ×0.6), slower expansion (weight 0.75) and `fundsResearchFirst`: its research credit reserve is kept even from colonizer purchases (`EnemyActionExecutor.executeProduceColonizer`), and it reserves its research target's credits before the points are banked. The simulation (15 minutes, two AIs per personality) requires technologists to acquire at least 10% more research volume than militarists; they may buy slightly fewer — but more expensive — technologies. The price: a technologist's first colonizer waits until its research target is funded, so it expands later than the other personalities.
 
@@ -128,6 +129,7 @@ Exactly one subsystem writes each AI fleet's `targetX/targetY`:
 |---|---|
 | carries a living colonizer, or is the fleet of a current `move_to_target` / `defend` action (`StarMapAiTickService.getReservedFleetIds`) | `EnemyActionExecutor` (strategic pipeline) |
 | carries a living outpost ship (also reserved by `getReservedFleetIds`; skipped by fleet roles, warship deployment, fleet selection for goals and the stuck-fleet recovery) | `EnemyMiningService` (asteroid mining) |
+| carries a living Swarm Constructor, or holds a Dyson hunt / guard order (`EnemyDysonService.getOrderedFleetIds`; reserved and skipped the same way, `isCivilianMissionFleet`) | `EnemyDysonService` ([Dyson Swarm](./dyson-swarm.md#ai)) |
 | every other AI fleet | `EnemyFleetService` (roles below) |
 | anything neither manages | `EnemyAiService` legacy pursuit (15-cell acquire range, only clears targets it set) |
 
@@ -251,7 +253,7 @@ AI pipeline state is in-memory only and fully rebuilt from the game snapshot. `S
 
 - Generated AI factions each have their own team and go to war or sign peace with each other and the player ([Diplomacy](./diplomacy.md)); they never share intel. AI planet battles against non-player defenders and AI-vs-AI fleet battles are auto-resolved with the simplifications listed in [Planet Capture](./planet-capture.md#auto-resolver-battle-auto-resolvets). Saves from before diplomacy keep all AIs on team 2 (allied).
 - With upkeep, priced buildings and finite raw materials, purchases take ~15–30% and upkeep ~50–70% of gross income in 30-minute simulations (the economy validation test in `ai-simulation.spec.ts`); raw materials, not credits, now bind fleet size, and late-game factions still hold ~50–350k unspent credits.
-- The AI does not escort or defend its outpost fleets or mining stations, and does not deploy space bases. It does not plan attacks on hostile stations either: its fleets engage them only where other orders take them ([Territory](./territory.md#station-defense)). It researches Turret Research by the number of stations it owns.
+- The AI does not escort or defend its outpost fleets or mining stations, and does not deploy space bases. It does not plan attacks on hostile bases or mining stations either: its fleets engage them only where other orders take them ([Territory](./territory.md#station-defense)). Dyson anchors are the exception: `EnemyDysonService` escorts constructors, guards its own anchors and hunts rivals' ([Dyson Swarm](./dyson-swarm.md#ai)). It researches Turret Research by the number of stations it owns.
 - `EnemyFleetService` records peak strength only for fleets it manages; a fleet released by the colonization pipeline right after losses has no pre-loss peak and does not regroup.
 - Offensive planning is limited to one assault at a time per faction against targets within colonization reach; there is no multi-front campaign or staging of reinforcements.
 - Garrisons create one small fleet per owned system; there is no fleet merging.

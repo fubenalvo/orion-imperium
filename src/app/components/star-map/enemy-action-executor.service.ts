@@ -27,7 +27,7 @@ import { isCombatShipType } from './ai-queries';
 import { canAffordCost, shipCost } from '../../services/resource-cost';
 import { areFactionsHostile } from './diplomacy';
 import { TerritoryService } from './territory.service';
-import { hasLivingOutpostShip } from './space-base';
+import { isCivilianMissionFleet } from './space-base';
 
 /*
  * =========================================================
@@ -815,7 +815,7 @@ export class EnemyActionExecutor {
         !f.destroyed &&
         f.ships.some((s) => !s.destroyed) &&
         !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed) &&
-        !hasLivingOutpostShip(f) &&
+        !isCivilianMissionFleet(f) &&
         // Parked only: a fleet passing through on another order (e.g. an
         // interception) would carry the colonizer off with it.
         f.targetX === null &&

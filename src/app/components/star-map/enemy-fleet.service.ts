@@ -13,7 +13,7 @@ import { CAPTURE_MIN_SATISFACTION } from '../../services/planet-ownership.servic
 import { DriftingAsteroidService } from './drifting-asteroid.service';
 import { asteroidPosition } from './drifting-asteroids';
 import { areFactionsHostile, getRelationKind, hostileFactionIds, isNeutralFaction } from './diplomacy';
-import { hasLivingOutpostShip } from './space-base';
+import { isCivilianMissionFleet } from './space-base';
 import { TradeNetworkService } from './trade-network.service';
 import { raidBlocker } from './trade-network';
 import { getAiPersonalityProfile } from './ai-personality';
@@ -309,7 +309,7 @@ export class EnemyFleetService {
     const own = fleets.filter((f) => f.factionId === faction.id && this.isAlive(f));
     const managed = own.filter(
       (f) => !pipelineFleetIds.has(f.id) && !f.ships.some((s) => s.type === 'colonizer' && !s.destroyed)
-        && !hasLivingOutpostShip(f),
+        && !isCivilianMissionFleet(f),
     );
 
     // Drop assignments of fleets that are gone or now owned by the pipeline.

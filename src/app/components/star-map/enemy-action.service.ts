@@ -25,7 +25,7 @@ import { StarMapMovementService } from './star-map-movement.service';
 import { canSupportNewColony, isCombatShipType } from './ai-queries';
 import { EconomyService } from '../../services/economy.service';
 import { canAffordCost, shipCost } from '../../services/resource-cost';
-import { hasLivingOutpostShip } from './space-base';
+import { isCivilianMissionFleet } from './space-base';
 
 /*
  * =========================================================
@@ -582,7 +582,7 @@ export class EnemyActionService {
         && !f.destroyed
         && f.ships.some((ship) => !ship.destroyed)
         && !f.ships.some((ship) => ship.type === 'colonizer' && !ship.destroyed)
-        && !hasLivingOutpostShip(f),
+        && !isCivilianMissionFleet(f),
     );
     if (candidates.length === 0) {
       return undefined;

@@ -13,6 +13,7 @@ All notable changes to Orion Imperium. Versioning rules: [docs/versioning.md](do
 - Dyson Swarm victory: a faction holding a completed anchor on all 8 slots (and at least one planet) starts a 5-minute warm-up, shown to everyone as a countdown at the bottom of the map. Losing any anchor or the last planet cancels it; it restarts from 5 minutes. When it ends, that faction wins (defeat for you if it is an AI). The warm-up is saved.
 - Dyson news: every anchor started, completed, destroyed or demolished, and every warm-up start or interruption, is announced to every player regardless of fog of war.
 - Dyson diplomacy: every anchor built costs the builder 8 opinion with every other empire. An empire holding 3 or more anchors is a legitimate target: declaring war on it or breaking a truce with it costs no reputation and carries no surprise-attack penalty. No AI makes or accepts peace with an empire whose warm-up is running.
+- Dyson AI: technologists research Stellar Engineering and build anchors (escorted constructors, a guard fleet at the ring once they hold three), balanced empires build when very rich, and every AI hunts a rival's anchors — militarists from 3 anchors, others from 5–6, everyone during a warm-up (free war declaration, truce breach during a warm-up, fleets sent onto the anchors).
 - The ring zone (10 cells around the black hole) is reserved: no star system or space base claims territory there, and ordinary space bases cannot be deployed in it. New galaxies keep nebulae out of it.
 
 ## [0.3.0] — 2026-11-02

@@ -5,7 +5,8 @@ import { EnemyFleetService } from './enemy-fleet.service';
 import { EnemyPlanService } from './enemy-plan.service';
 import { isCombatShipType } from './ai-queries';
 import { ShipService } from '../../services/ship.service';
-import { hasLivingOutpostShip } from './space-base';
+import { isCivilianMissionFleet } from './space-base';
+import { EnemyDysonService } from './enemy-dyson.service';
 
 /*
  * =========================================================
@@ -99,6 +100,7 @@ export class EnemyProgressService {
     private readonly fleetService: EnemyFleetService,
     private readonly planService: EnemyPlanService,
     private readonly shipService: ShipService,
+    private readonly dyson: EnemyDysonService,
   ) {}
 
   reset(): void {
@@ -229,8 +231,8 @@ export class EnemyProgressService {
       }
       // Has an order but has not moved: the objective cannot be completed.
       this.pushEvent({ time: state.clock, factionId: faction.id, type: 'stuck_fleet', detail: `fleet ${fleet.id}` });
-      if (hasLivingOutpostShip(fleet)) {
-        // EnemyMiningService owns it and re-plans when the route fails.
+      if (isCivilianMissionFleet(fleet) || this.dyson.getOrderedFleetIds().has(fleet.id)) {
+        // EnemyMiningService / EnemyDysonService own it and re-plan when the route fails.
         fleet.targetX = null;
         fleet.targetY = null;
       } else if (pipelineFleetIds.has(fleet.id)) {

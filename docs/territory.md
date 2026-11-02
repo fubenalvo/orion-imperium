@@ -245,5 +245,5 @@ Deposit cards show the remaining amount and the asteroid's extraction rate. Stat
 - No passage treaties yet (the flag exists).
 - Mining stations cannot be captured or dismantled, and a depleted station is not removed (only destruction removes it).
 - Station hull damage is never repaired, and the shield pool does not regenerate outside battles (like planets).
-- The AI does not plan attacks on stations or defend its own: AI fleets engage hostile stations only where their other orders take them (bases on their route, mining stations in systems they stop in), and the AI's assault forecast ignores stations in the target system.
+- The AI does not plan attacks on ordinary bases or mining stations, or defend its own: AI fleets engage them only where their other orders take them (bases on their route, mining stations in systems they stop in), and the AI's assault forecast ignores stations in the target system. Dyson anchors are hunted and guarded by `EnemyDysonService` ([Dyson Swarm](./dyson-swarm.md#ai)).
 - Research raw-output bonuses do not apply to mining stations (only the faction gain multiplier does); they do apply to planet mines.

@@ -8,6 +8,7 @@ import { getAiPersonalityProfile } from './ai-personality';
 import { hostileFactionIds } from './diplomacy';
 import { SpaceBaseService } from './space-base.service';
 import planetData from './planet-data.json';
+import { DYSON_ANCHOR_SHIP_TYPE } from './dyson-anchor';
 
 /*
  * =========================================================
@@ -360,6 +361,11 @@ export class EnemyResearchService {
 
     for (const bonus of tech.bonuses ?? []) {
       value += this.bonusValue(faction, bonus, ctx);
+    }
+    // The Swarm Constructor is not a combat ship; its worth is the
+    // personality's Dyson ambition (ai-personality.ts `dyson`).
+    if (tech.unlocksShips.includes(DYSON_ANCHOR_SHIP_TYPE) && !this.researchService.isShipUnlocked(faction, DYSON_ANCHOR_SHIP_TYPE)) {
+      value += getAiPersonalityProfile(faction).dyson.researchValue;
     }
     return value;
   }
