@@ -114,7 +114,7 @@ Home systems have at least 3 planets.
 - **Start view:** `defaultView` opens the human homeworld; the camera is centered on the home
   system so leaving the planet view lands there.
 - **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }` (current
-  generator version: 7). `seed` is the
+  generator version: 8 — nebulae keep clear of the Dyson ring zone). `seed` is the
   seed that actually produced the galaxy (after retries).
 
 ## AI difficulty (`components/star-map/ai-difficulty.ts`)
@@ -167,5 +167,5 @@ unique system and planet names, valid faction references, coordinates inside the
 the black hole clearance, minimum system spacing, known buildings placed inside the surface without
 overlap and off terrain obstacles (settled planets must carry a valid surface), known ship types, a homeworld and fleet for every participant, exactly one human
 `'player'`, a valid difficulty for each AI, `defaultView` on the human homeworld, at least one
-nebula and none covering a home system, an initialized asteroid event state, asteroid belts that cover no system or starting fleet and leave every home connected to every system, civilization systems that are extra to the preset count (at most the configured number), independent, free of player planets and each with a Bank and a Trading Post, and factions that
+nebula and none covering a home system, no nebula or asteroid belt reaching into the Dyson ring zone ([Dyson Swarm](./dyson-swarm.md#ring-geometry)), an initialized asteroid event state, asteroid belts that cover no system or starting fleet and leave every home connected to every system, civilization systems that are extra to the preset count (at most the configured number), independent, free of player planets and each with a Bank and a Trading Post, and factions that
 match the config (names, colors, controllers, difficulties).

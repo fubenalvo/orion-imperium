@@ -1,4 +1,5 @@
 import { Faction, SpaceBase, StarSystem } from './star-map.models';
+import { DysonRing, dysonWedgeAt, isInDysonRingZone } from './dyson-ring';
 
 /*
  * =========================================================
@@ -23,6 +24,14 @@ import { Faction, SpaceBase, StarSystem } from './star-map.models';
  *  3. ties go to the older source: systems by their order in starSystems,
  *     bases by lower id.
  *
+ * Dyson ring zone (dyson-ring.ts, docs/dyson-swarm.md): when the map has a
+ * ring, no system or base claim ever takes a cell of the ring zone. A cell
+ * of a wedge belongs to the owner of that wedge's completed Dyson anchor
+ * (`DysonClaims.wedgeOwners`), otherwise to nobody; the no-fly disc in the
+ * middle is never claimed. This sits above rule 1: the ring cuts into
+ * system discs (a system 14 cells from the center reaches into it) and base
+ * discs alike, so an empty slot can never lie in foreign territory.
+ *
  * Neutral factions (team 0: independent rebels, unhabited) never own
  * territory. Cells use the movement grid convention: a position (x, y)
  * lies in cell (floor(x), floor(y)); star systems and bases sit on integer
@@ -35,11 +44,18 @@ export const TERRITORY_CONFIG = {
   baseClaimRadius: 5,
 } as const;
 
-export type ClaimKind = 'system' | 'base';
+export type ClaimKind = 'system' | 'base' | 'dyson';
+
+/* Dyson ring input of the territory: the ring and the owner of each wedge (index = slot). */
+export interface DysonClaims {
+  ring: DysonRing | null;
+  /* Owner of wedge i's completed anchor, or null; missing entries are null. */
+  wedgeOwners: readonly (string | null)[];
+}
 
 export interface TerritoryClaim {
   kind: ClaimKind;
-  /* Star system id, or the base id as a string. */
+  /* Star system id, the base id as a string, or `dyson-<slot>` for a wedge. */
   sourceId: string;
   factionId: string;
   col: number;
@@ -101,6 +117,8 @@ export function collectClaims(
     }
   });
   for (const base of bases) {
+    // Dyson anchors claim their ring wedge (DysonClaims), never a disc.
+    if (base.kind === 'dyson') continue;
     const owner = factions.find((f) => f.id === base.factionId);
     if (!owner || owner.team === 0) continue;
     claims.push({
@@ -138,7 +156,9 @@ export class TerritoryMap {
     readonly claims: readonly TerritoryClaim[],
     readonly width: number,
     readonly height: number,
+    readonly dyson: DysonClaims = { ring: null, wedgeOwners: [] },
   ) {
+    const ring = dyson.ring;
     const distances = new Map<number, number>();
     for (const claim of claims) {
       if (claim.kind === 'system') this.systemOwners.set(claim.sourceId, claim.factionId);
@@ -147,6 +167,7 @@ export class TerritoryMap {
         for (let col = Math.max(1, claim.col - r); col <= Math.min(width, claim.col + r); col++) {
           const d = (col - claim.col) ** 2 + (row - claim.row) ** 2;
           if (d > r * r) continue;
+          if (isInDysonRingZone(ring, col, row)) continue;
           const key = cellKey(col, row);
           const current = this.winningClaim.get(key);
           if (current && !claimBeats(claim, d, current, distances.get(key)!)) continue;
@@ -154,6 +175,36 @@ export class TerritoryMap {
           distances.set(key, d);
           this.owners.set(key, claim.factionId);
         }
+      }
+    }
+    if (ring) this.claimDysonWedges(ring, dyson.wedgeOwners);
+  }
+
+  /* Wedge cells go to their anchor's owner; nothing else competes for them. */
+  private claimDysonWedges(ring: DysonRing, wedgeOwners: readonly (string | null)[]): void {
+    if (!wedgeOwners.some((owner) => owner)) return;
+    const r = Math.ceil(ring.outerRadius);
+    const minRow = Math.max(1, Math.floor(ring.cy) - r);
+    const maxRow = Math.min(this.height, Math.ceil(ring.cy) + r);
+    const minCol = Math.max(1, Math.floor(ring.cx) - r);
+    const maxCol = Math.min(this.width, Math.ceil(ring.cx) + r);
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let col = minCol; col <= maxCol; col++) {
+        const wedge = dysonWedgeAt(ring, col, row);
+        const owner = wedge === null ? null : wedgeOwners[wedge];
+        if (!owner) continue;
+        const slot = ring.slots[wedge!];
+        const key = cellKey(col, row);
+        this.owners.set(key, owner);
+        this.winningClaim.set(key, {
+          kind: 'dyson',
+          sourceId: `dyson-${wedge}`,
+          factionId: owner,
+          col: slot.col,
+          row: slot.row,
+          radius: ring.outerRadius,
+          order: wedge!,
+        });
       }
     }
   }
@@ -196,8 +247,9 @@ export function computeTerritory(
   factions: readonly Faction[],
   width: number,
   height: number,
+  dyson?: DysonClaims,
 ): TerritoryMap {
-  return new TerritoryMap(collectClaims(starSystems, bases, factions), width, height);
+  return new TerritoryMap(collectClaims(starSystems, bases, factions), width, height, dyson);
 }
 
 /*

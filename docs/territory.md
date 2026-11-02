@@ -40,6 +40,7 @@ Neutral factions (team 0: `independent` rebels, `unhabited`) never own territory
 
 **Overlap rule** — every cell has at most one owner:
 
+0. the **Dyson ring zone** (every cell within 10 cells of the black hole center) is outside this rule. No system or base claim ever takes a ring cell; a wedge belongs only to the owner of its completed Dyson anchor, otherwise to nobody ([Dyson Swarm](./dyson-swarm.md#ring-geometry)). Until anchors exist the whole ring zone is unclaimed, and an ordinary base cannot be deployed in it (`dyson_ring`);
 1. a system claim beats a base claim (taking a planet always takes its system's space, even against a foreign base);
 2. otherwise the nearest claim source wins (squared cell distance);
 3. ties go to the older source (systems by their order in `starSystems`, bases by lower id).
@@ -94,9 +95,12 @@ DEPLOY BASE in the fleet panel (player) — the AI does not deploy bases yet but
 - a non-neutral owner, a cell inside the map and outside every navigation obstacle (black hole zone, asteroid belt);
 - at least `minStarDistance` = 3 cells from every star (bases sit in open space; systems are claimed by colonies);
 - a cell that is **not another empire's territory** (own or neutral space only — at war and at peace alike);
-- at least `minBaseSpacing` = 10 cells from every other base, own or foreign.
+- at least `minBaseSpacing` = 10 cells from every other base, own or foreign;
+- outside the Dyson ring zone around the black hole (`dyson_ring`; the zone is reserved for Dyson anchors, [Dyson Swarm](./dyson-swarm.md#ring-geometry)).
 
 `SpaceBaseService.deploy` re-checks, removes one outpost ship, creates the base on the fleet's cell (named after the nearest star, e.g. "Vega Outpost") as a [construction site](#construction) and retires a fleet left without living ships, like colonization does. The base claims territory and senses only once complete (60 s).
+
+A **Dyson anchor** is a space base of kind `dyson` on a ring slot, deployed by a Swarm Constructor instead of an outpost ship. It follows its own placement, territory, upkeep and bonus rules ([Dyson Swarm](./dyson-swarm.md#implementation-phase-2)) and shares everything else on this page: construction, station defense, battles, sensors, save. Ordinary base spacing ignores anchors.
 
 A base is permanent and immobile. It cannot be moved, carried or captured; it only ends by destruction. Its only functions are observation (a sensor source of `sensorRange` = 6 cells + research bonus for a player base — the game's "radar station") and territory. It has no economy, research or production; it does cost upkeep (25 points/s, see [Economy](./economy.md#upkeep)).
 
@@ -211,7 +215,7 @@ Deposit cards show the remaining amount and the asteroid's extraction rate. Stat
 
 ## Persistence and save compatibility
 
-- `StarMapData.spaceBases`. `normalizeSave` gives a new game `[]` on its first load; `validateSaveData` rejects a non-array and only warns about malformed entries, which `SpaceBaseService.restore` drops. A destroyed base is removed, so every stored base is alive. Base ids are `max + 1`.
+- `StarMapData.spaceBases` (ordinary bases and Dyson anchors, `kind` / `dysonSlot` / `dysonBonus`). `normalizeSave` gives a new game `[]` on its first load; `validateSaveData` rejects a non-array and only warns about malformed entries, which `SpaceBaseService.restore` drops. A destroyed base is removed, so every stored base is alive. Base ids are `max + 1`.
 - `FactionRelation.borderIncidents` and `passageRights` are optional relation fields (no version bump of their own); `normalizeRelations` keeps them (passage only at peace).
 - Territory, the active violation set and the cache are runtime only.
 - Station defense state is the optional `hullCurrent` and `shieldPoolCurrent` on `SpaceBase` and `MiningStation` (no version bump; missing = full). Turret counts are never saved — they follow the saved research.

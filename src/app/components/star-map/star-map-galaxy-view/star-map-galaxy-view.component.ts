@@ -56,6 +56,19 @@ export interface SpaceBaseMapView {
   building: boolean;
   /* 0 … 1 share of the construction done; 1 for a complete base. */
   buildProgress: number;
+  /* Ring slot of a Dyson anchor; null for an ordinary base. */
+  dysonSlot: number | null;
+  /* Its panel is open (anchors only). */
+  selected: boolean;
+}
+
+/*
+ * The Dyson ring around the black hole (dyson-ring.ts) in SVG grid units:
+ * one annular-sector path per wedge and the empty anchor slots.
+ */
+export interface DysonRingView {
+  wedges: string[];
+  slots: { index: number; cx: number; cy: number }[];
 }
 
 /* Black hole no-fly zone outline in SVG grid units. */
@@ -148,6 +161,12 @@ export class StarMapGalaxyViewComponent {
   @Input() nebulae: NebulaView[] = [];
   @Input() belts: BeltView[] = [];
   @Input() blackHoleRings: BlackHoleRingView[] = [];
+  @Input() dysonRing: DysonRingView | null = null;
+
+  /* An anchor stands on this ring slot, so its empty-slot marker is hidden. */
+  isDysonSlotTaken(slot: number): boolean {
+    return this.spaceBases.some((b) => b.dysonSlot === slot);
+  }
   @Input() asteroids: AsteroidMapView[] = [];
   @Input() traders: TraderMapView[] = [];
   /* Fleets a player fleet is pursuing with an attack order (marked like an intercepted asteroid). */

@@ -326,6 +326,15 @@
       "unlocksShips": [],
       "unlocksBuildings": [],
       "bonuses": [{ "type": "stationTurrets", "value": 1 }]
+    },
+    {
+      "id": "stellar_engineering",
+      "name": "Stellar Engineering",
+      "description": "Harnessing a black hole's accretion disk: unlocks the Swarm Constructor, which builds Dyson anchors on the ring around the black hole. Hold every anchor through the warm-up to win.",
+      "researchCost": 6000,
+      "prerequisites": ["applied_science", "advanced_power"],
+      "unlocksShips": ["swarm_constructor"],
+      "unlocksBuildings": []
     }
   ]
 }

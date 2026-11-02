@@ -7,6 +7,11 @@ All notable changes to Orion Imperium. Versioning rules: [docs/versioning.md](do
 ### Changed
 - Stations are no longer finished on deployment: a space base takes 60 s and a mining station 180 s of game time to build. Until complete a station claims no territory, senses nothing, extracts nothing and pays no upkeep, and it cannot fire back: any hostile warship fleet destroys the construction site.
 
+### Added
+- The Dyson ring: 8 anchor slots and their wedges around the central black hole are shown on the galaxy map, visible to every empire regardless of fog. Anchors themselves are not in the game yet.
+- Stellar Engineering (6,000 research points, after Applied Science and Advanced Power) unlocks the Swarm Constructor: a slow, fragile, expensive ship (15,000 credits, 6,000 raw materials) that builds a Dyson anchor on an empty ring slot (DEPLOY ANCHOR, 300 s construction). A completed anchor claims its ring wedge, senses like a radar base and costs 60 upkeep points. Its panel offers a one-time bonus pick (effects not active yet) and DEMOLISH (no refund, frees the slot). Anchors are visible to every empire regardless of fog.
+- The ring zone (10 cells around the black hole) is reserved: no star system or space base claims territory there, and ordinary space bases cannot be deployed in it. New galaxies keep nebulae out of it.
+
 ## [0.3.0] — 2026-11-02
 
 First versioned release. Earlier builds showed "v0.2" in the main menu without a formal version.

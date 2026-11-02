@@ -94,8 +94,10 @@ import { generateCivilizationSystems } from '../components/star-map/civilization
  *    persisted `PlanetTile.surface` terrain (docs/planet-surface.md).
  * 7: independent civilizations in extra star systems (civilizations.ts);
  *    everything else is unchanged for a seed.
+ * 8: nebulae keep clear of the Dyson ring zone around the black hole
+ *    (dyson-ring.ts), so a seed's nebulae may differ from version 7.
  */
-export const GALAXY_GENERATOR_VERSION = 7;
+export const GALAXY_GENERATOR_VERSION = 8;
 /* Derives the civilization rng stream from the seed (keeps the main stream untouched). */
 const CIVILIZATION_RNG_SALT = 0x6c1b7a55;
 export const BLACK_HOLE_SIZE = { width: 4, height: 4 } as const;

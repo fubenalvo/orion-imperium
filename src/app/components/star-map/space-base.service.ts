@@ -8,6 +8,17 @@ import {
   validateBaseDeployment,
 } from './space-base';
 import { StationDefenseState } from './station-defense';
+import { DysonRingService } from './dyson-ring.service';
+import { DysonRing } from './dyson-ring';
+import {
+  AnchorDeploymentCheck,
+  DYSON_ANCHOR_SHIP_TYPE,
+  DysonBonusId,
+  dysonAnchorName,
+  isDysonAnchor,
+  isDysonBonusId,
+  validateAnchorDeployment,
+} from './dyson-anchor';
 import { STATION_CONSTRUCTION_SECONDS, advanceStationConstruction, isStationComplete } from './station-construction';
 
 /*
@@ -27,6 +38,10 @@ import { STATION_CONSTRUCTION_SECONDS, advanceStationConstruction, isStationComp
  * too (they reserve their spot); `completeBases` is what territory, sensors
  * and upkeep read. Completion bumps `revision` like a deploy does.
  *
+ * Dyson anchors (dyson-anchor.ts) are bases of kind 'dyson' in the same
+ * list: deployAnchor / demolish / chooseBonus manage them, and every other
+ * path (battles, save, sensors, construction) treats them as bases.
+ *
  * The battle screen applies a base battle to the autosave snapshot, not to
  * this registry (removeBaseFromList); the reload after the battle restores
  * the registry from that snapshot.
@@ -35,6 +50,8 @@ import { STATION_CONSTRUCTION_SECONDS, advanceStationConstruction, isStationComp
 export class SpaceBaseService {
   private list: SpaceBase[] = [];
   private revisionCounter = 0;
+
+  constructor(private readonly dyson: DysonRingService) {}
 
   get bases(): readonly SpaceBase[] {
     return this.list;
@@ -49,11 +66,27 @@ export class SpaceBaseService {
     return this.list.filter(isStationComplete);
   }
 
-  /* Replaces the registry with the saved bases (malformed entries dropped). */
+  /*
+   * Replaces the registry with the saved bases. Malformed entries are dropped,
+   * and so is a Dyson anchor without a valid slot or on a slot an earlier
+   * anchor already holds (one anchor per slot); an unknown bonus is cleared.
+   */
   restore(saved: readonly SpaceBase[] | undefined): void {
+    const takenSlots = new Set<number>();
     this.list = (saved ?? [])
       .filter((b) => b && Number.isFinite(b.id) && Number.isFinite(b.x) && Number.isFinite(b.y) && typeof b.factionId === 'string')
-      .map((b) => ({ ...b, x: Math.floor(b.x), y: Math.floor(b.y) }));
+      .filter((b) => {
+        if (!isDysonAnchor(b)) return true;
+        const slot = b.dysonSlot;
+        if (typeof slot !== 'number' || !Number.isInteger(slot) || slot < 0 || slot > 7 || takenSlots.has(slot)) return false;
+        takenSlots.add(slot);
+        return true;
+      })
+      .map((b) => {
+        const base = { ...b, x: Math.floor(b.x), y: Math.floor(b.y) };
+        if (base.dysonBonus !== undefined && !isDysonBonusId(base.dysonBonus)) delete base.dysonBonus;
+        return base;
+      });
     this.revisionCounter++;
   }
 
@@ -85,7 +118,80 @@ export class SpaceBaseService {
   }
 
   check(fleet: Fleet, ctx: DeployContext): BaseDeploymentCheck {
-    return validateBaseDeployment({ ...ctx, fleet, bases: this.list });
+    // The current map's ring unless the caller passes its own (tests). Anchors
+    // do not count for ordinary base spacing: they live only on the ring.
+    return validateBaseDeployment({
+      dysonRing: this.dyson.ring,
+      ...ctx,
+      fleet,
+      bases: this.list.filter((b) => !isDysonAnchor(b)),
+    });
+  }
+
+  /* The Dyson anchors in the registry (construction sites included). */
+  get dysonAnchors(): SpaceBase[] {
+    return this.list.filter(isDysonAnchor);
+  }
+
+  anchorOnSlot(slot: number): SpaceBase | undefined {
+    return this.list.find((b) => isDysonAnchor(b) && b.dysonSlot === slot);
+  }
+
+  checkAnchor(fleet: Fleet, factions: readonly Faction[], ring?: DysonRing | null): AnchorDeploymentCheck {
+    return validateAnchorDeployment({ fleet, factions, ring: ring === undefined ? this.dyson.ring : ring, bases: this.list });
+  }
+
+  /*
+   * Deploys a Dyson anchor from `fleet` on the ring slot it stands on (player
+   * DEPLOY ANCHOR or, later, the AI). Re-checks the rules, consumes one Swarm
+   * Constructor, starts the anchor as a construction site and retires a
+   * fleet left without living ships. Nothing changes when the check fails.
+   */
+  deployAnchor(
+    fleet: Fleet,
+    factions: readonly Faction[],
+    ring?: DysonRing | null,
+  ): { base: SpaceBase; fleetRetired: boolean } | { base: null; check: AnchorDeploymentCheck } {
+    const check = this.checkAnchor(fleet, factions, ring);
+    if (!check.ok) return { base: null, check };
+
+    const index = fleet.ships.findIndex((s) => s.type === DYSON_ANCHOR_SHIP_TYPE && !s.destroyed);
+    fleet.ships.splice(index, 1);
+    const base: SpaceBase = {
+      id: this.list.reduce((max, b) => Math.max(max, b.id), 0) + 1,
+      name: dysonAnchorName(check.slot),
+      factionId: fleet.factionId,
+      x: check.col,
+      y: check.row,
+      kind: 'dyson',
+      dysonSlot: check.slot,
+      constructionRemaining: STATION_CONSTRUCTION_SECONDS.dysonAnchor,
+    };
+    this.list.push(base);
+    this.revisionCounter++;
+    return { base, fleetRetired: this.retireIfEmpty(fleet) };
+  }
+
+  /*
+   * Picks the anchor's bonus. Only its owner may pick, and only once: the
+   * choice is permanent (DEMOLISH and rebuild to change it).
+   */
+  chooseBonus(id: number, factionId: string, bonus: DysonBonusId): boolean {
+    const base = this.getBase(id);
+    if (!base || !isDysonAnchor(base) || base.factionId !== factionId || base.dysonBonus || !isDysonBonusId(bonus)) return false;
+    base.dysonBonus = bonus;
+    return true;
+  }
+
+  /*
+   * Owner-only demolition of a Dyson anchor (built or under construction):
+   * no refund, the slot is free for anyone again. Ordinary bases cannot be
+   * demolished.
+   */
+  demolish(id: number, factionId: string): boolean {
+    const base = this.getBase(id);
+    if (!base || !isDysonAnchor(base) || base.factionId !== factionId) return false;
+    return this.destroy(id);
   }
 
   /*
@@ -110,16 +216,20 @@ export class SpaceBaseService {
     };
     this.list.push(base);
     this.revisionCounter++;
+    return { base, fleetRetired: this.retireIfEmpty(fleet) };
+  }
 
-    const fleetRetired = !fleet.ships.some((s) => !s.destroyed);
-    if (fleetRetired) {
+  /* Retires a fleet left without living ships (like colonization does). */
+  private retireIfEmpty(fleet: Fleet): boolean {
+    const retired = !fleet.ships.some((s) => !s.destroyed);
+    if (retired) {
       fleet.destroyed = true;
       fleet.targetX = null;
       fleet.targetY = null;
       fleet.interceptAsteroidId = null;
       fleet.attackFleetId = null;
     }
-    return { base, fleetRetired };
+    return retired;
   }
 
   /* Destroys a base (lost battle); its territory claim disappears with it. */
@@ -145,6 +255,8 @@ export interface DeployContext {
   width: number;
   height: number;
   isBlocked?: (x: number, y: number) => boolean;
+  /* Defaults to the current map's ring (DysonRingService). */
+  dysonRing?: DysonRing | null;
 }
 
 export function removeBaseFromList(list: SpaceBase[], id: number): SpaceBase[] {

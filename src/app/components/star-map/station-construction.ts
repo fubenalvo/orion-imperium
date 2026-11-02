@@ -29,6 +29,7 @@ import { StarSystem, SystemAsteroid } from './star-map.models';
 export const STATION_CONSTRUCTION_SECONDS = {
   spaceBase: 60,
   miningStation: 180,
+  dysonAnchor: 300,
 } as const;
 
 /* The construction site's only battle unit: it soaks damage, never fires. */

@@ -14,6 +14,17 @@ import { ShipService } from '../../services/ship.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { generatePlanetSurface, needsSurface } from './planet-surface/planet-surface-generator';
 import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
+import { DysonRingService } from './dyson-ring.service';
+import { AnchorPanelViewModel, StarMapAnchorInfoComponent } from './star-map-anchor-info/star-map-anchor-info.component';
+import {
+  DYSON_BONUSES,
+  DysonBonusId,
+  describeAnchorDeploymentFailure,
+  dysonBonusDef,
+  hasLivingSwarmConstructor,
+  isDysonAnchor,
+} from './dyson-anchor';
+import { dysonWedgePath } from './dyson-ring';
 import {
   STATION_CONSTRUCTION_SECONDS,
   advanceMiningStationConstruction,
@@ -124,6 +135,7 @@ import {
 import {
   AsteroidMapView,
   BlackHoleRingView,
+  DysonRingView,
   NebulaView,
   SpaceBaseMapView,
   TerritoryShapeView,
@@ -240,6 +252,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapDiplomacyComponent,
     StarMapPeaceNegotiationComponent,
     StarMapAsteroidInfoComponent,
+    StarMapAnchorInfoComponent,
     StarMapTraderInfoComponent,
     StarMapFleetManagerComponent,
     StarMapAnomalyEventComponent,
@@ -275,6 +288,7 @@ loadError = '';
   // not cheap enough to rebuild on every change-detection pass).
   nebulaViews: NebulaView[] = [];
   blackHoleRings: BlackHoleRingView[] = [];
+  dysonRingView: DysonRingView | null = null;
   // Impassable asteroid belts (persisted geometry) and their render data.
   asteroidBelts: AsteroidBelt[] = [];
   beltViews: BeltView[] = [];
@@ -286,6 +300,8 @@ loadError = '';
   // Drifting asteroid selection / panel state (asteroids themselves live in
   // DriftingAsteroidService and are persisted through serializeGameState).
   selectedAsteroidId: number | null = null;
+  /* Dyson anchor whose panel is open (a base id), or null. */
+  selectedAnchorId: number | null = null;
   asteroidPanelVm: AsteroidPanelViewModel | null = null;
   asteroidPanelMessage: string | null = null;
   private asteroidPanelClock = 0;
@@ -521,6 +537,7 @@ loadError = '';
     private diplomacyService: DiplomacyService,
     private enemyDiplomacyService: EnemyDiplomacyService,
     private spaceBaseService: SpaceBaseService,
+    private dysonRingService: DysonRingService,
     private territoryService: TerritoryService,
     private borderService: BorderService,
     private anomalyService: AnomalyService,
@@ -754,6 +771,82 @@ loadError = '';
     this.traderPanelVm = null;
     this.selectedSystem = null;
     this.refreshAsteroidPanel();
+    this.cdr.detectChanges();
+  }
+
+  /* View model of the selected Dyson anchor; closes the panel when the anchor is gone. */
+  get anchorPanelVm(): AnchorPanelViewModel | null {
+    if (this.selectedAnchorId === null) return null;
+    const base = this.spaceBaseService.getBase(this.selectedAnchorId);
+    if (!base || !isDysonAnchor(base)) return null;
+    const building = !isStationComplete(base);
+    return {
+      id: base.id,
+      name: base.name,
+      ownerName: this.getFactionName(base.factionId),
+      color: this.getFactionColor(base.factionId),
+      own: base.factionId === 'player',
+      building,
+      secondsLeft: Math.ceil(base.constructionRemaining ?? 0),
+      progress: constructionProgress(base, STATION_CONSTRUCTION_SECONDS.dysonAnchor),
+      defense: building
+        ? 'None while building'
+        : describeStationDefense(base, this.getStationTurrets(base.factionId)),
+      bonus: dysonBonusDef(base.dysonBonus),
+      bonusOptions: DYSON_BONUSES,
+    };
+  }
+
+  deselectAnchor(): void {
+    this.selectedAnchorId = null;
+    this.cdr.detectChanges();
+  }
+
+  onAnchorBonusPicked(bonus: DysonBonusId): void {
+    if (this.selectedAnchorId === null) return;
+    if (this.spaceBaseService.chooseBonus(this.selectedAnchorId, 'player', bonus)) {
+      this.saveGame();
+    }
+    this.cdr.detectChanges();
+  }
+
+  onAnchorDemolished(): void {
+    if (this.selectedAnchorId === null) return;
+    const base = this.spaceBaseService.getBase(this.selectedAnchorId);
+    if (base && this.spaceBaseService.demolish(base.id, 'player')) {
+      this.showMapNotice(`${base.name} demolished. The slot is free again.`);
+      this.selectedAnchorId = null;
+      this.refreshTerritoryViews();
+      this.updateSensorVisibility(true);
+      this.saveGame();
+    }
+    this.cdr.detectChanges();
+  }
+
+  /* DEPLOY ANCHOR state of the selected player fleet; null when it carries no Swarm Constructor. */
+  getSelectedFleetAnchorDeployment(): { canDeploy: boolean; reason: string | null } | null {
+    const fleet = this.commandableFleet();
+    if (!fleet || !hasLivingSwarmConstructor(fleet)) return null;
+    const check = this.spaceBaseService.checkAnchor(fleet, this.factions);
+    return check.ok ? { canDeploy: true, reason: null } : { canDeploy: false, reason: describeAnchorDeploymentFailure(check.reason) };
+  }
+
+  /* DEPLOY ANCHOR: the Swarm Constructor becomes a Dyson anchor site on the ring slot. */
+  onDeployAnchorSelected(): void {
+    const fleet = this.commandableFleet();
+    if (!fleet) return;
+    const result = this.spaceBaseService.deployAnchor(fleet, this.factions);
+    if (!result.base) {
+      if (!result.check.ok) this.showMapNotice(describeAnchorDeploymentFailure(result.check.reason));
+      return;
+    }
+    this.showMapNotice(
+      `${result.base.name}: construction started (${STATION_CONSTRUCTION_SECONDS.dysonAnchor} s). ` +
+        'It is defenseless until complete, then claims its ring wedge.',
+    );
+    if (result.fleetRetired) this.deselectFleet();
+    this.selectedAnchorId = result.base.id;
+    this.saveGame();
     this.cdr.detectChanges();
   }
 
@@ -1169,6 +1262,13 @@ loadError = '';
       rotationDeg: (nebula.rotation * 180) / Math.PI,
     }));
     this.beltViews = this.asteroidBelts.map((belt) => buildBeltView(belt));
+    const ring = this.dysonRingService.ring;
+    this.dysonRingView = ring
+      ? {
+          wedges: ring.slots.map((slot) => dysonWedgePath(ring, slot.index)),
+          slots: ring.slots.map((slot) => ({ index: slot.index, cx: slot.col - 0.5, cy: slot.row - 0.5 })),
+        }
+      : null;
     this.blackHoleRings = this.terrainService.obstacles.filter((o) => o.kind === 'blackhole').map((o) => ({
       cx: o.x - 0.5,
       cy: o.y - 0.5,
@@ -1203,7 +1303,8 @@ loadError = '';
    */
   get visibleSpaceBases(): SpaceBaseMapView[] {
     return this.spaceBaseService.bases
-      .filter((b) => !this.sensorRangeEnabled || b.factionId === 'player' || this.exploredGridCells.has(`${b.x}-${b.y}`))
+      // Dyson anchors are known to every empire regardless of fog (docs/dyson-swarm.md).
+      .filter((b) => isDysonAnchor(b) || !this.sensorRangeEnabled || b.factionId === 'player' || this.exploredGridCells.has(`${b.x}-${b.y}`))
       .map((b) => ({
         id: b.id,
         name: b.name,
@@ -1215,7 +1316,12 @@ loadError = '';
         claimRadiusVw: TERRITORY_CONFIG.baseClaimRadius * this.cellSizeVw,
         turrets: this.getStationTurrets(b.factionId),
         building: !isStationComplete(b),
-        buildProgress: constructionProgress(b, STATION_CONSTRUCTION_SECONDS.spaceBase),
+        buildProgress: constructionProgress(
+          b,
+          isDysonAnchor(b) ? STATION_CONSTRUCTION_SECONDS.dysonAnchor : STATION_CONSTRUCTION_SECONDS.spaceBase,
+        ),
+        dysonSlot: isDysonAnchor(b) ? (b.dysonSlot ?? null) : null,
+        selected: this.selectedAnchorId === b.id,
       }));
   }
 
@@ -1235,6 +1341,11 @@ loadError = '';
   onSpaceBaseClick(baseId: number): void {
     const base = this.spaceBaseService.getBase(baseId);
     if (!base) return;
+    if (isDysonAnchor(base)) {
+      this.selectedAnchorId = base.id;
+      this.cdr.detectChanges();
+      return;
+    }
     const owner = base.factionId === 'player' ? 'your' : this.getFactionName(base.factionId);
     if (!isStationComplete(base)) {
       this.showMapNotice(
@@ -3808,7 +3919,11 @@ loadError = '';
     const ownBase = bases.find((b) => b.factionId === 'player');
     const ownMine = mines.find((m) => m.asteroid.miningStation?.factionId === 'player');
     if (ownBase) {
-      this.showMapNotice(`${ownBase.name} is complete: it now claims territory and senses around it.`);
+      this.showMapNotice(
+        isDysonAnchor(ownBase)
+          ? `${ownBase.name} is complete: its ring wedge is now your territory.`
+          : `${ownBase.name} is complete: it now claims territory and senses around it.`,
+      );
     } else if (ownMine) {
       this.showMapNotice(`Mining station in the ${ownMine.system.name} belt is complete and extracting.`);
     }
@@ -4390,8 +4505,8 @@ loadError = '';
     }
     this.movementService.initialize(this.cellSizeVw, this.cellSizeVh, this.mapWidth, this.mapHeight);
     // Terrain must be configured before any movement or sensor update runs
-    // against the new galaxy. Nebulae come from the save (migration
-    // backfilled old saves); they are never regenerated here.
+    // against the new galaxy. Nebulae come from the save; they are never
+    // regenerated here.
     this.nebulae = data.nebulae ?? [];
     this.asteroidBelts = data.asteroidBelts ?? [];
     this.terrainService.configure({
@@ -4401,6 +4516,8 @@ loadError = '';
       width: this.mapWidth,
       height: this.mapHeight,
     });
+    // The Dyson ring is derived from the black hole on every load (never saved).
+    this.dysonRingService.configure(this.specialObjects);
     this.rebuildTerrainViews();
     this.asteroidService.restore(data.asteroidEvents, this.galaxy?.seed ?? 0, this.fleets);
     this.anomalyService.restore(data.anomalies, {

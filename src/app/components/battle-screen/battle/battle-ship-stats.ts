@@ -47,6 +47,7 @@ const TIER_LOOKUP: Record<string, number> = {
   fighter: 1,
   colonizer: 1,
   outpost_ship: 1,
+  swarm_constructor: 1,
   corvette: 1,
   frigate: 2,
   destroyer: 2,

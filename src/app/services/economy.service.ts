@@ -10,6 +10,7 @@ import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
 import { extractMiningStations, miningRatePerSecond } from '../components/star-map/mining-station';
 import { SpaceBaseService } from '../components/star-map/space-base.service';
 import { isStationComplete } from '../components/star-map/station-construction';
+import { DYSON_ANCHOR_UPKEEP_POINTS, isDysonAnchor } from '../components/star-map/dyson-anchor';
 import { planetTypeTraits } from '../components/star-map/planet-types';
 
 import {
@@ -693,9 +694,13 @@ export class EconomyService {
   }
 
   /* Upkeep in credits per second of one space base / one mining station. */
-  getStationUpkeepRates(owner?: Faction | null, scale = 1): { spaceBase: number; miningStation: number } {
+  getStationUpkeepRates(owner?: Faction | null, scale = 1): { spaceBase: number; miningStation: number; dysonAnchor: number } {
     const factor = UPKEEP_CREDITS_PER_POINT * this.research.getModifiers(owner).buildingUpkeep * scale;
-    return { spaceBase: SPACE_BASE_UPKEEP_POINTS * factor, miningStation: MINING_STATION_UPKEEP_POINTS * factor };
+    return {
+      spaceBase: SPACE_BASE_UPKEEP_POINTS * factor,
+      miningStation: MINING_STATION_UPKEEP_POINTS * factor,
+      dysonAnchor: DYSON_ANCHOR_UPKEEP_POINTS * factor,
+    };
   }
 
   /*
@@ -710,7 +715,10 @@ export class EconomyService {
     scale: number,
   ): number {
     // Construction sites pay nothing until complete (station-construction.ts).
-    const bases = this.spaceBases?.basesOf(factionId).filter(isStationComplete).length ?? 0;
+    // Dyson anchors pay their own, higher rate (dyson-anchor.ts).
+    const complete = this.spaceBases?.basesOf(factionId).filter(isStationComplete) ?? [];
+    const anchors = complete.filter(isDysonAnchor).length;
+    const bases = complete.length - anchors;
     let stations = 0;
     for (const system of starSystems) {
       for (const asteroid of system.asteroidBelt?.asteroids ?? []) {
@@ -721,9 +729,9 @@ export class EconomyService {
         if (station?.factionId === factionId && isStationComplete(station) && asteroid.rawMaterials > 0) stations++;
       }
     }
-    if (bases === 0 && stations === 0) return 0;
+    if (bases === 0 && stations === 0 && anchors === 0) return 0;
     const rates = this.getStationUpkeepRates(owner, scale);
-    return bases * rates.spaceBase + stations * rates.miningStation;
+    return bases * rates.spaceBase + stations * rates.miningStation + anchors * rates.dysonAnchor;
   }
 
   /* Technology modifiers of a faction (same source every economy rule uses). */

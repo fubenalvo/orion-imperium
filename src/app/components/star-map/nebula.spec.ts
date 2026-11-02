@@ -134,7 +134,8 @@ describe('nebula generation', () => {
         ).toEqual([]);
       }
     }
-  });
+    // 120 generated galaxies: about 5 s alone, so the default limit fails under full-suite load.
+  }, 30_000);
 });
 
 describe('nebula movement penalty', () => {

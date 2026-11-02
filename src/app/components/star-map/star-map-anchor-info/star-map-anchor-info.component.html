@@ -1,0 +1,70 @@
+@if (vm) {
+  <div class="anchor-info panel-style" [style.--anchor-color]="vm.color" (click)="$event.stopPropagation()">
+    <div class="panel-style__title">
+      <span class="anchor-info__title">{{ vm.name }}</span>
+      <button class="close-btn" type="button" (click)="close.emit()" aria-label="Close">X</button>
+    </div>
+
+    <div class="system-info__content">
+      <div class="ui-stat">
+        <span class="ui-stat__label">Owner</span>
+        <span class="ui-stat__value anchor-info__owner">{{ vm.own ? 'You' : vm.ownerName }}</span>
+      </div>
+      @if (vm.building) {
+        <div class="ui-stat">
+          <span class="ui-stat__label">Under construction</span>
+          <span class="ui-stat__value">{{ progressPercent(vm) }}% · {{ vm.secondsLeft }} s left</span>
+        </div>
+        <div class="anchor-info__bar" aria-hidden="true">
+          <span class="anchor-info__bar-fill" [style.width.%]="progressPercent(vm)"></span>
+        </div>
+      } @else {
+        <div class="ui-stat">
+          <span class="ui-stat__label">Status</span>
+          <span class="ui-stat__value">Active · claims its ring wedge</span>
+        </div>
+      }
+      <div class="ui-stat">
+        <span class="ui-stat__label">Defense</span>
+        <span class="ui-stat__value">{{ vm.defense }}</span>
+      </div>
+
+      <div class="ui-label">Bonus</div>
+      @if (vm.bonus) {
+        <div class="anchor-info__bonus anchor-info__bonus--chosen">
+          <span class="anchor-info__bonus-name">{{ vm.bonus.name }}</span>
+          <span class="anchor-info__bonus-desc">{{ vm.bonus.description }}</span>
+        </div>
+      } @else if (vm.own) {
+        <div class="anchor-info__hint">Choose once — the bonus cannot be changed later.</div>
+        @for (option of vm.bonusOptions; track option.id) {
+          <button type="button" class="action-btn anchor-info__bonus" (click)="pickBonus.emit(option.id); $event.stopPropagation()">
+            <span class="anchor-info__bonus-name">{{ option.name }}</span>
+            <span class="anchor-info__bonus-desc">{{ option.description }}</span>
+          </button>
+        }
+      } @else {
+        <div class="anchor-info__hint">No bonus chosen yet.</div>
+      }
+      @if (vm.bonus || vm.own) {
+        <div class="anchor-info__hint">Bonus effects are not active yet.</div>
+      }
+
+      @if (vm.own) {
+        @if (confirmingDemolish) {
+          <div class="ui-notice ui-notice--danger" role="alert">
+            Demolish {{ vm.name }}? Nothing is refunded and the slot becomes free for anyone.
+          </div>
+          <div class="anchor-info__actions">
+            <button type="button" class="action-btn" (click)="confirmingDemolish = false; $event.stopPropagation()">CANCEL</button>
+            <button type="button" class="action-btn btn-danger" (click)="confirmDemolish(); $event.stopPropagation()">DEMOLISH</button>
+          </div>
+        } @else {
+          <div class="anchor-info__actions">
+            <button type="button" class="action-btn btn-danger" (click)="confirmingDemolish = true; $event.stopPropagation()">DEMOLISH…</button>
+          </div>
+        }
+      }
+    </div>
+  </div>
+}

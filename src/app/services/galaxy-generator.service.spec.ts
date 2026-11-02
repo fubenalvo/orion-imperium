@@ -5,6 +5,7 @@ import { EconomyService } from './economy.service';
 import { ShipService } from './ship.service';
 import {
   BLACK_HOLE_SIZE,
+  GALAXY_GENERATOR_VERSION,
   GalaxyGeneratorService,
   GalaxyGenerationError,
   mapCenter,
@@ -154,7 +155,7 @@ describe('GalaxyGeneratorService', () => {
     const c = generator.generate(config, 43);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
     expect(JSON.stringify(a.starSystems)).not.toBe(JSON.stringify(c.starSystems));
-    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: 7 });
+    expect(a.galaxy).toEqual({ size: 'medium', seed: 42, requestedSeed: null, generatorVersion: GALAXY_GENERATOR_VERSION });
   });
 
   it('generates unique ids and names with valid references', () => {

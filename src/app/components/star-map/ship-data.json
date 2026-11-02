@@ -242,6 +242,27 @@
       "rawMaterialCost": 500,
       "maintenanceCost": 6,
       "fireRate": 2
+    },
+    {
+      "id": "swarm_constructor",
+      "name": "Swarm Constructor",
+      "role": "DysonAnchor",
+      "hullClass": "light",
+      "hitPoints": 40,
+      "shield": 0,
+      "shieldRegen": 0,
+      "attack": 1,
+      "attackType": "kinetic",
+      "weakness": "energy",
+      "defense": 1,
+      "speed": 1,
+      "range": 1,
+      "battleMoveRange": 1,
+      "cost": 15000,
+      "buildTime": 120,
+      "rawMaterialCost": 6000,
+      "maintenanceCost": 10,
+      "fireRate": 1
     }
   ]
 }

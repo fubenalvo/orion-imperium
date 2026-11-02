@@ -1,6 +1,13 @@
 # Dyson Swarm (Design — not implemented)
 
-Status: **design agreed on 2026-11-02. Phase 0 (station construction time) is implemented ([Territory](./territory.md#construction)); the swarm itself is not.** This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
+Status: **design agreed on 2026-11-02.**
+
+| Phase | State |
+| --- | --- |
+| 0. Station construction time | implemented ([Territory](./territory.md#construction)) |
+| 1. Ring geometry | implemented (this section: [Ring geometry](#ring-geometry)) |
+| 2. Technology, ship, deployment, anchor panel | implemented ([Implementation (phase 2)](#implementation-phase-2)); bonus effects are not active yet |
+| 3–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
 
 The Dyson Swarm is a late-game **alternative victory** and **credit / raw-material sink**. Eight fixed anchor slots ring the central black hole. A faction that holds a completed Dyson Anchor on **every** slot and keeps all of them for a 5-minute warm-up wins. Anchors are expensive to bring there, expensive to keep, cannot be captured and are visible to everyone, so an empire heading for this victory becomes the obvious target of the others.
 
@@ -25,22 +32,49 @@ The galaxy always has exactly one black hole, centered on the map, with a no-fly
 
 Why 8: the black hole center lies on a half cell (the 4×4 span is centered on `x + 1.5`), so these offsets land exactly on integer cells, where bases sit. All eight slots are at the same distance (√48.5 ≈ 6.96 cells, about 3 cells outside the no-fly edge), within 1.5° of an exact 45° spacing, and at least 5 cells apart. The layout is mirror-symmetric on both axes, like the home-system ellipse, so no faction is closer to the ring than another. A layout check for 9 and 10 slots found no even grid fit: radii varied by up to 0.5 cells, angles by about 4°, and 10 slots came down to 3 cells apart.
 
-Because the slots are derived from the black hole, they need no saved state and older saves get them automatically.
+Because the slots are derived from the black hole, they need no saved state.
 
-**Wedges.** Each slot owns one **45° annular sector** of the ring. The sector runs from the no-fly edge (radius 4) to radius 10 (the slot plus 3 cells) and spans the angle between two boundaries at multiples of 45° from the +x axis. Each slot sits within 1.5° of the middle of its wedge. The eight wedges tile the ring without gaps, so a faction holding every slot shows a closed ring in its color. A grid cell belongs to a wedge by the same cell coordinates the territory map already uses.
+**Implementation.**
+- **`dyson-ring.ts` (pure):** `DYSON_RING_CONFIG`, `buildDysonRing`, `isInDysonRingZone`, `dysonWedgeAt`, `dysonSlotAtCell`, `dysonWedgePath`.
+- **`DysonRingService`:** holds the current map's ring. `StarMap.loadGame` calls `configure(specialObjects)` on every load, and the headless simulation does the same. A map without a black hole has no ring.
+- **`revision`:** feeds the `TerritoryService` cache key.
 
-**Ring zone precedence (territory).** The ring zone is the area of all wedges (distance from the center between 4 and 10):
+**Wedges.** Each slot owns one **45° annular sector** of the ring. The sector runs from the no-fly edge (radius 4) to radius 10 (the slot plus 3 cells) and spans the angle between two boundaries at multiples of 45° from the +x axis. The angle is `atan2(row − cy, col − cx)`, and grid rows grow downwards. Each slot sits within 1.5° of the middle of its wedge.
+
+The eight wedges tile the ring without gaps, so a faction holding every slot shows a closed ring in its color. A grid cell belongs to a wedge by the same cell coordinates the territory map already uses.
+
+Because the center is on a half cell, some cells lie exactly on a 45° diagonal. They always go to the steeper wedge (1, 2, 5 or 6). This keeps the wedges mirror-symmetric on both axes: the four flat wedges have equal cell counts, and so do the four steep ones. Cells of the no-fly disc are in the ring zone but in no wedge.
+
+**Ring zone precedence (territory).** The ring zone is every cell within 10 cells of the center: all wedges plus the no-fly disc, which nobody ever claims. In `territory.ts` (`DysonClaims`):
 
 1. A cell in the ring zone belongs to the owner of its wedge's **completed** anchor, or to nobody. An empty wedge or one under construction claims nothing.
 2. No other claim source ever claims a ring cell. This overrides the "a system claim beats a base claim" rule ([Territory](./territory.md#territory)). On the small map a system 14 cells from the center has a 7-cell claim disc that reaches into the ring, and the ring cuts it off.
-3. An ordinary space base may be deployed outside the ring zone. Its claim disc is cut by the ring, as above.
+3. An ordinary space base may only be deployed outside the ring zone. Inside it, `validateBaseDeployment` refuses with `dyson_ring`. The base's claim disc is cut by the ring, as above.
+
+Until anchors exist (phase 2), `DysonRingService.claims` reports no wedge owners, so the whole ring zone is unclaimed.
 
 Consequences:
 
 - A slot is never inside another faction's territory, so the "no deployment in foreign territory" rule can never lock a faction out of an empty slot.
 - Wedges are ordinary territory everywhere else: border violations at peace and sensor rules work as they do for bases.
 
-**Generation.** New galaxies must keep nebulae and asteroid belts off the ring zone. Today nebulae only keep 4 cells from the no-fly edge, so a nebula can still reach radius 8–10. The current exclusion rule for belts is verified in phase 1. Older saves are not supported (see phase 2 and [Versioning](./versioning.md)), so no ring cleanup is needed for them.
+**Generation** (galaxy generator version 8):
+- A nebula edge keeps at least `outerRadius + generationClearance` = 11 cells from the black hole center. Version 7 allowed nebulae down to 8 cells.
+- Asteroid belts needed no change. A belt's navigation capsule already keeps `minPassage` (6) beyond the no-fly edge, so its band ends at least 10.5 cells from the center.
+- `validateGeneratedGalaxy` rejects any nebula or belt that reaches into the ring zone.
+
+Older saves are not supported (see phase 2 and [Versioning](./versioning.md)), so no ring cleanup is needed for them.
+
+**Tests** (`dyson-ring.spec.ts`):
+- slots on exact integer cells, equidistant and in their own wedges, for every map size;
+- the wedges tile the ring with mirror-symmetric cell counts;
+- the ring cuts system and base discs, so no slot is ever in foreign territory;
+- wedge claims;
+- ordinary bases refused in the zone.
+
+The generator spec's 150-galaxy validation covers the terrain rule.
+
+**Display.** The galaxy view's `dyson-layer` sits above the fog (z 6), because the ring is known to every empire. It draws faint warm, dashed wedge outlines and a dashed diamond on each empty slot; the diamond disappears once an anchor stands on the slot. The layer is presentation only: anchors are base markers above it.
 
 ## Station construction time (applies to every station)
 
@@ -64,9 +98,14 @@ This is a general rule for every station, introduced together with the swarm (ph
 
 ## Research and the anchor ship
 
-- **Technology:** a new technology at the end of the tree (working name *Stellar Engineering*) unlocks the anchor ship. Its research cost is above every current technology (the most expensive today is 4,500 points). The prerequisites should come from the late economy and research branches, so the technologist reaches it first. Exact prerequisites and price are set during phase 2.
-- **Ship:** a new ship type (working name *Swarm Constructor*, role `DysonAnchor`).
-  - **Very expensive** in credits and raw materials, **very slow** (below the outpost ship's speed of 2) and **fragile** (low hit points, no shield, negligible attack).
+- **Technology:** *Stellar Engineering* (`stellar_engineering`, research cost 6,000) unlocks the anchor ship.
+  - It is the most expensive technology; the next most expensive cost 4,500.
+  - Prerequisites: Applied Science and Advanced Power, the ends of the research and power branches, so the technologist reaches it first. That puts it at depth 4 of the tree.
+- **Ship:** *Swarm Constructor* (`swarm_constructor`, role `DysonAnchor`).
+  - **Very expensive:** 15,000 credits and 6,000 raw materials. 120 s build time, 10 upkeep points.
+  - **Very slow:** speed 1, half the outpost ship's speed of 2.
+  - **Fragile:** 40 HP, no shield, attack 1, defense 1. Its battle icon is `public/ships/swarm_constructor.svg`.
+  - All values are starting values for the phase 7 tuning.
   - It is not a combat ship (`isCombatShipType` excludes it, like the outpost ship).
   - It is built and moved like any ship: in a fleet, with escorts. A fleet moves at its slowest ship's speed, so escorts slow down with it.
 - **No cap** on how many anchor ships a faction may build or have in flight.
@@ -91,6 +130,32 @@ This is a general rule for every station, introduced together with the swarm (ph
    A freed slot can be built on again by anyone, with any bonus.
 
 **Always visible.** Anchors and construction sites (slot, owner, state, construction time left) are visible to every faction regardless of fog of war, including the AI fog of war (`EnemyIntelService`). This differs from ordinary bases, which are only shown once explored.
+
+### Implementation (phase 2)
+
+- **Data:** an anchor is a `SpaceBase` with `kind: 'dyson'`, `dysonSlot` (0–7) and the optional `dysonBonus`.
+  - A base without `kind` is an ordinary radar base.
+  - These are additive optional fields, so there is no `SAVE_VERSION` bump ([Versioning](./versioning.md)).
+  - `SpaceBaseService.restore` drops an anchor without a valid slot or on a slot an earlier anchor already holds, and clears an unknown bonus.
+- **Rules:** `dyson-anchor.ts`, with `validateAnchorDeployment`, the bonus list and `dysonWedgeOwners`. Mutations live in `SpaceBaseService`: `deployAnchor`, `chooseBonus`, `demolish`, `checkAnchor`.
+  - Ordinary base spacing ignores anchors.
+  - `collectClaims` gives an anchor no disc claim; `TerritoryService` passes the completed anchors' wedge owners to the territory map.
+- **Shared paths:** anchors use every base path unchanged:
+  - construction (300 s);
+  - battles (`checkBaseBattles`, station defense, construction site while being built);
+  - sensors (a completed anchor is in `completeBases`, the radar sources);
+  - save (`StarMapData.spaceBases`).
+- **Upkeep:** `DYSON_ANCHOR_UPKEEP_POINTS` = 60, in `EconomyService.getStationUpkeepPerSecond`. A radar base costs 25.
+- **UI:**
+  - **Fleet panel:** a DEPLOY ANCHOR button is shown when the fleet carries a Swarm Constructor. When the button is disabled, the panel explains why.
+  - **Map:** anchor markers are always visible regardless of fog. They show a gold frame and a round core, and get a highlight while their panel is open.
+  - **Anchor panel:** clicking an anchor opens `StarMapAnchorInfoComponent`, with owner, construction progress, defense, the bonus and DEMOLISH… behind an inline confirmation. The owner can pick the bonus once.
+  - **Notices:** deploying, completing and demolishing your own anchor show a map notice.
+- **Not yet:**
+  - bonus effects (phase 3; the panel says so);
+  - global news and the warm-up (phase 4);
+  - diplomacy (phase 5);
+  - the AI (phase 6). AI factions never build the constructor: it is not a combat ship.
 
 ## Anchor bonuses
 
@@ -193,8 +258,7 @@ Each phase updates this document and the documents it touches.
    - DEPLOY ANCHOR;
    - the anchor info panel (state, bonus pick, DEMOLISH);
    - always visible regardless of fog;
-   - anchors stored as space bases with a kind and slot index;
-   - a `SAVE_VERSION` bump.
+   - anchors stored as space bases with a kind and slot index (additive optional fields, no `SAVE_VERSION` bump).
 
    **Save compatibility** follows [Versioning](./versioning.md). The swarm is meant for a MINOR release (0.4.0), which may raise `MIN_SUPPORTED_SAVE_VERSION` to the new format, so no migration is written for the swarm, the ring zone, or nebulae and belts lying on the ring. Older saves are then rejected and listed as incompatible.
 3. **Upkeep and bonuses:** upkeep in `EconomyService`, bonus aggregation where each bonus applies.

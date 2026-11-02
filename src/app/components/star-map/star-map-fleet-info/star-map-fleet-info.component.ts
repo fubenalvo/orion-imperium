@@ -50,6 +50,11 @@ export class StarMapFleetInfoComponent {
    * place of DEPLOY BASE. `reason` is the button tooltip (target or blocker).
    */
   @Input() miningDeployment: { canDeploy: boolean; reason: string | null } | null = null;
+  /*
+   * Dyson anchor deployment state; null when the fleet carries no Swarm
+   * Constructor (hides DEPLOY ANCHOR). `reason` explains a disabled button.
+   */
+  @Input() anchorDeployment: { canDeploy: boolean; reason: string | null } | null = null;
   /* Name of the empire whose borders this fleet is violating right now; null when none. */
   @Input() borderViolationOf: string | null = null;
 
@@ -68,4 +73,5 @@ export class StarMapFleetInfoComponent {
   @Output() colonize = new EventEmitter<void>();
   @Output() deployBase = new EventEmitter<void>();
   @Output() deployMining = new EventEmitter<void>();
+  @Output() deployAnchor = new EventEmitter<void>();
 }

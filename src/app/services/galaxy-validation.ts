@@ -9,7 +9,8 @@ import planetData from '../components/star-map/planet-data.json';
 import { KNOWN_SHIP_TYPES, validateSaveData } from './save-validation';
 import { GALAXY_SIZE_PRESETS, NewGameConfig } from './new-game.models';
 import { assignFactionIds, mapCenter, PLAYER_FACTION_ID } from './galaxy-generator.service';
-import { isPointInNebula } from '../components/star-map/nebula';
+import { isPointInNebula, nebulaOuterRadius } from '../components/star-map/nebula';
+import { buildDysonRing } from '../components/star-map/dyson-ring';
 import { areSystemsConnected, beltAxisDistance, beltNavigationRadius } from '../components/star-map/asteroid-belts';
 import { buildNavObstacles } from '../components/star-map/fleet-navigation';
 import { CIVILIZATION_CONFIG } from '../components/star-map/civilizations';
@@ -257,6 +258,22 @@ export function validateGeneratedGalaxy(data: StarMapData, config?: NewGameConfi
       obstacles: buildNavObstacles(data.specialObjects),
     })) {
       errors.push('asteroid belts cut a home system off from another system');
+    }
+  }
+  // Dyson ring zone (docs/dyson-swarm.md): no nebula and no asteroid belt
+  // reaches into it, so anchor slots and wedges stay open space.
+  const ring = buildDysonRing(data.specialObjects);
+  if (ring) {
+    const ringCenter = { x: ring.cx, y: ring.cy };
+    for (const nebula of Array.isArray(data.nebulae) ? data.nebulae : []) {
+      if (Math.hypot(nebula.x - ring.cx, nebula.y - ring.cy) - nebulaOuterRadius(nebula) < ring.outerRadius) {
+        errors.push(`nebula ${nebula.id} reaches into the Dyson ring zone`);
+      }
+    }
+    for (const belt of Array.isArray(data.asteroidBelts) ? data.asteroidBelts : []) {
+      if (beltAxisDistance(belt, ringCenter) - belt.halfWidth < ring.outerRadius) {
+        errors.push(`asteroid belt ${belt.id} reaches into the Dyson ring zone`);
+      }
     }
   }
   if (!data.asteroidEvents || !Array.isArray(data.asteroidEvents.active)) {

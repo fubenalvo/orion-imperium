@@ -1,4 +1,5 @@
 import type { DiplomaticDemand } from './diplomatic-demand';
+import type { DysonBonusId } from './dyson-anchor';
 
 export interface PlanetBuilding {
   id?: string;
@@ -589,6 +590,15 @@ export interface SpaceBase {
   hullCurrent?: number;
   /* Seconds of game time until the base is complete; missing = complete (station-construction.ts). */
   constructionRemaining?: number;
+  /*
+   * 'dyson' = a Dyson anchor on ring slot `dysonSlot` (dyson-anchor.ts);
+   * missing = an ordinary (radar) space base.
+   */
+  kind?: 'radar' | 'dyson';
+  /* Ring slot 0–7 of a Dyson anchor (dyson-ring.ts). */
+  dysonSlot?: number;
+  /* The anchor's bonus, picked once by its owner; missing = not chosen yet. */
+  dysonBonus?: DysonBonusId;
 }
 
 export interface StarMapData {

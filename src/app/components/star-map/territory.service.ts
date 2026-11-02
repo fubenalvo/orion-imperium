@@ -2,6 +2,8 @@ import { Injectable } from '@angular/core';
 import { PlanetOwnershipService } from '../../services/planet-ownership.service';
 import { Faction, StarSystem } from './star-map.models';
 import { SpaceBaseService } from './space-base.service';
+import { DysonRingService } from './dyson-ring.service';
+import { dysonWedgeOwners } from './dyson-anchor';
 import { StarMapMovementService } from './star-map-movement.service';
 import { computeTerritory, TerritoryMap } from './territory';
 import { getRelationKind } from './diplomacy';
@@ -15,7 +17,8 @@ import { getRelationKind } from './diplomacy';
  * rebuilt only when one of its inputs changed:
  *  - PlanetOwnershipService.revision (every planet owner change goes
  *    through transferPlanet — invariant),
- *  - SpaceBaseService.revision (deploy, destroy, restore),
+ *  - SpaceBaseService.revision (deploy, completion, destroy, restore),
+ *  - DysonRingService.revision (a map's ring configured on load),
  *  - a different starSystems / factions array (load, new game, tests),
  *  - the grid size.
  * So territory changes are event-driven; nothing scans the map per frame.
@@ -32,15 +35,19 @@ export class TerritoryService {
     private readonly ownership: PlanetOwnershipService,
     private readonly bases: SpaceBaseService,
     private readonly movement: StarMapMovementService,
+    private readonly dyson: DysonRingService,
   ) {}
 
   get(starSystems: readonly StarSystem[], factions: readonly Faction[]): TerritoryMap {
     const width = this.movement.gridColumns;
     const height = this.movement.gridRows;
-    const key = [starSystems, factions, this.ownership.revision, this.bases.revision, width, height];
+    const key = [starSystems, factions, this.ownership.revision, this.bases.revision, this.dyson.revision, width, height];
     if (!this.cached || key.some((part, i) => part !== this.key[i])) {
       // Construction sites claim nothing; completion bumps the base revision.
-      this.cached = computeTerritory(starSystems, this.bases.completeBases, factions, width, height);
+      const complete = this.bases.completeBases;
+      const ring = this.dyson.ring;
+      const wedgeOwners = ring ? dysonWedgeOwners(complete, ring.slots.length) : [];
+      this.cached = computeTerritory(starSystems, complete, factions, width, height, { ring, wedgeOwners });
       this.key = key;
     }
     return this.cached;

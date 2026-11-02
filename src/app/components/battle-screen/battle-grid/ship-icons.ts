@@ -42,6 +42,7 @@ export const SHIP_ICONS: Readonly<Record<string, ShipIconDef>> = {
   corvette: icon('corvette', 118, 62),
   colonizer: icon('colonizer', 124, 72),
   outpost_ship: icon('outpost_ship', 130, 80),
+  swarm_constructor: icon('swarm_constructor', 140, 90),
   frigate: icon('frigate', 138, 70),
   destroyer: icon('destroyer', 155, 68),
   cruiser: icon('cruiser', 220, 96),

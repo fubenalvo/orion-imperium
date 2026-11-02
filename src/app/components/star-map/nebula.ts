@@ -1,5 +1,6 @@
 import { Nebula } from './star-map.models';
 import { NavObstacle, NavPoint } from './fleet-navigation';
+import { DYSON_RING_CONFIG } from './dyson-ring';
 
 /*
  * =========================================================
@@ -287,10 +288,13 @@ export function isNebulaPlacementValid(
     }
   }
   for (const obstacle of input.obstacles) {
-    if (
-      Math.hypot(obstacle.x - candidate.x, obstacle.y - candidate.y) <
-      outer + obstacle.radius + NEBULA_CONFIG.blackHoleClearance
-    ) {
+    // A black hole also keeps its Dyson ring zone (dyson-ring.ts) free of
+    // clouds, so anchor slots and their wedges are never in a nebula.
+    const keepClear =
+      obstacle.kind === 'blackhole'
+        ? Math.max(obstacle.radius + NEBULA_CONFIG.blackHoleClearance, DYSON_RING_CONFIG.outerRadius + DYSON_RING_CONFIG.generationClearance)
+        : obstacle.radius + NEBULA_CONFIG.blackHoleClearance;
+    if (Math.hypot(obstacle.x - candidate.x, obstacle.y - candidate.y) < outer + keepClear) {
       return false;
     }
   }

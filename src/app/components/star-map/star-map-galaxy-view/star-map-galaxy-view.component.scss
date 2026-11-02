@@ -120,6 +120,32 @@
   display: none;
 }
 
+.dyson-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Above the fog (z 5): the ring and its slots are known to every empire. */
+  z-index: 6;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Warm, very faint outlines so the ring reads as part of the black hole's
+   light, not as territory. Filled wedges come with anchors (phase 2). */
+.dyson-wedge {
+  fill: none;
+  stroke: rgba(255, 214, 160, 0.16);
+  stroke-width: 0.06;
+  stroke-dasharray: 0.3 0.35;
+}
+
+.dyson-slot {
+  fill: rgba(255, 214, 160, 0.08);
+  stroke: rgba(255, 214, 160, 0.55);
+  stroke-width: 0.07;
+  stroke-dasharray: 0.16 0.12;
+}
+
 .no-fly-layer--planning {
   display: block;
 }
@@ -485,6 +511,26 @@
   mask: radial-gradient(circle, transparent 60%, #000 62%);
   opacity: 0.85;
   pointer-events: none;
+}
+
+/* Dyson anchor (dyson-anchor.ts): the base silhouette with a warm gold
+   frame around it, so anchors read as part of the ring, not as radar posts. */
+.space-base-cell--dyson {
+  .space-base__ring {
+    border-style: solid;
+    border-color: color-mix(in srgb, #ffd6a0 60%, var(--base-color));
+  }
+
+  .space-base__core {
+    border-radius: 50%;
+    transform: none;
+  }
+}
+
+.space-base-cell--selected .space-base__ring {
+  box-shadow:
+    0 0 0 0.12vw rgba(255, 214, 160, 0.8),
+    0 0 0.6vw color-mix(in srgb, var(--base-color) 60%, transparent);
 }
 
 .space-base-cell--building {

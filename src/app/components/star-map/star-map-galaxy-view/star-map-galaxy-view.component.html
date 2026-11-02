@@ -167,7 +167,7 @@
           />
         }
         @for (base of spaceBases; track base.id) {
-          @if (!base.building) {
+          @if (!base.building && base.dysonSlot === null) {
           <circle
             class="territory__base-claim"
             [attr.cx]="base.left / cellSizeVw"
@@ -245,6 +245,8 @@
         class="space-base-cell"
         [class.space-base-cell--own]="base.own"
         [class.space-base-cell--building]="base.building"
+        [class.space-base-cell--dyson]="base.dysonSlot !== null"
+        [class.space-base-cell--selected]="base.selected"
         [style.--build-progress]="base.buildProgress"
         [style.left]="base.left + 'vw'"
         [style.top]="base.top + 'vw'"
@@ -253,8 +255,8 @@
         <button
           class="space-base"
           type="button"
-          [attr.aria-label]="base.name + ' (' + base.ownerName + (base.building ? ' space base, under construction)' : ' space base)')"
-          [title]="base.name + ' — ' + base.ownerName + (base.building ? ' space base (under construction)' : ' space base')"
+          [attr.aria-label]="base.name + ' (' + base.ownerName + (base.dysonSlot !== null ? ' Dyson anchor' : ' space base') + (base.building ? ', under construction)' : ')')"
+          [title]="base.name + ' — ' + base.ownerName + (base.dysonSlot !== null ? ' Dyson anchor' : ' space base') + (base.building ? ' (under construction)' : '')"
           (click)="onSpaceBaseClick(base.id)"
         >
           @if (base.building) {
@@ -404,6 +406,38 @@
               <path class="belt__rock-texture" [attr.d]="rock.d" />
             }
           </g>
+        }
+      </svg>
+    }
+
+    <!--
+      DYSON RING (docs/dyson-swarm.md): faint wedge outlines around the black
+      hole and the empty anchor slots. Dyson structures are known to every
+      empire, so this layer sits above the fog. Presentation only.
+    -->
+    @if (dysonRing) {
+      <svg
+        class="dyson-layer"
+        [attr.viewBox]="'0 0 ' + gridColumns + ' ' + gridRows"
+        preserveAspectRatio="none"
+        [style.width]="gridColumns * cellSizeVw + 'vw'"
+        [style.height]="gridRows * cellSizeVh + 'vw'"
+        aria-hidden="true"
+      >
+        @for (wedge of dysonRing.wedges; track $index) {
+          <path class="dyson-wedge" [attr.d]="wedge" />
+        }
+        @for (slot of dysonRing.slots; track slot.index) {
+          @if (!isDysonSlotTaken(slot.index)) {
+          <rect
+            class="dyson-slot"
+            [attr.x]="slot.cx - 0.32"
+            [attr.y]="slot.cy - 0.32"
+            width="0.64"
+            height="0.64"
+            [attr.transform]="'rotate(45 ' + slot.cx + ' ' + slot.cy + ')'"
+          />
+          }
         }
       </svg>
     }

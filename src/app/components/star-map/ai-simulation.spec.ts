@@ -35,6 +35,7 @@ import { BattleService } from '../../services/battle.service';
 import { OUTPOST_SHIP_TYPE } from './space-base';
 import { advanceMiningStationConstruction } from './station-construction';
 import { SpaceBaseService } from './space-base.service';
+import { DysonRingService } from './dyson-ring.service';
 
 /* Non-combat hulls: colonizers and outpost ships (consumed when used). */
 const isCivilianShip = (type: string) => type === 'colonizer' || type === OUTPOST_SHIP_TYPE;
@@ -340,6 +341,8 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
   const ownershipChanges: OwnershipChange[] = [];
   // Mirrors StarMap: the civilian trade network runs every frame.
   const tradeNetwork = TestBed.inject(TradeNetworkService);
+  // Like StarMap.loadGame: the Dyson ring is derived from the black hole.
+  TestBed.inject(DysonRingService).configure(data.specialObjects);
   tradeNetwork.restore(data.tradeNetwork, data.galaxy?.seed ?? 0, data.starSystems);
   const traderRaids: (TraderRaid & { time: number })[] = [];
   const playerBattles: { time: number; planetId: number; winner: string }[] = [];

@@ -52,7 +52,7 @@ The existing `SpecialObject` with `type: 'blackhole'` is the obstacle; no second
 - Generated at New Game by `generateGalaxyNebulae` (galaxy generator v3) with **its own rng stream** derived from the galaxy seed (`seed ^ 0x9e3779b9`), so galaxy layouts of existing seeds did not change.
 - Count: small 3, medium 4, large 5 (`NEBULA_CONFIG.countBySize`); radius 12–19% of the map height before lobes (≈ 13–20 cells on small, 22–34 on large maps).
 - Spread: the map is split into ~2× as many zones as nebulae; each nebula goes to a random point in a different random zone.
-- Rejected placements: covering a home system (edge + 4 cells), touching a black hole no-fly zone (+4 cells), heavy overlap with another nebula, or mostly off-map. After bounded attempts a nebula is skipped, so fewer than requested is possible, invalid never.
+- Rejected placements: covering a home system (edge + 4 cells), touching a black hole no-fly zone (+4 cells) or reaching within 11 cells of its center (the Dyson ring zone plus 1 cell, [Dyson Swarm](./dyson-swarm.md#ring-geometry)), heavy overlap with another nebula, or mostly off-map. After bounded attempts a nebula is skipped, so fewer than requested is possible, invalid never.
 - Persisted in `StarMapData.nebulae`; **loading never regenerates them**. Systems owned by a major faction are kept clear.
 - Galaxy validation requires ≥ 1 well-formed nebula and no homeworld system inside one.
 

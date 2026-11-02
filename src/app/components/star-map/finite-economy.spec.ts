@@ -327,7 +327,8 @@ describe('finite raw-material deposits', () => {
       .filter((b) => !b.autoPlaced);
 
     it('warships cost mostly raw materials, buildings mostly credits', () => {
-      for (const ship of ships.filter((s) => !['colonizer', 'outpost_ship'].includes(s.id))) {
+      // Civilian ships are exempt; the Swarm Constructor is a deliberate credit sink (docs/dyson-swarm.md).
+      for (const ship of ships.filter((s) => !['colonizer', 'outpost_ship', 'swarm_constructor'].includes(s.id))) {
         const share = ship.rawMaterialCost / (ship.rawMaterialCost + ship.cost);
         expect(share, ship.id).toBeGreaterThanOrEqual(0.7);
       }

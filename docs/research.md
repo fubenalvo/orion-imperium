@@ -61,8 +61,9 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 | Turret Research I | 1 | 700 | Bonus | +1 defense turret on every space base and mining station (`createBattleState` via the station defense roster, [Territory](./territory.md#station-defense)) |
 | Turret Research II | 2 | 1600 | Bonus | +1 turret (2 total); also needs Military Engineering |
 | Turret Research III | 3 | 3000 | Bonus | +1 turret (3 total, a missile turret); also needs Advanced Weapons |
+| Stellar Engineering | 4 | 6000 | Unlock | Swarm Constructor, the ship that builds Dyson anchors; needs Applied Science and Advanced Power ([Dyson Swarm](./dyson-swarm.md#research-and-the-anchor-ship)) |
 
-Base total: 58,000 points. With cost scaling the full tree costs roughly 70–75k points.
+Base total: 64,000 points. With cost scaling the full tree cost roughly 70–75k points before Stellar Engineering was added (not re-measured since).
 
 ## Progression rationale
 

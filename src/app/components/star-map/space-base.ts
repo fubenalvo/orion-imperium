@@ -2,6 +2,7 @@ import { Faction, Fleet, SpaceBase, StarSystem } from './star-map.models';
 import { TerritoryMap } from './territory';
 import { buildStationDefenseFleet, StationDefenseFleet } from './station-defense';
 import { isStationComplete } from './station-construction';
+import { DysonRing, isInDysonRingZone } from './dyson-ring';
 
 /*
  * =========================================================
@@ -61,7 +62,8 @@ export type BaseDeploymentFailure =
   | 'blocked_terrain'
   | 'near_star'
   | 'foreign_territory'
-  | 'too_close_to_base';
+  | 'too_close_to_base'
+  | 'dyson_ring';
 
 export type BaseDeploymentCheck =
   | { ok: true; col: number; row: number }
@@ -77,6 +79,8 @@ export interface BaseDeploymentInput {
   height: number;
   /* Navigation obstacle test (black holes, asteroid belts) in grid coordinates. */
   isBlocked?: (x: number, y: number) => boolean;
+  /* The map's Dyson ring: its zone is reserved for Dyson anchors (dyson-ring.ts). */
+  dysonRing?: DysonRing | null;
 }
 
 /*
@@ -86,6 +90,7 @@ export interface BaseDeploymentInput {
  *    galaxy map (not inside a system view);
  *  - the cell is on the map and not inside a navigation obstacle;
  *  - at least minStarDistance from every star;
+ *  - not inside the Dyson ring zone (reserved for Dyson anchors);
  *  - not inside another empire's territory (own or neutral space only);
  *  - at least minBaseSpacing from every other base.
  */
@@ -107,6 +112,7 @@ export function validateBaseDeployment(input: BaseDeploymentInput): BaseDeployme
   if (input.starSystems.some((s) => (Math.floor(s.x) - col) ** 2 + (Math.floor(s.y) - row) ** 2 < minStar * minStar)) {
     return fail('near_star');
   }
+  if (isInDysonRingZone(input.dysonRing ?? null, col, row)) return fail('dyson_ring');
   const territoryOwner = input.territory.ownerAt(col, row);
   if (territoryOwner !== null && territoryOwner !== fleet.factionId) return fail('foreign_territory');
   const spacing = SPACE_BASE_CONFIG.minBaseSpacing;
@@ -136,6 +142,8 @@ export function describeDeploymentFailure(reason: BaseDeploymentFailure): string
       return "Cannot deploy inside another empire's territory.";
     case 'too_close_to_base':
       return `Too close to another space base (minimum ${SPACE_BASE_CONFIG.minBaseSpacing} cells).`;
+    case 'dyson_ring':
+      return 'The ring around the black hole is reserved for Dyson anchors.';
   }
 }
 

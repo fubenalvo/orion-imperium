@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="ship" viewBox="0 0 140 90" preserveAspectRatio="xMidYMid meet">
+  <!-- Swarm Constructor: a slow, lightly built tug carrying a folded Dyson anchor (curved collector
+       petals around a reactor sphere) on an open lattice spine. Top-down, bow pointing right.
+       Scale: 100 units = 1 battlefield unit. Faction accents use currentColor; the engine glow group
+       reads the ship-engine and engine-glow CSS custom properties set by the battle grid. See docs/battle-screen.md. -->
+  <g style="fill: var(--ship-engine, #bff4ff); opacity: var(--engine-glow, 1)">
+    <ellipse cx="6" cy="45" rx="5" ry="4" opacity="0.45"/>
+    <ellipse cx="8.5" cy="45" rx="3" ry="2.2" fill="#ffffff"/>
+  </g>
+  <rect x="9" y="39" width="12" height="12" rx="2" fill="#3d6662" stroke="#08131c" stroke-width="1.4"/>
+  <g fill="none" stroke="#9ac9c2" stroke-width="2.2">
+    <path d="M21 41 H112 M21 49 H112"/>
+    <path d="M27 41 L35 49 M43 41 L51 49 M59 41 L67 49 M91 41 L99 49" stroke-width="1.4"/>
+  </g>
+  <path d="M60 22 a24 24 0 0 1 32 -14 l-6 12 a12 12 0 0 0 -16 7 z" fill="#d9b46a" stroke="#08131c" stroke-width="1.6"/>
+  <path d="M60 68 a24 24 0 0 0 32 14 l-6 -12 a12 12 0 0 1 -16 -7 z" fill="#d9b46a" stroke="#08131c" stroke-width="1.6"/>
+  <path d="M58 30 a20 20 0 0 0 0 30 l9 -6 a10 10 0 0 1 0 -18 z" fill="#c69a4f" stroke="#08131c" stroke-width="1.6"/>
+  <path d="M100 30 a20 20 0 0 1 0 30 l-9 -6 a10 10 0 0 0 0 -18 z" fill="#c69a4f" stroke="#08131c" stroke-width="1.6"/>
+  <circle cx="79" cy="45" r="13" fill="#73a49e" stroke="#08131c" stroke-width="2"/>
+  <circle cx="79" cy="45" r="6.5" fill="currentColor" stroke="#08131c" stroke-width="1.2"/>
+  <rect x="110" y="37" width="20" height="16" rx="4" fill="#73a49e" stroke="#08131c" stroke-width="1.6"/>
+  <rect x="122" y="41" width="6" height="8" rx="1.5" fill="currentColor" stroke="#08131c" stroke-width="1"/>
+</svg>

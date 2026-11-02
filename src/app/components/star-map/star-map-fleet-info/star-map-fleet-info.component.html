@@ -80,6 +80,17 @@
             DEPLOY BASE
           </button>
         }
+        @if (anchorDeployment) {
+          <button
+            type="button"
+            class="action-btn btn-primary deploy-base-btn deploy-anchor-btn"
+            [disabled]="!anchorDeployment.canDeploy"
+            [title]="anchorDeployment.canDeploy ? 'Build a Dyson anchor on this ring slot (uses one Swarm Constructor)' : (anchorDeployment.reason ?? '')"
+            (click)="deployAnchor.emit(); $event.stopPropagation()"
+          >
+            DEPLOY ANCHOR
+          </button>
+        }
         @if (canDisband) {
           <button
             type="button"
@@ -119,6 +130,9 @@
         }
       } @else if (baseDeployment && !baseDeployment.canDeploy && baseDeployment.reason) {
         <div class="ui-notice fleet-info__move-error" role="status">Base: {{ baseDeployment.reason }}</div>
+      }
+      @if (anchorDeployment && !anchorDeployment.canDeploy && anchorDeployment.reason) {
+        <div class="ui-notice fleet-info__move-error" role="status">Anchor: {{ anchorDeployment.reason }}</div>
       }
       @if (colonizeBlockedReason) {
         <div class="ui-notice ui-notice--warning fleet-info__move-error" role="status">{{ colonizeBlockedReason }}</div>

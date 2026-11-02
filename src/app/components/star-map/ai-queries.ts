@@ -59,7 +59,14 @@ export function isHostileFleet(fleet: Fleet, factionId: string, factions: Factio
  * so both agree on what can engage and what can be reinforced.
  */
 export function isCombatShipType(shipType: { role: string } | undefined): boolean {
-  return shipType !== undefined && shipType.role !== 'Recon' && shipType.role !== 'Colonizer' && shipType.role !== 'Outpost';
+  return (
+    shipType !== undefined &&
+    shipType.role !== 'Recon' &&
+    shipType.role !== 'Colonizer' &&
+    shipType.role !== 'Outpost' &&
+    // The Swarm Constructor (dyson-anchor.ts) is a civilian builder like the outpost ship.
+    shipType.role !== 'DysonAnchor'
+  );
 }
 
 /*
