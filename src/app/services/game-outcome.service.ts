@@ -23,6 +23,10 @@ export type GameOutcome = 'inProgress' | 'victory' | 'defeat';
  *  1. Terminal outcomes are sticky: once a save carries 'victory' or
  *     'defeat' it is returned unchanged, so later ticks can never
  *     overwrite it.
+ *  1b. Dyson Swarm (docs/dyson-swarm.md): a completed warm-up in the save
+ *     (dysonWarmup.remaining 0) decides the game for its holder: victory
+ *     when the holder is allied, defeat otherwise. The warm-up only runs
+ *     while the holder owns a planet, so it never contradicts rule 2.
  *  2. Defeat (= AI victory): the allied side owns no planet at all AND
  *     has no fleet carrying a living colonizer. Any owned planet (even an
  *     empty one) can still build, and a colonizer can found a new colony;
@@ -60,9 +64,26 @@ export class GameOutcomeService {
       this.lastOutcome = data.gameOutcome;
       return data.gameOutcome;
     }
+    const dyson = data.dysonWarmup;
+    if (dyson && typeof dyson.factionId === 'string' && dyson.remaining <= 0) {
+      const outcome: GameOutcome = this.alliedFactionIds(data.factions).has(dyson.factionId) ? 'victory' : 'defeat';
+      this.lastOutcome = outcome;
+      return outcome;
+    }
     const outcome = this.evaluateOutcome(data.factions, data.starSystems, data.fleets);
     this.lastOutcome = outcome;
     return outcome;
+  }
+
+  /* The player plus non-AI factions on the player's non-neutral team. */
+  alliedFactionIds(factions: readonly Faction[]): Set<string> {
+    const player = factions.find((f) => f.id === 'player');
+    const allied = new Set<string>(['player']);
+    for (const faction of factions) {
+      if (faction.id === 'player' || !player) continue;
+      if (faction.ai === false && faction.team !== 0 && faction.team === player.team) allied.add(faction.id);
+    }
+    return allied;
   }
 
   evaluateOutcome(factions: Faction[], starSystems: StarSystem[], fleets: Fleet[]): GameOutcome {

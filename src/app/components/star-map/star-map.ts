@@ -15,6 +15,9 @@ import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { generatePlanetSurface, needsSurface } from './planet-surface/planet-surface-generator';
 import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
 import { DysonRingService } from './dyson-ring.service';
+import { DysonVictoryService } from './dyson-victory.service';
+import { DYSON_WARMUP_SECONDS, DysonWarmupEvent, formatWarmup } from './dyson-victory';
+import { DysonNewsEvent, diffDysonAnchors, snapshotDysonAnchors } from './dyson-news';
 import { AnchorPanelViewModel, StarMapAnchorInfoComponent } from './star-map-anchor-info/star-map-anchor-info.component';
 import {
   DYSON_BONUSES,
@@ -538,6 +541,7 @@ loadError = '';
     private enemyDiplomacyService: EnemyDiplomacyService,
     private spaceBaseService: SpaceBaseService,
     private dysonRingService: DysonRingService,
+    private dysonVictoryService: DysonVictoryService,
     private territoryService: TerritoryService,
     private borderService: BorderService,
     private anomalyService: AnomalyService,
@@ -3798,6 +3802,10 @@ loadError = '';
     });
     const tradeChanged = this.handleTraderRaids(tradeResult.raids) || tradeResult.changed;
     const constructionChanged = this.updateStationConstruction(gameDeltaTime);
+    const dysonChanged = this.updateDysonSwarm(gameDeltaTime);
+    if (this.gameOutcome !== 'inProgress') {
+      return;
+    }
     this.gameSeconds += gameDeltaTime;
     const aiChanged = this.aiTickService.tick(gameDeltaTime, {
       fleets: this.fleets,
@@ -3890,7 +3898,7 @@ loadError = '';
 
     if (
       didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged || tradeChanged ||
-      diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged || constructionChanged
+      diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged || constructionChanged || dysonChanged
     ) {
       this.ngZone.run(() => this.cdr.detectChanges());
       this.simStateDirty = true;
@@ -3916,14 +3924,11 @@ loadError = '';
     if (!(gameDeltaTime > 0)) return false;
     const bases = this.spaceBaseService.advanceConstruction(gameDeltaTime);
     const mines = advanceMiningStationConstruction(this.starSystems, gameDeltaTime);
-    const ownBase = bases.find((b) => b.factionId === 'player');
+    // Dyson anchors are announced by the global Dyson news (updateDysonSwarm).
+    const ownBase = bases.find((b) => b.factionId === 'player' && !isDysonAnchor(b));
     const ownMine = mines.find((m) => m.asteroid.miningStation?.factionId === 'player');
     if (ownBase) {
-      this.showMapNotice(
-        isDysonAnchor(ownBase)
-          ? `${ownBase.name} is complete: its ring wedge is now your territory.`
-          : `${ownBase.name} is complete: it now claims territory and senses around it.`,
-      );
+      this.showMapNotice(`${ownBase.name} is complete: it now claims territory and senses around it.`);
     } else if (ownMine) {
       this.showMapNotice(`Mining station in the ${ownMine.system.name} belt is complete and extracting.`);
     }
@@ -3943,6 +3948,122 @@ loadError = '';
     if (this.constructionRedrawClock < 1) return false;
     this.constructionRedrawClock = 0;
     return true;
+  }
+
+  /*
+   * Dyson Swarm per frame (docs/dyson-swarm.md): announces anchor events to
+   * the player regardless of fog (global news), advances the warm-up and,
+   * when it completes, decides the game. Returns true when the view must
+   * redraw: an event, or once per second while a warm-up counts down.
+   */
+  private updateDysonSwarm(gameDeltaTime: number): boolean {
+    const now = snapshotDysonAnchors(this.spaceBaseService.bases);
+    const news = diffDysonAnchors(this.dysonVictoryService.anchorsSeen, now, (id) => this.spaceBaseService.takeDemolished(id));
+    this.dysonVictoryService.anchorsSeen = now;
+    if (news.some((e) => e.kind === 'destroyed' || e.kind === 'demolished')) {
+      if (this.selectedAnchorId !== null && !this.spaceBaseService.getBase(this.selectedAnchorId)) this.selectedAnchorId = null;
+    }
+
+    const before = this.dysonVictoryService.warmup?.remaining ?? null;
+    const warmupEvents = gameDeltaTime > 0 ? this.dysonVictoryService.tick(gameDeltaTime, this.starSystems) : [];
+    const lines = [...this.describeDysonNewsBatch(news), ...warmupEvents.map((e) => this.describeDysonWarmup(e))];
+    if (lines.length > 0) this.showMapNotice(lines.join(' '));
+
+    if (warmupEvents.some((e) => e.kind === 'completed')) {
+      this.checkGameOutcome();
+      return true;
+    }
+    const after = this.dysonVictoryService.warmup?.remaining ?? null;
+    const secondTicked = before !== null && after !== null && Math.ceil(before) !== Math.ceil(after);
+    return news.length > 0 || warmupEvents.length > 0 || secondTicked;
+  }
+
+  /*
+   * News lines for one frame. Several events of the same kind and faction
+   * (a battle return, a long step) become one line, so the notice stays short.
+   */
+  private describeDysonNewsBatch(events: DysonNewsEvent[]): string[] {
+    const groups = new Map<string, DysonNewsEvent[]>();
+    for (const event of events) {
+      const key = `${event.kind}|${event.anchor.factionId}`;
+      groups.set(key, [...(groups.get(key) ?? []), event]);
+    }
+    const lines: string[] = [];
+    for (const group of groups.values()) {
+      const line = group.length === 1 ? this.describeDysonNews(group[0]) : this.describeDysonNewsGroup(group);
+      if (line) lines.push(line);
+    }
+    return lines;
+  }
+
+  private describeDysonNewsGroup(group: DysonNewsEvent[]): string | null {
+    const { kind, anchor } = group[0];
+    const own = anchor.factionId === 'player';
+    const who = own ? 'You' : this.getFactionName(anchor.factionId);
+    const count = `${group.length} Dyson anchors`;
+    switch (kind) {
+      case 'started':
+        return own ? null : `${who} began building ${count}.`;
+      case 'completed':
+        return own ? `${count} are complete: their ring wedges are now your territory.` : `${who} completed ${count}.`;
+      case 'destroyed':
+        return own ? `${count} of yours were destroyed.` : `${count} of ${who} were destroyed.`;
+      case 'demolished':
+        return own ? null : `${who} demolished ${count}.`;
+    }
+  }
+
+  /*
+   * One news line. The player's own deploy and demolish are skipped: their
+   * buttons already show a detailed notice.
+   */
+  private describeDysonNews(event: DysonNewsEvent): string | null {
+    const own = event.anchor.factionId === 'player';
+    const who = own ? 'You' : this.getFactionName(event.anchor.factionId);
+    switch (event.kind) {
+      case 'started':
+        return own ? null : `${who} began building ${event.anchor.name}.`;
+      case 'completed':
+        return own ? `${event.anchor.name} is complete: its ring wedge is now your territory.` : `${who} completed ${event.anchor.name}.`;
+      case 'destroyed':
+        return own ? `Your ${event.anchor.name} was destroyed.` : `${who}'s ${event.anchor.name} was destroyed.`;
+      case 'demolished':
+        return own ? null : `${who} demolished ${event.anchor.name}.`;
+    }
+  }
+
+  private describeDysonWarmup(event: DysonWarmupEvent): string {
+    const own = event.factionId === 'player';
+    const who = own ? 'You' : this.getFactionName(event.factionId);
+    switch (event.kind) {
+      case 'started':
+        return own
+          ? `Your Dyson swarm is complete. Hold every anchor for ${formatWarmup(DYSON_WARMUP_SECONDS)} to win.`
+          : `${who} holds the whole Dyson ring! The warm-up has started: ${formatWarmup(DYSON_WARMUP_SECONDS)} until they win.`;
+      case 'cancelled':
+        return own ? 'Your Dyson warm-up was interrupted.' : `${who}'s Dyson warm-up was interrupted.`;
+      case 'completed':
+        return own ? 'The Dyson swarm is online.' : `${who}'s Dyson swarm is online.`;
+    }
+  }
+
+  /* The running warm-up as the map banner shows it; null when there is none. */
+  get dysonCountdown(): { ownerName: string; color: string; own: boolean; time: string } | null {
+    const warmup = this.dysonVictoryService.warmup;
+    if (!warmup || warmup.remaining <= 0) return null;
+    return {
+      ownerName: warmup.factionId === 'player' ? 'You' : this.getFactionName(warmup.factionId),
+      color: this.getFactionColor(warmup.factionId),
+      own: warmup.factionId === 'player',
+      time: formatWarmup(warmup.remaining),
+    };
+  }
+
+  /* The faction name of a completed Dyson warm-up (the game was decided by the swarm), or null. */
+  get dysonWinnerName(): string | null {
+    const warmup = this.dysonVictoryService.warmup;
+    if (!warmup || warmup.remaining > 0) return null;
+    return warmup.factionId === 'player' ? 'You' : this.getFactionName(warmup.factionId);
   }
 
   /*
@@ -4429,6 +4550,7 @@ loadError = '';
       asteroidBelts: this.asteroidBelts,
       asteroidEvents: this.asteroidService.serialize(),
       spaceBases: this.spaceBaseService.serialize(),
+      dysonWarmup: this.dysonVictoryService.serialize(),
       diplomaticDemands: this.diplomacyService.serializeDemands(),
       anomalies: this.anomalyService.serialize(),
       tradeNetwork: this.tradeNetworkService.serialize(),
@@ -4538,6 +4660,12 @@ loadError = '';
     this.anomalyResumeOnClose = false;
     // Bases before sensors and territory: both are derived from them.
     this.spaceBaseService.restore(data.spaceBases);
+    this.dysonVictoryService.restore(data.dysonWarmup);
+    // A fresh load starts the news from what is there; a battle return
+    // compares with the pre-battle anchors (see dysonAnchorsSeen).
+    if (!options.resumeAi) {
+      this.dysonVictoryService.anchorsSeen = snapshotDysonAnchors(this.spaceBaseService.bases);
+    }
     this.borderService.reset();
     this.renderedTerritory = null;
     this.selectedAsteroidId = null;

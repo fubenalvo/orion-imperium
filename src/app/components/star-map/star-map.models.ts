@@ -656,6 +656,12 @@ export interface StarMapData {
   };
   gameOutcome?: GameOutcome;
   /*
+   * Dyson Swarm warm-up (dyson-victory.ts): the ring holder and the seconds
+   * left; remaining 0 = that faction completed the swarm and won. Missing =
+   * no warm-up running.
+   */
+  dysonWarmup?: { factionId: string; remaining: number };
+  /*
    * Nebula regions. Generated at New Game, persisted, never regenerated.
    */
   nebulae?: Nebula[];

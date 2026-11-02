@@ -8,7 +8,8 @@ Status: **design agreed on 2026-11-02.**
 | 1. Ring geometry | implemented (this section: [Ring geometry](#ring-geometry)) |
 | 2. Technology, ship, deployment, anchor panel | implemented ([Implementation (phase 2)](#implementation-phase-2)) |
 | 3. Upkeep and bonuses | implemented ([Anchor bonuses](#anchor-bonuses); the upkeep came with phase 2) |
-| 4–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
+| 4. Victory and news | implemented ([Victory](#victory-the-warm-up), [Global news](#global-news)) |
+| 5–7 | not implemented | This document is the plan and the source of truth for the feature until the implementation lands; each phase must update it (and the documents it names) to describe the implemented behavior.
 
 The Dyson Swarm is a late-game **alternative victory** and **credit / raw-material sink**. Eight fixed anchor slots ring the central black hole. A faction that holds a completed Dyson Anchor on **every** slot and keeps all of them for a 5-minute warm-up wins. Anchors are expensive to bring there, expensive to keep, cannot be captured and are visible to everyone, so an empire heading for this victory becomes the obvious target of the others.
 
@@ -153,7 +154,6 @@ This is a general rule for every station, introduced together with the swarm (ph
   - **Anchor panel:** clicking an anchor opens `StarMapAnchorInfoComponent`, with owner, construction progress, defense, the bonus and DEMOLISH… behind an inline confirmation. The owner can pick the bonus once.
   - **Notices:** deploying, completing and demolishing your own anchor show a map notice.
 - **Not yet:**
-  - global news and the warm-up (phase 4);
   - diplomacy (phase 5);
   - the AI (phase 6). AI factions never build the constructor: it is not a combat ship.
 
@@ -190,18 +190,44 @@ No credit-income or upkeep-reduction bonus: that would undo the sink.
 - Save: the active warm-up (faction and time left) is stored, so a reload continues it.
 - UI: while a warm-up runs, every player sees a countdown on the map (holder's color, time left).
 
+**Implementation.**
+- **Pure rules (`dyson-victory.ts`):**
+  - `DYSON_WARMUP_SECONDS` = 300;
+  - `dysonRingHolder` (the faction with completed anchors on all slots and at least one planet);
+  - `advanceDysonWarmup` (events started / cancelled / completed). A completed warm-up is terminal.
+- **`DysonVictoryService`:** holds the state. Every frame, `StarMap.updateDysonSwarm` ticks it with the scaled delta, so a paused game freezes it.
+- **Save:** `StarMapData.dysonWarmup = { factionId, remaining }`, an additive optional field (no `SAVE_VERSION` bump). It is sanitized on load, so the reload after the battle screen continues the countdown.
+- **Outcome:** on `completed`, StarMap runs the game outcome check. `GameOutcomeService.evaluate` reads `dysonWarmup.remaining === 0` before the conquest rules: victory if the holder is allied, defeat otherwise.
+- **Display:**
+  - the countdown banner (`.dyson-countdown`, bottom centre) shows `DYSON SWARM · holder · m:ss`;
+  - the game-end dialog uses its own Dyson wording (`StarMap.dysonWinnerName`).
+- **Not covered yet:** the headless AI simulation does not tick the warm-up. No AI builds anchors before phase 6.
+- **Tests:** `dyson-victory.spec.ts` covers the pure rules, the outcome rule and the news diff. `dyson-victory.starmap.spec.ts` covers a real StarMap session: player victory with the save round trip, and AI defeat after a cancelled and restarted warm-up.
+
 ## Global news
 
 Dyson events are announced to **everyone**, regardless of fog of war:
 
 - anchor construction started (faction, slot);
 - anchor completed;
-- anchor destroyed (by whom);
+- anchor destroyed (the attacker is not named: the news is derived from the anchor list, see below);
 - anchor demolished;
 - warm-up started;
 - warm-up cancelled.
 
 The human player gets them as ordinary map notices, which are transient; no persistent news log is planned. Persistent information is on the map instead: the always-visible anchors and sites, and the warm-up countdown. The AI reads the same facts from the always-visible anchor state, not from the notices.
+
+**Implementation.**
+- **Diffing (`dyson-news.ts`):** the news compares two anchor snapshots instead of hooking every code path. `snapshotDysonAnchors` and `diffDysonAnchors` find:
+  - started: a new site;
+  - completed: a site that became complete, or an anchor that appeared already complete;
+  - removed: demolished when `SpaceBaseService.demolish` marked it (`takeDemolished`), otherwise destroyed.
+- **Why diffing:** the battle screen only edits the autosave, and the registry is restored on the reload. A diff reports an anchor destroyed there exactly like one destroyed in an AI-vs-AI battle.
+- **Baseline:** the previous snapshot lives in `DysonVictoryService.anchorsSeen`, a root service, because StarMap is destroyed while the battle screen is open. Only a fresh load (not the battle return) re-seeds it.
+- **Wording:**
+  - several events of the same kind and faction in one frame become one line ("X completed 8 Dyson anchors");
+  - the player's own deploy and demolish are not repeated, because their buttons already show a notice;
+  - the "who" of a destruction is not reported.
 
 ## Diplomacy
 

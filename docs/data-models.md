@@ -6,6 +6,7 @@ All gameplay types live in `src/app/components/star-map/star-map.models.ts`. The
 
 The root save format. Contains everything needed to reconstruct a game session:
 
+- `dysonWarmup?`: `{ factionId, remaining }` – the running Dyson Swarm warm-up (seconds of game time left; 0 = that faction completed the swarm and won), missing = none. Sanitized on load ([Dyson Swarm](./dyson-swarm.md#victory-the-warm-up))
 - `saveVersion`: format version (currently 12, also the minimum supported); see `SAVE_VERSION` / `MIN_SUPPORTED_SAVE_VERSION` in `save-validation.ts` and [Versioning](./versioning.md). Saves outside the supported range are rejected, never migrated
 - `gameVersion?`: the game release (`GAME_VERSION`, from `package.json`) that wrote the save; informational, shown when a save is rejected
 - `galaxy?`: `{ size: 'small' | 'medium' | 'large', seed, requestedSeed, generatorVersion }` – generation metadata of a procedurally generated galaxy (absent for the legacy map). Informational only: loading never regenerates. See [New Game Generation](./new-game-generation.md)

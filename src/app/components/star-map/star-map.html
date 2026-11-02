@@ -16,7 +16,11 @@
           {{ gameOutcome === 'victory' ? 'VICTORY' : 'DEFEAT' }}
         </div>
         <div class="game-end-message">
-          {{ gameOutcome === 'victory' ? 'Galactic conquest achieved. All inhabited systems are under player or allied control.' : 'The empire has fallen. No inhabited planets remain under player control and no surviving fleets remain.' }}
+          @if (dysonWinnerName; as dysonWinner) {
+            {{ gameOutcome === 'victory' ? 'The Dyson swarm is complete. You held every anchor around the black hole through the warm-up, and the galaxy runs on your light.' : dysonWinner + ' completed the Dyson swarm around the black hole and held it through the warm-up.' }}
+          } @else {
+            {{ gameOutcome === 'victory' ? 'Galactic conquest achieved. All inhabited systems are under player or allied control.' : 'The empire has fallen. No inhabited planets remain under player control and no surviving fleets remain.' }}
+          }
         </div>
         <div class="game-end-stats">
           <div>Inhabited planets controlled by player/allies: {{ getAlliedInhabitedPlanetCount() }}</div>
@@ -417,6 +421,13 @@
   <!-- Transient notice (asteroid rewards, cancelled routes, colonization).
        Rendered outside the view blocks so it shows in every view: a fleet
        can colonize in a system the player is not looking at. -->
+  @if (dysonCountdown; as countdown) {
+    <div class="dyson-countdown" [class.dyson-countdown--own]="countdown.own" [style.--warmup-color]="countdown.color" role="status">
+      <span class="dyson-countdown__label">DYSON SWARM</span>
+      <span class="dyson-countdown__owner">{{ countdown.ownerName }}</span>
+      <span class="dyson-countdown__time">{{ countdown.time }}</span>
+    </div>
+  }
   @if (mapNotice) {
     <div class="map-notice" role="status">{{ mapNotice }}</div>
   }

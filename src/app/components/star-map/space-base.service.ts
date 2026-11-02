@@ -50,6 +50,8 @@ import { STATION_CONSTRUCTION_SECONDS, advanceStationConstruction, isStationComp
 export class SpaceBaseService {
   private list: SpaceBase[] = [];
   private revisionCounter = 0;
+  /* Anchors removed by DEMOLISH, so the Dyson news can tell them from destroyed ones. */
+  private readonly demolishedIds = new Set<number>();
 
   constructor(private readonly dyson: DysonRingService) {}
 
@@ -191,7 +193,13 @@ export class SpaceBaseService {
   demolish(id: number, factionId: string): boolean {
     const base = this.getBase(id);
     if (!base || !isDysonAnchor(base) || base.factionId !== factionId) return false;
+    this.demolishedIds.add(id);
     return this.destroy(id);
+  }
+
+  /* Was this (removed) anchor demolished rather than destroyed? Reads the mark once. */
+  takeDemolished(id: number): boolean {
+    return this.demolishedIds.delete(id);
   }
 
   /*

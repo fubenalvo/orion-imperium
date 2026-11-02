@@ -102,6 +102,37 @@
 }
 
 /* Transient notice (asteroid rewards, cancelled routes, colonization); shown in every view. */
+/* Dyson warm-up countdown (docs/dyson-swarm.md): shown to every player
+   while a ring holder counts down. */
+.dyson-countdown {
+  position: absolute;
+  /* Bottom centre: free of the map notice (top) and the side panels. */
+  bottom: var(--ui-edge);
+  left: 50%;
+  display: flex;
+  align-items: baseline;
+  gap: 0.8em;
+  padding: 0.35em 1em;
+  border: 1px solid color-mix(in srgb, var(--warmup-color, #ffd6a0) 60%, transparent);
+  border-radius: var(--ui-radius);
+  background: rgba(8, 14, 20, 0.82);
+  color: #ffd6a0;
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.12em;
+  transform: translateX(-50%);
+  z-index: 39;
+  pointer-events: none;
+}
+
+.dyson-countdown__owner {
+  color: color-mix(in srgb, var(--warmup-color, #ffd6a0) 75%, #fff);
+}
+
+.dyson-countdown__time {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.15em;
+}
+
 .map-notice {
   position: absolute;
   top: calc(var(--game-header-h) + var(--ui-edge));
