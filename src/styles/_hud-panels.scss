@@ -21,28 +21,26 @@
 @use 'mixins' as *;
 @use 'ui';
 
-/* Bottom-left info card (system, fleet and planet panels share it). */
+/* Bottom-left info card (system, fleet and planet panels share it). Docked
+   into the corner: no frame on the left and bottom, flush with the screen. */
 .system-info,
 .fleet-info,
 .planet-info {
   position: absolute;
-  left: var(--ui-edge);
-  bottom: var(--ui-edge);
+  @include ui.frame-docked(left bottom);
   width: clamp(270px, 24vw, 380px);
-  max-height: calc(100dvh - var(--game-header-h) - var(--ui-edge) * 2);
+  max-height: calc(100dvh - var(--game-header-h) - var(--ui-edge));
   display: flex;
   flex-direction: column;
   z-index: 30;
   animation: panel-rise 0.28s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
   @include compact-view {
-    left: 4px;
-    bottom: 4px;
     min-width: 0;
     width: min(44vw, 240px);
     /* Leave most of the map visible; the content area scrolls and the
        action row stays pinned at the bottom of the card. */
-    max-height: min(55dvh, calc(100dvh - var(--game-header-h) - 8px));
+    max-height: min(55dvh, calc(100dvh - var(--game-header-h) - 4px));
   }
 }
 
@@ -312,60 +310,30 @@
 }
 
 /* =========================================================
-   PLANET BUILDINGS SUMMARY (planet info panel)
-   ========================================================= */
-
-.planet-buildings__title {
-  @include ui.section-label;
-}
-
-.planet-buildings__row {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8em;
-  font-size: var(--ui-fs-sm);
-}
-
-.planet-buildings__name {
-  color: var(--ui-ink);
-}
-
-.planet-buildings__count,
-.planet-buildings__size {
-  color: var(--ui-ink-dim);
-  font-size: var(--ui-fs-xs);
-}
-
-/* =========================================================
    MAP ROSTER (player planets above player fleets, top left)
    ========================================================= */
 
-/* The column owns the placement and the height budget; each list panel
-   shrinks and scrolls on its own so a long planet list never pushes the
-   fleets off screen. */
+/* One framed box (.panel-style) holding both lists, docked into the corner
+   under the header: no frame on the left and top. It owns the height budget;
+   each list shrinks and scrolls on its own so a long planet list never
+   pushes the fleets off screen. The box itself must not scroll (only the
+   inner lists do), so a scrollbar appears only when the entries do not fit. */
 .map-roster {
   position: absolute;
-  top: calc(var(--game-header-h) + var(--ui-edge));
-  left: var(--ui-edge);
+  @include ui.frame-docked(left top);
+  top: var(--game-header-h);
   display: flex;
   flex-direction: column;
-  gap: 0.45em;
   width: clamp(150px, 12vw, 210px);
-  max-height: calc(100dvh - var(--game-header-h) - var(--ui-edge) * 2 - 330px);
+  max-height: calc(100dvh - var(--game-header-h) - var(--ui-edge) - 330px);
   z-index: 50;
 
   @include mobile-view {
-    top: calc(var(--game-header-h) + 4px);
-    left: 4px;
     width: 96px;
     max-height: calc(100dvh - var(--game-header-h) - 140px);
   }
 }
 
-/* The panel itself must not scroll: its corner brackets (ui.brackets) sit
-   1px outside the box, which inside a scroll container counts as overflow
-   and shows a scrollbar even for a single entry. Only the inner list
-   scrolls, so the scrollbar appears only when the entries do not fit. */
 .fleet-buttons {
   display: flex;
   flex: 0 1 auto;
@@ -376,6 +344,11 @@
   @include mobile-view {
     padding: 0.3em;
   }
+}
+
+/* Planets above, fleets below, separated by a hairline inside the box. */
+.fleet-buttons + .fleet-buttons {
+  border-top: 1px solid var(--ui-line-soft);
 }
 
 .fleet-buttons__list {

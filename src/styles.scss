@@ -11,7 +11,7 @@
 @use 'mixins' as *;
 @use 'ui';
 
-@import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
 /* =========================================================
    DESIGN TOKENS
@@ -26,19 +26,24 @@
      screen, so UI chrome never competes with them.
      ------------------------------------------------------- */
 
-  --ui-accent: #6de5d3;
-  --ui-accent-rgb: 109, 229, 211;
+  --ui-accent: #25d7e8;
+  --ui-accent-rgb: 37, 215, 232;
   /* Accent tuned for small text (labels, section titles). */
-  --ui-accent-text: #5fcfbf;
-  --ui-accent-deep: #167c70;
+  --ui-accent-text: #2fc6d8;
+  --ui-accent-deep: #147c91;
 
-  --ui-ink-bright: #ffffff;
-  --ui-ink: #d8eef0;
-  --ui-ink-dim: #7fa3ad;
-  --ui-ink-faint: #46656f;
+  --ui-ink-bright: #e6fbff;
+  --ui-ink: #bfe2ea;
+  --ui-ink-dim: #7d97a4;
+  --ui-ink-faint: #456777;
 
-  --ui-warm: #ffd6a0;
-  --ui-warm-rgb: 255, 214, 160;
+  /* Status lamps, selection bars and counters (the console's amber). */
+  --ui-amber: #ffb51b;
+  --ui-amber-rgb: 255, 181, 27;
+
+  /* Costs, prices and pending orders: a softer amber than the lamps. */
+  --ui-warm: #ffc65a;
+  --ui-warm-rgb: 255, 198, 90;
 
   --ui-success: #5fd39a;
   --ui-success-rgb: 95, 211, 154;
@@ -53,26 +58,27 @@
   --ui-shield: #5cc8ff;
 
   /* Lines and surfaces. */
-  --ui-line: rgba(109, 229, 211, 0.22);
-  --ui-line-soft: rgba(109, 229, 211, 0.12);
-  --ui-line-strong: rgba(109, 229, 211, 0.45);
-  --ui-surface: rgba(6, 18, 25, 0.9);
-  --ui-surface-raised: rgba(14, 38, 48, 0.55);
-  --ui-surface-sunken: rgba(1, 6, 9, 0.55);
+  --ui-line: rgba(37, 215, 232, 0.24);
+  --ui-line-soft: rgba(37, 215, 232, 0.13);
+  --ui-line-strong: rgba(37, 215, 232, 0.5);
+  --ui-surface: rgba(0, 20, 30, 0.95);
+  --ui-surface-raised: rgba(4, 36, 50, 0.6);
+  --ui-surface-sunken: rgba(0, 8, 13, 0.6);
   --ui-shadow-panel:
-    0 18px 48px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    0 16px 40px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 
   --ui-radius: 2px;
 
-  /* Type scale (VT323 renders small, so the scale starts high). */
-  --ui-fs-xs: 0.85rem;
-  --ui-fs-sm: 0.95rem;
-  --ui-fs-md: 1.08rem;
-  --ui-fs-lg: 1.35rem;
-  --ui-fs-xl: 1.8rem;
-  --ui-track: 0.08em;
-  --ui-track-wide: 0.22em;
+  /* Type scale for Share Tech Mono (a condensed technical face; it runs
+     wider than the former VT323, so the scale is about 15% smaller). */
+  --ui-fs-xs: 0.72rem;
+  --ui-fs-sm: 0.8rem;
+  --ui-fs-md: 0.92rem;
+  --ui-fs-lg: 1.15rem;
+  --ui-fs-xl: 1.5rem;
+  --ui-track: 0.06em;
+  --ui-track-wide: 0.16em;
 
   /* -------------------------------------------------------
      Legacy tokens. Older stylesheets use these names; they are
@@ -81,29 +87,29 @@
      ------------------------------------------------------- */
 
   --color-black: #000000;
-  --color-background: #050b10;
-  --color-background-dark: #071118;
+  --color-background: #03131d;
+  --color-background-dark: #020d15;
 
-  --font-primary: 'VT323', monospace;
+  --font-primary: 'Share Tech Mono', 'Consolas', monospace;
 
-  --color-text: #b9d6da;
+  --color-text: #a9cad4;
   --color-text-bright: var(--ui-ink);
   --color-text-dim: var(--ui-ink-dim);
   --color-text-disabled: var(--ui-ink-faint);
 
-  --color-blue-dark: #1b4a50;
+  --color-blue-dark: #0f3d4c;
   --color-blue: var(--ui-accent);
-  --color-blue-light: #8fe3d7;
-  --color-blue-bright: #c8fff6;
+  --color-blue-light: #7fe6f1;
+  --color-blue-bright: #c4f7fd;
 
-  --color-turquoise-dark: #0b4940;
-  --color-turquoise: #167c70;
-  --color-turquoise-light: #39b8a8;
-  --color-turquoise-bright: #6de5d3;
+  --color-turquoise-dark: #0a3a48;
+  --color-turquoise: #147c91;
+  --color-turquoise-light: #20a9bd;
+  --color-turquoise-bright: #25d7e8;
 
-  --panel-background: #07161d;
-  --panel-background-dark: #030b10;
-  --panel-background-light: #102a34;
+  --panel-background: #00141e;
+  --panel-background-dark: #000c13;
+  --panel-background-light: #001923;
   --panel-border: var(--ui-line-strong);
   --panel-border-dark: var(--ui-line-soft);
 
@@ -128,8 +134,9 @@
      short landscape phones and stops it growing on tall monitors. */
   --game-header-h: clamp(44px, 8dvh, 76px);
 
-  /* Gap between floating HUD panels and the viewport edge. */
-  --ui-edge: clamp(10px, 1.6vw, 28px);
+  /* Gap between floating HUD panels and the viewport edge. At least ~12px:
+     the console frame (ui.brackets) is drawn that far outside each panel. */
+  --ui-edge: clamp(16px, 1.6vw, 28px);
 }
 
 /* Small or short viewports (phones, landscape phones, small windows): one
@@ -137,12 +144,12 @@
    tokens, so panels shrink as a whole instead of per component. */
 @media (max-width: 900px), (max-height: 600px) {
   :root {
-    --ui-fs-xs: 0.68rem;
-    --ui-fs-sm: 0.76rem;
-    --ui-fs-md: 0.86rem;
-    --ui-fs-lg: 1.05rem;
-    --ui-fs-xl: 1.35rem;
-    --ui-edge: 6px;
+    --ui-fs-xs: 0.62rem;
+    --ui-fs-sm: 0.68rem;
+    --ui-fs-md: 0.76rem;
+    --ui-fs-lg: 0.92rem;
+    --ui-fs-xl: 1.15rem;
+    --ui-edge: 12px;
   }
 }
 
@@ -170,14 +177,14 @@ body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: var(--color-black);
+  background: var(--color-background-dark);
   color: var(--color-text);
   font-family: var(--font-primary);
   font-weight: 400;
 }
 
 body {
-  -webkit-font-smoothing: none;
+  -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
@@ -432,8 +439,10 @@ input[type='range']::-moz-range-thumb {
   @include ui.brackets;
 }
 
-/* Panel header: diamond marker, wide-tracked title, fading rule. The
-   close button sits at the right edge inside the header. */
+/* Panel header: the console heading — cyan uppercase title on the left,
+   optional status text pushed right (margin-left: auto), and a thin cyan
+   rule underneath that stops short of the frame. The close button sits at
+   the right edge inside the header. */
 .panel-style__title {
   position: relative;
   display: flex;
@@ -441,18 +450,22 @@ input[type='range']::-moz-range-thumb {
   gap: 0.65em;
   min-height: 2.6em;
   padding: 0.55em 3em 0.55em 1em;
-  border-bottom: 1px solid transparent;
-  border-image: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.5), rgba(var(--ui-accent-rgb), 0.06)) 1;
-  background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.12), transparent 75%);
-  color: var(--ui-ink);
+  background: none;
+  color: var(--ui-accent);
   font-size: var(--ui-fs-md);
   font-weight: 400;
-  letter-spacing: 0.2em;
+  letter-spacing: var(--ui-track-wide);
   text-transform: uppercase;
   white-space: nowrap;
 
   &::before {
-    @include ui.diamond;
+    content: '';
+    position: absolute;
+    left: 0.6em;
+    right: 0.6em;
+    bottom: 0;
+    height: 1px;
+    background: rgba(var(--ui-accent-rgb), 0.45);
   }
 
   @include mobile-view {
@@ -561,7 +574,7 @@ input[type='range']::-moz-range-thumb {
   }
 
   &__value {
-    color: var(--ui-ink);
+    color: var(--ui-accent);
     letter-spacing: 0.04em;
     text-align: right;
     font-variant-numeric: tabular-nums;
@@ -591,7 +604,7 @@ input[type='range']::-moz-range-thumb {
   min-width: 0;
 
   &__value {
-    color: var(--ui-ink-bright);
+    color: var(--ui-accent);
     font-size: var(--ui-fs-lg);
     line-height: 1;
     letter-spacing: 0.06em;

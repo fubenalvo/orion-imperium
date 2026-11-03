@@ -23,39 +23,28 @@
   position: relative;
   font-family: var(--font-primary);
   color: var(--color-text);
-  background: linear-gradient(180deg, rgba(4, 13, 18, 0.95) 0%, rgba(2, 7, 10, 0.86) 100%);
+  background:
+    repeating-linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.025) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #021722 0%, #010f17 100%);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 
-  /* Bottom hairline: brightest under the time controls, fading out
-     toward both edges (the main menu tagline rule, full width). */
+  /* Bottom edge: a metal rail with a thin cyan line above it, the same
+     materials as the console frame (public/ui/console-frame.svg). */
   &::after {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      rgba(var(--ui-accent-rgb), 0.08),
-      rgba(var(--ui-accent-rgb), 0.5) 35%,
-      rgba(var(--ui-accent-rgb), 0.75) 50%,
-      rgba(var(--ui-accent-rgb), 0.5) 65%,
-      rgba(var(--ui-accent-rgb), 0.08)
-    );
+    height: 5px;
+    border-top: 1px solid rgba(var(--ui-accent-rgb), 0.5);
+    background: linear-gradient(180deg, #aab4b8, #6c787d 45%, #323d42);
     pointer-events: none;
   }
 }
 
 .game-header--alert::after {
-  background: linear-gradient(
-    90deg,
-    rgba(var(--ui-danger-rgb), 0.08),
-    rgba(var(--ui-danger-rgb), 0.45) 35%,
-    rgba(var(--ui-accent-rgb), 0.6) 50%,
-    rgba(var(--ui-danger-rgb), 0.45) 65%,
-    rgba(var(--ui-danger-rgb), 0.08)
-  );
+  border-top-color: rgba(var(--ui-danger-rgb), 0.7);
 }
 
 /* ---------------------------------------------------------
@@ -78,18 +67,18 @@
 
 .game-header__title {
   overflow: hidden;
-  color: var(--ui-ink);
-  font-size: calc(var(--gh-u) * 1.45);
+  color: var(--ui-accent);
+  font-size: calc(var(--gh-u) * 1.2);
   font-weight: 400;
   line-height: 1;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.16em;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9);
 }
 
-/* Diamond marker before the title (main menu item marker, lit). */
+/* Amber status lamp before the title (the console's indicator light). */
 .game-header__title-block {
   position: relative;
   padding-left: calc(var(--gh-u) * 0.95);
@@ -98,18 +87,18 @@
     content: '';
     position: absolute;
     left: 0;
-    top: calc(var(--gh-u) * 0.55);
-    width: calc(var(--gh-u) * 0.42);
-    height: calc(var(--gh-u) * 0.42);
-    background: var(--ui-accent);
-    box-shadow: 0 0 8px rgba(var(--ui-accent-rgb), 0.7);
-    transform: rotate(45deg);
+    top: calc(var(--gh-u) * 0.4);
+    width: calc(var(--gh-u) * 0.38);
+    height: calc(var(--gh-u) * 0.38);
+    border-radius: 50%;
+    background: var(--ui-amber);
+    box-shadow: 0 0 6px rgba(var(--ui-amber-rgb), 0.7);
   }
 }
 
 .game-header--alert .game-header__title-block::before {
   background: var(--ui-danger);
-  box-shadow: 0 0 8px rgba(var(--ui-danger-rgb), 0.7);
+  box-shadow: 0 0 6px rgba(var(--ui-danger-rgb), 0.7);
 }
 
 .game-header--alert .game-header__title {

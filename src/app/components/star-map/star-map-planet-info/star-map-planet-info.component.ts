@@ -1,9 +1,6 @@
-import { planetTypeTraits } from '../planet-types';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { UpperCasePipe } from '@angular/common';
 import { PlanetTile, PlanetEconomyEntry } from '../star-map.models';
-import { PlanetDepositView, planetDepositView } from '../raw-deposits';
+import { PlanetDetailsComponent } from '../planet-details/planet-details.component';
 
 /*
  * Colonization guidance for an uninhabited planet, built by StarMap. The
@@ -20,47 +17,25 @@ export interface PlanetColonizationVm {
   fleetName: string | null;
 }
 
+/*
+ * System view planet card (bottom left). Its body is PlanetDetailsComponent,
+ * the same minimal summary as the planet view's DETAILS tab, plus the
+ * colonization note and the OPEN PLANET action.
+ */
 @Component({
   selector: 'app-star-map-planet-info',
   standalone: true,
-  imports: [CommonModule, UpperCasePipe],
+  imports: [PlanetDetailsComponent],
   templateUrl: './star-map-planet-info.component.html',
   styleUrl: './star-map-planet-info.component.scss',
 })
 export class StarMapPlanetInfoComponent {
   @Input() planet: PlanetTile | null = null;
   @Input() getFactionName: (factionId: string) => string = () => 'Unknown';
-  @Input() getEnergyForPlanet: (planet: PlanetTile) => number = () => 0;
-  @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
+  @Input() getFactionColor: (factionId: string) => string = () => '#fff';
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
-
-  /* What the planet's type changes in the economy (planet-types.ts). */
-  get planetTypeSummary(): string {
-    return planetTypeTraits(this.planet?.type).summary;
-  }
   @Input() colonization: PlanetColonizationVm | null = null;
-
-  /*
-   * The planet's raw-material deposit (null without one). Deposits are part
-   * of what an explored planet shows, so the player can judge colonization
-   * and mining targets; only the owner's mines change it.
-   */
-  get depositView(): PlanetDepositView | null {
-    return this.planet ? planetDepositView(this.planet, this.planetEconomy?.miningRate ?? 0) : null;
-  }
 
   @Output() close = new EventEmitter<void>();
   @Output() openPlanet = new EventEmitter<void>();
-
-  get groupedBuildings(): Array<{ name: string; count: number }> {
-    if (!this.planet?.buildings) {
-      return [];
-    }
-    const map = new Map<string, number>();
-    for (const b of this.planet.buildings) {
-      const key = b.id ?? b.name;
-      map.set(key, (map.get(key) || 0) + 1);
-    }
-    return Array.from(map, ([name, count]) => ({ name, count }));
-  }
 }

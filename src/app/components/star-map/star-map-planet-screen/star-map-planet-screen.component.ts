@@ -6,7 +6,6 @@ import {
   hasTradingPost,
   quoteTrade,
 } from '../trade';
-import { planetTypeTraits } from '../planet-types';
 import {
   Component,
   Input,
@@ -22,6 +21,7 @@ import {
   HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { PlanetDetailsComponent } from '../planet-details/planet-details.component';
 import {
   PlanetTile,
   PlanetBuilding,
@@ -29,7 +29,7 @@ import {
   PlanetEconomyEntry,
   ResourceRates,
 } from '../star-map.models';
-import { PlanetDepositView, depositMiningBlocker, planetDepositView } from '../raw-deposits';
+import { depositMiningBlocker } from '../raw-deposits';
 import {
   StarMapProductionPanelComponent,
   ProductionPanelViewModel,
@@ -49,7 +49,6 @@ import {
   surfaceHazeColor,
 } from '../planet-surface/planet-surface-renderer';
 import { SettlementLayout, computeSettlementLayout } from '../planet-surface/planet-settlement';
-import { COMFORT_CONFIG } from '../comfort';
 
 export interface BuildingType {
   id: string;
@@ -160,7 +159,8 @@ const EMPTY_SETTLEMENT: SettlementLayout = { streets: '', accessRoads: [], plots
  * World coordinates are cell units; the grid occupies [margin, margin + N).
  *
  * Tab visibility:
- *   - DETAILS:    always
+ *   - DETAILS:    always (PlanetDetailsComponent, shared with the system
+ *                 view's planet info card)
  *   - BUILD:      only when the player owns the planet
  *   - PRODUCTION: only when the planet has a Spaceship Factory
  *   - ASSEMBLY:   only when the planet has a Spaceport
@@ -191,6 +191,7 @@ const EMPTY_SETTLEMENT: SettlementLayout = { streets: '', accessRoads: [], plots
   standalone: true,
   imports: [
     CommonModule,
+    PlanetDetailsComponent,
     StarMapProductionPanelComponent,
     StarMapSpaceportPanelComponent,
   ],
@@ -206,10 +207,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Input() getTaxForPlanet: (planet: PlanetTile) => number = () => 0;
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
 
-  /* What the planet's type changes in the economy (planet-types.ts). */
-  get planetTypeSummary(): string {
-    return planetTypeTraits(this.planet?.type).summary;
-  }
   @Input() getPlayerCredits: () => number = () => 0;
   @Input() getPlayerRawMaterials: () => number = () => 0;
 
@@ -356,100 +353,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       ? ` — ${after.shortPct}% short: output drops${after.shortPct >= 25 ? ' and satisfaction falls toward rebellion' : ''}`
       : '';
     return `Energy after building: ${after.production} produced / ${after.consumption} used${tail}`;
-  }
-
-  /* Seconds of capture protection left (no rebellion meanwhile), or null. */
-  get rebellionGraceSeconds(): number | null {
-    const grace = this.planet?.rebellionGraceSeconds;
-    return grace !== undefined && grace > 0 ? Math.ceil(grace) : null;
-  }
-
-  /*
-   * Seconds until the planet rebels at its current satisfaction drift, or
-   * null when it is not heading for 0%. Satisfaction moves toward its
-   * target (comfort.ts), so only a target of 0 (a severe energy shortage)
-   * ends in rebellion. A planet under capture protection cannot rebel
-   * before the protection ends.
-   */
-  get secondsToRebellion(): number | null {
-    const economy = this.planetEconomy;
-    if (!economy || economy.satisfactionDrift >= 0 || economy.satisfactionTarget > 0) return null;
-    const grace = this.rebellionGraceSeconds ?? 0;
-    if (economy.satisfaction <= 0 && grace === 0) return null;
-    return Math.max(grace, Math.ceil(economy.satisfaction / -economy.satisfactionDrift));
-  }
-
-  /*
-   * Details tab presentation. The tab is deliberately minimal (a game
-   * panel, not a spreadsheet): it shows headline values and spare
-   * capacity, raises alerts only when something is wrong, and keeps the
-   * exact figures behind tooltips built here.
-   */
-
-  /* Below this drift (%/s) satisfaction counts as steady, so tiny oscillations show no arrow. */
-  private static readonly SATISFACTION_STEADY_DRIFT = 0.01;
-
-  get satisfactionTrend(): 'rising' | 'falling' | 'steady' {
-    const drift = this.planetEconomy?.satisfactionDrift ?? 0;
-    const steady = StarMapPlanetScreenComponent.SATISFACTION_STEADY_DRIFT;
-    return drift > steady ? 'rising' : drift < -steady ? 'falling' : 'steady';
-  }
-
-  get satisfactionTooltip(): string {
-    const e = this.planetEconomy;
-    if (!e) return '';
-    const lines = [
-      `Heading toward ${Math.round(e.satisfactionTarget)}% (${e.satisfactionDrift >= 0 ? '+' : ''}${e.satisfactionDrift.toFixed(2)}%/s)`,
-    ];
-    if (e.habitabilityDrift !== 0) lines.push(`World habitability ${e.habitabilityDrift >= 0 ? '+' : ''}${e.habitabilityDrift.toFixed(2)}/s`);
-    if (e.buildingMoraleBonus !== 0) lines.push(`Entertainment ${e.buildingMoraleBonus >= 0 ? '+' : ''}${e.buildingMoraleBonus.toFixed(2)}/s`);
-    return lines.join('\n');
-  }
-
-  /* Workers left over after staffing every building; negative = a shortage. */
-  get spareWorkers(): number {
-    const e = this.planetEconomy;
-    return e ? e.workforceAvailable - e.workforceRequired : 0;
-  }
-
-  get energyTooltip(): string {
-    const e = this.planetEconomy;
-    return e ? `Energy: ${Math.round(e.energyProduction)} produced, ${Math.round(e.energyConsumption)} used` : '';
-  }
-
-  get workforceTooltip(): string {
-    const e = this.planetEconomy;
-    return e ? `Workers: ${e.workforceAvailable} available, ${e.workforceRequired} needed` : '';
-  }
-
-  /* Comfort (comfort.ts) only matters above the free population, so below it the tile reads OK. */
-  get comfortTooltip(): string {
-    const e = this.planetEconomy;
-    if (!e) return '';
-    if (e.comfortNeed <= 0) return `No comfort needed below ${COMFORT_CONFIG.freePopulation.toLocaleString('en-US')} people.`;
-    const set = e.comfortFullSet ? '\nFull set of comfort kinds: +15%' : '';
-    return `Comfort: ${e.comfortProvided.toFixed(1)} provided, ${e.comfortNeed.toFixed(1)} needed${set}`;
-  }
-
-  depositTooltip(deposit: PlanetDepositView): string {
-    const rate = deposit.status === 'active' ? `\nMining ${deposit.miningRate.toFixed(1)}/s` : '';
-    return (
-      `${deposit.label}: ${Math.round(deposit.remaining).toLocaleString('en-US')} of ${Math.round(deposit.total).toLocaleString('en-US')} left` +
-      ` · richness ×${deposit.richness.toFixed(2)}${rate}`
-    );
-  }
-
-  /* Buildings grouped by name, most numerous first ("Large Residential Block ×12"). */
-  get buildingGroups(): { name: string; count: number }[] {
-    const counts = new Map<string, number>();
-    for (const b of this.planet?.buildings ?? []) counts.set(b.name, (counts.get(b.name) ?? 0) + 1);
-    return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-  }
-
-  /* Rounded, sign-prefixed readout ("+140", "−7"). */
-  signed(value: number | undefined): string {
-    const v = Math.round(value ?? 0);
-    return v > 0 ? `+${v.toLocaleString('en-US')}` : v < 0 ? `−${(-v).toLocaleString('en-US')}` : '0';
   }
 
   activeTab: PlanetSidebarTab = 'details';
@@ -662,17 +565,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     if (blocker === 'no_deposit') return 'NO DEPOSIT';
     if (blocker === 'depleted') return 'DEPLETED';
     return null;
-  }
-
-  /* The planet's raw-material deposit for the details tab (null without one). */
-  get depositView(): PlanetDepositView | null {
-    return this.planet ? planetDepositView(this.planet, this.planetEconomy?.miningRate ?? 0) : null;
-  }
-
-  formatDepositTime(seconds: number | null): string {
-    if (seconds === null || !Number.isFinite(seconds)) return '—';
-    const minutes = Math.floor(seconds / 60);
-    return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
   }
 
   isCellInPreview(row: number, col: number): boolean {

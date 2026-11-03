@@ -2666,8 +2666,6 @@ loadError = '';
     this.factions.find((f) => f.id === 'player')?.currencies['rawmaterials'] ?? 0;
   readonly boundIsEnemyInPreview = this.isEnemyInPreview.bind(this);
   readonly boundGetPlanetEconomy = this.getPlanetEconomy.bind(this);
-  readonly boundGetEnergyForPlanet = this.getEnergyForPlanet.bind(this);
-  readonly boundGetTaxForPlanet = this.getTaxForPlanet.bind(this);
   readonly boundGetPlayerShipStockEntries = this.getPlayerShipStockEntries.bind(this);
   readonly boundGetPlayerShipStockTotal = this.getPlayerShipStockTotal.bind(this);
   readonly boundGetProductionPanelVm = this.getProductionPanelVm.bind(this);

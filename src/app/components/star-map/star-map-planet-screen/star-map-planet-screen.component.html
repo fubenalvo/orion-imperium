@@ -5,7 +5,11 @@
       <div class="planet-sidebar__content">
         <div class="planet-sidebar__empty">This planet has not been explored yet.</div>
       </div>
-      <button class="planet-sidebar__back-btn btn-primary" type="button" (click)="backToStarMap.emit()">
+      <button
+        class="planet-sidebar__back-btn btn-primary"
+        type="button"
+        (click)="backToStarMap.emit()"
+      >
         BACK TO STAR MAP
       </button>
     </div>
@@ -200,7 +204,9 @@
                 class="planet-surface__sprite"
                 [class.planet-surface__sprite--deposit]="sprite.kind === 'deposit'"
                 [class.planet-surface__sprite--ghost]="sprite.kind === 'ghost'"
-                [class.planet-surface__sprite--ghost-invalid]="sprite.kind === 'ghost' && !isPreviewValid"
+                [class.planet-surface__sprite--ghost-invalid]="
+                  sprite.kind === 'ghost' && !isPreviewValid
+                "
                 [src]="sprite.src"
                 alt=""
                 draggable="false"
@@ -359,7 +365,11 @@
                     class="planet-sidebar__build-item"
                     [class.planet-sidebar__build-item--locked]="!isBuildingUnlocked(building.id)"
                     type="button"
-                    [disabled]="!canAfford(building) || !isBuildingUnlocked(building.id) || !!getSiteBlocker(building)"
+                    [disabled]="
+                      !canAfford(building) ||
+                      !isBuildingUnlocked(building.id) ||
+                      !!getSiteBlocker(building)
+                    "
                     [title]="getBuildingEnergyTooltip(building)"
                     (click)="selectBuildingType(building.id)"
                   >
@@ -372,26 +382,38 @@
                       <span class="planet-sidebar__build-lock">{{ siteBlocker }}</span>
                     } @else {
                       <span class="planet-sidebar__build-price"
-                        ><span [class.planet-sidebar__price--short]="getPlayerCredits() < getBuildingPrice(building)"
+                        ><span
+                          [class.planet-sidebar__price--short]="
+                            getPlayerCredits() < getBuildingPrice(building)
+                          "
                           >{{ getBuildingPrice(building) ?? 0 }} CR</span
                         >
                         ·
-                        <span [class.planet-sidebar__price--short]="getPlayerRawMaterials() < getBuildingRawCost(building)"
+                        <span
+                          [class.planet-sidebar__price--short]="
+                            getPlayerRawMaterials() < getBuildingRawCost(building)
+                          "
                           >{{ getBuildingRawCost(building) }} RM</span
                         >
                         @if (getBuildingEnergyDelta(building) !== 0) {
                           ·
                           <span
                             class="planet-sidebar__build-energy"
-                            [class.planet-sidebar__build-energy--gain]="getBuildingEnergyDelta(building) > 0"
+                            [class.planet-sidebar__build-energy--gain]="
+                              getBuildingEnergyDelta(building) > 0
+                            "
                             [class.planet-sidebar__price--short]="causesEnergyShortage(building)"
-                            >{{ getBuildingEnergyDelta(building) > 0 ? '+' : '' }}{{ getBuildingEnergyDelta(building) }} EN</span
+                            >{{ getBuildingEnergyDelta(building) > 0 ? '+' : ''
+                            }}{{ getBuildingEnergyDelta(building) }} EN</span
                           >
                         }
                         @if (building.comfort) {
-                          · <span class="planet-sidebar__build-comfort">+{{ building.comfort }} CF</span>
-                        }</span
-                      >
+                          ·
+                          <span class="planet-sidebar__build-comfort"
+                            >+{{ building.comfort }} CF</span
+                          >
+                        }
+                      </span>
                     }
                   </button>
                 }
@@ -403,10 +425,15 @@
                   {{ selectedBuildingType?.name }}
                   ({{ selectedBuildingType?.size }}x{{ selectedBuildingType?.size }})
                 </div>
-                @if (selectedBuildingType && getEnergyAfterBuilding(selectedBuildingType); as energyAfter) {
+                @if (
+                  selectedBuildingType && getEnergyAfterBuilding(selectedBuildingType);
+                  as energyAfter
+                ) {
                   <div
                     class="planet-sidebar__build-hint"
-                    [class.planet-sidebar__build-hint--danger]="causesEnergyShortage(selectedBuildingType)"
+                    [class.planet-sidebar__build-hint--danger]="
+                      causesEnergyShortage(selectedBuildingType)
+                    "
                   >
                     Energy after building: {{ energyAfter.production | number: '1.0-0' }} /
                     {{ energyAfter.consumption | number: '1.0-0' }}
@@ -496,10 +523,14 @@
                 </div>
                 <div class="ui-stat">
                   <span class="ui-stat__label">Network</span>
-                  <span class="ui-stat__value">{{ network.nodes }} posts · {{ network.traders }} traders</span>
+                  <span class="ui-stat__value"
+                    >{{ network.nodes }} posts · {{ network.traders }} traders</span
+                  >
                 </div>
                 <div class="ui-stat ui-stat--positive">
-                  <span class="ui-stat__label">Empire trade income ({{ network.windowMinutes }} min)</span>
+                  <span class="ui-stat__label"
+                    >Empire trade income ({{ network.windowMinutes }} min)</span
+                  >
                   <span class="ui-stat__value">+{{ network.recentIncome }} CR</span>
                 </div>
               }
@@ -536,7 +567,9 @@
                   [disabled]="!canTrade('sellRaw', lot)"
                   (click)="requestTrade('sellRaw', lot)"
                 >
-                  <span [class.planet-sidebar__price--short]="!canTrade('sellRaw', lot)">&minus;{{ lot }} RM</span>
+                  <span [class.planet-sidebar__price--short]="!canTrade('sellRaw', lot)"
+                    >&minus;{{ lot }} RM</span
+                  >
                   <span>+{{ tradeCredits('sellRaw', lot) }} CR</span>
                 </button>
               }
@@ -544,154 +577,12 @@
           }
 
           @default {
-            <!-- Details tab: only what the player acts on; exact figures live in tooltips. -->
-            <div class="planet-sidebar__identity">
-              <span class="ui-chip" [title]="planetTypeSummary">{{ planet?.type | uppercase }}</span>
-              <span class="planet-sidebar__faction" [style.color]="getFactionColor(planet!.factionId)">{{
-                planet!.civilization ?? getFactionName(planet!.factionId)
-              }}</span>
-            </div>
-            @if (planet?.civilization) {
-              <div class="planet-sidebar__hint">Independent civilization. It trades with every Trading Post and can be conquered.</div>
-            } @else if (planet?.type !== 'earthlike') {
-              <div class="planet-sidebar__hint">{{ planetTypeSummary }}</div>
-            }
-
-            <div class="planet-sidebar__hero">
-              <div class="ui-figure">
-                <span class="ui-figure__value">{{ planet?.population | number: '1.0-0' }}</span>
-                <span class="ui-figure__caption">Population</span>
-              </div>
-              @if (planetEconomy) {
-                <div class="ui-figure" title="Credits this planet earns after its upkeep">
-                  <span
-                    class="ui-figure__value"
-                    [class.planet-sidebar__value--positive]="planetEconomy.net > 0"
-                    [class.planet-sidebar__value--danger]="planetEconomy.net < 0"
-                    >{{ signed(planetEconomy.net) }}/s</span
-                  >
-                  <span class="ui-figure__caption">Income</span>
-                </div>
-                <div
-                  class="planet-sidebar__satisfaction"
-                  [class.planet-sidebar__satisfaction--warn]="planetEconomy.satisfaction < 50 && planetEconomy.satisfaction > 0"
-                  [class.planet-sidebar__satisfaction--danger]="planetEconomy.satisfaction <= 0 || secondsToRebellion !== null"
-                  [title]="satisfactionTooltip"
-                >
-                  <div class="planet-sidebar__satisfaction-head">
-                    <span>Satisfaction</span>
-                    <b
-                      >{{ planetEconomy.satisfaction | number: '1.0-0' }}%
-                      @if (satisfactionTrend !== 'steady') {
-                        <span class="planet-sidebar__trend" [class.planet-sidebar__trend--down]="satisfactionTrend === 'falling'">{{
-                          satisfactionTrend === 'rising' ? '▲' : '▼'
-                        }}</span>
-                      }
-                    </b>
-                  </div>
-                  <span class="ui-meter">
-                    <span class="ui-meter__fill" [style.width.%]="planetEconomy.satisfaction"></span>
-                    <span class="planet-sidebar__satisfaction-target" [style.left.%]="planetEconomy.satisfactionTarget"></span>
-                  </span>
-                </div>
-              }
-            </div>
-
-            @if (planetEconomy) {
-              @if (planetEconomy.energyBalance < 0) {
-                <div class="planet-sidebar__alert" role="alert">
-                  Not enough energy: output {{ (1 - planetEconomy.efficiency) * 100 | number: '1.0-0' }}% lower. Build a power plant.
-                </div>
-              }
-              @if (planetEconomy.workforceEfficiency < 1) {
-                <div class="planet-sidebar__alert" role="alert">
-                  Not enough workers: buildings run at {{ planetEconomy.workforceEfficiency * 100 | number: '1.0-0' }}%.
-                </div>
-              }
-              @if (secondsToRebellion !== null) {
-                <div class="planet-sidebar__alert" role="alert">The planet rebels in about {{ secondsToRebellion }} s.</div>
-              }
-              @if (rebellionGraceSeconds !== null) {
-                <div class="planet-sidebar__notice">Recently captured: no rebellion for {{ rebellionGraceSeconds }} s.</div>
-              }
-
-              <!-- Vital tiles: spare capacity is what decides the next building. -->
-              <div class="planet-sidebar__vitals">
-                <div
-                  class="planet-sidebar__vital"
-                  [class.planet-sidebar__vital--danger]="planetEconomy.energyBalance < 0"
-                  [title]="energyTooltip"
-                >
-                  <img src="icon-energy.png" alt="" width="16" height="16" />
-                  <b>{{ signed(planetEconomy.energyBalance) }}</b>
-                  <span>Energy</span>
-                </div>
-                <div
-                  class="planet-sidebar__vital"
-                  [class.planet-sidebar__vital--danger]="spareWorkers < 0"
-                  [title]="workforceTooltip"
-                >
-                  <img src="icon-popuilation.png" alt="" width="16" height="16" />
-                  <b>{{ signed(spareWorkers) }}</b>
-                  <span>Workers</span>
-                </div>
-                <div
-                  class="planet-sidebar__vital"
-                  [class.planet-sidebar__vital--warn]="planetEconomy.comfortNeed > 0 && planetEconomy.comfortCoverage < 1"
-                  [title]="comfortTooltip"
-                >
-                  <span class="planet-sidebar__vital-glyph" aria-hidden="true">☺</span>
-                  <b>{{ planetEconomy.comfortNeed > 0 ? (planetEconomy.comfortCoverage * 100 | number: '1.0-0') + '%' : 'OK' }}</b>
-                  <span>Comfort</span>
-                </div>
-              </div>
-
-              <div class="planet-sidebar__yields">
-                <span title="Raw materials per second">
-                  <img src="icon-rawmaterial.png" alt="" width="14" height="14" />
-                  {{ signed(planetEconomy.netRates.rawmaterials) }}/s
-                </span>
-                <span title="Research per second">
-                  <img src="icon-research.png" alt="" width="14" height="14" />
-                  {{ signed(planetEconomy.netRates.research) }}/s
-                </span>
-              </div>
-            }
-
-            @if (depositView; as deposit) {
-              <div class="planet-sidebar__deposit" [title]="depositTooltip(deposit)">
-                <div class="planet-sidebar__deposit-head">
-                  <span><img src="icon-rawmaterial.png" alt="" width="14" height="14" /> Deposit</span>
-                  <b [class.planet-sidebar__value--danger]="deposit.status === 'depleted'">{{
-                    deposit.status === 'active' ? formatDepositTime(deposit.secondsLeft) + ' left' : (deposit.label | uppercase)
-                  }}</b>
-                </div>
-                @if (deposit.status !== 'depleted') {
-                  <span class="ui-meter planet-sidebar__deposit-meter">
-                    <span class="ui-meter__fill" [style.width.%]="100 - deposit.depletedPercent"></span>
-                  </span>
-                }
-                @if (deposit.status === 'unmined') {
-                  <div class="planet-sidebar__hint">Build a Mining Complex next to a deposit tile.</div>
-                }
-              </div>
-            }
-
-            <div class="ui-label">
-              <img src="icon-build.png" alt="" width="14" height="14" /> Buildings · {{ planet?.buildings?.length ?? 0 }}
-            </div>
-            <div class="planet-sidebar__buildings">
-              @for (group of buildingGroups; track group.name) {
-                <span class="planet-sidebar__building"
-                  >{{ group.name }}
-                  @if (group.count > 1) {
-                    <b>×{{ group.count }}</b>
-                  }
-                </span>
-              } @empty {
-                <div class="planet-sidebar__empty">No buildings yet.</div>
-              }
-            </div>
+            <app-planet-details
+              [planet]="planet"
+              [planetEconomy]="planetEconomy"
+              [getFactionName]="getFactionName"
+              [getFactionColor]="getFactionColor"
+            />
           }
         }
       </div>

@@ -1,7 +1,8 @@
 /* =========================================================
    MAP NAVIGATION CONSOLE
-   D-pad and minimap share one glass instrument panel in the
-   bottom-right corner.
+   D-pad and minimap share one console instrument panel docked
+   into the bottom-right corner (no frame on the right and
+   bottom, flush with the screen).
    ========================================================= */
 
 @use 'mixins' as *;
@@ -9,8 +10,6 @@
 
 .map-navigation {
   position: fixed;
-  right: var(--ui-edge);
-  bottom: var(--ui-edge);
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -20,10 +19,9 @@
   z-index: 30;
   @include ui.glass;
   @include ui.brackets(12px);
+  @include ui.frame-docked(right bottom, 22px);
 
   @include mobile-view {
-    right: 4px;
-    bottom: 4px;
     padding: 3px;
   }
 }

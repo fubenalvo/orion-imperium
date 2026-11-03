@@ -2,12 +2,21 @@
 
 ## Design system
 
-Every screen shares one visual language derived from the main menu: dark
-**glass** surfaces, a single **turquoise accent**, off-white **ink** text in
-three strengths, **corner brackets** instead of heavy borders, the menu's
-**diamond marker**, and **hairline rules** that fade out. Screens keep their
-own composition (see [Per screen](#screen-treatments)); they share tokens,
-surfaces and controls.
+Every in-game screen shares one visual language: a 1990s sci-fi **command
+console** (restrained, industrial, after Imperium Galactica). Panels are dark
+blue-black **console surfaces** with faint scanlines, held in a chamfered
+**metallic frame** with a thin cyan inner outline and small amber lamps (see
+[Console frame](#console-frame)). One **cyan accent** carries headings,
+values and outlines, labels are muted **blue-gray**, and **amber** marks
+status and selection. The typeface is the condensed technical Share Tech
+Mono. Screens keep their own composition (see [Per screen](#screen-treatments));
+they share tokens, surfaces and controls. The main menu keeps its own scoped
+styles (see [Main Menu](#main-menu)).
+
+The look was chosen on 2026-11-03 from a reference image the user supplied as
+the design specification (an earlier "Imperial Console" restyle with graphite
+panels was rejected the same day); keep new UI within it rather than
+reinterpreting it.
 
 Sources of truth:
 
@@ -17,6 +26,7 @@ Sources of truth:
 | `src/styles/_ui.scss` | SCSS mixins for the same building blocks (`@use 'ui';`). Mixins only, so using the partial costs nothing until a mixin is included |
 | `src/styles/_hud-controls.scss` | Header-sized buttons (`hud-button`, `-active`, `-dimmed`), scaled by `--gh-u` |
 | `src/styles/_hud-panel.scss` | `hud-frame` / `hud-accent-notches` / `hud-panel`: aliases of `ui.glass` + `ui.brackets` for stylesheets that want the panel look on their own selector |
+| `public/ui/console-frame.svg` | The metallic console frame, a 9-slice image used by `ui.brackets` (see [Console frame](#console-frame)) |
 | `src/styles/_hud-panels.scss` | Global rules for the star map's floating panels (system / fleet / planet info cards, planet + fleet roster, context menu) and the header detail overlay (`.hud-overlay`). Loaded at the end of `styles.scss` with `meta.load-css`, so its placement rules win over `.panel-style` |
 
 ### Tokens
@@ -25,10 +35,11 @@ Colors (never use literals for UI chrome; use these):
 
 | Token | Value | Use |
 |---|---|---|
-| `--ui-accent` / `--ui-accent-rgb` | `#6de5d3` | The one UI accent: borders, selection, markers, primary actions. Use `rgba(var(--ui-accent-rgb), a)` for tints |
-| `--ui-accent-text` | `#5fcfbf` | Accent for small text (section labels) |
-| `--ui-ink-bright` / `--ui-ink` / `--ui-ink-dim` / `--ui-ink-faint` | `#fff` / `#d8eef0` / `#7fa3ad` / `#46656f` | Text hierarchy: emphasis, primary, secondary, disabled/tertiary |
-| `--ui-warm` | `#ffd6a0` | Secondary accent, sparingly: costs, prices, pending orders (the main menu's sunlight) |
+| `--ui-accent` / `--ui-accent-rgb` | `#25d7e8` | The one UI accent (cyan): headings, important values, outlines, primary actions. Use `rgba(var(--ui-accent-rgb), a)` for tints |
+| `--ui-accent-text` | `#2fc6d8` | Accent for small text (section labels) |
+| `--ui-ink-bright` / `--ui-ink` / `--ui-ink-dim` / `--ui-ink-faint` | `#e6fbff` / `#bfe2ea` / `#7d97a4` / `#456777` | Text hierarchy: emphasis, primary, secondary labels (blue-gray), disabled/tertiary |
+| `--ui-amber` / `--ui-amber-rgb` | `#ffb51b` | Status lamps and readouts, counters, the bar under a selected button or tab |
+| `--ui-warm` | `#ffc65a` | Costs, prices, pending orders (a softer amber) |
 | `--ui-success` / `--ui-warning` / `--ui-danger` (+ `-rgb`), `--ui-danger-text` | | Status |
 | `--ui-anomaly` | `#c39cff` | Nebula / sensor impairment notices |
 | `--ui-shield` | `#5cc8ff` | Shield bars and shield abilities |
@@ -39,12 +50,13 @@ Faction colors (game data) are the only other hues on screen, so UI chrome
 never competes with them. In particular the UI accent is not the player's
 blue.
 
-Type scale: `--ui-fs-xs` … `--ui-fs-xl` (VT323 renders small, so the scale
-starts at 0.85rem), tracking `--ui-track` / `--ui-track-wide`. Below 900px
+Type scale: `--ui-fs-xs` … `--ui-fs-xl` (0.72rem … 1.5rem, sized for Share
+Tech Mono), tracking `--ui-track` / `--ui-track-wide`. Below 900px
 width or 600px height the whole scale steps down once (media query on
 `:root`), so panels shrink as a unit; do not add per-component mobile font
 sizes for text that already uses the tokens. `--ui-edge` is the gap between
-floating HUD panels and the viewport edge.
+floating HUD panels and the viewport edge; it stays at least 12px because the
+console frame is drawn that far outside each panel.
 
 Exception: the floating info cards of the star map and system view (system,
 fleet, planet, asteroid) step down one more time on the same viewports (the
@@ -55,21 +67,56 @@ content area and the action row pinned at the bottom, so the map stays usable
 on phones. Those rules live in `src/styles/_hud-panels.scss` (compact block)
 and in each info component's stylesheet.
 
-Legacy tokens (`--color-blue*`, `--color-text*`, `--panel-*`,
-`--color-success` …) are aliases of the palette above — the `--color-blue*`
-names now carry the turquoise accent. Prefer `--ui-*` in new code.
+Legacy tokens (`--color-blue*`, `--color-turquoise*`, `--color-text*`,
+`--panel-*`, `--color-success` …) are aliases of the palette above — the
+`--color-blue*` and `--color-turquoise*` names now carry the cyan accent.
+Prefer `--ui-*` in new code.
 
 ### Surfaces
 
-- **Glass panel** — `.panel-style` (global class) or `ui.glass` + `ui.brackets`:
-  dark gradient, 1px `--ui-line` border, deep shadow, 8px backdrop blur,
-  accent corner brackets top-left / bottom-right.
-- **Panel header** — `.panel-style__title`: diamond marker, wide-tracked
-  uppercase title, accent wash, fading bottom rule. A `button.close-btn`
+- **Console panel** — `.panel-style` (global class) or `ui.glass` +
+  `ui.brackets`: near-opaque blue-black surface with faint horizontal
+  scanlines, 1px `--ui-line` outline, deep shadow, inside the metallic
+  [console frame](#console-frame). (The mixin names `glass` and `brackets`
+  are historical; keeping them gave every panel the console look at once.)
+- **Panel header** — `.panel-style__title`: cyan uppercase heading on the
+  left, optional amber status / counter pushed to the right
+  (`margin-left: auto`), a thin cyan rule underneath. A `button.close-btn`
   inside it renders as a drawn cross at the right edge (its "X" text is
   hidden), so close buttons look identical everywhere.
-- **Modal** — `ui.backdrop` (dimmed, blurred scene) + a glass sheet with
-  larger brackets and `ui.modal-title` (title between two fading rules).
+- **Modal** — `ui.backdrop` (dimmed, blurred scene) + a console sheet with
+  the heavy frame (`ui.brackets` size >= 22px) and `ui.modal-title` (title
+  between two fading rules).
+
+### Console frame
+
+`ui.brackets($size)` draws the frame from `public/ui/console-frame.svg` as a
+9-slice `border-image` (slice 32 of the 96px image): metal band with a light
+top edge and a darker groove, a dark gap, the thin cyan inner outline, small
+mechanical plates at the top-left and right corners, and two amber lamps on
+the bottom edge. Only the 32px corner squares may carry details; everything
+between them is stretched. `::before` adds the raised metal plate centred on
+the top edge.
+
+- `$size` picks the weight: <= 12px small instruments (22px frame), >= 22px
+  modal sheets (40px), otherwise standard panels (32px). Its color/width
+  parameters are ignored.
+- The frame is pushed outside the box (`border-image-outset`, 3/8 of the
+  frame width, about 8–15px), so it never changes layout and the cyan line
+  falls on the panel edge. Consequences: leave that much room between
+  framed panels and from the viewport edge, and an ancestor with
+  `overflow: hidden` clips the frame.
+- It needs a border-style other than `none` (`ui.glass` sets one).
+- `ui.frame-docked($sides, $w)` docks a framed panel against screen edges:
+  on each listed side the frame and the outline are dropped and the panel is
+  positioned at 0, flush with the viewport (the frame corners touching those
+  sides disappear; the other edges run off screen). Docking the top also
+  hides the top plate; a panel docked under the header sets its own `top`
+  after the include. `$w` must match the frame width `ui.brackets` picked.
+  Docked panels: the bottom-left info card slot (`.system-info`,
+  `.fleet-info`, `.planet-info`: left + bottom), the map navigation console
+  with the minimap (right + bottom) and the map roster (left + top, under
+  the header).
   Used by pause, options, research, production order, currency breakdown,
   battle result and game end.
 
@@ -92,7 +139,7 @@ Rules:
 | Primary call to action (one per panel) | `.btn-primary` | `ui.button-primary` |
 | Destructive | `.btn-danger` | `ui.button-danger` |
 | Tertiary / text | `.btn-ghost` | |
-| Selected / toggled | | `ui.button-selected` (lit from below) |
+| Selected / toggled | | `ui.button-selected` (amber bar along the bottom edge) |
 | Icon button (close, d-pad, steppers) | | `ui.icon-button($size)` |
 | Underline tab | | `ui.tab` + `ui.tab-active` |
 | Inputs, select, checkbox, radio, range | elements | |
@@ -138,8 +185,12 @@ since the global button centers its content.
 
 ## Font
 
-`--font-primary: 'VT323', monospace` everywhere, including the main menu.
-Hierarchy comes from size, tracking and ink strength rather than weight.
+`--font-primary: 'Share Tech Mono'` (Google Fonts, loaded in `styles.scss`)
+everywhere in game. A narrow, technical face like the reference console's
+lettering; it runs wider than the former VT323, which is why the type scale
+is smaller. Hierarchy comes from size, tracking, color (cyan headings and
+values, blue-gray labels) and ink strength rather than weight. Text is
+antialiased (`-webkit-font-smoothing: antialiased`).
 
 ## Screen overlay
 
@@ -152,17 +203,17 @@ times a second and its RGB sub-pixel stripes blurred small text.
 
 | Screen | Treatment |
 |---|---|
-| Header (all in-game screens) | Glass bar, bottom hairline brightest under the centre; diamond-marked title; the time controls sit in one bracketed tray (see [Game Header](#game-header)) |
-| Star map | Roster column top left (`.map-roster`): a Planets list of the player's planets above the Fleets list, same list style with a faction-colored diamond per entry; each list scrolls on its own inside the shared height budget. Clicking a planet opens its surface view directly (its system becomes the selected system, so Back lands in the system view); clicking a fleet selects it, bottom-left info cards (system, fleet, asteroid, civilian trader) with headline figures, one navigation console (d-pad + minimap) bottom right, context menu as a glass list |
-| System view | The planet info card uses identity chip, a three-figure strip (population, energy, tax) and grouped stat rows; uninhabited planets add a Colonization note (`.planet-info__note`, dim prose) explaining the next step; the scene stays dominant. The fleet panel shows a primary COLONIZE action button beside MOVE while the fleet can colonize |
-| Planet view | Opaque command sidebar: header, underline tabs, then the active tab. Details is minimal by design (a game panel, not a table): owner and type chip (a dim line with the type's effects off earthlike worlds), a headline block (population, signed income, satisfaction meter with target mark and a ▲/▼ trend), danger alerts only when energy or workers run short or a rebellion nears, three vital tiles (spare energy, spare workers, comfort coverage; warning/danger bottom edge), one raw/research yield strip, a one-line deposit with its remaining-share meter, and buildings as grouped tags ("Name ×N"). Exact figures (production/consumption, workforce, comfort points, drift sources, deposit amounts and richness) are in tooltips; the empire treasury is not repeated (the header shows it). Build: cards with warm cost text (unaffordable = warning edge, locked = faint). Production / assembly are sections of the sidebar, not nested boxes. Surface d-pad and zoom selector are small glass instruments |
-| Fleet command | Modal glass sheet: location title with fleet/ship figures, a hint strip that follows the selection, an optional Reserve column (sunken surface, Spaceport stock) followed by fleet columns on raised surfaces edged in the faction color (class rows with faction-tinted ship SVGs, hull meters, accent-lit selection), dashed "transfer here" strips and new-fleet slot, sunken footer with change chips and Reset / Cancel / Apply (see [Fleet Organization](./fleet-organization.md#ui)) |
-| Diplomacy | Modal glass sheet opened from the header DIPLOMACY button (warm badge = open AI proposals): eyebrow + ruled title with your reputation as a word (Honourable / Trusted / Neutral / Doubtful / Treacherous) and, only while at war or penalised, a wars figure with the exhaustion word or output penalty; a result notice; one raised card per empire edged in its faction color (danger wash at war; dimmed and sorted last when eliminated) with relation chip (war + duration / warning-tinted truce + time left / peace, all in game time) and one row of word facts — Attitude (Friendly / Cordial / Neutral / Wary / Hostile), Fleet (Weaker / Even / Stronger), Planets, and at war Exhaustion (fresh / tired / weary / exhausted) — with the exact numbers in tooltips, plus a dim "Also at war with" line; an inline success notice for an open AI proposal (REVIEW primary / DECLINE), an inline danger notice that states the consequences before DECLARE WAR / BREAK TREATY (`btn-danger`); credit demands: an incoming demand as a warning notice (danger for an ultimatum) with a quoted, personality-toned message, ACCEPT (primary) / DECLINE, a refused-ultimatum notice with DECLARE WAR (`btn-danger`) / BACK DOWN, and the inline DEMAND CREDITS form (segmented kind buttons using `button-selected`, amount input, consequence text, SEND DEMAND primary or SEND ULTIMATUM danger); and a footer with the actions (only "Talks possible in …" as text; the reason a demand is unavailable and the truce lock are button tooltips). The rules footnote is a collapsed "How diplomacy works" disclosure. See [Diplomacy](./diplomacy.md#player-ui) |
-| Peace negotiation | Modal glass sheet above the Diplomacy screen (game paused): faction-swatched title, two side cards edged in faction color, a success notice with the AI's terms on the table, two sunken draft columns (demand / offer: resource inputs with maxima, checkbox lists of systems and planets with warm value text, accent bar on selected rows), and a raised judgment panel (acceptance meter with a bright 50% threshold mark, verdict line, factor bars green/red); sunken footer with CLEAR / CANCEL / SEND PROPOSAL |
+| Header (all in-game screens) | Console strip with scanlines and a metal rail (cyan line above it) along the bottom; cyan title after an amber status lamp; console-key buttons with the amber selected bar; the time controls sit in one tray (see [Game Header](#game-header)) |
+| Star map | Roster box top left (`.map-roster`, one framed box docked into the corner under the header, no frame on the left and top): a Planets list of the player's planets above the Fleets list, separated by a hairline, same list style with a faction-colored diamond per entry; each list scrolls on its own inside the shared height budget. Clicking a planet opens its surface view directly (its system becomes the selected system, so Back lands in the system view); clicking a fleet selects it, bottom-left info cards (system, fleet, planet docked into the corner; asteroid and civilian trader cards beside them) with headline figures, one navigation console (d-pad + minimap) docked into the bottom-right corner, context menu as a console list |
+| System view | The planet info card's body is `PlanetDetailsComponent` (`star-map/planet-details/`), the same minimal summary as the planet view's Details tab (see below), so both show identical content; uninhabited planets add a Colonization note (`.planet-info__note`, dim prose) explaining the next step; the scene stays dominant. The fleet panel shows a primary COLONIZE action button beside MOVE while the fleet can colonize |
+| Planet view | Opaque command sidebar (framed like every console panel; its frame is mostly off screen, so it reads as a metal left edge): header, underline tabs (amber bar on the active one), then the active tab. Details (`PlanetDetailsComponent`, shared with the system view's planet card) is minimal by design (a game panel, not a table): owner and type chip (a dim line with the type's effects off earthlike worlds), a headline block (population, signed income, satisfaction meter with target mark and a ▲/▼ trend), danger alerts only when energy or workers run short or a rebellion nears, three vital tiles (spare energy, spare workers, comfort coverage; warning/danger bottom edge), one raw/research yield strip, a one-line deposit with its remaining-share meter, and buildings as grouped tags ("Name ×N"). Exact figures (production/consumption, workforce, comfort points, drift sources, deposit amounts and richness) are in tooltips; the empire treasury is not repeated (the header shows it). Build: cards with warm cost text (unaffordable = warning edge, locked = faint). Production / assembly are sections of the sidebar, not nested boxes. Surface d-pad and zoom selector are small framed instruments |
+| Fleet command | Modal console sheet: location title with fleet/ship figures, a hint strip that follows the selection, an optional Reserve column (sunken surface, Spaceport stock) followed by fleet columns on raised surfaces edged in the faction color (class rows with faction-tinted ship SVGs, hull meters, accent-lit selection), dashed "transfer here" strips and new-fleet slot, sunken footer with change chips and Reset / Cancel / Apply (see [Fleet Organization](./fleet-organization.md#ui)) |
+| Diplomacy | Modal console sheet opened from the header DIPLOMACY button (warm badge = open AI proposals): eyebrow + ruled title with your reputation as a word (Honourable / Trusted / Neutral / Doubtful / Treacherous) and, only while at war or penalised, a wars figure with the exhaustion word or output penalty; a result notice; one raised card per empire edged in its faction color (danger wash at war; dimmed and sorted last when eliminated) with relation chip (war + duration / warning-tinted truce + time left / peace, all in game time) and one row of word facts — Attitude (Friendly / Cordial / Neutral / Wary / Hostile), Fleet (Weaker / Even / Stronger), Planets, and at war Exhaustion (fresh / tired / weary / exhausted) — with the exact numbers in tooltips, plus a dim "Also at war with" line; an inline success notice for an open AI proposal (REVIEW primary / DECLINE), an inline danger notice that states the consequences before DECLARE WAR / BREAK TREATY (`btn-danger`); credit demands: an incoming demand as a warning notice (danger for an ultimatum) with a quoted, personality-toned message, ACCEPT (primary) / DECLINE, a refused-ultimatum notice with DECLARE WAR (`btn-danger`) / BACK DOWN, and the inline DEMAND CREDITS form (segmented kind buttons using `button-selected`, amount input, consequence text, SEND DEMAND primary or SEND ULTIMATUM danger); and a footer with the actions (only "Talks possible in …" as text; the reason a demand is unavailable and the truce lock are button tooltips). The rules footnote is a collapsed "How diplomacy works" disclosure. See [Diplomacy](./diplomacy.md#player-ui) |
+| Peace negotiation | Modal console sheet above the Diplomacy screen (game paused): faction-swatched title, two side cards edged in faction color, a success notice with the AI's terms on the table, two sunken draft columns (demand / offer: resource inputs with maxima, checkbox lists of systems and planets with warm value text, accent bar on selected rows), and a raised judgment panel (acceptance meter with a bright 50% threshold mark, verdict line, factor bars green/red); sunken footer with CLEAR / CANCEL / SEND PROPOSAL |
 | Research | Full-screen dialog: header (points, income, progress meter), status filters, tier rows by prerequisite depth, cards with a status stripe and an affordability meter (see [Research](./research.md#ui)); cards that unlock combat hulls list each hull with its class badge |
 | Hull roles | `HullRoleComponent` (`hull-role/`): a chip-style class badge with one hue per class (light = accent, medium = warm, heavy = danger text), "beats X · weak to Y" in success / danger text, or in full mode the role summary, bonus lines and a two-column stat grid. The compact form wraps the text below the badge in narrow cards. Used by the production dialog and the research cards |
-| Battle | Shared header in alert tone (danger-tinted title and rule); command bar with readable type, shield-tinted carrier ability, segmented targeting modes; glass result dialog with faction-edged side cards |
-| Pause / options / game end | Main menu language: glass sheet, ruled title, diamond menu entries, left-barred save slots and setting rows |
+| Battle | Shared header in alert tone (danger-tinted title and rule); command bar with readable type, shield-tinted carrier ability, segmented targeting modes; framed result dialog with faction-edged side cards |
+| Pause / options / game end | Framed console sheet, ruled title, diamond menu entries, left-barred save slots and setting rows |
 
 ## HudDotsComponent
 
@@ -351,10 +402,13 @@ see [Planet Surface](./planet-surface.md#building-sprites)).
 
 ## Planet view
 
+The planet view keeps its own layout (full-screen surface plus the command
+sidebar on the right); only the console styling applies to it. The user
+asked on 2026-11-03 not to rearrange it into the reference console layout.
 The planet surface (terrain canvas, tilted ground plane with streets and
 grid, sprite layer, atmosphere) is documented in
 [Planet Surface](./planet-surface.md#rendering). Its controls (d-pad, zoom
-selector with the NAMES toggle) are small glass instruments using the
+selector with the NAMES toggle) are small framed instruments using the
 design-system buttons; the sidebar is described under
 [Screen treatments](#screen-treatments).
 

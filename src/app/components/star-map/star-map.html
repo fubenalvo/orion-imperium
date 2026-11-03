@@ -351,8 +351,7 @@
         <app-star-map-planet-info
           [planet]="selectedPlanetTile"
           [getFactionName]="boundGetFactionName"
-          [getEnergyForPlanet]="boundGetEnergyForPlanet"
-          [getTaxForPlanet]="boundGetTaxForPlanet"
+          [getFactionColor]="boundGetFactionColor"
           [planetEconomy]="getPlanetEconomy(selectedPlanetTile!)"
           [colonization]="getPlanetColonizationVm(selectedPlanetTile!)"
           (close)="selectedPlanetTile = null"

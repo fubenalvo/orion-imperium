@@ -1,7 +1,8 @@
 @if (playerPlanets.length > 0 || playerFleets.length > 0) {
-  <div class="map-roster">
+  <!-- One shared box for both lists, docked into the top-left corner. -->
+  <div class="map-roster panel-style">
     @if (playerPlanets.length > 0) {
-      <nav class="fleet-buttons panel-style" aria-label="Your planets">
+      <nav class="fleet-buttons" aria-label="Your planets">
         <div class="fleet-buttons__title">Planets</div>
         <div class="fleet-buttons__list">
           @for (entry of playerPlanets; track entry.planet) {
@@ -20,7 +21,7 @@
     }
 
     @if (playerFleets.length > 0) {
-      <nav class="fleet-buttons panel-style" aria-label="Your fleets">
+      <nav class="fleet-buttons" aria-label="Your fleets">
         <div class="fleet-buttons__title">Fleets</div>
         <div class="fleet-buttons__list">
           @for (fleet of playerFleets; track fleet.id) {

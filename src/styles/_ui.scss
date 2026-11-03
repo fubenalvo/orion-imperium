@@ -1,11 +1,12 @@
 /* =========================================================
    UI DESIGN SYSTEM — SCSS MIXINS
    ---------------------------------------------------------
-   The shared visual language of every in-game screen, derived
-   from the main menu (see docs/ui-styling.md#design-system):
-   dark glass surfaces, a single turquoise accent, off-white
-   "ink" text, corner brackets instead of heavy borders, the
-   diamond marker and fading hairline rules.
+   The shared visual language of every in-game screen (see
+   docs/ui-styling.md#design-system): a 1990s command console.
+   Dark blue-black console surfaces with faint scanlines, a
+   chamfered metallic frame with a thin cyan inner outline and
+   amber lamps, one cyan accent, blue-gray labels, amber for
+   status and selection.
 
    Colors always come from the --ui-* custom properties defined
    in styles.scss, never from literals, so a palette change is a
@@ -19,45 +20,115 @@
    mixins when a component needs the look on its own selector.
    ========================================================= */
 
-/* Glass panel surface. `$strength` scales the opacity for panels that
-   float over busy scenery (1) versus over an already dimmed backdrop. */
+/* Console surface: near-opaque blue-black interior with faint horizontal
+   scanlines and a thin cyan outline. `$strength` scales the opacity for
+   panels that float over busy scenery (1) versus a dimmed backdrop. The
+   historical name "glass" is kept so every panel picks up the console look
+   without per-component edits. */
 @mixin glass($strength: 1) {
-  background: linear-gradient(
-    160deg,
-    rgba(10, 30, 40, 0.86 * $strength),
-    rgba(3, 10, 15, 0.92 * $strength)
-  );
+  background:
+    repeating-linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.028) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgba(0, 27, 38, 0.95 * $strength), rgba(0, 17, 26, 0.97 * $strength));
   border: 1px solid var(--ui-line);
   box-shadow: var(--ui-shadow-panel);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
 }
 
-/* Accent corner brackets (top-left + bottom-right). Owns ::before and
-   ::after, so only include it on elements that do not use them. The
-   element must be a containing block (position: relative/absolute). */
-@mixin brackets($size: 14px, $color: var(--ui-accent), $width: 2px) {
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    width: $size;
-    height: $size;
-    border-color: $color;
-    border-style: solid;
-    pointer-events: none;
-    z-index: 1;
+/*
+ * Console frame: the chamfered metallic frame of the reference console
+ * (public/ui/console-frame.svg, a 9-slice border-image) plus a raised plate
+ * on the top edge. The name "brackets" is historical: every major panel
+ * already included it, so they all receive the frame from this one mixin.
+ *
+ * Geometry: the frame image is $w wide per edge and pushed $o (3/8 of $w)
+ * outside the border box with border-image-outset, so the metal sits OUTSIDE
+ * the panel and the cyan inner outline lands on the panel edge. The frame
+ * therefore never changes layout, but it needs about $o of free space around
+ * the panel (an ancestor with overflow: hidden clips it). Requires a
+ * border-style other than none (ui.glass sets one).
+ *
+ * $size picks the frame weight: <= 12px small instruments, >= 22px modal
+ * sheets, otherwise standard panels. $color and $width are accepted for
+ * compatibility and ignored (the frame is always metal + cyan).
+ * Owns ::before (top plate) and ::after (disabled); the element must be a
+ * containing block (position: relative/absolute).
+ */
+@mixin brackets($size: 14px, $color: null, $width: null) {
+  $w: 32px;
+  @if $size <= 12px {
+    $w: 22px;
+  } @else if $size >= 22px {
+    $w: 40px;
   }
+  @include console-frame($w);
+}
+
+@mixin console-frame($w: 32px) {
+  $o: $w * 0.375;
+
+  border-image-source: url('/ui/console-frame.svg');
+  border-image-slice: 32;
+  border-image-width: $w;
+  border-image-outset: $o;
+  border-image-repeat: stretch;
 
   &::before {
-    top: -1px;
-    left: -1px;
-    border-width: $width 0 0 $width;
+    content: '';
+    position: absolute;
+    top: -$o;
+    left: 50%;
+    z-index: 1;
+    width: clamp(3rem, 14%, 9rem);
+    height: $o * 0.9;
+    transform: translateX(-50%);
+    clip-path: polygon(0 0, 100% 0, calc(100% - #{$o * 0.7}) 100%, #{$o * 0.7} 100%);
+    background:
+      linear-gradient(180deg, transparent 58%, rgba(0, 0, 0, 0.45) 58% 70%, transparent 70%),
+      linear-gradient(180deg, #c6cfd3, #7c888d 55%, #3a464b);
+    pointer-events: none;
   }
 
   &::after {
-    right: -1px;
-    bottom: -1px;
-    border-width: 0 $width $width 0;
+    content: none;
+  }
+}
+
+/*
+ * Docks a framed panel into a screen corner or against an edge: on each of
+ * $sides (top / right / bottom / left) the console frame and the 1px outline
+ * are dropped and the panel is positioned at 0, so it sits flush with the
+ * viewport there. The frame's corners touching a docked side disappear with
+ * it; the remaining edges stretch to the screen edge. $w must match the
+ * frame width the panel's ui.brackets call picked (32px for .panel-style).
+ * Docking the top also hides the top plate (::before), which would otherwise
+ * stick out above the panel. A top-docked panel under the header sets its
+ * own `top` after this include.
+ * Used by the bottom-left info cards, the map navigation console and the
+ * map roster.
+ */
+@mixin frame-docked($sides, $w: 32px) {
+  $o: $w * 0.375;
+  $widths: ();
+  $outsets: ();
+  @each $side in (top, right, bottom, left) {
+    @if index($sides, $side) {
+      $widths: append($widths, 0);
+      $outsets: append($outsets, 0);
+      border-#{$side}: 0;
+      #{$side}: 0;
+    } @else {
+      $widths: append($widths, $w);
+      $outsets: append($outsets, $o);
+    }
+  }
+  border-image-width: $widths;
+  border-image-outset: $outsets;
+  border-radius: 0;
+
+  @if index($sides, top) {
+    &::before {
+      content: none;
+    }
   }
 }
 
@@ -130,11 +201,14 @@
     padding: 0.6em 1.4em;
     font-size: var(--ui-fs-sm);
   }
-  border: 1px solid rgba(var(--ui-accent-rgb), 0.38);
-  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.1), rgba(var(--ui-accent-rgb), 0.03));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.34);
+  background: linear-gradient(180deg, #0b2a3a, #05192a);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.6);
   color: var(--ui-ink);
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
   transition:
     background-color 0.2s ease,
@@ -144,11 +218,11 @@
     box-shadow 0.2s ease;
 
   &:hover:not(:disabled) {
-    border-color: var(--ui-accent);
-    background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.2), rgba(var(--ui-accent-rgb), 0.07));
+    border-color: rgba(var(--ui-accent-rgb), 0.75);
+    background: linear-gradient(180deg, #10374a, #082233);
     box-shadow:
-      inset 0 0 12px rgba(var(--ui-accent-rgb), 0.08),
-      0 0 14px rgba(var(--ui-accent-rgb), 0.2);
+      inset 0 1px 0 rgba(255, 255, 255, 0.08),
+      inset 0 0 10px rgba(var(--ui-accent-rgb), 0.08);
     color: var(--ui-ink-bright);
     filter: none;
   }
@@ -165,7 +239,7 @@
 
   &:disabled {
     border-color: rgba(var(--ui-accent-rgb), 0.12);
-    background: rgba(255, 255, 255, 0.02);
+    background: #04131c;
     box-shadow: none;
     color: var(--ui-ink-faint);
     text-shadow: none;
@@ -177,17 +251,17 @@
 /* Primary call to action (one per panel at most). */
 @mixin button-primary {
   border-color: var(--ui-accent);
-  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.34), rgba(22, 124, 112, 0.3));
+  background: linear-gradient(180deg, #11526a, #0a3346);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 18px rgba(var(--ui-accent-rgb), 0.16);
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.3);
   color: var(--ui-ink-bright);
 
   &:hover:not(:disabled) {
-    background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.48), rgba(22, 124, 112, 0.42));
+    background: linear-gradient(180deg, #17647f, #0d4057);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.16),
-      0 0 22px rgba(var(--ui-accent-rgb), 0.35);
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 0 10px rgba(var(--ui-accent-rgb), 0.2);
   }
 }
 
@@ -205,13 +279,14 @@
   }
 }
 
-/* Selected / toggled-on state for buttons, tabs and segmented controls. */
+/* Selected / toggled-on state for buttons, tabs and segmented controls:
+   a lit key with an amber bar along its bottom edge. */
 @mixin button-selected {
-  border-color: var(--ui-accent);
-  background: linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.3), rgba(var(--ui-accent-rgb), 0.12));
+  border-color: rgba(var(--ui-amber-rgb), 0.7);
+  background: linear-gradient(180deg, #123a4c, #0a2636);
   box-shadow:
-    inset 0 -2px 0 var(--ui-accent),
-    0 0 14px rgba(var(--ui-accent-rgb), 0.22);
+    inset 0 -2px 0 var(--ui-amber),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   color: var(--ui-ink-bright);
 }
 
@@ -250,8 +325,8 @@
     right: 15%;
     bottom: -1px;
     height: 2px;
-    background: var(--ui-accent);
-    box-shadow: 0 0 10px rgba(var(--ui-accent-rgb), 0.7);
+    background: var(--ui-amber);
+    box-shadow: 0 0 6px rgba(var(--ui-amber-rgb), 0.5);
     transform: scaleX(0);
     transition: transform 0.25s cubic-bezier(0.2, 0.7, 0.2, 1);
   }
