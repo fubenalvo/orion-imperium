@@ -334,6 +334,10 @@ export class EnemyResearchService {
         // Turrets protect stations only: worthless without any, more valuable
         // with every station and under threat.
         return ctx.stationCount === 0 ? 0.1 : w.military * Math.min(2, 0.3 * ctx.stationCount) * (0.5 + 0.5 * ctx.militaryNeed);
+      case 'stationRepair':
+        // The AI does not route damaged fleets to its bases; the repair only
+        // helps fleets that happen to stand on one, so it is worth little.
+        return ctx.stationCount === 0 ? 0.05 : w.military * 0.2 * (0.5 + 0.5 * ctx.militaryNeed);
       case 'shipAttack':
       case 'shipShield': {
         const affected = (bonus.shipTypes ?? []).reduce((sum, t) => sum + (ctx.strengthByType.get(t) ?? 0), 0);

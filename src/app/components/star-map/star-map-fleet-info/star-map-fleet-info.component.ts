@@ -57,6 +57,8 @@ export class StarMapFleetInfoComponent {
   @Input() anchorDeployment: { canDeploy: boolean; reason: string | null } | null = null;
   /* Name of the empire whose borders this fleet is violating right now; null when none. */
   @Input() borderViolationOf: string | null = null;
+  /* "Repairing at Spaceport · hull 63%" while the fleet is repaired (StarMap.getFleetRepairStatus). */
+  @Input() repairStatus: string | null = null;
 
   formatEta(seconds: number): string {
     const total = Math.max(0, Math.round(seconds));

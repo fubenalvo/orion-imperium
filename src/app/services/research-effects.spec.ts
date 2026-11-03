@@ -115,6 +115,8 @@ describe('Technology effects — inventory', () => {
       'shipUpkeep', 'shipBuildSpeed', 'populationGrowth', 'shipAttack', 'shipShield',
       // Station defense turrets: covered in station-defense.spec.ts.
       'stationTurrets',
+      // Space bases repairing fleets: covered in fleet-repair.spec.ts.
+      'stationRepair',
     ];
     const used = new Set(research.getAllTechnologies().flatMap((t) => (t.bonuses ?? []).map((b) => b.type)));
     for (const type of used) expect(covered).toContain(type);

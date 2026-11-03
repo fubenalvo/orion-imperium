@@ -376,7 +376,7 @@ The AI pipeline is a layered system running every frame (respecting pause/speed 
 | 4 | Develop action uses first-match building | AI building selection is first-match in planet-data.json order, no strategic scoring for placement. | enemy-action-executor.service.ts |
 | 5 | No enemy fleet reinforcement | AI produces colonizers but does not produce combat ships or reinforce fleets from conquered planets. | enemy-action-executor.service.ts |
 | 6 | Debug console.log statements | Many `console.log` debug statements remain in production code. | Throughout |
-| 7 | No fleet re-supply / repair | Ships do not heal between battles; no repair facilities. | — |
+| 7 | No fleet re-supply | Ships are repaired over time at own Spaceports and (with Orbital Repair Docks) at own space bases ([Fleet Organization](./fleet-organization.md#repair)); there is no supply or fuel. | — |
 | 8 | No trade routes / logistics | No inter-planet resource transfer; each planet is self-contained. | — |
 | 9 | No victory conditions | Game has no win state; plays indefinitely. | — |
 

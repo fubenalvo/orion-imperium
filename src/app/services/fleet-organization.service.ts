@@ -7,6 +7,7 @@ import {
   StarSystem,
 } from '../components/star-map/star-map.models';
 import { ShipService } from './ship.service';
+import { carriedHp } from '../components/star-map/fleet-repair';
 import { ShipStockService } from './ship-stock.service';
 import { SpaceportService } from './spaceport.service';
 
@@ -41,10 +42,10 @@ import { SpaceportService } from './spaceport.service';
  *   idle: splitting never issues a movement order.
  * - Reserve: when the fleets stand in a system with one of the faction's
  *   Spaceports, a plan may also include the faction's global ship stock
- *   (`reserveShipIds`). Stock ships then move into fleets (at full hull, as
- *   in FleetAssemblyService) and fleet ships back into the stock (as
- *   `ShipStockEntry`, which stores no damage: docking repairs them, as
- *   disband always did). Away from a Spaceport the stock is untouchable.
+ *   (`reserveShipIds`). Stock ships then move into fleets and fleet ships
+ *   back into the stock; a damaged ship keeps its hull both ways
+ *   (`ShipStockEntry.currentHp`, fleet-repair.ts), so docking is not an
+ *   instant repair. Away from a Spaceport the stock is untouchable.
  *
  * The service is faction-agnostic, but only the player's UI calls it; AI
  * fleets are organized by the AI pipeline (EnemyFleetService /
@@ -318,7 +319,13 @@ export class FleetOrganizationService {
       for (const id of plan.reserveShipIds!) {
         const item = pool.get(id)!;
         if (item.from === 'fleet') {
-          returned.push({ id: item.ship.id, type: item.ship.type, name: item.ship.name });
+          const currentHp = carriedHp(item.ship, this.shipService.getShipType(item.ship.type)?.hitPoints);
+          returned.push({
+            id: item.ship.id,
+            type: item.ship.type,
+            name: item.ship.name,
+            ...(currentHp !== undefined ? { currentHp } : {}),
+          });
         }
       }
       stock.splice(0, stock.length, ...staying, ...returned);
@@ -345,17 +352,18 @@ export class FleetOrganizationService {
     return { ok: true, fleets: resultFleets, created, retired };
   }
 
-  /* Fleet ships move as-is; stock ships enter at full hull (as in fleet assembly). */
+  /* Fleet ships move as-is; stock ships keep the hull they have in the reserve (as in fleet assembly). */
   private toFleetShip(item: PoolShip): FleetShip {
     if (item.from === 'fleet') {
       return item.ship;
     }
     const { entry } = item;
+    const maxHp = this.shipService.getShipType(entry.type)?.hitPoints;
     return {
       id: entry.id,
       type: entry.type,
       name: entry.name,
-      currentHp: this.shipService.getShipType(entry.type)?.hitPoints,
+      currentHp: carriedHp(entry, maxHp) ?? maxHp,
       destroyed: false,
     };
   }

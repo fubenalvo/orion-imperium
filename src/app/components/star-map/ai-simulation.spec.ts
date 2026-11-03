@@ -35,6 +35,7 @@ import { BattleService } from '../../services/battle.service';
 import { OUTPOST_SHIP_TYPE } from './space-base';
 import { advanceMiningStationConstruction } from './station-construction';
 import { SpaceBaseService } from './space-base.service';
+import { FleetRepairService } from './fleet-repair.service';
 import { DysonRingService } from './dyson-ring.service';
 import { DysonVictoryService } from './dyson-victory.service';
 
@@ -448,6 +449,11 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     // Station construction advances like in StarMap.updateStationConstruction.
     TestBed.inject(SpaceBaseService).advanceConstruction(dt);
     advanceMiningStationConstruction(data.starSystems, dt);
+    // Like StarMap.updateFleetRepair (which batches into 0.5 s steps; the rule is linear in time).
+    TestBed.inject(FleetRepairService).step(
+      { fleets: data.fleets, shipStock: data.shipStock, factions: data.factions, starSystems: data.starSystems },
+      dt,
+    );
     // Like StarMap.updateDysonSwarm: the Dyson warm-up counts down (no outcome check here).
     TestBed.inject(DysonVictoryService).tick(dt, data.starSystems);
     for (const raid of tradeNetwork.tick(dt, { starSystems: data.starSystems, factions: data.factions, fleets: data.fleets }).raids) {

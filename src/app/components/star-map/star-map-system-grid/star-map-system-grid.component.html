@@ -147,11 +147,15 @@
             [class.selected]="selectedFleet?.id === fleet.id"
             [class.moving]="fleet.system?.targetX !== null && fleet.system?.targetY !== null"
             [class.arriced]="fleet.system?.targetX === null || fleet.system?.targetY === null"
+            [class.fleet--repairing]="repairingFleetIds.has(fleet.id)"
             [style.--fleet-color]="getFactionColor(fleet.factionId)"
             type="button"
             (click)="onFleetClick(fleet, $event)"
             (contextmenu)="onFleetContextMenu(fleet, $event)"
           >
+            @if (repairingFleetIds.has(fleet.id)) {
+              <span class="fleet__repair-aura" aria-hidden="true"></span>
+            }
             <span class="fleet__icon">
               <app-fleet-ship
                 [heading]="fleetHeading(fleet)"

@@ -55,6 +55,8 @@ export class StarMapSystemGridViewComponent {
   @Input() anomalyCells: AnomalyCellView[] = [];
   @Input() selectedFleet: Fleet | null = null;
   @Input() fleets: Fleet[] = [];
+  /* Fleets being repaired right now (StarMap.updateFleetRepair): green repair aura. */
+  @Input() repairingFleetIds: ReadonlySet<number> = new Set();
   @Input() targetX: number | null = null;
   @Input() targetY: number | null = null;
   @Input() sensorRangeEnabled = true;

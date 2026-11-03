@@ -437,7 +437,7 @@ describe('FleetOrganizationService', () => {
     ];
     const entry = (type: string): ShipStockEntry => ({ id: ++shipSeq, type, name: 'Ship' });
 
-    it('draws stock ships into a fleet at full hull and returns fleet ships to the stock', () => {
+    it('draws stock ships into a fleet and returns fleet ships to the stock, keeping their damage', () => {
       const damaged = ship('cruiser', { currentHp: 10 });
       const a = fleet(1, [ship('fighter'), damaged]);
       const s1 = entry('frigate');
@@ -460,10 +460,10 @@ describe('FleetOrganizationService', () => {
         currentHp: 130,
         destroyed: false,
       });
-      // Remaining stock first (FIFO), returned ship appended as a plain stock entry.
+      // Remaining stock first (FIFO), returned ship appended; it keeps its hull (fleet-repair.ts).
       expect(data.shipStock[0].ships).toEqual([
         s2,
-        { id: damaged.id, type: 'cruiser', name: 'Ship' },
+        { id: damaged.id, type: 'cruiser', name: 'Ship', currentHp: 10 },
       ]);
     });
 

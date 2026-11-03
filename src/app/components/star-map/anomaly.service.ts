@@ -216,6 +216,13 @@ export class AnomalyService {
           lines.push({ text: 'Defeat: losses follow the normal battle rules', tone: 'neutral' });
           break;
         }
+        case 'fleet_damage':
+          lines.push({
+            text: `Every ship loses ${Math.round(effect.fraction * 100)}% hull (never below 1 HP; repaired at a Spaceport)`,
+            tone: 'cost',
+          });
+          lines.push({ text: 'No loot', tone: 'neutral' });
+          break;
       }
     }
     if (lines.length === 0) lines.push({ text: 'No cost, no reward', tone: 'neutral' });
@@ -262,6 +269,9 @@ export class AnomalyService {
         case 'pirate_battle':
           battle = this.buildPirateBattle(anomaly, fleet, player);
           break;
+        case 'fleet_damage':
+          this.damageFleet(fleet, effect.fraction);
+          break;
       }
     }
     anomaly.status = 'resolved';
@@ -281,6 +291,17 @@ export class AnomalyService {
     cost[resource] = Math.abs(amount);
     if (amount < 0) payCost(faction, cost);
     else refundCost(faction, cost);
+  }
+
+  /* Hull loss without destruction: see the `fleet_damage` effect. */
+  private damageFleet(fleet: Fleet, fraction: number): void {
+    for (const ship of fleet.ships) {
+      if (ship.destroyed) continue;
+      const maxHp = this.shipService.getShipType(ship.type)?.hitPoints;
+      if (!maxHp || maxHp <= 0) continue;
+      const current = Math.min(maxHp, ship.currentHp ?? maxHp);
+      ship.currentHp = Math.max(1, Math.round(current - maxHp * fraction));
+    }
   }
 
   /*

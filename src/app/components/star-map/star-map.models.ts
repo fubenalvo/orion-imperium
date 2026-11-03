@@ -84,7 +84,9 @@ export type TechnologyBonusType =
   | 'shipAttack'
   | 'shipShield'
   /* Defense turrets on every station of the faction (count, summed; see station-defense.ts). */
-  | 'stationTurrets';
+  | 'stationTurrets'
+  /* > 0: the faction's completed space bases repair its fleets (fleet-repair.ts). */
+  | 'stationRepair';
 
 export interface TechnologyBonus {
   type: TechnologyBonusType;
@@ -411,6 +413,11 @@ export interface ShipStockEntry {
   name: string;
   producedAtTick?: number;
   originPlanetId?: number | null;
+  /*
+   * Hull of a damaged ship returned to the reserve; missing = full. It is
+   * repaired in the reserve and carried back into a fleet (fleet-repair.ts).
+   */
+  currentHp?: number;
 }
 
 export interface FactionShipStock {

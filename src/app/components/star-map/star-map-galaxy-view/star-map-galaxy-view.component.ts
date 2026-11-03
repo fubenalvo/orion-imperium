@@ -171,6 +171,8 @@ export class StarMapGalaxyViewComponent {
   @Input() traders: TraderMapView[] = [];
   /* Fleets a player fleet is pursuing with an attack order (marked like an intercepted asteroid). */
   @Input() attackTargetIds: ReadonlySet<number> = new Set();
+  /* Fleets being repaired right now (StarMap.updateFleetRepair): green repair aura. */
+  @Input() repairingFleetIds: ReadonlySet<number> = new Set();
   @Input() territories: TerritoryShapeView[] = [];
   @Input() spaceBases: SpaceBaseMapView[] = [];
   @Input() anomalies: AnomalyMapView[] = [];

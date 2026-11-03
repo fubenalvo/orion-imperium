@@ -1,4 +1,6 @@
 import { Injectable } from '@angular/core';
+import { carriedHp } from '../components/star-map/fleet-repair';
+import { getShipTypeById } from '../components/star-map/star-map-display.util';
 import {
   Fleet,
   FactionShipStock,
@@ -119,11 +121,11 @@ export class ShipStockService {
     }
     const survivors = (fleet.ships ?? []).filter((s) => !s.destroyed);
     if (survivors.length > 0) {
-      const entries: ShipStockEntry[] = survivors.map((s) => ({
-        id: s.id,
-        type: s.type,
-        name: s.name,
-      }));
+      // Damage travels into the reserve, so disbanding is not an instant repair.
+      const entries: ShipStockEntry[] = survivors.map((s) => {
+        const currentHp = carriedHp(s, getShipTypeById(s.type)?.hitPoints);
+        return { id: s.id, type: s.type, name: s.name, ...(currentHp !== undefined ? { currentHp } : {}) };
+      });
       this.addToStock(data, fleet.factionId, entries);
     }
     fleet.ships = [];

@@ -308,6 +308,16 @@
       "bonuses": [{ "type": "stationTurrets", "value": 1 }]
     },
     {
+      "id": "orbital_repair_docks",
+      "name": "Orbital Repair Docks",
+      "description": "Repair gantries for deep-space installations: a fleet stopped on one of your completed space bases is repaired, at half the rate of a Spaceport.",
+      "researchCost": 900,
+      "prerequisites": ["basic_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "stationRepair", "value": 1 }]
+    },
+    {
       "id": "turret_research_2",
       "name": "Turret Research II",
       "description": "Reinforced hardpoints: every space base and mining station mounts a second laser turret.",

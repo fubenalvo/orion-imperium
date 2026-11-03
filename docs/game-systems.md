@@ -32,7 +32,7 @@ These in-system belts are unrelated to the impassable galaxy-map asteroid belts 
 
 ### Exploration Anomalies
 
-Hidden events in unclaimed systems, on in-system asteroids and in open space (`anomalies.ts`, `AnomalyService`). A site becomes *discovered* (violet "?" marker) once its galaxy cell is explored by the player's sensors, and *active* when a player fleet arrives; the event dialog then pauses the game until the player picks a choice (rewards, costs, an AI opinion change, a free outpost ship, or a pirate battle on the battle screen). Only player fleets trigger them; each anomaly resolves exactly once. See [Exploration Anomalies](./exploration-anomalies.md).
+Hidden events in unclaimed systems, on in-system asteroids and in open space (`anomalies.ts`, `AnomalyService`). A site becomes *discovered* (violet "?" marker) once its galaxy cell is explored by the player's sensors, and *active* when a player fleet arrives; the event dialog then pauses the game until the player picks a choice (rewards, costs, an AI opinion change, a free outpost ship, or a pirate battle on the battle screen, which the player can flee at a hull cost). Only player fleets trigger them; each anomaly resolves exactly once. See [Exploration Anomalies](./exploration-anomalies.md).
 
 ### Fog of War & Sensor Range
 

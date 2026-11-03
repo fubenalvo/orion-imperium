@@ -35,6 +35,8 @@ export interface TechModifiers {
   shipShield: Record<string, number>;
   /* Turret Research level: turrets on every station (clamped by station-defense.ts). */
   stationTurrets: number;
+  /* > 0 when a station-repair technology is researched (fleet-repair.ts). */
+  stationRepair: number;
 }
 
 export const NEUTRAL_TECH_MODIFIERS: Readonly<TechModifiers> = Object.freeze({
@@ -49,6 +51,7 @@ export const NEUTRAL_TECH_MODIFIERS: Readonly<TechModifiers> = Object.freeze({
   shipAttack: Object.freeze({}) as Record<string, number>,
   shipShield: Object.freeze({}) as Record<string, number>,
   stationTurrets: 0,
+  stationRepair: 0,
 });
 
 /* Reductions can never remove more than this share of a cost. */
@@ -239,7 +242,7 @@ export class ResearchService {
     const owned = new Set(researched);
     const sums: Record<Exclude<TechnologyBonusType, 'shipAttack' | 'shipShield'>, number> = {
       sensorRange: 0, energyOutput: 0, researchOutput: 0, rawOutput: 0,
-      buildingUpkeep: 0, shipUpkeep: 0, shipBuildSpeed: 0, populationGrowth: 0, stationTurrets: 0,
+      buildingUpkeep: 0, shipUpkeep: 0, shipBuildSpeed: 0, populationGrowth: 0, stationTurrets: 0, stationRepair: 0,
     };
     const shipAttack: Record<string, number> = {};
     const shipShield: Record<string, number> = {};
@@ -268,6 +271,7 @@ export class ResearchService {
       shipAttack,
       shipShield,
       stationTurrets: sums.stationTurrets,
+      stationRepair: sums.stationRepair,
     };
     this.modifierCache.set(key, modifiers);
     return modifiers;
@@ -311,6 +315,7 @@ export class ResearchService {
       case 'shipAttack': return `${pct} battle damage: ${hulls}`;
       case 'shipShield': return `${pct} battle shields: ${hulls}`;
       case 'stationTurrets': return `+${bonus.value} defense turret on every space base and mining station`;
+      case 'stationRepair': return 'Your completed space bases repair fleets stopped on them';
     }
   }
 

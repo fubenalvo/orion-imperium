@@ -99,10 +99,12 @@ ships to reach an existing fleet, so ships never teleport across the map.
   then carries `reserveShipIds`, the complete set of ships in the stock after
   the plan. `applyPlan` re-checks the Spaceport and treats stock entries and
   living fleet ships as one pool in which every ship must appear exactly once.
-- Stock → fleet: the entry becomes a `FleetShip` at full hull (as in fleet
-  assembly). Fleet → stock: the ship becomes a plain `ShipStockEntry`, which
-  stores no damage, so docking a damaged ship repairs it (the same as disband).
-  The remaining stock keeps its FIFO order; returned ships are appended.
+- Stock → fleet and fleet → stock keep the ship's hull: a damaged ship
+  carries `currentHp` into the `ShipStockEntry` and back (`carriedHp` in
+  `fleet-repair.ts`; a full ship stores nothing). Fleet assembly and DISBAND
+  follow the same rule, so docking or disbanding is not an instant repair
+  (see [Repair](#repair)). The remaining stock keeps its FIFO order;
+  returned ships are appended.
 - A plan with a reserve may leave no fleet at all (everything returned to
   the stock); StarMap then clears the fleet selection.
 - Creating a fleet from scratch stays in the planet's Spaceport panel
@@ -113,6 +115,34 @@ ships to reach an existing fleet, so ships never teleport across the map.
 **AI.** The service is faction-agnostic, but only the player's UI calls it.
 AI fleets are organized by the AI pipeline (`EnemyInvasionService.mergeInto`,
 `EnemyFleetService`); see [AI Pipeline](./ai-pipeline.md).
+
+## Repair
+
+Ships keep battle damage (`FleetShip.currentHp`, missing = full) until they
+are repaired. Rules in `fleet-repair.ts` (pure), sites resolved by
+`FleetRepairService`; `StarMap.updateFleetRepair` runs it in steps of 0.5 s
+of game time, and the AI simulation spec calls the same service.
+
+| Site | Condition | Rate (share of the type's hull per game second) |
+| --- | --- | --- |
+| Spaceport | The fleet stands with no galaxy order left in a star system where its own faction owns a planet with a Spaceport (`SpaceportService.listSpaceports`, the same cell test as the reserve) | 5% (full in 20 s) |
+| Space base | The fleet stands on the cell of one of its faction's **completed** space bases (not a Dyson anchor), and the faction has researched **Orbital Repair Docks** (`stationRepair` bonus, [Research](./research.md)) | 2.5% (full in 40 s) |
+| Reserve | Stock ships keep their damage (`ShipStockEntry.currentHp`) and repair while the faction owns at least one Spaceport (the reserve is docked there) | 5% |
+
+- The better site wins; rates never stack. A fleet passing through (galaxy
+  order still set) is not repaired. Repair never exceeds the type's
+  `hitPoints` (no technology raises maximum hull) and never revives a
+  destroyed ship.
+- Same rules for every faction. The AI has no repair-seeking behavior: its
+  fleets are repaired whenever they already park at a Spaceport (where they
+  are reinforced) or stand on a base.
+- **Visual:** a fleet being repaired gets a green, breathing glow with a
+  slowly turning dashed ring (`.fleet__repair-aura`, `_star-map-ships.scss`)
+  on the galaxy map and in the system view, and its fleet panel shows
+  "Repairing at Spaceport / space base · hull N%". `StarMap.repairingFleets`
+  is view state, never saved; it is re-derived on the next repair step.
+- Mining stations do not repair fleets; station hulls themselves are still
+  not repaired ([Territory](./territory.md#station-defense)).
 
 ## Game time and other systems
 
@@ -135,7 +165,10 @@ AI fleets are organized by the AI pipeline (`EnemyInvasionService.mergeInto`,
 
 ## Save compatibility
 
-No data model or save version change. Merged, split and retired fleets are
+`ShipStockEntry.currentHp` (optional, missing = full; validated as a
+non-negative finite number) is the only addition, so no save version bump:
+older saves load with a fully repaired reserve. Otherwise no data model
+change. Merged, split and retired fleets are
 ordinary `Fleet` records that older code already reads. New fleets carry
 exactly the fields Spaceport-created fleets carry. Saves from before this
 feature load unchanged.

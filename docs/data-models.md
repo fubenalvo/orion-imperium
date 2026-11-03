@@ -49,7 +49,7 @@ The root save format. Contains everything needed to reconstruct a game session:
 
 See [Ship Production](./ship-production.md) for the full pipeline. The relevant data shapes are:
 
-- `ShipStockEntry`: per-instance ship record held in the global stock. Same shape as `FleetShip` minus `currentHp` / `destroyed` so the existing battle / sensor / movement code can consume it when it is pushed into a fleet.
+- `ShipStockEntry`: per-instance ship record held in the global stock. Same shape as `FleetShip` minus `destroyed` so the existing battle / sensor / movement code can consume it when it is pushed into a fleet. Optional `currentHp` holds the hull of a damaged ship returned to the reserve (missing = full); it is repaired in the reserve and carried back into a fleet ([Fleet Organization](./fleet-organization.md#repair)).
 - `FactionShipStock`: `{ factionId, ships: ShipStockEntry[] }` — empire-scoped reserve, never planet-scoped.
 - `Technology` (`research-tree.json`): `{ id, name, description, researchCost, prerequisites, unlocksShips, unlocksBuildings, bonuses? }`. `bonuses` are `{ type, value, shipTypes? }` (`TechnologyBonusType`); `ResearchService.getModifiers` aggregates them into `TechModifiers`, which are derived and never saved. `Faction.researchedTechnologies` is the only persisted research state. See [Research](./research.md).
 - `Battle.combatBonuses?`: per faction id, per ship type attack/shield multipliers stamped at battle creation.
@@ -154,7 +154,7 @@ Numeric size used by surface grid math: `'tiny' → 1`, `'small' → 2`, `'mediu
 ### FleetShip
 
 - `id`, `name`, `type`: identity and ship-type reference
-- `currentHp`: per-ship HP during battle; reset by `BattleService.startBattle()`
+- `currentHp`: hull left after the last battle (missing = full); battles start from it and write it back, and it rises only through repair ([Fleet Organization](./fleet-organization.md#repair))
 - `destroyed`: `true` if destroyed during the current or last battle
 
 ## ShipType

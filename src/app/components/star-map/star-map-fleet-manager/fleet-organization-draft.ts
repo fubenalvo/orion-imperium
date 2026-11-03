@@ -89,7 +89,7 @@ export class FleetOrganizationDraft {
       }
     }
     this.reserveShips = reserveEntries
-      ? reserveEntries.map((e) => ({ id: e.id, type: e.type, name: e.name }))
+      ? reserveEntries.map((e) => ({ id: e.id, type: e.type, name: e.name, currentHp: e.currentHp }))
       : null;
     for (const ship of this.reserveShips ?? []) {
       this.originalShipOwner.set(ship.id, RESERVE_KEY);

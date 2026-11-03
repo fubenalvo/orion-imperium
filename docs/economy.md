@@ -221,7 +221,7 @@ Cost structure (nominal amounts; all values in the data files):
 | Colonizer | 1,200 (high) | 400 (moderate) | — |
 | Outpost ship (mining infrastructure) | 600 | 500 | — |
 | Mining Complex (mining infrastructure) | 1,500 | 375 | — |
-| Ship repair | free: docking at a Spaceport restores ships ([Fleet Organization](./fleet-organization.md)) | — | — |
+| Ship repair | free, over time: at an own Spaceport (5% hull/s), at an own space base with Orbital Repair Docks (2.5%/s), and in the reserve ([Fleet Organization](./fleet-organization.md#repair)) | — | — |
 
 Buildings (credits / raw materials):
 

@@ -37,14 +37,10 @@ No open items.
 - **File:** `src/app/components/star-map/enemy-diplomacy.service.ts` (`assessWar`)
 - **Suggestion:** scale the AI's demand with the other side's treasury too. Revisit after item 10.
 
-### 12. [Balance] The pirate anomaly always loses value and does not scale [Played]
+### 12. [Balance] The pirate anomaly does not scale [Played] — mostly done
 
-- **Problem:** a fixed 2 fighters + 1 corvette for 300/300 loot. In play I lost a frigate (180 credits / 540 raw materials). It cannot be declined.
-- **File:** `src/app/components/star-map/anomalies.ts` (`ANOMALY_CONFIG`)
-- **Suggestion:**
-  - scale the pirate fleet and loot with game time or with the finder's fleet strength;
-  - add a "retreat" option with a small cost;
-  - make the loot worth the risk.
+- **Done (2026-11-03):** loot raised to 2,500 credits / 500 raw materials; a "Break off and flee" choice (no loot, every ship loses 40% hull) ([Exploration Anomalies](./exploration-anomalies.md#pirate-ambush)). Anomaly densities roughly doubled.
+- **Open:** the pirate fleet (2 fighters + 1 corvette) and the loot are still fixed; consider scaling them with game time or the finder's fleet strength.
 
 ### 13. [Balance] Anomaly rewards are tiny compared to the economy [Played]
 

@@ -10,7 +10,7 @@ Related: [Economy](./economy.md) (research income, upkeep), [AI Pipeline](./ai-p
 | --- | --- |
 | Technologies: cost, prerequisites, unlocks, bonuses, descriptions | `src/app/components/star-map/research-tree.json` |
 | Rules: status, price (`getResearchPrice`: research points + credits), purchase, unlocks, aggregated bonuses (`getModifiers`), effect text | `ResearchService` |
-| Consumers of bonuses | `EconomyService` (energy/raw/research output, building/ship upkeep, population growth), `ProductionService` (build speed), `StarMapSensorService` + `EnemyIntelService` (sensor range), `createBattleState` via `Battle.combatBonuses` (attack/shield), `StarMapBattleDetectionService.stationTurretsOf` (station turrets, also drawn on the station markers) |
+| Consumers of bonuses | `EconomyService` (energy/raw/research output, building/ship upkeep, population growth), `ProductionService` (build speed), `StarMapSensorService` + `EnemyIntelService` (sensor range), `createBattleState` via `Battle.combatBonuses` (attack/shield), `StarMapBattleDetectionService.stationTurretsOf` (station turrets, also drawn on the station markers), `FleetRepairService` (station repair) |
 | AI choice | `EnemyResearchService` |
 | UI | `StarMapResearchTreeComponent` |
 
@@ -59,11 +59,12 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 | Cruiser Technology | 4 | 4500 | Bonus | +20% damage and shields: Cruiser, Battlecruiser |
 | Carrier Technology | 4 | 4500 | Bonus | −15% ship upkeep (fleet and reserve) |
 | Turret Research I | 1 | 700 | Bonus | +1 defense turret on every space base and mining station (`createBattleState` via the station defense roster, [Territory](./territory.md#station-defense)) |
+| Orbital Repair Docks | 1 | 900 | Bonus | `stationRepair`: the faction's completed space bases (not Dyson anchors) repair its fleets stopped on them at 2.5% hull/s, half the Spaceport rate (`FleetRepairService`, [Fleet Organization](./fleet-organization.md#repair)). The AI values it low: it does not route damaged fleets to bases |
 | Turret Research II | 2 | 1600 | Bonus | +1 turret (2 total); also needs Military Engineering |
 | Turret Research III | 3 | 3000 | Bonus | +1 turret (3 total, a missile turret); also needs Advanced Weapons |
 | Stellar Engineering | 4 | 6000 | Unlock | Swarm Constructor, the ship that builds Dyson anchors; needs Applied Science and Advanced Power ([Dyson Swarm](./dyson-swarm.md#research-and-the-anchor-ship)) |
 
-Base total: 64,000 points. With cost scaling the full tree cost roughly 70–75k points before Stellar Engineering was added (not re-measured since).
+Base total: 64,900 points. With cost scaling the full tree cost roughly 70–75k points before Stellar Engineering was added (not re-measured since).
 
 ## Progression rationale
 

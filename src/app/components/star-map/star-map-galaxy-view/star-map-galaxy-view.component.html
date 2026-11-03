@@ -293,11 +293,15 @@
           [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
           [class.arriced]="fleet.targetX === null || fleet.targetY === null"
           [class.fleet--preview]="isEnemyInPreview(fleet)"
+          [class.fleet--repairing]="repairingFleetIds.has(fleet.id)"
           [style.--fleet-color]="getFactionColor(fleet.factionId)"
           type="button"
           (click)="onFleetClick(fleet, $event)"
           (contextmenu)="onFleetContextMenu(fleet, $event)"
         >
+          @if (repairingFleetIds.has(fleet.id)) {
+            <span class="fleet__repair-aura" aria-hidden="true"></span>
+          }
           <span class="fleet__icon">
             <app-fleet-ship
               [heading]="fleetHeading(fleet)"

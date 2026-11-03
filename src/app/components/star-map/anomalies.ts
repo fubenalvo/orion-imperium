@@ -50,7 +50,14 @@ export type AnomalyEffect =
   /* A ship of an existing type, handed over as a new player fleet at the triggering fleet. */
   | { kind: 'grant_ship'; shipTypeId: string }
   /* An ambush: the triggering fleet fights ANOMALY_CONFIG.pirateFleet on the battle screen. */
-  | { kind: 'pirate_battle' };
+  | { kind: 'pirate_battle' }
+  /*
+   * Every living ship of the triggering fleet loses `fraction` of its type's
+   * hull points, but keeps at least 1 HP: the effect never destroys a ship,
+   * so it can be a cost without a resource check. The damage stays on the
+   * ship (`Ship.currentHp`) until it is repaired at a Spaceport.
+   */
+  | { kind: 'fleet_damage'; fraction: number };
 
 export interface AnomalyChoiceDef {
   id: string;
@@ -74,13 +81,19 @@ export interface AnomalyDefinition {
  */
 export const ANOMALY_CONFIG = {
   generatorVersion: 1,
+  /*
+   * Densities raised on 2026-11-03 (system 0.2, asteroid 0.12, one space
+   * anomaly per 4500 cells, max 14) because the early game had long empty
+   * stretches between scouting arrivals. A small map now has ~10 open-space
+   * anomalies instead of ~4.
+   */
   /* Chance that an unclaimed star system hides an anomaly. */
-  systemChance: 0.2,
+  systemChance: 0.4,
   /* Chance that an unclaimed system's asteroid belt hides one (on one asteroid). */
-  asteroidChance: 0.12,
+  asteroidChance: 0.25,
   /* Open-space anomalies: one per this many map cells, clamped to the range below. */
-  cellsPerSpaceAnomaly: 4500,
-  spaceCount: { min: 2, max: 14 },
+  cellsPerSpaceAnomaly: 2000,
+  spaceCount: { min: 4, max: 24 },
   /* Open-space anomalies keep this many cells from systems, obstacles and each other. */
   spaceSystemClearance: 3,
   spaceObstacleMargin: 2,
@@ -95,8 +108,13 @@ export const ANOMALY_CONFIG = {
   pirateFleet: ['fighter', 'fighter', 'corvette'] as readonly string[],
   pirateFactionName: 'Pirates',
   pirateFactionColor: '#c0392b',
-  /* Paid to the player when the ambush is beaten. */
-  pirateLoot: { credits: 300, rawmaterials: 300 },
+  /*
+   * Paid to the player when the ambush is beaten. Was 300 / 300, which was
+   * worth less than a single lost frigate (180 credits / 540 raw).
+   */
+  pirateLoot: { credits: 2500, rawmaterials: 500 },
+  /* Hull share every ship of the finder loses when it flees the ambush. */
+  pirateFleeDamage: 0.4,
 } as const;
 
 export const ANOMALY_DEFINITIONS: Record<AnomalyType, AnomalyDefinition> = {
@@ -156,6 +174,12 @@ export const ANOMALY_DEFINITIONS: Record<AnomalyType, AnomalyDefinition> = {
         label: 'Battle stations!',
         effects: [{ kind: 'pirate_battle' }],
         outcome: 'The fleet turns to face the raiders.',
+      },
+      {
+        id: 'flee',
+        label: 'Break off and flee',
+        effects: [{ kind: 'fleet_damage', fraction: ANOMALY_CONFIG.pirateFleeDamage }],
+        outcome: 'The fleet escapes under fire, its hulls scorched. The pirates keep their loot.',
       },
     ],
   },

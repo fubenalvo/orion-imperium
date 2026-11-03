@@ -36,6 +36,8 @@ import {
   describeConstruction,
   isStationComplete,
 } from './station-construction';
+import { FLEET_REPAIR_CONFIG, RepairSite } from './fleet-repair';
+import { FleetRepairService } from './fleet-repair.service';
 import { GAME_VERSION } from '../../game-version';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
@@ -319,6 +321,14 @@ loadError = '';
   mapNotice: string | null = null;
   /* Throttles redraws of construction progress to once per second of game time. */
   private constructionRedrawClock = 0;
+  /* Game time collected for the next fleet repair step (fleet-repair.ts). */
+  private repairClock = 0;
+  /*
+   * Fleets repaired in the last repair step and where (view state only,
+   * never saved: it is re-derived from positions within one step).
+   */
+  repairingFleets: ReadonlyMap<number, RepairSite> = new Map();
+  repairingFleetIds: ReadonlySet<number> = new Set();
   private mapNoticeClock = 0;
   private static readonly MAP_NOTICE_SECONDS = 6;
   /* Player planets whose energy shortage was already announced (planet-stability.ts; not persisted). */
@@ -540,6 +550,7 @@ loadError = '';
     private diplomacyService: DiplomacyService,
     private enemyDiplomacyService: EnemyDiplomacyService,
     private spaceBaseService: SpaceBaseService,
+    private fleetRepairService: FleetRepairService,
     private dysonRingService: DysonRingService,
     private dysonVictoryService: DysonVictoryService,
     private territoryService: TerritoryService,
@@ -3808,6 +3819,7 @@ loadError = '';
     });
     const tradeChanged = this.handleTraderRaids(tradeResult.raids) || tradeResult.changed;
     const constructionChanged = this.updateStationConstruction(gameDeltaTime);
+    const repairChanged = this.updateFleetRepair(gameDeltaTime);
     const dysonChanged = this.updateDysonSwarm(gameDeltaTime);
     if (this.gameOutcome !== 'inProgress') {
       return;
@@ -3904,7 +3916,8 @@ loadError = '';
 
     if (
       didMoveFleets || aiChanged || economyUpdated || visibilityChanged || productionChanged || asteroidsChanged || tradeChanged ||
-      diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged || constructionChanged || dysonChanged
+      diplomacyChanged || territoryChanged || bordersChanged || borderNotices || anomaliesChanged || constructionChanged || dysonChanged ||
+      repairChanged
     ) {
       this.ngZone.run(() => this.cdr.detectChanges());
       this.simStateDirty = true;
@@ -3918,6 +3931,47 @@ loadError = '';
       this.autosaveAccumulator = 0;
       this.simStateDirty = false;
     }
+  }
+
+  /*
+   * Repairs damaged ships at Spaceports, at space bases with the repair
+   * technology, and in the reserve (fleet-repair.ts), in fixed steps of game
+   * time. Returns true when a hull or the set of repairing fleets changed.
+   */
+  private updateFleetRepair(gameDeltaTime: number): boolean {
+    if (!(gameDeltaTime > 0)) return false;
+    this.repairClock += gameDeltaTime;
+    if (this.repairClock < FLEET_REPAIR_CONFIG.stepSeconds) return false;
+    const step = this.repairClock;
+    this.repairClock = 0;
+    const result = this.fleetRepairService.step(
+      { fleets: this.fleets, shipStock: this.shipStock, factions: this.factions, starSystems: this.starSystems },
+      step,
+    );
+    const setChanged =
+      result.repairing.size !== this.repairingFleets.size ||
+      [...result.repairing].some(([id, site]) => this.repairingFleets.get(id) !== site);
+    if (setChanged) {
+      this.repairingFleets = result.repairing;
+      this.repairingFleetIds = new Set(result.repairing.keys());
+    }
+    return setChanged || result.changed;
+  }
+
+  /* "Repairing at Spaceport · hull 63%" for a fleet being repaired, else null. */
+  getFleetRepairStatus(fleet: Fleet): string | null {
+    const site = this.repairingFleets.get(fleet.id);
+    if (!site) return null;
+    let hp = 0;
+    let max = 0;
+    for (const ship of fleet.ships ?? []) {
+      const maxHp = this.shipService.getShipType(ship.type)?.hitPoints;
+      if (ship.destroyed || !maxHp) continue;
+      max += maxHp;
+      hp += Math.min(maxHp, ship.currentHp ?? maxHp);
+    }
+    const pct = max > 0 ? Math.floor((hp / max) * 100) : 100;
+    return `Repairing at ${site === 'spaceport' ? 'Spaceport' : 'space base'} · hull ${pct}%`;
   }
 
   /*

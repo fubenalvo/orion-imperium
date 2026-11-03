@@ -32,6 +32,10 @@
       <span class="ui-stat__value">{{ fleet!.speed }}</span>
     </div>
 
+    @if (repairStatus) {
+      <div class="ui-notice ui-notice--success fleet-info__repair" role="status">{{ repairStatus }}</div>
+    }
+
     @if (inNebula) {
       <div class="ui-notice ui-notice--anomaly fleet-info__nebula" role="status">
         IN NEBULA: SPEED -{{ nebulaSpeedPenaltyPercent }}%, SENSORS -{{ nebulaSensorPenaltyPercent }}%

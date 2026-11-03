@@ -152,6 +152,66 @@
   opacity: 0.9;
 }
 
+/*
+ * Repair aura: shown while the fleet's ships are being repaired at a
+ * Spaceport or a space base (fleet-repair.ts). A soft green glow that
+ * breathes behind the ship plus a slowly turning dashed ring, so it reads
+ * differently from the faction-colored selection glow and the red dashed
+ * attack-target ring. Sits behind the icon and never takes clicks.
+ */
+.fleet__repair-aura {
+  position: absolute;
+  inset: -6%;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: -1;
+  background: radial-gradient(
+    circle,
+    rgba(var(--ui-success-rgb), 0.38) 0%,
+    rgba(var(--ui-success-rgb), 0.14) 45%,
+    transparent 70%
+  );
+  animation: fleet-repair-breathe 1.8s ease-in-out infinite;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 8%;
+    border: 1px dashed rgba(var(--ui-success-rgb), 0.85);
+    border-radius: 50%;
+    animation: fleet-repair-spin 6s linear infinite;
+  }
+}
+
+.fleet--repairing .fleet__icon {
+  filter: drop-shadow(0 0 4px rgba(var(--ui-success-rgb), 0.9));
+}
+
+@keyframes fleet-repair-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.94);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes fleet-repair-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fleet__repair-aura,
+  .fleet__repair-aura::after {
+    animation: none;
+  }
+}
+
 .fleet--preview,
   .fleet-cell--preview {
     opacity: 0.45;

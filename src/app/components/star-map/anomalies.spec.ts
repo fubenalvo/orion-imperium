@@ -362,6 +362,30 @@ describe('exploration anomalies', () => {
       expect(player().currencies['credits']).toBe(credits + ANOMALY_CONFIG.pirateLoot.credits);
     });
 
+    it('fleeing starts no battle, pays no loot and damages every ship without destroying any', () => {
+      fleets[0].ships = [
+        { id: 100, name: 'Frigate', type: 'frigate' },
+        { id: 101, name: 'Scout', type: 'scout', currentHp: 1 },
+        { id: 102, name: 'Frigate', type: 'frigate', destroyed: true, currentHp: 0 },
+      ];
+      activeEvent('pirate_trap');
+      const vm = service.buildEventVm(service.getAnomaly(1)!, ctx());
+      expect(vm.choices.find((c) => c.id === 'flee')!.disabled).toBe(false);
+
+      const result = service.resolve(1, 'flee', ctx());
+      if (!result.ok) throw new Error(result.reason);
+      expect(result.battle).toBeNull();
+      expect(service.getAnomaly(1)!.status).toBe('resolved');
+      expect(player().currencies['credits']).toBe(1000);
+
+      const frigateHp = TestBed.inject(ShipService).getShipType('frigate')!.hitPoints;
+      const [hit, weak, dead] = fleets[0].ships;
+      expect(hit.currentHp).toBe(Math.round(frigateHp * (1 - ANOMALY_CONFIG.pirateFleeDamage)));
+      expect(weak.currentHp).toBe(1);
+      expect(dead.currentHp).toBe(0);
+      expect(fleets[0].destroyed).toBeFalsy();
+    });
+
     it('defeat pays nothing; unrelated battles are ignored', () => {
       activeEvent('pirate_trap');
       service.resolve(1, 'fight', ctx());

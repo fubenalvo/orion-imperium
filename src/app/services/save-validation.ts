@@ -379,6 +379,12 @@ export function validateSaveData(
           } else if (!knownShipTypes.has(stockShip.type)) {
             warnings.push(warning('stock_ship_type_unknown', `${shipPath}.type`, `unknown ship type "${stockShip.type}"`));
           }
+          if (
+            stockShip.currentHp !== undefined &&
+            (typeof stockShip.currentHp !== 'number' || !Number.isFinite(stockShip.currentHp) || stockShip.currentHp < 0)
+          ) {
+            errors.push(error('stock_ship_hp_invalid', `${shipPath}.currentHp`, 'currentHp must be a non-negative finite number'));
+          }
         }
       }
     }
