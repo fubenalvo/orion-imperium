@@ -328,6 +328,10 @@ See [Planet Capture](./planet-capture.md).
 - **Terminal outcomes are sticky:** once `victory`/`defeat` is stored, `GameOutcomeService.evaluate` returns it unchanged and the star-map frame loop stops simulating.
 - **Defeat = elimination:** the allied side owns no planet and has no fleet with a living colonizer (warships alone are not a recovery route); it is checked before victory and is reachable while hostile planets exist.
 
+## Opening grace
+
+- **No AI aggression against the player before `OPENING_GRACE_SECONDS`** of the saved game clock: no AI-started fleet battle, planet assault or capture, station battle, interception or trader raid against the human. The player's own attacks and AI-vs-AI wars are never blocked. Every check goes through `opening-grace.ts`, so the rule has one source of truth. See [Planet Capture](./planet-capture.md#opening-grace-opening-gracets).
+
 ## Exploration anomalies
 
 - **Player only:** only `'player'` fleets discover or trigger anomalies; AI fleets never change anomaly state or open the event dialog.

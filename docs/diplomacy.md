@@ -85,7 +85,7 @@ Effects:
 
 - **Peace is permanent.** It ends only by a war declaration or a treaty breach.
 - A peace treaty starts a **truce** of `TRUCE_SECONDS` = 600 s (10 minutes of game time). During it `declareWar` is refused (`truce`); only `breakTreaty` can end it (an explicit, confirmed action — treachery). After the truce, peace stays and war may be declared normally.
-- A war must last `WAR_MIN_DURATION_SECONDS` (60 s) before negotiation; the opening wars of a new game are locked for `INITIAL_WAR_LOCK_SECONDS` (4 minutes).
+- A war must last `WAR_MIN_DURATION_SECONDS` (60 s) before negotiation; the opening wars of a new game are locked for `INITIAL_WAR_LOCK_SECONDS` (4 minutes). Separately, a hidden **opening grace** keeps every AI from attacking the human player during the first 4 minutes of game time ([Planet Capture](./planet-capture.md#opening-grace-opening-gracets)); the two durations are independent constants that happen to be equal.
 
 ## Peace treaties (`peace-treaty.ts`)
 
@@ -115,7 +115,7 @@ Deterministic and explainable.
 | Empire collapsing | +0.5 (≤ 1 planet vs an enemy with ≥ 3) |
 | Out of reach | +0.3 (empires farther apart than 1.5 × `WAR_REACH`) |
 | Empty treasury | +0.15 (credits < 20% of scale) |
-| Temperament | personality `peaceBias` |
+| Temperament | personality `peaceBias`; a negative (warlike) bias is scaled by `1 − own exhaustion / 100`, so a long war wears it off |
 
 `scale` ≈ one minute of the AI's income (`max(2000, population × POPULATION_CREDIT_RATE × 60)`, the same income rate as the economy); **peace value** = pressure × scale, in credits: what ending this war is worth to the AI (negative = it wants to be paid).
 
@@ -128,13 +128,16 @@ Deterministic and explainable.
 - *AI vs AI*: if both peace values sum to ≥ 0 they settle — white peace if both are ≥ 0, otherwise the more eager side pays the other's price (credits, then raw) if it can — and both re-check the final terms before execution.
 - *AI vs human*: with pressure ≥ 0.1 and no open proposal or cooldown (`OFFER_COOLDOWN` = 180 s of game time), the AI proposes white peace plus credits up to half its peace value (≤ 40% of its treasury); the proposal stays open `PEACE_OFFER_SECONDS` (90 s of game time).
 - *War*: with fewer wars than `maxWars` and exhaustion < 40, the AI declares war on the weakest peace partner within `WAR_REACH` whose strength ratio ≤ `warRatio` and whose effective opinion ≤ `warOpinionMax`. During a truce only a treacherous personality breaks it, and only at ratio ≤ half `warRatio` and effective opinion ≤ −40.
+- *Restless (warlike personalities)*: with fewer wars than `minWars`, the limits loosen to `restlessWarRatio` and `restlessOpinionMax`, so the AI declares war on almost any neighbour in reach that is not stronger than it and not a close friend. (Ratios above 1 were tried: a militarist then attacked stronger empires and was broken by them.) Restlessness needs money: the AI must hold at least half its `scale` in credits (`RESTLESS_MIN_TREASURY`), so a broke warmonger rebuilds first. Truces are still kept (except by militarist treachery above), and exhaustion ≥ 40 still blocks new wars.
 
-| Personality | peaceBias | warRatio | maxWars | warOpinionMax | treachery |
-| --- | --- | --- | --- | --- | --- |
-| balanced | 0 | 0.6 | 1 | 10 | no |
-| expansionist | +0.05 | 0.65 | 1 | 15 | no |
-| militarist | −0.2 | 0.85 | 2 | 30 | yes |
-| technologist | +0.15 | 0.5 | 1 | 0 | no |
+| Personality | peaceBias | warRatio | maxWars | warOpinionMax | treachery | minWars | restlessWarRatio | restlessOpinionMax |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| balanced | 0 | 0.6 | 1 | 10 | no | 0 | — | — |
+| expansionist | −0.3 | 0.65 | 1 | 15 | no | 1 | 0.9 | 65 |
+| militarist | −0.45 | 0.85 | 2 | 30 | yes | 1 | 1 | 75 |
+| technologist | +0.15 | 0.5 | 1 | 0 | no | 0 | — | — |
+
+**Warlike and peaceful temperaments** (2026-11-03, `isWarlikePersonality`). Militarists and expansionists are *warlike*: their negative `peaceBias` makes them settle only when they are losing or exhausted (and otherwise ask to be paid), and `minWars` 1 makes them look for a new war as soon as the 10-minute truce after a peace runs out. Balanced and technologist AIs keep the earlier, peaceful behavior. This was added because in long games every AI settled into peace by about minute 15 ([QA prompt 7](./qa-fix-prompts.md)). Measured in `ai-simulation.spec.ts` (30-minute medium and large games): the warlike AIs stay at war with another AI for 28–30 of the 30 minutes (mostly by never settling the opening wars), peak war exhaustion stays at 30–43, nobody falls into arrears, and they research a little less (10–16 technologies against 18–20 for the technologist). In the 90-minute Dyson run, wars between AIs keep starting and ending until the end of the game. What keeps a warlike neighbour at peace: being stronger than it (ratio above its `restlessWarRatio`), a very high effective opinion (above `restlessOpinionMax`; peace drift alone reaches 60, so it takes reputation too), a war it is already fighting elsewhere, or its own exhaustion. The Diplomacy screen marks warlike empires with a WARLIKE chip next to the personality.
 
 **Information:** diplomacy uses real total fleet strength, losses and exhaustion — treated as public knowledge (envoys, intelligence); tactical layers still only use sensor data.
 

@@ -8,6 +8,7 @@ import { BattleOutcomeService } from '../../services/battle-outcome.service';
 import { Battle } from '../battle-screen/battle/battle.types';
 import { autoResolveBattle } from '../battle-screen/battle/battle-auto-resolve';
 import { canAttackPlanetOf } from './diplomacy';
+import { OpeningGraceService } from './opening-grace';
 
 /*
  * =========================================================
@@ -66,6 +67,7 @@ export class EnemyInvasionService {
     private readonly planetOwnership: PlanetOwnershipService,
     private readonly battleOutcomeService: BattleOutcomeService,
     private readonly researchService: ResearchService,
+    private readonly openingGrace: OpeningGraceService,
   ) {}
 
   reset(): void {
@@ -94,6 +96,8 @@ export class EnemyInvasionService {
 
   /* Hostile = may be captured by `attacker` (at war, or a neutral rebel planet; diplomacy.ts). */
   isHostilePlanet(planet: PlanetTile, attacker: Faction, factions: Faction[]): boolean {
+    // During the opening grace the player's planets are no assault target (opening-grace.ts).
+    if (this.openingGrace.spares(attacker, planet.factionId)) return false;
     return canAttackPlanetOf(attacker, factions.find((f) => f.id === planet.factionId));
   }
 

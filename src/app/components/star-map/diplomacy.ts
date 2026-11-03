@@ -128,6 +128,8 @@ export function isTreatyPair(a: Faction, b: Faction): boolean {
 
 export function getRelationKind(a: Faction, b: Faction): RelationKind {
   if (a.id === b.id) return 'self';
+  // Outlaws (pirates) are at war with everyone, outside diplomacy (pirate-incursion.ts).
+  if (a.outlaw === true || b.outlaw === true) return 'war';
   if (isNeutralFaction(a) || isNeutralFaction(b)) return 'neutral';
   if (a.team === b.team) return 'allied';
   return a.relations?.[b.id]?.state ?? 'war';
@@ -267,6 +269,8 @@ function addExhaustion(entry: FactionRelation, amount: number): void {
  */
 export function recordShipLosses(loser: Faction, enemy: Faction, lostValue: number, fleetValueBefore: number, wipedOut: boolean): void {
   if (lostValue <= 0 || getRelationKind(loser, enemy) !== 'war') return;
+  // Fights with outlaws leave no war record (no exhaustion, no relation entry).
+  if (loser.outlaw === true || enemy.outlaw === true) return;
   const entry = relationEntry(loser, enemy);
   entry.shipsLostValue = (entry.shipsLostValue ?? 0) + lostValue;
   const share = lostValue / Math.max(EXHAUSTION_MIN_FLEET_VALUE, fleetValueBefore);
@@ -293,6 +297,7 @@ export function recordPlanetLoss(loser: Faction, enemy: Faction, population: num
  */
 export function recordHostileAct(attacker: Faction, target: Faction): boolean {
   if (getRelationKind(attacker, target) !== 'war') return false;
+  if (attacker.outlaw === true || target.outlaw === true) return false;
   const a = relationEntry(attacker, target);
   const b = relationEntry(target, attacker);
   if (a.declaredBy !== attacker.id || a.surpriseRecorded || (a.warSeconds ?? 0) >= SURPRISE_ATTACK_WINDOW_SECONDS) {

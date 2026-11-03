@@ -70,7 +70,9 @@ import { EnemyDysonService } from './enemy-dyson.service';
  *     other's price); toward the human it makes a proposal when it wants
  *     peace; at peace it may declare war on a weak neighbour it does not
  *     like, or — militarists only — break a truce when overwhelmingly
- *     stronger and hostile.
+ *     stronger and hostile. Warlike personalities with fewer wars than
+ *     minWars ("restless") accept nearly any neighbour that is not
+ *     clearly stronger and not a close friend.
  *  5. Credit demands at peace (diplomatic-demand.ts), between the review
  *     of peace and of war: planDemand picks a target and a kind from the
  *     personality, strength ratio, distance, opinion, own treasury, the
@@ -101,6 +103,22 @@ interface DiplomacyProfile {
   warOpinionMax: number;
   /* May break a running truce (overwhelming strength, hostile opinion). */
   treachery: boolean;
+  /*
+   * Warlike personalities (minWars > 0, see WARLIKE_PERSONALITIES): with
+   * fewer wars than this the AI is "restless" and declares war under the
+   * looser restless limits below instead of warRatio / warOpinionMax, so
+   * once a truce runs out it soon finds a new war. Peaceful personalities
+   * use 0 (the restless limits are then unused).
+   */
+  minWars: number;
+  /*
+   * Restless: target/own strength ratio up to which it declares war (a
+   * stronger empire deters it; ratios above 1 let a militarist attack
+   * stronger empires and get broken by them).
+   */
+  restlessWarRatio: number;
+  /* Restless: effective opinion up to which it declares war (only a close, reputable friend is spared). */
+  restlessOpinionMax: number;
   /* Credit demands (diplomatic-demand.ts): */
   /* Game seconds between this AI's own demands (to anyone). */
   demandCooldown: number;
@@ -121,29 +139,45 @@ interface DiplomacyProfile {
 }
 
 /*
- * Militarists demand often and large, threaten readily and usually carry
- * their threats out; technologists rarely demand, mostly ask for support,
- * seldom threaten and nearly always bluff; balanced and expansionist sit
- * in between. Tuning lives here only (docs/diplomacy.md lists the table).
+ * Two warlike and two peaceful temperaments (2026-11-03, against the
+ * mid-game where every AI settled into peace by minute 15):
+ * - militarist and expansionist are warlike: a strongly negative peaceBias
+ *   (they settle only when losing or exhausted, and want to be paid) and
+ *   minWars 1 (restless at peace: a new war soon after every truce);
+ * - balanced and technologist keep the earlier behavior.
+ * Militarists also demand often and large, threaten readily and usually
+ * carry their threats out; technologists rarely demand, mostly ask for
+ * support, seldom threaten and nearly always bluff. Exhaustion still ends
+ * every streak: no new war from NO_NEW_WAR_EXHAUSTION on, and exhaustion
+ * pushes toward peace. Tuning lives here only (docs/diplomacy.md lists the table).
  */
 const DIPLOMACY_PROFILES: Readonly<Record<AiPersonality, DiplomacyProfile>> = {
   balanced: {
     peaceBias: 0, warRatio: 0.6, maxWars: 1, warOpinionMax: 10, treachery: false,
+    minWars: 0, restlessWarRatio: 0, restlessOpinionMax: 0,
     demandCooldown: 480, demandShare: 0.5, threatRatio: 0.5, tributeRatio: 0.65, followThrough: -0.3, refusalTolerance: 1, yieldBias: 0, generosity: 0.05,
   },
   expansionist: {
-    peaceBias: 0.05, warRatio: 0.65, maxWars: 1, warOpinionMax: 15, treachery: false,
+    peaceBias: -0.3, warRatio: 0.65, maxWars: 1, warOpinionMax: 15, treachery: false,
+    minWars: 1, restlessWarRatio: 0.9, restlessOpinionMax: 65,
     demandCooldown: 420, demandShare: 0.6, threatRatio: 0.55, tributeRatio: 0.7, followThrough: -0.15, refusalTolerance: 1.1, yieldBias: -0.05, generosity: 0,
   },
   militarist: {
-    peaceBias: -0.2, warRatio: 0.85, maxWars: 2, warOpinionMax: 30, treachery: true,
+    peaceBias: -0.45, warRatio: 0.85, maxWars: 2, warOpinionMax: 30, treachery: true,
+    minWars: 1, restlessWarRatio: 1, restlessOpinionMax: 75,
     demandCooldown: 300, demandShare: 0.8, threatRatio: 0.8, tributeRatio: 0.9, followThrough: 0.35, refusalTolerance: 1.4, yieldBias: -0.2, generosity: -0.1,
   },
   technologist: {
     peaceBias: 0.15, warRatio: 0.5, maxWars: 1, warOpinionMax: 0, treachery: false,
+    minWars: 0, restlessWarRatio: 0, restlessOpinionMax: 0,
     demandCooldown: 720, demandShare: 0.35, threatRatio: 0.3, tributeRatio: 0.45, followThrough: -0.9, refusalTolerance: 0.7, yieldBias: 0.1, generosity: 0.15,
   },
 };
+
+/* Personalities that try to stay at war (shown to the player on the Diplomacy screen). */
+export function isWarlikePersonality(personality: AiPersonality): boolean {
+  return DIPLOMACY_PROFILES[personality].minWars > 0;
+}
 
 export interface WarFactor {
   key: string;
@@ -248,6 +282,8 @@ export class EnemyDiplomacyService {
   static readonly PROPOSE_MIN_PRESSURE = 0.1;
   /* Own worst exhaustion from which the AI starts no new war. */
   static readonly NO_NEW_WAR_EXHAUSTION = 40;
+  /* A restless warlike AI starts a new war only with at least this share of its scale in credits. */
+  static readonly RESTLESS_MIN_TREASURY = 0.5;
   /* Raw materials are valued at this many credits each. */
   static readonly RAW_VALUE = 1.2;
   /* Baseline resistance to ending a war without a reason ("war aims"). */
@@ -348,7 +384,11 @@ export class EnemyDiplomacyService {
     if ((ai.currencies['credits'] ?? 0) < scale * 0.2) {
       add('treasury', 'Empty treasury', 0.15);
     }
-    add('personality', 'Temperament', this.profileOf(ai).peaceBias);
+    // A warlike (negative) temperament wears off with the AI's own exhaustion,
+    // so even a warmonger settles once a war has bled it; without this its
+    // economy sank into lasting arrears under the exhaustion output penalty.
+    const bias = this.profileOf(ai).peaceBias;
+    add('personality', 'Temperament', bias < 0 ? bias * (1 - clamp(ownExhaustion, 0, 100) / 100) : bias);
     if (this.blocksPeace(ai, enemy, ctx)) {
       // Shown on the acceptance meter; evaluateTreaty also refuses outright.
       add('dyson', 'Dyson Swarm', -2);
@@ -716,7 +756,14 @@ export class EnemyDiplomacyService {
 
   private reviewWar(ai: Faction, ctx: DiplomacyContext): boolean {
     const profile = this.profileOf(ai);
-    if (this.warEnemies(ai, ctx).length >= profile.maxWars) return false;
+    const wars = this.warEnemies(ai, ctx).length;
+    if (wars >= profile.maxWars) return false;
+    // A warlike AI below its minimum of wars looks for one under looser
+    // limits — but only with money for it (half a minute of income in
+    // credits), so a broke warmonger rebuilds before the next war.
+    const restless = wars < profile.minWars && (ai.currencies['credits'] ?? 0) >= this.scaleOf(ai, ctx) * EnemyDiplomacyService.RESTLESS_MIN_TREASURY;
+    const warRatio = restless ? Math.max(profile.warRatio, profile.restlessWarRatio) : profile.warRatio;
+    const warOpinionMax = restless ? Math.max(profile.warOpinionMax, profile.restlessOpinionMax) : profile.warOpinionMax;
     if (getFactionWarExhaustion(ai) >= EnemyDiplomacyService.NO_NEW_WAR_EXHAUSTION) return false;
     let best: { target: Faction; ratio: number; distance: number; breach: boolean } | undefined;
     for (const other of ctx.factions) {
@@ -728,7 +775,7 @@ export class EnemyDiplomacyService {
       const ratio = this.strengthRatio(other, ai, ctx);
       const distance = this.empireDistance(ai.id, other.id, ctx);
       const opinion = getEffectiveOpinion(ai, other);
-      if (distance > EnemyDiplomacyService.WAR_REACH || ratio > profile.warRatio || opinion > profile.warOpinionMax) continue;
+      if (distance > EnemyDiplomacyService.WAR_REACH || ratio > warRatio || opinion > warOpinionMax) continue;
       const breach = isTruceActive(ai, other);
       if (breach && !(profile.treachery && ratio <= profile.warRatio * 0.5 && opinion <= -40)) continue;
       if (!best || ratio < best.ratio || (ratio === best.ratio && distance < best.distance)) {

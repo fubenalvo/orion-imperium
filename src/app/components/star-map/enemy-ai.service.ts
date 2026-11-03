@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Fleet, Faction, getAiFactionIds } from './star-map.models';
 import { getHostileFleets } from './ai-queries';
 import { ShipService } from '../../services/ship.service';
+import { OpeningGraceService } from './opening-grace';
 
 /*
  * =========================================================
@@ -28,7 +29,10 @@ export class EnemyAiService {
   private readonly PURSUIT_ACQUIRE_RANGE = 15;
   private readonly currentTargets = new Map<number, number>();
 
-  constructor(private readonly shipService: ShipService) {}
+  constructor(
+    private readonly shipService: ShipService,
+    private readonly openingGrace: OpeningGraceService,
+  ) {}
 
   reset(): void {
     this.currentTargets.clear();
@@ -66,7 +70,10 @@ export class EnemyAiService {
       let cached = hostileFleetCache.get(factionId);
       if (!cached) {
         const humanIds = new Set(factions.filter((f) => f.ai !== true).map((f) => f.id));
-        cached = getHostileFleets(factionId, fleets, factions).filter((f) => humanIds.has(f.factionId));
+        // No pursuit of the player during the opening grace (opening-grace.ts).
+        const self = factions.find((f) => f.id === factionId);
+        cached = getHostileFleets(factionId, fleets, factions)
+          .filter((f) => humanIds.has(f.factionId) && !this.openingGrace.spares(self, f.factionId));
         hostileFleetCache.set(factionId, cached);
       }
       return cached;

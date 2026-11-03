@@ -8,6 +8,10 @@ import { autoResolveBattle } from '../battle-screen/battle/battle-auto-resolve';
 import { Battle, BattleOutcome } from '../battle-screen/battle/battle.types';
 import { Fleet, StarSystem, Faction } from './star-map.models';
 import { areFactionsHostile } from './diplomacy';
+import { OpeningGraceService } from './opening-grace';
+
+/* AI empires and outlaws (pirates) fight each other by auto-resolve; only the human opens the battle screen. */
+const isComputerSide = (f: Faction): boolean => f.ai === true || f.outlaw === true;
 import { SpaceBaseService } from './space-base.service';
 import { buildBaseDefenseFleet } from './space-base';
 import {
@@ -45,6 +49,7 @@ export class StarMapBattleDetectionService {
     private shipService: ShipService,
     private planetBattleService: PlanetBattleService,
     private spaceBaseService: SpaceBaseService,
+    private openingGrace: OpeningGraceService,
   ) {}
 
   /*
@@ -70,6 +75,8 @@ export class StarMapBattleDetectionService {
       const attacker = factions.find((f) => f.id === fleet.factionId);
       const owner = factions.find((f) => f.id === base.factionId);
       if (!attacker || !owner || !areFactionsHostile(attacker, owner)) continue;
+      // Opening grace (opening-grace.ts): no AI attack on the player's base yet; not marked as triggered.
+      if (this.openingGrace.spares(attacker, owner)) continue;
       const key = `base${base.id}-${fleet.id}`;
       if (triggeredBattles.has(key)) continue;
       triggeredBattles.add(key);
@@ -125,6 +132,7 @@ export class StarMapBattleDetectionService {
           if (!station) continue;
           const owner = factions.find((f) => f.id === station.factionId);
           if (!owner || !areFactionsHostile(attacker, owner)) continue;
+          if (this.openingGrace.spares(attacker, owner)) continue;
           const key = `mine${system.id}:${asteroid.col},${asteroid.row}-${fleet.id}`;
           if (triggeredBattles.has(key)) continue;
           triggeredBattles.add(key);
@@ -202,7 +210,7 @@ export class StarMapBattleDetectionService {
     onAutoResolved: ((battle: Battle, outcome: BattleOutcome) => void) | undefined,
     applyLive?: (destroyed: boolean, outcome: BattleOutcome) => void,
   ): boolean {
-    if (attacker.ai === true && owner.ai === true) {
+    if (isComputerSide(attacker) && isComputerSide(owner)) {
       const { outcome } = autoResolveBattle(battle, this.shipService, this.planetBattleService);
       const destroyed = this.battleOutcomeService.applyStationBattleOutcome(data, outcome);
       applyLive?.(destroyed, outcome);
@@ -268,6 +276,13 @@ export class StarMapBattleDetectionService {
           continue;
         }
 
+        // Opening grace (opening-grace.ts): an AI does not attack the player
+        // yet; only a contact the player started is fought. Not marked as
+        // triggered, so the contact can still become a battle later.
+        if (this.openingGrace.blocksFleetBattle(fleet1, faction1, fleet2, faction2)) {
+          continue;
+        }
+
         const battleKey = `${Math.min(fleet1.id, fleet2.id)}-${Math.max(fleet1.id, fleet2.id)}`;
 
         if (triggeredBattles.has(battleKey)) {
@@ -292,7 +307,7 @@ export class StarMapBattleDetectionService {
           combatBonuses: this.researchService.buildCombatBonuses([faction1, faction2]),
         };
 
-        if (faction1.ai === true && faction2.ai === true) {
+        if (isComputerSide(faction1) && isComputerSide(faction2)) {
           const { outcome } = autoResolveBattle(battle, this.shipService, this.planetBattleService);
           this.battleOutcomeService.applyFleetBattleOutcome({ fleets, factions }, outcome);
           for (const fleet of [fleet1, fleet2]) {

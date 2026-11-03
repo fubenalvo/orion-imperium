@@ -42,6 +42,12 @@
             <span class="diplomacy__swatch" aria-hidden="true"></span>
             <span class="diplomacy__name">{{ row.name }}</span>
             <span class="diplomacy__personality">{{ row.personality }}</span>
+            @if (row.warlike) {
+              <span
+                class="ui-chip ui-chip--warning"
+                title="Warlike: rarely makes peace unless losing or exhausted, and looks for a new war soon after every truce. Only a clearly stronger empire or a close friend is spared."
+              >WARLIKE</span>
+            }
             @if (!row.alive) {
               <span class="ui-chip ui-chip--muted">ELIMINATED</span>
             } @else if (row.state === 'war') {

@@ -34,6 +34,8 @@ Fixed on 2026-11-01: a request for N ships is queued as N single-ship orders (fu
 
 ## 4. [Balance] Easy difficulty eliminates a new player too early
 
+**Partly addressed (2026-11-03):** a hidden 4-minute opening grace (no AI attack of any kind on the player, every difficulty) was added ([Planet Capture](./planet-capture.md#opening-grace-opening-gracets)). It does not cover the minute-16 loss below; the longer, difficulty-dependent protection against planet assaults is still open.
+
 **Problem.** In S2E (small map, 2 Easy AIs) a passive player lost their homeworld at **minute 16**; on Normal/medium it took 32 minutes, on Hard/large 35. A first-time player who is still learning the planet surface and the energy rule can easily play close to passively for the first 10–15 minutes, so Easy is harsher than its label. Small maps make it worse because the AI is close.
 
 **Files.** `src/app/components/star-map/ai-difficulty.ts` (`AI_DIFFICULTY_PROFILES.easy`: `attackStrengthAdvantage 1.6`, `incomeMultiplier 0.75`, `reactionInterval 2`), `src/app/components/star-map/enemy-invasion.service.ts`, `src/app/components/star-map/enemy-plan.service.ts`, `src/app/services/game-outcome.service.ts`.
@@ -82,6 +84,8 @@ Fixed on 2026-11-02: the active Shield Pulse was replaced by a passive **shield 
 ---
 
 ## 7. [Balance/Diplomacy] AI–AI wars stop early; the mid/late game is a peaceful build-up
+
+**Partly addressed (2026-11-03):** militarist and expansionist AIs are now warlike (strong anti-peace temperament that fades with exhaustion, a new war soon after every truce), and in the 30-minute simulations they stay at war with another AI for 28–30 minutes ([Diplomacy](./diplomacy.md#ai-judgment-enemydiplomacyservice)). Balanced and technologist AIs are unchanged. Still open: the acceptance run below (large map, 5 AIs, 45 min, AI–AI planet captures).
 
 **Problem.** In L5H all five Hard AIs were at peace with each other from about minute 15 to the end, and there were **0 AI-vs-AI battles in 45 minutes**. In M3N there were 8, all involving the militarist. Meanwhile the human starts at war with everyone (`INITIAL_WAR_LOCK_SECONDS` = 4 min) and is the natural common target. The AIs then just accumulate resources (see prompt 8).
 

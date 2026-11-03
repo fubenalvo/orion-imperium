@@ -52,6 +52,11 @@ No open items.
 - **Files:** `src/app/services/galaxy-generator.service.ts`, `src/app/components/star-map/star-map-movement.service.ts`
 - **Suggestion:** smaller maps or more systems, and/or faster galaxy movement.
 
+### 15a. [Balance] Is the 4-minute opening grace right? [Watch]
+
+- **Added 2026-11-03:** for the first 240 s no AI attacks the player (`OPENING_GRACE_SECONDS`, [Planet Capture](./planet-capture.md#opening-grace-opening-gracets)). The value is a guess.
+- **To do:** in play and QA runs, check whether the player loses ships or planets right after minute 4, and whether the opening still feels like a war. Adjust the constant and record the reason in planet-capture.md.
+
 ### 15. [Balance] The AI pulls far ahead early [Played]
 
 At minute 8: AI 4–5 planets, player 1–2. Items 1–4 cause part of this; measure again after fixing them before weakening the AI.

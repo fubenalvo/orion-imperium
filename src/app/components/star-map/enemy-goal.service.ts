@@ -16,6 +16,7 @@ import { getEnemyFleets, getHostileFleets, getEnemyPlanets, getUnhabitedPlanets,
 import { EnemyReachService } from './enemy-reach.service';
 import { TerritoryService } from './territory.service';
 import { isAsteroidSurveyedBy, rawOutlook, rawSupplyPressure } from './raw-deposits';
+import { OpeningGraceService } from './opening-grace';
 
 /*
  * =========================================================
@@ -104,6 +105,7 @@ export class EnemyGoalService {
     private readonly shipService: ShipService,
     private readonly reachService: EnemyReachService,
     private readonly territory: TerritoryService,
+    private readonly openingGrace: OpeningGraceService,
   ) {}
 
   reset(): void {
@@ -443,8 +445,11 @@ export class EnemyGoalService {
     const enemyFleets = getEnemyFleets(factionId, fleets);
     const clock = this.clocks.get(factionId) ?? 0;
     const abandoned = this.abandonedAttackTargets.get(factionId);
+    const self = factions.find((f) => f.id === factionId);
     const playerFleets = getHostileFleets(factionId, fleets, factions)
-      .filter((f) => (abandoned?.get(f.id) ?? -Infinity) <= clock);
+      .filter((f) => (abandoned?.get(f.id) ?? -Infinity) <= clock)
+      // No attack goal on the player's fleets during the opening grace (opening-grace.ts).
+      .filter((f) => !this.openingGrace.spares(self, f.factionId));
 
     if (enemyFleets.length === 0 || playerFleets.length === 0) {
       return undefined;
@@ -589,6 +594,7 @@ export class EnemyGoalService {
     if (!fleet || fleet.destroyed || fleet.ships.length === 0) {
       return false;
     }
+    if (this.openingGrace.spares(factions.find((f) => f.id === factionId), fleet.factionId)) return false;
     return isHostileFleet(fleet, factionId, factions);
   }
 

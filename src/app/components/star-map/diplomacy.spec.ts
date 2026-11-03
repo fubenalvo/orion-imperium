@@ -37,7 +37,7 @@ import {
 } from './diplomacy';
 import { Faction, Fleet, StarSystem } from './star-map.models';
 import { DiplomacyService, PEACE_OFFER_SECONDS } from '../../services/diplomacy.service';
-import { EnemyDiplomacyService } from './enemy-diplomacy.service';
+import { EnemyDiplomacyService, isWarlikePersonality } from './enemy-diplomacy.service';
 import { GameOutcomeService } from '../../services/game-outcome.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
 import { BattleService } from '../../services/battle.service';
@@ -541,6 +541,71 @@ describe('EnemyDiplomacyService', () => {
     ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
     expect(getRelationKind(ctx.a, ctx.b)).toBe('war');
     expect(getReputation(ctx.a)).toBe(REPUTATION_TREATY_BROKEN);
+  });
+
+  describe('warlike personalities (militarist, expansionist)', () => {
+    /* enemy1 at peace with everyone, truce over, and on good terms with enemy2. */
+    const peacefulWorld = (personality: 'balanced' | 'militarist' | 'technologist' | 'expansionist', own: string[], other: string[]) => {
+      const ctx = world(own, other, [personality, 'balanced']);
+      setTreatyState(ctx.a, ctx.factions[0], 'peace', 0);
+      setTreatyState(ctx.a, ctx.b, 'peace', 0);
+      ctx.a.relations!['enemy2'].opinion = 50;
+      return ctx;
+    };
+
+    it('only militarists and expansionists are warlike', () => {
+      expect(['militarist', 'expansionist', 'balanced', 'technologist'].map((p) => isWarlikePersonality(p as never)))
+        .toEqual([true, true, false, false]);
+    });
+
+    it('a restless warlike AI declares war on a liked, slightly weaker neighbour; a peaceful one does not', () => {
+      for (const personality of ['militarist', 'expansionist'] as const) {
+        const ctx = peacefulWorld(personality, Array(5).fill('battleship'), Array(4).fill('battleship'));
+        ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+        expect(getRelationKind(ctx.a, ctx.b), personality).toBe('war');
+      }
+      for (const personality of ['balanced', 'technologist'] as const) {
+        const ctx = peacefulWorld(personality, Array(5).fill('battleship'), Array(4).fill('battleship'));
+        ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+        expect(getRelationKind(ctx.a, ctx.b), personality).toBe('peace');
+      }
+    });
+
+    it('is deterred by a clearly stronger neighbour, spares a close friend, and keeps a running truce', () => {
+      const strong = peacefulWorld('militarist', Array(5).fill('battleship'), Array(10).fill('battleship'));
+      // The stronger (balanced) neighbour must not start the war itself.
+      strong.b.relations!['enemy1'].opinion = 50;
+      ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, strong);
+      expect(getRelationKind(strong.a, strong.b), 'strong').toBe('peace');
+
+      const friend = peacefulWorld('militarist', Array(5).fill('battleship'), Array(4).fill('battleship'));
+      friend.a.relations!['enemy2'].opinion = 90;
+      ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, friend);
+      expect(getRelationKind(friend.a, friend.b), 'friend').toBe('peace');
+
+      const truce = peacefulWorld('expansionist', Array(5).fill('battleship'), Array(4).fill('battleship'));
+      startPeace(truce.a, truce.b, TRUCE_SECONDS);
+      ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, truce);
+      expect(getRelationKind(truce.a, truce.b), 'truce').toBe('peace');
+    });
+
+    it('is not restless while it already has a war', () => {
+      const ctx = peacefulWorld('expansionist', Array(5).fill('battleship'), Array(4).fill('battleship'));
+      // A living human empire to be at war with.
+      ctx.starSystems.push(system('p1', 300, 300, ['player']));
+      setTreatyState(ctx.a, ctx.factions[0], 'war', 0);
+      ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+      expect(getRelationKind(ctx.a, ctx.b)).toBe('peace');
+    });
+
+    it('is harder to make peace with: the same even war needs a larger payment', () => {
+      const margin = (personality: 'balanced' | 'militarist' | 'expansionist') => {
+        const ctx = world(Array(5).fill('battleship'), Array(5).fill('battleship'), [personality, 'balanced']);
+        return ai.evaluateTreaty(ctx.a, { proposerId: 'enemy2', recipientId: 'enemy1', items: [] }, ctx).margin;
+      };
+      expect(margin('militarist')).toBeLessThan(margin('expansionist'));
+      expect(margin('expansionist')).toBeLessThan(margin('balanced'));
+    });
   });
 
   it('starts no new war while exhausted', () => {

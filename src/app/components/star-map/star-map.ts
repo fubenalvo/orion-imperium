@@ -38,6 +38,8 @@ import {
 } from './station-construction';
 import { FLEET_REPAIR_CONFIG, RepairSite } from './fleet-repair';
 import { FleetRepairService } from './fleet-repair.service';
+import { OpeningGraceService } from './opening-grace';
+import { PirateIncursionService } from './pirate-incursion';
 import { GAME_VERSION } from '../../game-version';
 import { EconomyService } from '../../services/economy.service';
 import { GameTimeService, GameSpeed } from '../../services/game-time.service';
@@ -323,6 +325,8 @@ loadError = '';
   private constructionRedrawClock = 0;
   /* Game time collected for the next fleet repair step (fleet-repair.ts). */
   private repairClock = 0;
+  /* Player planet count at the last ownership change (pirate quiet clock). */
+  private lastPlayerPlanetCount = -1;
   /*
    * Fleets repaired in the last repair step and where (view state only,
    * never saved: it is re-derived from positions within one step).
@@ -550,6 +554,8 @@ loadError = '';
     private enemyDiplomacyService: EnemyDiplomacyService,
     private spaceBaseService: SpaceBaseService,
     private fleetRepairService: FleetRepairService,
+    private openingGrace: OpeningGraceService,
+    private pirateIncursion: PirateIncursionService,
     private dysonRingService: DysonRingService,
     private dysonVictoryService: DysonVictoryService,
     private territoryService: TerritoryService,
@@ -3752,6 +3758,11 @@ loadError = '';
     const constructionChanged = this.updateStationConstruction(gameDeltaTime);
     const repairChanged = this.updateFleetRepair(gameDeltaTime);
     const dysonChanged = this.updateDysonSwarm(gameDeltaTime);
+    const pirateNotices = this.pirateIncursion.tick(gameDeltaTime, {
+      gameSeconds: this.gameSeconds, factions: this.factions, fleets: this.fleets, starSystems: this.starSystems,
+      shipStock: this.shipStock, mapWidth: this.mapWidth, mapHeight: this.mapHeight,
+    });
+    if (pirateNotices.length > 0) this.showMapNotice(pirateNotices[pirateNotices.length - 1]);
     if (this.gameOutcome !== 'inProgress') {
       return;
     }
@@ -3798,6 +3809,8 @@ loadError = '';
       const playerDeposits = minedDepositsOf('player', this.starSystems);
       const stabilityBefore = this.playerPlanetStability();
       for (const faction of this.factions) {
+        // Outlaws (pirates) have no economy: no income, no upkeep (pirate-incursion.ts).
+        if (faction.outlaw === true) continue;
         const applied = this.economyService.applyEconomyDelta(
           faction.id,
           this.factions,
@@ -3829,6 +3842,16 @@ loadError = '';
     // rebellion), an AI-vs-AI battle destroyed fleets, or a treaty changed
     // (peace partners do not block victory): the outcome may have become
     // terminal.
+    // Quiet is measured for the player: only the player's own planets changing
+    // hands count here (player battles count in enterBattleScreen; AI-vs-AI
+    // wars never stop in practice, so they would block the event forever).
+    if (this.planetOwnership.revision !== this.lastOwnershipRevision) {
+      const playerPlanets = this.starSystems.reduce((n, s) => n + s.planetsTiles.filter((p) => p.factionId === 'player').length, 0);
+      if (playerPlanets !== this.lastPlayerPlanetCount) {
+        this.lastPlayerPlanetCount = playerPlanets;
+        this.pirateIncursion.noteActivity(this.gameSeconds);
+      }
+    }
     if (this.planetOwnership.revision !== this.lastOwnershipRevision || this.autoBattleResolved || diplomacyChanged) {
       this.lastOwnershipRevision = this.planetOwnership.revision;
       this.autoBattleResolved = false;
@@ -4543,6 +4566,7 @@ loadError = '';
       dysonWarmup: this.dysonVictoryService.serialize(),
       diplomaticDemands: this.diplomacyService.serializeDemands(),
       anomalies: this.anomalyService.serialize(),
+      pirates: this.pirateIncursion.serialize(),
       tradeNetwork: this.tradeNetworkService.serialize(),
       gameSeconds: this.gameSeconds,
     };
@@ -4564,6 +4588,8 @@ loadError = '';
    * save, which would re-introduce the post-battle "reset" bug.
    */
   private enterBattleScreen(): void {
+    // A battle is activity: the galaxy is not quiet (pirate-incursion.ts).
+    this.pirateIncursion.noteActivity(this.gameSeconds);
     this.saveGame();
     this.aiTickService.suspendForBattle();
     this.ngZone.run(() => this.router.navigate(['/battle']));
@@ -4632,6 +4658,7 @@ loadError = '';
     this.dysonRingService.configure(this.specialObjects);
     this.rebuildTerrainViews();
     this.asteroidService.restore(data.asteroidEvents, this.galaxy?.seed ?? 0, this.fleets);
+    this.pirateIncursion.restore(data.pirates, this.galaxy?.seed ?? 0);
     this.anomalyService.restore(data.anomalies, {
       seed: this.galaxy?.seed ?? 0,
       width: this.mapWidth,
@@ -4644,6 +4671,8 @@ loadError = '';
     });
     this.tradeNetworkService.restore(data.tradeNetwork, this.galaxy?.seed ?? 0, this.starSystems);
     this.gameSeconds = Number.isFinite(data.gameSeconds) ? Math.max(0, data.gameSeconds!) : 0;
+    // The grace checks must not run on the previous session's clock before the first AI tick.
+    this.openingGrace.setGameSeconds(this.gameSeconds);
     // A pending event re-opens from the restored state on the next frame.
     this.anomalyEvent = null;
     this.anomalyError = null;

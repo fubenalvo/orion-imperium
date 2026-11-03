@@ -13,6 +13,7 @@ import { CAPTURE_MIN_SATISFACTION } from '../../services/planet-ownership.servic
 import { DriftingAsteroidService } from './drifting-asteroid.service';
 import { asteroidPosition } from './drifting-asteroids';
 import { areFactionsHostile, getRelationKind, hostileFactionIds, isNeutralFaction } from './diplomacy';
+import { OpeningGraceService } from './opening-grace';
 import { isCivilianMissionFleet } from './space-base';
 import { TradeNetworkService } from './trade-network.service';
 import { raidBlocker } from './trade-network';
@@ -182,6 +183,7 @@ export class EnemyFleetService {
     private readonly asteroidService: DriftingAsteroidService,
     private readonly tradeNetwork: TradeNetworkService,
     private readonly economyService: EconomyService,
+    private readonly openingGrace: OpeningGraceService,
   ) {}
 
   setGameSeconds(seconds: number): void {
@@ -287,7 +289,7 @@ export class EnemyFleetService {
       if (assignment?.role !== 'intercept' || assignment.targetFleetId === undefined) continue;
       const target = realFleets.find((f) => f.id === assignment.targetFleetId);
       const owner = target ? factions.find((f) => f.id === target.factionId) : undefined;
-      if (!target || !areFactionsHostile(faction, owner) || !this.intelService.getKnownPosition(faction.id, target)) {
+      if (!target || !areFactionsHostile(faction, owner) || this.openingGrace.spares(faction, owner) || !this.intelService.getKnownPosition(faction.id, target)) {
         // Keep the fleet owned by this service (so the legacy pursuit layer
         // never picks it up); without a target the interception is invalid
         // at the next decision and the fleet gets a new role.
@@ -338,7 +340,8 @@ export class EnemyFleetService {
     );
 
     const hostileIds = hostileFactionIds(faction, factions);
-    const hostiles = fleets.filter((f) => hostileIds.has(f.factionId) && this.isAlive(f));
+    // The player's fleets are not hunted during the opening grace (opening-grace.ts).
+    const hostiles = fleets.filter((f) => hostileIds.has(f.factionId) && this.isAlive(f) && !this.openingGrace.spares(faction, f.factionId));
     const difficulty = getAiDifficultyProfile(faction);
     const advantage = difficulty.attackStrengthAdvantage;
     // Engagement judgment: battle forecast (real combat rules) on Normal and
@@ -664,6 +667,8 @@ export class EnemyFleetService {
     if (!this.intelService.isPointSensed(faction.id, trader.x, trader.y)) return undefined;
     const owner = this.tradeNetwork.traderOwner(trader, realSystems, factions);
     if (raidBlocker(faction, owner)) return undefined;
+    // The player's traders are not raided during the opening grace (opening-grace.ts).
+    if (this.openingGrace.spares(faction, owner)) return undefined;
     if (owner && !isNeutralFaction(owner) && getRelationKind(faction, owner) !== 'war') return undefined;
     return trader;
   }

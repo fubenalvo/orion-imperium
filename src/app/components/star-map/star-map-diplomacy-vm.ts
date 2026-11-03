@@ -12,7 +12,7 @@ import {
 } from './diplomacy';
 import { PeaceTreaty, TreatyItem, describeTreatyInvalid, isFactionAlive } from './peace-treaty';
 import { DiplomacyService } from '../../services/diplomacy.service';
-import { EnemyDiplomacyService, WarFactor } from './enemy-diplomacy.service';
+import { EnemyDiplomacyService, WarFactor, isWarlikePersonality } from './enemy-diplomacy.service';
 import { getAiPersonalityProfile } from './ai-personality';
 import {
   DEMAND_RULES,
@@ -83,6 +83,8 @@ export interface DiplomacyRowVm {
   name: string;
   color: string;
   personality: string;
+  /* Warlike AI temperament (isWarlikePersonality): seeks a new war soon after every truce. */
+  warlike: boolean;
   state: TreatyState;
   /* False once the faction has no planet and no living fleet. */
   alive: boolean;
@@ -203,6 +205,7 @@ export function buildDiplomacyRows(
         name: f.name,
         color: f.color,
         personality: f.ai ? getAiPersonalityProfile(f).label : 'Human',
+        warlike: f.ai === true && isWarlikePersonality(getAiPersonalityProfile(f).id),
         state: relation.state,
         alive: isFactionAlive(f.id, world),
         planets,

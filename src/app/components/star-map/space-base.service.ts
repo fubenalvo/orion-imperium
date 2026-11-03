@@ -94,6 +94,14 @@ export class SpaceBaseService {
     this.revisionCounter++;
   }
 
+  /* Adds a base outside the outpost-ship deployment rules (the pirate haven, pirate-incursion.ts). */
+  addBase(base: Omit<SpaceBase, 'id'>): SpaceBase {
+    const created: SpaceBase = { ...base, id: this.list.reduce((max, b) => Math.max(max, b.id), 0) + 1, x: Math.floor(base.x), y: Math.floor(base.y) };
+    this.list.push(created);
+    this.revisionCounter++;
+    return created;
+  }
+
   serialize(): SpaceBase[] {
     return this.list.map((b) => ({ ...b }));
   }

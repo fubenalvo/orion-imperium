@@ -104,6 +104,8 @@ reach = `AI_COLONIZATION_REACH` (60) × personality reach (expansionist 1.35) ×
 
 ## Personalities and difficulty
 
+**Opening grace.** For the first 240 s of game time no AI layer attacks the human player (assaults, interceptions, pursuit, attack goals, raids); threat and defense still see the player. Hidden from the player and a value to keep watching; rules in [Planet Capture](./planet-capture.md#opening-grace-opening-gracets).
+
 Data in `ai-personality.ts` and `ai-difficulty.ts`. Personalities never change rules or grant resources:
 
 | | balanced | expansionist | militarist | technologist |
@@ -116,6 +118,7 @@ Data in `ai-personality.ts` and `ai-difficulty.ts`. Personalities never change r
 | research buildings per planet | 1 | 1 | 1 | 2 (and research first) |
 | funds research first (`fundsResearchFirst`) | no | no | no | yes |
 | Dyson Swarm (`dyson`: build / hunt at anchors / Stellar Engineering value) | rich / 5 / 2 | never / 6 / 0 | never / 3 / 0 | always / 6 / 8 |
+| diplomatic temperament ([Diplomacy](./diplomacy.md#ai-judgment-enemydiplomacyservice)) | peaceful | warlike | warlike | peaceful |
 
 Credits are every faction's research bottleneck (research costs 4 credits per point), so more labs alone do not make a faction research more. The technologist therefore pays for research with a smaller navy (military target ×0.6), slower expansion (weight 0.75) and `fundsResearchFirst`: its research credit reserve is kept even from colonizer purchases (`EnemyActionExecutor.executeProduceColonizer`), and it reserves its research target's credits before the points are banked. The simulation (15 minutes, two AIs per personality) requires technologists to acquire at least 10% more research volume than militarists; they may buy slightly fewer — but more expensive — technologies. The price: a technologist's first colonizer waits until its research target is funded, so it expands later than the other personalities.
 

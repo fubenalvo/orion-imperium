@@ -6,6 +6,7 @@ import { PlanetOwnershipService } from '../../services/planet-ownership.service'
 import { Faction, FactionProduction, Fleet, PlanetTile, StarSystem, PLANET_TYPE_COLORS } from './star-map.models';
 import { StarMapMovementService } from './star-map-movement.service';
 import { canAttackPlanetOf } from './diplomacy';
+import { OpeningGraceService } from './opening-grace';
 import { TerritoryService } from './territory.service';
 
 /*
@@ -61,6 +62,7 @@ export class StarMapPlanetArrivalService {
     private planetOwnership: PlanetOwnershipService,
     private researchService: ResearchService,
     private territory: TerritoryService,
+    private openingGrace: OpeningGraceService,
   ) {}
 
   /** Clears per-session arrival bookkeeping. Safe to call on every load. */
@@ -256,6 +258,10 @@ export class StarMapPlanetArrivalService {
 
     // Allied or at-peace owners: the fleet just orbits (diplomacy.ts).
     if (!canAttackPlanetOf(fleetFaction, planetFaction)) {
+      return;
+    }
+    // Opening grace (opening-grace.ts): an AI fleet only orbits a player planet.
+    if (this.openingGrace.spares(fleetFaction, planetFaction)) {
       return;
     }
 

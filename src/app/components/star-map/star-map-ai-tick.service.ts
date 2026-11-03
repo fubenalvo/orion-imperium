@@ -20,6 +20,7 @@ import { Battle } from '../battle-screen/battle/battle.types';
 import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiFactionIds } from './star-map.models';
 import { EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { DiplomacyService } from '../../services/diplomacy.service';
+import { OpeningGraceService } from './opening-grace';
 
 /*
  * =========================================================
@@ -77,6 +78,7 @@ export class StarMapAiTickService {
     private diplomacyService: DiplomacyService,
     private enemyMiningService: EnemyMiningService,
     private enemyDysonService: EnemyDysonService,
+    private openingGrace: OpeningGraceService,
   ) {}
 
   // Cadence of the parallel colonization objective's action evaluation.
@@ -107,6 +109,8 @@ export class StarMapAiTickService {
     },
   ): boolean {
     this.enemyFleetService.setGameSeconds(data.gameSeconds ?? 0);
+    // Only a known clock moves the grace (StarMap always passes it; see opening-grace.ts).
+    if (data.gameSeconds !== undefined) this.openingGrace.setGameSeconds(data.gameSeconds);
     // Treaties first: every layer below reads hostility (diplomacy.ts), so
     // a peace or war signed this frame is respected by the whole pipeline.
     const diplomacyChanged = this.enemyDiplomacyService.tick(gameDeltaTime, data);

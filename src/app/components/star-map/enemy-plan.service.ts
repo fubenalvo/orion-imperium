@@ -6,6 +6,7 @@ import { ResearchService } from '../../services/research.service';
 import { EnemyReachService } from './enemy-reach.service';
 import { getAiPersonalityProfile } from './ai-personality';
 import { canAttackPlanetOf, hostileFactionIds } from './diplomacy';
+import { OpeningGraceService } from './opening-grace';
 
 /*
  * =========================================================
@@ -77,6 +78,7 @@ export class EnemyPlanService {
     private readonly shipService: ShipService,
     private readonly researchService: ResearchService,
     private readonly reachService: EnemyReachService,
+    private readonly openingGrace: OpeningGraceService,
   ) {}
 
   // Clock time since which a faction has had no colonization target in reach.
@@ -198,6 +200,8 @@ export class EnemyPlanService {
 
     const hostileTeamPlanets = reachable.flatMap((s) => s.planetsTiles).filter((p) => {
       if (p.factionId === 'unhabited' || p.factionId === faction.id) return false;
+      // The player's planets are no offense target during the opening grace (opening-grace.ts).
+      if (this.openingGrace.spares(faction, p.factionId)) return false;
       return canAttackPlanetOf(faction, factions.find((f) => f.id === p.factionId));
     }).length;
     const surplus = ownStrength > 0 ? Math.max(0, (ownStrength - 1.5 * threat) / ownStrength) : 0;

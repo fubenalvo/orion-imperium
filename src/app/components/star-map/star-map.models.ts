@@ -106,6 +106,12 @@ export type AiDifficulty = 'easy' | 'normal' | 'hard';
 export type AiPersonality = 'balanced' | 'expansionist' | 'militarist' | 'technologist';
 
 export interface Faction {
+  /*
+   * Outlaw (the pirate incursion faction, pirate-incursion.ts): always at
+   * war with everyone, outside diplomacy (team 0, no relations), never
+   * owns planets or territory and never counts for victory or defeat.
+   */
+  outlaw?: boolean;
   id: string;
   name: string;
   color: string;
@@ -710,6 +716,8 @@ export interface StarMapData {
    * AI's civilization assault gate) survive loads. Missing = 0 (older saves).
    */
   gameSeconds?: number;
+  /* Pirate incursion event state (pirate-incursion.ts); missing = quiet, nothing happened yet. */
+  pirates?: import('./pirate-incursion').PirateIncursionState;
 }
 
 /* ---------- Civilian trade network (trade-network.ts) ---------- */
