@@ -5,9 +5,15 @@
    RESEARCH SCREEN
    ---------------------------------------------------------
    Full-screen dialog: a fixed header (points, progress,
-   filters) over a scrolling body of tier rows. Each card's
-   left stripe carries its status: success = researched,
-   accent = available, faint = locked.
+   filters) over the tech board and the detail console.
+   The board is a blueprint grid with one column per tier
+   (prerequisite depth); each node is an icon tile whose left
+   edge and icon carry its status: success = researched,
+   accent = available, amber + lamp = researchable now,
+   faint = locked. Selecting a node fills the detail console
+   (effects with icons, links, price, RESEARCH) and outlines
+   its prerequisites (cyan dashes) and follow-ups (amber
+   dashes) on the board. The filter dims, never removes.
    ========================================================= */
 
 .research-tree-overlay {
@@ -26,7 +32,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 1320px;
+  max-width: 1560px;
   height: min(92vh, 1100px);
   border-radius: var(--ui-radius);
   @include ui.glass;
@@ -159,253 +165,472 @@
   color: var(--ui-accent);
 }
 
-/* ---------- Body ---------- */
+/* ---------- Tech board + detail console ---------- */
 
-.research-tree__body {
+.rt-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.rt-glyph {
+  flex: 0 0 auto;
+  width: 1.05em;
+  height: 1.05em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rt-main {
+  display: grid;
   flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 360px);
   min-height: 0;
-  padding: clamp(12px, 2vh, 24px) clamp(16px, 2.4vw, 36px) clamp(18px, 3vh, 36px);
-  overflow-y: auto;
+}
+
+/* Blueprint board: faint cyan grid behind the tier columns. */
+.rt-board {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px clamp(14px, 2vw, 26px) 18px;
+  overflow: auto;
+  background:
+    linear-gradient(rgba(var(--ui-accent-rgb), 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.045) 1px, transparent 1px);
+  background-size: 24px 24px;
   @include ui.scroll;
 }
 
-.research-tree__tier + .research-tree__tier {
-  margin-top: clamp(16px, 3vh, 32px);
-}
-
-.research-tree__tier-label {
+.rt-column {
   display: flex;
-  align-items: center;
-  gap: 1em;
-  margin-bottom: 0.8em;
-
-  &::after {
-    content: '';
-    flex: 1 1 auto;
-    height: 1px;
-    @include ui.hairline(90deg, 0.35);
-  }
-}
-
-.research-tree__tier-numeral {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.6em;
-  color: var(--ui-accent);
-  font-size: var(--ui-fs-md);
-  letter-spacing: 0.3em;
-
-  &::before {
-    @include ui.diamond;
-  }
-}
-
-.research-tree__tier-count {
-  color: var(--ui-ink-faint);
-  font-size: var(--ui-fs-xs);
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.research-tree__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-  gap: clamp(8px, 1.2vw, 16px);
-}
-
-.research-tree__empty {
-  padding: 3em 0;
-  color: var(--ui-ink-dim);
-  text-align: center;
-}
-
-/* ---------- Card ---------- */
-
-.research-tree__card {
-  --status-color: var(--ui-ink-faint);
-
-  position: relative;
-  display: flex;
+  flex: 0 0 clamp(168px, 13.5vw, 205px);
   flex-direction: column;
-  gap: 0.55em;
-  padding: 0.95em 1.05em 0.85em 1.2em;
-  border: 1px solid var(--ui-line-soft);
-  border-left: 2px solid var(--status-color);
-  border-radius: var(--ui-radius);
-  background: linear-gradient(160deg, rgba(14, 38, 48, 0.55), rgba(4, 12, 17, 0.6));
-  font-size: var(--ui-fs-sm);
-  transition:
-    border-color 0.2s ease,
-    background 0.2s ease,
-    box-shadow 0.2s ease;
-
-  &--researched {
-    --status-color: var(--ui-success);
-    background: linear-gradient(160deg, rgba(var(--ui-success-rgb), 0.08), rgba(4, 12, 17, 0.6));
-  }
-
-  &--available {
-    --status-color: var(--ui-accent);
-    border-color: var(--ui-line);
-    background: linear-gradient(160deg, rgba(var(--ui-accent-rgb), 0.1), rgba(4, 12, 17, 0.6));
-    box-shadow: 0 0 22px rgba(var(--ui-accent-rgb), 0.06);
-
-    &:hover {
-      border-color: var(--ui-line-strong);
-      box-shadow: 0 0 26px rgba(var(--ui-accent-rgb), 0.14);
-    }
-  }
-
-  &--locked {
-    opacity: 0.62;
-  }
+  gap: 8px;
 }
 
-.research-tree__card-header {
+.rt-column__head {
   display: flex;
-  justify-content: space-between;
   align-items: baseline;
-  gap: 1em;
+  justify-content: space-between;
+  padding: 0 2px 6px;
+  border-bottom: 1px solid rgba(var(--ui-accent-rgb), 0.45);
 }
 
-.research-tree__card-name {
-  color: var(--ui-ink-bright);
-  font-size: var(--ui-fs-md);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+.rt-column__tier {
+  color: var(--ui-accent);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: var(--ui-track-wide);
 }
 
-.research-tree__card-cost {
-  flex: 0 0 auto;
-  color: var(--ui-warm);
+.rt-column__count {
+  color: var(--ui-amber);
   font-size: var(--ui-fs-xs);
   letter-spacing: 0.08em;
 }
 
-.research-tree__card--researched .research-tree__card-cost {
-  color: var(--ui-ink-faint);
+/* Tech node: icon tile + name + price/status. The left edge carries the status color. */
+.rt-node,
+.rt-node:hover:not(:disabled) {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.5em minmax(0, 1fr);
+  align-items: center;
+  justify-content: stretch;
+  gap: 0.6em;
+  width: 100%;
+  min-height: 3.5em;
+  padding: 0.45em 0.55em 0.5em;
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.18);
+  border-left: 3px solid var(--node-color);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(180deg, #072636, #04192a);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  cursor: pointer;
+  transition:
+    opacity 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
 }
 
-/* The part of the price (RP or credits) the faction cannot pay yet. */
-.research-tree__cost--short {
-  color: var(--ui-danger);
+.rt-node {
+  --node-color: var(--ui-accent);
 }
 
-.research-tree__card-desc {
-  color: var(--ui-ink-dim);
-  line-height: 1.35;
+.rt-node:hover:not(:disabled) {
+  border-color: rgba(var(--ui-accent-rgb), 0.55);
+  border-left-color: var(--node-color);
+  background: linear-gradient(180deg, #0b3246, #062236);
 }
 
-/* Mechanical effects are set apart from the flavour description. */
-.research-tree__card-effects {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25em;
-  margin: 0;
-  padding: 0.5em 0.65em;
-  border: 1px solid var(--ui-line-soft);
-  background: var(--ui-surface-sunken);
-  list-style: none;
+.rt-node--researched {
+  --node-color: var(--ui-success);
 }
 
-.research-tree__card-ships {
+.rt-node--locked {
+  --node-color: var(--ui-ink-faint);
+  opacity: 0.6;
+}
+
+/* Researchable right now: amber edge and a lit lamp in the corner. */
+.rt-node--ready {
+  --node-color: var(--ui-amber);
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ui-amber);
+    box-shadow: 0 0 6px var(--ui-amber);
+  }
+}
+
+.rt-node--prereq,
+.rt-node--prereq:hover:not(:disabled) {
+  outline: 1px dashed rgba(var(--ui-accent-rgb), 0.85);
+  outline-offset: 2px;
+}
+
+.rt-node--leads,
+.rt-node--leads:hover:not(:disabled) {
+  outline: 1px dashed rgba(var(--ui-amber-rgb), 0.8);
+  outline-offset: 2px;
+}
+
+.rt-node--selected,
+.rt-node--selected:hover:not(:disabled) {
+  border-color: var(--ui-accent);
+  border-left-color: var(--node-color);
+  background: linear-gradient(180deg, #0f4058, #082a3e);
+  box-shadow:
+    0 0 0 1px var(--ui-accent),
+    0 0 14px rgba(var(--ui-accent-rgb), 0.35);
+  opacity: 1;
+}
+
+.rt-node--dim {
+  opacity: 0.22;
+}
+
+.rt-node__icon {
+  display: grid;
+  place-items: center;
+  width: 2.5em;
+  height: 2.5em;
+  border: 1px solid color-mix(in srgb, var(--node-color) 55%, transparent);
+  border-radius: 2px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--node-color) 18%, transparent),
+    #000c13 75%
+  );
+  color: var(--node-color);
+
+  svg {
+    width: 1.5em;
+    height: 1.5em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.rt-node__text {
   display: flex;
   flex-direction: column;
   gap: 0.3em;
+  min-width: 0;
+}
+
+.rt-node__name {
+  color: var(--ui-ink-bright);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.rt-node__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em 0.7em;
+  color: var(--ui-ink-dim);
+  font-size: 0.92em;
+}
+
+.rt-glyph--done {
+  color: var(--ui-success);
+}
+
+.rt-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  color: var(--ui-warm);
+}
+
+.rt-price--short {
+  color: var(--ui-danger-text);
+}
+
+/* Banked share of the price, along the node's bottom edge. */
+.rt-node__afford {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgba(0, 0, 0, 0.5);
+
+  span {
+    display: block;
+    height: 100%;
+    background: var(--ui-amber);
+  }
+}
+
+/* Detail console: the selected technology. */
+.rt-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px 18px;
+  overflow-y: auto;
+  border-left: 1px solid var(--ui-line);
+  background:
+    repeating-linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.025) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #001a26, #000f17);
+  @include ui.scroll;
+
+  --node-color: var(--ui-accent);
+}
+
+.rt-detail--researched {
+  --node-color: var(--ui-success);
+}
+
+.rt-detail--locked {
+  --node-color: var(--ui-ink-dim);
+}
+
+.rt-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Large icon in a metal-rimmed porthole. */
+.rt-detail__icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 4.2em;
+  height: 4.2em;
+  border: 3px solid #6c787d;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--node-color) 25%, transparent),
+    #000c13 70%
+  );
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--node-color) 70%, transparent),
+    0 0 16px color-mix(in srgb, var(--node-color) 30%, transparent),
+    0 0 0 1px #2c373c;
+  color: var(--node-color);
+
+  svg {
+    width: 2.2em;
+    height: 2.2em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.rt-detail__title {
+  min-width: 0;
+}
+
+.rt-detail__tier {
+  color: var(--ui-amber);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+}
+
+.rt-detail__name {
+  margin: 0.15em 0 0;
+  color: var(--ui-accent);
+  font-size: var(--ui-fs-lg);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.rt-detail__desc {
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ui-line-soft);
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.45;
+}
+
+.rt-effects,
+.rt-ships {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* Name on its own line, the role line below it: cards are too narrow for both side by side. */
-.research-tree__card-ship {
+.rt-effect {
+  display: flex;
+  align-items: center;
+  gap: 0.65em;
+  padding: 0.45em 0.6em;
+  border-left: 2px solid var(--ui-accent);
+  background: var(--ui-surface-raised);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.3;
+}
+
+.rt-effect__icon {
+  flex: 0 0 auto;
+  width: 1.35em;
+  height: 1.35em;
+  fill: none;
+  stroke: var(--ui-accent);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rt-ship {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.2em;
-  font-size: var(--ui-fs-xs);
+  gap: 3px;
+  padding: 0.4em 0.6em;
+  border: 1px solid var(--ui-line-soft);
 }
 
-.research-tree__card-ship-name {
-  color: var(--ui-ink);
-  letter-spacing: 0.1em;
+.rt-ship__name {
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-sm);
   text-transform: uppercase;
 }
 
-.research-tree__card-effect {
-  display: flex;
-  align-items: baseline;
-  gap: 0.55em;
-  color: var(--ui-ink);
-  font-size: var(--ui-fs-xs);
-  line-height: 1.3;
-
-  &::before {
-    content: '';
-    flex: 0 0 auto;
-    width: 0.32em;
-    height: 0.32em;
-    margin-top: 0.35em;
-    background: var(--status-color);
-    transform: rotate(45deg);
-  }
-}
-
-.research-tree__card-prereqs,
-.research-tree__card-leads {
+.rt-links {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35em;
-  color: var(--ui-ink-dim);
-  font-size: var(--ui-fs-xs);
-  line-height: 1.3;
+  gap: 6px;
 }
 
-.research-tree__card-prereqs-label {
-  margin-right: 0.3em;
-  color: var(--ui-ink-faint);
-  letter-spacing: 0.16em;
+.rt-links__label {
+  flex: 1 0 100%;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
   text-transform: uppercase;
 }
 
-.research-tree__card-prereq {
-  @include ui.chip(var(--ui-ink-dim));
+.rt-link,
+.rt-link:hover:not(:disabled) {
+  display: inline-flex;
+  gap: 0.4em;
+  min-height: 0;
+  padding: 0.35em 0.6em;
+  border-left: 2px solid var(--link-color, var(--ui-accent));
+  font-size: var(--ui-fs-xs);
   letter-spacing: 0.04em;
+  text-transform: none;
 }
 
-.research-tree__card-blocker {
+.rt-link--researched {
+  --link-color: var(--ui-success);
+}
+
+.rt-link--locked {
+  --link-color: var(--ui-ink-faint);
+}
+
+.rt-link--next {
+  --link-color: var(--ui-amber);
+}
+
+.rt-detail__buy {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--ui-line);
+}
+
+.rt-cost {
+  display: flex;
+  justify-content: space-around;
+  gap: 12px;
+}
+
+.rt-cost__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--ui-warm);
+  font-size: var(--ui-fs-lg);
+  letter-spacing: 0.06em;
+}
+
+.rt-detail__afford {
+  --meter-color: var(--ui-amber);
+}
+
+.rt-detail__blocker {
   color: var(--ui-warning);
   font-size: var(--ui-fs-xs);
-  line-height: 1.3;
+  line-height: 1.4;
 }
 
-.research-tree__card-footer {
+.rt-detail__btn {
+  width: 100%;
+  min-height: 2.8em;
+  font-size: var(--ui-fs-md);
+  letter-spacing: 0.3em;
+}
+
+.rt-detail__done {
   display: flex;
   align-items: center;
-  gap: 0.8em;
-  margin-top: auto;
-  padding-top: 0.6em;
-  border-top: 1px solid var(--ui-line-soft);
-}
-
-.research-tree__status-badge {
-  @include ui.chip(var(--status-color));
-}
-
-.research-tree__card--locked .research-tree__status-badge {
-  @include ui.chip(var(--ui-ink-dim));
-}
-
-.research-tree__afford {
-  flex: 1 1 auto;
-}
-
-/* Look from the global button + .btn-primary (template). */
-.research-tree__btn {
-  @include ui.button-size(sm);
-  margin-left: auto;
-  letter-spacing: 0.2em;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 0.6em;
+  border: 1px solid rgba(var(--ui-success-rgb), 0.5);
+  color: var(--ui-success);
+  letter-spacing: 0.24em;
 }
 
 /* ---------- Narrow screens ---------- */
@@ -424,6 +649,17 @@
   .research-tree__filters {
     overflow-x: auto;
   }
+
+  /* Board on top, detail console below it. */
+  .rt-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 46%);
+  }
+
+  .rt-detail {
+    border-top: 1px solid var(--ui-line);
+    border-left: 0;
+  }
 }
 
 @media (max-width: 768px) {
@@ -433,9 +669,5 @@
 
   .research-tree-panel {
     height: 96dvh;
-  }
-
-  .research-tree__grid {
-    grid-template-columns: 1fr;
   }
 }

@@ -44,6 +44,7 @@
 
 .diplomacy__eyebrow {
   display: block;
+  white-space: nowrap;
   color: var(--ui-accent-text);
   font-size: var(--ui-fs-xs);
   letter-spacing: 0.3em;
@@ -129,30 +130,202 @@
   text-transform: uppercase;
 }
 
-/* Attitude / fleet / planets / exhaustion in one glanceable row. */
-.diplomacy__facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 28px;
+/* ---------- Gauges: icon + bar + short word (numbers in tooltips) ---------- */
+
+.diplomacy__sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
-.diplomacy__fact {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: var(--ui-ink-bright);
-  font-size: var(--ui-fs-md);
+.diplomacy__icon,
+.diplomacy__chip-icon {
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
-  &[title] {
-    cursor: help;
+.diplomacy__icon {
+  width: 1.35em;
+  height: 1.35em;
+  color: var(--ui-accent);
+}
+
+.diplomacy__chip-icon {
+  width: 1.15em;
+  height: 1.15em;
+}
+
+.diplomacy__gauges {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px 10px;
+}
+
+.diplomacy__gauge {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 0;
+  padding: 0.45em 0.65em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-sunken);
+  font-size: var(--ui-fs-sm);
+  cursor: help;
+}
+
+.diplomacy__gauge--wide {
+  grid-column: 1 / -1;
+}
+
+.diplomacy__gauge-word {
+  flex: 0 0 auto;
+  min-width: 5.5em;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track);
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.diplomacy__count {
+  color: var(--ui-accent);
+  font-size: var(--ui-fs-md);
+}
+
+/* Two-way bar: centre tick, red fill to the left, green to the right. */
+.diplomacy__bipolar {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 3em;
+  height: 8px;
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.2);
+  background: #000c13;
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    bottom: -3px;
+    width: 1px;
+    background: var(--ui-ink-dim);
   }
 }
 
-.diplomacy__fact-label {
-  color: var(--ui-ink-dim);
-  font-size: var(--ui-fs-xs);
-  letter-spacing: var(--ui-track-wide);
-  text-transform: uppercase;
+.diplomacy__bipolar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, rgba(var(--ui-success-rgb), 0.45), var(--ui-success));
+}
+
+.diplomacy__bipolar-fill--negative {
+  background: linear-gradient(90deg, var(--ui-danger), rgba(var(--ui-danger-rgb), 0.45));
+}
+
+/* Fleet strength: three segments, lit up to theirs vs yours. */
+.diplomacy__segments {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 3px;
+
+  i {
+    flex: 1;
+    height: 8px;
+    border: 1px solid rgba(var(--ui-accent-rgb), 0.2);
+    background: #000c13;
+  }
+}
+
+.diplomacy__segments--weaker i:nth-child(-n + 1),
+.diplomacy__segments--comparable i:nth-child(-n + 2),
+.diplomacy__segments--stronger i:nth-child(-n + 3) {
+  border-color: transparent;
+  background: var(--seg-color);
+}
+
+.diplomacy__segments--weaker {
+  --seg-color: var(--ui-success);
+}
+
+.diplomacy__segments--comparable {
+  --seg-color: var(--ui-amber);
+}
+
+.diplomacy__segments--stronger {
+  --seg-color: var(--ui-danger);
+}
+
+/* War exhaustion slider: amber to red fill, a knob at the value and a tick
+   at 25 where the output penalty starts (docs/diplomacy.md). */
+.diplomacy__slider {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 4em;
+  height: 8px;
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.2);
+  background:
+    linear-gradient(90deg, transparent calc(25% - 1px), rgba(191, 226, 234, 0.55) calc(25% - 1px) 25%, transparent 25%),
+    #000c13;
+}
+
+.diplomacy__slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, var(--ui-amber), var(--ui-danger));
+
+  &::after {
+    content: '';
+    position: absolute;
+    right: -4px;
+    top: -4px;
+    width: 6px;
+    height: 14px;
+    border: 1px solid #1b252a;
+    border-radius: 1px;
+    background: linear-gradient(180deg, #d0d8db, #6c787d);
+  }
+}
+
+.diplomacy__wars {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--ui-danger-text);
+  font-size: var(--ui-fs-md);
+
+  .diplomacy__icon {
+    color: var(--ui-danger-text);
+  }
+}
+
+.diplomacy__duel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.diplomacy__duel-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+
+  b {
+    flex: 0 0 3.2em;
+    color: var(--ui-ink-dim);
+    font-size: var(--ui-fs-xs);
+    font-weight: 400;
+    letter-spacing: var(--ui-track-wide);
+  }
 }
 
 .diplomacy__aside {
@@ -230,7 +403,11 @@
 
 .diplomacy__summary {
   display: flex;
-  gap: clamp(14px, 2.4vw, 32px);
+  gap: 10px;
+
+  .diplomacy__gauge {
+    width: clamp(170px, 18vw, 230px);
+  }
 }
 
 .diplomacy__value--danger,
@@ -321,7 +498,7 @@
 }
 
 @media (max-width: 760px) {
-  .diplomacy__summary .ui-figure:last-child {
+  .diplomacy__summary .diplomacy__gauge:last-child:not(:first-child) {
     display: none;
   }
 }

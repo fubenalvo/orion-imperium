@@ -1,5 +1,46 @@
 <div class="diplomacy-overlay" (click)="close.emit()">
-  <div class="diplomacy-panel" role="dialog" aria-modal="true" aria-labelledby="diplomacy-title" (click)="$event.stopPropagation()">
+  <div
+    class="diplomacy-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="diplomacy-title"
+    (click)="$event.stopPropagation()"
+  >
+    <!-- Icon sprite for this screen (stroke icons, referenced with <use>). -->
+    <svg class="diplomacy__sprite" aria-hidden="true">
+      <symbol id="dip-attitude" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9 10h.01M15 10h.01M8.5 14.5c1.9 1.7 5.1 1.7 7 0" />
+      </symbol>
+      <symbol id="dip-reputation" viewBox="0 0 24 24">
+        <path d="M12 2.8 19.5 6v6c0 4.6-3.1 7.7-7.5 9.2C7.6 19.7 4.5 16.6 4.5 12V6Z" />
+        <path d="m8.6 12 2.4 2.4 4.4-4.6" />
+      </symbol>
+      <symbol id="dip-fleet" viewBox="0 0 24 24">
+        <path d="M12 2.5 19.5 21 12 16.5 4.5 21Z" />
+        <path d="M12 7.5v8" />
+      </symbol>
+      <symbol id="dip-planet" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="6" />
+        <ellipse cx="12" cy="12" rx="10.5" ry="3.6" transform="rotate(-20 12 12)" />
+      </symbol>
+      <symbol id="dip-exhaustion" viewBox="0 0 24 24">
+        <rect x="2.5" y="7" width="17" height="10" rx="1.5" />
+        <path d="M21.5 10.5v3M5.5 10v4" />
+      </symbol>
+      <symbol id="dip-war" viewBox="0 0 24 24">
+        <path d="M4 4l12 12M20 4 8 16M13.5 18.5l4-4M10.5 18.5l-4-4M17.5 18.5l2 2M6.5 18.5l-2 2" />
+      </symbol>
+      <symbol id="dip-truce" viewBox="0 0 24 24">
+        <path d="M6.5 3h11M6.5 21h11M8 3c0 5.5 8 6 8 9s-8 3.5-8 9M16 3c0 5.5-8 6-8 9s8 3.5 8 9" />
+      </symbol>
+      <symbol id="dip-peace" viewBox="0 0 24 24">
+        <path d="M1.5 10.5 5.5 6.5l4 1.6 3.2-1.6h3.6l6.2 4" />
+        <path d="M5.5 6.5 3.8 13.5l5.4 5.2 1.6-1.4 1.6 1.4 1.6-1.4 1.6 1.2 4.6-4.6 2-3.4" />
+        <path d="M12.7 6.5 8.6 10.3l1.4 1.3 3.2-1.8 4.6 4.2" />
+      </symbol>
+    </svg>
+
     <header class="diplomacy__header">
       <div class="diplomacy__heading">
         <span class="diplomacy__eyebrow">Imperial Foreign Office</span>
@@ -7,21 +48,66 @@
       </div>
       @if (summary) {
         <div class="diplomacy__summary">
-          <div class="ui-figure" [title]="'Reputation ' + signed(summary.reputation) + ': how far every empire trusts your word'">
-            <span class="ui-figure__value" [class]="'diplomacy__tone--' + tone(summary.reputation)">{{ reputationWord(summary.reputation) }}</span>
-            <span class="ui-figure__caption">Your reputation</span>
+          <div
+            class="diplomacy__gauge"
+            [title]="
+              'Your reputation: ' +
+              reputationWord(summary.reputation) +
+              ' (' +
+              signed(summary.reputation) +
+              '). How far every empire trusts your word.'
+            "
+          >
+            <svg class="diplomacy__icon"><use href="#dip-reputation" /></svg>
+            <span class="diplomacy__bipolar" aria-hidden="true">
+              <span
+                class="diplomacy__bipolar-fill"
+                [class.diplomacy__bipolar-fill--negative]="summary.reputation < 0"
+                [style.left.%]="bipolarLeft(summary.reputation)"
+                [style.width.%]="bipolarWidth(summary.reputation)"
+              ></span>
+            </span>
+            <span
+              class="diplomacy__gauge-word"
+              [class]="'diplomacy__tone--' + tone(summary.reputation)"
+              >{{ reputationWord(summary.reputation) }}</span
+            >
           </div>
           @if (summary.warCount > 0 || summary.penaltyPercent > 0) {
-            <div class="ui-figure" [title]="'War exhaustion ' + summary.exhaustion + ' of 100. Above 25 it cuts your output.'">
-              <span class="ui-figure__value diplomacy__tone--danger">{{ summary.warCount === 1 ? '1 war' : summary.warCount + ' wars' }}</span>
-              <span class="ui-figure__caption">{{
-                summary.penaltyPercent > 0 ? 'Exhaustion · −' + summary.penaltyPercent + '% output' : 'Exhaustion · ' + exhaustionWord(summary.exhaustion)
-              }}</span>
+            <div
+              class="diplomacy__gauge"
+              [title]="
+                'Your war exhaustion: ' +
+                summary.exhaustion +
+                ' of 100. Above 25 it cuts your output' +
+                (summary.penaltyPercent > 0 ? ' (now −' + summary.penaltyPercent + '%)' : '') +
+                '.'
+              "
+            >
+              <span class="diplomacy__wars"
+                ><svg class="diplomacy__icon"><use href="#dip-war" /></svg
+                >{{ summary.warCount }}</span
+              >
+              <span class="diplomacy__slider" aria-hidden="true">
+                <span class="diplomacy__slider-fill" [style.width.%]="summary.exhaustion"></span>
+              </span>
+              @if (summary.penaltyPercent > 0) {
+                <span class="diplomacy__gauge-word diplomacy__tone--danger"
+                  >−{{ summary.penaltyPercent }}%</span
+                >
+              }
             </div>
           }
         </div>
       }
-      <button class="diplomacy__close-btn" type="button" (click)="close.emit()" aria-label="Close diplomacy">CLOSE</button>
+      <button
+        class="diplomacy__close-btn"
+        type="button"
+        (click)="close.emit()"
+        aria-label="Close diplomacy"
+      >
+        CLOSE
+      </button>
     </header>
 
     @if (message) {
@@ -44,40 +130,109 @@
               <span
                 class="ui-chip ui-chip--warning"
                 title="Warlike: rarely makes peace unless losing or exhausted, and looks for a new war soon after every truce. Only a clearly stronger empire or a close friend is spared."
-              >WARLIKE</span>
+                >WARLIKE</span
+              >
             }
             @if (!row.alive) {
               <span class="ui-chip ui-chip--muted">ELIMINATED</span>
             } @else if (row.state === 'war') {
-              <span class="ui-chip ui-chip--danger" title="Duration of the war in game time">AT WAR · {{ row.warDurationLabel }}</span>
+              <span class="ui-chip ui-chip--danger" title="At war. Duration in game time."
+                ><svg class="diplomacy__chip-icon"><use href="#dip-war" /></svg
+                >{{ row.warDurationLabel }}</span
+              >
             } @else if (row.truceSecondsLeft > 0) {
-              <span class="ui-chip ui-chip--warning" title="Truce time left (game time)">TRUCE · {{ row.truceLeftLabel }} LEFT</span>
+              <span class="ui-chip ui-chip--warning" title="Truce: time left in game time"
+                ><svg class="diplomacy__chip-icon"><use href="#dip-truce" /></svg
+                >{{ row.truceLeftLabel }}</span
+              >
             } @else {
-              <span class="ui-chip ui-chip--success">AT PEACE</span>
+              <span class="ui-chip ui-chip--success" title="At peace"
+                ><svg class="diplomacy__chip-icon"><use href="#dip-peace" /></svg>PEACE</span
+              >
             }
           </div>
 
           @if (row.alive) {
-            <div class="diplomacy__facts">
-              <span class="diplomacy__fact" [title]="'Their opinion of you: ' + signed(row.opinionOfYou)">
-                <span class="diplomacy__fact-label">Attitude</span>
-                <span [class]="'diplomacy__tone--' + tone(row.opinionOfYou)">{{ opinionWord(row.opinionOfYou) }}</span>
-              </span>
-              <span class="diplomacy__fact" title="Their fleet strength compared with yours">
-                <span class="diplomacy__fact-label">Fleet</span>
-                <span [class.diplomacy__tone--danger]="row.strength === 'stronger'" [class.diplomacy__tone--positive]="row.strength === 'weaker'">{{
-                  strengthLabels[row.strength]
-                }}</span>
-              </span>
-              <span class="diplomacy__fact">
-                <span class="diplomacy__fact-label">Planets</span>
-                <span>{{ row.planets }}</span>
-              </span>
-              @if (row.state === 'war') {
-                <span class="diplomacy__fact" [title]="'War exhaustion · you ' + row.yourExhaustion + ' / them ' + row.theirExhaustion">
-                  <span class="diplomacy__fact-label">Exhaustion</span>
-                  <span>You {{ exhaustionWord(row.yourExhaustion) }} · them {{ exhaustionWord(row.theirExhaustion) }}</span>
+            <!-- Gauges instead of prose: icon + bar, the word or number beside it, exact values in tooltips. -->
+            <div class="diplomacy__gauges">
+              <div
+                class="diplomacy__gauge"
+                [title]="
+                  'Their attitude toward you: ' +
+                  opinionWord(row.opinionOfYou) +
+                  ' (' +
+                  signed(row.opinionOfYou) +
+                  ')'
+                "
+              >
+                <svg class="diplomacy__icon"><use href="#dip-attitude" /></svg>
+                <span class="diplomacy__bipolar" aria-hidden="true">
+                  <span
+                    class="diplomacy__bipolar-fill"
+                    [class.diplomacy__bipolar-fill--negative]="row.opinionOfYou < 0"
+                    [style.left.%]="bipolarLeft(row.opinionOfYou)"
+                    [style.width.%]="bipolarWidth(row.opinionOfYou)"
+                  ></span>
                 </span>
+                <span
+                  class="diplomacy__gauge-word"
+                  [class]="'diplomacy__tone--' + tone(row.opinionOfYou)"
+                  >{{ opinionWord(row.opinionOfYou) }}</span
+                >
+              </div>
+              <div
+                class="diplomacy__gauge"
+                [title]="'Their fleet compared with yours: ' + strengthLabels[row.strength]"
+              >
+                <svg class="diplomacy__icon"><use href="#dip-fleet" /></svg>
+                <span
+                  class="diplomacy__segments"
+                  [class]="'diplomacy__segments diplomacy__segments--' + row.strength"
+                  aria-hidden="true"
+                  ><i></i><i></i><i></i
+                ></span>
+                <span
+                  class="diplomacy__gauge-word"
+                  [class.diplomacy__tone--danger]="row.strength === 'stronger'"
+                  [class.diplomacy__tone--positive]="row.strength === 'weaker'"
+                  >{{ strengthLabels[row.strength] }}</span
+                >
+              </div>
+              <div class="diplomacy__gauge diplomacy__gauge--compact" title="Planets they own">
+                <svg class="diplomacy__icon"><use href="#dip-planet" /></svg>
+                <span class="diplomacy__count">{{ row.planets }}</span>
+              </div>
+              @if (row.state === 'war') {
+                <div
+                  class="diplomacy__gauge diplomacy__gauge--wide"
+                  [title]="
+                    'War exhaustion: you ' +
+                    row.yourExhaustion +
+                    ', them ' +
+                    row.theirExhaustion +
+                    ' (of 100). Above 25 it cuts output; the more exhausted side is likelier to accept peace.'
+                  "
+                >
+                  <svg class="diplomacy__icon"><use href="#dip-exhaustion" /></svg>
+                  <span class="diplomacy__duel">
+                    <span class="diplomacy__duel-row"
+                      ><b>YOU</b
+                      ><span class="diplomacy__slider"
+                        ><span
+                          class="diplomacy__slider-fill"
+                          [style.width.%]="row.yourExhaustion"
+                        ></span></span
+                    ></span>
+                    <span class="diplomacy__duel-row"
+                      ><b>THEM</b
+                      ><span class="diplomacy__slider"
+                        ><span
+                          class="diplomacy__slider-fill"
+                          [style.width.%]="row.theirExhaustion"
+                        ></span></span
+                    ></span>
+                  </span>
+                </div>
               }
             </div>
             @if (row.atWarWith.length) {
@@ -87,7 +242,10 @@
             @if (row.offer) {
               <div class="ui-notice ui-notice--success diplomacy__offer">
                 <div>
-                  <strong>{{ row.name }} proposes peace</strong> ({{ row.offer.timeLeftLabel }} left):
+                  <strong>{{ row.name }} proposes peace</strong> ({{
+                    row.offer.timeLeftLabel
+                  }}
+                  left):
                   <ul class="diplomacy__terms">
                     @for (line of row.offer.summary; track $index) {
                       <li>{{ line }}</li>
@@ -95,7 +253,9 @@
                   </ul>
                 </div>
                 <span class="diplomacy__actions">
-                  <button class="btn-primary" type="button" (click)="negotiate.emit(row.id)">REVIEW</button>
+                  <button class="btn-primary" type="button" (click)="negotiate.emit(row.id)">
+                    REVIEW
+                  </button>
                   <button type="button" (click)="declineOffer.emit(row.id)">DECLINE</button>
                 </span>
               </div>
@@ -109,7 +269,10 @@
                 role="alert"
               >
                 <div class="diplomacy__demand-text">
-                  <strong>{{ demand.kindLabel }} · {{ credits(demand.amount) }} credits</strong> ({{ demand.timeLeftLabel }} left)
+                  <strong>{{ demand.kindLabel }} · {{ credits(demand.amount) }} credits</strong> ({{
+                    demand.timeLeftLabel
+                  }}
+                  left)
                   <q class="diplomacy__demand-quote">{{ demand.message }}</q>
                   <span>{{ demand.consequence }}</span>
                   @if (!demand.affordable) {
@@ -117,7 +280,14 @@
                   }
                 </div>
                 <span class="diplomacy__actions">
-                  <button class="btn-primary" type="button" [disabled]="!demand.affordable" (click)="acceptDemand.emit(demand.id)">ACCEPT</button>
+                  <button
+                    class="btn-primary"
+                    type="button"
+                    [disabled]="!demand.affordable"
+                    (click)="acceptDemand.emit(demand.id)"
+                  >
+                    ACCEPT
+                  </button>
                   <button type="button" (click)="declineDemand.emit(demand.id)">DECLINE</button>
                 </span>
               </div>
@@ -126,11 +296,24 @@
             @if (row.followThrough; as follow) {
               <div class="ui-notice ui-notice--danger diplomacy__demand" role="alert">
                 <div class="diplomacy__demand-text">
-                  <strong>{{ row.name }} rejected your ultimatum</strong> ({{ credits(follow.amount) }} credits, {{ follow.timeLeftLabel }} left to decide)
-                  <span>Enforce it with war, or back down: reputation {{ backDownPenalty }} and your threats lose credibility. Doing nothing counts as backing down.</span>
+                  <strong>{{ row.name }} rejected your ultimatum</strong> ({{
+                    credits(follow.amount)
+                  }}
+                  credits, {{ follow.timeLeftLabel }} left to decide)
+                  <span
+                    >Enforce it with war, or back down: reputation {{ backDownPenalty }} and your
+                    threats lose credibility. Doing nothing counts as backing down.</span
+                  >
                 </div>
                 <span class="diplomacy__actions">
-                  <button class="btn-danger" type="button" [disabled]="!follow.canDeclareWar" (click)="carryOutThreat.emit(follow.id)">DECLARE WAR</button>
+                  <button
+                    class="btn-danger"
+                    type="button"
+                    [disabled]="!follow.canDeclareWar"
+                    (click)="carryOutThreat.emit(follow.id)"
+                  >
+                    DECLARE WAR
+                  </button>
                   <button type="button" (click)="backDownThreat.emit(follow.id)">BACK DOWN</button>
                 </span>
               </div>
@@ -146,13 +329,24 @@
                       [attr.aria-checked]="form.kind === kind"
                       [class.is-selected]="form.kind === kind"
                       [disabled]="kind === 'threat' && !row.demandOptions.threatAllowed"
-                      [title]="kind === 'threat' && !row.demandOptions.threatAllowed ? 'No ultimatum during a truce' : ''"
+                      [title]="
+                        kind === 'threat' && !row.demandOptions.threatAllowed
+                          ? 'No ultimatum during a truce'
+                          : ''
+                      "
                       (click)="setDemandKind(kind)"
-                    >{{ demandKindLabels[kind] }}</button>
+                    >
+                      {{ demandKindLabels[kind] }}
+                    </button>
                   }
                 </div>
                 <label class="diplomacy__demand-amount">
-                  <span>Credits <span class="diplomacy__dim">(they hold {{ credits(row.demandOptions.maxAmount) }})</span></span>
+                  <span
+                    >Credits
+                    <span class="diplomacy__dim"
+                      >(they hold {{ credits(row.demandOptions.maxAmount) }})</span
+                    ></span
+                  >
                   <input
                     type="number"
                     step="50"
@@ -162,14 +356,21 @@
                     (change)="setDemandAmount(row, $any($event.target).value)"
                   />
                 </label>
-                <p class="diplomacy__demand-consequence" [class.diplomacy__value--danger]="form.kind === 'threat'">{{ demandOutgoingConsequence[form.kind] }}</p>
+                <p
+                  class="diplomacy__demand-consequence"
+                  [class.diplomacy__value--danger]="form.kind === 'threat'"
+                >
+                  {{ demandOutgoingConsequence[form.kind] }}
+                </p>
                 <span class="diplomacy__actions">
                   <button
                     type="button"
                     [class.btn-primary]="form.kind !== 'threat'"
                     [class.btn-danger]="form.kind === 'threat'"
                     (click)="submitDemand(row)"
-                  >{{ form.kind === 'threat' ? 'SEND ULTIMATUM' : 'SEND DEMAND' }}</button>
+                  >
+                    {{ form.kind === 'threat' ? 'SEND ULTIMATUM' : 'SEND DEMAND' }}
+                  </button>
                   <button type="button" (click)="demandForm = null">CANCEL</button>
                 </span>
               </div>
@@ -177,9 +378,13 @@
 
             @if (isConfirming(row.id, 'war') || isConfirming(row.id, 'breach')) {
               <div class="ui-notice ui-notice--danger diplomacy__confirm" role="alert">
-                <span>{{ consequenceFor(row, isConfirming(row.id, 'war') ? 'war' : 'breach') }}</span>
+                <span>{{
+                  consequenceFor(row, isConfirming(row.id, 'war') ? 'war' : 'breach')
+                }}</span>
                 <span class="diplomacy__actions">
-                  <button class="btn-danger" type="button" (click)="confirm()">{{ isConfirming(row.id, 'war') ? 'CONFIRM WAR' : 'BREAK TREATY' }}</button>
+                  <button class="btn-danger" type="button" (click)="confirm()">
+                    {{ isConfirming(row.id, 'war') ? 'CONFIRM WAR' : 'BREAK TREATY' }}
+                  </button>
                   <button type="button" (click)="confirming = null">CANCEL</button>
                 </span>
               </div>
@@ -198,20 +403,37 @@
                     [disabled]="!row.demandOptions.available || isDemandFormOpen(row.id)"
                     [title]="row.demandOptions.reason ?? ''"
                     (click)="openDemandForm(row)"
-                  >DEMAND CREDITS…</button>
+                  >
+                    DEMAND CREDITS…
+                  </button>
                 }
                 @if (row.state === 'war') {
-                  <button class="btn-primary" type="button" [disabled]="!row.canNegotiate" (click)="negotiate.emit(row.id)">NEGOTIATE PEACE</button>
+                  <button
+                    class="btn-primary"
+                    type="button"
+                    [disabled]="!row.canNegotiate"
+                    (click)="negotiate.emit(row.id)"
+                  >
+                    NEGOTIATE PEACE
+                  </button>
                 } @else if (row.canBreakTreaty) {
-                  <button class="btn-danger" type="button" (click)="ask(row.id, 'breach')">BREAK TREATY…</button>
+                  <button class="btn-danger" type="button" (click)="ask(row.id, 'breach')">
+                    BREAK TREATY…
+                  </button>
                 } @else {
                   <button
                     class="btn-danger"
                     type="button"
                     [disabled]="!row.canDeclareWar"
-                    [title]="row.truceSecondsLeft > 0 ? 'Truce: no war declaration for ' + row.truceLeftLabel : ''"
+                    [title]="
+                      row.truceSecondsLeft > 0
+                        ? 'Truce: no war declaration for ' + row.truceLeftLabel
+                        : ''
+                    "
                     (click)="ask(row.id, 'war')"
-                  >DECLARE WAR…</button>
+                  >
+                    DECLARE WAR…
+                  </button>
                 }
               </span>
             </div>
@@ -225,9 +447,11 @@
     <details class="diplomacy__hint">
       <summary>How diplomacy works</summary>
       <p>
-        All times are game time: they stop while the game is paused and run faster at 3x. Peace is permanent; after a treaty a {{ truceLabel }} truce forbids war declarations.
-        War exhaustion above 25 cuts credit, raw material and research output (up to 30%) and resets when peace is signed.
-        You also win if every surviving empire is at peace with you, no rebel planet remains and you hold more than half of the inhabited planets.
+        All times are game time: they stop while the game is paused and run faster at 3x. Peace is
+        permanent; after a treaty a {{ truceLabel }} truce forbids war declarations. War exhaustion
+        above 25 cuts credit, raw material and research output (up to 30%) and resets when peace is
+        signed. You also win if every surviving empire is at peace with you, no rebel planet remains
+        and you hold more than half of the inhabited planets.
       </p>
     </details>
   </div>

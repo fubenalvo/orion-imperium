@@ -24,11 +24,13 @@ import { DYSON_CASUS_BELLI_ANCHORS } from '../dyson-anchor';
 export type { DiplomacyRowVm } from '../star-map-diplomacy-vm';
 
 /*
- * Diplomacy screen: one card per other empire with the relation, a short
- * row of facts (attitude, fleet, planets, war exhaustion) and the
- * available actions. Values are shown as words ("Friendly", "Weary");
- * the exact numbers stay in tooltips, so the screen reads like a game
- * panel rather than a table. Eliminated empires sink to the bottom. Pure view: it only emits the player's choices; the
+ * Diplomacy screen: one card per other empire with the relation (icon
+ * chip), a row of gauges and the available actions. Gauges are icon + bar:
+ * attitude and reputation as two-way bars (-100…+100, negative red to the
+ * left), fleet strength as a 3-segment meter, war exhaustion as you / them
+ * sliders with the 25-point penalty threshold marked. A short word sits
+ * beside the bar; the exact numbers stay in tooltips, so the screen reads
+ * like a game panel rather than a table. Eliminated empires sink to the bottom. Pure view: it only emits the player's choices; the
  * rules live in DiplomacyService / EnemyDiplomacyService and the numbers
  * come from star-map-diplomacy-vm.ts (docs/diplomacy.md).
  *
@@ -138,8 +140,14 @@ export class StarMapDiplomacyComponent {
     return value >= 50 ? 'Honourable' : value >= 20 ? 'Trusted' : value > -20 ? 'Neutral' : value > -50 ? 'Doubtful' : 'Treacherous';
   }
 
-  exhaustionWord(value: number): string {
-    return value < 25 ? 'fresh' : value < 50 ? 'tired' : value < 75 ? 'weary' : 'exhausted';
+  /* Two-way bar geometry for a -100…+100 value: the fill grows from the
+     centre, to the right when positive and to the left when negative. */
+  bipolarLeft(value: number): number {
+    return value >= 0 ? 50 : 50 + Math.max(-100, value) / 2;
+  }
+
+  bipolarWidth(value: number): number {
+    return Math.min(100, Math.abs(value)) / 2;
   }
 
   ask(id: string, action: 'war' | 'breach'): void {

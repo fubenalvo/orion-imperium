@@ -1,5 +1,11 @@
 <div class="research-tree-overlay" (click)="onClose()">
-  <div class="research-tree-panel" role="dialog" aria-modal="true" aria-labelledby="research-title" (click)="$event.stopPropagation()">
+  <div
+    class="research-tree-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="research-title"
+    (click)="$event.stopPropagation()"
+  >
     <header class="research-tree__header">
       <div class="research-tree__heading">
         <span class="research-tree__eyebrow">Imperial Science Directorate</span>
@@ -11,7 +17,9 @@
           <img src="icon-research.png" alt="" width="22" height="22" />
           <div class="ui-figure">
             <span class="ui-figure__value">{{ getResearchPoints() | number: '1.0-0' }}</span>
-            <span class="ui-figure__caption">Research points · +{{ researchPerSecond | number: '1.0-1' }}/s</span>
+            <span class="ui-figure__caption"
+              >Research points · +{{ researchPerSecond | number: '1.0-1' }}/s</span
+            >
           </div>
         </div>
 
@@ -29,12 +37,22 @@
             <b>{{ getResearchedCount() }} / {{ getAllTechnologies().length }}</b>
           </div>
           <span class="ui-meter">
-            <span class="ui-meter__fill" [style.width.%]="(getResearchedCount() / getAllTechnologies().length) * 100"></span>
+            <span
+              class="ui-meter__fill"
+              [style.width.%]="(getResearchedCount() / getAllTechnologies().length) * 100"
+            ></span>
           </span>
         </div>
       </div>
 
-      <button class="research-tree__close-btn" type="button" (click)="onClose()" aria-label="Close research">CLOSE</button>
+      <button
+        class="research-tree__close-btn"
+        type="button"
+        (click)="onClose()"
+        aria-label="Close research"
+      >
+        CLOSE
+      </button>
     </header>
 
     <nav class="research-tree__filters" role="tablist" aria-label="Filter technologies">
@@ -53,102 +71,260 @@
       }
     </nav>
 
-    <div class="research-tree__body">
-      @for (group of getTierGroups(); track group.tier) {
-        <section class="research-tree__tier">
-          <div class="research-tree__tier-label">
-            <span class="research-tree__tier-numeral">TIER {{ toRoman(group.tier) }}</span>
-            <span class="research-tree__tier-count">{{ group.researched }} researched</span>
+    <!-- Icon sprite: one stroke icon per TechCategory plus status glyphs (referenced with <use>). -->
+    <svg class="rt-sprite" aria-hidden="true">
+      <symbol id="rt-ships" viewBox="0 0 24 24">
+        <path d="M12 2.5 19.5 21 12 16.5 4.5 21Z" />
+        <path d="M12 7.5v8" />
+      </symbol>
+      <symbol id="rt-weapons" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="7" />
+        <circle cx="12" cy="12" r="2" />
+        <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+      </symbol>
+      <symbol id="rt-shields" viewBox="0 0 24 24">
+        <path d="M12 2.8 19.5 6v6c0 4.6-3.1 7.7-7.5 9.2C7.6 19.7 4.5 16.6 4.5 12V6Z" />
+        <path d="M12 7v10M8 11.5h8" />
+      </symbol>
+      <symbol id="rt-radar" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 12 18.4 5.6M12 7.5a4.5 4.5 0 0 1 4.5 4.5" />
+        <circle cx="12" cy="12" r="1.2" />
+      </symbol>
+      <symbol id="rt-energy" viewBox="0 0 24 24">
+        <path d="M13.5 2 4.5 13.5h6.5L10 22l9.5-12H13Z" />
+      </symbol>
+      <symbol id="rt-science" viewBox="0 0 24 24">
+        <path
+          d="M9 2.5h6M10 2.5v6.8L4.4 19.2A1.6 1.6 0 0 0 5.8 21.5h12.4a1.6 1.6 0 0 0 1.4-2.3L14 9.3V2.5"
+        />
+        <path d="M6.8 15h10.4" />
+      </symbol>
+      <symbol id="rt-industry" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8" stroke-width="2.6" stroke-dasharray="2.6 2.65" />
+        <circle cx="12" cy="12" r="5.4" />
+        <circle cx="12" cy="12" r="1.8" />
+      </symbol>
+      <symbol id="rt-colony" viewBox="0 0 24 24">
+        <path d="M2 21h20M4 21V11h5v10M9 21V5h6v16M15 21v-8h5v8M11.5 8.5h1M11.5 12h1M11.5 15.5h1" />
+      </symbol>
+      <symbol id="rt-station" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3" />
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 3.5V9M12 15v5.5M3.5 12H9M15 12h5.5" />
+      </symbol>
+      <symbol id="rt-stellar" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4.2" />
+        <path
+          d="M12 1.8v3M12 19.2v3M1.8 12h3M19.2 12h3M4.8 4.8l2.1 2.1M17.1 17.1l2.1 2.1M4.8 19.2l2.1-2.1M17.1 6.9l2.1-2.1"
+        />
+      </symbol>
+      <symbol id="rt-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" /></symbol>
+      <symbol id="rt-lock" viewBox="0 0 24 24">
+        <rect x="5" y="10.5" width="14" height="10" rx="1.5" />
+        <path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" />
+      </symbol>
+      <symbol id="rt-rp" viewBox="0 0 24 24">
+        <path
+          d="M9 2.5h6M10 2.5v6.8L4.4 19.2A1.6 1.6 0 0 0 5.8 21.5h12.4a1.6 1.6 0 0 0 1.4-2.3L14 9.3V2.5"
+        />
+      </symbol>
+      <symbol id="rt-cr" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="7" rx="7.5" ry="3" />
+        <path
+          d="M4.5 7v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V7M4.5 12v5c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-5"
+        />
+      </symbol>
+    </svg>
+
+    <div class="rt-main">
+      <!-- TECH BOARD: one column per tier (prerequisite depth), left to right. -->
+      <div class="rt-board" role="list" aria-label="Technologies">
+        @for (group of getTierGroups(); track group.tier) {
+          <section class="rt-column">
+            <div class="rt-column__head">
+              <span class="rt-column__tier">TIER {{ toRoman(group.tier) }}</span>
+              <span class="rt-column__count"
+                >{{ group.researched }}/{{ group.technologies.length }}</span
+              >
+            </div>
+            @for (tech of group.technologies; track tech.id) {
+              <button
+                type="button"
+                role="listitem"
+                class="rt-node"
+                [class]="'rt-node rt-node--' + getStatus(tech.id)"
+                [class.rt-node--ready]="canResearch(tech.id)"
+                [class.rt-node--selected]="selected?.id === tech.id"
+                [class.rt-node--prereq]="isPrerequisiteOfSelected(tech)"
+                [class.rt-node--leads]="isDependentOfSelected(tech)"
+                [class.rt-node--dim]="!matchesFilter(tech)"
+                [title]="tech.name + ' · ' + getStatusLabel(getStatus(tech.id))"
+                (click)="select(tech)"
+              >
+                <span class="rt-node__icon"
+                  ><svg><use [attr.href]="'#rt-' + getCategory(tech)" /></svg
+                ></span>
+                <span class="rt-node__text">
+                  <span class="rt-node__name">{{ tech.name }}</span>
+                  <span class="rt-node__meta">
+                    @switch (getStatus(tech.id)) {
+                      @case ('researched') {
+                        <svg class="rt-glyph rt-glyph--done"><use href="#rt-check" /></svg> DONE
+                      }
+                      @case ('locked') {
+                        <svg class="rt-glyph"><use href="#rt-lock" /></svg> LOCKED
+                      }
+                      @default {
+                        <span
+                          class="rt-price"
+                          [class.rt-price--short]="getResearchPoints() < getCost(tech)"
+                          ><svg class="rt-glyph"><use href="#rt-rp" /></svg
+                          >{{ getCost(tech) | number: '1.0-0' }}</span
+                        >
+                        <span
+                          class="rt-price"
+                          [class.rt-price--short]="getCredits() < getCreditCost(tech)"
+                          ><svg class="rt-glyph"><use href="#rt-cr" /></svg
+                          >{{ getCreditCost(tech) | number: '1.0-0' }}</span
+                        >
+                      }
+                    }
+                  </span>
+                </span>
+                @if (getStatus(tech.id) === 'available' && !canResearch(tech.id)) {
+                  <span class="rt-node__afford" aria-hidden="true"
+                    ><span [style.width.%]="getAffordFraction(tech) * 100"></span
+                  ></span>
+                }
+              </button>
+            }
+          </section>
+        }
+      </div>
+
+      <!-- DETAIL CONSOLE: the selected technology. -->
+      @if (selected; as tech) {
+        <aside
+          class="rt-detail"
+          [class]="'rt-detail rt-detail--' + getStatus(tech.id)"
+          aria-live="polite"
+        >
+          <div class="rt-detail__head">
+            <span class="rt-detail__icon"
+              ><svg><use [attr.href]="'#rt-' + getCategory(tech)" /></svg
+            ></span>
+            <div class="rt-detail__title">
+              <span class="rt-detail__tier"
+                >TIER {{ toRoman(getTier(tech)) }} · {{ getStatusLabel(getStatus(tech.id)) }}</span
+              >
+              <h3 class="rt-detail__name">{{ tech.name }}</h3>
+            </div>
           </div>
 
-          <div class="research-tree__grid">
-            @for (tech of group.technologies; track tech.id) {
-              <article
-                class="research-tree__card"
-                [class.research-tree__card--researched]="getStatus(tech.id) === 'researched'"
-                [class.research-tree__card--available]="getStatus(tech.id) === 'available'"
-                [class.research-tree__card--locked]="getStatus(tech.id) === 'locked'"
+          <p class="rt-detail__desc">{{ tech.description }}</p>
+
+          @if (getEffectRows(tech).length > 0) {
+            <ul class="rt-effects" aria-label="Effects">
+              @for (row of getEffectRows(tech); track $index) {
+                <li class="rt-effect">
+                  <svg class="rt-effect__icon"><use [attr.href]="'#rt-' + row.icon" /></svg>
+                  <span>{{ row.text }}</span>
+                </li>
+              }
+            </ul>
+          }
+
+          @if (getUnlockedCombatShips(tech).length > 0) {
+            <ul class="rt-ships" aria-label="Ship roles">
+              @for (ship of getUnlockedCombatShips(tech); track ship.id) {
+                <li class="rt-ship">
+                  <span class="rt-ship__name">{{ ship.name }}</span>
+                  <app-hull-role [shipType]="ship" [compact]="true"></app-hull-role>
+                </li>
+              }
+            </ul>
+          }
+
+          @if (getPrerequisites(tech).length > 0) {
+            <div class="rt-links">
+              <span class="rt-links__label">Requires</span>
+              @for (pre of getPrerequisites(tech); track pre.id) {
+                <button
+                  type="button"
+                  class="rt-link"
+                  [class]="'rt-link rt-link--' + getStatus(pre.id)"
+                  (click)="select(pre)"
+                >
+                  <svg class="rt-glyph"><use [attr.href]="'#rt-' + getCategory(pre)" /></svg
+                  >{{ pre.name }}
+                </button>
+              }
+            </div>
+          }
+          @if (getDependents(tech).length > 0) {
+            <div class="rt-links">
+              <span class="rt-links__label">Leads to</span>
+              @for (next of getDependents(tech); track next.id) {
+                <button type="button" class="rt-link rt-link--next" (click)="select(next)">
+                  <svg class="rt-glyph"><use [attr.href]="'#rt-' + getCategory(next)" /></svg
+                  >{{ next.name }}
+                </button>
+              }
+            </div>
+          }
+
+          <div class="rt-detail__buy">
+            @if (getStatus(tech.id) === 'researched') {
+              <div class="rt-detail__done">
+                <svg class="rt-glyph"><use href="#rt-check" /></svg> RESEARCHED
+              </div>
+            } @else {
+              <div class="rt-cost">
+                <span
+                  class="rt-cost__item"
+                  [class.rt-price--short]="getResearchPoints() < getCost(tech)"
+                  title="Research points"
+                >
+                  <svg class="rt-glyph"><use href="#rt-rp" /></svg
+                  >{{ getCost(tech) | number: '1.0-0' }}
+                </span>
+                <span
+                  class="rt-cost__item"
+                  [class.rt-price--short]="getCredits() < getCreditCost(tech)"
+                  title="Credits"
+                >
+                  <svg class="rt-glyph"><use href="#rt-cr" /></svg
+                  >{{ getCreditCost(tech) | number: '1.0-0' }}
+                </span>
+              </div>
+              @if (getStatus(tech.id) === 'available') {
+                <span
+                  class="ui-meter rt-detail__afford"
+                  [title]="
+                    (getAffordFraction(tech) * 100 | number: '1.0-0') + '% of the cost banked'
+                  "
+                >
+                  <span
+                    class="ui-meter__fill"
+                    [style.width.%]="getAffordFraction(tech) * 100"
+                  ></span>
+                </span>
+              }
+              @if (getBlockerText(tech)) {
+                <div class="rt-detail__blocker">{{ getBlockerText(tech) }}</div>
+              }
+              <button
+                class="rt-detail__btn btn-primary"
+                type="button"
+                [disabled]="!canResearch(tech.id)"
+                (click)="onResearch(tech.id)"
               >
-                <div class="research-tree__card-header">
-                  <span class="research-tree__card-name">{{ tech.name }}</span>
-                  <span class="research-tree__card-cost">
-                    @if (getStatus(tech.id) === 'researched') {
-                      {{ tech.researchCost | number: '1.0-0' }} RP · {{ getBaseCreditCost(tech) | number: '1.0-0' }} CR
-                    } @else {
-                      <span [class.research-tree__cost--short]="getResearchPoints() < getCost(tech)">{{ getCost(tech) | number: '1.0-0' }} RP</span>
-                      ·
-                      <span [class.research-tree__cost--short]="getCredits() < getCreditCost(tech)">{{ getCreditCost(tech) | number: '1.0-0' }} CR</span>
-                    }
-                  </span>
-                </div>
-                <div class="research-tree__card-desc">{{ tech.description }}</div>
-
-                @if (getEffects(tech).length > 0) {
-                  <ul class="research-tree__card-effects" aria-label="Effects">
-                    @for (effect of getEffects(tech); track effect) {
-                      <li class="research-tree__card-effect">{{ effect }}</li>
-                    }
-                  </ul>
-                }
-
-                @if (getUnlockedCombatShips(tech).length > 0) {
-                  <ul class="research-tree__card-ships" aria-label="Ship roles">
-                    @for (ship of getUnlockedCombatShips(tech); track ship.id) {
-                      <li class="research-tree__card-ship">
-                        <span class="research-tree__card-ship-name">{{ ship.name }}</span>
-                        <app-hull-role [shipType]="ship" [compact]="true"></app-hull-role>
-                      </li>
-                    }
-                  </ul>
-                }
-
-                @if (tech.prerequisites.length > 0) {
-                  <div class="research-tree__card-prereqs">
-                    <span class="research-tree__card-prereqs-label">Requires</span>
-                    @for (name of getPrerequisiteNames(tech); track name) {
-                      <span class="research-tree__card-prereq">{{ name }}</span>
-                    }
-                  </div>
-                }
-
-                @if (getDependentNames(tech).length > 0) {
-                  <div class="research-tree__card-leads">
-                    <span class="research-tree__card-prereqs-label">Leads to</span>
-                    {{ getDependentNames(tech).join(' · ') }}
-                  </div>
-                }
-
-                @if (getStatus(tech.id) !== 'researched' && getBlockerText(tech)) {
-                  <div class="research-tree__card-blocker">{{ getBlockerText(tech) }}</div>
-                }
-
-                <div class="research-tree__card-footer">
-                  <span class="research-tree__status-badge research-tree__status-badge--{{ getStatus(tech.id) }}">
-                    {{ getStatusLabel(getStatus(tech.id)) }}
-                  </span>
-
-                  @if (getStatus(tech.id) === 'available') {
-                    @if (!canResearch(tech.id)) {
-                      <span class="ui-meter research-tree__afford" [title]="(getAffordFraction(tech) * 100 | number: '1.0-0') + '% of the cost banked'">
-                        <span class="ui-meter__fill" [style.width.%]="getAffordFraction(tech) * 100"></span>
-                      </span>
-                    }
-                    <button
-                      class="research-tree__btn btn-primary"
-                      type="button"
-                      [disabled]="!canResearch(tech.id)"
-                      (click)="onResearch(tech.id)"
-                    >
-                      RESEARCH
-                    </button>
-                  }
-                </div>
-              </article>
+                RESEARCH
+              </button>
             }
           </div>
-        </section>
-      } @empty {
-        <div class="research-tree__empty">No technologies match this filter.</div>
+        </aside>
       }
     </div>
   </div>

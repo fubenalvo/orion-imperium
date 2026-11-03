@@ -438,7 +438,14 @@ describe('Research tree UI feedback', () => {
     expect(both).toContain('more RP');
     expect(both).toContain(`Need ${research.getResearchCreditCost(ui.faction, research.getTechnology('improved_power')!)} more credits`);
     expect(ui.getCreditCost(research.getTechnology('improved_power')!)).toBe(600 * RESEARCH_CREDITS_PER_POINT);
-    expect(ui.getDependentNames(research.getTechnology('improved_power')!)).toEqual(['Fusion Power']);
+    expect(ui.getDependents(research.getTechnology('improved_power')!).map((t) => t.name)).toEqual(['Fusion Power']);
+    // Board icons are derived from what a technology unlocks or boosts.
+    expect(ui.getCategory(research.getTechnology('advanced_engineering')!)).toBe('ships');
+    expect(ui.getCategory(research.getTechnology('improved_power')!)).toBe('energy');
+    expect(ui.getCategory(research.getTechnology('basic_radar')!)).toBe('radar');
+    expect(ui.getCategory(research.getTechnology('stellar_engineering')!)).toBe('stellar');
+    // Effect rows keep describeEffects' text and order, one icon per line.
+    expect(ui.getEffectRows(research.getTechnology('advanced_industry')!).map((r) => r.icon)).toEqual(['colony', 'industry']);
   });
 });
 

@@ -28,17 +28,22 @@
     linear-gradient(180deg, #021722 0%, #010f17 100%);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 
-  /* Bottom edge: a metal rail with a thin cyan line above it, the same
-     materials as the console frame (public/ui/console-frame.svg). */
+  /* Bottom edge: a metal rail (the console frame's materials, see
+     public/ui/console-frame.svg) under a thin cyan line, with an amber lamp
+     near each end like the frame's bottom corners. */
   &::after {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 5px;
-    border-top: 1px solid rgba(var(--ui-accent-rgb), 0.5);
-    background: linear-gradient(180deg, #aab4b8, #6c787d 45%, #323d42);
+    height: 7px;
+    border-top: 1px solid rgba(var(--ui-accent-rgb), 0.55);
+    background:
+      linear-gradient(#ffc23d, #ffc23d) left 28px top 2px / 22px 2px no-repeat,
+      linear-gradient(#ffc23d, #ffc23d) right 28px top 2px / 22px 2px no-repeat,
+      linear-gradient(180deg, #c3ccd0 0%, #8a969b 22%, #5c686d 62%, #2c373c 100%);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
     pointer-events: none;
   }
 }
@@ -93,6 +98,21 @@
     border-radius: 50%;
     background: var(--ui-amber);
     box-shadow: 0 0 6px rgba(var(--ui-amber-rgb), 0.7);
+  }
+
+  /* Thin cyan rule under the title, like a console panel heading. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: calc(var(--gh-u) * 0.95);
+    right: 0;
+    bottom: calc(var(--gh-u) * -0.35);
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      rgba(var(--ui-accent-rgb), 0.5),
+      rgba(var(--ui-accent-rgb), 0.05)
+    );
   }
 }
 
@@ -181,8 +201,9 @@
    Center: time controls
    --------------------------------------------------------- */
 
-/* The time controls form one console: a sunken tray holding the buttons,
-   framed by corner brackets. */
+/* The time controls form one instrument: a sunken display tray holding the
+   keys, the same recessed strip as the currency readouts (no metal frame:
+   it looked heavy in the header). */
 .game-header__center {
   position: relative;
   display: flex;
@@ -190,31 +211,12 @@
   justify-content: center;
   gap: calc(var(--gh-u) * 0.3);
   padding: calc(var(--gh-u) * 0.25);
-  border: 1px solid var(--ui-line-soft);
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.28);
   border-radius: var(--ui-radius);
-  background: var(--ui-surface-sunken);
-
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    width: calc(var(--gh-u) * 0.6);
-    height: calc(var(--gh-u) * 0.6);
-    border: 0 solid var(--ui-line-strong);
-    pointer-events: none;
-  }
-
-  &::before {
-    top: -1px;
-    left: -1px;
-    border-width: 1px 0 0 1px;
-  }
-
-  &::after {
-    right: -1px;
-    bottom: -1px;
-    border-width: 0 1px 1px 0;
-  }
+  background:
+    repeating-linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.03) 0 1px, transparent 1px 3px),
+    #000c13;
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.8);
 
   &:empty {
     display: none;

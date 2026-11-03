@@ -587,7 +587,9 @@
   gap: 1rem;
   color: var(--ui-ink);
 
-  > span:last-child {
+  /* The value column never wraps; a row holding only a note (one span) does,
+     or a long note would scroll the panel sideways. */
+  > span:last-child:not(:first-child) {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
