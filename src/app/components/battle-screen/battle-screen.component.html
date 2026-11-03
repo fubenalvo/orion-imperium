@@ -77,7 +77,8 @@
         [connectionLine]="moveConnectionLine"
         [attackConnectionLine]="attackConnectionLine"
         [onStackClick]="onStackClick"
-        [onCellClick]="onCellClick"
+        [onStackCommand]="onStackCommand"
+        [onCellCommand]="onCellCommand"
       ></app-battle-grid>
     </main>
 
@@ -153,7 +154,7 @@
         } @else {
           <div class="battle-screen__selection battle-screen__selection--empty">
             <span>NO UNIT SELECTED</span>
-            <span class="battle-screen__selection-help">Click one of your ships · click a cell to move · click an enemy to attack</span>
+            <span class="battle-screen__selection-help">Click one of your ships to select · right-click a cell to move · right-click an enemy to attack</span>
           </div>
         }
 

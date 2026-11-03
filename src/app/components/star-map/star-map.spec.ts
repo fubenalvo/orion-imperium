@@ -355,7 +355,6 @@ describe('StarMap', () => {
         selectedSystemId: null,
         selectedFleetId: null,
         selectedPlanetTileId: null,
-        selectedFleetAction: null,
         targetX: null,
         targetY: null,
         destroyedFleetId: null,
@@ -914,22 +913,22 @@ describe('StarMap', () => {
       }
     });
 
-    it('converts map clicks to world coordinates using the zoom', () => {
+    it('converts map right-clicks to world coordinates using the zoom', () => {
       setWindowSize(1920, 1080);
       component.onResize();
       component.setZoomIndex(2);
       component.setCamera({ x: 100, y: 60 });
       const fleet = component.fleets.find((f) => f.factionId === 'player') ?? component.fleets[0];
+      fleet.destroyed = false;
       component.selectedFleet = fleet;
-      component.selectedFleetAction = 'move';
       const moveSpy = vi.spyOn(component, 'moveSelectedFleet' as any).mockImplementation(() => {});
 
       const vwPx = window.innerWidth / 100;
       const target = document.createElement('div');
       target.getBoundingClientRect = () => ({ left: 0, top: 0 }) as DOMRect;
-      const event = new MouseEvent('click', { clientX: 10 * vwPx, clientY: 5 * vwPx });
+      const event = new MouseEvent('contextmenu', { clientX: 10 * vwPx, clientY: 5 * vwPx, button: 2, cancelable: true });
       Object.defineProperty(event, 'currentTarget', { value: target });
-      component.onMapClick(event);
+      component.onMapContextMenu(event);
 
       // Screen (10vw, 5vw) at zoom 0.5 is world (100 + 20, 60 + 10).
       const expected = component.movementService.getTileCenter(120, 70);
@@ -960,7 +959,6 @@ describe('StarMap', () => {
       component.currentView = 'system';
       component.selectedSystem = system;
       component.selectFleet(mover);
-      component.selectedFleetAction = 'move';
       return { system, planet, mover, parked, target: component.movementService.getPlanetCellCenter(planet) };
     };
 

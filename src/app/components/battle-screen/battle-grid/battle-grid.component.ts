@@ -84,8 +84,12 @@ export class BattleGridComponent {
   @Input() planet: BattlePlanetVisual | null = null;
   @Input() planetShieldFraction = 0;
 
+  /* Same control scheme as the star map: left click only selects, every
+   * order (move, attack) is a right click / touch long-press
+   * (TouchLongPressService turns a long press into a contextmenu). */
   @Input() onStackClick: (stackId: string) => void = () => {};
-  @Input() onCellClick: (col: number, row: number) => void = () => {};
+  @Input() onStackCommand: (stackId: string) => void = () => {};
+  @Input() onCellCommand: (col: number, row: number) => void = () => {};
 
   /* CSS length for `fieldUnits` battlefield units. The simulation's "vw"
    * coordinates are field units; they render through --u so the field can
@@ -309,14 +313,27 @@ export class BattleGridComponent {
     }
   }
 
-  onGridClickHandler(event: MouseEvent): void {
+  /* Right click on a stack. Stops propagation so the grid does not also read
+   * it as a move order to the cell under the stack. */
+  onStackContextMenuHandler(event: MouseEvent, stackId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (this.canSelect) {
+      this.onStackCommand(stackId);
+    }
+  }
+
+  /* Right click on the field: move order to the cell under the cursor. The
+   * native browser menu is always suppressed on the battlefield. */
+  onGridContextMenuHandler(event: MouseEvent): void {
+    event.preventDefault();
     if (!this.canSelect) {
       return;
     }
     const target = event.currentTarget as HTMLElement;
     const cell = clientPointToCell(event.clientX, event.clientY, target.getBoundingClientRect());
     if (cell) {
-      this.onCellClick(cell.col, cell.row);
+      this.onCellCommand(cell.col, cell.row);
     }
   }
 }

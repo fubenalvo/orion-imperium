@@ -61,7 +61,7 @@ describe('StarMap right-click orders', () => {
     vi.restoreAllMocks();
   });
 
-  it('right-click on empty space moves the selected player fleet without the MOVE button', () => {
+  it('right-click on empty space moves the selected player fleet', () => {
     const map = startGame();
     const fleet = map.fleets.find((f) => f.factionId === 'player')!;
     map.selectFleet(fleet);
@@ -72,7 +72,6 @@ describe('StarMap right-click orders', () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(fleet.targetX).not.toBeNull();
-    expect(map.selectedFleetAction).toBeNull();
     expect(map.selectedFleet).toBe(fleet);
   });
 
@@ -146,16 +145,15 @@ describe('StarMap right-click orders', () => {
     expect({ x: enemy.targetX, y: enemy.targetY }).toEqual(before);
   });
 
-  it('keeps the MOVE button flow working', () => {
+  it('a left click on empty space never orders the selected fleet', () => {
     const map = startGame();
     const fleet = map.fleets.find((f) => f.factionId === 'player')!;
     map.selectFleet(fleet);
-    map.setFleetAction('move');
     map.cameraX = 0;
     map.cameraY = 0;
-    const click = rightClick(window.innerWidth / 2, 10);
-    map.onMapClick(click);
-    expect(fleet.targetX).not.toBeNull();
-    expect(map.selectedFleetAction).toBeNull();
+    const before = { x: fleet.targetX, y: fleet.targetY };
+    map.onMapClick(new MouseEvent('click', { clientX: window.innerWidth / 2, clientY: 10 }));
+    expect({ x: fleet.targetX, y: fleet.targetY }).toEqual(before);
+    expect(map.selectedFleet).toBe(fleet);
   });
 });

@@ -43,16 +43,10 @@
     }
 
     @if (isPlayerFleet) {
+      <!-- Orders are right clicks only (same rule as the battle screen); this
+           hint replaces the old MOVE button for discoverability. -->
+      <p class="fleet-info__order-hint">Right-click: move · attack · intercept</p>
       <div class="fleet-actions">
-        <button
-          type="button"
-          class="action-btn move-btn"
-          title="Tip: right-click the map to move, or an enemy fleet to attack"
-          [class.active]="selectedFleetAction === 'move'"
-          (click)="setFleetAction.emit('move'); $event.stopPropagation()"
-        >
-          MOVE
-        </button>
         @if (colonizeTargetName) {
           <button
             type="button"

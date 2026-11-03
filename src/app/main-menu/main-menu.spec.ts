@@ -94,7 +94,6 @@ describe('MainMenu', () => {
       selectedSystemId: null,
       selectedFleetId: null,
       selectedPlanetTileId: null,
-      selectedFleetAction: null,
       targetX: null,
       targetY: null,
       destroyedFleetId: null,

@@ -350,7 +350,6 @@ loadError = '';
   selectedSystem: StarSystem | null = null;
   selectedFleet: Fleet | null = null;
   selectedPlanetTile: PlanetTile | null = null;
-  selectedFleetAction: 'move' | null = null;
 
   // Camera state.
   // cameraX/cameraY are the world-space (unscaled vw) coordinates of the
@@ -760,20 +759,13 @@ loadError = '';
   readonly nebulaSensorPenaltyPercent = Math.round((1 - NEBULA_CONFIG.sensorMultiplier) * 100);
 
   /*
-   * Click on an asteroid. With a player fleet selected in MOVE mode the
-   * click is an intercept order for that fleet; otherwise it opens the
-   * asteroid panel (fleet selection is kept so the player can compare).
+   * Left click on an asteroid opens its panel (fleet selection is kept so the
+   * player can compare). Intercepting is a right click (onAsteroidContextMenu).
    */
   onAsteroidClick(asteroidId: number, event: MouseEvent): void {
     event.stopPropagation();
     if (this.contextMenu) {
       this.closeContextMenu();
-      return;
-    }
-    if (this.selectedFleet?.factionId === 'player' && this.selectedFleetAction === 'move') {
-      this.selectedFleetAction = null;
-      this.selectAsteroid(asteroidId);
-      this.onInterceptAsteroid(this.selectedFleet.id);
       return;
     }
     this.selectAsteroid(asteroidId);
@@ -1124,7 +1116,6 @@ loadError = '';
     if (this.consumeRightClick(event)) return;
     const fleet = this.commandableFleet();
     if (!fleet) return;
-    this.selectedFleetAction = null;
     this.selectTrader(traderId);
     this.onRaidTrader(fleet.id);
   }
@@ -1738,7 +1729,6 @@ loadError = '';
       this.cameraY = 0;
       this.targetX = null;
       this.targetY = null;
-      this.selectedFleetAction = null;
       return;
     }
 
@@ -1751,7 +1741,6 @@ loadError = '';
         this.selectedPlanetTile = null;
         this.targetX = null;
         this.targetY = null;
-        this.selectedFleetAction = null;
         break;
 
       case 'system': {
@@ -1764,7 +1753,6 @@ loadError = '';
           this.cameraY = 0;
           this.targetX = null;
           this.targetY = null;
-          this.selectedFleetAction = null;
           break;
         }
         this.currentView = 'system';
@@ -1773,7 +1761,6 @@ loadError = '';
         this.centerCameraOnDefaultView(defaultView, system);
         this.targetX = null;
         this.targetY = null;
-        this.selectedFleetAction = null;
         this.initFleetsInSystem(system);
         this.syncTargetFromSelectedFleet();
         break;
@@ -1790,7 +1777,6 @@ loadError = '';
           this.cameraY = 0;
           this.targetX = null;
           this.targetY = null;
-          this.selectedFleetAction = null;
           break;
         }
         this.currentView = 'planet';
@@ -1799,7 +1785,6 @@ loadError = '';
         this.centerCameraOnDefaultView(defaultView, system);
         this.targetX = null;
         this.targetY = null;
-        this.selectedFleetAction = null;
         this.initFleetsInSystem(system);
         this.syncTargetFromSelectedFleet();
         break;
@@ -1813,7 +1798,6 @@ loadError = '';
         this.cameraY = 0;
         this.targetX = null;
         this.targetY = null;
-        this.selectedFleetAction = null;
     }
   }
 
@@ -2585,7 +2569,6 @@ loadError = '';
       ? [...this.shipStockService.getStock(this, 'player')]
       : null;
     this.fleetManagerError = null;
-    this.selectedFleetAction = null;
     this.contextMenu = null;
     this.fleetManagerResumeOnClose = !this.gameTimeService.isPaused;
     this.gameTimeService.pause();
@@ -2845,15 +2828,8 @@ loadError = '';
   deselectFleet(): void {
     this.selectedFleet = null;
     this.fleetMoveError = null;
-    this.selectedFleetAction = null;
     this.targetX = null;
     this.targetY = null;
-    this.cdr.detectChanges();
-  }
-
-  /** Sets the active action mode for the selected fleet ('move'). */
-  setFleetAction(action: 'move'): void {
-    this.selectedFleetAction = action;
     this.cdr.detectChanges();
   }
 
@@ -2919,7 +2895,6 @@ loadError = '';
   openPlanetFromRoster({ system, planet }: RosterPlanet): void {
     this.saveGame();
     this.selectedFleet = null;
-    this.selectedFleetAction = null;
     this.fleetMoveError = null;
     this.selectedSystem = system;
     this.selectedPlanetTile = planet;
@@ -2935,15 +2910,10 @@ loadError = '';
     this.currentView = 'system';
   }
 
-  /** Selects a star system, or moves the selected fleet to it if in move mode. */
+  /** Selects a star system, clearing any fleet or planet selection. */
   selectSystem(system: StarSystem): void {
-    if (this.selectedFleet && this.currentView === 'map' && this.selectedFleetAction === 'move') {
-      this.moveSelectedFleet(system.x, system.y);
-    }
-
     this.selectedSystem = system;
     this.selectedFleet = null;
-    this.selectedFleetAction = null;
     this.selectedPlanetTile = null;
     this.cdr.detectChanges();
   }
@@ -3008,9 +2978,10 @@ loadError = '';
    * deselect first, then suppress the native menu and stop propagation.
    */
   /*
-   * Right-click orders. With a player fleet selected, a right-click issues
-   * an order depending on what is under the cursor (no MOVE button needed;
-   * the button still works):
+   * Right-click orders. Control rule shared with the battle screen: a left
+   * click only selects, every fleet order is a right click (touch: long
+   * press). With a player fleet selected, a right-click issues an order
+   * depending on what is under the cursor:
    *   - empty space / star system / planet / friendly or neutral fleet: move there
    *     (moving onto an enemy planet is the planet attack, via arrival handling)
    *   - hostile fleet on the galaxy map: attack order (pursuit, see fleet-attack-orders.ts)
@@ -3048,7 +3019,6 @@ loadError = '';
   onSystemContextMenu(system: StarSystem, event: MouseEvent): void {
     if (this.consumeRightClick(event)) return;
     if (this.commandableFleet() && this.currentView === 'map') {
-      this.selectedFleetAction = null;
       this.moveSelectedFleet(system.x, system.y);
       this.cdr.detectChanges();
       return;
@@ -3063,7 +3033,6 @@ loadError = '';
       this.deselectFleet();
       return;
     }
-    this.selectedFleetAction = null;
     if (this.currentView === 'map') {
       if (this.areFleetsHostile(fleet, target)) {
         this.orderAttack(target);
@@ -3087,7 +3056,6 @@ loadError = '';
     const fleet = this.commandableFleet();
     if (fleet && this.selectedSystem && fleet.system?.id === this.selectedSystem.id) {
       const center = this.movementService.getPlanetCellCenter(planet);
-      this.selectedFleetAction = null;
       this.moveSelectedFleet(center.x, center.y);
       this.cdr.detectChanges();
       return;
@@ -3105,7 +3073,6 @@ loadError = '';
       return;
     }
     const tile = this.galaxyTileAt(event);
-    this.selectedFleetAction = null;
     this.moveSelectedFleet(tile.x, tile.y);
     this.cdr.detectChanges();
   }
@@ -3118,7 +3085,6 @@ loadError = '';
       return;
     }
     const tile = this.systemTileAt(event);
-    this.selectedFleetAction = null;
     this.moveSelectedFleet(tile.x, tile.y);
     this.cdr.detectChanges();
   }
@@ -3130,7 +3096,6 @@ loadError = '';
     if (!fleet) {
       return;
     }
-    this.selectedFleetAction = null;
     this.selectAsteroid(asteroidId);
     this.onInterceptAsteroid(fleet.id);
   }
@@ -3235,10 +3200,6 @@ loadError = '';
       return;
     }
 
-    if (this.selectedFleetAction === 'move') {
-      return;
-    }
-
     event.stopPropagation();
 
     if (this.currentView === 'map') {
@@ -3275,10 +3236,6 @@ loadError = '';
       return;
     }
 
-    if (this.selectedFleetAction === 'move') {
-      return;
-    }
-
     event.stopPropagation();
 
     if (this.currentView === 'map') {
@@ -3300,10 +3257,6 @@ loadError = '';
     if (this.contextMenu) {
       this.closeContextMenu();
       event.stopPropagation();
-      return;
-    }
-
-    if (this.selectedFleetAction === 'move') {
       return;
     }
 
@@ -3451,43 +3404,21 @@ loadError = '';
     }
   }
 
-  /** Handles a click on the galaxy map, moving the selected fleet if an action is active. */
-  onMapClick(event: MouseEvent): void {
+  /*
+   * Left click on empty galaxy / system space. A left click never gives an
+   * order (orders are right clicks, see "Right-click orders"); here it only
+   * closes the overlap disambiguation menu. The selection is kept.
+   */
+  onMapClick(_event: MouseEvent): void {
     if (this.contextMenu) {
       this.closeContextMenu();
-      return;
-    }
-
-    if (!this.selectedFleet || !this.selectedFleetAction) {
-      return;
-    }
-
-    const targetTile = this.galaxyTileAt(event);
-    this.moveSelectedFleet(targetTile.x, targetTile.y);
-
-    if (this.selectedFleet && this.selectedFleetAction) {
-      this.selectedFleetAction = null;
     }
   }
 
-  /** Handles a click inside a star system grid, moving the selected fleet if an action is active. */
-  onSystemGridClick(event: MouseEvent): void {
+  onSystemGridClick(_event: MouseEvent): void {
     if (this.contextMenu) {
       this.closeContextMenu();
-      return;
     }
-
-    if (
-      !this.selectedFleet ||
-      !this.selectedSystem ||
-      this.selectedFleet.system?.id !== this.selectedSystem.id ||
-      !this.selectedFleetAction
-    ) {
-      return;
-    }
-
-    const targetTile = this.systemTileAt(event);
-    this.moveSelectedFleet(targetTile.x, targetTile.y);
   }
 
   /* Galaxy grid tile under a mouse event on the map viewport (event.currentTarget). */
@@ -3673,7 +3604,7 @@ loadError = '';
    * A touch long-press arrives as a contextmenu (TouchLongPressService) while
    * the same finger has already started a camera drag on pointerdown. If the
    * camera has not moved, that "drag" was really the press: end it, so the
-   * lift is not read as a tap (onMapClick) that would undo the order.
+   * lift is not read as an extra tap (onMapClick) right after the order.
    * The synthetic long-press event (not trusted) also ends a drag that passed
    * the 5px drag threshold, because the long press only fires while the
    * finger stayed within its own, larger touch tolerance (finger jitter).
@@ -4597,7 +4528,6 @@ loadError = '';
       selectedSystemId: this.selectedSystem?.id ?? null,
       selectedFleetId: this.selectedFleet?.id ?? null,
       selectedPlanetTileId: this.selectedPlanetTile?.id ?? null,
-      selectedFleetAction: this.selectedFleetAction,
       targetX: this.targetX,
       targetY: this.targetY,
       destroyedFleetId: this.battleService.getDestroyedFleetId(),
@@ -4790,7 +4720,6 @@ loadError = '';
       this.cameraY = data.cameraY ?? 0;
       this.targetX = data.targetX ?? null;
       this.targetY = data.targetY ?? null;
-      this.selectedFleetAction = data.selectedFleetAction ?? null;
     } else if (data.defaultView) {
       this.applyDefaultView(data.defaultView);
     } else {
@@ -4799,7 +4728,6 @@ loadError = '';
       this.cameraY = 0;
       this.targetX = null;
       this.targetY = null;
-      this.selectedFleetAction = null;
     }
 
     this.defaultView = data.defaultView;
@@ -4854,7 +4782,6 @@ loadError = '';
     this.fleets = this.fleets.filter((f) => f.id !== fleetId);
     if (this.selectedFleet?.id === fleetId) {
       this.selectedFleet = null;
-      this.selectedFleetAction = null;
       this.targetX = null;
       this.targetY = null;
     }
@@ -4969,7 +4896,6 @@ loadError = '';
       }
       if (this.selectedFleet?.id === destroyedFleetId) {
         this.selectedFleet = null;
-        this.selectedFleetAction = null;
         this.targetX = null;
         this.targetY = null;
       }

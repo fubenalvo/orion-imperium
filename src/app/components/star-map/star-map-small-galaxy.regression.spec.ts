@@ -144,7 +144,6 @@ describe('Small galaxy regression', () => {
     const fleet = map.fleets.find((f) => f.factionId === 'player')!;
 
     map.selectFleet(fleet);
-    map.setFleetAction('move');
     map.moveSelectedFleet(target.x, target.y);
     expect(fleet.targetX).toBe(target.x);
     expect(fleet.targetY).toBe(target.y);

@@ -42,24 +42,45 @@ describe('BattleGridComponent', () => {
     component = fixture.componentInstance;
   });
 
-  it.each([2, 3])('does not turn a size-%i stack click into a grid move', (size) => {
+  it.each([2, 3])('does not turn a right click on a size-%i stack into a grid move', (size) => {
     const stack = makeStack(size);
-    const onStackClick = vi.fn();
-    const onCellClick = vi.fn();
+    const onStackCommand = vi.fn();
+    const onCellCommand = vi.fn();
 
     component.stacks = [stack];
     component.selectedStackId = stack.stackId;
     component.moveCells = [{ col: 1, row: 1 }];
-    component.onStackClick = onStackClick;
-    component.onCellClick = onCellClick;
+    component.onStackCommand = onStackCommand;
+    component.onCellCommand = onCellCommand;
     fixture.detectChanges();
 
     const button = fixture.nativeElement.querySelector('.stack') as HTMLButtonElement;
-    button.click();
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 });
+    button.dispatchEvent(event);
 
-    expect(onStackClick).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(true);
+    expect(onStackCommand).toHaveBeenCalledOnce();
+    expect(onStackCommand).toHaveBeenCalledWith(stack.stackId);
+    expect(onCellCommand).not.toHaveBeenCalled();
+  });
+
+  it('left click on a stack only selects; it never reaches the order callbacks', () => {
+    const stack = makeStack(1);
+    const onStackClick = vi.fn();
+    const onStackCommand = vi.fn();
+    const onCellCommand = vi.fn();
+
+    component.stacks = [stack];
+    component.onStackClick = onStackClick;
+    component.onStackCommand = onStackCommand;
+    component.onCellCommand = onCellCommand;
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('.stack') as HTMLButtonElement).click();
+
     expect(onStackClick).toHaveBeenCalledWith(stack.stackId);
-    expect(onCellClick).not.toHaveBeenCalled();
+    expect(onStackCommand).not.toHaveBeenCalled();
+    expect(onCellCommand).not.toHaveBeenCalled();
   });
 
   describe('clientPointToCell', () => {

@@ -262,9 +262,11 @@ and the light hulls' agility in the real battle are not part of these numbers.
 Implemented in `battle-targeting.ts` (target choice), `BattleScreenComponent` (orders) and
 `BattleMovementService.maintainAttackOrders` (chasing).
 
-**Player orders** are plain state on the stack and apply immediately, also while paused:
+**Player orders** are plain state on the stack and apply immediately, also while paused. Control
+rule (shared with the star map): a left click only selects an own stack; every order is a right
+click (touch: long press, see [Game Systems](./game-systems.md)):
 
-- **Attack order** (click an enemy with a stack selected) sets `explicitAttackTargetId`.
+- **Attack order** (right-click an enemy with a stack selected) sets `explicitAttackTargetId`.
   - The stack fires at that target whenever it is in reach.
   - While it is out of reach the stack chases it, and the order is re-issued on every re-plan
     tick, so a target moving away does not cancel the order.
@@ -274,10 +276,10 @@ Implemented in `battle-targeting.ts` (target choice), `BattleScreenComponent` (o
     or the player gives that stack a new order. Selecting other stacks, range loss, AUTO and the
     AI never clear it. If the target cannot be reached, the order stays and the stack keeps
     trying while still fighting whatever is in reach.
-- **Move order** (click a cell) replaces any attack order, but only if the move is legal; a
+- **Move order** (right-click a cell) replaces any attack order, but only if the move is legal; a
   blocked move leaves the previous order untouched. AUTO leaves the stack alone until it
   arrives (`manualMoveOrder`).
-- Re-clicking an enemy never bypasses the fire cooldown.
+- Re-ordering an attack on the same enemy never bypasses the fire cooldown.
 
 **Automatic targeting** applies whenever a stack has no in-reach manual target. Each stack has a
 `targetingMode` (player-selectable per stack in the selection panel; the enemy AI uses

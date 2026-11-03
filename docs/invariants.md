@@ -106,7 +106,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 - Selecting a fleet clears the system and planet tile selection in map view.
 - Selecting a system clears the fleet and planet tile selection (system view is the only context where the system may remain selected alongside other state).
 - Selecting a planet tile clears the fleet selection; in system view the system may remain selected.
-- `selectedFleetAction` is reset to `null` on any new selection. It is also cleared after `moveSelectedFleet` runs from a map click.
+- A left click never issues a fleet or battle-stack order; orders come only from right clicks (or touch long presses), on the star map and the battle screen alike.
 
 ## Context Menu Behaviour
 

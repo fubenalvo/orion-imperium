@@ -1,4 +1,4 @@
-<div class="battle-grid" (click)="onGridClickHandler($event)">
+<div class="battle-grid" (contextmenu)="onGridContextMenuHandler($event)">
   <!-- PLANET VISUAL (planet battles only; separate from BattleStack) -->
   @if (planet) {
     <app-battle-planet
@@ -80,6 +80,7 @@
            type="button"
            [attr.aria-label]="stackAriaLabel(stack)"
            (click)="onStackClickHandler($event, stack.stackId)"
+           (contextmenu)="onStackContextMenuHandler($event, stack.stackId)"
          >
            <!-- Friend/foe marker: corner brackets on own stacks, red chevron
                 above enemies. Shape-based so it also works without color. -->

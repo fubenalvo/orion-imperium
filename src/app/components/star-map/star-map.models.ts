@@ -646,7 +646,6 @@ export interface StarMapData {
   selectedSystemId?: string | null;
   selectedFleetId?: number | null;
   selectedPlanetTileId?: number | null;
-  selectedFleetAction?: 'move' | null;
   targetX?: number | null;
   targetY?: number | null;
   destroyedFleetId?: number | null;

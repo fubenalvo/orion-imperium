@@ -171,7 +171,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     // rethrows the error asynchronously as an uncaught console error).
     this.battleTimeSub = this.battleTime.state$.pipe(skip(1)).subscribe(() => this.cdr.detectChanges());
     this.onStackClick = this.onStackClick.bind(this);
-    this.onCellClick = this.onCellClick.bind(this);
+    this.onStackCommand = this.onStackCommand.bind(this);
+    this.onCellCommand = this.onCellCommand.bind(this);
   }
 
   get autoBattleEnabled(): boolean {
@@ -502,6 +503,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
   }
 
+  /* Left click: selects one of the player's own stacks. Clicking an enemy
+   * does nothing; orders are right clicks (onStackCommand / onCellCommand). */
   onStackClick(stackId: string): void {
     if (!this.state || !this.canAct) {
       return;
@@ -511,20 +514,28 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       return;
     }
     // Player can only control stacks on their own side (determined per-stack).
+    // Selection is UI-only; orders of the previously selected stack stay in force.
     if (isSidePlayerControlled(this.state, stack.side)) {
-      // Own stack: select it. Selection is UI-only; orders of the previously
-      // selected stack stay in force.
       this.selectedStackId = stack.stackId;
-      return;
     }
-    const selected = this.selectedStack();
-    if (!selected) {
-      return;
-    }
-    this.orderAttack(selected, stack);
   }
 
-  onCellClick(col: number, row: number): void {
+  /* Right click on a stack: attack order for the selected stack when the
+   * target is an enemy. Right-clicking an own stack is ignored. */
+  onStackCommand(stackId: string): void {
+    if (!this.state || !this.canPlayerAct) {
+      return;
+    }
+    const target = this.state.stacks.find((s) => s.stackId === stackId);
+    const selected = this.selectedStack();
+    if (!target || target.destroyed || !selected || isSidePlayerControlled(this.state, target.side)) {
+      return;
+    }
+    this.orderAttack(selected, target);
+  }
+
+  /* Right click on a cell: move order for the selected stack. */
+  onCellCommand(col: number, row: number): void {
     if (!this.state || !this.canPlayerAct) {
       return;
     }

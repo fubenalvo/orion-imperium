@@ -204,6 +204,11 @@
   gap: 0.45em;
   margin-top: 0.5em;
 
+  /* No action applies (e.g. no colonizer, not at a Spaceport): no gap. */
+  &:empty {
+    display: none;
+  }
+
   @include compact-view {
     gap: 0.3em;
     margin-top: 0.3em;

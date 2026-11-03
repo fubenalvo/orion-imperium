@@ -16,7 +16,6 @@ export class StarMapFleetInfoComponent {
   @Input() totalDefense = 0;
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
   @Input() isPlayerFleet = false;
-  @Input() selectedFleetAction: 'move' | null = null;
   @Input() canDisband = false;
   // Reason the last move command was rejected (null when the last move was accepted).
   @Input() moveError: string | null = null;
@@ -68,7 +67,6 @@ export class StarMapFleetInfoComponent {
   }
 
   @Output() close = new EventEmitter<void>();
-  @Output() setFleetAction = new EventEmitter<'move'>();
   @Output() selectFleet = new EventEmitter<Fleet>();
   @Output() disband = new EventEmitter<void>();
   @Output() organize = new EventEmitter<void>();

@@ -23,7 +23,6 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `currentView`: `'map' | 'system' | 'planet'` (optional)
 - `cameraX`, `cameraY`: world-space (unscaled) vw position of the galaxy viewport's top-left corner; independent of the galaxy map zoom, which is not persisted
 - `selectedSystemId`, `selectedFleetId`, `selectedPlanetTileId`: persisted selection
-- `selectedFleetAction`: `'move' | null`
   - `targetX`, `targetY`: visible target marker (companion to the selected fleet's actual target)
   - `destroyedFleetId`: id of the fleet destroyed in the last battle, used so destruction survives save/load
   - `exploredGridCells`: `string[]` of `"col-row"` keys representing every galaxy grid cell the player has ever explored; loaded into `Set<string>` at runtime. Absent on old saves → all systems default to explored

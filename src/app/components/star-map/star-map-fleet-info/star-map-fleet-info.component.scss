@@ -36,6 +36,17 @@
   }
 }
 
+.fleet-info__order-hint {
+  margin: 0.5em 0 0;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.06em;
+
+  @include compact-view {
+    margin-top: 0.3em;
+  }
+}
+
 .fleet-organize__hint {
   overflow: hidden;
   color: var(--ui-ink-dim);

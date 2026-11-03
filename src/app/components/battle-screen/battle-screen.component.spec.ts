@@ -99,7 +99,6 @@ describe('BattleScreenComponent', () => {
       selectedSystemId: null,
       selectedFleetId: null,
       selectedPlanetTileId: null,
-      selectedFleetAction: null,
       targetX: null,
       targetY: null,
       destroyedFleetId: null,
@@ -273,7 +272,7 @@ describe('BattleScreenComponent', () => {
   it('keeps a manual attack order when another stack is selected and ignores automatic picks', async () => {
     const { state, a, b, e1, e2 } = standardSetup();
     component.onStackClick(a.stackId);
-    component.onStackClick(e2.stackId);
+    component.onStackCommand(e2.stackId);
     component.onStackClick(b.stackId);
 
     expect(component.selectedStackId).toBe(b.stackId);
@@ -285,13 +284,27 @@ describe('BattleScreenComponent', () => {
     expect(volleys(state, a.stackId, e1.stackId)).toBe(0);
   });
 
+  it('left click only selects: clicking an enemy or nothing never gives an order', () => {
+    const { a, e2 } = standardSetup();
+    component.onStackClick(a.stackId);
+    component.onStackClick(e2.stackId);
+
+    expect(component.selectedStackId).toBe(a.stackId);
+    expect(a.explicitAttackTargetId).toBeFalsy();
+
+    // Right-clicking an own stack is not an order either.
+    component.onStackCommand(a.stackId);
+    expect(a.explicitAttackTargetId).toBeFalsy();
+    expect(a.moving).toBeFalsy();
+  });
+
   it('chases an out-of-reach manual target, keeps the order, and fires opportunistically', async () => {
     const { state, a, e1, e2 } = standardSetup();
     place(e2, 34, 3);
     const startDistance = Math.hypot(a.x - e2.x, a.y - e2.y);
 
     component.onStackClick(a.stackId);
-    component.onStackClick(e2.stackId);
+    component.onStackCommand(e2.stackId);
     await runFrames(800 * M);
 
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
@@ -307,7 +320,7 @@ describe('BattleScreenComponent', () => {
     e2.ships[0].shield = 0;
 
     component.onStackClick(a.stackId);
-    component.onStackClick(e2.stackId);
+    component.onStackCommand(e2.stackId);
     await runFrames(1500 * M);
 
     expect(e2.destroyed).toBe(true);
@@ -318,17 +331,17 @@ describe('BattleScreenComponent', () => {
   it('replaces the previous order with a new one; a blocked move keeps the old order', async () => {
     const { a, e1, e2 } = standardSetup();
     component.onStackClick(a.stackId);
-    component.onStackClick(e1.stackId);
-    component.onStackClick(e2.stackId);
+    component.onStackCommand(e1.stackId);
+    component.onStackCommand(e2.stackId);
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
 
     // Moving onto an occupied cell fails and must not cancel the order.
-    component.onCellClick(e1.col, e1.row);
+    component.onCellCommand(e1.col, e1.row);
     await runFrames(16);
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
     expect(component.isMoveBlocked).toBe(true);
 
-    component.onCellClick(a.col, a.row + 3);
+    component.onCellCommand(a.col, a.row + 3);
     await runFrames(16);
     expect(a.explicitAttackTargetId).toBeNull();
     expect(a.manualMoveOrder).toBe(true);
@@ -341,7 +354,7 @@ describe('BattleScreenComponent', () => {
     place(e2, 34, 3);
 
     component.onStackClick(a.stackId);
-    component.onStackClick(e2.stackId);
+    component.onStackCommand(e2.stackId);
     await runFrames(2000);
 
     expect(a.explicitAttackTargetId).toBe(e2.stackId);
@@ -356,7 +369,7 @@ describe('BattleScreenComponent', () => {
     const x = a.x;
 
     component.onStackClick(a.stackId);
-    component.onStackClick(e2.stackId);
+    component.onStackCommand(e2.stackId);
     await runFrames(500);
 
     expect(state.log).toHaveLength(0);

@@ -20,7 +20,7 @@ interface PendingPress {
  * Touch long-press = mouse right-click, for the whole app.
  *
  * The game's orders and selection-clearing live in `(contextmenu)` handlers
- * (star map, system view; see star-map.ts "Right-click orders"). Touch
+ * (star map, system view, battle grid; see star-map.ts "Right-click orders"). Touch
  * browsers do not deliver those reliably: iOS Safari never fires
  * `contextmenu` for a long press, and Android Chrome fires it at a
  * system-defined moment while the map already treats the touch as the start

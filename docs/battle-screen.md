@@ -403,12 +403,19 @@ checkVictory(); anim.tick()                    // always, so the result overlay 
 Orders are plain state changes on the stack (there is no command queue), so they apply
 instantly — also while paused — and several stacks can be ordered during one pause.
 
-1. **Click own stack** → `selectedStackId` set. Selection is UI-only and never changes any
+Same control rule as the star map: **left click selects, right click orders** (touch: a long
+press, which `TouchLongPressService` turns into a `contextmenu`). `BattleGridComponent` maps
+`click` on a stack to `onStackClick`, `contextmenu` on a stack to `onStackCommand` and
+`contextmenu` on the field to `onCellCommand`; the native browser menu is suppressed on the
+field. A left click on an enemy or on empty space does nothing; a right click on an own stack is
+ignored.
+
+1. **Click own stack** → `onStackClick` → `selectedStackId` set. Selection is UI-only and never changes any
    stack's orders. The panel shows the stack's order status and its TARGET mode buttons.
-2. **Click a cell** → `orderMove()` → `BattleMovementService.moveStack()`. On success clears the
+2. **Right-click a cell** → `onCellCommand` → `orderMove()` → `BattleMovementService.moveStack()`. On success clears the
    attack order and sets `manualMoveOrder`; on failure shows "PATH BLOCKED" and keeps the
    previous order.
-3. **Click an enemy** → `orderAttack()` → sets `explicitAttackTargetId`; starts a chase if the
+3. **Right-click an enemy** → `onStackCommand` → `orderAttack()` → sets `explicitAttackTargetId`; starts a chase if the
    target is out of reach (or stops a running move if it is in reach). Fire control does the
    shooting on its normal cadence.
 4. **TARGET buttons** → `setSelectedTargetingMode()` → `setTargetingMode()` (drops the sticky
