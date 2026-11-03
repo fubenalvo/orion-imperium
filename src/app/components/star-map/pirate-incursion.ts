@@ -15,7 +15,7 @@ import { DEFAULT_FLEET_SENSOR_RANGE } from './star-map-sensor.service';
  *
  * When the game goes quiet for the player (no battle of the player and none
  * of the player's planets changing hands for PIRATE_CONFIG.quietSeconds
- * after minute 20; AI-vs-AI wars do not count), a pirate fleet flies in
+ * after PIRATE_CONFIG.firstAfter; AI-vs-AI wars do not count), a pirate fleet flies in
  * from a random map edge, builds a Pirate Haven (an ordinary SpaceBase of
  * the outlaw faction 'pirates') in open space, and the haven sends raider
  * fleets that take turns harassing every empire. Full rules:
@@ -28,16 +28,18 @@ import { DEFAULT_FLEET_SENSOR_RANGE } from './star-map-sensor.service';
  *   the player's battle screen).
  * - Raiders never capture planets. A raider standing in a system with a
  *   planet of its target drains that empire's credits (capped per raid).
- * - Strength follows the empires: every pirate fleet is built to about
- *   `strengthShare` of the median empire's total fleet strength, from
- *   light/medium hulls only, so it annoys without deciding wars.
+ * - Strength follows the player: every pirate fleet is built to about
+ *   `strengthShare` of the human player's total fleet strength (frigates
+ *   first, then destroyers), so the player's fleets can always handle one;
+ *   a player without warships faces a single frigate.
  * - The haven leaves after `havenLifetime`; destroyed earlier, the event
  *   ends at once and the remaining raiders vanish. Then a cooldown.
  * - Everything is saved: the faction in `factions`, the haven in the base
  *   registry, the fleets in `fleets`, this state in StarMapData.pirates.
  */
 export const PIRATE_CONFIG = {
-  firstAfter: 1200,
+  /* Earliest start (480 s; was 1200 before the strength followed the player). */
+  firstAfter: 480,
   quietSeconds: 480,
   cooldownSeconds: 900,
   havenLifetime: 1200,
@@ -45,7 +47,7 @@ export const PIRATE_CONFIG = {
   spawnInterval: { min: 180, max: 300 },
   maxRaiders: 2,
   strengthShare: 0.4,
-  minShips: 2,
+  minShips: 1,
   maxShips: 12,
   raidStaySeconds: 60,
   drainPerSecond: 15,
@@ -55,7 +57,7 @@ export const PIRATE_CONFIG = {
 } as const;
 
 export const PIRATE_FACTION_ID = 'pirates';
-const RAIDER_HULLS = ['destroyer', 'frigate'] as const;
+const RAIDER_HULLS = ['frigate', 'destroyer'] as const;
 
 export interface PirateRaider {
   fleetId: number;
@@ -353,16 +355,12 @@ export class PirateIncursionService {
     return { entry: { x: 1.5, y: site.y + 0.5 }, direction: 'west' };
   }
 
-  /* A fleet of light/medium hulls worth about strengthShare of the median empire's fleet strength. */
+  /* A fleet worth about strengthShare of the human player's total fleet strength. */
   private createFleet(world: PirateWorld, x: number, y: number, name: string): Fleet {
-    const empires = world.factions.filter((f) => f.team !== 0 && f.outlaw !== true);
-    const strengths = empires
-      .map((f) => world.fleets
-        .filter((fl) => fl.factionId === f.id && !fl.destroyed)
-        .reduce((sum, fl) => sum + this.shipService.calculateFleetStrength(fl.ships), 0))
-      .sort((a, b) => a - b);
-    const median = strengths.length > 0 ? strengths[Math.floor(strengths.length / 2)] : 0;
-    const wanted = median * PIRATE_CONFIG.strengthShare;
+    const playerStrength = world.fleets
+      .filter((fl) => fl.factionId === 'player' && !fl.destroyed)
+      .reduce((sum, fl) => sum + this.shipService.calculateFleetStrength(fl.ships), 0);
+    const wanted = playerStrength * PIRATE_CONFIG.strengthShare;
     const ships: Fleet['ships'] = [];
     let nextId = this.shipStock.nextShipId(world.fleets, { shipStock: world.shipStock ?? [] });
     while (ships.length < PIRATE_CONFIG.maxShips

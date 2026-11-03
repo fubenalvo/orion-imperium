@@ -37,7 +37,7 @@ import { advanceMiningStationConstruction } from './station-construction';
 import { SpaceBaseService } from './space-base.service';
 import { FleetRepairService } from './fleet-repair.service';
 import { OPENING_GRACE_SECONDS } from './opening-grace';
-import { PIRATE_FACTION_ID, PirateIncursionService } from './pirate-incursion';
+import { PIRATE_CONFIG, PIRATE_FACTION_ID, PirateIncursionService } from './pirate-incursion';
 import { DysonRingService } from './dyson-ring.service';
 import { DysonVictoryService } from './dyson-victory.service';
 
@@ -2603,9 +2603,9 @@ describe('AI simulation — pirate incursion', () => {
       }
       // The event does fire in an hour of AI play.
       expect(result.pirateLog.some((e) => e.text.includes('entered the galaxy')), `${options.size} incursion started`).toBe(true);
-      // An incursion never starts before minute 20.
+      // An incursion never starts before PIRATE_CONFIG.firstAfter.
       for (const entry of result.pirateLog.filter((e) => e.text.includes('entered the galaxy'))) {
-        expect(entry.time).toBeGreaterThanOrEqual(1200);
+        expect(entry.time).toBeGreaterThanOrEqual(PIRATE_CONFIG.firstAfter);
       }
     }
   }, 600_000);

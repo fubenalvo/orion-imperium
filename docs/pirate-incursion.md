@@ -7,7 +7,7 @@ Code: `src/app/components/star-map/pirate-incursion.ts` (`PirateIncursionService
 ## Trigger
 
 - Activity = a battle of the player (`StarMap.enterBattleScreen`) or a change in the number of the player's planets; `noteActivity` stores the game second. AI-vs-AI battles and captures do not count: measured on 2026-11-03 (60-minute small and medium AI games), the longest stretch without any battle or capture anywhere was ~440 s, so with galaxy-wide activity the event never fired.
-- An incursion starts when the game clock is past `firstAfter` (1200 s = minute 20), there was no activity for `quietSeconds` (480 s) and the cooldown (`cooldownSeconds` 900 s after the previous one) is over. At most one incursion runs at a time.
+- An incursion starts when the game clock is past `firstAfter` (480 s = minute 8; was minute 20 until the pirate strength followed the player, 2026-11-03), there was no activity for `quietSeconds` (480 s) and the cooldown (`cooldownSeconds` 900 s after the previous one) is over. At most one incursion runs at a time.
 
 ## Lifecycle
 
@@ -29,13 +29,13 @@ The pirates are a real `Faction` (`id: 'pirates'`, `team: 0`, `ai: false`, `outl
 
 ## Strength
 
-Every pirate fleet (warband and raiders) is built from destroyers and frigates until it reaches `strengthShare` (40%) of the **median** empire's total fleet strength, between 2 and 12 ships. Pirates therefore grow with the galaxy but stay below an average empire's navy.
+Every pirate fleet (warband and raiders) is built from frigates and destroyers (alternating, frigate first) until it reaches `strengthShare` (40%) of the **human player's** total fleet strength, between 1 and 12 ships (changed on 2026-11-03 from the median empire, at the user's request). One pirate fleet is therefore always manageable for the player's fleets; a player without warships faces a single frigate. AI empires meet the same fleets, which may be weak or strong for them.
 
 ## Save compatibility
 
 `StarMapData.pirates` is optional (missing = quiet, nothing happened), the faction lives in `factions`, the haven in the base registry and the fleets in `fleets`, so no save version bump.
 
-## Measured pacing (2026-11-03, `ai-simulation.spec.ts`, passive player, 60 minutes)
+## Measured pacing (2026-11-03, `ai-simulation.spec.ts`, passive player, 60 minutes, with `firstAfter` = 1200 s; not re-measured at 480 s)
 
 - Small map, 2 AIs: incursions at minute 20 (warband destroyed on the way at minute 26) and minute 41 (haven at 43, raids from 49 on).
 - Medium map, 3 AIs: incursion at minute 26, haven at 35, raids at 40 and 44, haven destroyed by an AI at 47.
@@ -46,6 +46,7 @@ Every pirate fleet (warband and raiders) is built from destroyers and frigates u
 
 - The AI has no dedicated haven assault; AI fleets fight pirates they meet and the haven times out. Consider adding the haven to AI assault targets when an empire is raided.
 - Raiders do not attack stations or traders on purpose and never plunder planets beyond the credit drain.
+- The credit drain (15/s, up to 1500 per raid) is fixed; early in the game it is a large share of an empire's income (~70/s at the start). Consider scaling it with the target's income.
 - All values in `PIRATE_CONFIG` are first guesses; watch in play whether the event comes too often, too rarely, or is too weak / too strong.
 
 Related: [Planet Capture](./planet-capture.md) (game outcome), [Diplomacy](./diplomacy.md), [Territory](./territory.md) (space bases and station defense), [Battle Rules](./battle-rules.md).
