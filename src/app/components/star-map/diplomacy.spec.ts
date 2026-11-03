@@ -746,6 +746,13 @@ describe('real-time diplomacy timers', () => {
     expect(warRow.warDurationLabel).toBe('2 min 30 s');
     expect(warRow.offer?.timeLeftLabel).toBe('1 min 30 s');
     expect(JSON.stringify(rows).toLowerCase()).not.toContain('turn');
+
+    // The peace gauge reads the AI's own judgment: same pressure, same price, and only at war.
+    const assessment = enemy.assessWar(factions.find((f) => f.id === 'enemy2')!, player, world);
+    expect(peaceRow.peace).toBeUndefined();
+    expect(warRow.peace?.mood).toBe(assessment.pressure < 0 ? 'unwilling' : assessment.pressure < 0.25 ? 'open' : 'eager');
+    expect(warRow.peace?.price).toBe(Math.round(assessment.peaceValue / 10) * 10);
+    expect(warRow.peace?.reasons.length).toBeLessThanOrEqual(4);
   });
 });
 

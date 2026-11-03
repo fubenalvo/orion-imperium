@@ -12,7 +12,7 @@ import {
 } from './diplomacy';
 import { PeaceTreaty, TreatyItem, describeTreatyInvalid, isFactionAlive } from './peace-treaty';
 import { DiplomacyService } from '../../services/diplomacy.service';
-import { EnemyDiplomacyService, WarFactor, isWarlikePersonality } from './enemy-diplomacy.service';
+import { EnemyDiplomacyService, WarAssessment, WarFactor, isWarlikePersonality } from './enemy-diplomacy.service';
 import { getAiPersonalityProfile } from './ai-personality';
 import {
   DEMAND_RULES,
@@ -78,6 +78,23 @@ export interface DemandOptionsVm {
   threatAllowed: boolean;
 }
 
+/*
+ * At war with an AI: how willing it is to make peace with the player right
+ * now, read from the AI's own judgment (EnemyDiplomacyService.assessWar), so
+ * the screen shows exactly what decides NEGOTIATE PEACE. Diplomacy treats
+ * strength, losses and exhaustion as public knowledge (docs/diplomacy.md).
+ */
+export interface PeaceMoodVm {
+  /* Peace pressure ×100, clamped to −100…+100: 0 is where it accepts a plain peace. */
+  level: number;
+  /* unwilling: wants to be paid; open: accepts a plain peace; eager: would pay for peace. */
+  mood: 'unwilling' | 'open' | 'eager';
+  /* Credits: > 0 the most it would pay you for peace, < 0 about what it wants from you. */
+  price: number;
+  /* The main reasons, strongest first, phrased for the player. */
+  reasons: { text: string; toward: 'peace' | 'war' }[];
+}
+
 export interface DiplomacyRowVm {
   id: string;
   name: string;
@@ -91,12 +108,16 @@ export interface DiplomacyRowVm {
   planets: number;
   /* Fleet strength compared with the player's. */
   strength: 'weaker' | 'comparable' | 'stronger';
+  /* Their fleet strength / yours (for the details panel). */
+  strengthRatio: number;
   /* Their opinion of the player (−100…+100). */
   opinionOfYou: number;
   reputation: number;
   /* At war: exhaustion of each side in this war. */
   yourExhaustion: number;
   theirExhaustion: number;
+  /* At war with an AI: its will to make peace (see PeaceMoodVm). */
+  peace?: PeaceMoodVm;
   /* At war: game seconds the war has lasted so far. */
   warSeconds: number;
   /* At peace: game seconds left on the truce (0 = no truce). */
@@ -210,6 +231,8 @@ export function buildDiplomacyRows(
         alive: isFactionAlive(f.id, world),
         planets,
         strength: ratio < 0.75 ? 'weaker' : ratio > 1.33 ? 'stronger' : 'comparable',
+        strengthRatio: Math.round(ratio * 10) / 10,
+        peace: relation.state === 'war' && f.ai === true ? peaceMoodVm(enemyDiplomacy.assessWar(f, player, world)) : undefined,
         opinionOfYou: Math.round(getOpinion(f, player)),
         reputation: Math.round(getReputation(f)),
         yourExhaustion: Math.round(getWarExhaustion(player, f)),
@@ -235,6 +258,48 @@ export function buildDiplomacyRows(
         atPeaceWith: others.filter((o) => getRelation(f, o)?.state === 'peace').map((o) => o.name),
       };
     });
+}
+
+/* Pressure at or above which the AI would pay for peace ("eager"). */
+const EAGER_PEACE_PRESSURE = 0.25;
+
+/*
+ * Player-facing reason per assessWar factor, by sign (positive pushes the AI
+ * toward peace). The AI is the one assessing, so "you" is the player. The
+ * constant war-aims baseline is left out: it is always there and explains
+ * nothing.
+ */
+const PEACE_REASONS: Readonly<Record<string, [toPeace: string, toWar: string]>> = {
+  military: ['Your fleet is stronger', 'Their fleet is stronger'],
+  exhaustion: ['Worn out by the war', 'Less worn out than you'],
+  fleet_losses: ['Lost more ships than you', 'You lost more ships'],
+  planet_losses: ['Lost more planets than you', 'You lost more planets'],
+  opinion: ['They like you', 'They dislike you'],
+  second_front: ['Fighting on another front', 'Fighting on another front'],
+  collapse: ['Their empire is collapsing', 'Their empire is collapsing'],
+  pointless: ['You are out of their reach', 'You are out of their reach'],
+  treasury: ['Their treasury is empty', 'Their treasury is empty'],
+  personality: ['Peaceful by nature', 'Warlike by nature'],
+  dyson: ['Your Dyson Swarm', 'Your Dyson Swarm: no peace while it grows'],
+};
+
+function peaceMoodVm(assessment: WarAssessment): PeaceMoodVm {
+  const pressure = assessment.pressure;
+  const reasons = assessment.factors
+    .filter((f) => f.key !== 'baseline' && PEACE_REASONS[f.key] && Math.abs(f.value) >= 0.03)
+    .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
+    .slice(0, 4)
+    .map((f) => ({
+      text: PEACE_REASONS[f.key][f.value > 0 ? 0 : 1],
+      toward: f.value > 0 ? ('peace' as const) : ('war' as const),
+    }));
+  return {
+    level: Math.round(Math.max(-1, Math.min(1, pressure)) * 100),
+    mood: pressure < 0 ? 'unwilling' : pressure < EAGER_PEACE_PRESSURE ? 'open' : 'eager',
+    // Rounded to tens like demand amounts; the negotiation dialog has the exact judgment.
+    price: Math.round(assessment.peaceValue / 10) * 10,
+    reasons,
+  };
 }
 
 const DEMAND_CONSEQUENCES: Readonly<Record<DemandKind, string>> = {

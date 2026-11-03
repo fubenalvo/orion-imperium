@@ -1,5 +1,5 @@
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { DiplomacyRowVm, DiplomacySummaryVm } from '../star-map-diplomacy-vm';
+import { DiplomacyRowVm, DiplomacySummaryVm, PeaceMoodVm } from '../star-map-diplomacy-vm';
 import {
   OPINION_TREATY_BROKEN,
   OPINION_WAR_DECLARED,
@@ -27,9 +27,14 @@ export type { DiplomacyRowVm } from '../star-map-diplomacy-vm';
  * Diplomacy screen: one card per other empire with the relation (icon
  * chip), a row of gauges and the available actions. Gauges are icon + bar:
  * attitude and reputation as two-way bars (-100…+100, negative red to the
- * left), fleet strength as a 3-segment meter, war exhaustion as you / them
- * sliders with the 25-point penalty threshold marked. A short word sits
- * beside the bar; the exact numbers stay in tooltips, so the screen reads
+ * left), fleet strength as a 3-segment meter, and at war the AI's will to
+ * make peace (PeaceMoodVm, from its own assessWar) as a WANTS WAR / WANTS
+ * PEACE bar with Unwilling / Open / Eager. War exhaustion itself is not
+ * drawn: shown per side it raised "is high good or bad?", and what the
+ * player acts on is whether peace is possible and at what price. A short
+ * word sits beside each bar; the exact numbers and the reasons are in the
+ * card's MORE DETAILS disclosure. There are deliberately no hover tooltips
+ * (title attributes): they do not work on touch screens. The screen reads
  * like a game panel rather than a table. Eliminated empires sink to the bottom. Pure view: it only emits the player's choices; the
  * rules live in DiplomacyService / EnemyDiplomacyService and the numbers
  * come from star-map-diplomacy-vm.ts (docs/diplomacy.md).
@@ -148,6 +153,29 @@ export class StarMapDiplomacyComponent {
 
   bipolarWidth(value: number): number {
     return Math.min(100, Math.abs(value)) / 2;
+  }
+
+  readonly moodLabels: Record<PeaceMoodVm['mood'], string> = {
+    unwilling: 'Unwilling',
+    open: 'Open',
+    eager: 'Eager',
+  };
+
+  readonly moodTone: Record<PeaceMoodVm['mood'], 'positive' | 'danger' | 'neutral'> = {
+    unwilling: 'danger',
+    open: 'neutral',
+    eager: 'positive',
+  };
+
+  /* What a peace would take right now, in the player's terms (MORE DETAILS). */
+  peaceSentence(peace: PeaceMoodVm): string {
+    if (peace.mood === 'unwilling') {
+      return `They want about ${this.credits(-peace.price)} credits for peace, or keep fighting until the war wears them down.`;
+    }
+    if (peace.price >= 10) {
+      return `They would accept peace, and pay you up to ${this.credits(peace.price)} credits for it.`;
+    }
+    return 'They would accept a plain peace, with no payment either way.';
   }
 
   ask(id: string, action: 'war' | 'breach'): void {

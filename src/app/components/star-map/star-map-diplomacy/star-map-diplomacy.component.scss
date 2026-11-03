@@ -176,7 +176,6 @@
   border-radius: var(--ui-radius);
   background: var(--ui-surface-sunken);
   font-size: var(--ui-fs-sm);
-  cursor: help;
 }
 
 .diplomacy__gauge--wide {
@@ -262,39 +261,6 @@
   --seg-color: var(--ui-danger);
 }
 
-/* War exhaustion slider: amber to red fill, a knob at the value and a tick
-   at 25 where the output penalty starts (docs/diplomacy.md). */
-.diplomacy__slider {
-  position: relative;
-  flex: 1 1 auto;
-  min-width: 4em;
-  height: 8px;
-  border: 1px solid rgba(var(--ui-accent-rgb), 0.2);
-  background:
-    linear-gradient(90deg, transparent calc(25% - 1px), rgba(191, 226, 234, 0.55) calc(25% - 1px) 25%, transparent 25%),
-    #000c13;
-}
-
-.diplomacy__slider-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, var(--ui-amber), var(--ui-danger));
-
-  &::after {
-    content: '';
-    position: absolute;
-    right: -4px;
-    top: -4px;
-    width: 6px;
-    height: 14px;
-    border: 1px solid #1b252a;
-    border-radius: 1px;
-    background: linear-gradient(180deg, #d0d8db, #6c787d);
-  }
-}
-
 .diplomacy__wars {
   display: inline-flex;
   align-items: center;
@@ -307,25 +273,21 @@
   }
 }
 
-.diplomacy__duel {
+/* War of attrition: one tug-of-war bar (a .diplomacy__bipolar) between two
+   end labels; it grows toward the side that tires faster. */
+.diplomacy__tug {
   display: flex;
   flex: 1 1 auto;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.diplomacy__duel-row {
-  display: flex;
   align-items: center;
   gap: 0.7em;
+  min-width: 0;
+}
 
-  b {
-    flex: 0 0 3.2em;
-    color: var(--ui-ink-dim);
-    font-size: var(--ui-fs-xs);
-    font-weight: 400;
-    letter-spacing: var(--ui-track-wide);
-  }
+.diplomacy__tug-end {
+  flex: 0 0 auto;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track);
 }
 
 .diplomacy__aside {
@@ -369,6 +331,81 @@
   margin: 0;
   color: var(--ui-ink-dim);
   font-size: var(--ui-fs-sm);
+}
+
+/* Per-card MORE DETAILS: exact numbers and peace reasons (no hover tooltips, see the component). */
+.diplomacy__details {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+
+  summary {
+    width: fit-content;
+    color: var(--ui-accent-text);
+    font-size: var(--ui-fs-xs);
+    letter-spacing: var(--ui-track-wide);
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  &[open] summary {
+    margin-bottom: 8px;
+  }
+}
+
+.diplomacy__facts-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 4px 18px;
+  margin: 0 0 8px;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 3px 0;
+    border-bottom: 1px solid var(--ui-line-soft);
+  }
+
+  dt {
+    color: var(--ui-ink-dim);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ui-accent);
+    text-align: right;
+  }
+}
+
+.diplomacy__details-head {
+  margin: 8px 0 2px;
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-transform: uppercase;
+}
+
+.diplomacy__details-text {
+  margin: 4px 0;
+  color: var(--ui-ink);
+  line-height: 1.4;
+}
+
+.diplomacy__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+
+  li {
+    color: var(--ui-danger-text);
+  }
+}
+
+li.diplomacy__reason--peace {
+  color: var(--ui-success);
 }
 
 /* Rules footnote, collapsed by default. */

@@ -50,13 +50,6 @@
         <div class="diplomacy__summary">
           <div
             class="diplomacy__gauge"
-            [title]="
-              'Your reputation: ' +
-              reputationWord(summary.reputation) +
-              ' (' +
-              signed(summary.reputation) +
-              '). How far every empire trusts your word.'
-            "
           >
             <svg class="diplomacy__icon"><use href="#dip-reputation" /></svg>
             <span class="diplomacy__bipolar" aria-hidden="true">
@@ -76,24 +69,14 @@
           @if (summary.warCount > 0 || summary.penaltyPercent > 0) {
             <div
               class="diplomacy__gauge"
-              [title]="
-                'Your war exhaustion: ' +
-                summary.exhaustion +
-                ' of 100. Above 25 it cuts your output' +
-                (summary.penaltyPercent > 0 ? ' (now −' + summary.penaltyPercent + '%)' : '') +
-                '.'
-              "
             >
               <span class="diplomacy__wars"
                 ><svg class="diplomacy__icon"><use href="#dip-war" /></svg
-                >{{ summary.warCount }}</span
+                >{{ summary.warCount === 1 ? '1 WAR' : summary.warCount + ' WARS' }}</span
               >
-              <span class="diplomacy__slider" aria-hidden="true">
-                <span class="diplomacy__slider-fill" [style.width.%]="summary.exhaustion"></span>
-              </span>
               @if (summary.penaltyPercent > 0) {
                 <span class="diplomacy__gauge-word diplomacy__tone--danger"
-                  >−{{ summary.penaltyPercent }}%</span
+                  >OUTPUT −{{ summary.penaltyPercent }}%</span
                 >
               }
             </div>
@@ -129,41 +112,33 @@
             @if (row.warlike) {
               <span
                 class="ui-chip ui-chip--warning"
-                title="Warlike: rarely makes peace unless losing or exhausted, and looks for a new war soon after every truce. Only a clearly stronger empire or a close friend is spared."
                 >WARLIKE</span
               >
             }
             @if (!row.alive) {
               <span class="ui-chip ui-chip--muted">ELIMINATED</span>
             } @else if (row.state === 'war') {
-              <span class="ui-chip ui-chip--danger" title="At war. Duration in game time."
+              <span class="ui-chip ui-chip--danger"
                 ><svg class="diplomacy__chip-icon"><use href="#dip-war" /></svg
                 >{{ row.warDurationLabel }}</span
               >
             } @else if (row.truceSecondsLeft > 0) {
-              <span class="ui-chip ui-chip--warning" title="Truce: time left in game time"
+              <span class="ui-chip ui-chip--warning"
                 ><svg class="diplomacy__chip-icon"><use href="#dip-truce" /></svg
                 >{{ row.truceLeftLabel }}</span
               >
             } @else {
-              <span class="ui-chip ui-chip--success" title="At peace"
+              <span class="ui-chip ui-chip--success"
                 ><svg class="diplomacy__chip-icon"><use href="#dip-peace" /></svg>PEACE</span
               >
             }
           </div>
 
           @if (row.alive) {
-            <!-- Gauges instead of prose: icon + bar, the word or number beside it, exact values in tooltips. -->
+            <!-- Gauges instead of prose: icon + bar and a word; exact values in MORE DETAILS below. -->
             <div class="diplomacy__gauges">
               <div
                 class="diplomacy__gauge"
-                [title]="
-                  'Their attitude toward you: ' +
-                  opinionWord(row.opinionOfYou) +
-                  ' (' +
-                  signed(row.opinionOfYou) +
-                  ')'
-                "
               >
                 <svg class="diplomacy__icon"><use href="#dip-attitude" /></svg>
                 <span class="diplomacy__bipolar" aria-hidden="true">
@@ -182,7 +157,6 @@
               </div>
               <div
                 class="diplomacy__gauge"
-                [title]="'Their fleet compared with yours: ' + strengthLabels[row.strength]"
               >
                 <svg class="diplomacy__icon"><use href="#dip-fleet" /></svg>
                 <span
@@ -198,46 +172,104 @@
                   >{{ strengthLabels[row.strength] }}</span
                 >
               </div>
-              <div class="diplomacy__gauge diplomacy__gauge--compact" title="Planets they own">
+              <div class="diplomacy__gauge diplomacy__gauge--compact">
                 <svg class="diplomacy__icon"><use href="#dip-planet" /></svg>
                 <span class="diplomacy__count">{{ row.planets }}</span>
               </div>
-              @if (row.state === 'war') {
-                <div
-                  class="diplomacy__gauge diplomacy__gauge--wide"
-                  [title]="
-                    'War exhaustion: you ' +
-                    row.yourExhaustion +
-                    ', them ' +
-                    row.theirExhaustion +
-                    ' (of 100). Above 25 it cuts output; the more exhausted side is likelier to accept peace.'
-                  "
-                >
-                  <svg class="diplomacy__icon"><use href="#dip-exhaustion" /></svg>
-                  <span class="diplomacy__duel">
-                    <span class="diplomacy__duel-row"
-                      ><b>YOU</b
-                      ><span class="diplomacy__slider"
-                        ><span
-                          class="diplomacy__slider-fill"
-                          [style.width.%]="row.yourExhaustion"
-                        ></span></span
-                    ></span>
-                    <span class="diplomacy__duel-row"
-                      ><b>THEM</b
-                      ><span class="diplomacy__slider"
-                        ><span
-                          class="diplomacy__slider-fill"
-                          [style.width.%]="row.theirExhaustion"
-                        ></span></span
-                    ></span>
+              @if (row.peace; as peace) {
+                <!-- Will to make peace, from the AI's own judgment: the centre is where it accepts a
+                     plain peace; right / green = wants peace, left / red = wants to keep fighting. -->
+                <div class="diplomacy__gauge diplomacy__gauge--wide">
+                  <svg class="diplomacy__icon"><use href="#dip-peace" /></svg>
+                  <span class="diplomacy__tug">
+                    <span class="diplomacy__tug-end">WANTS WAR</span>
+                    <span class="diplomacy__bipolar" aria-hidden="true">
+                      <span
+                        class="diplomacy__bipolar-fill"
+                        [class.diplomacy__bipolar-fill--negative]="peace.level < 0"
+                        [style.left.%]="bipolarLeft(peace.level)"
+                        [style.width.%]="bipolarWidth(peace.level)"
+                      ></span>
+                    </span>
+                    <span class="diplomacy__tug-end">WANTS PEACE</span>
                   </span>
+                  <span class="diplomacy__gauge-word" [class]="'diplomacy__tone--' + moodTone[peace.mood]">{{
+                    moodLabels[peace.mood]
+                  }}</span>
                 </div>
               }
             </div>
             @if (row.atWarWith.length) {
               <p class="diplomacy__aside">Also at war with {{ row.atWarWith.join(', ') }}</p>
             }
+
+            <!-- Exact numbers and the reasons behind the gauges: an inline disclosure, not hover
+                 tooltips, so it works the same with touch. -->
+            <details class="diplomacy__details">
+              <summary>More details</summary>
+              <dl class="diplomacy__facts-list">
+                <div>
+                  <dt>Attitude toward you</dt>
+                  <dd>{{ opinionWord(row.opinionOfYou) }} ({{ signed(row.opinionOfYou) }})</dd>
+                </div>
+                <div>
+                  <dt>Their reputation</dt>
+                  <dd>{{ reputationWord(row.reputation) }} ({{ signed(row.reputation) }})</dd>
+                </div>
+                <div>
+                  <dt>Fleet</dt>
+                  <dd>{{ row.strengthRatio }}× yours</dd>
+                </div>
+                <div>
+                  <dt>Planets</dt>
+                  <dd>{{ row.planets }}</dd>
+                </div>
+                @if (row.state === 'war') {
+                  <div>
+                    <dt>War weariness</dt>
+                    <dd>you {{ row.yourExhaustion }} · them {{ row.theirExhaustion }} (of 100)</dd>
+                  </div>
+                } @else if (row.truceSecondsLeft > 0) {
+                  <div>
+                    <dt>Truce</dt>
+                    <dd>no war declaration for {{ row.truceLeftLabel }}</dd>
+                  </div>
+                }
+                @if (row.state === 'peace' && !row.demandOptions.available && row.demandOptions.reason) {
+                  <div>
+                    <dt>Credit demand</dt>
+                    <dd>{{ row.demandOptions.reason }}</dd>
+                  </div>
+                }
+              </dl>
+              @if (row.peace; as peace) {
+                <p class="diplomacy__details-head">Peace right now</p>
+                <p class="diplomacy__details-text">{{ peaceSentence(peace) }}</p>
+                @if (peace.reasons.length) {
+                  <ul class="diplomacy__reasons">
+                    @for (reason of peace.reasons; track reason.text) {
+                      <li [class.diplomacy__reason--peace]="reason.toward === 'peace'">
+                        <span aria-hidden="true">{{ reason.toward === 'peace' ? '▲' : '▼' }}</span>
+                        {{ reason.text }}
+                        <span class="diplomacy__dim">{{ reason.toward === 'peace' ? '(toward peace)' : '(toward war)' }}</span>
+                      </li>
+                    }
+                  </ul>
+                }
+              }
+              @if (row.warlike) {
+                <p class="diplomacy__details-text">
+                  Warlike: rarely makes peace unless losing or exhausted, and looks for a new war soon after every
+                  truce. Only a clearly stronger empire or a close friend is spared.
+                </p>
+              }
+              @if (row.state === 'war') {
+                <p class="diplomacy__details-text diplomacy__dim">
+                  War weariness grows with every minute of war and with lost ships and planets. Above 25 your own
+                  weariness cuts your output (up to −30%); it resets when peace is signed.
+                </p>
+              }
+            </details>
 
             @if (row.offer) {
               <div class="ui-notice ui-notice--success diplomacy__offer">
@@ -320,7 +352,7 @@
             }
 
             @if (isDemandFormOpen(row.id) && demandForm; as form) {
-              <div class="ui-notice diplomacy__demand-form" [title]="demandLimits">
+              <div class="ui-notice diplomacy__demand-form">
                 <div class="diplomacy__demand-kinds" role="radiogroup" aria-label="Kind of demand">
                   @for (kind of demandKinds; track kind) {
                     <button
@@ -329,11 +361,6 @@
                       [attr.aria-checked]="form.kind === kind"
                       [class.is-selected]="form.kind === kind"
                       [disabled]="kind === 'threat' && !row.demandOptions.threatAllowed"
-                      [title]="
-                        kind === 'threat' && !row.demandOptions.threatAllowed
-                          ? 'No ultimatum during a truce'
-                          : ''
-                      "
                       (click)="setDemandKind(kind)"
                     >
                       {{ demandKindLabels[kind] }}
@@ -362,6 +389,7 @@
                 >
                   {{ demandOutgoingConsequence[form.kind] }}
                 </p>
+                <p class="diplomacy__demand-consequence diplomacy__dim">{{ demandLimits }}</p>
                 <span class="diplomacy__actions">
                   <button
                     type="button"
@@ -401,7 +429,6 @@
                   <button
                     type="button"
                     [disabled]="!row.demandOptions.available || isDemandFormOpen(row.id)"
-                    [title]="row.demandOptions.reason ?? ''"
                     (click)="openDemandForm(row)"
                   >
                     DEMAND CREDITS…
@@ -425,11 +452,6 @@
                     class="btn-danger"
                     type="button"
                     [disabled]="!row.canDeclareWar"
-                    [title]="
-                      row.truceSecondsLeft > 0
-                        ? 'Truce: no war declaration for ' + row.truceLeftLabel
-                        : ''
-                    "
                     (click)="ask(row.id, 'war')"
                   >
                     DECLARE WAR…
@@ -446,6 +468,14 @@
 
     <details class="diplomacy__hint">
       <summary>How diplomacy works</summary>
+      @if (summary) {
+        <p>
+          Your reputation: {{ reputationWord(summary.reputation) }} ({{ signed(summary.reputation) }}), how far
+          every empire trusts your word. Your war weariness: {{ summary.exhaustion }} of 100{{
+            summary.penaltyPercent > 0 ? ', output −' + summary.penaltyPercent + '%' : ''
+          }}.
+        </p>
+      }
       <p>
         All times are game time: they stop while the game is paused and run faster at 3x. Peace is
         permanent; after a treaty a {{ truceLabel }} truce forbids war declarations. War exhaustion
