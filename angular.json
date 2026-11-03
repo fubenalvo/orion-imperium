@@ -56,7 +56,8 @@
               "buildings-isometric/small-research-lab.png",
               "buildings-isometric/research-lab.png",
               "buildings-isometric/spaceport.png",
-              "ship.svg"
+              "ship.svg",
+              "ui/console-frame.svg"
             ],
             "styles": ["src/styles.scss"]
           },
