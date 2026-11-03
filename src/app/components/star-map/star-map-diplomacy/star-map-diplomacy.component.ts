@@ -24,9 +24,11 @@ import { DYSON_CASUS_BELLI_ANCHORS } from '../dyson-anchor';
 export type { DiplomacyRowVm } from '../star-map-diplomacy-vm';
 
 /*
- * Diplomacy screen: one card per other empire with the relation, the
- * diplomatic values (opinion, reputation, exhaustion, truce) and the
- * available actions. Pure view: it only emits the player's choices; the
+ * Diplomacy screen: one card per other empire with the relation, a short
+ * row of facts (attitude, fleet, planets, war exhaustion) and the
+ * available actions. Values are shown as words ("Friendly", "Weary");
+ * the exact numbers stay in tooltips, so the screen reads like a game
+ * panel rather than a table. Eliminated empires sink to the bottom. Pure view: it only emits the player's choices; the
  * rules live in DiplomacyService / EnemyDiplomacyService and the numbers
  * come from star-map-diplomacy-vm.ts (docs/diplomacy.md).
  *
@@ -112,10 +114,33 @@ export class StarMapDiplomacyComponent {
   }
 
   readonly strengthLabels: Record<DiplomacyRowVm['strength'], string> = {
-    weaker: 'Weaker fleet than yours',
-    comparable: 'Fleet comparable to yours',
-    stronger: 'Stronger fleet than yours',
+    weaker: 'Weaker',
+    comparable: 'Even',
+    stronger: 'Stronger',
   };
+
+  /* Living empires first; the input order is kept otherwise. */
+  get orderedRows(): DiplomacyRowVm[] {
+    return [...this.rows.filter((r) => r.alive), ...this.rows.filter((r) => !r.alive)];
+  }
+
+  /*
+   * Word scales for the −100…+100 opinion / reputation values and the
+   * 0…100 exhaustion. Thresholds are presentation only; the ±20 band
+   * matches tone() so a word and its colour always agree, and 25 is where
+   * exhaustion starts to cut output (docs/diplomacy.md).
+   */
+  opinionWord(value: number): string {
+    return value >= 50 ? 'Friendly' : value >= 20 ? 'Cordial' : value > -20 ? 'Neutral' : value > -50 ? 'Wary' : 'Hostile';
+  }
+
+  reputationWord(value: number): string {
+    return value >= 50 ? 'Honourable' : value >= 20 ? 'Trusted' : value > -20 ? 'Neutral' : value > -50 ? 'Doubtful' : 'Treacherous';
+  }
+
+  exhaustionWord(value: number): string {
+    return value < 25 ? 'fresh' : value < 50 ? 'tired' : value < 75 ? 'weary' : 'exhausted';
+  }
 
   ask(id: string, action: 'war' | 'breach'): void {
     this.demandForm = null;
@@ -174,7 +199,7 @@ export class StarMapDiplomacyComponent {
     return value > 0 ? `+${value}` : `${value}`;
   }
 
-  tone(value: number): 'positive' | 'danger' | null {
-    return value >= 20 ? 'positive' : value <= -20 ? 'danger' : null;
+  tone(value: number): 'positive' | 'danger' | 'neutral' {
+    return value >= 20 ? 'positive' : value <= -20 ? 'danger' : 'neutral';
   }
 }

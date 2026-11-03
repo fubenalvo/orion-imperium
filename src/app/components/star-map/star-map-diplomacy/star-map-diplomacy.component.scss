@@ -129,10 +129,36 @@
   text-transform: uppercase;
 }
 
-.diplomacy__stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 2px 20px;
+/* Attitude / fleet / planets / exhaustion in one glanceable row. */
+.diplomacy__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 28px;
+}
+
+.diplomacy__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-md);
+
+  &[title] {
+    cursor: help;
+  }
+}
+
+.diplomacy__fact-label {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-transform: uppercase;
+}
+
+.diplomacy__aside {
+  margin: 0;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
 }
 
 .diplomacy__offer {
@@ -149,8 +175,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--ui-line-soft);
 }
 
 .diplomacy__lock {
@@ -174,10 +198,22 @@
   font-size: var(--ui-fs-sm);
 }
 
+/* Rules footnote, collapsed by default. */
 .diplomacy__hint {
   flex-shrink: 0;
-  padding: 10px clamp(16px, 2.4vw, 32px) 14px;
+  padding: 8px clamp(16px, 2.4vw, 32px) 12px;
   border-top: 1px solid var(--ui-line-soft);
+
+  summary {
+    cursor: pointer;
+    letter-spacing: var(--ui-track);
+    text-transform: uppercase;
+  }
+
+  p {
+    margin: 6px 0 0;
+    line-height: 1.4;
+  }
 }
 
 @media (max-width: 600px) {
@@ -197,85 +233,13 @@
   gap: clamp(14px, 2.4vw, 32px);
 }
 
-.diplomacy__value--positive {
-  color: var(--ui-success);
-}
-
-.diplomacy__value--danger {
+.diplomacy__value--danger,
+.diplomacy__tone--danger {
   color: var(--ui-danger-text);
 }
 
-.diplomacy__meters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 6px 20px;
-}
-
-.diplomacy__meter {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas:
-    'label value'
-    'bar bar';
-  gap: 3px 10px;
-  align-items: center;
-}
-
-.diplomacy__meter-label {
-  grid-area: label;
-  color: var(--ui-ink-dim);
-  font-size: var(--ui-fs-xs);
-  letter-spacing: var(--ui-track-wide);
-  text-transform: uppercase;
-}
-
-.diplomacy__meter-value {
-  grid-area: value;
-  color: var(--ui-ink);
-  font-size: var(--ui-fs-sm);
-}
-
-/* A centred −100…+100 bar: the fill grows from the middle. */
-.diplomacy__bipolar {
-  grid-area: bar;
-  position: relative;
-  height: 4px;
-  background: var(--ui-surface-sunken);
-
-  &::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: -2px;
-    bottom: -2px;
-    width: 1px;
-    background: var(--ui-line-strong);
-  }
-}
-
-.diplomacy__bipolar-fill {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  background: var(--ui-success);
-}
-
-.diplomacy__bipolar-fill--negative {
-  right: 50%;
-  left: auto;
-  background: var(--ui-danger);
-}
-
-.diplomacy__duo {
-  grid-area: bar;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-.diplomacy__exhaustion-fill {
-  background: var(--ui-warning);
+.diplomacy__tone--positive {
+  color: var(--ui-success);
 }
 
 .diplomacy__terms {

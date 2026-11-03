@@ -162,7 +162,7 @@ The satisfaction offset (percentage points of the target) and the comfort factor
 - The ceiling multiplies the housing capacity (`getPopulationCapacity`, floored); growth fills the remaining capacity, so a harsh world also grows to a smaller size.
 - The upkeep factor multiplies every building on that planet, on top of the empire upkeep scale; the AI prices a new building for that planet the same way.
 - Homeworlds are always earthlike. A planet whose population is above its ceiling (an older save, an AI starting colony) drops to the ceiling on the next economy tick.
-- The planet info panel and the planet screen show the type's effects ("World type").
+- The planet info panel shows the type's effects ("World type"); the planet screen shows them as a hint line under the owner (off earthlike worlds) and as the type chip's tooltip.
 - AI colonization scores a type by `0.4 + 0.6 × ceiling / upkeep factor` (earthlike 1.0 … gas giant ≈ 0.65, see [AI Pipeline](./ai-pipeline.md)).
 
 ## Colony cores

@@ -158,7 +158,6 @@ import { StarMapPlanetArrivalService } from './star-map-planet-arrival.service';
 import {
   getFactionColor as getFactionColorUtil,
   getFactionName as getFactionNameUtil,
-  getFactionCurrencies as getFactionCurrenciesUtil,
   getPlayerCurrencies as getPlayerCurrenciesUtil,
   getPlayerCredits as getPlayerCreditsUtil,
   getPlanetClassNames as getPlanetClassNamesUtil,
@@ -2657,15 +2656,9 @@ loadError = '';
     return this.panelVmService.suggestFleetName(this.fleets);
   }
 
-  /** Returns a faction's currencies as key-value pairs. */
-  getFactionCurrencies(factionId: string): { name: string; value: number }[] {
-    return getFactionCurrenciesUtil(this.factions, factionId);
-  }
-
   // Bound versions for child component inputs to preserve `this` context
   readonly boundGetFactionColor = this.getFactionColor.bind(this);
   readonly boundGetFactionName = this.getFactionName.bind(this);
-  readonly boundGetFactionCurrencies = this.getFactionCurrencies.bind(this);
   readonly boundGetPlayerEconomyBreakdown = this.getPlayerEconomyBreakdown.bind(this);
   readonly boundGetPlanetColor = this.getPlanetColor.bind(this);
   readonly boundGetPlayerCredits = this.getPlayerCredits.bind(this);

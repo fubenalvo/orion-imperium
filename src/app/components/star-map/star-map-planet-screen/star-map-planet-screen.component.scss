@@ -566,18 +566,9 @@
   }
 }
 
-.planet-sidebar__satisfaction-trend {
-  margin-left: 0.4em;
-  color: var(--ui-ink-dim);
-  font-size: var(--ui-fs-xs);
-}
-
-/* Energy shortage / falling satisfaction warning under the hero figures. */
+/* Energy / workforce shortage and rebellion warnings under the hero figures. */
 .planet-sidebar__alert {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3em;
-  margin: 0.2em 0 0.4em;
+  margin: 0.1em 0;
   padding: 0.5em 0.6em;
   border-left: 2px solid var(--ui-danger);
   background: rgba(var(--ui-danger-rgb), 0.08);
@@ -587,7 +578,7 @@
 }
 
 .planet-sidebar__notice {
-  margin: 0.2em 0 0.4em;
+  margin: 0.1em 0;
   padding: 0.5em 0.6em;
   border-left: 2px solid var(--ui-accent);
   background: rgba(var(--ui-accent-rgb), 0.08);
@@ -615,20 +606,6 @@
   color: var(--ui-success, #7bd66b);
 }
 
-.planet-sidebar__comfort {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.2em 0.6em;
-  margin-top: 0.3em;
-  color: var(--ui-ink-dim);
-  font-size: 0.85em;
-}
-
-.planet-sidebar__comfort-set {
-  color: var(--ui-success, #7bd66b);
-}
-
 .planet-sidebar__satisfaction--warn {
   --meter-color: var(--ui-warning);
 }
@@ -653,15 +630,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.planet-sidebar__currencies {
-  margin: 0.2em 0 0.4em;
-  padding: 0.45em 0.6em;
-  border: 1px solid var(--ui-line-soft);
-  border-radius: var(--ui-radius);
-  background: var(--ui-surface-sunken);
-  font-size: 0.9rem;
 }
 
 /* ---------- Build list ---------- */
@@ -758,12 +726,6 @@
   color: var(--ui-danger);
 }
 
-/* Remaining share of the deposit (full bar = untouched). */
-.planet-sidebar__deposit-meter {
-  display: block;
-  margin: 0.2em 0 0.4em;
-}
-
 .planet-sidebar__build-active {
   display: flex;
   flex-direction: column;
@@ -839,30 +801,162 @@
   text-align: center;
 }
 
-.planet-sidebar__building-row {
+/* ---------- Details tab ---------- */
+
+.planet-sidebar__value--positive {
+  color: var(--ui-success);
+}
+
+.planet-sidebar__value--danger {
+  color: var(--ui-danger-text);
+}
+
+.planet-sidebar__trend {
+  margin-left: 0.3em;
+  color: var(--ui-success);
+  font-size: 0.8em;
+}
+
+.planet-sidebar__trend--down {
+  color: var(--ui-danger-text);
+}
+
+/* One dim line of context (world type, civilization, deposit hint). */
+.planet-sidebar__hint {
+  margin-bottom: 0.3em;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.35;
+}
+
+/* Spare energy / workers / comfort coverage as three glanceable tiles. */
+.planet-sidebar__vitals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4em;
+  margin-top: 0.3em;
+}
+
+.planet-sidebar__vital {
   display: flex;
-  justify-content: space-between;
-  gap: 0.8em;
-  padding: 0.3em 0.55em;
-  border-left: 2px solid var(--ui-line);
-  background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.05), transparent 80%);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15em;
+  padding: 0.55em 0.3em 0.45em;
+  border: 1px solid var(--ui-line-soft);
+  border-bottom: 2px solid rgba(var(--ui-accent-rgb), 0.5);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised);
+  cursor: help;
 
-  & + & {
-    margin-top: 2px;
+  b {
+    color: var(--ui-ink-bright);
+    font-size: var(--ui-fs-md);
+    font-weight: 400;
   }
 
-  .planet-sidebar__building-name {
-    min-width: 0;
-    overflow: hidden;
-    color: var(--ui-ink);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .planet-sidebar__building-size {
-    flex: 0 0 auto;
+  span {
     color: var(--ui-ink-dim);
     font-size: var(--ui-fs-xs);
+    letter-spacing: var(--ui-track-wide);
+    text-transform: uppercase;
+  }
+}
+
+.planet-sidebar__vital-glyph {
+  height: 16px;
+  font-size: 16px !important;
+  line-height: 16px;
+  letter-spacing: 0 !important;
+}
+
+.planet-sidebar__vital--warn {
+  border-bottom-color: var(--ui-warning);
+
+  b {
+    color: var(--ui-warning);
+  }
+}
+
+.planet-sidebar__vital--danger {
+  border-bottom-color: var(--ui-danger);
+
+  b {
+    color: var(--ui-danger-text);
+  }
+}
+
+.planet-sidebar__yields {
+  display: flex;
+  justify-content: space-around;
+  gap: 0.8em;
+  margin: 0.3em 0 0.2em;
+  padding: 0.45em 0.6em;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-sunken);
+  color: var(--ui-ink);
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+}
+
+.planet-sidebar__deposit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin: 0.4em 0 0.2em;
+  cursor: help;
+}
+
+.planet-sidebar__deposit-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  text-transform: uppercase;
+
+  span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+  }
+
+  b {
+    color: var(--ui-ink);
+    font-weight: 400;
+  }
+}
+
+/* Remaining share of the deposit (full bar = untouched). */
+.planet-sidebar__deposit-meter {
+  display: block;
+}
+
+/* Grouped building names as compact tags. */
+.planet-sidebar__buildings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+}
+
+.planet-sidebar__building {
+  padding: 0.25em 0.55em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: rgba(var(--ui-accent-rgb), 0.05);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xs);
+  white-space: nowrap;
+
+  b {
+    margin-left: 0.2em;
+    color: var(--ui-accent-text);
+    font-weight: 400;
   }
 }
 
