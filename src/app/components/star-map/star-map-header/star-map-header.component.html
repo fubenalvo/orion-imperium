@@ -13,7 +13,9 @@
   <app-faction-currencies
     [currencies]="currencies"
     [economyBreakdown]="economyBreakdown"
+    [tradeSummary]="tradeSummary"
     (openResearchTree)="openResearchTree.emit()"
+    (tradeRequest)="tradeRequest.emit($event)"
   ></app-faction-currencies>
 
   <app-star-map-ship-stock

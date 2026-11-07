@@ -5,6 +5,7 @@ import {
 } from './star-map-planet-screen.component';
 import { PlanetTile, ResourceDeposit } from '../star-map.models';
 import { CommonModule } from '@angular/common';
+import { ChangeDetectorRef } from '@angular/core';
 import { encodeBlockedMask } from '../planet-surface/planet-surface';
 
 describe('StarMapPlanetScreenComponent', () => {
@@ -94,6 +95,81 @@ describe('StarMapPlanetScreenComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  describe('construction sites', () => {
+    // A fixture's root component gets no ngDoCheck from a parent: run the
+    // scene refresh the way StarMap's change detection would.
+    const render = () => {
+      component.ngDoCheck();
+      // The component's own view ref checks it unconditionally, like StarMap's
+      // default change detection does every redraw.
+      fixture.componentRef.injector.get(ChangeDetectorRef).detectChanges();
+    };
+
+    const withSite = (): PlanetTile => ({
+      ...mockPlanet,
+      buildings: [{
+        name: 'Small Residential Block', size: 1, x: 4, y: 4,
+        constructionRemaining: 15, constructionTotal: 30, constructionPaid: { credits: 600, rawmaterials: 150 },
+      }],
+    });
+
+    it('draws a site as a construction site on the surface, not as a finished sprite', () => {
+      fixture.componentRef.setInput('planet', withSite());
+      render();
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelectorAll('.construction-site')).toHaveLength(1);
+      expect(el.querySelector('.construction-site__scaffold')).not.toBeNull();
+      expect(el.querySelector('.construction-site')!.getAttribute('style')).toContain('--progress: 0.5');
+      expect(el.querySelectorAll('.planet-surface__sprite:not(.planet-surface__sprite--deposit)')).toHaveLength(0);
+    });
+
+    it('swaps the site for the finished sprite once it completes', () => {
+      const planet = withSite();
+      fixture.componentRef.setInput('planet', planet);
+      render();
+      delete planet.buildings[0].constructionRemaining;
+      render();
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelectorAll('.construction-site')).toHaveLength(0);
+      expect(el.querySelectorAll('.planet-surface__sprite:not(.planet-surface__sprite--deposit)')).toHaveLength(1);
+    });
+
+    it('lists the site on the BUILD tab with progress, time left, status and cost; cancel asks StarMap', () => {
+      fixture.componentRef.setInput('planet', withSite());
+      fixture.componentRef.setInput('getConstructionSpeed', () => 1);
+      component.setTab('build');
+      render();
+      const el: HTMLElement = fixture.nativeElement;
+      const entry = el.querySelector('.construction-entry')!;
+      expect(entry.textContent).toContain('Small Residential Block');
+      expect(entry.textContent).toContain('50%');
+      expect(entry.textContent).toContain('0:15 left');
+      expect(entry.textContent).toContain('BUILDING');
+      expect(entry.textContent).toContain('Paid 600 CR');
+      const emitted: { x: number; y: number }[] = [];
+      component.cancelConstruction.subscribe((e) => emitted.push(e));
+      (entry.querySelector('.construction-entry__cancel') as HTMLButtonElement).click();
+      expect(emitted).toEqual([{ x: 4, y: 4 }]);
+    });
+
+    it('shows PAUSED and freezes the site animation while the game is paused', () => {
+      fixture.componentRef.setInput('planet', withSite());
+      fixture.componentRef.setInput('isPaused', true);
+      component.setTab('build');
+      render();
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelector('.construction-entry__status')!.textContent).toContain('PAUSED');
+      expect(el.querySelector('.construction-site--paused')).not.toBeNull();
+    });
+
+    it('the remaining time follows the planet construction speed', () => {
+      fixture.componentRef.setInput('planet', withSite());
+      component.getConstructionSpeed = () => 1.5;
+      expect(component.constructionSiteViews[0].secondsLeft).toBe(10);
+      expect(component.constructionSpeedPercent).toBe(150);
+    });
   });
 
   describe('build-list info box', () => {

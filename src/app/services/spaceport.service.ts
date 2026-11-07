@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { operationalBuildings } from '../components/star-map/building-construction';
 import { PlanetTile, StarSystem } from '../components/star-map/star-map.models';
 
 export interface SpaceportLocation {
@@ -56,6 +57,6 @@ export class SpaceportService {
     if (!planet) {
       return false;
     }
-    return (planet.buildings ?? []).some((b) => b.name === SpaceportService.SPACEPORT_NAME);
+    return operationalBuildings(planet).some((b) => b.name === SpaceportService.SPACEPORT_NAME);
   }
 }

@@ -6,7 +6,7 @@ Related: [Economy](./economy.md#trading-post) (the Trading Post building and its
 
 ## Status
 
-Implemented (phases 2–7 of the plan): the data model, save version 11, slot reconciliation, trips (destination choice, routing, movement), cargo with its payout, the UI (map layer, trader panel, TRADE tab figures), raids (player raid orders, hull damage, loot, diplomatic cost, escalating respawn), independent civilizations (generation, conquest, victory rule) and the AI (commerce construction, civilization assault gate, raids).
+Implemented (phases 2–7 of the plan): the data model, save version 11, slot reconciliation, trips (destination choice, routing, movement), cargo with its payout, the UI (map layer, trader panel, trade figures in the resource overlay and on the planet DETAILS tab), raids (player raid orders, hull damage, loot, diplomatic cost, escalating respawn), independent civilizations (generation, conquest, victory rule) and the AI (commerce construction, civilization assault gate, raids).
 
 ## Code
 
@@ -77,8 +77,9 @@ Minimal by design, so traders do not clutter the map:
 - **Galaxy map:** only **travelling** traders are drawn (a docked one sits on its star system), as a small boxy hauler — container segments inside a hull outlined in the home post owner's color (neutral civilians: the independent gold), turned toward the next route point. Same layer as drifting asteroids: above fog and trails, below fleets, so fleets stay clickable. No label and no route line unless selected (dashed ring).
 - **Fog of war** (`StarMap.isTraderVisible`): the player's own traders are always visible; every other trader only inside the player's sensor or preview cells, like enemy fleets. With fog off, all are visible.
 - **Trader panel** (`StarMapTraderInfoComponent`, click a trader): affiliation in its owner's color ("Independent" for neutral owners), home post, current leg (planet and system names), arrival time (remaining route with nebula slowdown), cargo goods and value, hull. Refreshed at most every 0.5 game seconds from the game loop; it closes when the trader docks or leaves sensor range. Trader and asteroid selection exclude each other.
-- **TRADE tab** of a player planet with a Trading Post: this post's traders (en route / docked / rebuilding), traders inbound to it, network size (posts, traders), and the empire's trade income over the last 5 minutes of game time (`recentIncome`, an in-memory ledger: a load starts it at 0). The exchange stays below it.
-- **No delivery notices:** deliveries are frequent, so they do not post map notices; the TRADE tab figure is the feedback.
+- **Credit overlay** (header resource bar, click credits), **Trade network** section: the empire's delivery income over the last 5 minutes of game time (`recentIncome`, an in-memory ledger: a load starts it at 0; it is a windfall, so it is not part of the per-second figures), the player's own posts and the network size (posts, traders) (`StarMap.getPlayerTradeSummary`). The resource exchange is in the same overlay ([Economy](./economy.md#trading-post)).
+- **Planet DETAILS tab** of a player planet with a Trading Post: one line with this post's traders (en route / docked / rebuilding) and traders inbound to it (`postStats`). There is no planet TRADE tab: trading is empire-wide.
+- **No delivery notices:** deliveries are frequent, so they do not post map notices; the credit overlay's delivery figure is the feedback.
 
 ## Raids
 

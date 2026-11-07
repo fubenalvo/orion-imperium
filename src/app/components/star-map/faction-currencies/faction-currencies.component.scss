@@ -151,3 +151,59 @@
 
   margin-bottom: 0.35rem;
 }
+
+/* ---------- Exchange (credit / raw-material overlay) ----------
+   Empire-wide: open with any own Trading Post (trade.ts). Shown locked
+   rather than hidden without one, so players learn where it lives. */
+
+.faction-currencies__exchange-hint {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
+.faction-currencies__exchange-hint--locked {
+  color: var(--ui-warning);
+}
+
+.faction-currencies__exchange-rates {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8em;
+  padding: 0.35em 0.6em;
+  border: 1px solid var(--ui-line-soft);
+  background: var(--ui-surface-raised);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xs);
+}
+
+/* One button per lot size; each overlay only buys its own resource. */
+.faction-currencies__exchange-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.35rem;
+}
+
+/* Global button look, compacted to fit three per row. */
+.faction-currencies__exchange-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1em;
+  min-width: 0;
+  padding: 0.4em 0.3em;
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.04em;
+}
+
+.faction-currencies__exchange-cost {
+  color: var(--ui-warm);
+  font-variant-numeric: tabular-nums;
+}
+
+.faction-currencies__exchange-btn:disabled .faction-currencies__exchange-cost {
+  color: inherit;
+}
+
+.faction-currencies__exchange--locked .faction-currencies__exchange-rates {
+  opacity: 0.55;
+}

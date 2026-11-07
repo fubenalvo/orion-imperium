@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { operationalBuildings } from './building-construction';
 import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, SystemAsteroid } from './star-map.models';
 import { ProductionService } from '../../services/production.service';
 import { FleetAssemblyService } from '../../services/fleet-assembly.service';
@@ -167,7 +168,7 @@ export class EnemyMiningService {
     if (!this.chooseSystem(faction, { x: home.x, y: home.y }, data, perceived)) return false;
     const factory = data.starSystems
       .flatMap((s) => s.planetsTiles)
-      .filter((p) => p.factionId === faction.id && p.buildings.some((b) => b.name === 'Spaceship Factory'))
+      .filter((p) => p.factionId === faction.id && operationalBuildings(p).some((b) => b.name === 'Spaceship Factory'))
       .sort((a, b) => a.id - b.id)[0];
     if (!factory) return false;
     const result = this.productionService.queueOrder(

@@ -1,10 +1,32 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EconomyBreakdown, ResourceType } from '../../../services/economy.service';
+import {
+  TRADE_BUY_CREDITS_PER_RAW,
+  TRADE_LOTS,
+  TRADE_SELL_CREDITS_PER_RAW,
+  TradeDirection,
+  quoteTrade,
+} from '../trade';
 
 export interface CurrencyDisplay {
   name: string;
   value: number;
+}
+
+/*
+ * Empire-wide trade figures for the resource overlay (docs/economy.md,
+ * "Trading Post"; docs/trade-network.md). Built by StarMap.
+ */
+export interface TradeSummaryView {
+  /* The player owns a Trading Post somewhere: the exchange is open. */
+  hasTradingPost: boolean;
+  ownPosts: number;
+  networkPosts: number;
+  networkTraders: number;
+  /* Delivery income (outside the economy tick) in the last `windowMinutes`. */
+  recentIncome: number;
+  windowMinutes: number;
 }
 
 @Component({
@@ -17,8 +39,35 @@ export interface CurrencyDisplay {
 export class FactionCurrenciesComponent {
   @Input() currencies: CurrencyDisplay[] = [];
   @Input() economyBreakdown: EconomyBreakdown | null = null;
+  @Input() tradeSummary: TradeSummaryView | null = null;
 
   @Output() openResearchTree = new EventEmitter<void>();
+  /* An exchange request; StarMap re-checks every rule in trade.ts executeTrade. */
+  @Output() tradeRequest = new EventEmitter<{ direction: TradeDirection; raw: number }>();
+
+  readonly tradeLots = TRADE_LOTS;
+  readonly tradeBuyRate = TRADE_BUY_CREDITS_PER_RAW;
+  readonly tradeSellRate = TRADE_SELL_CREDITS_PER_RAW;
+
+  tradeCredits(direction: TradeDirection, raw: number): number {
+    return quoteTrade(direction, raw).credits;
+  }
+
+  private stockOf(name: string): number {
+    return this.currencies.find((c) => c.name === name)?.value ?? 0;
+  }
+
+  canTrade(direction: TradeDirection, raw: number): boolean {
+    if (!this.tradeSummary?.hasTradingPost) return false;
+    return direction === 'buyRaw'
+      ? this.stockOf('credits') >= this.tradeCredits(direction, raw)
+      : this.stockOf('rawmaterials') >= raw;
+  }
+
+  requestTrade(direction: TradeDirection, raw: number): void {
+    if (!this.canTrade(direction, raw)) return;
+    this.tradeRequest.emit({ direction, raw });
+  }
 
   showBreakdown = false;
   selectedCurrency: ResourceType | null = null;

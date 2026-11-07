@@ -67,7 +67,7 @@ const SUMMARY_BY_ID: Record<string, string> = {
   small_research_lab: 'Produces research points for new technologies.',
   research_lab: 'Produces research points for new technologies.',
   trading_post:
-    'Opens the TRADE tab to swap credits and raw materials (at poor rates) and joins the civilian trade network: traders pay you credits on delivery.',
+    'Unlocks the resource exchange (resource bar) and joins the civilian trade network: its traders pay you credits on delivery.',
   bank: 'Produces credits directly.',
 };
 

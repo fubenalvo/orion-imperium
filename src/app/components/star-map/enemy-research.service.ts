@@ -327,6 +327,10 @@ export class EnemyResearchService {
         return w.economy * (ctx.rawIncome < 15 ? 1.5 : 0.6);
       case 'researchOutput':
         return w.research * Math.min(3, 0.5 + ctx.researchIncome / 10);
+      case 'buildingConstructionSpeed':
+        // Faster sites bring every later building online sooner: worth a
+        // little more while the faction is still expanding.
+        return w.expansion * (0.4 + 0.05 * Math.min(10, ctx.planetCount));
       case 'shipBuildSpeed':
         return ctx.hasFactory ? w.military * (0.5 + 0.5 * ctx.militaryNeed) : 0;
       case 'populationGrowth':

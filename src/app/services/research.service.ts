@@ -28,6 +28,8 @@ export interface TechModifiers {
   shipUpkeep: number;
   /* Multiplier on factory production power (ship build speed). */
   shipBuildSpeed: number;
+  /* Multiplier on planetary building construction speed (building-construction.ts). */
+  buildingConstructionSpeed: number;
   /* Multiplier on natural population growth. */
   populationGrowth: number;
   /* Battle attack / shield multipliers per ship type (absent → 1). */
@@ -47,6 +49,7 @@ export const NEUTRAL_TECH_MODIFIERS: Readonly<TechModifiers> = Object.freeze({
   buildingUpkeep: 1,
   shipUpkeep: 1,
   shipBuildSpeed: 1,
+  buildingConstructionSpeed: 1,
   populationGrowth: 1,
   shipAttack: Object.freeze({}) as Record<string, number>,
   shipShield: Object.freeze({}) as Record<string, number>,
@@ -242,7 +245,7 @@ export class ResearchService {
     const owned = new Set(researched);
     const sums: Record<Exclude<TechnologyBonusType, 'shipAttack' | 'shipShield'>, number> = {
       sensorRange: 0, energyOutput: 0, researchOutput: 0, rawOutput: 0,
-      buildingUpkeep: 0, shipUpkeep: 0, shipBuildSpeed: 0, populationGrowth: 0, stationTurrets: 0, stationRepair: 0,
+      buildingUpkeep: 0, shipUpkeep: 0, shipBuildSpeed: 0, buildingConstructionSpeed: 0, populationGrowth: 0, stationTurrets: 0, stationRepair: 0,
     };
     const shipAttack: Record<string, number> = {};
     const shipShield: Record<string, number> = {};
@@ -267,6 +270,7 @@ export class ResearchService {
       buildingUpkeep: Math.max(MIN_COST_MULTIPLIER, 1 + sums.buildingUpkeep),
       shipUpkeep: Math.max(MIN_COST_MULTIPLIER, 1 + sums.shipUpkeep),
       shipBuildSpeed: 1 + sums.shipBuildSpeed,
+      buildingConstructionSpeed: 1 + sums.buildingConstructionSpeed,
       populationGrowth: 1 + sums.populationGrowth,
       shipAttack,
       shipShield,
@@ -311,6 +315,7 @@ export class ResearchService {
       case 'buildingUpkeep': return `${pct} building upkeep`;
       case 'shipUpkeep': return `${pct} ship upkeep`;
       case 'shipBuildSpeed': return `${pct} ship construction speed`;
+      case 'buildingConstructionSpeed': return `${pct} building construction speed on every planet`;
       case 'populationGrowth': return `${pct} population growth`;
       case 'shipAttack': return `${pct} battle damage: ${hulls}`;
       case 'shipShield': return `${pct} battle shields: ${hulls}`;

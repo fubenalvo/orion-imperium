@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { operationalBuildings } from '../components/star-map/building-construction';
 import { Fleet, FleetShip, PlanetTile, StarSystem } from '../components/star-map/star-map.models';
 import planetData from '../components/star-map/planet-data.json';
 import { STATION_CORE_STATS } from '../components/star-map/station-defense';
@@ -77,7 +78,7 @@ export class PlanetBattleService {
     let persistedShieldCurrent: number | null = null;
     const garrisonShipMap: Record<number, number> = {};
 
-    for (const building of planet.buildings) {
+    for (const building of operationalBuildings(planet)) {
       const def = this.buildingDefs.find((b) => b.name === building.name);
       if (!def || def.role !== 'defense') {
         continue;
@@ -150,7 +151,7 @@ export class PlanetBattleService {
    * hasPlanetDefenses: Returns true if a planet has any defensive buildings.
    */
   hasPlanetDefenses(planet: PlanetTile): boolean {
-    return planet.buildings.some((b) => {
+    return operationalBuildings(planet).some((b) => {
       const def = this.buildingDefs.find((d) => d.name === b.name);
       return def?.role === 'defense';
     });
@@ -179,7 +180,7 @@ export class PlanetBattleService {
   }
 
   private getTotalShieldForPlanet(planet: PlanetTile): number {
-    return planet.buildings.reduce((sum, building) => {
+    return operationalBuildings(planet).reduce((sum, building) => {
       const def = this.buildingDefs.find((d) => d.name === building.name);
       if (def?.role === 'defense' && def.type === 'shield') {
         return sum + (def.shield ?? 0);

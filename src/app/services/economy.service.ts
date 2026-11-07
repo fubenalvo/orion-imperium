@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@angular/core';
+import { operationalBuildings } from '../components/star-map/building-construction';
 import { ShipService } from './ship.service';
 import { PlanetOwnershipService } from './planet-ownership.service';
 import { ProductionService } from './production.service';
@@ -241,7 +242,7 @@ export class EconomyService {
     const depositMultiplier = deposit && deposit.remaining > 0 ? deposit.richness * traits.depositMining : 0;
     let depositMining = 0;
 
-    for (const building of planet.buildings ?? []) {
+    for (const building of operationalBuildings(planet)) {
       const stats = this.buildingStatsByName.get(building.name);
       if (!stats) continue;
 
@@ -302,7 +303,7 @@ export class EconomyService {
     // above the free population, so the opening keeps 100%.
     const comfortNeedPoints = comfortNeed(pop, planet.type);
     const provided = comfortProvided(
-      (planet.buildings ?? []).map((b) => b.name),
+      operationalBuildings(planet).map((b) => b.name),
       (name) => this.buildingStatsByName.get(name)?.comfort ?? 0,
     );
     const coverage = comfortCoverage(comfortNeedPoints, provided.points);
@@ -351,7 +352,7 @@ export class EconomyService {
     let available = 0;
     let required = 0;
     let moraleBonus = 0;
-    for (const building of planet.buildings ?? []) {
+    for (const building of operationalBuildings(planet)) {
       const stats = this.buildingStatsByName.get(building.name);
       if (!stats) continue;
       required += stats.workforce ?? 0;
@@ -426,7 +427,7 @@ export class EconomyService {
    */
   getPopulationCapacity(planet: PlanetTile): number {
     let capacity = 0;
-    for (const building of planet.buildings ?? []) {
+    for (const building of operationalBuildings(planet)) {
       const stats = this.buildingStatsByName.get(building.name);
       if (!stats) continue;
       if (providesHousing(stats)) {
@@ -864,7 +865,7 @@ export class EconomyService {
    */
   getPlanetTax(planet: PlanetTile): number {
     const pop = planet.population || 0;
-    const factories = (planet.buildings ?? []).filter((b) => b.name === 'Spaceship Factory').length;
+    const factories = operationalBuildings(planet).filter((b) => b.name === 'Spaceship Factory').length;
     return Math.floor(pop * POPULATION_CREDIT_RATE) + factories * 500;
   }
 
@@ -884,7 +885,7 @@ export class EconomyService {
   private calculatePlanetMaintenance(planet: PlanetTile, owner: Faction | null | undefined, scale: number): number {
     let expense = 0;
     const planetScale = scale * planetTypeTraits(planet.type).buildingUpkeep;
-    for (const building of planet.buildings ?? []) {
+    for (const building of operationalBuildings(planet)) {
       expense += this.getBuildingUpkeepPerSecond(building.name, owner, planetScale);
     }
     return expense;
@@ -894,7 +895,7 @@ export class EconomyService {
     const buildingCounts = new Map<string, number>();
     const buildingCosts = new Map<string, number>();
 
-    for (const building of planet.buildings ?? []) {
+    for (const building of operationalBuildings(planet)) {
       const cost = this.getBuildingUpkeepPerSecond(building.name, owner, scale * planetTypeTraits(planet.type).buildingUpkeep);
       if (cost > 0) {
         buildingCounts.set(building.name, (buildingCounts.get(building.name) || 0) + 1);

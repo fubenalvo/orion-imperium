@@ -8,6 +8,17 @@ export interface PlanetBuilding {
   x: number;
   y: number;
   type?: string;
+  /*
+   * Construction site state (building-construction.ts, docs/planet-construction.md).
+   * All optional and saved: a building without a positive
+   * `constructionRemaining` is complete, so older saves need no migration.
+   * `constructionRemaining` / `constructionTotal` are work-seconds at speed 1
+   * (the planet's construction speed scales how fast work is done);
+   * `constructionPaid` is what was charged, the base for a cancel refund.
+   */
+  constructionRemaining?: number;
+  constructionTotal?: number;
+  constructionPaid?: { credits: number; rawmaterials: number };
 }
 
 export type PlanetType = 'earthlike' | 'marslike' | 'venuslike' | 'gasgiant' | 'ice' | 'desert';
@@ -80,6 +91,8 @@ export type TechnologyBonusType =
   | 'buildingUpkeep'
   | 'shipUpkeep'
   | 'shipBuildSpeed'
+  /* Planetary building construction speed (building-construction.ts). */
+  | 'buildingConstructionSpeed'
   | 'populationGrowth'
   | 'shipAttack'
   | 'shipShield'

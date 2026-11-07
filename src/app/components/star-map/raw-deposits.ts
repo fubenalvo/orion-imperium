@@ -1,4 +1,5 @@
 import { PlanetRawDeposit, PlanetSize, PlanetTile, StarSystem, SystemAsteroid } from './star-map.models';
+import { operationalBuildings } from './building-construction';
 import { createMulberry32 } from './star-map-resources.util';
 import planetData from './planet-data.json';
 
@@ -65,7 +66,7 @@ export const DEPOSIT_MINING_BUILDING_NAMES: ReadonlySet<string> = new Set(
 );
 
 export function planetHasMine(planet: PlanetTile): boolean {
-  return (planet.buildings ?? []).some((b) => DEPOSIT_MINING_BUILDING_NAMES.has(b.name));
+  return operationalBuildings(planet).some((b) => DEPOSIT_MINING_BUILDING_NAMES.has(b.name));
 }
 
 /*
@@ -236,7 +237,7 @@ export function rawOutlook(factionId: string, starSystems: readonly StarSystem[]
       const deposit = planet.rawDeposit;
       if (planet.factionId !== factionId || !deposit || deposit.remaining <= 0) continue;
       let output = 0;
-      for (const building of planet.buildings ?? []) output += MINE_NOMINAL_OUTPUT.get(building.name) ?? 0;
+      for (const building of operationalBuildings(planet)) output += MINE_NOMINAL_OUTPUT.get(building.name) ?? 0;
       if (output > 0) {
         minedReserve += deposit.remaining;
         extractionPerSecond += output * deposit.richness;

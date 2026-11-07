@@ -334,6 +334,8 @@ Threat response, the same for every personality, scaled by its aggression:
 - Anchor upkeep: 7–12% of the technologist's gross income, 2–4% for the much richer balanced empire.
 - The swarm cost the technologist ~1.1M credits (stock 3.1M → 1.95M by minute 90).
 
+**Since building construction time** ([Planetary Building Construction](./planet-construction.md), 2026-11) the whole tempo is slower and the acceptance test runs 120 minutes. Same scenario: Stellar Engineering at ~85 min (technologist) and ~95 min (balanced); the technologist builds 4 anchors from ~93 min (2 lost to hunts), the balanced AI 3 from ~103 min; anchor upkeep 15% of the technologist's income, 3% of the balanced one's; no warm-up within 120 min. The values above are the earlier 90-minute measurement.
+
 **Large map, 4 AIs:** Stellar Engineering at 62–78 min, one technologist not at all. 3 anchors each for the two builders; raw materials are tight for some.
 
 **Changes from these runs:**

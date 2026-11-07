@@ -40,6 +40,7 @@ const BONUS_CATEGORY: Record<TechnologyBonusType, TechCategory> = {
   buildingUpkeep: 'industry',
   shipUpkeep: 'ships',
   shipBuildSpeed: 'ships',
+  buildingConstructionSpeed: 'colony',
   populationGrowth: 'colony',
   shipAttack: 'weapons',
   shipShield: 'shields',

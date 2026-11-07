@@ -347,3 +347,11 @@ See [Planet Capture](./planet-capture.md).
 - **Raids need an order:** a fleet damages a trader only while its `raidTraderId` names it, it has a living warship, it is within raid range, and `raidBlocker` allows it (never own, allied or docked traders). A raid never changes a treaty by itself.
 - **Civilization tag:** `PlanetTile.civilization` exists only on `independent` planets; only the galaxy generator sets it and every ownership change removes it. Tagged planets never block victory; untagged rebel planets do.
 - **Derived affiliation and nodes:** who a trader works for is its home planet's current owner, and the set of nodes comes from planet buildings; neither is stored. See [Trade Network](./trade-network.md).
+
+## Building construction
+
+- **A site has no effect:** a building with a positive `constructionRemaining` adds no production, energy, workforce, housing, comfort, morale, upkeep, factory capacity, Spaceport, Trading Post, defense or mining. Every effect reads `operationalBuildings` (building-construction.ts); only existence checks (placement, limits, AI planning) read `planet.buildings`.
+- **One clock:** sites advance only with the scaled game delta, so a paused game never changes them and game speed scales them exactly.
+- **Never refund more than paid:** a cancel refunds `floor(paid × remaining / total)`, at most what was paid; a finished building is never refunded.
+- **Sites belong to the payer:** an ownership change cancels every site of the planet with that refund to the previous owner before the new owner is written.
+- **Missing means complete:** a building without a positive finite `constructionRemaining` is complete; loading normalizes malformed state to complete. See [Planetary Building Construction](./planet-construction.md).

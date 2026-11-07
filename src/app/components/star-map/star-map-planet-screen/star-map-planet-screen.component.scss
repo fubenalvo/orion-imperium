@@ -297,6 +297,243 @@
   filter: drop-shadow(0 0 0.5vw rgba(255, 70, 70, 0.95)) grayscale(0.7) sepia(0.6) hue-rotate(-40deg) saturate(3);
 }
 
+/* ---------- Construction site (docs/planet-construction.md) ----------
+   Same anchor as a sprite (bottom center, translate(-50%, -100%)); the box
+   height comes from the in-flow blueprint image, so every layer shares the
+   sprite's exact frame. --progress (0 … 1) is bound from the component and
+   drives the rising hull; the rig geometry is bound as SVG attributes.
+   The progress only changes on redraw (about once a second), so the hull
+   clip transitions linearly over that second instead of jumping.
+   .construction-site--paused freezes every animation with the game. */
+
+.construction-site {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  user-select: none;
+
+  img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+}
+
+/* Hologram of the finished building: what is being built. */
+.construction-site__blueprint {
+  opacity: 0.28;
+  filter: grayscale(1) brightness(1.7) sepia(1) hue-rotate(140deg) saturate(4) drop-shadow(0 0 0.25vw rgba(60, 220, 255, 0.8));
+  animation: construction-holo 2.4s ease-in-out infinite;
+}
+
+/* The built part: the real sprite, unpainted steel, revealed from the ground up. */
+.construction-site__hull {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(calc((1 - var(--progress, 0)) * 100%) 0 0 0);
+  filter: grayscale(0.65) brightness(0.8) contrast(1.1) drop-shadow(0 0 0.04vw rgba(0, 0, 0, 0.3));
+  transition: clip-path 1s linear;
+}
+
+.construction-site__rig {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.construction-site__scaffold,
+.construction-site__deck,
+.construction-site__mast,
+.construction-site__jib,
+.construction-site__cable {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.construction-site__scaffold {
+  stroke: #9aa4ad;
+  stroke-width: 1.4px;
+  stroke-linecap: square;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8));
+}
+
+/* Plank deck at the build line, hazard amber. */
+.construction-site__deck {
+  stroke: #e8a23a;
+  stroke-width: 2.6px;
+  stroke-dasharray: 5 3;
+}
+
+.construction-site__mast,
+.construction-site__jib {
+  stroke: #f2b63c;
+  stroke-width: 1.4px;
+}
+
+.construction-site__cable {
+  stroke: #cfd6dc;
+  stroke-width: 1px;
+}
+
+.construction-site__hook {
+  fill: #f2b63c;
+}
+
+/* Trolley and hook travel slowly along the jib. */
+.construction-site__trolley {
+  animation: construction-trolley 7s ease-in-out infinite alternate;
+}
+
+/* Beacon lamps (mast tip, scaffold corner). */
+.construction-site__lamp {
+  fill: #ff5a3c;
+  filter: drop-shadow(0 0 2px #ff5a3c);
+  animation: construction-blink 1.1s steps(1, end) infinite;
+}
+
+.construction-site__lamp--late {
+  fill: #ffcf3c;
+  filter: drop-shadow(0 0 2px #ffcf3c);
+  animation-delay: 0.55s;
+}
+
+/* Welding point: a white-blue core with sparks thrown off it. */
+.construction-site__weld {
+  position: absolute;
+  width: 0.5vw;
+  height: 0.5vw;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff 0 18%, #9fe8ff 30%, rgba(80, 190, 255, 0.35) 55%, transparent 72%);
+  transform: translate(-50%, -50%);
+  transition: top 1s linear;
+  animation: construction-weld 0.9s steps(2, jump-none) infinite;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0.12vw;
+    height: 0.12vw;
+    border-radius: 50%;
+    background: #ffd36b;
+    box-shadow:
+      0.25vw -0.2vw 0 #fff2b0,
+      -0.3vw -0.1vw 0 #ffb347,
+      0.15vw 0.3vw 0 #ffd36b,
+      -0.2vw 0.25vw 0 #fff2b0;
+    animation: construction-sparks 0.6s ease-out infinite;
+  }
+
+  &::after {
+    animation-delay: 0.3s;
+    transform: rotate(140deg);
+  }
+}
+
+.construction-site__weld--b {
+  animation-delay: 0.45s;
+
+  &::before {
+    animation-delay: 0.15s;
+  }
+}
+
+/* Ground plate in front of the site: ten amber segments. */
+.construction-site__plate {
+  position: absolute;
+  left: 50%;
+  bottom: -0.5vw;
+  display: flex;
+  gap: 0.06vw;
+  width: 46%;
+  height: 0.32vw;
+  padding: 0.05vw;
+  border: 1px solid rgba(232, 162, 58, 0.55);
+  background: rgba(10, 8, 4, 0.75);
+  transform: translateX(-50%);
+
+  i {
+    flex: 1 1 0;
+    background: rgba(232, 162, 58, 0.14);
+  }
+
+  .construction-site__seg--lit {
+    background: #f2b63c;
+    box-shadow: 0 0 0.15vw rgba(242, 182, 60, 0.8);
+  }
+}
+
+.construction-site--paused,
+.construction-site--paused * {
+  animation-play-state: paused !important;
+}
+
+@keyframes construction-holo {
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+  50% {
+    opacity: 0.36;
+  }
+}
+
+@keyframes construction-trolley {
+  from {
+    transform: translateX(-14px);
+  }
+  to {
+    transform: translateX(14px);
+  }
+}
+
+@keyframes construction-blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@keyframes construction-weld {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+}
+
+@keyframes construction-sparks {
+  from {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(0, 0.4vw) scale(0.4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .construction-site *,
+  .construction-site *::before,
+  .construction-site *::after {
+    animation: none !important;
+  }
+}
+
+.planet-surface__building-progress {
+  color: #f2b63c;
+}
+
 .planet-surface__labels {
   z-index: 1000;
 }
@@ -766,29 +1003,9 @@
   text-transform: uppercase;
 }
 
-/* Trading Post exchange (TRADE tab). */
-.planet-sidebar__trade {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5em;
-}
-
-.planet-sidebar__trade-rates {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8em;
-  padding: 0.45em 0.6em;
-  border: 1px solid var(--ui-line);
-  background: var(--ui-surface-raised);
-  color: var(--ui-ink);
-  font-size: var(--ui-fs-sm);
-  letter-spacing: 0.06em;
-}
-
-.planet-sidebar__trade-btn {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.8em;
+/* Own Trading Post's traders under the DETAILS summary. */
+.planet-sidebar__trade-post {
+  margin-top: 0.6em;
 }
 
 .planet-sidebar__build-hint {
@@ -818,4 +1035,120 @@
 
 .planet-sidebar__back-btn {
   margin: 1em;
+}
+
+/* ---------- BUILD tab: construction list ----------
+   Amber "work in progress" accent, distinct from the cyan build rows, so
+   sites read as status, not as something to buy. */
+
+.construction-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  margin-bottom: 0.6em;
+}
+
+.construction-list__title {
+  @include ui.section-label;
+  color: var(--ui-warm);
+}
+
+.construction-list__icon {
+  width: 1.1em;
+  height: 1.1em;
+  fill: var(--ui-warm);
+  stroke: var(--ui-warm);
+  stroke-width: 1;
+
+  path {
+    fill: none;
+  }
+}
+
+.construction-list__speed {
+  order: 3;
+  color: var(--ui-ink-dim);
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+
+.construction-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.5em 0.7em;
+  border: 1px solid rgba(var(--ui-warm-rgb), 0.25);
+  border-left: 2px solid var(--ui-warm);
+  background: linear-gradient(90deg, rgba(var(--ui-warm-rgb), 0.08), rgba(10, 34, 44, 0.2));
+}
+
+.construction-entry__head,
+.construction-entry__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
+}
+
+.construction-entry__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ui-ink);
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.construction-entry__status {
+  flex: 0 0 auto;
+  color: var(--ui-warm);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.16em;
+}
+
+.construction-entry--paused .construction-entry__status {
+  color: var(--ui-ink-dim);
+}
+
+/* Segmented amber gauge, like the ground plate on the surface. */
+.construction-entry__bar {
+  height: 0.45em;
+  border: 1px solid rgba(var(--ui-warm-rgb), 0.35);
+  background: rgba(0, 0, 0, 0.45);
+
+  span {
+    display: block;
+    height: 100%;
+    background: repeating-linear-gradient(90deg, var(--ui-warm) 0 6px, rgba(var(--ui-warm-rgb), 0.55) 6px 8px);
+    transition: width 1s linear;
+  }
+}
+
+.construction-entry__meta {
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.construction-entry__meta--dim {
+  color: var(--ui-ink-dim);
+}
+
+.construction-entry__cancel {
+  @include ui.control-reset;
+  padding: 0.15em 0.5em;
+  border: 1px solid rgba(var(--ui-danger-rgb), 0.45);
+  color: var(--ui-danger-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.08em;
+
+  &:hover {
+    background: rgba(var(--ui-danger-rgb), 0.12);
+  }
+}
+
+.building-info__build-time {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
 }

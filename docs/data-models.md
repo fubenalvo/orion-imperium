@@ -123,6 +123,7 @@ In-system asteroid belt (rules: [Game Systems](./game-systems.md#star-system-vie
  - `name`: looked up in `planet-data.json` (case-sensitive)
  - `size`: footprint in grid cells (matches `BuildingType.size`)
  - `x`, `y`: top-left cell on the planet's surface grid
+ - `constructionRemaining`, `constructionTotal`, `constructionPaid` (optional): construction site state — work-seconds left and total, and the price paid (the refund base). Missing or not a positive `constructionRemaining` means complete; see [Planetary Building Construction](./planet-construction.md)
  - The full building definition (production, consumption, energy, workforce requirement, `providesWorkforce` for housing, `moraleRate`, etc.) is resolved by name from `planet-data.json` via `EconomyService.buildingStatsByName` at calculation time, so it is never serialized into a save.
 
 ### PlanetSizeNumber

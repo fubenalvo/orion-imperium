@@ -1,3 +1,4 @@
+import { cancelAllConstruction } from '../components/star-map/building-construction';
 import { Injectable } from '@angular/core';
 import { Faction, FactionProduction, PlanetTile } from '../components/star-map/star-map.models';
 import { ProductionService } from './production.service';
@@ -35,6 +36,8 @@ export const CAPTURE_REBELLION_GRACE_SECONDS = 120;
  *    refunds their unbuilt part (a captured factory must not keep
  *    building ships for the faction that lost it — ProductionService.tick
  *    only refunds orders whose planet disappeared entirely);
+ *  - cancels the previous owner's building construction sites with the
+ *    unbuilt-share refund (building-construction.ts);
  *  - gives the planet a Colony Center when a faction (not `independent`)
  *    takes it without a core building (colony-core.ts), so every owned
  *    planet has its base population, workforce and energy;
@@ -78,6 +81,10 @@ export class PlanetOwnershipService {
       }
       delete previousProduction.ordersByPlanet[planet.id];
     }
+    // Construction sites belong to the faction that paid for them: they are
+    // cancelled with the same unbuilt-share refund as a manual cancel, so a
+    // conqueror never finishes (or profits from) the loser's projects.
+    cancelAllConstruction(planet, data.factions?.find((f) => f.id === previousOwnerId));
 
     planet.factionId = newOwnerId;
     // The independent civilization is gone once anyone else holds the planet

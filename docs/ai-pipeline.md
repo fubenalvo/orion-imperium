@@ -223,6 +223,8 @@ Verified in code; if any of these change, revisit `EnemyEconomyService`:
 
 ## Construction and spending policy
 
+Every placement starts a construction site ([Planetary Building Construction](./planet-construction.md#ai)): the AI counts its sites as already built when planning (`withConstructionComplete`, "has a factory / Spaceport" checks), orders warships only at an operational factory, and subtracts its sites' future upkeep in `getProjectedNet` like queued ships.
+
 `EnemyEconomyService.tryConstruct` (also used by the executor's `develop` action) places at most one building per faction per 2 s of game time; a search that finds nothing also waits one interval. Rule tiers, each tried over all owned planets (ascending system id, then planet id):
 
 | Tier | Condition | Builds | Reserve | Upkeep tier |
@@ -261,7 +263,7 @@ Verified in code; if any of these change, revisit `EnemyEconomyService`:
 
 Both from the late-economy work ([Late Economy](./late-economy.md)), in `EnemyEconomyService.tick` after construction:
 
-- **Raw purchases** (`buyRawMaterials`): a raw-constrained faction (`isRawConstrained`) that owns a Trading Post buys the raw materials two of its preferred warships (plus the raw part of its reserve) lack, at the player's rate (`trade.ts` `executeTrade`, 4 credits per unit), in lots of 500. It keeps its spending reserve, the two ships' credits and 300 s of gross income untouched. The surplus of a raw-bound faction thus becomes warships.
+- **Raw purchases** (`buyRawMaterials`): a raw-constrained faction (`isRawConstrained`) that owns a Trading Post anywhere (the exchange is empire-wide, `ownsTradingPost`) buys the raw materials two of its preferred warships (plus the raw part of its reserve) lack, at the player's rate (`trade.ts` `executeTrade`, 4 credits per unit), in lots of 500. It keeps its spending reserve, the two ships' credits and 300 s of gross income untouched. The surplus of a raw-bound faction thus becomes warships.
 - **Reserve exit** (`reserveWeakestIdleFleet`): after 120 s of negative projected net, while the credits cannot carry the deficit for 300 s, the faction disbands its weakest idle combat fleet parked at one of its Spaceports into the reserve (half upkeep, the player's rule, [Fleet Organization](./fleet-organization.md)). At most one fleet per 120 s; while the deficit lasts nothing is redeployed, afterwards the normal deployment returns the ships.
 
 ## Research (EnemyResearchService)

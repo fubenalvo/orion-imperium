@@ -48,7 +48,7 @@ export interface TraderRaid {
   respawnSeconds: number;
 }
 
-/* What the TRADE tab shows about one node and the network. */
+/* One node's traders (planet DETAILS tab) plus the network size. */
 export interface TradePostStats {
   nodes: number;
   traders: number;
@@ -173,6 +173,11 @@ export class TradeNetworkService {
   /* Credits the faction earned from deliveries in the last TRADE_INCOME_WINDOW_SECONDS. */
   recentIncome(factionId: string): number {
     return this.ledger.reduce((sum, e) => (e.factionId === factionId ? sum + e.credits : sum), 0);
+  }
+
+  /* Network size for the empire-wide trade summary (resource overlay). */
+  networkSize(): { nodes: number; traders: number } {
+    return { nodes: this.nodes.length, traders: this.state.traders.length };
   }
 
   postStats(planetId: number): TradePostStats {

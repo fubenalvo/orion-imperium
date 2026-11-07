@@ -159,6 +159,10 @@ needs to tell old and new records apart.
   spot free of buildings and deposits (the surface record is replaced, so
   the mask cache stays valid). See [Economy](./economy.md#colony-cores).
 
+## Construction sites
+
+A building under construction is drawn as a construction site (sprite kind `site`) instead of its finished sprite: hologram, rising hull, scaffold, crane, welders and a ground progress plate, all CSS / SVG layered on the sprite's own frame. The scene signature marks sites (`~`), so a completed site is swapped for the finished sprite on the next redraw. The BUILD tab lists sites above the build list. Rules and the visual in detail: [Planetary Building Construction](./planet-construction.md#ui).
+
 ## Building info box
 
 The build list stays one compact row per building (name, price, energy,
@@ -172,6 +176,7 @@ The box's BUILD button starts placement. Content comes from
   under it (`getBuildBlocker`: not researched, already built / limit
   reached, no or depleted deposit, not enough credits or raw materials).
   A box opened near the bottom of the list is scrolled into view.
+- **Build time:** the box shows "Build time here" at this planet's construction speed ([Construction](./planet-construction.md#rules)).
 - **Content:** category (from `role`), a hand-written one-line summary per
   building id, effect lines derived from `planet-data.json` (housing,
   workers supplied or needed, energy, output per second, comfort, turret and

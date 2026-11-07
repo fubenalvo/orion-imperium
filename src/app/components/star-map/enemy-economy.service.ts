@@ -1,4 +1,5 @@
 import { EnemyResearchService } from './enemy-research.service';
+import { constructionSites, operationalBuildings, startBuildingConstruction, withConstructionComplete } from './building-construction';
 import { HULL_CLASSES, HULL_CLASS_INFO, HullClass, getHullClass } from './hull-class';
 import { planetTypeTraits } from './planet-types';
 import { Injectable } from '@angular/core';
@@ -28,7 +29,7 @@ import { hostileFactionIds } from './diplomacy';
 import { depositMiningBlocker, DEPOSIT_MINING_BUILDING_NAMES } from './raw-deposits';
 import { isCivilianMissionFleet } from './space-base';
 import { isBuildingLimitReached } from './building-placement';
-import { TRADING_POST_NAME, TRADE_BUY_CREDITS_PER_RAW, executeTrade, hasTradingPost } from './trade';
+import { TRADING_POST_NAME, TRADE_BUY_CREDITS_PER_RAW, executeTrade, ownsTradingPost } from './trade';
 import { TRADING_POST_EXPECTED_INCOME } from './trade-network';
 import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
@@ -283,6 +284,7 @@ export class EnemyEconomyService {
   // Negative-net time after which an idle fleet goes into the reserve (reserveWeakestIdleFleet).
   private static readonly DEFICIT_RESERVE_SECONDS = 120;
   private static readonly FACTORY_NAME = 'Spaceship Factory';
+  private static readonly SPACEPORT_NAME = 'Spaceport';
 
   private readonly accumulators = new Map<string, number>();
   private readonly constructionCooldowns = new Map<string, number>();
@@ -364,15 +366,14 @@ export class EnemyEconomyService {
    * buyRawMaterials: the raw-bound surplus (docs/late-economy.md). A
    * faction that cannot pay the raw part of its next warships but holds
    * credits beyond its spending reserve plus RAW_PURCHASE_MARGIN_SECONDS of
-   * gross income buys the missing raw materials at its Trading Post, at the
-   * player's rate (trade.ts executeTrade). At most what two of its preferred
+   * gross income buys the missing raw materials at the exchange (open with
+   * any own Trading Post), at the player's rate (trade.ts executeTrade). At most what two of its preferred
    * warships lack, in whole lots, so the expensive exchange turns surplus
    * credits into ships rather than a raw-material hoard.
    */
   private buyRawMaterials(faction: Faction, starSystems: StarSystem[], context: EconomyContext): boolean {
     if (!this.isRawConstrained(faction)) return false;
-    const post = this.getOwnedPlanetsSorted(faction.id, starSystems).find((p) => hasTradingPost(p));
-    if (!post) return false;
+    if (!ownsTradingPost(faction.id, starSystems)) return false;
     const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity);
     if (!ship) return false;
     const finances = this.getProjectedNet(faction, starSystems, context);
@@ -383,7 +384,7 @@ export class EnemyEconomyService {
     const lot = EnemyEconomyService.RAW_PURCHASE_LOT;
     const amount = Math.min(Math.ceil(missing / lot), Math.floor(spendable / (lot * TRADE_BUY_CREDITS_PER_RAW))) * lot;
     if (amount <= 0) return false;
-    const trade = executeTrade(faction, post, 'buyRaw', amount);
+    const trade = executeTrade(faction, starSystems, 'buyRaw', amount);
     if (trade.ok) this.actionLedger.record(faction, 'raw_purchase', amount);
     else this.actionLedger.reject(faction, 'raw_purchase', trade.reason);
     return trade.ok;
@@ -462,16 +463,13 @@ export class EnemyEconomyService {
       return false;
     }
 
-    if (!payCost(faction, buildingCost(decision.building))) {
+    const price = buildingCost(decision.building);
+    if (!payCost(faction, price)) {
       this.actionLedger.reject(faction, 'building_placed', 'insufficient_resources');
       return false;
     }
-    decision.planet.buildings.push({
-      name: decision.building.name,
-      size: decision.building.size,
-      x: decision.x,
-      y: decision.y,
-    });
+    // Same rule as the player: the building starts as a construction site.
+    startBuildingConstruction(decision.planet, decision.building, decision.x, decision.y, price);
     // Recorded here only: the executor's `develop` action also lands here.
     this.actionLedger.record(faction, 'building_placed');
     return true;
@@ -517,7 +515,7 @@ export class EnemyEconomyService {
       reserve = addCosts(reserve, buildingCost(factory));
     }
     const spaceport = this.findBuilding('spaceport');
-    if (spaceport && hasFactory && canSave && !this.spaceportService.hasSpaceport(faction.id, starSystems)) {
+    if (spaceport && hasFactory && canSave && !this.hasPlannedSpaceport(faction.id, starSystems)) {
       reserve = addCosts(reserve, buildingCost(spaceport));
     }
 
@@ -612,10 +610,21 @@ export class EnemyEconomyService {
     const upkeepScale = breakdown.upkeepScale;
     const queuedUpkeep = this.pendingOrders(faction.id, context)
       .reduce((sum, o) => sum + o.quantity * this.economyService.getShipUpkeepPerSecond(o.shipTypeId, faction, upkeepScale), 0);
+    // Construction sites cost no upkeep yet, but they will on completion:
+    // like queued ships, their upkeep is committed. Without this the AI keeps
+    // buying against headroom that its own sites will take, and falls into
+    // arrears once they finish (measured in ai-simulation.spec.ts).
+    let siteUpkeep = 0;
+    for (const planet of this.getOwnedPlanetsSorted(faction.id, starSystems)) {
+      const planetScale = upkeepScale * planetTypeTraits(planet.type).buildingUpkeep;
+      for (const site of constructionSites(planet)) {
+        siteUpkeep += this.economyService.getBuildingUpkeepPerSecond(site.name, faction, planetScale);
+      }
+    }
     return {
       upkeepScale,
       income: breakdown.incomePerSecond,
-      net: breakdown.netPerSecond - queuedUpkeep,
+      net: breakdown.netPerSecond - queuedUpkeep - siteUpkeep,
       rawNet: breakdown.net['rawmaterials'] ?? 0,
       researchNet: breakdown.net['research'] ?? 0,
     };
@@ -686,11 +695,11 @@ export class EnemyEconomyService {
     }
 
     const hasFactory = planets.some((p) => this.isFactoryPlanet(p));
-    const hasSpaceport = this.spaceportService.hasSpaceport(faction.id, starSystems);
+    const hasSpaceport = this.hasPlannedSpaceport(faction.id, starSystems);
     const finances = this.getProjectedNet(faction, starSystems, context);
     const rawConstrained = this.isRawConstrained(faction);
     const hasActiveMine = planets.some((p) => depositMiningBlocker(p) === null && this.countMines(p) > 0);
-    const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(p, faction)] as const));
+    const economies = new Map(planets.map((p) => [p.id, this.economyService.calculatePlanetEconomy(withConstructionComplete(p), faction)] as const));
     const needsComfort = [...economies.values()].some((e) => e.comfortNeed > 0);
 
     const rules: ConstructionRule[] = [
@@ -869,7 +878,7 @@ export class EnemyEconomyService {
     // headroom for the next warship (the upkeep counterpart of the credit
     // reserve); otherwise construction runs first every decision and uses
     // up all headroom, and military production starves.
-    const nextWarship = this.spaceportService.hasSpaceport(faction.id, starSystems)
+    const nextWarship = this.hasPlannedSpaceport(faction.id, starSystems)
       && this.militaryNeed(faction, starSystems, context).strength > 0
       ? this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity, 1, context)
       : undefined;
@@ -1026,10 +1035,12 @@ export class EnemyEconomyService {
     building: BuildingDef,
     placement: { x: number; y: number },
   ): { energyOk: boolean; workforceOk: boolean } {
-    const current = this.economyService.calculatePlanetEconomy(planet, faction);
+    // Sites count as finished: the AI plans with what it has already paid for.
+    const planned = withConstructionComplete(planet);
+    const current = this.economyService.calculatePlanetEconomy(planned, faction);
     const projected = this.economyService.calculatePlanetEconomy({
-      ...planet,
-      buildings: [...planet.buildings, { name: building.name, size: building.size, x: placement.x, y: placement.y }],
+      ...planned,
+      buildings: [...planned.buildings, { name: building.name, size: building.size, x: placement.x, y: placement.y }],
     }, faction);
     const energyBefore = current.energyProduction - current.energyConsumption;
     const energyAfter = projected.energyProduction - projected.energyConsumption;
@@ -1077,10 +1088,11 @@ export class EnemyEconomyService {
    */
   private comfortIncomeGain(faction: Faction, planet: PlanetTile, building: BuildingDef, adminShare: number): number {
     if (!(building.comfort && building.comfort > 0)) return 0;
-    const before = this.economyService.calculatePlanetEconomy(planet, faction);
+    const planned = withConstructionComplete(planet);
+    const before = this.economyService.calculatePlanetEconomy(planned, faction);
     const after = this.economyService.calculatePlanetEconomy({
-      ...planet,
-      buildings: [...planet.buildings, { name: building.name, size: building.size, x: -1, y: -1 }],
+      ...planned,
+      buildings: [...planned.buildings, { name: building.name, size: building.size, x: -1, y: -1 }],
     }, faction);
     const rise = Math.max(0, after.satisfactionTarget - before.satisfactionTarget) / 100;
     return (planet.population ?? 0) * POPULATION_CREDIT_RATE * rise * (1 - adminShare);
@@ -1099,7 +1111,7 @@ export class EnemyEconomyService {
   private housingIncomeGain(faction: Faction, planet: PlanetTile, building: BuildingDef, adminShare: number, upkeepScale: number): number {
     const people = building.population ?? 0;
     if (people <= 0) return 0;
-    const economy = this.economyService.calculatePlanetEconomy(planet, faction);
+    const economy = this.economyService.calculatePlanetEconomy(withConstructionComplete(planet), faction);
     const scale = upkeepScale * planetTypeTraits(planet.type).buildingUpkeep;
     const upkeepPerComfort = Math.min(...this.buildings()
       .filter((b) => (b.comfort ?? 0) > 0)
@@ -1136,7 +1148,8 @@ export class EnemyEconomyService {
     // EconomyService's capacity includes the planet type's population
     // factor (planet-types.ts); the raw housing sum would never be reached
     // on a harsh world, and its housing would never grow.
-    const capacity = this.economyService.getPopulationCapacity(planet);
+    // Housing under construction counts, or the AI would stack housing sites.
+    const capacity = this.economyService.getPopulationCapacity(withConstructionComplete(planet));
     if (capacity <= 0) {
       return true;
     }
@@ -1164,7 +1177,9 @@ export class EnemyEconomyService {
     if (shortfall <= 0 || slots <= 0) {
       return false;
     }
-    if (!this.spaceportService.hasSpaceport(faction.id, starSystems)) {
+    // A Spaceport under construction counts: ships wait in the stock until
+    // it completes, and the AI does not idle its factories meanwhile.
+    if (!this.hasPlannedSpaceport(faction.id, starSystems)) {
       return false;
     }
     // Military focus: wealthy, a military primary priority, or a militarist
@@ -1178,12 +1193,12 @@ export class EnemyEconomyService {
 
     const factionProduction = context.production.find((p) => p.factionId === faction.id);
     const idleFactories = this.getOwnedPlanetsSorted(faction.id, starSystems).filter(
-      (p) => this.isFactoryPlanet(p) && (factionProduction?.ordersByPlanet[p.id]?.length ?? 0) === 0,
+      (p) => this.isOperationalFactoryPlanet(p) && (factionProduction?.ordersByPlanet[p.id]?.length ?? 0) === 0,
     );
     const factories = wealthy ? idleFactories : idleFactories.slice(0, 1);
     if (factories.length === 0 && !wealthy) {
       // All factories busy (e.g. with a colonizer): queue behind it.
-      const first = this.getOwnedPlanetsSorted(faction.id, starSystems).find((p) => this.isFactoryPlanet(p));
+      const first = this.getOwnedPlanetsSorted(faction.id, starSystems).find((p) => this.isOperationalFactoryPlanet(p));
       if (first) factories.push(first);
     }
 
@@ -1614,8 +1629,24 @@ export class EnemyEconomyService {
     return planets;
   }
 
+  /*
+   * Planning checks (isFactoryPlanet, countFactories, countRole, hasRole,
+   * hasPlannedSpaceport) count construction sites as present: the building
+   * is paid for, so it must not be bought again (docs/planet-construction.md).
+   * Ships can only be ordered at an operational factory.
+   */
   private isFactoryPlanet(planet: PlanetTile): boolean {
     return planet.buildings.some((b) => b.name === EnemyEconomyService.FACTORY_NAME);
+  }
+
+  private isOperationalFactoryPlanet(planet: PlanetTile): boolean {
+    return operationalBuildings(planet).some((b) => b.name === EnemyEconomyService.FACTORY_NAME);
+  }
+
+  private hasPlannedSpaceport(factionId: string, starSystems: StarSystem[]): boolean {
+    return starSystems.some((system) => system.planetsTiles.some(
+      (p) => p.factionId === factionId && p.buildings.some((b) => b.name === EnemyEconomyService.SPACEPORT_NAME),
+    ));
   }
 
   private countMines(planet: PlanetTile): number {

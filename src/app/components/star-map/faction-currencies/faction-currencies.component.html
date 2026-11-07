@@ -56,6 +56,65 @@
           </div>
         </div>
 
+        <!-- Empire-wide exchange: open with any own Trading Post (trade.ts).
+             Each overlay only buys its own resource: the raw-material overlay
+             buys raw materials, the credit overlay buys credits (sells raw). -->
+        @let buying = selectedCurrency === 'rawmaterials';
+        @let direction = buying ? 'buyRaw' : 'sellRaw';
+        <div class="hud-overlay__section faction-currencies__exchange"
+             [class.faction-currencies__exchange--locked]="!tradeSummary?.hasTradingPost">
+          <div class="hud-overlay__section-title">{{ buying ? 'Buy raw materials' : 'Buy credits' }}</div>
+          @if (!tradeSummary?.hasTradingPost) {
+            <div class="faction-currencies__exchange-hint faction-currencies__exchange-hint--locked">
+              Build a Trading Post on any planet to unlock.
+            </div>
+          }
+          <div class="faction-currencies__exchange-rates">
+            @if (buying) {
+              <span>1 RM costs {{ tradeBuyRate }} CR</span>
+            } @else {
+              <span>1 RM sells for {{ tradeSellRate }} CR</span>
+            }
+          </div>
+          <div class="faction-currencies__exchange-grid">
+            @for (lot of tradeLots; track lot) {
+              <button
+                type="button"
+                class="faction-currencies__exchange-btn"
+                [disabled]="!canTrade(direction, lot)"
+                (click)="requestTrade(direction, lot)"
+              >
+                @if (buying) {
+                  <span>+{{ lot }} RM</span>
+                  <span class="faction-currencies__exchange-cost">&minus;{{ tradeCredits(direction, lot) }} CR</span>
+                } @else {
+                  <span>+{{ tradeCredits(direction, lot) }} CR</span>
+                  <span class="faction-currencies__exchange-cost">&minus;{{ lot }} RM</span>
+                }
+              </button>
+            }
+          </div>
+        </div>
+
+        @if (selectedCurrency === 'credits' && tradeSummary && tradeSummary.networkPosts > 0) {
+          <div class="hud-overlay__section">
+            <div class="hud-overlay__section-title">Trade network</div>
+            <div class="hud-overlay__row hud-overlay__row--income"
+                 title="Traders pay on delivery, outside the per-second figures above.">
+              <span>Deliveries (last {{ tradeSummary.windowMinutes }} min)</span>
+              <span>+{{ tradeSummary.recentIncome | number:'1.0-0' }} CR</span>
+            </div>
+            <div class="hud-overlay__row">
+              <span>Your Trading Posts</span>
+              <span>{{ tradeSummary.ownPosts }}</span>
+            </div>
+            <div class="hud-overlay__row">
+              <span>Network</span>
+              <span>{{ tradeSummary.networkPosts }} posts · {{ tradeSummary.networkTraders }} traders</span>
+            </div>
+          </div>
+        }
+
         @if (economyBreakdown.planets.length > 0) {
           <div class="hud-overlay__section">
             <div class="hud-overlay__section-title">Planets</div>
@@ -145,7 +204,7 @@
           @if (economyBreakdown.fleetExpenses.length > 0) {
             <div class="hud-overlay__section">
               <div class="hud-overlay__section-title">Fleet Maintenance</div>
-              @for (entry of economyBreakdown.fleetExpenses; track entry) {
+              @for (entry of economyBreakdown.fleetExpenses; track $index) {
                 <div class="hud-overlay__row">
                   <span>{{ entry.fleetName }} - {{ entry.shipType }} x{{ entry.count }}</span>
                   <span>-{{ entry.totalCost | number:'1.0-1' }}/sec</span>

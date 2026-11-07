@@ -408,7 +408,7 @@ describe('trade trips and deliveries', () => {
     expect(loaded.getTrader(moving.id)).toMatchObject({ status: 'docked', portPlanetId: away.id });
   });
 
-  it('reports post stats and the recent trade income for the TRADE tab', () => {
+  it('reports post stats and the recent trade income for the trade UI', () => {
     const home = planet('player');
     const away = planet('enemy1');
     const systems = [system('home', 10, 10, [home]), system('away', 20, 10, [away])];

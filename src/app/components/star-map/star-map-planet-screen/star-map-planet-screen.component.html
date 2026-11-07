@@ -200,6 +200,51 @@
 
           <div class="planet-surface__objects">
             @for (sprite of sprites; track sprite.key) {
+              @if (sprite.kind === 'site') {
+                <!-- Construction site (docs/planet-construction.md): the real
+                     sprite rises from the ground inside a scaffold while a
+                     crane and welders work at the build line. -->
+                @let p = siteProgress(sprite.building);
+                @let workLine = (1 - p) * 100;
+                <div
+                  class="construction-site"
+                  [class.construction-site--paused]="isPaused"
+                  aria-hidden="true"
+                  [style.left.vw]="sprite.left"
+                  [style.top.vw]="sprite.top"
+                  [style.width.vw]="sprite.width"
+                  [style.z-index]="sprite.z"
+                  [style.--progress]="p"
+                >
+                  <img class="construction-site__blueprint" [src]="sprite.src" alt="" draggable="false" />
+                  <img class="construction-site__hull" [src]="sprite.src" alt="" draggable="false" />
+                  <svg class="construction-site__rig" viewBox="0 0 100 100" preserveAspectRatio="none">
+                    <path class="construction-site__scaffold" [attr.d]="scaffoldPath(workLine)" />
+                    <line class="construction-site__deck" x1="10" x2="90"
+                          [attr.y1]="scaffoldTop(workLine)" [attr.y2]="scaffoldTop(workLine)" />
+                    <!-- Tower crane: mast, jib, counter-jib, trolley cable to the build line -->
+                    <g class="construction-site__crane">
+                      <path class="construction-site__mast" d="M92 100 V-34 M88 100 V-34 M88 92 L92 80 L88 68 L92 56 L88 44 L92 32 L88 20 L92 8 L88 -4 L92 -16 L88 -28" />
+                      <path class="construction-site__jib" d="M18 -34 H100 M18 -30 H92 M18 -34 L90 -40 L100 -34" />
+                      <g class="construction-site__trolley">
+                        <line class="construction-site__cable" x1="50" y1="-30" x2="50" [attr.y2]="scaffoldTop(workLine) - 4" />
+                        <rect class="construction-site__hook" x="47" [attr.y]="scaffoldTop(workLine) - 6" width="6" height="3" />
+                      </g>
+                    </g>
+                    <circle class="construction-site__lamp" cx="90" cy="-37" r="1.8" />
+                    <circle class="construction-site__lamp construction-site__lamp--late" cx="10" [attr.cy]="scaffoldTop(workLine) - 1.5" r="1.4" />
+                  </svg>
+                  <!-- Welders at the build line -->
+                  <span class="construction-site__weld" [style.top.%]="workLine" style="left: 34%"></span>
+                  <span class="construction-site__weld construction-site__weld--b" [style.top.%]="workLine" style="left: 63%"></span>
+                  <!-- Ground plate: ten segments, lit as the work progresses -->
+                  <span class="construction-site__plate">
+                    @for (seg of constructionSegments; track seg) {
+                      <i [class.construction-site__seg--lit]="p * 10 > seg"></i>
+                    }
+                  </span>
+                </div>
+              } @else {
               <img
                 class="planet-surface__sprite"
                 [class.planet-surface__sprite--deposit]="sprite.kind === 'deposit'"
@@ -215,6 +260,7 @@
                 [style.width.vw]="sprite.width"
                 [style.z-index]="sprite.z"
               />
+              }
             }
           </div>
 
@@ -228,6 +274,9 @@
                   [style.top.vw]="labelPosition(b).top"
                 >
                   {{ b.name }}
+                  @if (b.constructionRemaining) {
+                    <span class="planet-surface__building-progress">· {{ sitePercent(b) }}%</span>
+                  }
                 </div>
               }
             }
@@ -344,9 +393,6 @@
               @case ('production') {
                 PRODUCTION
               }
-              @case ('trade') {
-                TRADE
-              }
               @default {
                 DETAILS
               }
@@ -359,6 +405,49 @@
         @switch (activeTab) {
           @case ('build') {
             @if (!isBuildMode) {
+              @let sites = constructionSiteViews;
+              @if (sites.length > 0) {
+                <section class="construction-list" aria-label="Under construction">
+                  <div class="construction-list__title">
+                    <svg class="construction-list__icon" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="M2 15V3h1v12M2 3h12M5 3l-3 3M10 3v5" />
+                      <rect x="8.5" y="8" width="3" height="2" />
+                      <path d="M6 15v-4h7v4" />
+                    </svg>
+                    Under construction
+                    <span class="construction-list__speed" title="Construction speed of this planet (colony core × technologies)">
+                      speed {{ constructionSpeedPercent }}%
+                    </span>
+                  </div>
+                  @for (site of sites; track site.building) {
+                    <div class="construction-entry" [class.construction-entry--paused]="isPaused">
+                      <div class="construction-entry__head">
+                        <span class="construction-entry__name">{{ site.name }}</span>
+                        <span class="construction-entry__status">{{ isPaused ? 'PAUSED' : 'BUILDING' }}</span>
+                      </div>
+                      <div class="construction-entry__bar" role="progressbar"
+                           [attr.aria-valuenow]="site.percent" aria-valuemin="0" aria-valuemax="100">
+                        <span [style.width.%]="site.percent"></span>
+                      </div>
+                      <div class="construction-entry__meta">
+                        <span>{{ site.percent }}%</span>
+                        <span>{{ formatDuration(site.secondsLeft) }} left</span>
+                      </div>
+                      <div class="construction-entry__meta construction-entry__meta--dim">
+                        <span>Paid {{ site.paid.credits }} CR · {{ site.paid.rawmaterials }} RM</span>
+                        <button
+                          type="button"
+                          class="construction-entry__cancel"
+                          [title]="'Cancel and refund the unbuilt share: ' + site.refund.credits + ' CR, ' + site.refund.rawmaterials + ' RM'"
+                          (click)="requestCancelConstruction(site)"
+                        >
+                          CANCEL +{{ site.refund.credits }} CR
+                        </button>
+                      </div>
+                    </div>
+                  }
+                </section>
+              }
               <div class="planet-sidebar__build-list">
                 @for (building of buildableTypes; track building.id) {
                   @let expanded = expandedBuildingId === building.id;
@@ -428,6 +517,14 @@
                     >
                       <ng-container *ngTemplateOutlet="buildingInfoBody; context: { $implicit: building }" />
                       @let blocker = getBuildBlocker(building);
+                      @if (buildTimeOnPlanet(building) > 0) {
+                        <div class="building-info__build-time">
+                          Build time here: {{ formatDuration(buildTimeOnPlanet(building)) }}
+                          @if (constructionSpeedPercent !== 100) {
+                            <span>(speed {{ constructionSpeedPercent }}%)</span>
+                          }
+                        </div>
+                      }
                       <button
                         class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
                         type="button"
@@ -528,87 +625,25 @@
             </div>
           }
 
-          @case ('trade') {
-            <div class="planet-sidebar__trade">
-              @if (planet && getTradePostVm(planet); as network) {
-                <div class="ui-label">Trade network</div>
-                <div class="planet-sidebar__build-hint">
-                  This post's traders fly cargo to other Trading Posts and pay you on delivery.
-                </div>
-                <div class="ui-stat">
-                  <span class="ui-stat__label">Your traders</span>
-                  <span class="ui-stat__value"
-                    >{{ network.travelling }} en route · {{ network.docked }} docked{{
-                      network.respawning > 0 ? ' · ' + network.respawning + ' rebuilding' : ''
-                    }}</span
-                  >
-                </div>
-                <div class="ui-stat">
-                  <span class="ui-stat__label">Inbound traders</span>
-                  <span class="ui-stat__value">{{ network.inbound }}</span>
-                </div>
-                <div class="ui-stat">
-                  <span class="ui-stat__label">Network</span>
-                  <span class="ui-stat__value"
-                    >{{ network.nodes }} posts · {{ network.traders }} traders</span
-                  >
-                </div>
-                <div class="ui-stat ui-stat--positive">
-                  <span class="ui-stat__label"
-                    >Empire trade income ({{ network.windowMinutes }} min)</span
-                  >
-                  <span class="ui-stat__value">+{{ network.recentIncome }} CR</span>
-                </div>
-              }
-
-              <div class="ui-label">Trading Post exchange</div>
-              <div class="planet-sidebar__build-hint">
-                Exchange at a steep markup &mdash; a last resort when one resource runs dry.
-              </div>
-              <div class="planet-sidebar__trade-rates">
-                <span>Buy: 1 RM = {{ tradeBuyRate }} CR</span>
-                <span>Sell: 1 RM = {{ tradeSellRate }} CR</span>
-              </div>
-
-              <div class="ui-label">Buy raw materials</div>
-              @for (lot of tradeLots; track lot) {
-                <button
-                  class="planet-sidebar__btn planet-sidebar__trade-btn"
-                  type="button"
-                  [disabled]="!canTrade('buyRaw', lot)"
-                  (click)="requestTrade('buyRaw', lot)"
-                >
-                  <span>+{{ lot }} RM</span>
-                  <span [class.planet-sidebar__price--short]="!canTrade('buyRaw', lot)"
-                    >&minus;{{ tradeCredits('buyRaw', lot) }} CR</span
-                  >
-                </button>
-              }
-
-              <div class="ui-label">Sell raw materials</div>
-              @for (lot of tradeLots; track lot) {
-                <button
-                  class="planet-sidebar__btn planet-sidebar__trade-btn"
-                  type="button"
-                  [disabled]="!canTrade('sellRaw', lot)"
-                  (click)="requestTrade('sellRaw', lot)"
-                >
-                  <span [class.planet-sidebar__price--short]="!canTrade('sellRaw', lot)"
-                    >&minus;{{ lot }} RM</span
-                  >
-                  <span>+{{ tradeCredits('sellRaw', lot) }} CR</span>
-                </button>
-              }
-            </div>
-          }
-
           @default {
             <app-planet-details
               [planet]="planet"
               [planetEconomy]="planetEconomy"
               [getFactionName]="getFactionName"
               [getFactionColor]="getFactionColor"
+              [showBuildings]="false"
             />
+            <!-- The exchange itself is empire-wide (header resource overlay). -->
+            @if (tradePostVm; as post) {
+              <div class="ui-stat planet-sidebar__trade-post">
+                <span class="ui-stat__label">Trading Post traders</span>
+                <span class="ui-stat__value"
+                  >{{ post.travelling }} en route · {{ post.docked }} docked{{
+                    post.respawning > 0 ? ' · ' + post.respawning + ' rebuilding' : ''
+                  }}{{ post.inbound > 0 ? ' · ' + post.inbound + ' inbound' : '' }}</span
+                >
+              </div>
+            }
           }
         }
       </div>

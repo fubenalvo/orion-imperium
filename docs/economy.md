@@ -201,12 +201,12 @@ A building with `maxPerPlanet` in `planet-data.json` (Bank and Trading Post: 1) 
 
 ## Trading Post
 
-`trading_post` (`planet-data.json`, role `trade`): a 2×2 building (2500 credits, 600 raw, 15 upkeep points, 10 energy, 20 workforce, at most one per planet), unlocked by the starting technology Basic Industry. A planet with a Trading Post gets a TRADE tab on the planet screen, where its owner exchanges credits and raw materials in lots of 100 / 500 / 1000 (`trade.ts`):
+`trading_post` (`planet-data.json`, role `trade`): a 2×2 building (2500 credits, 600 raw, 15 upkeep points, 10 energy, 20 workforce, at most one per planet), unlocked by the starting technology Basic Industry. Owning at least one Trading Post, on any planet, opens the **resource exchange** for the whole empire: credits and raw materials are empire-wide and the rates are fixed, so where the post stands does not matter, and more posts do not improve the exchange (they add trade-network nodes instead). The player trades in lots of 100 / 500 / 1000 from the header's resource overlays (click a resource in the resource bar); each overlay only buys its own resource: the raw-material overlay buys raw materials with credits, the credit overlay buys credits by selling raw materials. Without a post the section is shown locked with "Build a Trading Post on any planet to unlock" (`trade.ts`):
 
 - buying raw costs `TRADE_BUY_CREDITS_PER_RAW` = 4 credits per unit (price rounded up);
 - selling raw pays `TRADE_SELL_CREDITS_PER_RAW` = 0.25 credits per unit (proceeds rounded down).
 
-The rates are deliberately bad: a round trip keeps 1/16 of the value, buying the raw part of a cruiser (1200) costs 4800 credits, and a Mining Complex produces raw at ~0.4 credits of upkeep per unit. It is a last resort when one resource runs dry, not a way to run an economy. Every trade is atomic and re-checked by `executeTrade` (post on the planet, owned by the trader, enough stock); a refused trade changes nothing. The post does not need power or workforce to trade. The AI builds posts by personality for the trade network ([Trade Network](./trade-network.md#ai)) and buys raw materials at one only when raw materials, not credits, hold back its warships and it has a large credit surplus ([AI Pipeline](./ai-pipeline.md#raw-purchases-and-the-reserve-exit)). Every planet with a Trading Post is also a node of the civilian trade network and keeps two traders ([Trade Network](./trade-network.md)). Their deliveries pay the post owner the cargo value and the destination owner a 20% port fee, in credits, outside the economy tick (a windfall like collected asteroids).
+The rates are deliberately bad: a round trip keeps 1/16 of the value, buying the raw part of a cruiser (1200) costs 4800 credits, and a Mining Complex produces raw at ~0.4 credits of upkeep per unit. It is a last resort when one resource runs dry, not a way to run an economy. Every trade is atomic and re-checked by `executeTrade` (`ownsTradingPost`: an own post anywhere; enough stock); a refused trade changes nothing. Losing the last post (capture, rebellion) closes the exchange at once. The post does not need power or workforce to trade. The AI builds posts by personality for the trade network ([Trade Network](./trade-network.md#ai)) and buys raw materials at the exchange only when raw materials, not credits, hold back its warships and it has a large credit surplus ([AI Pipeline](./ai-pipeline.md#raw-purchases-and-the-reserve-exit)). Every planet with a Trading Post is also a node of the civilian trade network and keeps two traders ([Trade Network](./trade-network.md)). Their deliveries pay the post owner the cargo value and the destination owner a 20% port fee, in credits, outside the economy tick (a windfall like collected asteroids).
 
 ## Prices
 
@@ -247,7 +247,7 @@ Research prices (research points from the tree, scaled by technologies already r
 
 All building and ship purchases go through `resource-cost.ts` (`buildingCost`, `shipCost`, `canAffordCost`, `payCost`, `refundCost`). `payCost` is all-or-nothing: it checks credits and raw materials before deducting either, so a failed purchase changes nothing and a balance never goes negative through a purchase. Research is paid by `ResearchService.researchTechnology` with the same all-or-nothing rule over research points and credits.
 
-- **Buildings** (`StarMap.onBuildingConfirmed`, `EnemyEconomyService.tryConstruct`): paid in full when placed; there is no construction time and no refund. The planet screen shows both prices and marks the part the player cannot pay; a mine on a planet without a live deposit shows NO DEPOSIT / DEPLETED instead.
+- **Buildings** (`StarMap.onBuildingConfirmed`, `EnemyEconomyService.tryConstruct`): paid in full when placed; the building is then a construction site ([Planetary Building Construction](./planet-construction.md)). Cancelling a site (or losing the planet) refunds the unbuilt share of the price, rounded down; a finished building is never refunded. The planet screen shows both prices and marks the part the player cannot pay; a mine on a planet without a live deposit shows NO DEPOSIT / DEPLETED instead.
 - **Ships** (`ProductionService.queueOrder`): paid in full at queue time; the charge is recorded on the order as `paid`. Completion moves ships to the stock for free, and assembling or reinforcing fleets from the stock never charges. Cancel and every auto-cancel (factory lost, planet lost or captured, unknown type) refund the un-built fraction of `paid` (rounded), so a refund can never exceed the charge.
 
 ## AI spending policy (summary)
@@ -278,7 +278,7 @@ Missing `rawmaterials`/`research` read as 0. Production orders without `paid` (w
 
 ## Construction time (not implemented)
 
-Buildings complete instantly. Adding construction time would need: a persistent per-building state (e.g. `constructionRemaining`), skipping unfinished buildings in `EconomyService.calculatePlanetEconomy`, `ProductionService` capacity, `SpaceportService` and AI counting (the AI must count them as planned to avoid double-building), save validation/defaults for the new field, planet-screen rendering, and a decision on refunds when a planet changes hands mid-construction.
+Buildings are not instant: a placed building is a construction site with its own construction time and works only once complete; a site pays no upkeep. See [Planetary Building Construction](./planet-construction.md).
 
 ## Known limitations
 

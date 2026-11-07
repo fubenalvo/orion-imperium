@@ -19,6 +19,7 @@
       "moraleRate": 0,
       "price": 800,
       "rawMaterialCost": 200,
+      "constructionSeconds": 60,
       "production": {},
       "consumption": {
         "energy": 5
@@ -43,6 +44,7 @@
       "moraleRate": 0,
       "price": 1000,
       "rawMaterialCost": 250,
+      "constructionSeconds": 75,
       "production": {},
       "consumption": {
         "energy": 3
@@ -65,6 +67,7 @@
       "moraleRate": 0,
       "price": 3500,
       "rawMaterialCost": 875,
+      "constructionSeconds": 180,
       "production": {},
       "consumption": {
         "energy": 25
@@ -84,6 +87,7 @@
       "moraleRate": 0,
       "price": 600,
       "rawMaterialCost": 150,
+      "constructionSeconds": 30,
       "production": {},
       "consumption": {
         "energy": 3
@@ -104,6 +108,7 @@
       "moraleRate": 0,
       "price": 1800,
       "rawMaterialCost": 450,
+      "constructionSeconds": 60,
       "production": {},
       "consumption": {
         "energy": 6
@@ -124,6 +129,7 @@
       "moraleRate": 0,
       "price": 4500,
       "rawMaterialCost": 1125,
+      "constructionSeconds": 120,
       "production": {},
       "consumption": {
         "energy": 12
@@ -144,6 +150,7 @@
       "comfort": 1,
       "price": 800,
       "rawMaterialCost": 200,
+      "constructionSeconds": 40,
       "production": {},
       "consumption": {
         "energy": 2
@@ -164,6 +171,7 @@
       "comfort": 3,
       "price": 2000,
       "rawMaterialCost": 500,
+      "constructionSeconds": 100,
       "production": {},
       "consumption": {
         "energy": 10
@@ -184,6 +192,7 @@
       "comfort": 2,
       "price": 1500,
       "rawMaterialCost": 375,
+      "constructionSeconds": 80,
       "production": {},
       "consumption": {
         "energy": 8
@@ -204,6 +213,7 @@
       "comfort": 4,
       "price": 3000,
       "rawMaterialCost": 750,
+      "constructionSeconds": 130,
       "production": {},
       "consumption": {
         "energy": 15
@@ -223,6 +233,7 @@
       "moraleRate": -0.01,
       "price": 2500,
       "rawMaterialCost": 625,
+      "constructionSeconds": 120,
       "production": {
         "energy": 100
       },
@@ -242,6 +253,7 @@
       "moraleRate": 0,
       "price": 600,
       "rawMaterialCost": 150,
+      "constructionSeconds": 25,
       "production": {
         "energy": 40
       },
@@ -261,6 +273,7 @@
       "moraleRate": -0.02,
       "price": 3000,
       "rawMaterialCost": 750,
+      "constructionSeconds": 90,
       "production": {},
       "consumption": {
         "energy": 30
@@ -283,6 +296,7 @@
       "moraleRate": 0,
       "price": 4000,
       "rawMaterialCost": 1000,
+      "constructionSeconds": 150,
       "production": {},
       "consumption": {
         "energy": 20
@@ -302,6 +316,7 @@
       "moraleRate": -0.01,
       "price": 1500,
       "rawMaterialCost": 375,
+      "constructionSeconds": 75,
       "production": {
         "rawmaterials": 15
       },
@@ -324,6 +339,7 @@
       "moraleRate": 0,
       "price": 1000,
       "rawMaterialCost": 250,
+      "constructionSeconds": 75,
       "production": {
         "research": 2
       },
@@ -345,6 +361,7 @@
       "moraleRate": 0,
       "price": 3000,
       "rawMaterialCost": 750,
+      "constructionSeconds": 110,
       "production": {
         "research": 5
       },
@@ -366,6 +383,7 @@
       "moraleRate": 0,
       "price": 2500,
       "rawMaterialCost": 600,
+      "constructionSeconds": 90,
       "production": {},
       "consumption": {
         "energy": 10
@@ -386,6 +404,7 @@
       "moraleRate": 0,
       "price": 3000,
       "rawMaterialCost": 750,
+      "constructionSeconds": 100,
       "production": {
         "credits": 12
       },
@@ -409,6 +428,7 @@
       "moraleRate": 0,
       "price": 0,
       "rawMaterialCost": 0,
+      "constructionSeconds": 0,
       "production": {},
       "consumption": {},
       "defense": null,
@@ -429,6 +449,7 @@
       "moraleRate": 0,
       "price": 0,
       "rawMaterialCost": 0,
+      "constructionSeconds": 0,
       "production": {},
       "consumption": {},
       "defense": null,

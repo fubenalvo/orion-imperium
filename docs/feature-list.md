@@ -407,7 +407,8 @@ colonization_technology → Colonizer
 ### Building Unlocks
 
 ```
-basic_engineering → Spaceship Factory, Spaceport, Laser Turret, Missile Turret
+basic_engineering → Spaceship Factory, Spaceport, Laser Turret
+missile_technology → Missile Turret
 basic_science → Small Research Laboratory
 basic_industry → Small Residential Block, Mining Complex
 basic_power → Solar Array

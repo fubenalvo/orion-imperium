@@ -30,6 +30,9 @@ export class PlanetDetailsComponent {
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
   @Input() getFactionName: (factionId: string) => string = () => 'Unknown';
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
+  /* Off on the planet screen, where the buildings stand on the surface itself;
+     the system view's planet info card keeps the list. */
+  @Input() showBuildings = true;
 
   /* Below this drift (%/s) satisfaction counts as steady, so tiny oscillations show no arrow. */
   private static readonly SATISFACTION_STEADY_DRIFT = 0.01;

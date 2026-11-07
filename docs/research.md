@@ -30,7 +30,7 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 
 | Technology | Depth | Cost | Category | Effect (implemented in) |
 | --- | --- | --- | --- | --- |
-| Basic Engineering / Science / Industry / Power | 0 | 0 | Starting unlock | Scout, Fighter, Colonizer; Factory, Spaceport, turrets; Small Research Lab; Small Residential, Mining Complex; Solar Array |
+| Basic Engineering / Science / Industry / Power | 0 | 0 | Starting unlock | Scout, Fighter, Colonizer; Factory, Spaceport, Laser Turret; Small Research Lab; Small Residential, Mining Complex; Solar Array |
 | Advanced Engineering | 1 | 800 | Unlock | Corvette, Frigate |
 | Military Engineering | 1 | 1000 | Unlock | Destroyer, Planetary Shield |
 | Advanced Industry | 1 | 800 | Unlock + bonus | Park, Entertainment Center, Bank; −10% building upkeep (EconomyService) |
@@ -39,7 +39,8 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 | Basic Radar | 1 | 500 | Bonus | +1 sensor range (sensors, AI intel) |
 | Scout Technology | 1 | 400 | Bonus | +1 sensor range |
 | Fighter Technology | 1 | 600 | Bonus | +25% battle damage: Scout, Fighter |
-| Advanced Construction | 2 | 1400 | Unlock | Medium Residential |
+| Missile Technology | 1 | 600 | Unlock | Missile Turret (planet defense; until 2026-11 a starting unlock of Basic Engineering, so planets start with laser turrets only). The AI values it like its other defense unlocks (`EnemyResearchService` building value 0.5). Older saves: nobody has it yet, so new missile turrets need it, while turrets already built keep fighting |
+| Advanced Construction | 2 | 1400 | Unlock + bonus | Medium Residential; +20% building construction speed on every planet ([Construction](./planet-construction.md#rules)) |
 | Orbital Engineering | 2 | 1800 | Bonus | +25% ship construction speed (ProductionService) |
 | Advanced Manufacturing | 2 | 1800 | Bonus | +25% raw materials from buildings (EconomyService) |
 | Fusion Power | 2 | 1200 | Unlock | Fusion Power Plant |
@@ -50,7 +51,7 @@ Costs are base costs (before scaling). Depth = prerequisite steps from the start
 | Destroyer Technology | 2 | 1800 | Bonus | +25% damage, +20% shields: Destroyer |
 | Advanced Weapons | 2 | 2400 | Bonus | +15% damage: all warships; prerequisite for capital ships |
 | Advanced Shipyards | 3 | 2200 | Unlock | Cruiser, Carrier |
-| Urban Infrastructure | 3 | 3000 | Unlock | Large Residential |
+| Urban Infrastructure | 3 | 3000 | Unlock + bonus | Large Residential; +20% building construction speed (stacks to +40%) |
 | Advanced Power | 3 | 2500 | Bonus | +15% energy from power buildings (stacks to +30%) |
 | Applied Science | 3 | 3000 | Bonus | +25% research from research buildings |
 | Long-Range Radar | 3 | 3500 | Bonus | +1 sensor range |

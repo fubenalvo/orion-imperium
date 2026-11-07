@@ -34,6 +34,7 @@ import { StarMapBattleDetectionService } from './star-map-battle-detection.servi
 import { BattleService } from '../../services/battle.service';
 import { OUTPOST_SHIP_TYPE } from './space-base';
 import { advanceMiningStationConstruction } from './station-construction';
+import { advanceBuildingConstruction, planetConstructionSpeed } from './building-construction';
 import { SpaceBaseService } from './space-base.service';
 import { FleetRepairService } from './fleet-repair.service';
 import { OPENING_GRACE_SECONDS } from './opening-grace';
@@ -472,6 +473,12 @@ function runScenario(options: ScenarioOptions): ScenarioResult {
     // Station construction advances like in StarMap.updateStationConstruction.
     TestBed.inject(SpaceBaseService).advanceConstruction(dt);
     advanceMiningStationConstruction(data.starSystems, dt);
+    // Planetary building sites, like StarMap.updateStationConstruction (building-construction.ts).
+    const researchForSpeed = TestBed.inject(ResearchService);
+    advanceBuildingConstruction(data.starSystems, dt, (planet) => planetConstructionSpeed(
+      planet,
+      researchForSpeed.getModifiers(data.factions.find((f) => f.id === planet.factionId) ?? null).buildingConstructionSpeed,
+    ));
     // Like StarMap.updateFleetRepair (which batches into 0.5 s steps; the rule is linear in time).
     TestBed.inject(FleetRepairService).step(
       { fleets: data.fleets, shipStock: data.shipStock, factions: data.factions, starSystems: data.starSystems },
@@ -958,7 +965,10 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
       // costs 1.5×, so the net is ~55–65 credits/s: measured 240–250 s
       // (~200 s before).
       expect(trace.spaceportAt!, `${factionId} spaceport time`).toBeLessThan(280);
-      expect(trace.firstColonizationAt!, `${factionId} first colony time`).toBeLessThan(300);
+      // Building construction time (docs/planet-construction.md, 2026-11):
+      // the factory and its colonizer come later, by design a slower opening
+      // than the old instant buildings. Measured ~355 s (under 300 before).
+      expect(trace.firstColonizationAt!, `${factionId} first colony time`).toBeLessThan(420);
       expect(trace.colonizations, `${factionId} colonizations`).toBeGreaterThanOrEqual(2);
       // Every owned planet (except possibly a colony founded in the last
       // decision intervals) has been developed, and none runs an energy deficit.
@@ -1259,9 +1269,11 @@ describe('AI simulation — Phase 3 research and military operations', () => {
   });
 
   it('produced ships are assembled into new fleets and reinforce existing fleets at the Spaceport', () => {
-    // 15 minutes: with the empire upkeep scale (economy.md) the navy grows
-    // more slowly, and the first reinforcement can come after minute 10.
-    const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 900, dt: 1 / 60, removePlayerFleets: true };
+    // 20 minutes: with the empire upkeep scale (economy.md) the navy grows
+    // more slowly, and since building construction time (2026-11) the
+    // Spaceport and factories come later still; the first reinforcement can
+    // come after minute 15.
+    const options: ScenarioOptions = { size: 'medium', aiCount: 2, seconds: 1200, dt: 1 / 60, removePlayerFleets: true };
     const result = runScenario(options);
 
     expectHealthyAiFactions(result, options);
@@ -1801,9 +1813,11 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     const options: ScenarioOptions = {
       // Premise: the AIs act against the player/neutrals, not each other.
       aiAlliance: true,
-      // 15 minutes: Normal AIs start with 2 frigates only (2026-11), so
-      // the defense against the two cruisers takes longer to build.
-      size: 'medium', aiCount: 2, seconds: 900, dt: 1 / 60, removePlayerFleets: true,
+      // 20 minutes: Normal AIs start with 2 frigates only (2026-11), so
+      // the defense against the two cruisers takes longer to build, and
+      // construction time (docs/planet-construction.md) delays the second
+      // colonizer's factory and Spaceport.
+      size: 'medium', aiCount: 2, seconds: 1200, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         withPersonalities(['balanced'])(data);
         // This scenario is about objective handling, not the economy: a
@@ -1837,7 +1851,9 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
 
   it('detects a fleet that cannot complete its order and replans instead of waiting forever', () => {
     const options: ScenarioOptions = {
-      size: 'medium', aiCount: 2, seconds: 300, dt: 1 / 60, removePlayerFleets: true,
+      // 10 minutes: with building construction time the AI's first orders
+      // for its fleets come later (2026-11); 5 minutes no longer reached them.
+      size: 'medium', aiCount: 2, seconds: 600, dt: 1 / 60, removePlayerFleets: true,
       prepare: (data) => {
         // A crippled fleet (speed 0) away from home will be ordered to garrison but can never move.
         const fleet = data.fleets.find((f) => f.factionId === 'enemy1')!;
@@ -1850,7 +1866,7 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     const stuck = TestBed.inject(EnemyProgressService).getEvents().filter((e) => e.factionId === 'enemy1' && e.type === 'stuck_fleet');
     expect(stuck.length, 'stuck fleet detected').toBeGreaterThan(0);
     // Detection is throttled (one per stuck window), not every frame.
-    expect(stuck.length).toBeLessThanOrEqual(300 / 30 + 1);
+    expect(stuck.length).toBeLessThanOrEqual(600 / 30 + 1);
     // The rest of the faction keeps making progress.
     expect(result.traces.get('enemy1')!.colonizations).toBeGreaterThanOrEqual(1);
   });
@@ -1892,8 +1908,9 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
     // The passive stand-in player can be eliminated mid-run; the AIs keep playing.
     // 25 minutes: the reach widens in steps over time, and since the colony
     // cores (2026-11) the sparse faction needs the full widening (reached
-    // ~20–25 minutes in).
-    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 1500, dt: 1 / 30, seed: 4242, continueAfterOutcome: true };
+    // ~20–25 minutes in). 30 minutes since building construction time
+    // (2026-11) slowed every faction's expansion and so the widening.
+    const options: ScenarioOptions = { size: 'large', aiCount: 5, seconds: 1800, dt: 1 / 30, seed: 4242, continueAfterOutcome: true };
     const result = runScenario(options);
     expectHealthyAiFactions(result, options);
     const reach = TestBed.inject(EnemyReachService);
@@ -1902,10 +1919,15 @@ describe('AI simulation — Phase 5 strategy, multiple objectives and evaluation
       // Since the colony cores (2026-11) the neighbours expand faster and can
       // take every planet in the sparse faction's reach (measured: enemy2's
       // nearest free system 127 cells away, maximum reach 120). A faction
-      // with fewer than two colonies must therefore have widened its reach
-      // all the way, which is what this regression is about.
+      // with fewer than two colonies must therefore not be stuck: either it
+      // widened its reach all the way, or it has a target in reach again
+      // (expansion score > 0). Since building construction time (2026-11)
+      // the second case is common: enemy2 widened to 1.25, found targets and
+      // simply colonizes more slowly.
       if (trace.colonizations < 2) {
-        expect(reach.getBonus(factionId), `${factionId} widened its reach fully`).toBe(EnemyReachService.MAX_BONUS);
+        const posture = TestBed.inject(EnemyPlanService).getPosture(result.data.factions.find((f) => f.id === factionId));
+        const widenedFully = reach.getBonus(factionId) === EnemyReachService.MAX_BONUS;
+        expect(widenedFully || posture.scores.expansion > 0, `${factionId} has a target in reach or widened its reach fully`).toBe(true);
       }
     }
     expect([...result.traces.keys()].some((id) => reach.getBonus(id) > 1), 'some faction widened its reach').toBe(true);
@@ -2029,8 +2051,9 @@ describe('AI simulation — Phase 6 long-duration stability and performance', ()
     const planets = result.data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId !== 'unhabited').length;
     // Navies are smaller since ship upkeep grows with hull size (2026-11),
     // and again since the colony cores (more colonies, credits bind): ~90
-    // ships and ~36 planets at 30 minutes (116 and 32 before).
-    expect(ships, 'entity count reached').toBeGreaterThan(75);
+    // ships and ~36 planets at 30 minutes (116 and 32 before). Building
+    // construction time (2026-11) slows the build-up again: ~72 ships.
+    expect(ships, 'entity count reached').toBeGreaterThan(60);
     expect(planets).toBeGreaterThan(15);
     // Measured AI cost per frame (all five factions together).
     expect(result.aiTickMs.perFrame, 'average AI ms per frame').toBeLessThan(2);
@@ -2323,11 +2346,16 @@ describe('AI simulation — Dyson Swarm', () => {
    * scenario: Stellar Engineering at ~51 min (technologist) and ~55 min
    * (balanced), 4–6 anchors each by minute 90, the ring full by ~82 min and
    * then contested, anchors lost to hunts, anchor upkeep 7–12% of a
-   * builder's income, no warm-up within 90 minutes.
+   * builder's income, no warm-up within 90 minutes. Since building
+   * construction time (2026-11), over 120 minutes: Stellar Engineering at
+   * ~85 / ~95 min, 4 and 3 anchors, upkeep 15% / 3%, no warm-up.
    */
-  it('a technologist builds anchors, others contest them, and the swarm costs real money (90 minutes)', () => {
+  it('a technologist builds anchors, others contest them, and the swarm costs real money (120 minutes)', () => {
+    // 120 minutes since building construction time (2026-11): the whole
+    // tempo is slower, Stellar Engineering came at ~59–85 minutes in the
+    // measured runs, leaving too little of a 90-minute game for the swarm.
     const options: ScenarioOptions = {
-      size: 'medium', aiCount: 3, seconds: 5400, dt: 1 / 10, continueAfterOutcome: true, resolvePlayerFleetBattles: true,
+      size: 'medium', aiCount: 3, seconds: 7200, dt: 1 / 10, continueAfterOutcome: true, resolvePlayerFleetBattles: true,
       prepare: withPersonalities(['technologist', 'militarist', 'balanced']),
     };
     const { result, rows, warmupsStarted } = runDysonScenario(options);
@@ -2359,7 +2387,7 @@ describe('AI simulation — Dyson Swarm', () => {
       expect(trace.failedOrders, `${r.who} rejected production orders`).toBe(0);
       expect(trace.arrearsTicks, `${r.who} ticks in arrears`).toBeLessThanOrEqual(10);
     }
-  }, 300_000);
+  }, 450_000);
 });
 
 /*
@@ -2541,7 +2569,9 @@ describe('AI simulation — late economy', () => {
       expect(s.colonizations, `${label} colonies`).toBeGreaterThanOrEqual(3);
     }
     for (const s of samples.filter((x) => x.minute === 90)) {
-      expect(s.net / s.income, `${s.who} late net share`).toBeLessThanOrEqual(0.2);
+      // 0.25 since building construction time (2026-11): a slower build-up
+      // leaves a little more unspent at minute 90 (measured up to ~0.23).
+      expect(s.net / s.income, `${s.who} late net share`).toBeLessThanOrEqual(0.25);
     }
     // The rule bites: every AI has planets that need comfort by minute 90.
     for (const f of result.data.factions.filter((x) => x.ai)) {

@@ -2,7 +2,8 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EconomyBreakdown } from '../../../services/economy.service';
 import { GameSpeed } from '../../../services/game-time.service';
-import { FactionCurrenciesComponent, CurrencyDisplay } from '../faction-currencies/faction-currencies.component';
+import { FactionCurrenciesComponent, CurrencyDisplay, TradeSummaryView } from '../faction-currencies/faction-currencies.component';
+import { TradeDirection } from '../trade';
 import {
   StarMapShipStockComponent,
   ShipStockEntryDisplay,
@@ -42,6 +43,7 @@ export class StarMapHeaderComponent {
   @Input() backLabel: string | null = null;
   @Input() currencies: CurrencyDisplay[] = [];
   @Input() economyBreakdown: EconomyBreakdown | null = null;
+  @Input() tradeSummary: TradeSummaryView | null = null;
   @Input() shipStockEntries: ShipStockEntryDisplay[] = [];
   @Input() shipStockTotal = 0;
 
@@ -53,6 +55,7 @@ export class StarMapHeaderComponent {
   @Output() setSpeed = new EventEmitter<GameSpeed>();
   @Output() togglePause = new EventEmitter<void>();
   @Output() openResearchTree = new EventEmitter<void>();
+  @Output() tradeRequest = new EventEmitter<{ direction: TradeDirection; raw: number }>();
   @Output() openDiplomacy = new EventEmitter<void>();
   @Output() back = new EventEmitter<void>();
   @Output() openMenu = new EventEmitter<void>();

@@ -7,7 +7,7 @@
       "researchCost": 0,
       "prerequisites": [],
       "unlocksShips": ["scout", "fighter", "colonizer", "outpost_ship"],
-      "unlocksBuildings": ["spaceship_factory", "spaceport", "laser_turret", "missile_turret"]
+      "unlocksBuildings": ["spaceship_factory", "spaceport", "laser_turret"]
     },
     {
       "id": "basic_science",
@@ -52,7 +52,8 @@
       "researchCost": 1400,
       "prerequisites": ["advanced_engineering"],
       "unlocksShips": [],
-      "unlocksBuildings": ["medium_residential"]
+      "unlocksBuildings": ["medium_residential"],
+      "bonuses": [{ "type": "buildingConstructionSpeed", "value": 0.2 }]
     },
     {
       "id": "military_engineering",
@@ -109,7 +110,8 @@
       "researchCost": 3000,
       "prerequisites": ["advanced_construction", "advanced_manufacturing"],
       "unlocksShips": [],
-      "unlocksBuildings": ["large_residential"]
+      "unlocksBuildings": ["large_residential"],
+      "bonuses": [{ "type": "buildingConstructionSpeed", "value": 0.2 }]
     },
     {
       "id": "improved_power",
@@ -296,6 +298,15 @@
       "unlocksShips": [],
       "unlocksBuildings": [],
       "bonuses": [{ "type": "populationGrowth", "value": 0.5 }]
+    },
+    {
+      "id": "missile_technology",
+      "name": "Missile Technology",
+      "description": "Guided missile batteries for planetary defense: slow-firing turrets that strike attacking ships from long range.",
+      "researchCost": 600,
+      "prerequisites": ["basic_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": ["missile_turret"]
     },
     {
       "id": "turret_research_1",

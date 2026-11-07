@@ -1,11 +1,12 @@
+import { hasTradingPost } from '../trade';
 import {
-  TRADE_BUY_CREDITS_PER_RAW,
-  TRADE_LOTS,
-  TRADE_SELL_CREDITS_PER_RAW,
-  TradeDirection,
-  hasTradingPost,
-  quoteTrade,
-} from '../trade';
+  buildingConstructionProgress,
+  constructionRefund,
+  constructionSecondsFor,
+  constructionSecondsLeft,
+  constructionSites,
+  isBuildingComplete,
+} from '../building-construction';
 import {
   Component,
   Input,
@@ -88,21 +89,23 @@ export interface BuildingType {
   maxPerPlanet?: number;
   /* Core buildings (colony-core.ts): placed by the game, never in the build list. */
   autoPlaced?: boolean;
+  /* Construction time in work-seconds (building-construction.ts); 0 = instant. */
+  constructionSeconds?: number;
 }
 
-export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production' | 'trade';
+export type PlanetSidebarTab = 'details' | 'build' | 'assembly' | 'production';
 
-/* Trade network figures on the TRADE tab (docs/trade-network.md); built by StarMap. */
+/*
+ * This planet's Trading Post traders, shown on the DETAILS tab
+ * (docs/trade-network.md); built by StarMap. The exchange and the
+ * empire-wide trade figures live in the header's resource overlay.
+ */
 export interface TradePostView {
-  nodes: number;
-  traders: number;
   docked: number;
   travelling: number;
   respawning: number;
+  /* Traders of any node currently heading here. */
   inbound: number;
-  /* Credits the planet's owner earned from deliveries in the last `windowMinutes`. */
-  recentIncome: number;
-  windowMinutes: number;
 }
 
 /** Predefined camera distances for the planet surface view. */
@@ -131,7 +134,7 @@ const SPRITE_INSET = 0.15;
 const DEPOSIT_INSET = 0.2;
 const DEPOSIT_SPRITE = 'planet-surface/ore-deposit.svg';
 
-/** A depth-sorted image in the object layer (building, deposit, build ghost). */
+/** A depth-sorted image in the object layer (building, construction site, deposit, build ghost). */
 export interface SurfaceSprite {
   key: string;
   src: string;
@@ -140,7 +143,20 @@ export interface SurfaceSprite {
   top: number;
   width: number;
   z: number;
-  kind: 'building' | 'deposit' | 'ghost';
+  kind: 'building' | 'site' | 'deposit' | 'ghost';
+  /* The site's building record (kind 'site'): progress is read live from it. */
+  building?: PlanetBuilding;
+}
+
+/* One construction site in the BUILD tab's construction list. */
+export interface ConstructionSiteView {
+  building: PlanetBuilding;
+  name: string;
+  /* 0 … 100, floored so it never shows 100 before completion. */
+  percent: number;
+  secondsLeft: number;
+  paid: { credits: number; rawmaterials: number };
+  refund: { credits: number; rawmaterials: number };
 }
 
 const EMPTY_SETTLEMENT: SettlementLayout = { streets: '', accessRoads: [], plots: [], lights: [] };
@@ -227,6 +243,10 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Input() spaceportError: string | null = null;
   @Input() isBuildingUnlocked: (buildingId: string) => boolean = () => false;
   @Input() getTradePostVm: (planet: PlanetTile) => TradePostView | null = () => null;
+  /* Game pause: construction sites show PAUSED and do not progress. */
+  @Input() isPaused = false;
+  /* Construction speed of a planet (core × technology); see building-construction.ts. */
+  @Input() getConstructionSpeed: (planet: PlanetTile) => number = () => 1;
 
   @Output() backToStarMap = new EventEmitter<void>();
   @Output() buildConfirmed = new EventEmitter<{ buildingId: string; x: number; y: number }>();
@@ -241,26 +261,90 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @Output() spaceportFleetNameChange = new EventEmitter<string>();
   @Output() openProductionTab = new EventEmitter<void>();
   @Output() openSpaceportTab = new EventEmitter<void>();
-  /* A Trading Post exchange; StarMap validates and applies it (trade.ts). */
-  @Output() tradeRequest = new EventEmitter<{ planetId: number; direction: TradeDirection; raw: number }>();
+  /* Cancel the construction site at a cell; StarMap re-checks and refunds. */
+  @Output() cancelConstruction = new EventEmitter<{ x: number; y: number }>();
 
-  readonly tradeLots = TRADE_LOTS;
-  readonly tradeBuyRate = TRADE_BUY_CREDITS_PER_RAW;
-  readonly tradeSellRate = TRADE_SELL_CREDITS_PER_RAW;
-
-  tradeCredits(direction: TradeDirection, raw: number): number {
-    return quoteTrade(direction, raw).credits;
+  /*
+   * Construction sites of this planet for the BUILD tab, rebuilt on every
+   * read (a handful of entries; progress changes every redraw).
+   */
+  get constructionSiteViews(): ConstructionSiteView[] {
+    const planet = this.planet;
+    if (!planet) return [];
+    const sites = constructionSites(planet);
+    if (sites.length === 0) return [];
+    const speed = this.getConstructionSpeed(planet);
+    return sites.map((building) => ({
+      building,
+      name: building.name,
+      percent: Math.min(99, Math.floor(buildingConstructionProgress(building) * 100)),
+      secondsLeft: constructionSecondsLeft(building, speed),
+      paid: building.constructionPaid ?? { credits: 0, rawmaterials: 0 },
+      refund: constructionRefund(building),
+    }));
   }
 
-  canTrade(direction: TradeDirection, raw: number): boolean {
-    return direction === 'buyRaw'
-      ? this.getPlayerCredits() >= this.tradeCredits(direction, raw)
-      : this.getPlayerRawMaterials() >= raw;
+  /* Construction speed of this planet as a percentage (100 = base speed). */
+  get constructionSpeedPercent(): number {
+    return this.planet ? Math.round(this.getConstructionSpeed(this.planet) * 100) : 100;
   }
 
-  requestTrade(direction: TradeDirection, raw: number): void {
-    if (!this.planet || !this.canTrade(direction, raw)) return;
-    this.tradeRequest.emit({ planetId: this.planet.id, direction, raw });
+  requestCancelConstruction(site: ConstructionSiteView): void {
+    if (this.planet?.factionId !== 'player') return;
+    this.cancelConstruction.emit({ x: site.building.x, y: site.building.y });
+  }
+
+  /* Live 0 … 1 progress of a site sprite (the template reads it each redraw). */
+  siteProgress(building: PlanetBuilding | undefined): number {
+    return building ? buildingConstructionProgress(building) : 1;
+  }
+
+  /* Game seconds a new building of this type takes on this planet (0 = instant). */
+  buildTimeOnPlanet(building: BuildingType): number {
+    const base = constructionSecondsFor(building);
+    if (base <= 0 || !this.planet) return 0;
+    return base / this.getConstructionSpeed(this.planet);
+  }
+
+  /* Whole percent done, floored and capped at 99 so 100 means "complete". */
+  sitePercent(building: PlanetBuilding): number {
+    return Math.min(99, Math.floor(buildingConstructionProgress(building) * 100));
+  }
+
+  /*
+   * Construction site rig geometry, in the site box's 0 … 100 coordinates
+   * (y down, 100 = ground). The scaffold climbs with the build line
+   * (`workLine`, the top of the built part) and stays a little above it.
+   */
+  readonly constructionSegments = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+
+  scaffoldTop(workLine: number): number {
+    return Math.max(4, Math.min(86, workLine - 8));
+  }
+
+  scaffoldPath(workLine: number): string {
+    const top = this.scaffoldTop(workLine);
+    const bottom = 98;
+    const poles = [10, 30, 70, 90];
+    let d = poles.map((x) => `M${x} ${bottom}V${top}`).join('');
+    // Ledgers every 12 units from the ground up, braced in the outer bays.
+    let flip = false;
+    for (let y = bottom; y - 12 >= top - 0.01; y -= 12) {
+      d += `M10 ${y - 12}H30M70 ${y - 12}H90`;
+      d += flip ? `M10 ${y}L30 ${y - 12}M90 ${y}L70 ${y - 12}` : `M30 ${y}L10 ${y - 12}M70 ${y}L90 ${y - 12}`;
+      flip = !flip;
+    }
+    return d;
+  }
+
+  /* "1:05" style countdown for construction times. */
+  formatDuration(seconds: number): string {
+    const s = Math.max(0, Math.ceil(seconds));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+  /* Own Trading Post on this planet: the DETAILS tab lists its traders. */
+  get tradePostVm(): TradePostView | null {
+    return this.planet?.factionId === 'player' && hasTradingPost(this.planet) ? this.getTradePostVm(this.planet) : null;
   }
 
   readonly cellVw = PLANET_SURFACE_CELL_VW;
@@ -339,12 +423,22 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   /*
    * Planet energy after adding `building`: production / consumption and the
    * shortfall share (0 when fully powered). Null without an economy entry.
+   * Sites under construction count with their listed values: the economy
+   * entry only holds operational buildings, and the preview must show the
+   * planet as it will be once everything already paid for is complete.
    */
   getEnergyAfterBuilding(building: BuildingType): { production: number; consumption: number; shortPct: number } | null {
     const economy = this.planetEconomy;
     if (!economy) return null;
-    const production = economy.energyProduction + (building.energyProduction ?? 0);
-    const consumption = economy.energyConsumption + (building.energyConsumption ?? 0);
+    let pendingProduction = 0;
+    let pendingConsumption = 0;
+    for (const site of constructionSites(this.planet)) {
+      const def = this._buildingTypes.find((t) => t.name === site.name);
+      pendingProduction += def?.energyProduction ?? 0;
+      pendingConsumption += def?.energyConsumption ?? 0;
+    }
+    const production = economy.energyProduction + pendingProduction + (building.energyProduction ?? 0);
+    const consumption = economy.energyConsumption + pendingConsumption + (building.energyConsumption ?? 0);
     const shortPct = consumption > production ? Math.round((1 - production / Math.max(consumption, 1)) * 100) : 0;
     return { production, consumption, shortPct };
   }
@@ -455,9 +549,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     }
     if (this.hasSpaceport()) {
       tabs.push('assembly');
-    }
-    if (this.planet?.factionId === 'player' && hasTradingPost(this.planet)) {
-      tabs.push('trade');
     }
     return tabs;
   }
@@ -871,7 +962,8 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     const planet = this.planet;
     const signature = planet
       ? `${planet.id}|${this.gridSize}|${planet.surface?.blocked ?? ''}|` +
-        planet.buildings.map((b) => `${b.name}@${b.x},${b.y},${b.size}`).join(';') +
+        // `~` marks a site, so completion swaps it for the finished sprite.
+        planet.buildings.map((b) => `${b.name}@${b.x},${b.y},${b.size}${isBuildingComplete(b) ? '' : '~'}`).join(';') +
         '|' +
         (planet.resourceTiles ?? []).map((r) => `${r.x},${r.y}`).join(';') +
         `|${this.terrain ? 1 : 0}`
@@ -919,7 +1011,9 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
         gx: b.x,
         gy: b.y,
         size: b.size,
-        value: { ...this.spriteFor(b.x, b.y, b.size, this.getBuildingSprite(b)), key: `b${index}`, kind: 'building' },
+        value: isBuildingComplete(b)
+          ? { ...this.spriteFor(b.x, b.y, b.size, this.getBuildingSprite(b)), key: `b${index}`, kind: 'building' }
+          : { ...this.spriteFor(b.x, b.y, b.size, this.getBuildingSprite(b)), key: `s${index}`, kind: 'site', building: b },
       });
     });
     (planet.resourceTiles ?? []).forEach((r, index) => {

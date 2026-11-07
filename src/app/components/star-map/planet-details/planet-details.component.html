@@ -155,19 +155,21 @@
   </div>
 }
 
-<div class="ui-label">
-  <img src="icon-build.png" alt="" width="14" height="14" /> Buildings ·
-  {{ planet?.buildings?.length ?? 0 }}
-</div>
-<div class="planet-details__buildings">
-  @for (group of buildingGroups; track group.name) {
-    <span class="planet-details__building"
-      >{{ group.name }}
-      @if (group.count > 1) {
-        <b>×{{ group.count }}</b>
-      }
-    </span>
-  } @empty {
-    <div class="planet-details__empty">No buildings yet.</div>
-  }
-</div>
+@if (showBuildings) {
+  <div class="ui-label">
+    <img src="icon-build.png" alt="" width="14" height="14" /> Buildings ·
+    {{ planet?.buildings?.length ?? 0 }}
+  </div>
+  <div class="planet-details__buildings">
+    @for (group of buildingGroups; track group.name) {
+      <span class="planet-details__building"
+        >{{ group.name }}
+        @if (group.count > 1) {
+          <b>×{{ group.count }}</b>
+        }
+      </span>
+    } @empty {
+      <div class="planet-details__empty">No buildings yet.</div>
+    }
+  </div>
+}

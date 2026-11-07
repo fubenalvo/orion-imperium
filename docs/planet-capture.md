@@ -10,7 +10,7 @@ How planets change owner, how planet battles are fought and applied, and how the
 - cancels the previous owner's production orders on that planet and refunds their unbuilt part — a captured factory never keeps building for the faction that lost it (`ProductionService.tick` only refunds orders whose planet vanished entirely);
 - increments `revision`; `StarMap.gameLoopCallback` re-evaluates the game outcome whenever the revision changed during the frame.
 
-Population, buildings, satisfaction and the persisted planetary shield pool stay with the planet, except for the capture adjustment below. A faction (not `independent`) that takes a planet without a core building gets a Colony Center placed on it, so every owned planet has its base population, workforce and energy ([Economy](./economy.md#colony-cores)); an existing core (a captured Capital too) is kept.
+Population, buildings, satisfaction and the persisted planetary shield pool stay with the planet, except for the capture adjustment below. Unfinished construction sites do not: they are cancelled and the previous owner gets the unbuilt share of their price back ([Construction](./planet-construction.md#rules)); a turret that is still a site does not count as a defense. A faction (not `independent`) that takes a planet without a core building gets a Colony Center placed on it, so every owned planet has its base population, workforce and energy ([Economy](./economy.md#colony-cores)); an existing core (a captured Capital too) is kept.
 
 ### After a capture
 

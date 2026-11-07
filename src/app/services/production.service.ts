@@ -1,4 +1,5 @@
 import { Injectable, Optional } from '@angular/core';
+import { operationalBuildings } from '../components/star-map/building-construction';
 import {
   Faction,
   FactionProduction,
@@ -259,13 +260,13 @@ export class ProductionService {
   }
 
   getPlanetCapacity(planet: PlanetTile, kind: ProductionBuildingKind = 'spaceship_factory'): number {
-    return planet.buildings
+    return operationalBuildings(planet)
       .filter((b) => b.name === 'Spaceship Factory' && kind === 'spaceship_factory')
       .reduce((sum, b) => sum + ProductionService.DEFAULT_FACTORY_SLOTS, 0);
   }
 
   getPlanetPower(planet: PlanetTile, kind: ProductionBuildingKind = 'spaceship_factory'): number {
-    return planet.buildings
+    return operationalBuildings(planet)
       .filter((b) => b.name === 'Spaceship Factory' && kind === 'spaceship_factory')
       .reduce((sum) => sum + ProductionService.DEFAULT_FACTORY_POWER, 0);
   }

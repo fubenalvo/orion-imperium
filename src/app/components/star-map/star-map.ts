@@ -1,4 +1,13 @@
 import {
+  advanceBuildingConstruction,
+  cancelBuildingConstruction,
+  constructionSiteAt,
+  constructionSites,
+  normalizeBuildingConstruction,
+  planetConstructionSpeed,
+  startBuildingConstruction,
+} from './building-construction';
+import {
   Component,
   HostListener,
   OnDestroy,
@@ -60,7 +69,8 @@ import { ResearchService } from '../../services/research.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
 import { StarMapPauseComponent } from '../star-map-pause/star-map-pause.component';
-import { TradeDirection, executeTrade } from './trade';
+import { TradeDirection, executeTrade, hasTradingPost } from './trade';
+import { TradeSummaryView } from './faction-currencies/faction-currencies.component';
 import { checkBuildingPlacement } from './building-placement';
 import { TRADE_INCOME_WINDOW_SECONDS, TradeNetworkService, TraderRaid } from './trade-network.service';
 import { RaidBlocker, TRADE_NETWORK_CONFIG, raidBlocker } from './trade-network';
@@ -1153,14 +1163,41 @@ loadError = '';
     return raids.length > 0;
   }
 
-  /* Network figures for the TRADE tab of a planet with a Trading Post. */
+  /* This post's own traders, for the DETAILS tab of a planet with a Trading Post. */
   getTradePostVm(planet: PlanetTile): TradePostView {
-    const stats = this.tradeNetworkService.postStats(planet.id);
-    return {
-      ...stats,
-      recentIncome: this.tradeNetworkService.recentIncome(planet.factionId),
-      windowMinutes: TRADE_INCOME_WINDOW_SECONDS / 60,
-    };
+    return this.tradeNetworkService.postStats(planet.id);
+  }
+
+  private cachedTradeSummary: TradeSummaryView | null = null;
+  private cachedTradeSummaryKey = '';
+
+  /*
+   * Empire-wide trade figures for the resource overlay of every header. The
+   * same object is returned while nothing changed, so the header input keeps
+   * its identity between change-detection passes.
+   */
+  getPlayerTradeSummary(): TradeSummaryView {
+    let ownPosts = 0;
+    for (const system of this.starSystems) {
+      for (const planet of system.planetsTiles ?? []) {
+        if (planet.factionId === 'player' && hasTradingPost(planet)) ownPosts++;
+      }
+    }
+    const network = this.tradeNetworkService.networkSize();
+    const recentIncome = this.tradeNetworkService.recentIncome('player');
+    const key = `${ownPosts}|${network.nodes}|${network.traders}|${recentIncome}`;
+    if (!this.cachedTradeSummary || key !== this.cachedTradeSummaryKey) {
+      this.cachedTradeSummaryKey = key;
+      this.cachedTradeSummary = {
+        hasTradingPost: ownPosts > 0,
+        ownPosts,
+        networkPosts: network.nodes,
+        networkTraders: network.traders,
+        recentIncome,
+        windowMinutes: TRADE_INCOME_WINDOW_SECONDS / 60,
+      };
+    }
+    return this.cachedTradeSummary;
   }
 
   /* Satisfaction and energy state of every player planet, keyed by planet name. */
@@ -1886,7 +1923,10 @@ loadError = '';
 
     const buildingDef = (
       planetData as {
-        buildings: { id: string; price: number; rawMaterialCost?: number; size: number; name: string; maxPerPlanet?: number; requiresOreProximity?: boolean }[];
+        buildings: {
+          id: string; price: number; rawMaterialCost?: number; size: number; name: string;
+          maxPerPlanet?: number; requiresOreProximity?: boolean; constructionSeconds?: number;
+        }[];
       }
     ).buildings.find((b) => b.id === event.buildingId);
     if (!buildingDef) return;
@@ -1897,33 +1937,55 @@ loadError = '';
     if (checkBuildingPlacement(planet, this.getPlanetGridSize(planet), buildingDef, event.x, event.y) !== null) return;
 
     // Credits and raw materials are checked and deducted together.
-    if (!payCost(player, buildingCost(buildingDef))) return;
+    const price = buildingCost(buildingDef);
+    if (!payCost(player, price)) return;
 
-    planet.buildings.push({
-      name: buildingDef.name,
-      size: buildingDef.size,
-      x: event.x,
-      y: event.y,
-    });
+    // The building starts as a construction site (building-construction.ts).
+    startBuildingConstruction(planet, buildingDef, event.x, event.y, price);
 
     this.cdr.detectChanges();
   }
 
   /*
-   * Trading Post exchange from the planet screen. trade.ts re-checks every
-   * rule (post on the planet, owner, stock), so a stale button can never
-   * trade at a loss of resources the player no longer has.
+   * Cancels one of the player's construction sites on the selected planet.
+   * The site is identified by its cell; only an unfinished site of a player
+   * planet can be cancelled, and the unbuilt share of its price is refunded.
    */
-  onTradeRequest(event: { planetId: number; direction: TradeDirection; raw: number }): void {
+  onCancelConstruction(event: { x: number; y: number }): void {
+    const planet = this.selectedPlanetTile;
     const player = this.factions.find((f) => f.id === 'player');
-    const planet = this.starSystems.flatMap((s) => s.planetsTiles ?? []).find((p) => p.id === event.planetId);
+    if (!planet || !player || planet.factionId !== 'player') return;
+    const site = constructionSiteAt(planet, event.x, event.y);
+    if (!site) return;
+    const refund = cancelBuildingConstruction(planet, site, player);
+    if (!refund) return;
+    this.showMapNotice(`${site.name} cancelled: refunded ${refund.credits} credits and ${refund.rawmaterials} raw materials.`);
+    this.simStateDirty = true;
+    this.cdr.detectChanges();
+  }
+
+  /* Construction speed of a planet for its owner: core factor × technology bonus. */
+  getPlanetConstructionSpeed(planet: PlanetTile): number {
+    const owner = this.factions.find((f) => f.id === planet.factionId) ?? null;
+    return planetConstructionSpeed(planet, this.researchService.getModifiers(owner).buildingConstructionSpeed);
+  }
+
+  readonly boundGetPlanetConstructionSpeed = this.getPlanetConstructionSpeed.bind(this);
+
+  /*
+   * Resource exchange from the header's credit / raw-material overlay.
+   * trade.ts re-checks every rule (an own Trading Post anywhere, stock), so
+   * a stale button can never trade resources the player no longer has.
+   */
+  onTradeRequest(event: { direction: TradeDirection; raw: number }): void {
+    const player = this.factions.find((f) => f.id === 'player');
     if (!player) return;
-    const result = executeTrade(player, planet, event.direction, event.raw);
+    const result = executeTrade(player, this.starSystems, event.direction, event.raw);
     if (!result.ok) return;
     const { quote } = result;
     this.showMapNotice(quote.direction === 'buyRaw'
-      ? `Trading Post: bought ${quote.raw} raw materials for ${quote.credits} credits.`
-      : `Trading Post: sold ${quote.raw} raw materials for ${quote.credits} credits.`);
+      ? `Exchange: bought ${quote.raw} raw materials for ${quote.credits} credits.`
+      : `Exchange: sold ${quote.raw} raw materials for ${quote.credits} credits.`);
     this.cdr.detectChanges();
   }
 
@@ -3929,6 +3991,16 @@ loadError = '';
     if (!(gameDeltaTime > 0)) return false;
     const bases = this.spaceBaseService.advanceConstruction(gameDeltaTime);
     const mines = advanceMiningStationConstruction(this.starSystems, gameDeltaTime);
+    // Planetary buildings (building-construction.ts): same scaled clock, so a
+    // paused game freezes sites and game speed accelerates them.
+    const buildings = advanceBuildingConstruction(this.starSystems, gameDeltaTime, this.boundGetPlanetConstructionSpeed);
+    const ownBuildings = buildings.filter((c) => c.planet.factionId === 'player');
+    if (ownBuildings.length > 0) {
+      const last = ownBuildings[ownBuildings.length - 1];
+      this.showMapNotice(ownBuildings.length === 1
+        ? `${last.building.name} on ${last.planet.name} is complete.`
+        : `${ownBuildings.length} buildings completed (last: ${last.building.name} on ${last.planet.name}).`);
+    }
     // Dyson anchors are announced by the global Dyson news (updateDysonSwarm).
     const ownBase = bases.find((b) => b.factionId === 'player' && !isDysonAnchor(b));
     const ownMine = mines.find((m) => m.asteroid.miningStation?.factionId === 'player');
@@ -3941,13 +4013,16 @@ loadError = '';
       this.refreshTerritoryViews();
       this.updateSensorVisibility(true);
     }
-    if (bases.length > 0 || mines.length > 0) {
+    if (bases.length > 0 || mines.length > 0 || buildings.length > 0) {
       this.constructionRedrawClock = 0;
       return true;
     }
+    // Redraw about once a second while anything is being built, so progress
+    // bars and the planet surface's construction sites move.
     const building =
       this.spaceBaseService.bases.some((b) => !isStationComplete(b)) ||
-      allMiningStations(this.starSystems).some(({ asteroid }) => !isStationComplete(asteroid.miningStation!));
+      allMiningStations(this.starSystems).some(({ asteroid }) => !isStationComplete(asteroid.miningStation!)) ||
+      this.starSystems.some((sys) => sys.planetsTiles.some((p) => constructionSites(p).length > 0));
     if (!building) return false;
     this.constructionRedrawClock += gameDeltaTime;
     if (this.constructionRedrawClock < 1) return false;
@@ -4780,6 +4855,8 @@ loadError = '';
     this.ensureResourceTiles();
     // Owned planets from saves before colony cores get their Colony Center.
     this.ensureColonyCores();
+    // Malformed construction state reads as complete; valid sites keep their timer.
+    normalizeBuildingConstruction(this.starSystems);
 
     // Un-pause and clear elapsed time on every load; the chosen speed is
     // kept for the session (also across battles, which reload the autosave).
