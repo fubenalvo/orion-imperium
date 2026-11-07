@@ -359,6 +359,11 @@
   filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.8));
 }
 
+/* Back corner and back edges: behind the building, so only hinted. */
+.construction-site__scaffold--back {
+  opacity: 0.35;
+}
+
 /* Plank deck at the build line, hazard amber. */
 .construction-site__deck {
   stroke: #e8a23a;
@@ -442,19 +447,21 @@
   }
 }
 
-/* Ground plate in front of the site: ten amber segments. */
+/* Ground plate along the front-right footprint edge: ten amber segments.
+   skewY(-26.565deg) = the 2:1 isometric edge slope (atan 0.5). */
 .construction-site__plate {
   position: absolute;
-  left: 50%;
-  bottom: -0.5vw;
+  left: 54%;
+  bottom: -0.45vw;
   display: flex;
   gap: 0.06vw;
-  width: 46%;
+  width: 40%;
   height: 0.32vw;
   padding: 0.05vw;
   border: 1px solid rgba(232, 162, 58, 0.55);
   background: rgba(10, 8, 4, 0.75);
-  transform: translateX(-50%);
+  transform: skewY(-26.565deg);
+  transform-origin: 0 100%;
 
   i {
     flex: 1 1 0;

@@ -311,30 +311,75 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     return Math.min(99, Math.floor(buildingConstructionProgress(building) * 100));
   }
 
-  /*
-   * Construction site rig geometry, in the site box's 0 … 100 coordinates
-   * (y down, 100 = ground). The scaffold climbs with the build line
-   * (`workLine`, the top of the built part) and stays a little above it.
-   */
   readonly constructionSegments = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
-  scaffoldTop(workLine: number): number {
-    return Math.max(4, Math.min(86, workLine - 8));
+  /* Height / width of each building sprite, learned when its image loads. */
+  private readonly spriteAspect = new Map<string, number>();
+
+  onSiteSpriteLoad(src: string, event: Event): void {
+    const img = event.target as HTMLImageElement;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) this.spriteAspect.set(src, img.naturalHeight / img.naturalWidth);
   }
 
-  scaffoldPath(workLine: number): string {
-    const top = this.scaffoldTop(workLine);
-    const bottom = 98;
-    const poles = [10, 30, 70, 90];
-    let d = poles.map((x) => `M${x} ${bottom}V${top}`).join('');
-    // Ledgers every 12 units from the ground up, braced in the outer bays.
-    let flip = false;
-    for (let y = bottom; y - 12 >= top - 0.01; y -= 12) {
-      d += `M10 ${y - 12}H30M70 ${y - 12}H90`;
-      d += flip ? `M10 ${y}L30 ${y - 12}M90 ${y}L70 ${y - 12}` : `M30 ${y}L10 ${y - 12}M70 ${y}L90 ${y - 12}`;
-      flip = !flip;
+  /*
+   * Construction rig in the sprite's own isometric frame, so scaffold and
+   * crane stand on the same ground plane as the building.
+   *
+   * Units: the sprite is 100 wide; y = 0 is its bottom edge (the footprint's
+   * front corner) and grows downward, so the box spans y = -A … 0 with
+   * A = 100 × height / width. Building sprites are exactly as wide as their
+   * footprint diamond and the projection is 2:1 (scripts/building-sprites/
+   * iso-svg.mjs), so the ground diamond is front (50, 0), left (0, -25),
+   * right (100, -25), back (50, -50), and a point `z` units above the
+   * ground is drawn `z` higher. The scaffold climbs to `top` with the
+   * progress, in proportion to the building's height above its footprint.
+   */
+  siteRig(src: string, progress: number): {
+    viewBox: string; scaffold: string; back: string; deck: string; mast: string; jib: string;
+    jibY: number; hookY: number; lampX: number; lampY: number; cornerY: number; weldTop: number;
+  } {
+    const a = 100 * (this.spriteAspect.get(src) ?? 1.5);
+    const height = Math.max(10, a - 50);
+    const top = 6 + Math.max(0, Math.min(1, progress)) * (height - 6);
+    const r = (n: number) => Math.round(n * 10) / 10;
+    // Front faces: poles on the left, front and right corners and the two edge midpoints.
+    const poles: [number, number][] = [[0, -25], [25, -12.5], [50, 0], [75, -12.5], [100, -25]];
+    let scaffold = poles.map(([x, y]) => `M${x} ${y}V${r(y - top)}`).join('');
+    const edge = (z: number) => `M0 ${r(-25 - z)}L50 ${r(-z)}L100 ${r(-25 - z)}`;
+    for (let z = 12; z < top; z += 12) scaffold += edge(z);
+    // Cross braces in every bay, alternating direction per level.
+    for (let z = 0, level = 0; z < top - 0.01; z += 12, level++) {
+      const z2 = Math.min(top, z + 12);
+      for (let i = 0; i < poles.length - 1; i++) {
+        const [x1, y1] = poles[i];
+        const [x2, y2] = poles[i + 1];
+        scaffold += (i + level) % 2 === 0
+          ? `M${x1} ${r(y1 - z)}L${x2} ${r(y2 - z2)}`
+          : `M${x2} ${r(y2 - z)}L${x1} ${r(y1 - z2)}`;
+      }
     }
-    return d;
+    const back = `M50 -50V${r(-50 - top)}M0 ${r(-25 - top)}L50 ${r(-50 - top)}L100 ${r(-25 - top)}`;
+    const deck = `0,${r(-25 - top)} 50,${r(-top)} 100,${r(-25 - top)}`;
+    // Mast on the right corner, rising above the finished building.
+    const jibY = r(-25 - height - 22);
+    let mast = `M93 -24V${jibY}M98 -26V${jibY}`;
+    for (let y = -24, left = true; y > jibY + 6; y -= 8, left = !left) mast += left ? `M93 ${y}L98 ${y - 8}` : `M98 ${y}L93 ${y - 8}`;
+    // Jib along the footprint's left–right diagonal (over the centre), counter-jib past the mast.
+    const jib = `M8 ${jibY}H108M20 ${jibY - 4}H98M20 ${jibY - 4}L96 ${jibY - 12}L108 ${jibY}`;
+    return {
+      viewBox: `0 ${r(-a)} 100 ${r(a)}`,
+      scaffold,
+      back,
+      deck,
+      mast,
+      jib,
+      jibY,
+      hookY: r(-25 - top - 4),
+      lampX: 96,
+      lampY: r(jibY - 14),
+      cornerY: r(-25 - top - 1.5),
+      weldTop: r(((a - 12.5 - Math.max(0, top - 3)) / a) * 100),
+    };
   }
 
   /* "1:05" style countdown for construction times. */

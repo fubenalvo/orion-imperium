@@ -1,0 +1,3 @@
+[     628ms] [LOG] Angular is running in development mode. @ http://localhost:4315/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
+[     674ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4315/:0
+[     716ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4315/:0

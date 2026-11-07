@@ -1,0 +1,94 @@
+- generic [ref=e1016]:
+  - banner [ref=e1019]:
+    - generic [ref=e1020]:
+      - button "Back to KOCHAB" [ref=e1021] [cursor=pointer]:
+        - generic [aria-hidden] [ref=e1022]: ‹
+        - generic [ref=e1023]: KOCHAB
+      - generic "Cesiion" [ref=e1025]
+    - group "Time controls" [ref=e1026]:
+      - button "Pause / Resume" [ref=e1027] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=e1028] [cursor=pointer]: 1x
+      - button "3x speed" [ref=e1029] [cursor=pointer]: 3x
+    - generic [ref=e1030]:
+      - generic [ref=e1031]:
+        - generic [ref=e1033]:
+          - generic [ref=e1034] [cursor=pointer]: 7,295
+          - generic [ref=e1037]:
+            - generic [ref=e1038] [cursor=pointer]
+            - generic [ref=e1039] [cursor=pointer]: 1,951
+          - generic [ref=e1040]:
+            - generic [ref=e1041] [cursor=pointer]
+            - generic [ref=e1042] [cursor=pointer]: 1,731
+        - button "0 STOCK" [ref=e1045] [cursor=pointer]:
+          - generic [ref=e1047]: "0"
+          - generic [ref=e1048]: STOCK
+        - button "DIPLOMACY" [ref=e1049] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e1050]: ⚖
+      - button "Enter full screen" [ref=e1052] [cursor=pointer]
+      - button "Open pause menu" [ref=e1055] [cursor=pointer]
+  - generic [ref=e1060]:
+    - generic [ref=e1061]:
+      - generic [ref=e1062]:
+        - generic:
+          - generic:
+            - generic: Large Residential Block
+            - generic: Fusion Power Plant
+            - generic: Capital
+            - generic: Research Laboratory
+            - generic: Laser Turret
+            - generic: Solar Array
+            - generic: Spaceship Factory
+      - generic [ref=e1389]:
+        - button "▲" [ref=e1390] [cursor=pointer]
+        - button "◀" [ref=e1391] [cursor=pointer]
+        - button "●" [ref=e1392] [cursor=pointer]
+        - button "▶" [ref=e1393] [cursor=pointer]
+        - button "▼" [ref=e1394] [cursor=pointer]
+      - group "Surface zoom" [ref=e1395]:
+        - button "CLOSE" [ref=e1396] [cursor=pointer]
+        - button "MEDIUM" [pressed] [ref=e1397] [cursor=pointer]
+        - button "FAR" [ref=e1398] [cursor=pointer]
+        - button "NAMES" [pressed] [ref=e1399] [cursor=pointer]
+    - complementary [ref=e1400]:
+      - generic [ref=e1401]:
+        - text: Cesiion
+        - generic [ref=e1402]: SURFACE
+      - tablist [ref=e1403]:
+        - tab "DETAILS" [selected] [ref=e1404] [cursor=pointer]
+        - tab "BUILD" [ref=e1405] [cursor=pointer]
+        - tab "PRODUCTION" [ref=e1406] [cursor=pointer]
+      - generic [ref=e1408]:
+        - generic [ref=e1409]:
+          - 'generic "Ideal world: no penalties" [ref=e1410]': EARTHLIKE
+          - generic [ref=e1411]: Terran Empire
+        - generic [ref=e1412]:
+          - generic [ref=e1413]:
+            - generic [ref=e1414]: 1,200
+            - generic [ref=e1415]: Population
+          - generic "Credits this planet earns after its upkeep" [ref=e1416]:
+            - generic [ref=e1417]: +61/s
+            - generic [ref=e1418]: Income
+          - generic "Heading toward 100% (+0.00%/s) Entertainment -0.03/s" [ref=e1419]:
+            - generic [ref=e1420]:
+              - generic [ref=e1421]: Satisfaction
+              - generic [ref=e1422]: 100%
+        - alert [ref=e1426]: "Not enough workers: buildings run at 95%."
+        - generic [ref=e1427]:
+          - 'generic "Energy: 160 produced, 72 used" [ref=e1428]':
+            - generic [ref=e1429]: "+88"
+            - generic [ref=e1430]: Energy
+          - 'generic "Workers: 200 available, 210 needed" [ref=e1431]':
+            - generic [ref=e1432]: −10
+            - generic [ref=e1433]: Workers
+          - generic "No comfort needed below 5,000 people." [ref=e1434]:
+            - generic [aria-hidden] [ref=e1435]: ☺
+            - generic [ref=e1436]: OK
+            - generic [ref=e1437]: Comfort
+        - generic [ref=e1438]:
+          - generic "Raw materials per second" [ref=e1439]: +2/s
+          - generic "Research per second" [ref=e1440]: +5/s
+        - 'generic "Unmined: 41,500 of 41,500 left · richness ×1.02" [ref=e1441]':
+          - generic [ref=e1442]:
+            - generic [ref=e1443]: Deposit
+            - generic [ref=e1444]: UNMINED
+          - generic [ref=e1447]: Build a Mining Complex next to a deposit tile.

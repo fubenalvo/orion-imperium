@@ -1,0 +1,80 @@
+- generic [ref=e856]:
+  - banner [ref=e859]:
+    - generic [ref=e860]:
+      - button "Back to STAR MAP" [ref=e861] [cursor=pointer]:
+        - generic [aria-hidden] [ref=e862]: ‹
+        - generic [ref=e863]: STAR MAP
+      - generic "KOCHAB" [ref=e865]
+    - group "Time controls" [ref=e866]:
+      - button "Pause / Resume" [ref=e867] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=e868] [cursor=pointer]: 1x
+      - button "3x speed" [ref=e869] [cursor=pointer]: 3x
+    - generic [ref=e870]:
+      - generic [ref=e871]:
+        - generic [ref=e873]:
+          - generic [ref=e874] [cursor=pointer]: 4,877
+          - generic [ref=e877]:
+            - generic [ref=e878] [cursor=pointer]
+            - generic [ref=e879] [cursor=pointer]: 1,864
+          - generic [ref=e880]:
+            - generic [ref=e881] [cursor=pointer]
+            - generic [ref=e882] [cursor=pointer]: 1,549
+        - button "0 STOCK" [ref=e885] [cursor=pointer]:
+          - generic [ref=e887]: "0"
+          - generic [ref=e888]: STOCK
+        - button "DIPLOMACY" [ref=e889] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e890]: ⚖
+      - button "Enter full screen" [ref=e892] [cursor=pointer]
+      - button "Open pause menu" [ref=e895] [cursor=pointer]
+  - generic [ref=e901]:
+    - button "Cesiion" [ref=e952] [cursor=pointer]
+    - button "Ceis" [ref=e955] [cursor=pointer]
+    - button "Orar" [ref=e958] [cursor=pointer]
+  - generic [ref=e961]:
+    - generic [ref=e962]:
+      - generic [ref=e963]: Cesiion
+      - button "Close" [ref=e964] [cursor=pointer]: X
+    - generic [ref=e966]:
+      - generic [ref=e967]:
+        - 'generic "Ideal world: no penalties" [ref=e968]': EARTHLIKE
+        - generic [ref=e969]: Terran Empire
+      - generic [ref=e970]:
+        - generic [ref=e971]:
+          - generic [ref=e972]: 1,200
+          - generic [ref=e973]: Population
+        - generic "Credits this planet earns after its upkeep" [ref=e974]:
+          - generic [ref=e975]: +70/s
+          - generic [ref=e976]: Income
+        - generic "Heading toward 100% (+0.00%/s) Entertainment -0.01/s" [ref=e977]:
+          - generic [ref=e978]:
+            - generic [ref=e979]: Satisfaction
+            - generic [ref=e980]: 100%
+      - generic [ref=e984]:
+        - 'generic "Energy: 160 produced, 42 used" [ref=e985]':
+          - generic [ref=e986]: "+118"
+          - generic [ref=e987]: Energy
+        - 'generic "Workers: 200 available, 110 needed" [ref=e988]':
+          - generic [ref=e989]: "+90"
+          - generic [ref=e990]: Workers
+        - generic "No comfort needed below 5,000 people." [ref=e991]:
+          - generic [aria-hidden] [ref=e992]: ☺
+          - generic [ref=e993]: OK
+          - generic [ref=e994]: Comfort
+      - generic [ref=e995]:
+        - generic "Raw materials per second" [ref=e996]: +2/s
+        - generic "Research per second" [ref=e997]: +5/s
+      - 'generic "Unmined: 41,500 of 41,500 left · richness ×1.02" [ref=e998]':
+        - generic [ref=e999]:
+          - generic [ref=e1000]: Deposit
+          - generic [ref=e1001]: UNMINED
+        - generic [ref=e1004]: Build a Mining Complex next to a deposit tile.
+      - generic [ref=e1005]: Buildings · 7
+      - generic [ref=e1006]:
+        - generic [ref=e1007]: Capital
+        - generic [ref=e1008]: Fusion Power Plant
+        - generic [ref=e1009]: Large Residential Block
+        - generic [ref=e1010]: Laser Turret
+        - generic [ref=e1011]: Research Laboratory
+        - generic [ref=e1012]: Solar Array
+        - generic [ref=e1013]: Spaceship Factory
+    - button "OPEN PLANET" [ref=e1015] [cursor=pointer]

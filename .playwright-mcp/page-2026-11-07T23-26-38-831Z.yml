@@ -1,0 +1,132 @@
+- generic [ref=e105]:
+  - banner [ref=e108]:
+    - generic [ref=e109]:
+      - button "Back to KOCHAB" [ref=e110] [cursor=pointer]:
+        - generic [aria-hidden] [ref=e111]: ‹
+        - generic [ref=e112]: KOCHAB
+      - generic "Cesiion" [ref=e114]
+    - group "Time controls" [ref=e115]:
+      - button "Pause / Resume" [ref=e116] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=e117] [cursor=pointer]: 1x
+      - button "3x speed" [ref=e118] [cursor=pointer]: 3x
+    - generic [ref=e119]:
+      - generic [ref=e120]:
+        - generic [ref=e122]:
+          - generic [ref=e123] [cursor=pointer]: 4,740
+          - generic [ref=e126]:
+            - generic [ref=e127] [cursor=pointer]
+            - generic [ref=e128] [cursor=pointer]: 1,859
+          - generic [ref=e129]:
+            - generic [ref=e130] [cursor=pointer]
+            - generic [ref=e131] [cursor=pointer]: 1,539
+        - button "0 STOCK" [ref=e134] [cursor=pointer]:
+          - generic [ref=e136]: "0"
+          - generic [ref=e137]: STOCK
+        - button "DIPLOMACY" [ref=e138] [cursor=pointer]:
+          - generic [aria-hidden] [ref=e139]: ⚖
+      - button "Enter full screen" [ref=e141] [cursor=pointer]
+      - button "Open pause menu" [ref=e144] [cursor=pointer]
+  - generic [ref=e149]:
+    - generic [ref=e150]:
+      - generic [ref=e151]:
+        - generic:
+          - generic:
+            - generic: Large Residential Block
+            - generic: Fusion Power Plant
+            - generic: Capital
+            - generic: Research Laboratory
+            - generic: Laser Turret
+            - generic: Solar Array
+            - generic: Spaceship Factory · 54%
+      - generic [ref=e478]:
+        - button "▲" [ref=e479] [cursor=pointer]
+        - button "◀" [ref=e480] [cursor=pointer]
+        - button "●" [ref=e481] [cursor=pointer]
+        - button "▶" [ref=e482] [cursor=pointer]
+        - button "▼" [ref=e483] [cursor=pointer]
+      - group "Surface zoom" [ref=e484]:
+        - button "CLOSE" [pressed] [ref=e485] [cursor=pointer]
+        - button "MEDIUM" [ref=e486] [cursor=pointer]
+        - button "FAR" [ref=e487] [cursor=pointer]
+        - button "NAMES" [pressed] [ref=e488] [cursor=pointer]
+    - complementary [ref=e489]:
+      - generic [ref=e490]:
+        - text: Cesiion
+        - generic [ref=e491]: SURFACE
+      - tablist [ref=e492]:
+        - tab "DETAILS" [ref=e493] [cursor=pointer]
+        - tab "BUILD" [selected] [ref=e494] [cursor=pointer]
+      - generic [ref=e495]:
+        - region "Under construction" [ref=e760]:
+          - generic [ref=e761]:
+            - text: Under construction
+            - generic "Construction speed of this planet (colony core × technologies)" [ref=e766]: speed 125%
+          - generic [ref=e767]:
+            - generic [ref=e768]:
+              - generic [ref=e769]: Spaceship Factory
+              - generic [ref=e770]: BUILDING
+            - progressbar [ref=e771]
+            - generic [ref=e773]:
+              - generic [ref=e774]: 54%
+              - generic [ref=e775]: 0:33 left
+            - generic [ref=e776]:
+              - generic [ref=e777]: Paid 3000 CR · 750 RM
+              - button "CANCEL +1373 CR" [ref=e778] [cursor=pointer]
+        - generic [ref=e779]:
+          - button "Laser Turret 800 CR · 200 RM · -5 EN" [ref=e781] [cursor=pointer]:
+            - generic [ref=e782]: Laser Turret
+            - generic [ref=e783]: 800 CR · 200 RM · -5 EN
+          - button "Missile Turret LOCKED" [ref=e785] [cursor=pointer]:
+            - generic [ref=e786]: Missile Turret
+            - generic [ref=e787]: LOCKED
+          - button "Planetary Shield LOCKED" [ref=e789] [cursor=pointer]:
+            - generic [ref=e790]: Planetary Shield
+            - generic [ref=e791]: LOCKED
+          - button "Small Residential Block 600 CR · 150 RM · -3 EN" [ref=e793] [cursor=pointer]:
+            - generic [ref=e794]: Small Residential Block
+            - generic [ref=e795]: 600 CR · 150 RM · -3 EN
+          - button "Medium Residential Block LOCKED" [ref=e797] [cursor=pointer]:
+            - generic [ref=e798]: Medium Residential Block
+            - generic [ref=e799]: LOCKED
+          - button "Large Residential Block LOCKED" [ref=e801] [cursor=pointer]:
+            - generic [ref=e802]: Large Residential Block
+            - generic [ref=e803]: LOCKED
+          - button "Central Park LOCKED" [ref=e805] [cursor=pointer]:
+            - generic [ref=e806]: Central Park
+            - generic [ref=e807]: LOCKED
+          - button "Hospital LOCKED" [ref=e809] [cursor=pointer]:
+            - generic [ref=e810]: Hospital
+            - generic [ref=e811]: LOCKED
+          - button "School LOCKED" [ref=e813] [cursor=pointer]:
+            - generic [ref=e814]: School
+            - generic [ref=e815]: LOCKED
+          - button "Entertainment Center LOCKED" [ref=e817] [cursor=pointer]:
+            - generic [ref=e818]: Entertainment Center
+            - generic [ref=e819]: LOCKED
+          - button "Fusion Power Plant LOCKED" [ref=e821] [cursor=pointer]:
+            - generic [ref=e822]: Fusion Power Plant
+            - generic [ref=e823]: LOCKED
+          - button "Solar Array 600 CR · 150 RM · +40 EN" [ref=e825] [cursor=pointer]:
+            - generic [ref=e826]: Solar Array
+            - generic [ref=e827]: 600 CR · 150 RM · +40 EN
+          - button "Spaceship Factory 3000 CR · 750 RM · -30 EN" [ref=e829] [cursor=pointer]:
+            - generic [ref=e830]: Spaceship Factory
+            - generic [ref=e831]: 3000 CR · 750 RM · -30 EN
+          - button "Spaceport 4000 CR · 1000 RM · -20 EN" [ref=e833] [cursor=pointer]:
+            - generic [ref=e834]: Spaceport
+            - generic [ref=e835]: 4000 CR · 1000 RM · -20 EN
+          - button "Mining Complex 1500 CR · 375 RM · -20 EN" [ref=e837] [cursor=pointer]:
+            - generic [ref=e838]: Mining Complex
+            - generic [ref=e839]: 1500 CR · 375 RM · -20 EN
+          - button "Small Research Laboratory 1000 CR · 250 RM · -15 EN" [ref=e841] [cursor=pointer]:
+            - generic [ref=e842]: Small Research Laboratory
+            - generic [ref=e843]: 1000 CR · 250 RM · -15 EN
+          - button "Research Laboratory LOCKED" [ref=e845] [cursor=pointer]:
+            - generic [ref=e846]: Research Laboratory
+            - generic [ref=e847]: LOCKED
+          - button "Trading Post 2500 CR · 600 RM · -10 EN" [ref=e849] [cursor=pointer]:
+            - generic [ref=e850]: Trading Post
+            - generic [ref=e851]: 2500 CR · 600 RM · -10 EN
+          - button "Bank LOCKED" [ref=e853] [cursor=pointer]:
+            - generic [ref=e854]: Bank
+            - generic [ref=e855]: LOCKED
