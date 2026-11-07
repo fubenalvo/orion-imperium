@@ -1,0 +1,134 @@
+- generic [ref=f2e7]:
+  - banner [ref=f2e10]:
+    - generic [ref=f2e11]:
+      - button "Back to SIRIUS" [ref=f2e12] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f2e13]: ‹
+        - generic [ref=f2e14]: SIRIUS
+      - generic "Valais" [ref=f2e16]
+    - group "Time controls" [ref=f2e17]:
+      - button "Pause / Resume" [ref=f2e18] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=f2e19] [cursor=pointer]: 1x
+      - button "3x speed" [ref=f2e20] [cursor=pointer]: 3x
+    - generic [ref=f2e21]:
+      - generic [ref=f2e22]:
+        - generic [ref=f2e24]:
+          - generic [ref=f2e25] [cursor=pointer]: 2,131
+          - generic [ref=f2e28]:
+            - generic [ref=f2e29] [cursor=pointer]
+            - generic [ref=f2e30] [cursor=pointer]: 2,539
+          - generic [ref=f2e31]:
+            - generic [ref=f2e32] [cursor=pointer]
+            - generic [ref=f2e33] [cursor=pointer]: 1,080
+        - button "0 STOCK" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e38]: "0"
+          - generic [ref=f2e39]: STOCK
+        - button "DIPLOMACY" [ref=f2e40] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e41]: ⚖
+      - button "Enter full screen" [ref=f2e43] [cursor=pointer]
+      - button "Open pause menu" [ref=f2e46] [cursor=pointer]
+  - generic [ref=f2e51]:
+    - generic [ref=f2e52]:
+      - generic [ref=f2e53]:
+        - generic:
+          - generic:
+            - generic: Large Residential Block
+            - generic: Fusion Power Plant
+            - generic: Capital
+            - generic: Research Laboratory
+            - generic: Laser Turret
+      - generic [ref=f2e380]:
+        - button "▲" [ref=f2e381] [cursor=pointer]
+        - button "◀" [ref=f2e382] [cursor=pointer]
+        - button "●" [ref=f2e383] [cursor=pointer]
+        - button "▶" [ref=f2e384] [cursor=pointer]
+        - button "▼" [ref=f2e385] [cursor=pointer]
+      - group "Surface zoom" [ref=f2e386]:
+        - button "CLOSE" [ref=f2e387] [cursor=pointer]
+        - button "MEDIUM" [pressed] [ref=f2e388] [cursor=pointer]
+        - button "FAR" [ref=f2e389] [cursor=pointer]
+        - button "NAMES" [pressed] [ref=f2e390] [cursor=pointer]
+    - complementary [ref=f2e391]:
+      - generic [ref=f2e392]:
+        - text: Valais
+        - generic [ref=f2e393]: SURFACE
+      - tablist [ref=f2e394]:
+        - tab "DETAILS" [ref=f2e395] [cursor=pointer]
+        - tab "BUILD" [selected] [ref=f2e396] [cursor=pointer]
+      - generic [ref=f2e444]:
+        - button "Laser Turret 800 CR · 200 RM · -5 EN" [ref=f2e446] [cursor=pointer]:
+          - generic [ref=f2e447]: Laser Turret
+          - generic [ref=f2e448]: 800 CR · 200 RM · -5 EN
+        - button "Missile Turret 1000 CR · 250 RM · -3 EN" [ref=f2e450] [cursor=pointer]:
+          - generic [ref=f2e451]: Missile Turret
+          - generic [ref=f2e452]: 1000 CR · 250 RM · -3 EN
+        - button "Planetary Shield LOCKED" [ref=f2e454] [cursor=pointer]:
+          - generic [ref=f2e455]: Planetary Shield
+          - generic [ref=f2e456]: LOCKED
+        - button "Small Residential Block 600 CR · 150 RM · -3 EN" [ref=f2e458] [cursor=pointer]:
+          - generic [ref=f2e459]: Small Residential Block
+          - generic [ref=f2e460]: 600 CR · 150 RM · -3 EN
+        - button "Medium Residential Block LOCKED" [ref=f2e462] [cursor=pointer]:
+          - generic [ref=f2e463]: Medium Residential Block
+          - generic [ref=f2e464]: LOCKED
+        - button "Large Residential Block LOCKED" [ref=f2e466] [cursor=pointer]:
+          - generic [ref=f2e467]: Large Residential Block
+          - generic [ref=f2e468]: LOCKED
+        - button "Central Park LOCKED" [ref=f2e470] [cursor=pointer]:
+          - generic [ref=f2e471]: Central Park
+          - generic [ref=f2e472]: LOCKED
+        - button "Hospital LOCKED" [ref=f2e474] [cursor=pointer]:
+          - generic [ref=f2e475]: Hospital
+          - generic [ref=f2e476]: LOCKED
+        - button "School LOCKED" [ref=f2e478] [cursor=pointer]:
+          - generic [ref=f2e479]: School
+          - generic [ref=f2e480]: LOCKED
+        - button "Entertainment Center LOCKED" [ref=f2e482] [cursor=pointer]:
+          - generic [ref=f2e483]: Entertainment Center
+          - generic [ref=f2e484]: LOCKED
+        - button "Fusion Power Plant LOCKED" [ref=f2e486] [cursor=pointer]:
+          - generic [ref=f2e487]: Fusion Power Plant
+          - generic [ref=f2e488]: LOCKED
+        - button "Solar Array 600 CR · 150 RM · +40 EN" [ref=f2e490] [cursor=pointer]:
+          - generic [ref=f2e491]: Solar Array
+          - generic [ref=f2e492]: 600 CR · 150 RM · +40 EN
+        - button "Spaceship Factory 3000 CR · 750 RM · -30 EN" [ref=f2e494] [cursor=pointer]:
+          - generic [ref=f2e495]: Spaceship Factory
+          - generic [ref=f2e496]: 3000 CR · 750 RM · -30 EN
+        - button "Spaceport 4000 CR · 1000 RM · -20 EN" [ref=f2e498] [cursor=pointer]:
+          - generic [ref=f2e499]: Spaceport
+          - generic [ref=f2e500]: 4000 CR · 1000 RM · -20 EN
+        - button "Mining Complex 1500 CR · 375 RM · -20 EN" [ref=f2e502] [cursor=pointer]:
+          - generic [ref=f2e503]: Mining Complex
+          - generic [ref=f2e504]: 1500 CR · 375 RM · -20 EN
+        - button "Small Research Laboratory 1000 CR · 250 RM · -15 EN" [ref=f2e506] [cursor=pointer]:
+          - generic [ref=f2e507]: Small Research Laboratory
+          - generic [ref=f2e508]: 1000 CR · 250 RM · -15 EN
+        - button "Research Laboratory LOCKED" [ref=f2e510] [cursor=pointer]:
+          - generic [ref=f2e511]: Research Laboratory
+          - generic [ref=f2e512]: LOCKED
+        - generic [ref=f2e513]:
+          - button "Trading Post 2500 CR · 600 RM · -10 EN" [expanded] [active] [ref=f2e514] [cursor=pointer]:
+            - generic [ref=f2e515]: Trading Post
+            - generic [ref=f2e516]: 2500 CR · 600 RM · -10 EN
+          - generic [ref=f2e521]:
+            - generic [ref=f2e522]: Trade
+            - paragraph [ref=f2e523]: "Opens the TRADE tab to swap credits and raw materials (at poor rates) and joins the civilian trade network: traders pay you credits on delivery."
+            - generic [ref=f2e524]:
+              - generic [ref=f2e525]:
+                - term [ref=f2e526]: Energy
+                - definition [ref=f2e527]: "-10"
+              - generic [ref=f2e528]:
+                - term [ref=f2e529]: Workers needed
+                - definition [ref=f2e530]: "20"
+              - generic [ref=f2e531]:
+                - term [ref=f2e532]: Base upkeep
+                - definition [ref=f2e533]: 4.5 CR/s
+            - list [ref=f2e534]:
+              - listitem [ref=f2e535]: Size 2×2.
+              - listitem [ref=f2e536]: One per planet.
+            - generic [ref=f2e537]: "Planet energy after building: 120 / 52"
+            - button "BUILD" [disabled] [ref=f2e538]
+            - generic [ref=f2e539]: Not enough credits or raw materials.
+        - button "Bank LOCKED" [ref=f2e518] [cursor=pointer]:
+          - generic [ref=f2e519]: Bank
+          - generic [ref=f2e520]: LOCKED

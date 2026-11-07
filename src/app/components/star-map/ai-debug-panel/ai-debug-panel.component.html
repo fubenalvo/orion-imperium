@@ -7,6 +7,32 @@
     </label>
     <button type="button" (click)="close.emit()" aria-label="Close AI debug panel">×</button>
   </header>
+  @if (snapshots.length) {
+    <table class="apm" aria-label="AI actions per game minute">
+      <caption>Actions / game min (last 60 s; avg since load)</caption>
+      <thead>
+        <tr>
+          <th scope="col">Faction</th><th scope="col">APM</th><th scope="col">Eco</th><th scope="col">Mil</th>
+          <th scope="col">Res</th><th scope="col">Exp</th><th scope="col">Dip</th><th scope="col">Rej</th><th scope="col">avg</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (s of snapshots; track s.factionId) {
+          <tr>
+            <th scope="row">{{ s.name }} <small>{{ s.difficulty }}/{{ s.personality }}</small></th>
+            <td class="total">{{ s.actions.apm }}</td>
+            <td>{{ s.actions.byCategory.economy }}</td>
+            <td>{{ s.actions.byCategory.military }}</td>
+            <td>{{ s.actions.byCategory.research }}</td>
+            <td>{{ s.actions.byCategory.expansion }}</td>
+            <td>{{ s.actions.byCategory.diplomacy }}</td>
+            <td>{{ s.actions.rejectedPerMinute }}</td>
+            <td>{{ s.actions.averageApm }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
   @for (s of snapshots; track s.factionId) {
     <section>
       <h4>{{ s.name }} <small>{{ s.factionId }} · {{ s.personality }} · {{ s.difficulty }}</small></h4>

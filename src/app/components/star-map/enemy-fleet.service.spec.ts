@@ -6,6 +6,7 @@ import { GameSettingsService } from '../../services/game-settings.service';
 import { TradeNetworkService } from './trade-network.service';
 import { createInitialTradeNetworkState } from './trade-network';
 import { AI_PERSONALITY_PROFILES } from './ai-personality';
+import { AiActionLedger } from './ai-action-ledger';
 
 /*
  * Unit tests for AI fleet operations with the real ShipService strength
@@ -78,6 +79,19 @@ describe('EnemyFleetService', () => {
     expect(changed).toBe(true);
     expect(service.getAssignment(1)?.role).toBe('garrison');
     expect([f.targetX, f.targetY]).toEqual([10, 10]);
+  });
+
+  it('records a fleet order once per new role or target, not for repeated decisions (AiActionLedger)', () => {
+    const ledger = TestBed.inject(AiActionLedger);
+    ledger.reset();
+    const f = fleet(1, 'enemy1', 30, 30, ['frigate']);
+    decide([f], systems());
+    decide([f], systems());
+    expect(ledger.report().factions[0].totalsByKind).toEqual({ fleet_order: 1 });
+
+    // A stronger hostile arrives: retreat is a new order.
+    decide([f, fleet(50, 'player', 36, 30, ['battleship', 'battleship'])], systems());
+    expect(ledger.report().factions[0].totalsByKind).toEqual({ fleet_order: 2 });
   });
 
   it('retreats an exposed fleet from a stronger hostile fleet', () => {

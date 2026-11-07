@@ -39,6 +39,7 @@ import {
 } from './peace-treaty';
 import { DysonVictoryService } from './dyson-victory.service';
 import { EnemyDysonService } from './enemy-dyson.service';
+import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -299,6 +300,7 @@ export class EnemyDiplomacyService {
     private readonly enemyEconomy: EnemyEconomyService,
     private readonly dysonVictory: DysonVictoryService,
     private readonly enemyDyson: EnemyDysonService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   /*
@@ -498,7 +500,12 @@ export class EnemyDiplomacyService {
   makeDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, ctx: DiplomacyContext): DemandOutcome {
     const cooldown = demander.ai === true ? this.profileOf(demander).demandCooldown : PLAYER_DEMAND_COOLDOWN_SECONDS;
     const issued = this.diplomacy.issueDemand(demander, target, kind, amount, ctx, cooldown);
-    if (!issued.ok || !issued.demand) return { ok: false, reason: issued.reason, waitSeconds: issued.waitSeconds };
+    if (!issued.ok || !issued.demand) {
+      // The ledger ignores human demanders.
+      this.actionLedger.reject(demander, 'demand_issued', issued.reason ?? 'rejected');
+      return { ok: false, reason: issued.reason, waitSeconds: issued.waitSeconds };
+    }
+    this.actionLedger.record(demander, 'demand_issued');
     if (target.ai !== true) {
       this.diplomacy.addPendingDemand(issued.demand);
       return { ok: true, demand: issued.demand, outcome: 'pending' };
@@ -510,6 +517,11 @@ export class EnemyDiplomacyService {
   /** An AI target's answer: pays when evaluateDemand accepts and the payment succeeds, refuses otherwise. */
   answerDemand(target: Faction, demand: DiplomaticDemand, ctx: DiplomacyContext): { outcome: DemandOutcomeKind; evaluation: DemandEvaluation } {
     const evaluation = this.evaluateDemand(target, demand, ctx);
+    // Measurement: only answers to another AI count as the target's own
+    // decision; answering the player is a reaction to the player's action.
+    if (ctx.factions.find((f) => f.id === demand.demanderId)?.ai === true) {
+      this.actionLedger.record(target, 'demand_answered');
+    }
     if (evaluation.accept && this.diplomacy.acceptDemand(demand, ctx).ok) return { outcome: 'paid', evaluation };
     return { outcome: this.handleRefusal(demand, ctx), evaluation };
   }
@@ -531,8 +543,12 @@ export class EnemyDiplomacyService {
       return 'follow_through';
     }
     const decision = this.assessFollowThrough(demander, target, ctx);
-    if (decision.carryOut && this.diplomacy.carryOutThreat(demand, ctx.factions).ok) return 'war';
+    if (decision.carryOut && this.diplomacy.carryOutThreat(demand, ctx.factions).ok) {
+      this.actionLedger.record(demander, 'threat_carried_out');
+      return 'war';
+    }
     this.diplomacy.backDown(demand, ctx.factions);
+    this.actionLedger.record(demander, 'threat_backed_down');
     return 'bluff';
   }
 
@@ -703,6 +719,7 @@ export class EnemyDiplomacyService {
         const treaty = this.buildProposal(ai, enemy, mine);
         if (validateTreaty(treaty, ctx).ok && this.evaluateTreaty(ai, treaty, ctx).accept) {
           this.diplomacy.addOffer(treaty);
+          this.actionLedger.record(ai, 'peace_offered');
           this.offerCooldowns.set(ai.id, EnemyDiplomacyService.OFFER_COOLDOWN);
           changed = true;
         }
@@ -731,7 +748,11 @@ export class EnemyDiplomacyService {
     if (!this.evaluateTreaty(ai, treaty, ctx).accept || !this.evaluateTreaty(enemy, { ...treaty, proposerId: enemy.id, recipientId: ai.id }, ctx).accept) {
       return false;
     }
-    return this.diplomacy.executeTreaty(ctx, treaty).ok;
+    const result = this.diplomacy.executeTreaty(ctx, treaty);
+    // Recorded once, for the proposer.
+    if (result.ok) this.actionLedger.record(ai, 'peace_signed');
+    else this.actionLedger.reject(ai, 'peace_signed', rejectionReason(result));
+    return result.ok;
   }
 
   /* Credits first, then raw materials, covering `value`; undefined if the payer cannot. */
@@ -783,7 +804,11 @@ export class EnemyDiplomacyService {
       }
     }
     if (!best) return false;
-    return best.breach ? this.diplomacy.breakTreaty(ai, best.target).ok : this.diplomacy.declareWar(ai, best.target).ok;
+    const result = best.breach ? this.diplomacy.breakTreaty(ai, best.target) : this.diplomacy.declareWar(ai, best.target);
+    const kind = best.breach ? 'treaty_broken' : 'war_declared';
+    if (result.ok) this.actionLedger.record(ai, kind);
+    else this.actionLedger.reject(ai, kind, rejectionReason(result));
+    return result.ok;
   }
 
   /* ---------- Helpers ---------- */

@@ -21,6 +21,7 @@ import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiF
 import { EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { OpeningGraceService } from './opening-grace';
+import { AiActionLedger } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -56,6 +57,8 @@ import { OpeningGraceService } from './opening-grace';
  *    first frame).
  * Research (EnemyResearchService) also runs here per faction.
  * AI treaty decisions (EnemyDiplomacyService) run first in every tick.
+ * AiActionLedger (measurement only) gets its game clock here and is reset
+ * with the pipeline; it is kept across the battle-screen round trip.
  */
 @Injectable({ providedIn: 'root' })
 export class StarMapAiTickService {
@@ -79,6 +82,7 @@ export class StarMapAiTickService {
     private enemyMiningService: EnemyMiningService,
     private enemyDysonService: EnemyDysonService,
     private openingGrace: OpeningGraceService,
+    private actionLedger: AiActionLedger,
   ) {}
 
   // Cadence of the parallel colonization objective's action evaluation.
@@ -109,6 +113,8 @@ export class StarMapAiTickService {
     },
   ): boolean {
     this.enemyFleetService.setGameSeconds(data.gameSeconds ?? 0);
+    // Measurement only (AiActionLedger): the ledger counts in game time.
+    this.actionLedger.advance(gameDeltaTime, data.gameSeconds);
     // Only a known clock moves the grace (StarMap always passes it; see opening-grace.ts).
     if (data.gameSeconds !== undefined) this.openingGrace.setGameSeconds(data.gameSeconds);
     // Treaties first: every layer below reads hostility (diplomacy.ts), so
@@ -327,6 +333,8 @@ export class StarMapAiTickService {
       ) || recoveryChanged;
     }
 
+    this.actionLedger.sampleIfDue(data.factions, data.starSystems, data.fleets);
+
     return diplomacyChanged || operationsChanged || aiChanged || strategyChanged || goalChanged || actionChanged
       || actionExecuted || economyChanged || recoveryChanged;
   }
@@ -357,6 +365,7 @@ export class StarMapAiTickService {
     this.enemyMiningService.reset();
     this.enemyDysonService.reset();
     this.colonizationAccumulators.clear();
+    this.actionLedger.reset();
   }
 
   /*

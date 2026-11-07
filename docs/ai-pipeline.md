@@ -45,7 +45,49 @@ When the game's fog of war is on (`GameSettingsService.fogOfWarEnabled`, the pla
 
 ## AI debug panel
 
-`EnemyDebugService` builds per-faction snapshots on demand: priority and strategy, primary goal and action, colonization objective and action, fleet objectives (role and target per fleet), last completed and last failed action with reason, shortages (unsatisfied capability requirements, energy/workforce/satisfaction problems, missing factory or Spaceport), recent replans, seconds since the last progress, credits, research points and intel coverage. On the star map **F9** toggles `AiDebugPanelComponent`; snapshots refresh about once per real second only while it is open and never mark the save dirty. Optional console output of new replan events (off by default, max 10 lines per refresh) is the only AI logging.
+`EnemyDebugService` builds per-faction snapshots on demand: priority and strategy, primary goal and action, colonization objective and action, fleet objectives (role and target per fleet), last completed and last failed action with reason, shortages (unsatisfied capability requirements, energy/workforce/satisfaction problems, missing factory or Spaceport), recent replans, seconds since the last progress, credits, research points, intel coverage and measured action rates. On the star map **F9** toggles `AiDebugPanelComponent`; snapshots refresh about once per real second only while it is open and never mark the save dirty. Optional console output of new replan events (off by default, max 10 lines per refresh) is the only AI logging.
+
+The panel opens with an **action-rate table** (one row per AI faction: name, difficulty/personality, total APM, economy, military, research, expansion, diplomacy, rejections per minute and the average since load), from the action ledger below.
+
+## Action ledger (AiActionLedger)
+
+Measurement only: `ai-action-ledger.ts` counts the meaningful actions each AI faction commits, so AI activity (actions per game minute, "APM") can be compared across difficulties, personalities, game phases and galaxy sizes before any action limit is designed. It sets no limit and changes no decision.
+
+- **Observational.** AI services call `record(faction, kind, quantity?)` and `reject(faction, kind, reason)` and never read the ledger; only `EnemyDebugService`, the simulation report and tests read it. `ai-simulation.spec.ts` ("action ledger") plays a 15-minute 3-AI game with the real ledger and with a no-op ledger and requires an identical end state.
+- **One record per committed action**, at the AI call site that commits it, after the authoritative service accepted it. The shared gameplay services (`ProductionService`, `FleetAssemblyService`, `ResearchService`, `DiplomacyService`) are not instrumented: they also serve the player and would double-count the AI call sites. Human factions are never counted.
+- **Game time.** `StarMapAiTickService.tick` feeds the ledger the saved game clock, so 1× and 3× speed and any frame length give the same numbers. The rolling APM is the last 60 game seconds (one-second buckets); early on a shorter window is scaled to a minute.
+- **Bounded and in memory.** Per faction: counts per kind, a 60-slot ring, at most 240 per-minute bins and one resource sample (credits, raw materials, research points, planets, fleet ships) per game minute. `resetAiPipeline` clears it, the battle-screen round trip keeps it, nothing is saved (no save-format change). Averages use the time observed since the last reset.
+
+| Category | Kind | Commit point |
+|---|---|---|
+| economy | `building_placed` | `EnemyEconomyService.tryConstruct` after payment (also covers the executor's `develop`) |
+| | `warship_queued` | `manageMilitaryProduction` per accepted order; executor `produce_combat_ship` |
+| | `raw_purchase` | `buyRawMaterials`, accepted trade (quantity = raw units) |
+| military | `fleet_order` | `EnemyFleetService`: a fleet's role or target identity changed during one decision (diff around `decide`); re-aiming at a moving target is not an order; the assault role is excluded |
+| | `assault_ordered` | `planAssault` sends a group (once per group, quantity = fleets) |
+| | `ships_deployed` | `deployStockedCombatShips` reinforce/create accepted (quantity = ships) |
+| | `fleet_to_reserve` | `reserveWeakestIdleFleet` accepted |
+| | `pipeline_fleet_action` | executor `reinforce_fleet`, `create_fleet`, `attack`, `defend`, and `move_to_target` for attack/defend goals (once per fleet + target, not per re-aim) |
+| | `dyson_fleet_order` | `EnemyDysonService` hunt or guard order created |
+| | `legacy_pursuit` | `EnemyAiService` acquires a new pursuit target (dormant layer) |
+| research | `tech_purchased` | `EnemyResearchService`, accepted purchase |
+| expansion | `colonizer_queued`, `colonizer_assembled`, `colonizer_dispatched`, `colonized` | executor `produce_colonizer`, `assemble_fleet`, `move_to_target` (colonize goal), `colonize` |
+| | `outpost_queued`, `outpost_fleet_created`, `mining_dispatch`, `station_deployed` | `EnemyMiningService`; a dispatch is a new target system, asteroid hops inside a system are not counted |
+| | `constructor_queued`, `constructor_fleet_created`, `constructor_dispatched`, `anchor_deployed` | `EnemyDysonService` |
+| diplomacy | `war_declared`, `treaty_broken` | `EnemyDiplomacyService.reviewWar`; the Dyson casus belli in `EnemyDysonService.hunt` |
+| | `demand_issued` | `makeDemand`, demand accepted by `issueDemand` |
+| | `demand_answered` | an AI target answering another **AI's** demand (answers to the player are reactions, not counted) |
+| | `threat_carried_out`, `threat_backed_down` | follow-through of a refused AI threat |
+| | `peace_offered` | offer to the player (`addOffer`) |
+| | `peace_signed` | AI–AI treaty executed, counted once for the proposer |
+
+Not counted: intel, planning layers, replans, position refreshes (intercept tracking, salvage and raid re-sends), surveying, captures and battle outcomes, answers to the player's proposals, passive income and production.
+
+**Rejections** are attempts an authoritative service refused (`!result.ok`, failed payment), not guard checks that stop before the call. They are reported separately, per kind and `kind:reason`; the same rejection is counted at most once per 2 game seconds because the executor retries its action every frame.
+
+**Known measurement properties.** `reinforce_fleet` pulls ships every frame until the fleet reaches its target strength; each successful pull counts, so this kind can depend on frame rate (the behavior it measures, not a ledger artifact). The simulation harness resets the AI pipeline after every AI assault on a player planet (a stand-in for the battle-screen reload, which the game itself no longer resets); the opt-in report keeps the ledger across those resets so it covers the whole game.
+
+**Report.** `ORION_APM_REPORT=1 npx ng test --watch=false --include src/app/components/star-map/ai-simulation.spec.ts --filter "action rate report"` runs one game per (size, difficulty, seed), all AIs on the same difficulty, personalities rotating with the seed, and prints `APM REPORT <size>/<difficulty>/<seed> {json}` per run (`AiActionLedger.report()`: totals by category and kind, quantities, rejections, early 0–10 / middle 10–30 / late 30+ minute phases, per-minute bins, resource samples). Defaults: seeds 31337, 4242, 777; small (2 AIs) and medium (3 AIs); 60 minutes. Overrides: `ORION_APM_SEEDS`, `ORION_APM_SIZES` (also `large`, 4 AIs), `ORION_APM_DIFFICULTIES`, `ORION_APM_MINUTES`.
 
 ## Save/load and bounded state
 
@@ -277,6 +319,7 @@ AI pipeline state is in-memory only and fully rebuilt from the game snapshot. `S
 ## Tests
 
 - Per-layer unit tests: `enemy-*.service.spec.ts` (including economy, fleet, research, invasion, plan, progress and intel services).
+- `ai-action-ledger.spec.ts` — the action ledger: rolling and per-minute rates in game time (identical at 1× / 3× and any frame length), human factions ignored, rejection deduplication, phases over the observed time, resource samples, bounded memory. The "action ledger" block of `ai-simulation.spec.ts` checks that it never changes a game and agrees with independent counts (technologies, colonizations); see [Action ledger](#action-ledger-aiactionledger).
 - `finite-economy.spec.ts` — the AI under finite deposits: raw-supply pressure, mines only on live deposits, no warships without raw materials, deposit-aware colonization, and the full outpost ship → survey → mining-station run.
 - `ai-acceptance.spec.ts` — real `StarMap` sessions through `NewGameService` / `SaveGameService`: five-AI new game and independent planning, save/load during AI activity (no duplicate ships, fleets, orders or technologies; progress continues), autosave/dirty cadence, fog of war in a real game, and the F9 debug panel.
 - `ai-simulation.spec.ts` — headless multi-minute games on generated galaxies mirroring the game-loop order: station construction advances, the Dyson warm-up counts down, station battles (bases, Dyson anchors, mining stations) run after fleet battles like in StarMap, treaty locks count down and AI-vs-AI fleet battles are auto-resolved as in the game; battles with the player are only resolved (as AUTO) with `resolvePlayerFleetBattles`, which the league and long-duration runs use. Scenarios whose premise is "AIs against the player" (Phase 3 intruders and losses, Phase 4 captures, parallel colonization, personality comparison) opt into the pre-diplomacy world with `aiAlliance: true`. Scenarios: 2 and 5 AIs; small, medium and large maps; with and without player fleets; fixed and jittered frame times; mid-game save/load; minimal starting infrastructure; energy-deficit homeworld; homeworld without construction space; no credits for a Spaceport; a sudden credit shortage; no valid expansion target; loss of every fleet. Phase 6 adds a fog-of-war compliance check to every scenario (colonize and assault targets must be charted, interception targets visible or remembered), 40-minute games on small, medium and large maps, bounded-state checks, and a maximum-load performance test (1 human + 5 AIs, 100+ living ships since the 2026-11 upkeep changes: about 0.03 ms of AI work per frame, worst frame under 4 ms). Phase 5 adds parallel colonization under a defend strategy, a stuck-fleet scenario, an evaluation league (small Easy vs Hard, medium with 3 AIs for 20 minutes, large with 5 AIs; assertions: no inactive 5-minute window, planet growth, ≥ 12 technologies, ≤ 3 deadlock replans per faction, Hard outperforms Easy), personality comparisons (militarists build more warships, expansionists colonize at least as much, technologists finish research sooner) and a large-map adaptive-reach regression. Phase 3 scenarios add 15-minute research progression, fleet assembly/reinforcement, an enemy patrol through AI territory, a weak intruder plus a much stronger fleet near AI homes, and injected heavy losses. Assertions cover research prerequisites/no duplicates/non-negative points, heavier hulls after research, combat ships only after a Spaceport and only unlocked types, ship-count accounting and unique ship ids, never contacting a stronger fleet with weaker forces, retreat of an exposed fleet, interception of weak intruders, regroup after losses, per-faction scheduling, paced construction, homeworld stability, non-negative credits, infrastructure and colonization deadlines derived from the rules above, colonizer accounting, development of every owned planet, energy balance, military production and deployment, colonizer-fleet order ownership and a low rate of "state changed" frames.

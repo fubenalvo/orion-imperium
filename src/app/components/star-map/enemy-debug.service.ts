@@ -10,6 +10,7 @@ import { EnemyProgressService, ActionRecord, DeadlockEvent } from './enemy-progr
 import { EnemyIntelService, IntelSummary } from './enemy-intel.service';
 import { EconomyService } from '../../services/economy.service';
 import { getAiPersonalityProfile } from './ai-personality';
+import { AiActionLedger, AiActionSnapshot } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -53,6 +54,8 @@ export interface AiDebugSnapshot {
   credits: number;
   research: number;
   intel: IntelSummary;
+  /* Measured action rates (AiActionLedger), for the comparison table at the top of the panel. */
+  actions: AiActionSnapshot;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -71,6 +74,7 @@ export class EnemyDebugService {
     private readonly progress: EnemyProgressService,
     private readonly intel: EnemyIntelService,
     private readonly economy: EconomyService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   snapshots(data: { factions: Faction[]; starSystems: StarSystem[]; fleets: Fleet[]; shipStock?: FactionShipStock[] }): AiDebugSnapshot[] {
@@ -123,6 +127,7 @@ export class EnemyDebugService {
       credits: Math.round(faction.currencies['credits'] ?? 0),
       research: Math.round(faction.currencies['research'] ?? 0),
       intel: this.intel.summary(faction.id, data.starSystems.length),
+      actions: this.actionLedger.snapshot(faction.id),
     };
   }
 

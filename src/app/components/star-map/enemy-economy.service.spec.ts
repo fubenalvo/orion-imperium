@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { EnemyEconomyService, EconomyContext } from './enemy-economy.service';
 import { EconomyService } from '../../services/economy.service';
+import { AiActionLedger } from './ai-action-ledger';
 import { Faction, FactionProduction, FactionShipStock, Fleet, PlanetTile, StarSystem } from './star-map.models';
 
 /*
@@ -93,6 +94,17 @@ describe('EnemyEconomyService', () => {
 
     expect(home.buildings.length).toBeGreaterThan(0);
     expect(home.buildings.length).toBeLessThanOrEqual(5);
+  });
+
+  it('records each placed building exactly once (AiActionLedger)', () => {
+    const ledger = TestBed.inject(AiActionLedger);
+    ledger.reset();
+    const f = faction(100000);
+    const home = planet({ size: 'huge' });
+
+    run(f, [system([home])], context(), 10.5);
+
+    expect(ledger.report().factions[0].totalsByKind.building_placed).toBe(home.buildings.length);
   });
 
   it('saves for a missing Spaceport before optional research buildings', () => {

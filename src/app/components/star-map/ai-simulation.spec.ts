@@ -40,6 +40,7 @@ import { OPENING_GRACE_SECONDS } from './opening-grace';
 import { PIRATE_CONFIG, PIRATE_FACTION_ID, PirateIncursionService } from './pirate-incursion';
 import { DysonRingService } from './dyson-ring.service';
 import { DysonVictoryService } from './dyson-victory.service';
+import { AiActionLedger, AiActionReport } from './ai-action-ledger';
 
 /* Non-combat hulls: colonizers and outpost ships (consumed when used). */
 // Civilian ships are consumed by their mission (colony, station, Dyson anchor); combat accounting skips them.
@@ -2609,4 +2610,130 @@ describe('AI simulation — pirate incursion', () => {
       }
     }
   }, 600_000);
+});
+
+/*
+ * AI action ledger (docs/ai-pipeline.md, "Action ledger"): measurement only.
+ * The first block guards the two promises the ledger makes — it never
+ * changes the game, and it counts each committed action once — on a real
+ * multi-AI game. The opt-in report (ORION_APM_REPORT=1) prints the measured
+ * action rates per difficulty, personality, game phase and galaxy size.
+ */
+class NoopActionLedger extends AiActionLedger {
+  override record(): void {}
+  override reject(): void {}
+}
+
+/* Game state an AI decision can change, serialized for an exact comparison. */
+function gameFingerprint(data: StarMapData): string {
+  return JSON.stringify({
+    factions: data.factions.map((f) => [f.id, f.currencies, f.researchedTechnologies ?? [], f.relations ?? null]),
+    planets: data.starSystems.flatMap((s) => s.planetsTiles).map((p) => [p.id, p.factionId, p.population, p.satisfaction, p.buildings]),
+    fleets: data.fleets.map((f) => [f.id, f.factionId, f.destroyed, f.x, f.y, f.targetX, f.targetY, f.ships.map((s) => [s.type, s.destroyed])]),
+    stock: data.shipStock,
+    production: data.production,
+  });
+}
+
+const LEDGER_CHECK_OPTIONS: ScenarioOptions = {
+  size: 'medium', aiCount: 3, seconds: 900, dt: 1 / 10, seed: 2468, continueAfterOutcome: true, resolvePlayerFleetBattles: true,
+  prepare: withPersonalities(['militarist', 'expansionist', 'technologist']),
+};
+
+describe('AI simulation — action ledger', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('is observational: a game with a no-op ledger ends in exactly the same state', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const measured = runScenario(LEDGER_CHECK_OPTIONS);
+    const report = TestBed.inject(AiActionLedger).report();
+    const research = new Map(measured.data.factions.filter((f) => f.ai).map((f) => [f.id, TestBed.inject(EnemyResearchService).getResearchHistory(f.id).length] as const));
+
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [{ provide: AiActionLedger, useClass: NoopActionLedger }] });
+    const unmeasured = runScenario(LEDGER_CHECK_OPTIONS);
+
+    expect(gameFingerprint(unmeasured.data)).toBe(gameFingerprint(measured.data));
+
+    // Counted once per commit: the ledger agrees with independent counts.
+    expect(report.factions.length).toBe(3);
+    for (const faction of report.factions) {
+      const trace = measured.traces.get(faction.factionId)!;
+      const who = `${faction.factionId} (${faction.personality})`;
+      expect(faction.totalsByKind.tech_purchased ?? 0, `${who} technologies`).toBe(research.get(faction.factionId));
+      expect(faction.totalsByKind.colonized ?? 0, `${who} colonizations`).toBe(trace.colonizations);
+      // A living economy, navy and research program show up in every category but diplomacy.
+      for (const category of ['economy', 'military', 'research', 'expansion'] as const) {
+        expect(faction.totalsByCategory[category], `${who} ${category} actions`).toBeGreaterThan(0);
+      }
+      expect(faction.observedSeconds).toBeCloseTo(LEDGER_CHECK_OPTIONS.seconds, 0);
+      // One sample per game minute (the last frame may end just before the final minute starts).
+      expect(faction.resources.length).toBeGreaterThanOrEqual(LEDGER_CHECK_OPTIONS.seconds / 60);
+    }
+  }, 600_000);
+});
+
+/*
+ * Opt-in report: ORION_APM_REPORT=1. One run per (size, difficulty, seed),
+ * all AIs on the same difficulty; personalities rotate with the seed so
+ * every personality appears on every size. Each run prints one line,
+ * `APM REPORT <size>/<difficulty>/<seed> {json}`, with the scenario and
+ * AiActionLedger.report() (totals, per-minute bins, early/middle/late
+ * phases, resource samples). Overrides (comma-separated):
+ * ORION_APM_SEEDS, ORION_APM_SIZES, ORION_APM_DIFFICULTIES, ORION_APM_MINUTES.
+ */
+const apmEnv = (name: string, fallback: string) => String((globalThis as any).process?.env?.[name] ?? fallback).split(',').map((v) => v.trim()).filter(Boolean);
+const APM_SEEDS = apmEnv('ORION_APM_SEEDS', '31337,4242,777').map(Number);
+const APM_SIZES = apmEnv('ORION_APM_SIZES', 'small,medium') as GalaxySize[];
+const APM_DIFFICULTIES = apmEnv('ORION_APM_DIFFICULTIES', 'easy,normal,hard') as AiDifficulty[];
+const APM_MINUTES = Number(apmEnv('ORION_APM_MINUTES', '60')[0]);
+// The most AIs each galaxy size allows next to the player (GALAXY_SIZE_PRESETS.maxPlayers − 1), large capped at 4.
+const APM_AI_COUNT: Record<GalaxySize, number> = { small: 2, medium: 3, large: 4 };
+const APM_PERSONALITIES = ['balanced', 'expansionist', 'militarist', 'technologist'];
+
+describe.runIf((globalThis as any).process?.env?.['ORION_APM_REPORT'] === '1')('AI simulation — action rate report (opt-in)', () => {
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  for (const size of APM_SIZES) {
+    for (const difficulty of APM_DIFFICULTIES) {
+      APM_SEEDS.forEach((seed, seedIndex) => {
+        const label = `${size}/${difficulty}/${seed}`;
+        it(`report: ${label}, ${APM_MINUTES} minutes`, () => {
+          const aiCount = APM_AI_COUNT[size];
+          const personalities = Array.from({ length: aiCount }, (_, i) => APM_PERSONALITIES[(i + seedIndex * aiCount) % APM_PERSONALITIES.length]);
+          // The harness resets the AI pipeline after every AI assault on a
+          // player planet (an old stand-in for the battle-screen reload; the
+          // game now resumes AI memory there), which would also clear the
+          // ledger mid-game. Only the first reset (the new game) is kept, so
+          // the report covers the whole game. The ledger never feeds back into
+          // the AI, so this changes nothing else.
+          const ledger = TestBed.inject(AiActionLedger);
+          const resetLedger = ledger.reset.bind(ledger);
+          let resets = 0;
+          vi.spyOn(ledger, 'reset').mockImplementation(() => {
+            if (resets++ === 0) resetLedger();
+          });
+          runScenario({
+            size, aiCount, difficulty, seed, seconds: APM_MINUTES * 60, dt: 1 / 10,
+            continueAfterOutcome: true, resolvePlayerFleetBattles: true,
+            prepare: withPersonalities(personalities),
+          });
+          const report: AiActionReport = TestBed.inject(AiActionLedger).report();
+          const scenario = { size, difficulty, seed, minutes: APM_MINUTES, aiCount, personalities };
+          (globalThis as any).process?.stdout?.write(`APM REPORT ${label} ${JSON.stringify({ scenario, report })}\n`);
+        }, 1_800_000);
+      });
+    }
+  }
 });

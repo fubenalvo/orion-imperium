@@ -22,6 +22,7 @@ Related: [Data Models](./data-models.md) (`PlanetTile.surface`),
 | `star-map/planet-surface/planet-surface-renderer.ts` | Bakes the terrain + decor into a canvas (visual only, cached). |
 | `star-map/planet-surface/planet-settlement.ts` | Street network, plots and street lights (visual only). |
 | `star-map/star-map-planet-screen/` | The planet view component (scene layers, build mode, camera). |
+| `star-map/building-info.ts` | Player-facing building descriptions for the build list's info box. |
 | `public/planet-surface/ore-deposit.svg` | Raw-material deposit sprite. |
 | `scripts/building-sprites/` | Generator of the building sprites (`npm run sprites:buildings`) → `public/buildings-svg/<id>.svg`. |
 
@@ -157,6 +158,34 @@ needs to tell old and new records apart.
   center; if terrain leaves no room, it clears the terrain of the nearest
   spot free of buildings and deposits (the surface record is replaced, so
   the mask cache stays valid). See [Economy](./economy.md#colony-cores).
+
+## Building info box
+
+The build list stays one compact row per building (name, price, energy,
+comfort). Clicking a row does not start placement: it opens an info box
+directly under the row (one at a time; clicking the row again closes it).
+The box's BUILD button starts placement. Content comes from
+`building-info.ts` (`describeBuilding`):
+
+- **Every row opens:** locked, unaffordable and site-blocked buildings can be
+  inspected too. Their BUILD button is disabled and the reason is shown
+  under it (`getBuildBlocker`: not researched, already built / limit
+  reached, no or depleted deposit, not enough credits or raw materials).
+  A box opened near the bottom of the list is scrolled into view.
+- **Content:** category (from `role`), a hand-written one-line summary per
+  building id, effect lines derived from `planet-data.json` (housing,
+  workers supplied or needed, energy, output per second, comfort, turret and
+  shield stats, base upkeep = upkeep points × `UPKEEP_CREDITS_PER_POINT`,
+  before the empire upkeep scale and technologies), notes (size, ore deposit
+  rule, per-planet limit), the unlocking technology for a locked building
+  (from `research-tree.json`) and the planet's energy after building.
+- **Keeping it accurate:** numbers follow the data automatically; the
+  summaries are prose describing rules owned by other documents
+  ([Economy](./economy.md), [Planet Capture](./planet-capture.md),
+  [Fleet Organization](./fleet-organization.md),
+  [Trade Network](./trade-network.md)) and must be updated with them.
+  `building-info.spec.ts` fails when a buildable building has no summary or
+  no unlocking technology.
 
 ## Save compatibility
 

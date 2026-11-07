@@ -11,6 +11,7 @@ import { EnemyActionService } from './enemy-action.service';
 import { EnemyGoalService } from './enemy-goal.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { EnemyDebugService } from './enemy-debug.service';
+import { AiDebugPanelComponent } from './ai-debug-panel/ai-debug-panel.component';
 
 /*
  * =========================================================
@@ -212,6 +213,15 @@ describe('AI acceptance (real StarMap sessions)', () => {
     // before its first colonizer (fundsResearchFirst), so not every faction
     // has completed an action yet — but the panel must expose the one that did.
     expect(map.aiDebugSnapshots.some((sn) => sn.lastCompleted !== undefined), 'last completed action').toBe(true);
+    // Measured action rates (AiActionLedger): every AI has acted by now, and
+    // the panel shows one comparison row per AI faction.
+    expect(map.aiDebugSnapshots.every((sn) => sn.actions.total > 0), 'actions recorded').toBe(true);
+    const panel = TestBed.createComponent(AiDebugPanelComponent);
+    panel.componentRef.setInput('snapshots', map.aiDebugSnapshots);
+    panel.detectChanges();
+    const rows = (panel.nativeElement as HTMLElement).querySelectorAll('table.apm tbody tr');
+    expect(rows.length).toBe(aiIds(map).length);
+    expect(rows[0].textContent).toContain(map.aiDebugSnapshots[0].name);
     // Console output is off by default.
     expect(TestBed.inject(EnemyDebugService).consoleEnabled).toBe(false);
     map.handleKeyboard(new KeyboardEvent('keydown', { key: 'F9' }));

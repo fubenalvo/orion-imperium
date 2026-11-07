@@ -9,6 +9,7 @@ import { hostileFactionIds } from './diplomacy';
 import { SpaceBaseService } from './space-base.service';
 import planetData from './planet-data.json';
 import { DYSON_ANCHOR_SHIP_TYPE } from './dyson-anchor';
+import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -103,6 +104,7 @@ export class EnemyResearchService {
     private readonly shipService: ShipService,
     private readonly economyService: EconomyService,
     private readonly spaceBaseService: SpaceBaseService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   /*
@@ -159,8 +161,10 @@ export class EnemyResearchService {
     }
     const result = this.researchService.researchTechnology(faction, choice.id);
     if (!result.ok) {
+      this.actionLedger.reject(faction, 'tech_purchased', rejectionReason(result));
       return false;
     }
+    this.actionLedger.record(faction, 'tech_purchased');
     const list = this.history.get(faction.id) ?? [];
     list.push(choice.id);
     this.history.set(faction.id, list);

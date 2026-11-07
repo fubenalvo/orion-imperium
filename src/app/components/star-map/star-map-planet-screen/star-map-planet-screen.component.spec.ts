@@ -96,6 +96,36 @@ describe('StarMapPlanetScreenComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  describe('build-list info box', () => {
+    const residential = () => buildingTypes.find((b: { id: string }) => b.id === 'small_residential');
+
+    it('opens one box at a time and does not enter build mode', () => {
+      component.toggleBuildingInfo(residential());
+      expect(component.expandedBuildingId).toBe('small_residential');
+      expect(component.isBuildMode).toBe(false);
+
+      component.toggleBuildingInfo(buildingTypes[0]);
+      expect(component.expandedBuildingId).toBe(buildingTypes[0].id);
+
+      component.toggleBuildingInfo(buildingTypes[0]);
+      expect(component.expandedBuildingId).toBeNull();
+    });
+
+    it('explains why BUILD is disabled', () => {
+      component.isBuildingUnlocked = () => false;
+      expect(component.getBuildBlocker(residential())).toBe('Not researched yet.');
+
+      component.isBuildingUnlocked = () => true;
+      component.getPlayerCredits = () => 0;
+      component.getPlayerRawMaterials = () => 0;
+      expect(component.getBuildBlocker(residential())).toBe('Not enough credits or raw materials.');
+
+      component.getPlayerCredits = () => 1e6;
+      component.getPlayerRawMaterials = () => 1e6;
+      expect(component.getBuildBlocker(residential())).toBeNull();
+    });
+  });
+
   describe('isResourceTile', () => {
     it('should return true for a cell that contains a resource deposit', () => {
       expect(component.isResourceTile(1, 2)).toBe(true);

@@ -30,6 +30,7 @@ import { isCivilianMissionFleet } from './space-base';
 import { isBuildingLimitReached } from './building-placement';
 import { TRADING_POST_NAME, TRADE_BUY_CREDITS_PER_RAW, executeTrade, hasTradingPost } from './trade';
 import { TRADING_POST_EXPECTED_INCOME } from './trade-network';
+import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 const BANK_NAME = 'Bank';
 
@@ -299,6 +300,7 @@ export class EnemyEconomyService {
     private readonly fleetAssemblyService: FleetAssemblyService,
     private readonly planService: EnemyPlanService,
     private readonly enemyResearch: EnemyResearchService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   reset(): void {
@@ -381,7 +383,10 @@ export class EnemyEconomyService {
     const lot = EnemyEconomyService.RAW_PURCHASE_LOT;
     const amount = Math.min(Math.ceil(missing / lot), Math.floor(spendable / (lot * TRADE_BUY_CREDITS_PER_RAW))) * lot;
     if (amount <= 0) return false;
-    return executeTrade(faction, post, 'buyRaw', amount).ok;
+    const trade = executeTrade(faction, post, 'buyRaw', amount);
+    if (trade.ok) this.actionLedger.record(faction, 'raw_purchase', amount);
+    else this.actionLedger.reject(faction, 'raw_purchase', trade.reason);
+    return trade.ok;
   }
 
   /*
@@ -410,7 +415,10 @@ export class EnemyEconomyService {
       .map((f) => ({ f, strength: this.shipService.calculateFleetStrength(f.ships.filter((s) => !s.destroyed)) }))
       .sort((a, b) => a.strength - b.strength || a.f.id - b.f.id)[0]?.f;
     if (!fleet) return false;
-    return this.fleetAssemblyService.disbandFleet({ fleets: context.fleets, shipStock: context.shipStock }, faction.id, fleet.id).ok;
+    const result = this.fleetAssemblyService.disbandFleet({ fleets: context.fleets, shipStock: context.shipStock }, faction.id, fleet.id);
+    if (result.ok) this.actionLedger.record(faction, 'fleet_to_reserve');
+    else this.actionLedger.reject(faction, 'fleet_to_reserve', rejectionReason(result));
+    return result.ok;
   }
 
   /*
@@ -455,6 +463,7 @@ export class EnemyEconomyService {
     }
 
     if (!payCost(faction, buildingCost(decision.building))) {
+      this.actionLedger.reject(faction, 'building_placed', 'insufficient_resources');
       return false;
     }
     decision.planet.buildings.push({
@@ -463,6 +472,8 @@ export class EnemyEconomyService {
       x: decision.x,
       y: decision.y,
     });
+    // Recorded here only: the executor's `develop` action also lands here.
+    this.actionLedger.record(faction, 'building_placed');
     return true;
   }
 
@@ -1215,8 +1226,10 @@ export class EnemyEconomyService {
         [faction],
       );
       if (!result.ok) {
+        this.actionLedger.reject(faction, 'warship_queued', rejectionReason(result));
         break;
       }
+      this.actionLedger.record(faction, 'warship_queued');
       queued = true;
       shortfall -= this.shipService.calculateFleetStrength([{ type: ship.id }]);
       slots--;
@@ -1339,6 +1352,8 @@ export class EnemyEconomyService {
           planetId: spaceport.planet.id,
           composition,
         });
+    if (result.ok) this.actionLedger.record(faction, 'ships_deployed', composition.reduce((n, c) => n + c.count, 0));
+    else this.actionLedger.reject(faction, 'ships_deployed', rejectionReason(result));
     return result.ok;
   }
 

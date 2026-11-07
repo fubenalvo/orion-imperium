@@ -567,7 +567,7 @@
     background 0.2s ease,
     border-color 0.2s ease;
 
-  &:hover:not(:disabled) {
+  &:hover {
     border-color: var(--ui-line);
     border-left-color: var(--ui-accent);
     background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.18), rgba(10, 34, 44, 0.25));
@@ -575,23 +575,30 @@
     filter: none;
   }
 
-  /* Unlocked but not affordable right now. */
-  &:disabled {
+  /* Cannot be built right now (unaffordable, blocked site). The row stays
+     clickable so its info box can still be opened. */
+  &--unavailable {
     border-left-color: rgba(var(--ui-warning-rgb), 0.45);
     background: linear-gradient(90deg, rgba(10, 30, 38, 0.55), transparent);
     color: var(--ui-ink-dim);
-    cursor: not-allowed;
 
     .planet-sidebar__build-price {
       color: rgba(var(--ui-warning-rgb), 0.8);
     }
   }
 
-  &--locked:disabled {
+  &--locked {
     border-left-color: rgba(70, 101, 111, 0.5);
     background: rgba(4, 12, 16, 0.4);
     color: var(--ui-ink-faint);
   }
+}
+
+.planet-sidebar__build-row--expanded .planet-sidebar__build-item {
+  border-color: var(--ui-line);
+  border-bottom-color: transparent;
+  border-left-color: var(--ui-accent);
+  background: linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.18), rgba(10, 34, 44, 0.25));
 }
 
 .planet-sidebar__build-name {
@@ -629,6 +636,105 @@
 /* The part of a price the player cannot pay yet (also: energy it cannot supply). */
 .planet-sidebar__price--short {
   color: var(--ui-danger);
+}
+
+.planet-sidebar__build-row {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- Build-list info box (building-info.ts) ----------
+   Opens directly under its row and reads as one unit with it (shared accent
+   edge, no border between them). */
+
+.building-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.03em;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.building-info--expanded {
+  margin-bottom: 0.3em;
+  padding: 0.6em 0.75em 0.75em;
+  border: 1px solid var(--ui-line);
+  border-top: 0;
+  border-left: 2px solid var(--ui-accent);
+  background: var(--ui-surface-sunken);
+}
+
+.building-info__blocker {
+  color: var(--ui-warning);
+  font-size: var(--ui-fs-xs);
+  text-align: center;
+}
+
+.building-info__category {
+  @include ui.section-label;
+}
+
+.building-info__summary {
+  margin: 0;
+  color: var(--ui-ink);
+}
+
+.building-info__effects {
+  display: grid;
+  gap: 0.15em;
+  margin: 0;
+  padding: 0.4em 0;
+  border-block: 1px solid var(--ui-line-soft);
+}
+
+.building-info__effect {
+  display: flex;
+  justify-content: space-between;
+  gap: 1em;
+
+  dt {
+    color: var(--ui-ink-dim);
+  }
+
+  dd {
+    margin: 0;
+    white-space: nowrap;
+  }
+}
+
+.building-info__effect--gain dd {
+  color: var(--ui-success);
+}
+
+.building-info__effect--cost dd {
+  color: var(--ui-warm);
+}
+
+.building-info__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  margin: 0;
+  padding: 0;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  list-style: none;
+}
+
+.building-info__note--locked {
+  color: var(--ui-warning);
+}
+
+.building-info__energy {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
+.building-info__energy--danger {
+  color: var(--ui-danger-text);
 }
 
 .planet-sidebar__build-active {

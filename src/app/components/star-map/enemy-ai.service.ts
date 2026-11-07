@@ -3,6 +3,7 @@ import { Fleet, Faction, getAiFactionIds } from './star-map.models';
 import { getHostileFleets } from './ai-queries';
 import { ShipService } from '../../services/ship.service';
 import { OpeningGraceService } from './opening-grace';
+import { AiActionLedger } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -32,6 +33,7 @@ export class EnemyAiService {
   constructor(
     private readonly shipService: ShipService,
     private readonly openingGrace: OpeningGraceService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   reset(): void {
@@ -161,6 +163,8 @@ export class EnemyAiService {
         fleet.targetX = nearestPlayerFleet.x;
         fleet.targetY = nearestPlayerFleet.y;
         this.currentTargets.set(fleet.id, nearestPlayerFleet.id);
+        // A newly acquired pursuit; following the same target afterwards is not counted.
+        this.actionLedger.record(factions.find((f) => f.id === fleet.factionId), 'legacy_pursuit');
         changed = true;
         continue;
       }

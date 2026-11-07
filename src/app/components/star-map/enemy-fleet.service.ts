@@ -18,6 +18,7 @@ import { isCivilianMissionFleet } from './space-base';
 import { TradeNetworkService } from './trade-network.service';
 import { raidBlocker } from './trade-network';
 import { getAiPersonalityProfile } from './ai-personality';
+import { AiActionLedger } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -184,6 +185,7 @@ export class EnemyFleetService {
     private readonly tradeNetwork: TradeNetworkService,
     private readonly economyService: EconomyService,
     private readonly openingGrace: OpeningGraceService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   setGameSeconds(seconds: number): void {
@@ -269,7 +271,37 @@ export class EnemyFleetService {
       return false;
     }
     this.accumulators.set(faction.id, Math.max(0, accumulator - interval));
-    return this.decide(faction, factions, starSystems, fleets, pipelineFleetIds, clock, production, real ?? { starSystems, fleets });
+    const world = real ?? { starSystems, fleets };
+    const before = this.orderIdentities(faction.id, world.fleets);
+    const changed = this.decide(faction, factions, starSystems, fleets, pipelineFleetIds, clock, production, world);
+    this.recordFleetOrders(faction, world.fleets, before);
+    return changed;
+  }
+
+  /*
+   * Measurement (AiActionLedger): a fleet order is a change of a fleet's
+   * role or target identity within one decision, never a re-aimed position
+   * (intercept tracking, salvage and raid re-sends keep the identity).
+   * Assault groups are recorded once as `assault_ordered` in planAssault,
+   * so the assault role is skipped here. Assignment writes are spread over
+   * many methods, so the diff around decide() catches all of them at once.
+   */
+  private orderIdentities(factionId: string, realFleets: readonly Fleet[]): Map<number, string> {
+    const identities = new Map<number, string>();
+    for (const fleet of realFleets) {
+      if (fleet.factionId !== factionId) continue;
+      const a = this.assignments.get(fleet.id);
+      if (a) identities.set(fleet.id, `${a.role}|${a.systemId}|${a.targetFleetId}|${a.planetId}|${a.asteroidId}|${a.traderId}`);
+    }
+    return identities;
+  }
+
+  private recordFleetOrders(faction: Faction, realFleets: readonly Fleet[], before: ReadonlyMap<number, string>): void {
+    for (const [fleetId, identity] of this.orderIdentities(faction.id, realFleets)) {
+      if (identity !== before.get(fleetId) && this.assignments.get(fleetId)?.role !== 'assault') {
+        this.actionLedger.record(faction, 'fleet_order');
+      }
+    }
   }
 
   /*
@@ -953,6 +985,7 @@ export class EnemyFleetService {
             free.splice(free.indexOf(member), 1);
             this.moveTo(member, target.system.x, target.system.y);
           }
+          this.actionLedger.record(faction, 'assault_ordered', group.length);
           return true;
         }
       }

@@ -1,0 +1,77 @@
+- generic [ref=f4e7]:
+  - banner [ref=f4e10]:
+    - generic [ref=f4e11]:
+      - button "Back to TARAZED" [ref=f4e12] [cursor=pointer]:
+        - generic [aria-hidden] [ref=f4e13]: ‹
+        - generic [ref=f4e14]: TARAZED
+      - generic "Miliix" [ref=f4e16]
+    - group "Time controls" [ref=f4e17]:
+      - button "Pause / Resume" [ref=f4e18] [cursor=pointer]: ⏸
+      - button "1x speed" [ref=f4e19] [cursor=pointer]: 1x
+      - button "3x speed" [ref=f4e20] [cursor=pointer]: 3x
+    - generic [ref=f4e21]:
+      - generic [ref=f4e22]:
+        - generic [ref=f4e24]:
+          - generic [ref=f4e25] [cursor=pointer]: 4,389
+          - generic [ref=f4e28]:
+            - generic [ref=f4e29] [cursor=pointer]
+            - generic [ref=f4e30] [cursor=pointer]: 2,615
+          - generic [ref=f4e31]:
+            - generic [ref=f4e32] [cursor=pointer]
+            - generic [ref=f4e33] [cursor=pointer]: 1,240
+        - button "0 STOCK" [ref=f4e36] [cursor=pointer]:
+          - generic [ref=f4e38]: "0"
+          - generic [ref=f4e39]: STOCK
+        - button "DIPLOMACY" [ref=f4e40] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f4e41]: ⚖
+      - button "Enter full screen" [ref=f4e43] [cursor=pointer]
+      - button "Open pause menu" [ref=f4e46] [cursor=pointer]
+  - generic [ref=f4e51]:
+    - generic [ref=f4e52]:
+      - generic [ref=f4e53]:
+        - generic:
+          - generic:
+            - generic: Large Residential Block
+            - generic: Fusion Power Plant
+            - generic: Capital
+            - generic: Research Laboratory
+            - generic: Laser Turret
+      - generic [ref=f4e380]:
+        - button "▲" [ref=f4e381] [cursor=pointer]
+        - button "◀" [ref=f4e382] [cursor=pointer]
+        - button "●" [ref=f4e383] [cursor=pointer]
+        - button "▶" [ref=f4e384] [cursor=pointer]
+        - button "▼" [ref=f4e385] [cursor=pointer]
+      - group "Surface zoom" [ref=f4e386]:
+        - button "CLOSE" [ref=f4e387] [cursor=pointer]
+        - button "MEDIUM" [pressed] [ref=f4e388] [cursor=pointer]
+        - button "FAR" [ref=f4e389] [cursor=pointer]
+        - button "NAMES" [pressed] [ref=f4e390] [cursor=pointer]
+    - complementary [ref=f4e391]:
+      - generic [ref=f4e392]:
+        - text: Miliix
+        - generic [ref=f4e393]: SURFACE
+      - tablist [ref=f4e394]:
+        - tab "DETAILS" [ref=f4e395] [cursor=pointer]
+        - tab "BUILD" [selected] [ref=f4e396] [cursor=pointer]
+      - generic [ref=f4e521]:
+        - generic [ref=f4e522]: Placing
+        - generic [ref=f4e523]: Solar Array (2x2)
+        - generic [ref=f4e524]:
+          - generic [ref=f4e525]: Power
+          - paragraph [ref=f4e526]: Cheap, small power source. Most buildings need energy; a planet short on energy produces less and grows unhappy.
+          - generic [ref=f4e527]:
+            - generic [ref=f4e528]:
+              - term [ref=f4e529]: Energy
+              - definition [ref=f4e530]: "+40"
+            - generic [ref=f4e531]:
+              - term [ref=f4e532]: Workers needed
+              - definition [ref=f4e533]: "5"
+            - generic [ref=f4e534]:
+              - term [ref=f4e535]: Base upkeep
+              - definition [ref=f4e536]: 3.0 CR/s
+          - list [ref=f4e537]:
+            - listitem [ref=f4e538]: Size 2×2.
+        - generic [ref=f4e539]: "Energy after building: 160 / 42"
+        - generic [ref=f4e540]: Click a cell on the surface to place the building.
+        - button "CANCEL" [ref=f4e541] [cursor=pointer]

@@ -28,6 +28,7 @@ import { canAffordCost, shipCost } from '../../services/resource-cost';
 import { areFactionsHostile } from './diplomacy';
 import { TerritoryService } from './territory.service';
 import { isCivilianMissionFleet } from './space-base';
+import { AiActionKind, AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -87,12 +88,18 @@ export class EnemyActionExecutor {
     private readonly planetOwnership: PlanetOwnershipService,
     private readonly intelService: EnemyIntelService,
     private readonly territory: TerritoryService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   private readonly confirmedEngagements = new Map<string, string>();
+  // Reason an authoritative service refused the current execution (measurement only).
+  private refusal: string | undefined;
+  // `${factionId}|${parallel}` → identity of the last counted move order (measurement only).
+  private readonly countedMoves = new Map<string, string>();
 
   reset(): void {
     this.confirmedEngagements.clear();
+    this.countedMoves.clear();
   }
 
   /*
@@ -128,6 +135,63 @@ export class EnemyActionExecutor {
       this.confirmedEngagements.delete(faction.id);
     }
 
+    this.refusal = undefined;
+    const executed = this.execute(action, faction, factions, starSystems, production, shipStock, fleets);
+    const kind = this.ledgerKind(action);
+    if (kind && executed) {
+      // A chase re-aims at a moving target; count each move order once.
+      const slot = `${faction.id}|${parallel}`;
+      const moveKey = action.type === 'move_to_target'
+        ? `${action.targetId}|${action.goalType}|${action.targetSystemId}|${action.targetPlanetId}|${(action.goal as AttackGoal | undefined)?.targetFleetId}`
+        : undefined;
+      if (moveKey === undefined || this.countedMoves.get(slot) !== moveKey) {
+        this.actionLedger.record(faction, kind);
+      }
+      if (moveKey !== undefined) this.countedMoves.set(slot, moveKey);
+    } else if (kind && this.refusal) {
+      this.actionLedger.reject(faction, kind, this.refusal);
+    }
+    return executed;
+  }
+
+  /*
+   * Measurement (AiActionLedger): the kind an executed action is counted
+   * as. `develop` is counted by EnemyEconomyService.tryConstruct (it places
+   * the building), so it has no kind here. Only `true` returns are counted:
+   * the executor re-runs its action every frame, and the guards make every
+   * repeat after the commit return false.
+   */
+  private ledgerKind(action: ActionResult): AiActionKind | undefined {
+    switch (action.type) {
+      case 'produce_colonizer':
+        return 'colonizer_queued';
+      case 'produce_combat_ship':
+        return 'warship_queued';
+      case 'assemble_fleet':
+        return 'colonizer_assembled';
+      case 'colonize':
+        return 'colonized';
+      case 'move_to_target':
+        return action.goalType === 'colonize' ? 'colonizer_dispatched' : 'pipeline_fleet_action';
+      case 'reinforce_fleet':
+      case 'create_fleet':
+      case 'attack':
+      case 'defend':
+        return 'pipeline_fleet_action';
+      default:
+        return undefined;
+    }
+  }
+
+  private execute(
+    action: ActionResult,
+    faction: Faction,
+    factions: Faction[],
+    starSystems: StarSystem[],
+    production: FactionProduction[],
+    shipStock: FactionShipStock[],
+    fleets: Fleet[],
+  ): boolean {
     switch (action.type) {
       case 'produce_colonizer':
         return this.executeProduceColonizer(action, factions, starSystems, production);
@@ -214,6 +278,7 @@ export class EnemyActionExecutor {
     );
 
     if (!result.ok) {
+      this.refusal = rejectionReason(result);
       return false;
     }
     return true;
@@ -285,6 +350,7 @@ export class EnemyActionExecutor {
     );
 
     if (!result.ok) {
+      this.refusal = rejectionReason(result);
       return false;
     }
     return true;
@@ -396,6 +462,7 @@ export class EnemyActionExecutor {
       composition,
     });
 
+    if (!result.ok) this.refusal = rejectionReason(result);
     return result.ok;
   }
 
@@ -455,6 +522,7 @@ export class EnemyActionExecutor {
       composition: [{ typeId: shipTypeId, count: 2 }],
     });
 
+    if (!result.ok) this.refusal = rejectionReason(result);
     return result.ok;
   }
 
@@ -510,6 +578,7 @@ export class EnemyActionExecutor {
         composition,
       });
       if (!result.ok) {
+        this.refusal = rejectionReason(result);
         return false;
       }
       return true;
@@ -528,6 +597,7 @@ export class EnemyActionExecutor {
       composition,
     });
     if (!result.ok) {
+      this.refusal = rejectionReason(result);
       return false;
     }
     return true;

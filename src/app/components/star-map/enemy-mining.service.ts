@@ -13,6 +13,7 @@ import { surveySystemAsteroids } from './system-asteroids';
 import { isAsteroidSurveyedBy, rawOutlook, rawSupplyPressure } from './raw-deposits';
 import { SYSTEM_FLEET_ENTRY_VW, systemCellAtVw, systemCellCenterVw } from './system-grid';
 import { hostileFactionIds } from './diplomacy';
+import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -75,6 +76,7 @@ export class EnemyMiningService {
     private readonly researchService: ResearchService,
     private readonly shipService: ShipService,
     private readonly territory: TerritoryService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   reset(): void {
@@ -139,6 +141,8 @@ export class EnemyMiningService {
       planetId: spaceport.planet.id,
       composition: [{ typeId: OUTPOST_SHIP_TYPE, count: 1 }],
     });
+    if (result.ok) this.actionLedger.record(faction, 'outpost_fleet_created');
+    else this.actionLedger.reject(faction, 'outpost_fleet_created', rejectionReason(result));
     return result.ok;
   }
 
@@ -166,9 +170,12 @@ export class EnemyMiningService {
       .filter((p) => p.factionId === faction.id && p.buildings.some((b) => b.name === 'Spaceship Factory'))
       .sort((a, b) => a.id - b.id)[0];
     if (!factory) return false;
-    return this.productionService.queueOrder(
+    const result = this.productionService.queueOrder(
       { production: data.production }, faction.id, factory.id, OUTPOST_SHIP_TYPE, 1, data.starSystems, [faction],
-    ).ok;
+    );
+    if (result.ok) this.actionLedger.record(faction, 'outpost_queued');
+    else this.actionLedger.reject(faction, 'outpost_queued', rejectionReason(result));
+    return result.ok;
   }
 
   // ---------------------------------------------------------------
@@ -212,7 +219,10 @@ export class EnemyMiningService {
       const territory = this.territory.get(data.starSystems, data.factions);
       const check = validateMiningStationDeployment({ fleet, factions: data.factions, starSystems: data.starSystems, territory });
       if (check.ok) {
-        return deployMiningStation({ fleet, factions: data.factions, starSystems: data.starSystems, territory }).ok;
+        const deployed = deployMiningStation({ fleet, factions: data.factions, starSystems: data.starSystems, territory });
+        if (deployed.ok) this.actionLedger.record(faction, 'station_deployed');
+        else this.actionLedger.reject(faction, 'station_deployed', 'deployment_invalid');
+        return deployed.ok;
       }
       const next = this.nextAsteroid(faction.id, fleet, system);
       if (next && this.isOpenSystem(faction.id, system, data)) {
@@ -229,6 +239,8 @@ export class EnemyMiningService {
     fleet.targetX = target.x;
     fleet.targetY = target.y;
     this.orders.set(fleet.id, target.id);
+    // Only system-level dispatches count; asteroid-to-asteroid hops inside a system do not.
+    this.actionLedger.record(faction, 'mining_dispatch');
     return true;
   }
 

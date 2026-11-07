@@ -30,6 +30,7 @@ import {
   ResourceRates,
 } from '../star-map.models';
 import { depositMiningBlocker } from '../raw-deposits';
+import { BuildingInfo, describeBuilding, unlockingTechnologyName } from '../building-info';
 import {
   StarMapProductionPanelComponent,
   ProductionPanelViewModel,
@@ -76,6 +77,13 @@ export interface BuildingType {
     shield?: number;
     shieldRegen?: number;
   } | null;
+  /* Housing and core buildings only: workers they supply to the planet. */
+  providesWorkforce?: number;
+  /* Turret / shield combat stats, top-level in planet-data.json. */
+  attack?: number;
+  range?: number;
+  shield?: number;
+  shieldRegen?: number;
   requiresOreProximity?: boolean;
   maxPerPlanet?: number;
   /* Core buildings (colony-core.ts): placed by the game, never in the build list. */
@@ -346,13 +354,49 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     return (this.getEnergyAfterBuilding(building)?.shortPct ?? 0) > 0 && this.getBuildingEnergyDelta(building) < 0;
   }
 
-  getBuildingEnergyTooltip(building: BuildingType): string {
-    const after = this.getEnergyAfterBuilding(building);
-    if (!after) return '';
-    const tail = after.shortPct > 0
-      ? ` — ${after.shortPct}% short: output drops${after.shortPct >= 25 ? ' and satisfaction falls toward rebellion' : ''}`
-      : '';
-    return `Energy after building: ${after.production} produced / ${after.consumption} used${tail}`;
+  /*
+   * Build-list info box (building-info.ts). Clicking a row opens its box right
+   * under it (one at a time); placement starts only from the box's BUILD
+   * button, so the list stays one compact row per building and nobody enters
+   * build mode without seeing what the building does.
+   */
+  private readonly buildingInfoCache = new Map<string, BuildingInfo>();
+  expandedBuildingId: string | null = null;
+
+  getBuildingInfo(building: BuildingType): BuildingInfo {
+    let info = this.buildingInfoCache.get(building.id);
+    if (!info) {
+      info = describeBuilding(building);
+      this.buildingInfoCache.set(building.id, info);
+    }
+    return info;
+  }
+
+  getUnlockingTechnology(building: BuildingType): string | null {
+    return unlockingTechnologyName(building.id);
+  }
+
+  toggleBuildingInfo(building: BuildingType): void {
+    this.expandedBuildingId = this.expandedBuildingId === building.id ? null : building.id;
+    if (this.expandedBuildingId) {
+      // A box opened near the bottom of the list would hide its BUILD button
+      // below the fold; scroll it in once Angular has rendered it.
+      const id = `building-info-${building.id}`;
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    }
+  }
+
+  /* Why the BUILD button is disabled right now, or null when it can start. */
+  getBuildBlocker(building: BuildingType): string | null {
+    if (!this.isBuildingUnlocked(building.id)) return 'Not researched yet.';
+    const site = this.getSiteBlocker(building);
+    if (site === 'ALREADY BUILT') return 'Already built on this planet.';
+    if (site === 'LIMIT REACHED') return 'Limit reached on this planet.';
+    if (site === 'NO DEPOSIT') return 'This planet has no ore deposit.';
+    if (site === 'DEPLETED') return 'The ore deposit is depleted.';
+    if (site) return site;
+    if (!this.canAfford(building)) return 'Not enough credits or raw materials.';
+    return null;
   }
 
   activeTab: PlanetSidebarTab = 'details';
@@ -425,6 +469,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   setTab(tab: PlanetSidebarTab): void {
     this.activeTab = tab;
+    this.expandedBuildingId = null;
     this.showProductionBuildMenu = false;
     if (tab === 'build') {
       this.isBuildMode = false;
@@ -466,6 +511,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   selectBuildingType(buildingId: string): void {
     const building = this.buildingTypes.find((b) => b.id === buildingId) ?? null;
     this.selectedBuildingType = building;
+    this.expandedBuildingId = null;
     this.isBuildMode = true;
     this.selectedCell = null;
     this.previewCells = new Set();

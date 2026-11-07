@@ -1,0 +1,7 @@
+[     180ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4311/:0
+[     553ms] [LOG] Angular is running in development mode. @ http://localhost:4311/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=ea0bbf0a:12236
+[     612ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4311/:0
+[     649ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4311/:0
+[   18343ms] [LOG] Angular is running in development mode. @ http://localhost:4311/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=ea0bbf0a:12236
+[   19195ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4311/star-map:0
+[   77026ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:4311/@vite/client:992

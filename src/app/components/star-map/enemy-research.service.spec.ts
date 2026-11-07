@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { EnemyResearchService } from './enemy-research.service';
 import { ResearchService } from '../../services/research.service';
+import { AiActionLedger } from './ai-action-ledger';
 import { Faction } from './star-map.models';
 
 /* Unit tests for AI research using the real research tree and ResearchService. */
@@ -52,6 +53,8 @@ describe('EnemyResearchService', () => {
       expect(research.getTechnology(id)!.prerequisites.every((p) => known.has(p))).toBe(true);
       known.add(id);
     }
+    // Measurement (AiActionLedger): one record per purchase.
+    expect(TestBed.inject(AiActionLedger).report().factions[0].totalsByKind).toEqual({ tech_purchased: 7 });
   });
 
   it('waits without attempting research when nothing is affordable', () => {

@@ -361,17 +361,22 @@
             @if (!isBuildMode) {
               <div class="planet-sidebar__build-list">
                 @for (building of buildableTypes; track building.id) {
+                  @let expanded = expandedBuildingId === building.id;
+                  <div
+                    class="planet-sidebar__build-row"
+                    [class.planet-sidebar__build-row--expanded]="expanded"
+                  >
+                  <!-- The row only opens / closes its info box, so locked and
+                       unaffordable buildings can be inspected too; placement
+                       starts from the box's BUILD button. -->
                   <button
                     class="planet-sidebar__build-item"
+                    [class.planet-sidebar__build-item--unavailable]="!!getBuildBlocker(building)"
                     [class.planet-sidebar__build-item--locked]="!isBuildingUnlocked(building.id)"
                     type="button"
-                    [disabled]="
-                      !canAfford(building) ||
-                      !isBuildingUnlocked(building.id) ||
-                      !!getSiteBlocker(building)
-                    "
-                    [title]="getBuildingEnergyTooltip(building)"
-                    (click)="selectBuildingType(building.id)"
+                    [attr.aria-expanded]="expanded"
+                    [attr.aria-controls]="'building-info-' + building.id"
+                    (click)="toggleBuildingInfo(building)"
                   >
                     <span class="planet-sidebar__build-name">{{
                       getBuildingName(building) || 'N/A'
@@ -416,6 +421,27 @@
                       </span>
                     }
                   </button>
+                  @if (expanded) {
+                    <div
+                      class="building-info building-info--expanded"
+                      [id]="'building-info-' + building.id"
+                    >
+                      <ng-container *ngTemplateOutlet="buildingInfoBody; context: { $implicit: building }" />
+                      @let blocker = getBuildBlocker(building);
+                      <button
+                        class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
+                        type="button"
+                        [disabled]="!!blocker"
+                        (click)="selectBuildingType(building.id)"
+                      >
+                        BUILD
+                      </button>
+                      @if (blocker) {
+                        <div class="building-info__blocker">{{ blocker }}</div>
+                      }
+                    </div>
+                  }
+                  </div>
                 }
               </div>
             } @else {
@@ -589,3 +615,42 @@
     </aside>
   </div>
 }
+
+<!-- Body of a build-list row's info box -->
+<ng-template #buildingInfoBody let-b>
+  @let info = getBuildingInfo(b);
+  <div class="building-info__category">{{ info.category }}</div>
+  <p class="building-info__summary">{{ info.summary }}</p>
+  @if (info.effects.length > 0) {
+    <dl class="building-info__effects">
+      @for (line of info.effects; track $index) {
+        <div class="building-info__effect building-info__effect--{{ line.tone }}">
+          <dt>{{ line.label }}</dt>
+          <dd>{{ line.value }}</dd>
+        </div>
+      }
+    </dl>
+  }
+  <ul class="building-info__notes">
+    @for (note of info.notes; track $index) {
+      <li>{{ note }}</li>
+    }
+    @if (!isBuildingUnlocked(b.id) && getUnlockingTechnology(b); as tech) {
+      <li class="building-info__note--locked">Requires research: {{ tech }}.</li>
+    }
+  </ul>
+  @if (getEnergyAfterBuilding(b); as energyAfter) {
+    @if (getBuildingEnergyDelta(b) !== 0) {
+      <div
+        class="building-info__energy"
+        [class.building-info__energy--danger]="causesEnergyShortage(b)"
+      >
+        Planet energy after building: {{ energyAfter.production | number: '1.0-0' }} /
+        {{ energyAfter.consumption | number: '1.0-0' }}
+        @if (energyAfter.shortPct > 0) {
+          ({{ energyAfter.shortPct }}% short{{ energyAfter.shortPct >= 25 ? ', satisfaction falls toward rebellion' : '' }})
+        }
+      </div>
+    }
+  }
+</ng-template>

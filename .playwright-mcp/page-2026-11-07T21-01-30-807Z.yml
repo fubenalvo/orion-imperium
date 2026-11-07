@@ -1,0 +1,95 @@
+- main [ref=f1e6]:
+  - generic [ref=f1e27]:
+    - generic [ref=f1e28]: NEW GAME
+    - generic [ref=f1e29]:
+      - generic [ref=f1e30]: GALAXY SIZE
+      - generic [ref=f1e31]:
+        - button "Small 8 systems · 180×108 up to 3 players" [ref=f1e32] [cursor=pointer]:
+          - generic [ref=f1e33]: Small
+          - generic [ref=f1e34]: 8 systems · 180×108
+          - generic [ref=f1e35]: up to 3 players
+        - button "Medium 11 systems · 240×144 up to 4 players" [ref=f1e36] [cursor=pointer]:
+          - generic [ref=f1e37]: Medium
+          - generic [ref=f1e38]: 11 systems · 240×144
+          - generic [ref=f1e39]: up to 4 players
+        - button "Large 14 systems · 300×180 up to 6 players" [pressed] [ref=f1e40] [cursor=pointer]:
+          - generic [ref=f1e41]: Large
+          - generic [ref=f1e42]: 14 systems · 300×180
+          - generic [ref=f1e43]: up to 6 players
+    - generic [ref=f1e44]:
+      - generic [ref=f1e45]: PLAYERS (3/6)
+      - generic [ref=f1e46]:
+        - generic [ref=f1e47]:
+          - generic "Local human player" [ref=f1e48]: YOU
+          - textbox "Player 1 name" [ref=f1e49]: Terran Empire
+          - radiogroup "Player 1 color" [ref=f1e50]:
+            - radio "Sky" [checked] [ref=f1e51] [cursor=pointer]
+            - radio "Crimson" [disabled] [ref=f1e52]
+            - radio "Teal" [disabled] [ref=f1e53]
+            - radio "Violet" [ref=f1e54] [cursor=pointer]
+            - radio "Lime" [ref=f1e55] [cursor=pointer]
+            - radio "Amber" [ref=f1e56] [cursor=pointer]
+            - radio "Rose" [ref=f1e57] [cursor=pointer]
+            - radio "Silver" [ref=f1e58] [cursor=pointer]
+          - combobox "Player 1 controller" [ref=f1e59]:
+            - option "Human" [selected]
+            - option "AI" [disabled]
+          - generic [ref=f1e60]: —
+          - button "Remove player 1" [disabled] [ref=f1e61]: ✕
+        - generic [ref=f1e62]:
+          - generic "AI-controlled" [ref=f1e63]: AI
+          - textbox "Player 2 name" [ref=f1e64]: Vega Dominion
+          - radiogroup "Player 2 color" [ref=f1e65]:
+            - radio "Sky" [disabled] [ref=f1e66]
+            - radio "Crimson" [checked] [ref=f1e67] [cursor=pointer]
+            - radio "Teal" [disabled] [ref=f1e68]
+            - radio "Violet" [ref=f1e69] [cursor=pointer]
+            - radio "Lime" [ref=f1e70] [cursor=pointer]
+            - radio "Amber" [ref=f1e71] [cursor=pointer]
+            - radio "Rose" [ref=f1e72] [cursor=pointer]
+            - radio "Silver" [ref=f1e73] [cursor=pointer]
+          - combobox "Player 2 controller" [ref=f1e74]:
+            - option "Human"
+            - option "AI" [selected]
+          - combobox "Player 2 AI difficulty" [ref=f1e75]:
+            - option "Easy"
+            - option "Normal" [selected]
+            - option "Hard"
+          - button "Remove player 2" [ref=f1e76] [cursor=pointer]: ✕
+        - generic [ref=f1e77]:
+          - generic "AI-controlled" [ref=f1e78]: AI
+          - textbox "Player 3 name" [ref=f1e79]: Rigel Concord
+          - radiogroup "Player 3 color" [ref=f1e80]:
+            - radio "Sky" [disabled] [ref=f1e81]
+            - radio "Crimson" [disabled] [ref=f1e82]
+            - radio "Teal" [checked] [ref=f1e83] [cursor=pointer]
+            - radio "Violet" [ref=f1e84] [cursor=pointer]
+            - radio "Lime" [ref=f1e85] [cursor=pointer]
+            - radio "Amber" [ref=f1e86] [cursor=pointer]
+            - radio "Rose" [ref=f1e87] [cursor=pointer]
+            - radio "Silver" [ref=f1e88] [cursor=pointer]
+          - combobox "Player 3 controller" [ref=f1e89]:
+            - option "Human"
+            - option "AI" [selected]
+          - combobox "Player 3 AI difficulty" [ref=f1e90]:
+            - option "Easy"
+            - option "Normal" [selected]
+            - option "Hard"
+          - button "Remove player 3" [ref=f1e91] [cursor=pointer]: ✕
+      - button "+ ADD AI PLAYER" [ref=f1e92] [cursor=pointer]
+    - generic [ref=f1e93]:
+      - generic [ref=f1e94] [cursor=pointer]:
+        - generic [ref=f1e95]: SAVE SLOT
+        - combobox "Save slot" [ref=f1e96]:
+          - option "Slot 2 — 2026. 11. 02. 0:00:42"
+          - option "Slot 3 — 2026. 11. 07. 21:36:58"
+          - option "Slot 4 — Empty" [selected]
+          - option "Slot 5 — Empty"
+      - generic [ref=f1e97] [cursor=pointer]:
+        - generic [ref=f1e98]: SEED (OPTIONAL)
+        - textbox "SEED (OPTIONAL)" [ref=f1e99]:
+          - /placeholder: Random
+    - generic [ref=f1e100]:
+      - button "BACK" [ref=f1e101] [cursor=pointer]
+      - button "START GAME" [ref=f1e102] [cursor=pointer]
+  - generic: v0.3.0

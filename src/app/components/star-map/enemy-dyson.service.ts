@@ -25,6 +25,7 @@ import {
   hasLivingSwarmConstructor,
   isDysonAnchor,
 } from './dyson-anchor';
+import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 /*
  * =========================================================
@@ -103,6 +104,7 @@ export class EnemyDysonService {
     private readonly ring: DysonRingService,
     private readonly victory: DysonVictoryService,
     private readonly enemyEconomy: EnemyEconomyService,
+    private readonly actionLedger: AiActionLedger,
   ) {}
 
   reset(): void {
@@ -207,9 +209,12 @@ export class EnemyDysonService {
       .filter((p) => p.factionId === faction.id && p.buildings.some((b) => b.name === 'Spaceship Factory'))
       .sort((a, b) => a.id - b.id)[0];
     if (!factory) return false;
-    return this.productionService.queueOrder(
+    const result = this.productionService.queueOrder(
       { production: data.production }, faction.id, factory.id, DYSON_ANCHOR_SHIP_TYPE, 1, data.starSystems, [faction],
-    ).ok;
+    );
+    if (result.ok) this.actionLedger.record(faction, 'constructor_queued');
+    else this.actionLedger.reject(faction, 'constructor_queued', rejectionReason(result));
+    return result.ok;
   }
 
   /* A stocked constructor leaves the Spaceport with up to ESCORT_SHIPS stocked warships. */
@@ -232,13 +237,16 @@ export class EnemyDysonService {
       { typeId: DYSON_ANCHOR_SHIP_TYPE, count: 1 },
       ...[...escortCounts].map(([typeId, count]) => ({ typeId, count })),
     ];
-    return this.fleetAssemblyService.createFleet({ fleets: data.fleets, shipStock: data.shipStock }, data.starSystems, {
+    const result = this.fleetAssemblyService.createFleet({ fleets: data.fleets, shipStock: data.shipStock }, data.starSystems, {
       factionId: faction.id,
       fleetName: `${faction.name} Swarm Builders`,
       systemId: spaceport.system.id,
       planetId: spaceport.planet.id,
       composition,
-    }).ok;
+    });
+    if (result.ok) this.actionLedger.record(faction, 'constructor_fleet_created');
+    else this.actionLedger.reject(faction, 'constructor_fleet_created', rejectionReason(result));
+    return result.ok;
   }
 
   /* Fly to the nearest free slot no other own constructor heads for; deploy on it; pick the bonus. */
@@ -253,6 +261,8 @@ export class EnemyDysonService {
     if (check.ok) {
       const result = this.bases.deployAnchor(fleet, data.factions);
       if (result.base) this.bases.chooseBonus(result.base.id, faction.id, this.chooseBonus(faction));
+      if (result.base) this.actionLedger.record(faction, 'anchor_deployed');
+      else this.actionLedger.reject(faction, 'anchor_deployed', 'deployment_invalid');
       return !!result.base;
     }
     const claimed = new Set(
@@ -266,6 +276,8 @@ export class EnemyDysonService {
     fleet.system = null;
     fleet.targetX = slot.col;
     fleet.targetY = slot.row;
+    // Only reached while the constructor is not travelling, so each one is a new dispatch.
+    this.actionLedger.record(faction, 'constructor_dispatched');
     return true;
   }
 
@@ -323,9 +335,12 @@ export class EnemyDysonService {
 
     if (getRelationKind(faction, target) !== 'war') {
       // The Dyson casus belli makes the declaration free; a truce is only broken against a warm-up.
-      const result = isTruceActive(faction, target)
-        ? warmup ? this.diplomacy.breakTreaty(faction, target) : { ok: false }
-        : this.diplomacy.declareWar(faction, target);
+      const breach = isTruceActive(faction, target);
+      if (breach && !warmup) return false;
+      const result = breach ? this.diplomacy.breakTreaty(faction, target) : this.diplomacy.declareWar(faction, target);
+      const kind = breach ? 'treaty_broken' : 'war_declared';
+      if (result.ok) this.actionLedger.record(faction, kind);
+      else this.actionLedger.reject(faction, kind, rejectionReason(result));
       return result.ok;
     }
 
@@ -341,6 +356,7 @@ export class EnemyDysonService {
     for (const fleet of candidates) {
       if ([...this.orders.values()].filter((o) => o.kind === 'hunt').length >= wanted) break;
       this.orders.set(fleet.id, { kind: 'hunt', targetFactionId: target.id });
+      this.actionLedger.record(faction, 'dyson_fleet_order');
       changed = true;
     }
     // Every hunter heads for the target's next anchor: construction sites first, then the nearest.
@@ -377,6 +393,7 @@ export class EnemyDysonService {
       const pick = free[1];
       if (!pick) return false;
       this.orders.set(pick.id, { kind: 'guard' });
+      this.actionLedger.record(faction, 'dyson_fleet_order');
       guardId = pick.id;
       changed = true;
     }

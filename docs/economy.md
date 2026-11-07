@@ -87,7 +87,7 @@ The counterweight to population income in the mid and late game ([Late Economy](
 **Player feedback** (all derived, nothing saved):
 
 - Planet screen: the satisfaction meter marks the target and shows the drift per second; a red alert appears while the planet is short on energy (with the output loss) or while it is heading for rebellion (target 0, with the estimated seconds).
-- Build list: each building shows its energy use or output (`EN`), red when building it would leave the planet short; the tooltip and the placement panel show the planet's energy after building. The preview uses the listed values, so it slightly understates a power building's output under energy technologies.
+- Build list: each building shows its energy use or output (`EN`), red when building it would leave the planet short; the building's info box (opened by clicking its row) and the placement panel show the planet's energy after building ([Planet Surface](./planet-surface.md#building-info-box)). The preview uses the listed values, so it slightly understates a power building's output under energy technologies.
 - Map notices (`planet-stability.ts`, from snapshots taken right before and after each economy tick): a player planet newly short on energy (once, again only after it recovered), satisfaction falling through 50% and 20%, and a planet lost to rebellion.
 
 ## The economy tick
