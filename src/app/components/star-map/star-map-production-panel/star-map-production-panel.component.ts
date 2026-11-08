@@ -13,6 +13,24 @@ import { isCombatShipType } from '../ai-queries';
 export interface QueueOrderRequest {
   shipTypeId: string;
   quantity: number;
+  /* Set = an equipment order (docs/ship-equipment.md); shipTypeId is then ''. */
+  equipmentId?: string;
+}
+
+/* One equipment module card in the EQUIPMENT tab. */
+export interface ProductionModuleOption {
+  id: string;
+  name: string;
+  slot: string;
+  description: string;
+  effects: string[];
+  credits: number;
+  rawmaterials: number;
+  buildTime: number;
+  unlocked: boolean;
+  /* Technology that unlocks a locked module. */
+  lockedBy: string | null;
+  inInventory: number;
 }
 
 export interface ProductionPanelViewModel {
@@ -20,6 +38,8 @@ export interface ProductionPanelViewModel {
   system: StarSystem;
   factionId: string;
   buildable: ShipType[];
+  /* Equipment modules buildable in Spaceship Factories; optional so older fixtures still type-check. */
+  modules?: ProductionModuleOption[];
   capacity: number;
   power: number;
   queue: ProductionOrder[];
@@ -50,7 +70,35 @@ export class StarMapProductionPanelComponent {
   @Output() cancelOrder = new EventEmitter<number>();
 
   selectedTypeId: string | null = null;
+  selectedModuleId: string | null = null;
   selectedQuantity = 1;
+  /* NEW PRODUCTION ORDER tab: ships or equipment modules. */
+  tab: 'ships' | 'equipment' = 'ships';
+
+  get selectedModule(): ProductionModuleOption | null {
+    return this.vm?.modules?.find((m) => m.id === this.selectedModuleId) ?? null;
+  }
+
+  setTab(tab: 'ships' | 'equipment'): void {
+    this.tab = tab;
+    this.selectedTypeId = null;
+    this.selectedModuleId = null;
+    this.selectedQuantity = 1;
+  }
+
+  pickModule(module: ProductionModuleOption): void {
+    if (!module.unlocked) return;
+    this.selectedModuleId = module.id;
+    this.selectedQuantity = 1;
+  }
+
+  /* Queue row label: the module name for equipment orders, else the ship type id. */
+  orderLabel(order: ProductionOrder): string {
+    if (order.equipmentId) {
+      return this.vm?.modules?.find((m) => m.id === order.equipmentId)?.name ?? order.equipmentId;
+    }
+    return order.shipTypeId;
+  }
 
   get selectedType(): ShipType | null {
     return this.vm?.buildable.find((t) => t.id === this.selectedTypeId) ?? null;
@@ -72,6 +120,9 @@ export class StarMapProductionPanelComponent {
   }
 
   totalCost(): number {
+    if (this.selectedModule) {
+      return this.selectedModule.credits * this.selectedQuantity;
+    }
     if (!this.vm || !this.selectedTypeId) {
       return 0;
     }
@@ -80,6 +131,9 @@ export class StarMapProductionPanelComponent {
   }
 
   totalRawCost(): number {
+    if (this.selectedModule) {
+      return this.selectedModule.rawmaterials * this.selectedQuantity;
+    }
     if (!this.vm || !this.selectedTypeId) {
       return 0;
     }
@@ -88,7 +142,7 @@ export class StarMapProductionPanelComponent {
 
   /* Mirrors ProductionService.queueOrder: credits AND raw materials must cover the order. */
   canQueue(): boolean {
-    if (!this.vm || !this.selectedTypeId) {
+    if (!this.vm || (!this.selectedTypeId && !this.selectedModule)) {
       return false;
     }
     return this.vm.factionCredits >= this.totalCost() && (this.vm.factionRawMaterials ?? 0) >= this.totalRawCost();
@@ -103,11 +157,15 @@ export class StarMapProductionPanelComponent {
   }
 
   confirmQueue(): void {
-    if (!this.selectedTypeId) {
+    if (this.selectedModule) {
+      this.queueOrder.emit({ shipTypeId: '', equipmentId: this.selectedModule.id, quantity: this.selectedQuantity });
+    } else if (this.selectedTypeId) {
+      this.queueOrder.emit({ shipTypeId: this.selectedTypeId, quantity: this.selectedQuantity });
+    } else {
       return;
     }
-    this.queueOrder.emit({ shipTypeId: this.selectedTypeId, quantity: this.selectedQuantity });
     this.selectedTypeId = null;
+    this.selectedModuleId = null;
     this.selectedQuantity = 1;
     this.closeBuildMenu.emit();
   }

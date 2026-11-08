@@ -20,6 +20,9 @@ import {
 } from './battle.types';
 import { getBattleShipStats } from './battle-ship-stats';
 import { isInBounds, occupiedCols, stackCenterVw } from './battle-grid';
+import { BATTLE_SPEED_MULTIPLIER } from './battle.types';
+import { copyEquipment, hasUpgrades, loadoutKey } from '../../star-map/equipment';
+import { resolveShipStats } from '../../star-map/ship-stats';
 
 /*
  * =========================================================
@@ -29,7 +32,7 @@ import { isInBounds, occupiedCols, stackCenterVw } from './battle-grid';
  * Builds the battle-local simulation state from the transport Battle
  * object. Deep-clones both fleets' ships: the overworld Fleet objects
  * passed by StarMap are NEVER mutated. Renders stacks are grouped by
- * side + ship type with a MAX_STACK_SIZE cap and deployed on the grid.
+ * side + ship type + loadout with a MAX_STACK_SIZE cap and deployed on the grid.
  */
 
 /*
@@ -49,10 +52,14 @@ export function createBattleState(
   const defenderFleet = sideFleet(battle, battle.defenderId);
   const defender = battle.fleet1 === defenderFleet ? battle.fleet1 : battle.fleet2;
 
-  const attackerShips = attackerFleet.ships.map((s) =>
-    withCombatBonus(toBattleShip(s, shipService, planetBattleService), battle.combatBonuses?.[attackerFleet.factionId]));
-  const defenderShips = defenderFleet.ships.map((s) =>
-    withCombatBonus(toBattleShip(s, shipService, planetBattleService), battle.combatBonuses?.[defenderFleet.factionId]));
+  // Hull → research multipliers → fixed module values (ship-stats.ts order).
+  const battleShips = (fleet: BattleFleet): BattleShip[] => {
+    const bonus = battle.combatBonuses?.[fleet.factionId];
+    return fleet.ships.map((s) =>
+      withEquipment(withCombatBonus(toBattleShip(s, shipService, planetBattleService), bonus), s, bonus, shipService));
+  };
+  const attackerShips = battleShips(attackerFleet);
+  const defenderShips = battleShips(defenderFleet);
 
   const attackerStacks = buildStacks('attacker', attackerShips, shipService, planetBattleService);
   const defenderStacks = buildStacks('defender', defenderShips, shipService, planetBattleService);
@@ -116,6 +123,69 @@ function withCombatBonus(
   const attack = bonus.attack[ship.typeId] ?? 1;
   const shield = bonus.shield[ship.typeId] ?? 1;
   return { ...ship, attack: ship.attack * attack, shield: ship.shield * shield, maxShield: ship.maxShield * shield };
+}
+
+/*
+ * Applies a ship's installed modules (docs/ship-equipment.md) after the
+ * research bonus. A standard loadout returns the ship untouched, so
+ * battles without upgrades are exactly as before. Otherwise the ship's
+ * combat values are re-resolved by resolveShipStats with the same research
+ * factors, which keeps one formula for battle, forecasts and displays.
+ * Shields start full, as for every battle ship.
+ */
+function withEquipment(
+  ship: BattleShip,
+  source: FleetShip,
+  bonus: { attack: Record<string, number>; shield: Record<string, number> } | undefined,
+  shipService: ShipService,
+): BattleShip {
+  const shipType = shipService.getShipType(source.type);
+  if (!shipType || !hasUpgrades(shipType.id, source.equipment)) {
+    return ship;
+  }
+  const resolved = resolveShipStats(shipType, source.equipment, {
+    attack: bonus?.attack[shipType.id],
+    shield: bonus?.shield[shipType.id],
+  });
+  return {
+    ...ship,
+    attack: resolved.attack,
+    defense: resolved.defense,
+    shield: resolved.shield,
+    maxShield: resolved.shield,
+    shieldRegen: resolved.shieldRegen,
+    attackType: resolved.attackType,
+    weakness: resolved.weakness,
+    ...copyEquipment(source),
+  };
+}
+
+/*
+ * Stack-level values that must hold for every ship of a stack: movement
+ * speed, reach, cadence and turning. From the hull stats for a standard
+ * loadout (no extra fields, so such stacks are unchanged), otherwise from
+ * the resolved loadout. buildStacks groups by loadout, so one ship's
+ * loadout stands for the whole stack.
+ */
+function stackMotionFields(
+  typeId: string,
+  equipment: FleetShip['equipment'],
+  stats: { speed: number; attackRange: number; fireRate: number },
+  shipService: ShipService,
+): Pick<BattleStack, 'speed' | 'attackRange' | 'fireRate' | 'hullFireRate' | 'turnRateBonus' | 'loadout'> {
+  const shipType = shipService.getShipType(typeId);
+  if (!shipType || !hasUpgrades(typeId, equipment)) {
+    return { speed: stats.speed, attackRange: stats.attackRange, fireRate: stats.fireRate };
+  }
+  const resolved = resolveShipStats(shipType, equipment);
+  return {
+    speed: resolved.battleSpeed * BATTLE_SPEED_MULTIPLIER,
+    attackRange: resolved.range,
+    fireRate: resolved.fireRate,
+    ...(resolved.fireRate !== resolved.hullFireRate ? { hullFireRate: resolved.hullFireRate } : {}),
+    ...(resolved.turnRateBonus !== 0 ? { turnRateBonus: resolved.turnRateBonus } : {}),
+    loadout: { ...equipment },
+  };
 }
 
 function sideFleet(battle: Battle, fleetId: number): BattleFleet {
@@ -186,7 +256,7 @@ function buildStacks(
 ): BattleStack[] {
   /*
    * Fleet size boundary: small fleets get one stack per ship for tactical
-   * clarity. Larger fleets are grouped by type into MAX_STACK_SIZE chunks
+   * clarity. Larger fleets are grouped by type and loadout into MAX_STACK_SIZE chunks
    * for readability and performance.
    */
   if (roster.length <= INDIVIDUAL_STACK_LIMIT) {
@@ -211,18 +281,16 @@ function buildStacks(
         tier: stats.tier,
         hullClass: stats.hullClass,
         shieldAura: stats.shieldAura,
-        attackRange: stats.attackRange,
         immobile: stats.immobile,
         moving: false,
         firing: false,
         destroyed: false,
-        speed: stats.speed,
-        fireRate: stats.fireRate,
         targetingMode: DEFAULT_TARGETING_MODE,
         x: 0,
         y: 0,
         targetX: null,
         targetY: null,
+        ...stackMotionFields(ship.typeId, ship.equipment, stats, shipService),
       });
     }
     return stacks;
@@ -233,19 +301,23 @@ function buildStacks(
     return [];
   }
 
-  const grouped = new Map<string, BattleShip[]>();
+  // Grouped by type AND loadout: stack-level speed, reach and cadence must
+  // hold for every ship in a stack. Standard ships have the key '', so
+  // fleets without upgrades group exactly as before.
+  const grouped = new Map<string, { typeId: string; ships: BattleShip[] }>();
   for (const ship of living) {
-    const bucket = grouped.get(ship.typeId);
+    const key = `${ship.typeId}|${loadoutKey(ship.typeId, ship.equipment)}`;
+    const bucket = grouped.get(key);
     if (bucket) {
-      bucket.push(ship);
+      bucket.ships.push(ship);
     } else {
-      grouped.set(ship.typeId, [ship]);
+      grouped.set(key, { typeId: ship.typeId, ships: [ship] });
     }
   }
 
   const stacks: BattleStack[] = [];
   let index = 0;
-  for (const [typeId, ships] of grouped) {
+  for (const { typeId, ships } of grouped.values()) {
     const stats = getBattleShipStats(typeId, shipService, planetBattleService);
     const size = stats.tier >= 5 ? 3 : stats.tier >= 3 ? 2 : 1;
     for (let offset = 0; offset < ships.length; offset += MAX_STACK_SIZE) {
@@ -263,18 +335,16 @@ function buildStacks(
         tier: stats.tier,
         hullClass: stats.hullClass,
         shieldAura: stats.shieldAura,
-        attackRange: stats.attackRange,
         immobile: stats.immobile,
         moving: false,
         firing: false,
         destroyed: false,
-        speed: stats.speed,
-        fireRate: stats.fireRate,
         targetingMode: DEFAULT_TARGETING_MODE,
         x: 0,
         y: 0,
         targetX: null,
         targetY: null,
+        ...stackMotionFields(typeId, chunk[0].equipment, stats, shipService),
       });
     }
   }

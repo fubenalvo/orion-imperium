@@ -1,5 +1,6 @@
 import type { MiningStationRef } from '../../star-map/station-defense';
 import type { CombatClass } from '../../star-map/hull-class';
+import type { ShipLoadout } from '../../star-map/equipment';
 /*
  * =========================================================
  * BATTLE MINIGAME — CORE TYPES & CONSTANTS
@@ -112,10 +113,23 @@ export function volleyDecision(
   return { fire: true, nextDueMs: nextVolleyDueMs(previousDueMs, nowMs, intervalMs) };
 }
 
-/* Share of a reference volley that one volley of this stack deals. */
-export function volleyShare(stack: { fireRate: number }): number {
-  const fireRate = stack.fireRate > 0 ? stack.fireRate : REFERENCE_FIRE_RATE;
+/*
+ * Share of a reference volley that one volley of this stack deals. Split
+ * by the hull's own rate: without a weapon module (hullFireRate absent)
+ * this is REFERENCE_FIRE_RATE / fireRate and damage per second doesn't
+ * depend on fire rate; a weapon's fireRateFactor adds shots at the same
+ * damage per shot, so it scales damage per second (damagePerSecondFactor).
+ */
+export function volleyShare(stack: { fireRate: number; hullFireRate?: number }): number {
+  const hullRate = stack.hullFireRate ?? stack.fireRate;
+  const fireRate = hullRate > 0 ? hullRate : REFERENCE_FIRE_RATE;
   return REFERENCE_FIRE_RATE / fireRate;
+}
+
+/* Damage per second relative to the hull's: the weapon module's fire-rate factor (1 without one). */
+export function damagePerSecondFactor(stack: { fireRate: number; hullFireRate?: number }): number {
+  const hullRate = stack.hullFireRate;
+  return hullRate && hullRate > 0 && stack.fireRate > 0 ? stack.fireRate / hullRate : 1;
 }
 
 /* How often (battle ms) chasing stacks re-plan their destination and
@@ -222,6 +236,8 @@ export interface FleetShip {
   type: string;
   currentHp?: number;
   destroyed?: boolean;
+  /* Installed modules, same as the overworld FleetShip (star-map.models.ts); missing = standard. */
+  equipment?: ShipLoadout;
 }
 
 /* One real ship inside a stack. shipId === FleetShip.id, the key used to
@@ -244,6 +260,8 @@ export interface BattleShip {
   attack: number;
   defense: number;
   alive: boolean;
+  /* Installed modules (copied from the FleetShip); absent for a standard loadout. Stacks group by it. */
+  equipment?: ShipLoadout;
 }
 
 /*
@@ -288,8 +306,19 @@ export interface BattleStack {
    * slows movement while the hull points off-course (maneuverSpeedFactor);
    * never read by pathing, collision, range or targeting. Battle-local. */
   heading?: number;
-  /* Shots per second (from ship-data.json fireRate). */
+  /* Shots per second (from ship-data.json fireRate, × the weapon module's fireRateFactor). */
   fireRate: number;
+  /*
+   * The hull's own fire rate when a weapon module changed `fireRate`
+   * (ship-stats.ts); absent = same as fireRate. volleyShare splits damage
+   * by it, so damage per shot stays the hull's and the extra shots of a
+   * faster weapon add damage per second (docs/ship-equipment.md, B.4).
+   */
+  hullFireRate?: number;
+  /* Degrees per second an engine module adds to the tier turn rate (battle-heading.ts); absent = 0. */
+  turnRateBonus?: number;
+  /* Installed modules shared by every ship of the stack; absent = standard (stacks group by loadout). */
+  loadout?: ShipLoadout;
 
   /* Manual attack order (player command). Fire control shoots this target
    * whenever it is in range, and the movement service keeps chasing it while

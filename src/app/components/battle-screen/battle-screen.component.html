@@ -40,6 +40,17 @@
         aria-label="Auto battle toggle"
       >AUTO</button>
 
+      <button
+        gameHeaderTimeExtra
+        class="battle-auto-btn"
+        type="button"
+        [class.battle-auto-btn--active]="pausedStartEnabled"
+        [attr.aria-pressed]="pausedStartEnabled"
+        title="Start battles paused, to inspect ships and give orders first"
+        (click)="togglePausedStart()"
+        aria-label="Start battles paused"
+      >HOLD</button>
+
       @if (planetShield; as shield) {
         <div class="battle-screen__planet-shield">
           <span class="battle-screen__planet-shield-label">PLANET SHIELD</span>
@@ -80,6 +91,24 @@
         [onStackCommand]="onStackCommand"
         [onCellCommand]="onCellCommand"
       ></app-battle-grid>
+
+      @if (awaitingStart) {
+        <div class="battle-screen__start-banner" role="status">
+          BATTLE PAUSED · click ships to inspect them, give orders · press ▶ or Space to start
+        </div>
+      }
+
+      @if (inspectedStack(); as inspected) {
+        <div class="battle-screen__ship-info">
+          <app-battle-ship-info
+            [stack]="inspected"
+            [viewer]="selectedStack()"
+            [factionColor]="inspectedFactionColor(inspected)"
+            [sideLabel]="inspected.side === 'attacker' ? state.attackerName : state.defenderName"
+            (close)="closeInspect()"
+          ></app-battle-ship-info>
+        </div>
+      }
     </main>
 
     <footer class="battle-hud battle-hud--bottom">

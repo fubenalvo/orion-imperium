@@ -1,0 +1,163 @@
+@use 'ui';
+
+/* Floating ship info card over the battlefield (top right), edged in the
+   inspected stack's faction color. See docs/ship-equipment.md (D.6). */
+
+.ship-info {
+  width: min(300px, 80vw);
+  padding: 0.7em 0.85em 0.8em;
+  border-left: 2px solid var(--info-faction);
+  border-radius: var(--ui-radius);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  @include ui.glass;
+  @include ui.brackets(12px);
+}
+
+.ship-info__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6em;
+}
+
+.ship-info__heading {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ship-info__side {
+  color: var(--info-faction);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.ship-info__name {
+  overflow: hidden;
+  color: var(--ui-ink-bright);
+  letter-spacing: 0.16em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ship-info__count {
+  color: var(--ui-accent);
+}
+
+.ship-info__close {
+  @include ui.button-size(sm);
+  padding: 0.2em 0.5em;
+}
+
+.ship-info__class {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin: 0.5em 0;
+}
+
+.ship-info__chip {
+  @include ui.chip(var(--ui-warm));
+  text-transform: uppercase;
+}
+
+.ship-info__role,
+.ship-info__note {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
+.ship-info__note {
+  margin: 0.4em 0;
+}
+
+.ship-info__slots {
+  display: grid;
+  gap: 0.25em;
+  margin: 0 0 0.55em;
+  padding: 0;
+  list-style: none;
+}
+
+.ship-info__slot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  padding: 0.25em 0.45em;
+  border: 1px solid rgba(var(--ui-amber-rgb), 0.55);
+  border-radius: var(--ui-radius);
+}
+
+.ship-info__slot-label {
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.ship-info__slot-name {
+  color: var(--ui-amber);
+}
+
+.ship-info__slot--standard {
+  border-color: var(--ui-line-soft);
+
+  .ship-info__slot-name {
+    color: var(--ui-ink-dim);
+  }
+}
+
+.ship-info__slot--locked {
+  border-style: dashed;
+  opacity: 0.55;
+}
+
+.ship-info__stats {
+  display: grid;
+  gap: 0.2em;
+  margin: 0;
+}
+
+.ship-info__stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8em;
+
+  dt {
+    color: var(--ui-ink-dim);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ui-accent);
+    text-align: right;
+  }
+}
+
+.ship-info__matchup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 0.8em;
+  margin-top: 0.6em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--ui-line-soft);
+  font-size: var(--ui-fs-xs);
+
+  .is-good {
+    color: var(--ui-success);
+  }
+
+  .is-bad {
+    color: var(--ui-danger-text);
+  }
+}
+
+.ship-info__matchup-label {
+  width: 100%;
+  color: var(--ui-ink-dim);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}

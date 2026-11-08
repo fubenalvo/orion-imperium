@@ -927,3 +927,29 @@
   letter-spacing: 0.3em;
   color: var(--ui-danger-text);
 }
+
+/* Ship info window and paused-start banner (docs/ship-equipment.md, D.6). */
+.battle-screen__ship-info {
+  position: absolute;
+  top: 0.8em;
+  right: 0.8em;
+  z-index: 6;
+}
+
+.battle-screen__start-banner {
+  position: absolute;
+  top: 0.8em;
+  left: 50%;
+  z-index: 6;
+  translate: -50% 0;
+  padding: 0.45em 1.1em;
+  border: 1px solid rgba(var(--ui-amber-rgb), 0.6);
+  border-radius: var(--ui-radius);
+  background: rgba(2, 10, 16, 0.85);
+  color: var(--ui-amber);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}

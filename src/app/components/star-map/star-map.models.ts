@@ -1,5 +1,6 @@
 import type { DiplomaticDemand } from './diplomatic-demand';
 import type { DysonBonusId } from './dyson-anchor';
+import type { ShipLoadout } from './equipment';
 
 export interface PlanetBuilding {
   id?: string;
@@ -73,6 +74,8 @@ export interface Technology {
   prerequisites: string[];
   unlocksShips: string[];
   unlocksBuildings: string[];
+  /* Equipment modules (equipment-data.json ids) this technology lets a faction build; missing = none. */
+  unlocksEquipment?: string[];
   /* Mechanical effects; aggregated by ResearchService.getModifiers (docs/research.md). */
   bonuses?: TechnologyBonus[];
 }
@@ -416,6 +419,13 @@ export interface FleetShip {
   type: string;
   currentHp?: number;
   destroyed?: boolean;
+  /*
+   * Installed modules per slot (equipment.ts); missing slot or field =
+   * standard factory module. Travels with the ship record through stock,
+   * fleet organization and battle write-back (copyEquipment); unknown ids
+   * are kept as they are and resolve to standard (docs/ship-equipment.md).
+   */
+  equipment?: ShipLoadout;
 }
 
 /*
@@ -437,6 +447,8 @@ export interface ShipStockEntry {
    * repaired in the reserve and carried back into a fleet (fleet-repair.ts).
    */
   currentHp?: number;
+  /* Installed modules, as on FleetShip; missing = standard. */
+  equipment?: ShipLoadout;
 }
 
 export interface FactionShipStock {
@@ -444,9 +456,26 @@ export interface FactionShipStock {
   ships: ShipStockEntry[];
 }
 
+/*
+ * Empire-wide equipment inventory: available (not installed) modules per
+ * module id. Counts, not instances: modules have no state of their own.
+ * Standard modules are never counted. See docs/ship-equipment.md (B.5).
+ */
+export interface FactionEquipmentInventory {
+  factionId: string;
+  modules: Record<string, number>;
+}
+
 export interface ProductionOrder {
   id: number;
+  /* Ship type built; '' for an equipment order (never read when equipmentId is set). */
   shipTypeId: string;
+  /*
+   * Set = this order builds one equipment module (equipment-data.json id)
+   * into the faction's equipment inventory instead of a ship. Missing = a
+   * ship order. See ProductionService.resolveOrderItem.
+   */
+  equipmentId?: string;
   quantity: number;
   progress: number;
   startedAtTick: number;
@@ -669,6 +698,8 @@ export interface StarMapData {
   targetY?: number | null;
   destroyedFleetId?: number | null;
   exploredGridCells?: string[];
+  /* Available equipment modules per faction (equipment.ts); missing = empty for everyone. */
+  equipmentInventory?: FactionEquipmentInventory[];
   shipStock?: FactionShipStock[];
   production?: FactionProduction[];
   defaultView?: {

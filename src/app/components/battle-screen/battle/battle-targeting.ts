@@ -4,6 +4,7 @@ import {
   BattleTargetingMode,
   DEFAULT_TARGETING_MODE,
   REFERENCE_FIRE_RATE,
+  damagePerSecondFactor,
 } from './battle.types';
 import {
   absoluteDistanceRangeUnits,
@@ -66,11 +67,12 @@ export function effectiveDurability(state: BattleModelState, stack: BattleStack)
   return own + pool;
 }
 
-/* Offensive output per second. Independent of fireRate: a class that fires
- * faster deals proportionally smaller volleys (see REFERENCE_FIRE_RATE). */
+/* Offensive output per second. Independent of the hull's fireRate (a class
+ * that fires faster deals proportionally smaller volleys, see
+ * REFERENCE_FIRE_RATE); a weapon module's fire-rate factor does count. */
 export function firepower(stack: BattleStack): number {
   const attack = aliveShips(stack).reduce((sum, s) => sum + s.attack, 0);
-  return attack * REFERENCE_FIRE_RATE;
+  return attack * REFERENCE_FIRE_RATE * damagePerSecondFactor(stack);
 }
 
 /* Damage one REFERENCE volley of `attacker` would deal to `target` (the
@@ -96,7 +98,8 @@ export function expectedVolleyDamage(attacker: BattleStack, target: BattleStack,
  * and spill-over of defense between ships — a ranking heuristic, not a
  * simulation. */
 export function volleysToKill(state: BattleModelState, attacker: BattleStack, target: BattleStack): number {
-  const damage = expectedVolleyDamage(attacker, target, state);
+  // Per 1 / REFERENCE_FIRE_RATE s, so a faster weapon module kills sooner.
+  const damage = expectedVolleyDamage(attacker, target, state) * damagePerSecondFactor(attacker);
   if (damage <= 0) {
     return Infinity;
   }

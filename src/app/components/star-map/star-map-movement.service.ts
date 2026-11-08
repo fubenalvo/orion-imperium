@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.models';
 import { StarMapTerrainService } from './star-map-terrain.service';
 import { NavPoint, RouteFailure, RoutePlan } from './fleet-navigation';
+import { effectiveFleetSpeed } from './ship-stats';
 import {
   SYSTEM_CELL_SIZE_VW,
   SYSTEM_PLANET_FOOTPRINT,
@@ -81,9 +82,15 @@ export class StarMapMovementService {
   // with empty terrain; Angular DI always passes the shared instance.
   constructor(private readonly terrain: StarMapTerrainService = new StarMapTerrainService()) {}
 
-  /* Open-space galaxy speed of a fleet in grid cells per game second. */
-  static galaxyCellsPerSecond(fleet: Pick<Fleet, 'speed'>): number {
-    return fleet.speed / 10 / StarMapMovementService.GALAXY_MOVEMENT_CELL_SIZE_VW;
+  /*
+   * Open-space galaxy speed of a fleet in grid cells per game second. With
+   * its ships given, it is the engine-adjusted speed (effectiveFleetSpeed:
+   * the stored base plus the slowest ship's engine bonus); every route,
+   * ETA, intercept and AI estimate goes through here, so they all agree.
+   */
+  static galaxyCellsPerSecond(fleet: Pick<Fleet, 'speed'> & Partial<Pick<Fleet, 'ships'>>): number {
+    const speed = fleet.ships ? effectiveFleetSpeed({ speed: fleet.speed, ships: fleet.ships }) : fleet.speed;
+    return speed / 10 / StarMapMovementService.GALAXY_MOVEMENT_CELL_SIZE_VW;
   }
 
   /* Plans a galaxy route against the current terrain (no fleet state is touched). */
@@ -353,7 +360,8 @@ export class StarMapMovementService {
             onTargetReached(fleet.id);
           }
         } else {
-          const movement = fleet.speed * deltaTime;
+          // In-system speed is the same engine-adjusted value in vw/s.
+          const movement = effectiveFleetSpeed(fleet) * deltaTime;
           const step = Math.min(movement, distance);
           fleet.system.x = fleet.system.x + (dx / distance) * step;
           fleet.system.y = fleet.system.y + (dy / distance) * step;

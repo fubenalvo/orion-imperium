@@ -207,6 +207,8 @@
         [canOrganize]="canOrganizeFleet(selectedFleet)"
         [coLocatedFleetCount]="getCoLocatedPlayerFleetCount(selectedFleet)"
         [atSpaceport]="isFleetAtOwnSpaceport(selectedFleet)"
+        [canCustomize]="canCustomizeFleet(selectedFleet)"
+        [customizeBlockedReason]="getCustomizeBlockedReason(selectedFleet)"
         [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
         [colonizeBlockedReason]="getSelectedFleetColonizeBlock()"
         [baseDeployment]="getSelectedFleetBaseDeployment()"
@@ -217,6 +219,7 @@
         (close)="deselectFleet()"
         (disband)="onDisbandSelected()"
         (organize)="openFleetManager()"
+        (customize)="openShipCustomization()"
         (colonize)="onColonizeSelected()"
         (deployBase)="onDeployBaseSelected()"
         (deployMining)="onDeployMiningSelected()"
@@ -332,6 +335,8 @@
           [canOrganize]="canOrganizeFleet(selectedFleet)"
           [coLocatedFleetCount]="getCoLocatedPlayerFleetCount(selectedFleet)"
         [atSpaceport]="isFleetAtOwnSpaceport(selectedFleet)"
+        [canCustomize]="canCustomizeFleet(selectedFleet)"
+        [customizeBlockedReason]="getCustomizeBlockedReason(selectedFleet)"
           [colonizeTargetName]="getSelectedFleetColonizeTarget()?.name ?? null"
         [colonizeBlockedReason]="getSelectedFleetColonizeBlock()"
         [baseDeployment]="getSelectedFleetBaseDeployment()"
@@ -342,6 +347,7 @@
           (close)="deselectFleet()"
           (disband)="onDisbandSelected()"
           (organize)="openFleetManager()"
+          (customize)="openShipCustomization()"
           (colonize)="onColonizeSelected()"
         (deployBase)="onDeployBaseSelected()"
         (deployMining)="onDeployMiningSelected()"
@@ -468,6 +474,26 @@
       (apply)="onFleetManagerApply($event)"
       (cancel)="closeFleetManager()"
     ></app-star-map-fleet-manager>
+    }
+  }
+
+  <!-- Ship customization (docs/ship-equipment.md, D): deferred like Fleet Command; the game is paused while it is open. -->
+  @if (customizationFleet) {
+    @defer (on immediate) {
+    <app-ship-customization
+      [fleet]="customizationFleet"
+      [reserve]="customizationReserve"
+      [inventory]="customizationInventory"
+      [inProduction]="customizationInProduction"
+      [unlockedModuleIds]="customizationUnlockedModules"
+      [lockedBy]="customizationLockedBy"
+      [factionColor]="getFactionColor('player')"
+      [locationLabel]="customizationLocationLabel"
+      [error]="customizationError"
+      (install)="onCustomizationInstall($event)"
+      (uninstall)="onCustomizationUninstall($event)"
+      (close)="closeShipCustomization()"
+    ></app-ship-customization>
     }
   }
 

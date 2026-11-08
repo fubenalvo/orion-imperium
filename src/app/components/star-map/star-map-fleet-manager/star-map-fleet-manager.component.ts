@@ -14,6 +14,7 @@ import {
   FleetOrganizationPlan,
 } from '../../../services/fleet-organization.service';
 import { getShipTypeById } from '../star-map-display.util';
+import { resolveShipStats } from '../ship-stats';
 import { shipIconFor } from '../../battle-screen/battle-grid/ship-icons';
 import {
   DraftFleet,
@@ -395,13 +396,18 @@ export class StarMapFleetManagerComponent implements OnInit, OnDestroy {
   }
 
   private toView(fleet: DraftFleet): FleetView {
+    // Same totals as the fleet panel: installed equipment included (ship-stats.ts).
     let attack = 0;
     let defense = 0;
     for (const ship of fleet.ships) {
       const type = getShipTypeById(ship.type);
-      attack += type?.attack ?? 0;
-      defense += type?.defense ?? 0;
+      if (!type) continue;
+      const stats = resolveShipStats(type, ship.equipment);
+      attack += stats.attack;
+      defense += stats.defense;
     }
+    attack = Math.round(attack);
+    defense = Math.round(defense);
     return {
       key: fleet.key,
       fleet,

@@ -278,3 +278,41 @@
   vertical-align: -2px;
   margin-right: 0.3em;
 }
+
+/* ---------- SHIPS / EQUIPMENT tabs and module cards (docs/ship-equipment.md) ---------- */
+
+.production-panel__tabs {
+  display: flex;
+  gap: 0.4rem;
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+
+.production-panel__tab {
+  @include ui.tab;
+}
+
+.production-panel__tab--active {
+  @include ui.tab-active;
+}
+
+.production-panel__module-slot {
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.production-panel__module-effects {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  text-transform: none;
+}
+
+.production-panel__module--locked {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.production-panel__row-type--module {
+  color: var(--ui-accent-text);
+}

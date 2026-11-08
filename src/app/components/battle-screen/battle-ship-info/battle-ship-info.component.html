@@ -1,0 +1,45 @@
+<section class="ship-info" [style.--info-faction]="factionColor" aria-label="Ship info">
+  <header class="ship-info__header">
+    <div class="ship-info__heading">
+      <span class="ship-info__side">{{ sideLabel }}</span>
+      <span class="ship-info__name">{{ stack.typeName }}</span>
+    </div>
+    <span class="ship-info__count">×{{ alive }}</span>
+    <button type="button" class="ship-info__close" aria-label="Close ship info" (click)="close.emit()">✕</button>
+  </header>
+
+  <div class="ship-info__class">
+    <span class="ship-info__chip">{{ stack.hullClass ?? 'medium' }}</span>
+    <span class="ship-info__role">{{ stack.role }}</span>
+  </div>
+
+  @if (slots.length > 0) {
+    <ul class="ship-info__slots">
+      @for (slot of slots; track slot.slot) {
+        <li class="ship-info__slot" [class.ship-info__slot--standard]="slot.standard" [class.ship-info__slot--locked]="slot.locked">
+          <span class="ship-info__slot-label">{{ slot.label }}</span>
+          <span class="ship-info__slot-name">{{ slot.locked ? 'Locked' : slot.name }}</span>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p class="ship-info__note">Static defense · no equipment</p>
+  }
+
+  <dl class="ship-info__stats">
+    @for (line of lines; track line.label) {
+      <div class="ship-info__stat">
+        <dt>{{ line.label }}</dt>
+        <dd>{{ line.value }}</dd>
+      </div>
+    }
+  </dl>
+
+  @if (matchup; as m) {
+    <div class="ship-info__matchup">
+      <span class="ship-info__matchup-label">Your {{ viewerName }}</span>
+      <span [class.is-good]="m.dealsTrend > 0" [class.is-bad]="m.dealsTrend < 0">deals {{ m.deals }}</span>
+      <span [class.is-good]="m.takesTrend > 0" [class.is-bad]="m.takesTrend < 0">takes {{ m.takes }}</span>
+    </div>
+  }
+</section>

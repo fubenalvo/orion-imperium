@@ -1,4 +1,5 @@
 import { BattleModelState, BattleSide, BattleStack } from './battle.types';
+import { MIN_TURN_RATE } from '../../star-map/ship-stats';
 
 /*
  * =========================================================
@@ -61,6 +62,18 @@ const TURN_RATE_BY_TIER: Record<number, number> = {
 };
 const DEFAULT_TURN_RATE = 130;
 
+/*
+ * Degrees per battle second: the tier rate plus an engine module's fixed
+ * bonus (BattleStack.turnRateBonus, ship-stats.ts), never below
+ * MIN_TURN_RATE. Without a bonus it is the tier rate unchanged (all tier
+ * rates are above the floor).
+ */
+export function turnRate(stack: Pick<BattleStack, 'tier' | 'turnRateBonus'>): number {
+  const base = TURN_RATE_BY_TIER[stack.tier] ?? DEFAULT_TURN_RATE;
+  const bonus = stack.turnRateBonus ?? 0;
+  return bonus === 0 ? base : Math.max(MIN_TURN_RATE, base + bonus);
+}
+
 /* Remaining distance (field units) below which a mover keeps its heading. */
 const STEER_MIN_DIST_VW = 0.3;
 
@@ -106,7 +119,7 @@ export function updateStackHeadings(state: BattleModelState, deltaTime: number):
     }
     const current = stackHeading(stack);
     const diff = angleDelta(current, desiredHeading(stack));
-    const maxStep = (TURN_RATE_BY_TIER[stack.tier] ?? DEFAULT_TURN_RATE) * deltaTime;
+    const maxStep = turnRate(stack) * deltaTime;
     const step = Math.abs(diff) <= maxStep ? diff : Math.sign(diff) * maxStep;
     stack.heading = angleDelta(0, current + step);
   }

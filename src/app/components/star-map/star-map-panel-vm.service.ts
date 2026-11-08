@@ -4,9 +4,11 @@ import { ShipStockService } from '../../services/ship-stock.service';
 import { ShipService } from '../../services/ship.service';
 import { SpaceportService } from '../../services/spaceport.service';
 import { ResearchService } from '../../services/research.service';
-import { Faction, FactionProduction, FactionShipStock, PlanetTile, StarSystem } from './star-map.models';
+import { Faction, FactionEquipmentInventory, FactionProduction, FactionShipStock, PlanetTile, StarSystem } from './star-map.models';
 import { ProductionPanelViewModel } from './star-map-production-panel/star-map-production-panel.component';
 import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
+import { describeModuleEffects, getUpgradeModules, moduleBuildTime } from './equipment';
+import { inventoryCount } from './equipment-inventory';
 
 /*
  * =========================================================
@@ -35,7 +37,7 @@ export class StarMapPanelVmService {
   ) {}
 
   getProductionPanelVm(
-    data: { shipStock?: FactionShipStock[]; production?: FactionProduction[] },
+    data: { shipStock?: FactionShipStock[]; production?: FactionProduction[]; equipmentInventory?: FactionEquipmentInventory[] },
     selectedPlanetTile: PlanetTile | null,
     selectedSystem: StarSystem | null,
     factions: Faction[],
@@ -61,11 +63,35 @@ export class StarMapPanelVmService {
       shipRawCosts[t.id] = this.productionService.shipCostFor(t, 'player').rawmaterials;
       shipBuildTimes[t.id] = t.buildTime ?? Math.max(1, t.cost * 0.1);
     }
+    // Equipment modules (docs/ship-equipment.md): every upgrade module, locked
+    // ones with the technology that unlocks them.
+    const unlockedBy = new Map<string, string>();
+    for (const tech of this.researchService.getAllTechnologies()) {
+      for (const id of tech.unlocksEquipment ?? []) unlockedBy.set(id, tech.name);
+    }
+    const modules = getUpgradeModules().map((module) => {
+      const cost = this.productionService.moduleCostFor(module);
+      const unlocked = !!playerFaction && this.researchService.isEquipmentUnlocked(playerFaction, module.id);
+      return {
+        id: module.id,
+        name: module.name,
+        slot: module.slot,
+        description: module.description,
+        effects: describeModuleEffects(module),
+        credits: cost.credits,
+        rawmaterials: cost.rawmaterials,
+        buildTime: moduleBuildTime(module),
+        unlocked,
+        lockedBy: unlocked ? null : unlockedBy.get(module.id) ?? null,
+        inInventory: inventoryCount(data, 'player', module.id),
+      };
+    });
     return {
       planet: selectedPlanetTile,
       system: selectedSystem,
       factionId: 'player',
       buildable,
+      modules,
       capacity: this.productionService.getPlanetCapacity(selectedPlanetTile),
       power: this.productionService.getEffectivePower(selectedPlanetTile, 'spaceship_factory', playerFaction),
       queue,
@@ -142,6 +168,8 @@ export class StarMapPanelVmService {
         return 'Invalid ship type.';
       case 'invalid_quantity':
         return 'Invalid quantity.';
+      case 'locked':
+        return 'Research the technology that unlocks this module first.';
       default:
         return 'Could not queue order.';
     }

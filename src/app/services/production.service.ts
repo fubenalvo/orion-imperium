@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@angular/core';
 import { operationalBuildings } from '../components/star-map/building-construction';
 import {
   Faction,
+  FactionEquipmentInventory,
   FactionProduction,
   PlanetTile,
   ProductionOrder,
@@ -14,10 +15,13 @@ import { ResourceCost, payCost, refundCost, scaleCost, shipCost } from './resour
 import { ResearchService } from './research.service';
 import { SpaceBaseService } from '../components/star-map/space-base.service';
 import { discountedShipRawCost, dysonBonusEffects } from '../components/star-map/dyson-anchor';
+import { EquipmentDefinition, getModule, moduleBuildTime } from '../components/star-map/equipment';
+import { addToInventory } from '../components/star-map/equipment-inventory';
 
 export interface ProductionResult {
   ok: boolean;
-  reason?: 'no_factory' | 'insufficient_resources' | 'invalid_type' | 'invalid_quantity';
+  /* 'locked': an equipment module the faction has not unlocked by research. */
+  reason?: 'no_factory' | 'insufficient_resources' | 'invalid_type' | 'invalid_quantity' | 'locked';
   order?: ProductionOrder;
   orders?: ProductionOrder[];
   refunded?: { credits: number; rawmaterials: number; research: number };
@@ -26,6 +30,8 @@ export interface ProductionResult {
 export interface ProductionTickResult {
   completedOrders: ProductionOrder[];
   producedShips: { factionId: string; planetId: number; typeId: string; count: number }[];
+  /* Equipment orders completed this tick; their modules went into the faction's inventory. */
+  producedModules: { factionId: string; planetId: number; moduleId: string; count: number }[];
   refundedOrders: { factionId: string; planetId: number; orderId: number; refunded: { credits: number; rawmaterials: number; research: number } }[];
   stateChanged: boolean;
 }
@@ -54,7 +60,18 @@ export interface ProductionTickResult {
  * cancel or auto-cancel (factory lost, planet lost, unknown type) refunds
  * the un-built fraction of `paid`, so a refund can never exceed the
  * original charge. A failed queue attempt changes nothing.
+ *
+ * Equipment orders (docs/ship-equipment.md, B.5) share the same queue,
+ * factories, power, refunds and stall rule: an order with `equipmentId` set
+ * builds one module into the faction's equipment inventory instead of a
+ * ship. Its `shipTypeId` is '' and is never read; every place that looks
+ * at an order goes through resolveOrderItem first, so an equipment order is
+ * never mistaken for an unknown ship type (which would be refunded).
  */
+type OrderItem =
+  | { kind: 'ship'; shipType: ShipType; unitSeconds: number; building: ProductionBuildingKind }
+  | { kind: 'equipment'; module: EquipmentDefinition; unitSeconds: number; building: ProductionBuildingKind };
+
 @Injectable({ providedIn: 'root' })
 export class ProductionService {
   private static readonly STALLED_ORDER_TIMEOUT = 30;
@@ -150,7 +167,8 @@ export class ProductionService {
           const order = orders[i];
           const count = Math.floor(order.quantity);
           // Unknown ship types stay whole: tick refunds them in one step.
-          if (!(count > 1) || !this.shipService.getShipType(order.shipTypeId)) continue;
+          // Equipment orders are always single-unit and are never split.
+          if (!(count > 1) || order.equipmentId !== undefined || !this.shipService.getShipType(order.shipTypeId)) continue;
           const shares = ProductionService.splitCost(this.getPaidCost(order), count);
           const units: ProductionOrder[] = [{ ...order, quantity: 1, paid: shares[0] }];
           for (let k = 1; k < count; k++) {
@@ -222,6 +240,95 @@ export class ProductionService {
     return { ok: true, order: orders[0], orders };
   }
 
+  /* Price of `quantity` modules (equipment-data.json); no Dyson discount applies to modules. */
+  moduleCostFor(module: EquipmentDefinition, quantity = 1): ResourceCost {
+    return {
+      credits: (module.price?.credits ?? 0) * quantity,
+      rawmaterials: (module.price?.rawmaterials ?? 0) * quantity,
+    };
+  }
+
+  /*
+   * queueEquipmentOrder: Like queueOrder, for equipment modules. Requires a
+   * Spaceship Factory on the planet and the module unlocked by research;
+   * charges the full price up-front (all-or-nothing) and enqueues
+   * `quantity` single-module orders behind anything already queued there.
+   */
+  queueEquipmentOrder(
+    data: { production?: FactionProduction[] },
+    factionId: string,
+    planetId: number,
+    moduleId: string,
+    quantity: number,
+    starSystems: StarSystem[],
+    factions: Faction[],
+  ): ProductionResult {
+    if (!Number.isFinite(quantity) || Math.floor(quantity) < 1) {
+      return { ok: false, reason: 'invalid_quantity' };
+    }
+    const module = getModule(moduleId);
+    if (!module || module.standard) {
+      return { ok: false, reason: 'invalid_type' };
+    }
+    const planet = this.findPlanet(starSystems, planetId);
+    if (!planet || this.getPlanetCapacity(planet, 'spaceship_factory') <= 0) {
+      return { ok: false, reason: 'no_factory' };
+    }
+    const faction = factions.find((f) => f.id === factionId);
+    if (!faction) {
+      return { ok: false, reason: 'invalid_type' };
+    }
+    if (!this.research.isEquipmentUnlocked(faction, moduleId)) {
+      return { ok: false, reason: 'locked' };
+    }
+    const count = Math.floor(quantity);
+    const totalCost = this.moduleCostFor(module, count);
+    if (!payCost(faction, totalCost)) {
+      return { ok: false, reason: 'insufficient_resources' };
+    }
+    const shares = ProductionService.splitCost(totalCost, count);
+    const queue = this.getQueue(data, factionId, planetId);
+    const orders: ProductionOrder[] = [];
+    for (let i = 0; i < count; i++) {
+      const order: ProductionOrder = {
+        id: this.orderIdCounter++,
+        shipTypeId: '',
+        equipmentId: moduleId,
+        quantity: 1,
+        progress: 0,
+        startedAtTick: this.tickCounter,
+        paid: shares[i],
+      };
+      queue.push(order);
+      orders.push(order);
+    }
+    return { ok: true, order: orders[0], orders };
+  }
+
+  /*
+   * What an order builds, with its unit build time at production power 1.
+   * Null for an unknown ship type or module (the tick refunds such orders).
+   */
+  resolveOrderItem(order: ProductionOrder): OrderItem | null {
+    if (order.equipmentId !== undefined) {
+      const module = getModule(order.equipmentId);
+      if (!module || module.standard) {
+        return null;
+      }
+      return { kind: 'equipment', module, unitSeconds: moduleBuildTime(module), building: 'spaceship_factory' };
+    }
+    const shipType = this.shipService.getShipType(order.shipTypeId);
+    if (!shipType) {
+      return null;
+    }
+    return {
+      kind: 'ship',
+      shipType,
+      unitSeconds: shipType.buildTime ?? Math.max(1, shipType.cost * 0.1),
+      building: shipType.productionBuilding ?? 'spaceship_factory',
+    };
+  }
+
   /*
    * cancelOrder: Removes the order from the queue and refunds the
    * un-built portion of its cost.
@@ -283,21 +390,26 @@ export class ProductionService {
    */
   tick(
     deltaTime: number,
-    data: { shipStock?: { factionId: string; ships: ShipStockEntry[] }[]; production?: FactionProduction[] },
+    data: {
+      shipStock?: { factionId: string; ships: ShipStockEntry[] }[];
+      production?: FactionProduction[];
+      equipmentInventory?: FactionEquipmentInventory[];
+    },
     starSystems: StarSystem[],
     fleets: { id: number; ships: { id: number; type: string; name: string; destroyed?: boolean }[] }[],
     factions: Faction[],
   ): ProductionTickResult {
     if (deltaTime <= 0) {
-      return { completedOrders: [], producedShips: [], refundedOrders: [], stateChanged: false };
+      return { completedOrders: [], producedShips: [], producedModules: [], refundedOrders: [], stateChanged: false };
     }
     this.tickCounter++;
     if (!data.production) {
-      return { completedOrders: [], producedShips: [], refundedOrders: [], stateChanged: false };
+      return { completedOrders: [], producedShips: [], producedModules: [], refundedOrders: [], stateChanged: false };
     }
     const result: ProductionTickResult = {
       completedOrders: [],
       producedShips: [],
+      producedModules: [],
       refundedOrders: [],
       stateChanged: false,
     };
@@ -324,18 +436,17 @@ export class ProductionService {
           continue;
         }
         const head = queue[0];
-        const shipType = this.shipService.getShipType(head.shipTypeId);
-        if (!shipType) {
-          // Unknown/removed ship type: refund rather than silently dropping
-          // the order (and the credits paid up front for it).
+        const item = this.resolveOrderItem(head);
+        if (!item) {
+          // Unknown/removed ship type or module: refund rather than silently
+          // dropping the order (and the credits paid up front for it).
           queue.shift();
           const refund = this.refundOrder(head, factions, factionProd.factionId);
           result.refundedOrders.push({ factionId: factionProd.factionId, planetId, orderId: head.id, refunded: refund });
           result.stateChanged = true;
           continue;
         }
-        const kind = shipType.productionBuilding ?? 'spaceship_factory';
-        const power = this.getEffectivePower(planet, kind, factions.find((f) => f.id === factionProd.factionId));
+        const power = this.getEffectivePower(planet, item.building, factions.find((f) => f.id === factionProd.factionId));
         if (power <= 0) {
           // Factory missing: track stall, then auto-cancel if it times out.
           head.startedAtTick = head.startedAtTick;
@@ -348,9 +459,17 @@ export class ProductionService {
           }
           continue;
         }
-        const buildTime = this.getOrderBuildSeconds(shipType, head) / power;
+        const buildTime = (item.unitSeconds * Math.max(1, head.quantity)) / power;
         head.progress += deltaTime / buildTime;
-        if (head.progress >= 1) {
+        if (head.progress >= 1 && item.kind === 'equipment') {
+          queue.shift();
+          const count = Math.max(1, Math.floor(head.quantity));
+          addToInventory(data, factionProd.factionId, item.module.id, count);
+          result.completedOrders.push(head);
+          result.producedModules.push({ factionId: factionProd.factionId, planetId, moduleId: item.module.id, count });
+          result.stateChanged = true;
+        } else if (head.progress >= 1 && item.kind === 'ship') {
+          const shipType = item.shipType;
           queue.shift();
           const entries: ShipStockEntry[] = [];
           // nextShipId scans fleets and stock, and the new entries reach the
@@ -406,6 +525,10 @@ export class ProductionService {
     if (paid && Number.isFinite(paid.credits) && Number.isFinite(paid.rawmaterials)) {
       return { credits: Math.max(0, paid.credits), rawmaterials: Math.max(0, paid.rawmaterials) };
     }
+    if (order.equipmentId !== undefined) {
+      // Equipment orders always record what they paid; a malformed one refunds nothing.
+      return { credits: 0, rawmaterials: 0 };
+    }
     const shipType = this.shipService.getShipType(order.shipTypeId);
     return { credits: (shipType?.cost ?? 0) * order.quantity, rawmaterials: 0 };
   }
@@ -421,12 +544,6 @@ export class ProductionService {
     shares[0].credits += total.credits - credits * count;
     shares[0].rawmaterials += total.rawmaterials - raw * count;
     return shares;
-  }
-
-  /* Seconds at production power 1: unit build time × the ships in the order. */
-  private getOrderBuildSeconds(shipType: ShipType, order: ProductionOrder): number {
-    const unitSeconds = shipType.buildTime ?? Math.max(1, shipType.cost * 0.1);
-    return unitSeconds * Math.max(1, order.quantity);
   }
 
   private findPlanet(starSystems: StarSystem[], planetId: number): PlanetTile | null {
@@ -446,15 +563,16 @@ export class ProductionService {
    * planet cannot produce that ship type at the moment.
    */
   getOrderEta(order: ProductionOrder, planet: PlanetTile, faction?: Faction | null): number | null {
-    const shipType = this.shipService.getShipType(order.shipTypeId);
-    if (!shipType) {
+    const item = this.resolveOrderItem(order);
+    if (!item) {
       return null;
     }
-    const power = this.getEffectivePower(planet, shipType.productionBuilding ?? 'spaceship_factory', faction);
+    const power = this.getEffectivePower(planet, item.building, faction);
     if (power <= 0) {
       return null;
     }
-    const totalSeconds = this.getOrderBuildSeconds(shipType, order) / power;
+    // Unit build time × the units in the order, at the planet's power.
+    const totalSeconds = (item.unitSeconds * Math.max(1, order.quantity)) / power;
     return Math.max(0, totalSeconds * (1 - order.progress));
   }
 

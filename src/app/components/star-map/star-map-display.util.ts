@@ -9,6 +9,7 @@ import {
   ShipType,
 } from './star-map.models';
 import { getPlanetGridSize as getSurfaceGridSize } from './planet-surface/planet-surface';
+import { resolveShipStats } from './ship-stats';
 
 /*
  * =========================================================
@@ -107,34 +108,50 @@ export function getPlanetColor(planet: PlanetTile): string {
 }
 
 /** Builds a summary of ship types and counts present in a fleet. */
+/*
+ * A ship's attack and armour with its installed equipment (ship-stats.ts),
+ * the values it fights with (before research bonuses, which are battle-only).
+ * Standard ships resolve to their ship type's values.
+ */
+function shipAttackDefense(ship: Fleet['ships'][number]): { attack: number; defense: number } | null {
+  const type = getShipTypeById(ship.type);
+  if (!type) return null;
+  const stats = resolveShipStats(type, ship.equipment);
+  return { attack: stats.attack, defense: stats.defense };
+}
+
+/* Per-type rows; with mixed equipment in one type the row shows the type's average, rounded. */
 export function getFleetShipTypeSummary(fleet: Fleet): FleetShipTypeSummary[] {
-  const counts = new Map<string, number>();
+  const groups = new Map<string, { count: number; attack: number; defense: number }>();
   for (const ship of fleet.ships) {
-    counts.set(ship.type, (counts.get(ship.type) || 0) + 1);
+    const values = shipAttackDefense(ship);
+    if (!values) continue;
+    const group = groups.get(ship.type) ?? { count: 0, attack: 0, defense: 0 };
+    group.count++;
+    group.attack += values.attack;
+    group.defense += values.defense;
+    groups.set(ship.type, group);
   }
 
   const summary: FleetShipTypeSummary[] = [];
-  for (const [typeId, count] of counts) {
-    const type = getShipTypeById(typeId);
-    if (type) {
-      summary.push({
-        typeId,
-        typeName: type.name,
-        count,
-        attack: type.attack,
-        defense: type.defense,
-      });
-    }
+  for (const [typeId, group] of groups) {
+    summary.push({
+      typeId,
+      typeName: getShipTypeById(typeId)!.name,
+      count: group.count,
+      attack: Math.round(group.attack / group.count),
+      defense: Math.round(group.defense / group.count),
+    });
   }
   return summary;
 }
 
-/** Calculates the total attack value of all ships in a fleet. */
+/** Calculates the total attack value of all ships in a fleet (installed equipment included). */
 export function getFleetTotalAttack(fleet: Fleet): number {
-  return fleet.ships.reduce((sum, ship) => sum + (getShipTypeById(ship.type)?.attack ?? 0), 0);
+  return Math.round(fleet.ships.reduce((sum, ship) => sum + (shipAttackDefense(ship)?.attack ?? 0), 0));
 }
 
-/** Calculates the total defense value of all ships in a fleet. */
+/** Calculates the total defense value of all ships in a fleet (installed equipment included). */
 export function getFleetTotalDefense(fleet: Fleet): number {
-  return fleet.ships.reduce((sum, ship) => sum + (getShipTypeById(ship.type)?.defense ?? 0), 0);
+  return Math.round(fleet.ships.reduce((sum, ship) => sum + (shipAttackDefense(ship)?.defense ?? 0), 0));
 }

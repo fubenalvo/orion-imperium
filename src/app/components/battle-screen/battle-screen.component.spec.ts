@@ -40,6 +40,9 @@ describe('BattleScreenComponent', () => {
     router = TestBed.inject(Router);
     gameTimeService = TestBed.inject(GameTimeService);
     anim = TestBed.inject(BattleAnimationService);
+    // These tests drive a running battle from frame 1; the paused start
+    // (on by default) is covered by its own tests below.
+    TestBed.inject(BattleSettingsService).setPausedStart(false);
     vi.useFakeTimers();
   });
 
@@ -296,6 +299,70 @@ describe('BattleScreenComponent', () => {
     component.onStackCommand(a.stackId);
     expect(a.explicitAttackTargetId).toBeFalsy();
     expect(a.moving).toBeFalsy();
+  });
+
+  describe('ship info window and paused start (docs/ship-equipment.md D.6)', () => {
+    // In the game the click arrives as a DOM event, which marks the view; here it is a direct call.
+    const render = () => {
+      component['cdr'].markForCheck();
+      fixture.detectChanges();
+    };
+
+    it('opens the info window for an enemy without selecting it, with the matchup for the selected stack', () => {
+      const { a, e2 } = standardSetup();
+      component.onStackClick(a.stackId);
+      component.onStackClick(e2.stackId);
+      render();
+
+      expect(component.selectedStackId).toBe(a.stackId);
+      expect(component.inspectedStackId).toBe(e2.stackId);
+      const info = (fixture.nativeElement as HTMLElement).querySelector('.ship-info')!;
+      expect(info.querySelector('.ship-info__name')?.textContent?.trim()).toBe('Frigate');
+      expect(info.querySelector('.ship-info__matchup')?.textContent).toContain('deals');
+      expect(e2.explicitAttackTargetId).toBeFalsy();
+      expect(a.explicitAttackTargetId).toBeFalsy();
+
+      component.closeInspect();
+      render();
+      expect((fixture.nativeElement as HTMLElement).querySelector('.ship-info')).toBeNull();
+    });
+
+    it('shows installed modules of an inspected stack', () => {
+      createBattle([{ ...fleetShip(1, 'cruiser'), equipment: { weapon: 'railgun' } }], [fleetShip(10, 'frigate')]);
+      const own = component['state']!.stacks.find((s) => s.side === 'attacker')!;
+      component.onStackClick(own.stackId);
+      render();
+      const names = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.ship-info__slot-name'));
+      expect(names.map((n) => n.textContent?.trim())).toEqual(['Standard Engine', 'Railgun', 'Standard Defense']);
+    });
+
+    it('starts paused while paused start is on, and Space starts the battle', () => {
+      TestBed.inject(BattleSettingsService).setPausedStart(true);
+      createBattle([fleetShip(1, 'fighter')], [fleetShip(10, 'frigate')]);
+      fixture.detectChanges();
+      expect(component.battlePaused).toBe(true);
+      expect(component.awaitingStart).toBe(true);
+      expect((fixture.nativeElement as HTMLElement).querySelector('.battle-screen__start-banner')).not.toBeNull();
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: ' ' }));
+      fixture.detectChanges();
+      expect(component.battlePaused).toBe(false);
+      expect((fixture.nativeElement as HTMLElement).querySelector('.battle-screen__start-banner')).toBeNull();
+    });
+
+    it('starts running while paused start is off', () => {
+      createBattle([fleetShip(1, 'fighter')], [fleetShip(10, 'frigate')]);
+      expect(component.battlePaused).toBe(false);
+      expect(component.awaitingStart).toBe(false);
+    });
+
+    it('remembers the paused-start choice', () => {
+      const settings = TestBed.inject(BattleSettingsService);
+      settings.setPausedStart(true);
+      settings.togglePausedStart();
+      expect(settings.pausedStart()).toBe(false);
+      expect(localStorage.getItem('orion_battle_paused_start')).toBe('false');
+    });
   });
 
   it('chases an out-of-reach manual target, keeps the order, and fires opportunistically', async () => {

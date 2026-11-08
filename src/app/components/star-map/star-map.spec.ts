@@ -86,7 +86,7 @@ describe('StarMap', () => {
       // Prevent production and economy from mutating the game state between ticks.
       productionService = TestBed.inject(ProductionService);
       vi.spyOn(productionService, 'tick').mockReturnValue({
-        completedOrders: [], producedShips: [], refundedOrders: [], stateChanged: false,
+        completedOrders: [], producedShips: [], producedModules: [], refundedOrders: [], stateChanged: false,
       });
       const economyService = TestBed.inject(EconomyService);
       vi.spyOn(economyService, 'applyEconomyDelta').mockImplementation(() => ({}) as never);

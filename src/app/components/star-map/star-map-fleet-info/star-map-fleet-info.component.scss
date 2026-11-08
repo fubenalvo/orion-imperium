@@ -59,3 +59,20 @@
 .fleet-organize--merge .fleet-organize__hint {
   color: var(--ui-accent-text);
 }
+
+/* Stored base speed next to the engine-adjusted speed (ship-stats.ts effectiveFleetSpeed). */
+.fleet-info__speed-base {
+  margin-left: 0.4em;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
+/* SHIP CUSTOMIZATION shares the ORGANIZE FLEETS look; dimmed away from a Spaceport planet. */
+.fleet-customize:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fleet-customize .fleet-organize__label {
+  white-space: nowrap;
+}

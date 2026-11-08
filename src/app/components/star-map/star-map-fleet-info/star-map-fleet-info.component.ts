@@ -1,6 +1,7 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Fleet, FleetShipTypeSummary } from '../star-map.models';
+import { effectiveFleetSpeed } from '../ship-stats';
 
 @Component({
   selector: 'app-star-map-fleet-info',
@@ -34,6 +35,10 @@ export class StarMapFleetInfoComponent {
   @Input() coLocatedFleetCount = 1;
   /* Fleet stands at an own Spaceport: the ship reserve can be used in the fleet manager. */
   @Input() atSpaceport = false;
+  /* Fleet is within 2 cells of an own Spaceport planet: SHIP CUSTOMIZATION is enabled (docs/ship-equipment.md). */
+  @Input() canCustomize = false;
+  /* Why SHIP CUSTOMIZATION is disabled; shown as the button's hint. */
+  @Input() customizeBlockedReason: string | null = null;
   /* Uninhabited planet the fleet is parked on and can colonize now (it carries a colonizer); null hides COLONIZE. */
   @Input() colonizeTargetName: string | null = null;
   /* Why the parked colonizer may not settle here (another empire's territory); null = no block. */
@@ -59,6 +64,16 @@ export class StarMapFleetInfoComponent {
   /* "Repairing at Spaceport · hull 63%" while the fleet is repaired (StarMap.getFleetRepairStatus). */
   @Input() repairStatus: string | null = null;
 
+  /* Map speed the fleet moves at: stored base + the slowest ship's engine bonus (ship-stats.ts). */
+  get speed(): number {
+    return this.fleet ? effectiveFleetSpeed(this.fleet) : 0;
+  }
+
+  /* Formats a speed for the panel; engine bonuses can give halves. */
+  formatSpeed(value: number): string {
+    return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+  }
+
   formatEta(seconds: number): string {
     const total = Math.max(0, Math.round(seconds));
     const m = Math.floor(total / 60);
@@ -70,6 +85,7 @@ export class StarMapFleetInfoComponent {
   @Output() selectFleet = new EventEmitter<Fleet>();
   @Output() disband = new EventEmitter<void>();
   @Output() organize = new EventEmitter<void>();
+  @Output() customize = new EventEmitter<void>();
   @Output() colonize = new EventEmitter<void>();
   @Output() deployBase = new EventEmitter<void>();
   @Output() deployMining = new EventEmitter<void>();

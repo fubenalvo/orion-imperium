@@ -150,6 +150,9 @@
                     ></span>
                   </span>
                   <span class="fm-ship__count">
+                    @if (group.upgraded > 0) {
+                      <span class="fm-ship__upgraded" [title]="group.upgraded + ' with installed equipment'">◆{{ group.upgraded }}</span>
+                    }
                     @if (selected) {
                       <b>{{ selectedOf(group.typeId) }}</b
                       >/{{ group.ships.length }}

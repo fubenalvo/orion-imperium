@@ -1,0 +1,150 @@
+{
+  "modules": [
+    {
+      "id": "standard_engine",
+      "name": "Standard Engine",
+      "slot": "engine",
+      "description": "Factory-fitted drive. The hull's own speed and handling.",
+      "standard": true,
+      "modifiers": []
+    },
+    {
+      "id": "standard_weapon",
+      "name": "Standard Weapon",
+      "slot": "weapon",
+      "description": "Factory-fitted battery. The hull's own weapon type, attack and fire rate.",
+      "standard": true,
+      "modifiers": []
+    },
+    {
+      "id": "standard_defense",
+      "name": "Standard Defense",
+      "slot": "defense",
+      "description": "Factory-fitted protection. The hull's own shield, armour and defense profile.",
+      "standard": true,
+      "modifiers": []
+    },
+    {
+      "id": "ion_engine",
+      "name": "Ion Engine",
+      "slot": "engine",
+      "description": "Efficient all-round drive: faster on the star map and in battle, but it turns in wide arcs.",
+      "modifiers": [
+        { "stat": "strategicSpeed", "add": 0.5 },
+        { "stat": "battleSpeed", "add": 0.5 },
+        { "stat": "turnRate", "add": -20 }
+      ],
+      "price": { "credits": 150, "rawmaterials": 100 }
+    },
+    {
+      "id": "fusion_engine",
+      "name": "Fusion Engine",
+      "slot": "engine",
+      "description": "Vectored-thrust drive built for combat: tight turns and a little extra battle speed.",
+      "modifiers": [
+        { "stat": "battleSpeed", "add": 0.3 },
+        { "stat": "turnRate", "add": 60 }
+      ],
+      "price": { "credits": 300, "rawmaterials": 200 }
+    },
+    {
+      "id": "warp_drive",
+      "name": "Warp Drive",
+      "slot": "engine",
+      "description": "Long-range drive: much faster between stars, slightly sluggish in battle.",
+      "modifiers": [
+        { "stat": "strategicSpeed", "add": 1 },
+        { "stat": "battleSpeed", "add": -0.3 }
+      ],
+      "price": { "credits": 500, "rawmaterials": 300 }
+    },
+    {
+      "id": "missile_launcher",
+      "name": "Missile Launcher",
+      "slot": "weapon",
+      "description": "Missile salvos with extra reach. Fires more slowly.",
+      "attackType": "missile",
+      "fireRateFactor": 0.85,
+      "modifiers": [
+        { "stat": "attack", "add": 8 },
+        { "stat": "range", "add": 1 }
+      ],
+      "price": { "credits": 150, "rawmaterials": 100 }
+    },
+    {
+      "id": "laser_cannon",
+      "name": "Laser Cannon",
+      "slot": "weapon",
+      "description": "Rapid-fire energy weapon. More shots per second.",
+      "attackType": "energy",
+      "fireRateFactor": 1.2,
+      "modifiers": [
+        { "stat": "attack", "add": 8 }
+      ],
+      "price": { "credits": 250, "rawmaterials": 150 }
+    },
+    {
+      "id": "railgun",
+      "name": "Railgun",
+      "slot": "weapon",
+      "description": "Heavy kinetic accelerator: the biggest punch, but its mass slows the ship in battle.",
+      "attackType": "kinetic",
+      "modifiers": [
+        { "stat": "attack", "add": 16 },
+        { "stat": "battleSpeed", "add": -0.3 }
+      ],
+      "price": { "credits": 300, "rawmaterials": 250 }
+    },
+    {
+      "id": "energy_shield",
+      "name": "Energy Shield",
+      "slot": "defense",
+      "description": "Shield tuned against energy weapons. Vulnerable to kinetic rounds.",
+      "resistType": "energy",
+      "modifiers": [
+        { "stat": "shield", "add": 40 }
+      ],
+      "price": { "credits": 200, "rawmaterials": 150 }
+    },
+    {
+      "id": "point_defense_array",
+      "name": "Point-Defense Array",
+      "slot": "defense",
+      "description": "Flak turrets and light plating that break up incoming missiles. Vulnerable to energy weapons.",
+      "resistType": "missile",
+      "modifiers": [
+        { "stat": "defense", "add": 3 },
+        { "stat": "shield", "add": 20 }
+      ],
+      "price": { "credits": 250, "rawmaterials": 200 }
+    },
+    {
+      "id": "kinetic_barrier",
+      "name": "Kinetic Barrier",
+      "slot": "defense",
+      "description": "Layered armour against kinetic rounds. Vulnerable to missiles, and its mass slows the ship in battle.",
+      "resistType": "kinetic",
+      "modifiers": [
+        { "stat": "defense", "add": 6 },
+        { "stat": "battleSpeed", "add": -0.2 }
+      ],
+      "price": { "credits": 250, "rawmaterials": 250 }
+    },
+    {
+      "id": "advanced_shield_generator",
+      "name": "Advanced Shield Generator",
+      "slot": "defense",
+      "description": "High-capacity shield with fast regeneration. Keeps the hull's own defense profile.",
+      "modifiers": [
+        { "stat": "shield", "add": 60 },
+        { "stat": "shieldRegen", "add": 3 }
+      ],
+      "price": { "credits": 500, "rawmaterials": 300 }
+    }
+  ],
+  "restrictedHulls": {
+    "colonizer": ["engine"],
+    "outpost_ship": ["engine"],
+    "swarm_constructor": ["engine"]
+  }
+}

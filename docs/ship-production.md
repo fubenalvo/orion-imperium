@@ -111,6 +111,27 @@ fields are not consulted by any current gameplay logic.
 The galaxy generator writes `shipStock: []` and `production: []`, so the
 round-trip survives reload.
 
+## Equipment orders
+
+Spaceship Factories also build ship equipment modules
+([Ship Equipment](./ship-equipment.md)). `ProductionService.queueEquipmentOrder`
+needs a Spaceship Factory on the planet and the module unlocked by research
+(`ResearchService.isEquipmentUnlocked`, reason `locked` otherwise), charges
+the module's `price` (credits + raw materials, no Dyson discount) up-front and
+queues one single-module `ProductionOrder` per module with
+`equipmentId` set and `shipTypeId: ''`. Such orders share the planet's FIFO
+queue, power, `shipBuildSpeed` bonus, cancel refund, stall timeout and
+ownership-change refund with ship orders. On completion the module goes into
+the faction's equipment inventory (`StarMapData.equipmentInventory`), not the
+ship stock, and the tick reports it in `producedModules`.
+
+`resolveOrderItem(order)` is the one place that decides what an order builds
+and its unit build time (module `buildTime`, default price / 10 s, like
+ships). The tick, `getOrderEta` and `rebaseFromSave` (which never splits
+equipment orders) go through it or check `equipmentId` first, so an
+equipment order is never mistaken for an unknown ship type. An order with
+an unknown module id is refunded like an unknown ship type.
+
 ## Resource handling
 
 Resource costs are deducted from `faction.currencies` **at queue time** (one
@@ -133,7 +154,9 @@ existing root-state persistence. Orders record what they were charged in
 Ordering charges `cost` credits and `rawMaterialCost` raw materials per ship
 at queue time (all-or-nothing, `resource-cost.ts`). Completion and fleet
 assembly never charge again. Ships cost upkeep while they exist: full rate in
-a fleet, half rate in the stock. See [Economy](./economy.md).
+a fleet, half rate in the stock. See [Economy](./economy.md). Equipment
+modules are priced per module in `equipment-data.json`, charged the same way,
+have no upkeep, and installing them is free.
 
 ## Hull classes in the production dialog
 

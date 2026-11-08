@@ -1,4 +1,5 @@
 import { Fleet, FleetShip, ShipStockEntry } from '../star-map.models';
+import { copyEquipment, hasUpgrades } from '../equipment';
 import {
   FleetOrganizationPlan,
   livingShips,
@@ -47,6 +48,8 @@ export interface ShipClassGroup {
   ships: FleetShip[];
   /* Average hull condition of the group, 0..1. */
   condition: number;
+  /* Ships of the group with at least one non-standard equipment module (docs/ship-equipment.md). */
+  upgraded: number;
 }
 
 /* `new` targets a fleet that does not exist yet (formed by the transfer). */
@@ -89,7 +92,7 @@ export class FleetOrganizationDraft {
       }
     }
     this.reserveShips = reserveEntries
-      ? reserveEntries.map((e) => ({ id: e.id, type: e.type, name: e.name, currentHp: e.currentHp }))
+      ? reserveEntries.map((e) => ({ id: e.id, type: e.type, name: e.name, currentHp: e.currentHp, ...copyEquipment(e) }))
       : null;
     for (const ship of this.reserveShips ?? []) {
       this.originalShipOwner.set(ship.id, RESERVE_KEY);
@@ -160,6 +163,7 @@ export class FleetOrganizationDraft {
         role: type?.role ?? '',
         ships,
         condition,
+        upgraded: ships.filter((s) => hasUpgrades(typeId, s.equipment)).length,
       });
     }
     return groups.sort((a, b) => classRank(b.typeId) - classRank(a.typeId));

@@ -8,6 +8,7 @@ import {
 } from '../components/star-map/star-map.models';
 import { ShipService } from './ship.service';
 import { carriedHp } from '../components/star-map/fleet-repair';
+import { copyEquipment } from '../components/star-map/equipment';
 import { ShipStockService } from './ship-stock.service';
 import { SpaceportService } from './spaceport.service';
 
@@ -325,6 +326,7 @@ export class FleetOrganizationService {
             type: item.ship.type,
             name: item.ship.name,
             ...(currentHp !== undefined ? { currentHp } : {}),
+            ...copyEquipment(item.ship),
           });
         }
       }
@@ -365,6 +367,7 @@ export class FleetOrganizationService {
       name: entry.name,
       currentHp: carriedHp(entry, maxHp) ?? maxHp,
       destroyed: false,
+      ...copyEquipment(entry),
     };
   }
 

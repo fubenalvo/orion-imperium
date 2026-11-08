@@ -29,7 +29,15 @@
 
     <div class="ui-stat">
       <span class="ui-stat__label">Speed</span>
-      <span class="ui-stat__value">{{ fleet!.speed }}</span>
+      <span
+        class="ui-stat__value"
+        [title]="speed !== fleet!.speed ? 'Base ' + formatSpeed(fleet!.speed) + ', set by the slowest engine in the fleet' : ''"
+      >
+        {{ formatSpeed(speed) }}
+        @if (speed !== fleet!.speed) {
+          <span class="fleet-info__speed-base">(base {{ formatSpeed(fleet!.speed) }})</span>
+        }
+      </span>
     </div>
 
     @if (repairStatus) {
@@ -116,6 +124,19 @@
             @if (atSpaceport) {
               · reserve
             }
+          </span>
+        </button>
+        <button
+          type="button"
+          class="fleet-organize fleet-customize"
+          [class.fleet-organize--merge]="canCustomize"
+          [disabled]="!canCustomize"
+          [title]="customizeBlockedReason ?? 'Refit ships: engines, weapons and defense'"
+          (click)="customize.emit(); $event.stopPropagation()"
+        >
+          <span class="fleet-organize__label">Ship customization</span>
+          <span class="fleet-organize__hint">
+            {{ canCustomize ? 'Refit' : 'Near a Spaceport' }}
           </span>
         </button>
       }

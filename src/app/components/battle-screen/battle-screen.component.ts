@@ -3,6 +3,7 @@
   ChangeDetectorRef,
   Component,
   ElementRef,
+  HostListener,
   OnDestroy,
   OnInit,
   ViewChild,
@@ -17,6 +18,7 @@ import { PlanetBattleService } from '../../services/planet-battle.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { GameTimeService } from '../../services/game-time.service';
 import { BattleSettingsService } from '../../services/battle-settings.service';
+import { BattleShipInfoComponent } from './battle-ship-info/battle-ship-info.component';
 import { BattleTimeService, BattleSpeed } from './battle/battle-time.service';
 import {
   Battle,
@@ -113,7 +115,7 @@ interface BattleResultSideSummary {
 @Component({
   selector: 'app-battle-screen',
   standalone: true,
-  imports: [CommonModule, BattleGridComponent, GameHeaderComponent],
+  imports: [CommonModule, BattleGridComponent, GameHeaderComponent, BattleShipInfoComponent],
   templateUrl: './battle-screen.component.html',
   styleUrl: './battle-screen.component.scss',
 })
@@ -125,6 +127,12 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
 
   /* Purely a UI focus. Changing it must never touch any stack's orders. */
   selectedStackId: string | null = null;
+
+  /*
+   * Stack shown in the ship info window (own or enemy, docs/ship-equipment.md
+   * D.6). UI only: inspecting never selects an enemy or changes orders.
+   */
+  inspectedStackId: string | null = null;
 
   /* Sides the player controls; fixed for the whole battle, so computed once
    * in ngOnInit instead of a getter (keeps the grid input stable per frame). */
@@ -182,6 +190,47 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   toggleAutoBattle(): void {
     this.battleSettings.toggleAutoBattle();
     this.cdr.detectChanges();
+  }
+
+  /* Battles open paused while this is on (BattleSettingsService, remembered per browser). */
+  get pausedStartEnabled(): boolean {
+    return this.battleSettings.pausedStart();
+  }
+
+  togglePausedStart(): void {
+    this.battleSettings.togglePausedStart();
+    this.cdr.detectChanges();
+  }
+
+  /* The battle has not run yet: paused before the first frame of battle time. */
+  get awaitingStart(): boolean {
+    return this.battleTime.isPaused && this.battleTime.battleElapsedTime === 0 && !this.battleOver;
+  }
+
+  inspectedStack(): BattleStack | null {
+    if (!this.state || !this.inspectedStackId) {
+      return null;
+    }
+    return this.state.stacks.find((s) => s.stackId === this.inspectedStackId && !s.destroyed) ?? null;
+  }
+
+  inspectedFactionColor(stack: BattleStack): string {
+    return stack.side === 'attacker' ? this.battleState?.attackerColor ?? '#fff' : this.battleState?.defenderColor ?? '#fff';
+  }
+
+  closeInspect(): void {
+    this.inspectedStackId = null;
+  }
+
+  /* Space toggles pause (starts a paused battle), unless focus is in a text field. */
+  @HostListener('document:keydown.space', ['$event'])
+  onSpace(event: Event): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable || this.battleOver) {
+      return;
+    }
+    event.preventDefault();
+    this.toggleBattlePause();
   }
 
   get battleState(): BattleModelState | null {
@@ -475,6 +524,12 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
     this.gameTimeService.pause();
     this.battleTime.reset();
+    // Paused start (docs/ship-equipment.md D.6): inspect ships and give orders
+    // before the first shot. Weapon charge and cooldowns run on battle time,
+    // so starting paused changes no outcome.
+    if (this.battleSettings.pausedStart() && this.state && !this.state.winner) {
+      this.battleTime.pause();
+    }
     this.startGameLoop();
   }
 
@@ -503,8 +558,9 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
   }
 
-  /* Left click: selects one of the player's own stacks. Clicking an enemy
-   * does nothing; orders are right clicks (onStackCommand / onCellCommand). */
+  /* Left click: opens the ship info window for any stack and selects it
+   * when it is one of the player's own. Clicking an enemy never selects it
+   * or gives an order; orders are right clicks (onStackCommand / onCellCommand). */
   onStackClick(stackId: string): void {
     if (!this.state || !this.canAct) {
       return;
@@ -513,6 +569,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!stack || stack.destroyed) {
       return;
     }
+    this.inspectedStackId = stack.stackId;
     // Player can only control stacks on their own side (determined per-stack).
     // Selection is UI-only; orders of the previously selected stack stay in force.
     if (isSidePlayerControlled(this.state, stack.side)) {

@@ -3,6 +3,7 @@ import { Faction, Technology, TechnologyBonus, TechnologyBonusType } from '../co
 import researchTreeData from '../components/star-map/research-tree.json';
 import shipData from '../components/star-map/ship-data.json';
 import planetData from '../components/star-map/planet-data.json';
+import { getModule } from '../components/star-map/equipment';
 
 export type TechnologyStatus = 'researched' | 'available' | 'locked';
 
@@ -90,7 +91,7 @@ export interface ResearchResult {
 }
 
 export interface ValidationError {
-  type: 'duplicate_id' | 'missing_prerequisite' | 'self_reference' | 'circular_dependency' | 'invalid_ship' | 'invalid_building';
+  type: 'duplicate_id' | 'missing_prerequisite' | 'self_reference' | 'circular_dependency' | 'invalid_ship' | 'invalid_building' | 'invalid_equipment';
   technologyId: string;
   message: string;
 }
@@ -165,6 +166,19 @@ export class ResearchService {
     const researched = faction.researchedTechnologies ?? [];
     return this.technologies.some(
       (tech) => researched.includes(tech.id) && tech.unlocksShips.includes(shipTypeId),
+    );
+  }
+
+  /*
+   * isEquipmentUnlocked: True if any researched technology lists the module
+   * in unlocksEquipment. A faction may queue a module in a factory only once
+   * it is unlocked (ProductionService.queueEquipmentOrder). Standard modules
+   * are never buildable and are not unlocked by anything.
+   */
+  isEquipmentUnlocked(faction: Faction, moduleId: string): boolean {
+    const researched = faction.researchedTechnologies ?? [];
+    return this.technologies.some(
+      (tech) => researched.includes(tech.id) && (tech.unlocksEquipment ?? []).includes(moduleId),
     );
   }
 
@@ -296,6 +310,9 @@ export class ResearchService {
     }
     if (tech.unlocksBuildings.length > 0) {
       lines.push(`Unlocks buildings: ${tech.unlocksBuildings.map((id) => buildingNames.get(id) ?? id).join(', ')}`);
+    }
+    if ((tech.unlocksEquipment ?? []).length > 0) {
+      lines.push(`Unlocks ship equipment: ${tech.unlocksEquipment!.map((id) => getModule(id)?.name ?? id).join(', ')}`);
     }
     for (const bonus of tech.bonuses ?? []) {
       lines.push(this.describeBonus(bonus, shipNames));
@@ -475,6 +492,17 @@ export class ResearchService {
             type: 'invalid_building',
             technologyId: tech.id,
             message: `${tech.id} unlocks nonexistent building ${buildingId}`,
+          });
+        }
+      }
+
+      for (const moduleId of tech.unlocksEquipment ?? []) {
+        const module = getModule(moduleId);
+        if (!module || module.standard) {
+          errors.push({
+            type: 'invalid_equipment',
+            technologyId: tech.id,
+            message: `${tech.id} unlocks nonexistent or standard equipment ${moduleId}`,
           });
         }
       }

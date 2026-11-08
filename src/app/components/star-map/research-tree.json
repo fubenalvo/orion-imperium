@@ -43,7 +43,8 @@
       "researchCost": 800,
       "prerequisites": ["basic_engineering"],
       "unlocksShips": ["corvette", "frigate"],
-      "unlocksBuildings": []
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["ion_engine", "laser_cannon"]
     },
     {
       "id": "advanced_construction",
@@ -62,7 +63,8 @@
       "researchCost": 1000,
       "prerequisites": ["basic_engineering"],
       "unlocksShips": ["destroyer"],
-      "unlocksBuildings": ["planetary_shield"]
+      "unlocksBuildings": ["planetary_shield"],
+      "unlocksEquipment": ["railgun", "energy_shield"]
     },
     {
       "id": "orbital_engineering",
@@ -72,6 +74,7 @@
       "prerequisites": ["advanced_engineering"],
       "unlocksShips": [],
       "unlocksBuildings": [],
+      "unlocksEquipment": ["warp_drive"],
       "bonuses": [{ "type": "shipBuildSpeed", "value": 0.25 }]
     },
     {
@@ -101,6 +104,7 @@
       "prerequisites": ["advanced_industry"],
       "unlocksShips": [],
       "unlocksBuildings": [],
+      "unlocksEquipment": ["kinetic_barrier"],
       "bonuses": [{ "type": "rawOutput", "value": 0.25 }]
     },
     {
@@ -130,7 +134,8 @@
       "researchCost": 1200,
       "prerequisites": ["improved_power"],
       "unlocksShips": [],
-      "unlocksBuildings": ["fusion_plant"]
+      "unlocksBuildings": ["fusion_plant"],
+      "unlocksEquipment": ["fusion_engine"]
     },
     {
       "id": "advanced_power",
@@ -238,6 +243,7 @@
       "prerequisites": ["advanced_engineering"],
       "unlocksShips": [],
       "unlocksBuildings": [],
+      "unlocksEquipment": ["advanced_shield_generator"],
       "bonuses": [{ "type": "shipShield", "value": 0.15, "shipTypes": ["scout", "fighter", "corvette", "frigate", "destroyer", "cruiser", "carrier", "battleship", "battlecruiser", "dreadnought"] }]
     },
     {
@@ -287,6 +293,7 @@
       "prerequisites": ["military_engineering"],
       "unlocksShips": [],
       "unlocksBuildings": [],
+      "unlocksEquipment": ["point_defense_array"],
       "bonuses": [{ "type": "shipAttack", "value": 0.15, "shipTypes": ["scout", "fighter", "corvette", "frigate", "destroyer", "cruiser", "carrier", "battleship", "battlecruiser", "dreadnought"] }]
     },
     {
@@ -306,7 +313,8 @@
       "researchCost": 600,
       "prerequisites": ["basic_engineering"],
       "unlocksShips": [],
-      "unlocksBuildings": ["missile_turret"]
+      "unlocksBuildings": ["missile_turret"],
+      "unlocksEquipment": ["missile_launcher"]
     },
     {
       "id": "turret_research_1",

@@ -63,7 +63,9 @@ battle returns to the map.
 
 - A **stack** is the tactical unit for movement, targeting, and selection. Every ship type in
   a side is grouped into one or more stacks, each holding at most `MAX_STACK_SIZE = 5` ships;
-  e.g. 12 fighters become 3 stacks (5/5/2).
+  e.g. 12 fighters become 3 stacks (5/5/2). Ships of one type with different installed
+  equipment go into different stacks (grouping key: type + `loadoutKey`), because a stack's
+  speed, reach, fire rate and turning hold for all its ships; see [Ship Equipment](#ship-equipment).
 - Visually a stack renders up to 5 ship icons as a cluster inside its cell, a `×N` badge
   when N ≥ 2, and an aggregate hull bar. Clicking a stack selects the whole stack.
 - Individual ship HP is tracked inside the stack. Damage is applied ship-by-ship in order;
@@ -74,7 +76,7 @@ battle returns to the map.
 
 Battles are **real-time** — there are no Action Points or turns. Stacks move continuously at
 their `speed` stat × `BATTLE_SPEED_MULTIPLIER` (0.6; vw/s, so 0.6–3 from the 1–5 in
-`ship-data.json`). The multiplier is battle-only: the same `speed` drives galaxy movement. Both
+`ship-data.json`). The multiplier is battle-only. Galaxy and system movement do not use ship `speed`: they use the fleet's stored `Fleet.speed` plus the slowest engine module's bonus ([Ship Equipment](./ship-equipment.md)). Both
 sides act simultaneously.
 
 The `range` stat is the attack range in range units (see [Tactical Grid](#tactical-grid)).
@@ -100,7 +102,8 @@ Ships cannot slide sideways or backwards at full speed: they turn into a course.
 (`battle/battle-heading.ts`)
 
 - Every mobile stack has a hull `heading`. While moving, it turns toward the movement target at a
-  tier-based rate: 240°/s for tier 1, then 180, 130 and 100, down to 75°/s for tier 5. Idle
+  tier-based rate: 240°/s for tier 1, then 180, 130 and 100, down to 75°/s for tier 5, plus an
+  engine module's fixed bonus (`turnRate`, floor 45°/s). Idle
   stacks turn back toward the enemy side. Turrets keep a fixed facing.
 - Speed is multiplied by `maneuverSpeedFactor`, based on the angle between the heading and the
   direction of travel. Up to 20° the ship moves at full speed. From 20° to 160° the speed eases
@@ -141,7 +144,8 @@ Ships cannot slide sideways or backwards at full speed: they turn into a course.
   sustained fire volleys follow the cadence above. Without the charge every engagement opened with
   a free full volley, and slow classes front-loaded up to one full interval of damage at t = 0 (a dreadnought
   volley wiped a fighter stack before the fighters fired).
-- **Fire rate never changes damage per second.** Attack stats are balanced for
+- **A hull's fire rate never changes damage per second** (a weapon module's fire-rate factor
+  does, see [Ship Equipment](#ship-equipment)). Attack stats are balanced for
   `REFERENCE_FIRE_RATE = 1.5`. A volley deals `volleyShare = REFERENCE_FIRE_RATE / fireRate` of
   a *reference volley* (see damage below): a fighter deals 0.375 of one, 4 times a second, and
   a dreadnought deals 3 of one, every 2 s (both at `FIRE_RATE_MULTIPLIER` 1). Leftover fractions carry to the stack's next volley
@@ -263,8 +267,9 @@ Implemented in `battle-targeting.ts` (target choice), `BattleScreenComponent` (o
 `BattleMovementService.maintainAttackOrders` (chasing).
 
 **Player orders** are plain state on the stack and apply immediately, also while paused. Control
-rule (shared with the star map): a left click only selects an own stack; every order is a right
-click (touch: long press, see [Game Systems](./game-systems.md)):
+rule (shared with the star map): a left click selects an own stack (and opens its info window); a
+left click on an enemy only opens its info window ([Battle Screen](./battle-screen.md#ship-info-window-and-paused-start));
+every order is a right click (touch: long press, see [Game Systems](./game-systems.md)):
 
 - **Attack order** (right-click an enemy with a stack selected) sets `explicitAttackTargetId`.
   - The stack fires at that target whenever it is in reach.
@@ -300,6 +305,34 @@ or the mode changes.
 ## Technology Combat Bonuses
 
 Researched technologies can raise a faction's ship `attack` and `shield` per hull type (see [Research](./research.md)). The multipliers are stamped on the `Battle` (`combatBonuses`, per faction id and ship type) when the battle is created and applied once in `createBattleState`, to both the current and maximum shield. Planet defense (virtual) ships and battles without stamped bonuses (AI forecasts) use base stats. Overworld fleets are never modified.
+
+## Ship Equipment
+
+Ships can carry modules in three slots (engine, weapon, defense); the catalog, the fixed-value rule
+and the full design are in [Ship Equipment](./ship-equipment.md). In battle (`createBattleState`):
+
+- **Order:** hull values (`toBattleShip`) → research multipliers (`withCombatBonus`, on the hull's
+  own attack and shield) → module values (`withEquipment`, via `resolveShipStats` in
+  `star-map/ship-stats.ts`). A module adds the same fixed amount on every hull, so research never
+  scales it. A ship with a standard loadout is returned untouched.
+- **Per ship:** attack, armour (`defense`), shield (current and max), shield regen, damage type
+  (`attackType`, set by the weapon) and defense profile (`weakness`, set by a profile module).
+  The damage formula is unchanged; it already reads these per ship.
+- **Per stack** (`stackMotionFields`): speed (hull speed + engine/weight bonuses, floor 0.5, then
+  × `BATTLE_SPEED_MULTIPLIER`), reach (`attackRange` + weapon range bonus), `fireRate`,
+  `turnRateBonus` and `loadout`. Standard stacks get none of the new fields, so they are the same
+  objects as before.
+- **Fire rate and damage per second:** a weapon's `fireRateFactor` sets the stack's `fireRate`
+  (cadence) while `hullFireRate` keeps the hull's rate. `volleyShare` splits damage by
+  `hullFireRate`, so damage per shot stays the hull's and the extra shots add damage per second
+  (`damagePerSecondFactor` = `fireRate / hullFireRate`). The targeting estimates (`firepower`,
+  `volleysToKill`) use the same factor, so modes rank by real damage per second.
+- **Auto-resolve and AI forecasts** use `createBattleState`, so they include equipment (the AI may
+  see installed equipment by design).
+- **No balance change for standard ships:** auto-resolve outcomes of standard fleets (with research
+  bonuses and fleets above the 28-ship limit) were compared byte for byte before and after the
+  change (2026-11-08); `battle-equipment.spec.ts` keeps checking that a standard loadout builds the
+  same state and outcome as ships without the field.
 
 ## Planet Battles
 

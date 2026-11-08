@@ -1,0 +1,185 @@
+<div class="sc-overlay" (click)="close.emit()">
+  <section
+    class="sc"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="sc-title"
+    [style.--faction]="factionColor"
+    (click)="$event.stopPropagation()"
+  >
+    <header class="sc__header">
+      <div class="sc__heading">
+        <span class="sc__eyebrow">Ship customization · {{ locationLabel }}</span>
+        <h2 class="sc__title" id="sc-title">{{ fleet.name }}</h2>
+      </div>
+      <span class="sc__count">{{ shipCount }} ships</span>
+      <button type="button" class="sc__close" (click)="close.emit()">Close</button>
+    </header>
+
+    @if (error) {
+      <div class="ui-notice ui-notice--danger sc__error" role="alert">{{ error }}</div>
+    }
+
+    <div class="sc__body">
+      <!-- Roster: fleet ships, then the reserve. -->
+      <nav class="sc__roster" aria-label="Ships">
+        @for (group of roster; track group.key) {
+          <div class="sc-group" [class.sc-group--reserve]="group.reserve">
+            <div class="sc-group__label">{{ group.label }}</div>
+            @for (ship of group.ships; track ship.id) {
+              <button
+                type="button"
+                class="sc-ship"
+                [class.sc-ship--selected]="ship.id === selectedShipId"
+                [attr.aria-pressed]="ship.id === selectedShipId"
+                (click)="selectShip(ship.id)"
+              >
+                <span class="sc-ship__icon-box" aria-hidden="true">
+                  @let icon = rowIconSize(ship.typeId);
+                  <svg class="sc-ship__icon" [style.width.em]="icon.w" [style.height.em]="icon.h">
+                    <use [attr.href]="iconHref(ship.typeId)" width="100%" height="100%"></use>
+                  </svg>
+                </span>
+                <span class="sc-ship__text">
+                  <span class="sc-ship__name">{{ ship.typeName }} #{{ ship.id }}</span>
+                  <span class="sc-ship__meter"><span class="sc-ship__meter-fill" [style.width.%]="ship.hullPercent"></span></span>
+                </span>
+                <span class="sc-ship__pips" aria-label="Upgraded slots">
+                  @for (slot of slots; track slot) {
+                    <span class="sc-pip" [class.sc-pip--on]="ship.upgraded[slot]" [title]="slotLabels[slot]"></span>
+                  }
+                </span>
+              </button>
+            }
+          </div>
+        }
+      </nav>
+
+      <!-- Blueprint and the ship's resolved stats. -->
+      <div class="sc__center">
+        @if (selectedShip; as ship) {
+          <div class="bp" [class.bp--civil]="!isCombat(selectedType)">
+            <div class="bp__stage">
+              <svg class="bp__ship" [style.aspect-ratio]="iconAspect(ship.type)" aria-hidden="true">
+                <use [attr.href]="iconHref(ship.type)" width="100%" height="100%"></use>
+              </svg>
+              @for (slot of slots; track slot) {
+                @let module = installedModule(slot);
+                <button
+                  type="button"
+                  class="bp-slot bp-slot--{{ slot }}"
+                  [class.bp-slot--selected]="selectedSlot === slot"
+                  [class.bp-slot--upgraded]="!module.standard"
+                  [class.bp-slot--locked]="slotLocked(slot)"
+                  [disabled]="slotLocked(slot)"
+                  [attr.aria-pressed]="selectedSlot === slot"
+                  (click)="selectSlot(slot)"
+                >
+                  <span class="bp-slot__label">{{ slotLabels[slot] }}</span>
+                  <span class="bp-slot__module">{{ slotLocked(slot) ? 'Locked' : module.name }}</span>
+                </button>
+              }
+            </div>
+            <div class="bp__caption">
+              <span class="bp__name">{{ selectedType?.name ?? ship.type }} #{{ ship.id }}</span>
+              @if (selectedType && isCombat(selectedType)) {
+                <app-hull-role [shipType]="selectedType" [compact]="true"></app-hull-role>
+              } @else {
+                <span class="bp__civil">Civil hull · engine slot only</span>
+              }
+            </div>
+          </div>
+
+          <dl class="sc-stats">
+            @for (line of stats; track line.key) {
+              <div class="sc-stats__item" [class.sc-stats__item--wide]="line.key === 'profile'">
+                <dt>{{ line.label }}</dt>
+                <dd>{{ line.value }}</dd>
+              </div>
+            }
+          </dl>
+        } @else {
+          <p class="sc__empty">This fleet has no ships to refit.</p>
+        }
+      </div>
+
+      <!-- Inventory for the selected slot and the comparison. -->
+      <aside class="sc__side">
+        @if (selectedSlot; as slot) {
+          <div class="sc-side__label">Inventory · {{ slotLabels[slot] }}</div>
+          <div class="sc-modules">
+            @for (option of options; track option.module.id) {
+              <button
+                type="button"
+                class="sc-module"
+                [class.sc-module--selected]="candidateId === option.module.id"
+                [class.sc-module--installed]="option.installed"
+                [class.sc-module--locked]="!option.unlocked"
+                [class.sc-module--empty]="option.unlocked && option.available === 0"
+                (click)="pick(option.module.id)"
+              >
+                <span class="sc-module__name">{{ option.module.name }}</span>
+                <span class="sc-module__count">
+                  @if (!option.unlocked) {
+                    Locked
+                  } @else {
+                    {{ option.available }}
+                    @if (option.inProduction > 0) {
+                      <span class="sc-module__building" title="In production">+{{ option.inProduction }}</span>
+                    }
+                  }
+                </span>
+                <span class="sc-module__effects">{{ effects(option.module).join(' · ') }}</span>
+              </button>
+            }
+            @if (!installedModule(slot).standard) {
+              <button
+                type="button"
+                class="sc-module sc-module--remove"
+                [class.sc-module--selected]="candidateId === 'standard'"
+                (click)="pick('standard')"
+              >
+                <span class="sc-module__name">Remove · standard {{ slotLabels[slot].toLowerCase() }}</span>
+                <span class="sc-module__effects">Returns {{ installedModule(slot).name }} to the inventory</span>
+              </button>
+            }
+          </div>
+
+          @if (candidate; as module) {
+            <div class="sc-compare">
+              <div class="sc-compare__title">{{ module.name }}</div>
+              <p class="sc-compare__text">{{ module.description }}</p>
+              @if (comparison.length > 0) {
+                <table class="sc-compare__table">
+                  <tbody>
+                    @for (line of comparison; track line.label) {
+                      <tr [class.is-better]="line.trend === 1" [class.is-worse]="line.trend === -1">
+                        <th scope="row">{{ line.label }}</th>
+                        <td>{{ line.from }}</td>
+                        <td aria-hidden="true">→</td>
+                        <td class="sc-compare__to">{{ line.to }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              }
+              <p class="sc-compare__cost">Install: free · module price was paid when it was built</p>
+              @if (confirmBlocker; as reason) {
+                <p class="sc-compare__blocker">{{ reason }}</p>
+              }
+              <div class="sc-compare__actions">
+                <button type="button" class="sc__small-btn" (click)="cancelPick()">Cancel</button>
+                <button type="button" class="btn-primary sc__small-btn" [disabled]="!!confirmBlocker" (click)="confirm()">Confirm</button>
+              </div>
+            </div>
+          } @else {
+            <p class="sc__hint">Pick a module to compare it with the installed one.</p>
+          }
+        } @else {
+          <p class="sc__hint">Click a hardpoint on the blueprint: engine at the stern, weapon at the bow, defense above the hull.</p>
+          <p class="sc__hint sc__hint--dim">Modules are built in Spaceship Factories (planet view → production → Equipment). Installing is free.</p>
+        }
+      </aside>
+    </div>
+  </section>
+</div>

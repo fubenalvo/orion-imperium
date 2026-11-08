@@ -20,6 +20,7 @@ import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { BattleService, BattleOutcome } from '../../services/battle.service';
 import { ShipService } from '../../services/ship.service';
+import { shipsFromOutcome } from '../../services/battle-outcome.service';
 import { SaveGameService, SaveSlotId } from '../../services/save-game.service';
 import { generatePlanetSurface, needsSurface } from './planet-surface/planet-surface-generator';
 import { SAVE_VERSION, validateSaveData } from '../../services/save-validation';
@@ -65,6 +66,13 @@ import {
   fleetCell,
 } from '../../services/fleet-organization.service';
 import { StarMapFleetManagerComponent } from './star-map-fleet-manager/star-map-fleet-manager.component';
+// Type-only import kept separate: a value import of the component file next to
+// other symbols would stop @defer from splitting it into its own chunk.
+import { ShipCustomizationComponent } from './ship-customization/ship-customization.component';
+import type { InstallRequest, UninstallRequest } from './ship-customization/ship-customization.component';
+import { EquipmentResult, ShipEquipmentService } from '../../services/ship-equipment.service';
+import { getModule, getUpgradeModules } from './equipment';
+import { inventoryOf } from './equipment-inventory';
 import { ResearchService } from '../../services/research.service';
 
 import { StarMapNavigationComponent } from '../star-map-navigation/star-map-navigation.component';
@@ -271,6 +279,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapAnchorInfoComponent,
     StarMapTraderInfoComponent,
     StarMapFleetManagerComponent,
+    ShipCustomizationComponent,
     StarMapAnomalyEventComponent,
   ],
   templateUrl: './star-map.html',
@@ -347,6 +356,8 @@ loadError = '';
   /* Player planets whose energy shortage was already announced (planet-stability.ts; not persisted). */
   private readonly announcedEnergyShort = new Set<string>();
   shipStock: import('./star-map.models').FactionShipStock[] = initialStarMapData.shipStock ?? [];
+  /* Available equipment modules per faction (docs/ship-equipment.md); saved and loaded with the game. */
+  equipmentInventory: import('./star-map.models').FactionEquipmentInventory[] = [];
   production: import('./star-map.models').FactionProduction[] = initialStarMapData.production ?? [];
   defaultView: import('./star-map.models').StarMapData['defaultView'] = initialStarMapData.defaultView ?? undefined;
   // Generation metadata of the current galaxy; carried through every save unchanged.
@@ -482,6 +493,13 @@ loadError = '';
   // game is paused while it is open so the fleets cannot drift apart or be
   // attacked mid-edit; `fleetManagerResumeOnClose` restores the prior state.
   fleetManagerFleets: Fleet[] | null = null;
+  // Ship customization screen (docs/ship-equipment.md, D): the fleet being
+  // refitted, null while closed. Modal and paused like the fleet manager;
+  // every confirmed change is applied at once, the autosave runs on close.
+  customizationFleet: Fleet | null = null;
+  customizationError: string | null = null;
+  private customizationChanged = false;
+  private customizationResumeOnClose = false;
   // The player's ship stock when the dialog opened at an own Spaceport
   // (shown as the Reserve column), otherwise null: the stock is out of reach.
   fleetManagerReserve: import('./star-map.models').ShipStockEntry[] | null = null;
@@ -559,6 +577,7 @@ loadError = '';
     private asteroidService: DriftingAsteroidService,
     private tradeNetworkService: TradeNetworkService,
     private fleetOrganizationService: FleetOrganizationService,
+    private shipEquipmentService: ShipEquipmentService,
     private diplomacyService: DiplomacyService,
     private enemyDiplomacyService: EnemyDiplomacyService,
     private spaceBaseService: SpaceBaseService,
@@ -2029,11 +2048,15 @@ loadError = '';
     if (!this.selectedPlanetTile) {
       return;
     }
-    const result = this.productionService.queueOrder(
+    // Equipment modules share the factory queue (docs/ship-equipment.md).
+    const queue = req.equipmentId
+      ? this.productionService.queueEquipmentOrder.bind(this.productionService)
+      : this.productionService.queueOrder.bind(this.productionService);
+    const result = queue(
       this,
       'player',
       this.selectedPlanetTile.id,
-      req.shipTypeId,
+      req.equipmentId ?? req.shipTypeId,
       req.quantity,
       this.starSystems,
       this.factions,
@@ -2662,6 +2685,114 @@ loadError = '';
     return this.fleets
       .filter((f) => f.factionId === 'player' && !f.destroyed && !inDialog.has(f.id))
       .map((f) => f.name);
+  }
+
+  /* ---------- Ship customization (docs/ship-equipment.md, D) ---------- */
+
+  /* A player fleet with a living ship within 2 system cells of an own Spaceport planet. */
+  canCustomizeFleet(fleet: Fleet): boolean {
+    return (
+      fleet.factionId === 'player' &&
+      fleet.ships.some((s) => !s.destroyed) &&
+      this.shipEquipmentService.canCustomizeFleet('player', fleet, this.starSystems)
+    );
+  }
+
+  /* Tooltip / hint for a disabled SHIP CUSTOMIZATION button. */
+  getCustomizeBlockedReason(fleet: Fleet): string | null {
+    return this.canCustomizeFleet(fleet) ? null : 'Move within 2 cells of one of your Spaceport planets to refit.';
+  }
+
+  openShipCustomization(): void {
+    const fleet = this.selectedFleet;
+    if (!fleet || !this.canCustomizeFleet(fleet)) {
+      return;
+    }
+    this.customizationFleet = fleet;
+    this.customizationError = null;
+    this.customizationChanged = false;
+    this.contextMenu = null;
+    this.customizationResumeOnClose = !this.gameTimeService.isPaused;
+    this.gameTimeService.pause();
+    this.cdr.detectChanges();
+  }
+
+  closeShipCustomization(): void {
+    if (this.customizationChanged) {
+      this.saveGame();
+    }
+    this.customizationFleet = null;
+    this.customizationError = null;
+    this.customizationChanged = false;
+    if (this.customizationResumeOnClose) {
+      this.gameTimeService.resume();
+    }
+    this.customizationResumeOnClose = false;
+    this.cdr.detectChanges();
+  }
+
+  onCustomizationInstall(request: InstallRequest): void {
+    const result = this.shipEquipmentService.install(this, this.starSystems, { factionId: 'player', ...request });
+    this.afterCustomizationChange(result);
+  }
+
+  onCustomizationUninstall(request: UninstallRequest): void {
+    const result = this.shipEquipmentService.uninstall(this, this.starSystems, { factionId: 'player', ...request });
+    this.afterCustomizationChange(result);
+  }
+
+  private afterCustomizationChange(result: EquipmentResult): void {
+    this.customizationError = result.ok ? null : this.shipEquipmentService.describeFailure(result.reason);
+    if (result.ok) {
+      this.customizationChanged = true;
+    }
+    this.cdr.detectChanges();
+  }
+
+  /* The reserve, shown in the screen while the faction owns a Spaceport (it is docked there). */
+  get customizationReserve(): import('./star-map.models').ShipStockEntry[] | null {
+    return this.shipEquipmentService.canCustomizeReserve('player', this.starSystems)
+      ? this.shipStockService.getStock(this, 'player')
+      : null;
+  }
+
+  get customizationInventory(): Record<string, number> {
+    return inventoryOf(this, 'player').modules;
+  }
+
+  /* Modules the player has queued in factories, by module id. */
+  get customizationInProduction(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const queue of Object.values(this.production.find((p) => p.factionId === 'player')?.ordersByPlanet ?? {})) {
+      for (const order of queue) {
+        if (order.equipmentId) {
+          counts[order.equipmentId] = (counts[order.equipmentId] ?? 0) + Math.max(1, order.quantity);
+        }
+      }
+    }
+    return counts;
+  }
+
+  get customizationUnlockedModules(): string[] {
+    const player = this.factions.find((f) => f.id === 'player');
+    return player ? getUpgradeModules().map((m) => m.id).filter((id) => this.researchService.isEquipmentUnlocked(player, id)) : [];
+  }
+
+  /* Name of the technology that unlocks each module. */
+  get customizationLockedBy(): Record<string, string> {
+    const names: Record<string, string> = {};
+    for (const tech of this.researchService.getAllTechnologies()) {
+      for (const id of tech.unlocksEquipment ?? []) {
+        names[id] = tech.name;
+      }
+    }
+    return names;
+  }
+
+  /* Star system name for the screen's eyebrow. */
+  get customizationLocationLabel(): string {
+    const system = this.starSystems.find((s) => s.id === this.customizationFleet?.system?.id);
+    return system ? `${system.name} system` : '';
   }
 
   hasFactoryOnSelectedPlanet(): boolean {
@@ -3820,6 +3951,12 @@ loadError = '';
       this.factions,
     );
     const productionChanged = productionResult.stateChanged;
+    // Modules wait in the inventory until the player refits a fleet, so say where they went.
+    const builtModules = productionResult.producedModules.filter((m) => m.factionId === 'player');
+    if (builtModules.length > 0) {
+      const names = builtModules.map((m) => getModule(m.moduleId)?.name ?? m.moduleId).join(', ');
+      this.showMapNotice(`${names} built: in the equipment inventory. Refit from SHIP CUSTOMIZATION near a Spaceport.`);
+    }
 
     this.economyAccumulator += gameDeltaTime;
     let economyUpdated = false;
@@ -4590,6 +4727,7 @@ loadError = '';
       destroyedFleetId: this.battleService.getDestroyedFleetId(),
       exploredGridCells: Array.from(this.exploredGridCells),
       shipStock: this.shipStock,
+      equipmentInventory: this.equipmentInventory,
       production: this.production,
       defaultView: this.defaultView,
       gameOutcome: this.gameOutcome,
@@ -4728,6 +4866,7 @@ loadError = '';
     this.traderPanelVm = null;
     this.mapNotice = null;
     this.shipStock = data.shipStock ?? [];
+    this.equipmentInventory = data.equipmentInventory ?? [];
     this.production = data.production ?? [];
     this.productionService.rebaseFromSave(this.production);
 
@@ -5000,13 +5139,8 @@ loadError = '';
       if (!fleet) {
         continue;
       }
-      fleet.ships = fleetOutcome.ships.map((s) => ({
-        id: s.shipId,
-        name: s.name,
-        type: s.typeId,
-        currentHp: s.hp,
-        destroyed: s.destroyed,
-      }));
+      // Keeps the fields a battle doesn't report (installed equipment).
+      fleet.ships = shipsFromOutcome(fleetOutcome.ships, fleet.ships);
       if (fleetOutcome.wipedOut) {
         fleet.destroyed = true;
       } else {
@@ -5034,7 +5168,7 @@ loadError = '';
     if (isInput) return;
     // The fleet manager is modal: it handles Escape itself, and map shortcuts
     // (including un-pausing with Space) must not act behind it.
-    if (this.fleetManagerFleets || this.anomalyEvent) return;
+    if (this.fleetManagerFleets || this.customizationFleet || this.anomalyEvent) return;
 
     switch (event.key) {
       case 'ArrowUp':

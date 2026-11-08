@@ -47,7 +47,7 @@ export class BattleOutcomeService {
       if (!fleet) {
         continue;
       }
-      fleet.ships = shipsFromOutcome(fleetOutcome.ships);
+      fleet.ships = shipsFromOutcome(fleetOutcome.ships, fleet.ships);
       if (fleetOutcome.wipedOut) {
         fleet.destroyed = true;
       }
@@ -76,7 +76,7 @@ export class BattleOutcomeService {
       }
       const fleet = data.fleets?.find((f) => f.id === outcome.attacker.fleetId);
       if (fleet) {
-        fleet.ships = shipsFromOutcome(outcome.attacker.ships);
+        fleet.ships = shipsFromOutcome(outcome.attacker.ships, fleet.ships);
         if (outcome.attacker.wipedOut) {
           fleet.destroyed = true;
         }
@@ -136,7 +136,7 @@ export class BattleOutcomeService {
     const destroyed = outcome.winnerSide === 'attacker';
     const fleet = data.fleets?.find((f) => f.id === outcome.attacker.fleetId);
     if (fleet) {
-      fleet.ships = shipsFromOutcome(outcome.attacker.ships);
+      fleet.ships = shipsFromOutcome(outcome.attacker.ships, fleet.ships);
       if (outcome.attacker.wipedOut) {
         fleet.destroyed = true;
       }
@@ -201,9 +201,17 @@ export class BattleOutcomeService {
   }
 }
 
-/* Converts outcome ship records back to the overworld FleetShip shape. */
-export function shipsFromOutcome(ships: BattleOutcome['attacker']['ships']): FleetShip[] {
+/*
+ * Converts outcome ship records back to the overworld FleetShip shape.
+ * `previous` is the fleet's roster before the battle: a ship found there by
+ * id keeps every field the battle doesn't report (installed equipment,
+ * anything added later), and only hull and the destroyed flag change. The
+ * outcome lists ships in input order, so the roster order is unchanged.
+ */
+export function shipsFromOutcome(ships: BattleOutcome['attacker']['ships'], previous: readonly FleetShip[] = []): FleetShip[] {
+  const byId = new Map(previous.map((ship) => [ship.id, ship]));
   return ships.map((s) => ({
+    ...byId.get(s.shipId),
     id: s.shipId,
     name: s.name,
     type: s.typeId,

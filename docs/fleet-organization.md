@@ -168,7 +168,9 @@ of game time, and the AI simulation spec calls the same service.
 `ShipStockEntry.currentHp` (optional, missing = full; validated as a
 non-negative finite number) is the only addition, so no save version bump:
 older saves load with a fully repaired reserve. Otherwise no data model
-change. Merged, split and retired fleets are
+change. A ship's installed `equipment` ([Ship Equipment](./ship-equipment.md))
+moves with it like its hull (and a fleet's map speed follows its slowest engine, so merging or splitting can change it): fleet ships move as the same record, and stock
+entries built from fleet ships (and back) copy it. Merged, split and retired fleets are
 ordinary `Fleet` records that older code already reads. New fleets carry
 exactly the fields Spaceport-created fleets carry. Saves from before this
 feature load unchanged.
@@ -179,7 +181,10 @@ The fleet panel (galaxy map and system view) shows **ORGANIZE FLEETS** for
 any player fleet with a living ship. Its second line says
 "N fleets here · merge or split" when there is something to merge, or
 "Split or rename" otherwise, plus "· reserve" at an own Spaceport, so the
-action is discoverable without cluttering the map.
+action is discoverable without cluttering the map. Below it, **SHIP
+CUSTOMIZATION** (same look) opens the refit screen; it is enabled only
+within 2 system cells of an own Spaceport planet
+([Ship Equipment](./ship-equipment.md)).
 
 The **Fleet Command** dialog (`StarMapFleetManagerComponent`) is a modal
 glass sheet titled with the location (star system name, or

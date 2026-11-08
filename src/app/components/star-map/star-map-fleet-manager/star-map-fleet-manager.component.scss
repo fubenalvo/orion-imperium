@@ -115,7 +115,7 @@
   border-bottom: 1px solid var(--ui-line-soft);
   color: var(--ui-ink-dim);
   font-size: var(--ui-fs-sm);
-  letter-spacing: 0.06em;
+  margin-right: 0.45em;
 
   b {
     color: var(--ui-ink-bright);
@@ -209,7 +209,7 @@
   padding: 0.8em 0.5em;
   color: var(--ui-ink-faint);
   font-size: var(--ui-fs-xs);
-  letter-spacing: 0.06em;
+  margin-right: 0.45em;
 }
 
 .fm-fleet__head {
@@ -367,7 +367,7 @@
 
 .fm-ship__name {
   font-size: var(--ui-fs-md);
-  letter-spacing: 0.06em;
+  margin-right: 0.45em;
 }
 
 .fm-ship__role {
@@ -472,7 +472,7 @@
 .fm-new__hint {
   color: var(--ui-ink-faint);
   font-size: var(--ui-fs-xs);
-  letter-spacing: 0.06em;
+  margin-right: 0.45em;
   text-transform: none;
 }
 
@@ -539,4 +539,11 @@
   .fm-ship__qty {
     padding-left: 0.45em;
   }
+}
+
+/* Ships of the class with equipment modules (docs/ship-equipment.md). */
+.fm-ship__upgraded {
+  color: var(--ui-amber);
+  font-size: var(--ui-fs-xs);
+  margin-right: 0.45em;
 }

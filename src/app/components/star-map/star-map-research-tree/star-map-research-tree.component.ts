@@ -229,14 +229,15 @@ export class StarMapResearchTreeComponent {
 
   /*
    * Effect lines with icons. describeEffects lists ship unlocks, building
-   * unlocks, then one line per bonus, in that order; the icons follow the
-   * same order.
+   * unlocks, equipment unlocks, then one line per bonus, in that order; the
+   * icons follow the same order (a missing entry here shifts every later icon).
    */
   getEffectRows(tech: Technology): TechEffectRow[] {
     const icons: TechCategory[] = [];
     if (tech.unlocksShips.length > 0)
       icons.push(tech.unlocksShips.includes('swarm_constructor') ? 'stellar' : 'ships');
     if (tech.unlocksBuildings.length > 0) icons.push('colony');
+    if ((tech.unlocksEquipment ?? []).length > 0) icons.push('weapons');
     for (const bonus of tech.bonuses ?? []) icons.push(BONUS_CATEGORY[bonus.type]);
     return this.getEffects(tech).map((text, i) => ({
       icon: icons[i] ?? this.getCategory(tech),

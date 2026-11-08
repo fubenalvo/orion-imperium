@@ -1,0 +1,611 @@
+@use 'ui';
+
+/* =========================================================
+   SHIP CUSTOMIZATION (refit console)
+   ---------------------------------------------------------
+   Full-screen console sheet over the dimmed map: roster on the
+   left (sunken), the hull blueprint with its three hardpoints in
+   the middle (raised, blueprint grid), inventory and comparison
+   on the right (sunken). Columns stack on narrow screens; only
+   the body scrolls. See docs/ship-equipment.md (D) and
+   docs/ui-styling.md. Keep mixin includes few (20 kB budget).
+   ========================================================= */
+
+.sc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0px, 2.5vw, 40px);
+  @include ui.backdrop;
+}
+
+.sc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1360px;
+  height: min(92dvh, 900px);
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(26px);
+  animation: sc-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes sc-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Header ---------- */
+
+.sc__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-end;
+  gap: 1.2em;
+  padding: clamp(14px, 2vw, 26px) clamp(14px, 2.2vw, 32px) 0.8em;
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+
+.sc__heading {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sc__eyebrow {
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.sc__title {
+  margin: 0.15em 0 0;
+  overflow: hidden;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xl);
+  font-weight: 400;
+  letter-spacing: 0.24em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sc__count {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.sc__close,
+.sc__small-btn {
+  @include ui.button-size(sm);
+  letter-spacing: 0.2em;
+}
+
+.sc__error {
+  flex-shrink: 0;
+  margin: 0.8em clamp(14px, 2.2vw, 32px) 0;
+}
+
+/* ---------- Body: three columns ---------- */
+
+.sc__body {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(320px, 1.6fr) minmax(260px, 1fr);
+  gap: clamp(10px, 1.4vw, 20px);
+  min-height: 0;
+  padding: clamp(12px, 1.6vw, 22px) clamp(14px, 2.2vw, 32px) clamp(14px, 2vw, 26px);
+}
+
+.sc__roster,
+.sc__side,
+.sc__center {
+  min-height: 0;
+  overflow-y: auto;
+  @include ui.scroll;
+}
+
+.sc__roster,
+.sc__side {
+  padding: 0.7em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-sunken);
+}
+
+.sc__center {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9em;
+}
+
+/* ---------- Roster ---------- */
+
+.sc-group + .sc-group {
+  margin-top: 1em;
+}
+
+.sc-group__label,
+.sc-side__label {
+  margin: 0.1em 0.2em 0.6em;
+  @include ui.section-label;
+}
+
+.sc-group--reserve .sc-group__label {
+  color: var(--ui-warm);
+}
+
+.sc-ship {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  width: 100%;
+  min-height: 0;
+  margin: 0 0 0.3em;
+  padding: 0.45em 0.55em;
+  border: 1px solid transparent;
+  border-left: 2px solid color-mix(in srgb, var(--faction) 55%, transparent);
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  text-align: left;
+  text-transform: none;
+  transform: none;
+
+  &:hover {
+    background: rgba(var(--ui-accent-rgb), 0.06);
+  }
+}
+
+.sc-ship--selected {
+  border-color: rgba(var(--ui-accent-rgb), 0.45);
+  background: rgba(var(--ui-accent-rgb), 0.1);
+  box-shadow: inset 3px 0 0 var(--ui-amber);
+}
+
+.sc-ship__icon-box {
+  display: inline-flex;
+  flex: 0 0 3.2em;
+  justify-content: center;
+  color: var(--faction);
+}
+
+.sc-ship__icon {
+  overflow: visible;
+}
+
+.sc-ship__text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.3em;
+  min-width: 0;
+}
+
+.sc-ship__name {
+  overflow: hidden;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sc-ship__meter {
+  @include ui.meter(3px);
+}
+
+.sc-ship__meter-fill {
+  @include ui.meter-fill(var(--ui-success));
+}
+
+.sc-ship__pips {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.sc-pip {
+  width: 7px;
+  height: 7px;
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.45);
+  transform: rotate(45deg);
+}
+
+.sc-pip--on {
+  border-color: var(--ui-amber);
+  background: var(--ui-amber);
+  box-shadow: 0 0 6px rgba(var(--ui-amber-rgb), 0.6);
+}
+
+/* ---------- Blueprint ---------- */
+
+.bp {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background:
+    repeating-linear-gradient(0deg, rgba(var(--ui-accent-rgb), 0.07) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(var(--ui-accent-rgb), 0.07) 0 1px, transparent 1px 28px),
+    radial-gradient(ellipse at 50% 45%, rgba(var(--ui-accent-rgb), 0.12), transparent 70%),
+    var(--ui-surface-raised);
+}
+
+.bp__stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: clamp(220px, 34vh, 380px);
+  padding: 4.2em 9.5em 2.2em;
+}
+
+.bp__ship {
+  width: 100%;
+  max-width: 520px;
+  max-height: 100%;
+  overflow: visible;
+  color: var(--faction);
+  filter: drop-shadow(0 0 14px rgba(var(--ui-accent-rgb), 0.25));
+}
+
+/* Hardpoints sit around the hull; a leader line points at it. */
+.bp-slot {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  width: 8.6em;
+  min-height: 0;
+  padding: 0.5em 0.65em;
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.45);
+  border-radius: var(--ui-radius);
+  background: rgba(2, 10, 16, 0.82);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xs);
+  text-align: left;
+  text-transform: none;
+  transform: none;
+
+  &::after {
+    content: '';
+    position: absolute;
+    background: rgba(var(--ui-accent-rgb), 0.5);
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--ui-accent);
+  }
+}
+
+.bp-slot--engine {
+  top: 50%;
+  left: 0.8em;
+  translate: 0 -50%;
+
+  &::after {
+    top: 50%;
+    left: 100%;
+    width: 2.2em;
+    height: 1px;
+  }
+}
+
+.bp-slot--weapon {
+  top: 50%;
+  right: 0.8em;
+  translate: 0 -50%;
+
+  &::after {
+    top: 50%;
+    right: 100%;
+    width: 2.2em;
+    height: 1px;
+  }
+}
+
+.bp-slot--defense {
+  top: 0.8em;
+  left: 50%;
+  translate: -50% 0;
+
+  &::after {
+    top: 100%;
+    left: 50%;
+    width: 1px;
+    height: 1.4em;
+  }
+}
+
+.bp-slot__label {
+  color: var(--ui-accent-text);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.bp-slot__module {
+  color: var(--ui-ink-bright);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.04em;
+}
+
+.bp-slot--upgraded {
+  border-color: rgba(var(--ui-amber-rgb), 0.7);
+
+  .bp-slot__module {
+    color: var(--ui-amber);
+  }
+}
+
+.bp-slot--selected {
+  border-color: var(--ui-accent);
+  box-shadow:
+    0 0 0 1px rgba(var(--ui-accent-rgb), 0.35),
+    0 0 16px rgba(var(--ui-accent-rgb), 0.3),
+    inset 0 -2px 0 var(--ui-amber);
+}
+
+.bp-slot--locked {
+  border-style: dashed;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.bp__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6em 1em;
+  padding: 0.6em 0.9em;
+  border-top: 1px solid var(--ui-line-soft);
+}
+
+.bp__name {
+  color: var(--ui-ink);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.bp__civil {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
+/* ---------- Stats ---------- */
+
+.sc-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.35em 1em;
+  margin: 0;
+  padding: 0.7em 0.9em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-sunken);
+}
+
+.sc-stats__item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6em;
+  font-size: var(--ui-fs-sm);
+
+  dt {
+    color: var(--ui-ink-dim);
+  }
+
+  dd {
+    margin: 0;
+    color: var(--ui-accent);
+    text-align: right;
+  }
+}
+
+/* The defense profile line ("energy · weak to kinetic") is long. */
+.sc-stats__item--wide {
+  grid-column: span 2;
+}
+
+/* ---------- Inventory ---------- */
+
+.sc-modules {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.sc-module {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25em 0.6em;
+  min-height: 0;
+  padding: 0.55em 0.65em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: rgba(var(--ui-accent-rgb), 0.03);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  text-align: left;
+  text-transform: none;
+  transform: none;
+
+  &:hover {
+    border-color: rgba(var(--ui-accent-rgb), 0.5);
+  }
+}
+
+.sc-module__name {
+  letter-spacing: 0.06em;
+}
+
+.sc-module__count {
+  color: var(--ui-accent);
+  text-align: right;
+}
+
+.sc-module__building {
+  margin-left: 0.3em;
+  color: var(--ui-warm);
+}
+
+.sc-module__effects {
+  grid-column: 1 / -1;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
+.sc-module--selected {
+  border-color: var(--ui-accent);
+  background: rgba(var(--ui-accent-rgb), 0.1);
+  box-shadow: inset 3px 0 0 var(--ui-amber);
+}
+
+.sc-module--installed .sc-module__name::after {
+  content: ' · installed';
+  color: var(--ui-amber);
+  font-size: var(--ui-fs-xs);
+}
+
+.sc-module--empty .sc-module__count {
+  color: var(--ui-ink-faint);
+}
+
+.sc-module--locked {
+  opacity: 0.5;
+
+  .sc-module__count {
+    color: var(--ui-ink-faint);
+  }
+}
+
+.sc-module--remove {
+  border-style: dashed;
+}
+
+/* ---------- Comparison ---------- */
+
+.sc-compare {
+  margin-top: 0.9em;
+  padding: 0.7em;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface-raised);
+}
+
+.sc-compare__title {
+  color: var(--ui-accent);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.sc-compare__text,
+.sc-compare__cost,
+.sc-compare__blocker,
+.sc__hint {
+  margin: 0.5em 0;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  line-height: 1.45;
+}
+
+.sc__hint--dim {
+  color: var(--ui-ink-faint);
+}
+
+.sc-compare__blocker {
+  color: var(--ui-warning);
+}
+
+.sc-compare__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-fs-sm);
+
+  th {
+    padding: 0.2em 0;
+    color: var(--ui-ink-dim);
+    font-weight: 400;
+    text-align: left;
+  }
+
+  td {
+    padding: 0.2em 0 0.2em 0.5em;
+    color: var(--ui-ink);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .is-better .sc-compare__to {
+    color: var(--ui-success);
+  }
+
+  .is-worse .sc-compare__to {
+    color: var(--ui-danger-text);
+  }
+}
+
+.sc-compare__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6em;
+  margin-top: 0.4em;
+}
+
+.sc__empty {
+  color: var(--ui-ink-dim);
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 1100px) {
+  .sc {
+    height: 100dvh;
+    max-height: none;
+  }
+
+  /* Stacked columns: rows take their content height and the body scrolls
+     (min-height: 0 would let the rows shrink and overlap). */
+  .sc__body {
+    grid-template-columns: 1fr;
+    grid-auto-rows: max-content;
+    overflow-y: auto;
+  }
+
+  .sc__roster,
+  .sc__side,
+  .sc__center {
+    min-height: auto;
+    overflow: visible;
+  }
+
+  .bp__stage {
+    padding: 4.4em 1em 5.6em;
+  }
+
+  .bp-slot--engine,
+  .bp-slot--weapon {
+    top: auto;
+    bottom: 0.8em;
+    translate: none;
+
+    &::after {
+      display: none;
+    }
+  }
+}

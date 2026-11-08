@@ -8,6 +8,7 @@ import {
 } from '../components/star-map/star-map.models';
 import { ShipService, ShipType } from './ship.service';
 import { carriedHp } from '../components/star-map/fleet-repair';
+import { copyEquipment } from '../components/star-map/equipment';
 import { ShipStockService } from './ship-stock.service';
 import { SpaceportService } from './spaceport.service';
 import { StarMapMovementService } from '../components/star-map/star-map-movement.service';
@@ -244,6 +245,7 @@ export class FleetAssemblyService {
       // A damaged reserve ship keeps its hull (fleet-repair.ts).
       currentHp: carriedHp(entry, shipType?.hitPoints) ?? shipType?.hitPoints,
       destroyed: false,
+      ...copyEquipment(entry),
     };
   }
 }

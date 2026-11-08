@@ -407,8 +407,32 @@ Same control rule as the star map: **left click selects, right click orders** (t
 press, which `TouchLongPressService` turns into a `contextmenu`). `BattleGridComponent` maps
 `click` on a stack to `onStackClick`, `contextmenu` on a stack to `onStackCommand` and
 `contextmenu` on the field to `onCellCommand`; the native browser menu is suppressed on the
-field. A left click on an enemy or on empty space does nothing; a right click on an own stack is
-ignored.
+field. A left click on an enemy opens its info window without selecting it or giving an order;
+a left click on empty space does nothing; a right click on an own stack is ignored.
+
+### Ship info window and paused start
+
+See [Ship Equipment](./ship-equipment.md) (D.6).
+
+- **Info window** (`battle-ship-info/`, `BattleShipInfoComponent`): `onStackClick` sets
+  `inspectedStackId` for any stack (own stacks are also selected, as before). The floating
+  card (top right of the battlefield) shows the stack's side, hull, class and role, its
+  three equipment slots (standard ones dimmed, civil hull slots locked; none for turrets and
+  station cores), and the front living ship's values: attack and damage type, fire rate,
+  damage per second relative to the hull (`damagePerSecondFactor`), armour with its
+  reduction, shield and regen, defense profile and its weakness, speed (ship-data units) and
+  range. With an own stack selected and an enemy inspected it adds the matchup both ways
+  (`weaponMultiplier` × `hullClassMultiplier`, the damage formula's tables). Read-only;
+  closed by its ✕ or when the stack is destroyed.
+- **Paused start:** when `BattleSettingsService.pausedStart()` is on (default; HOLD button
+  in the header next to AUTO, remembered in `localStorage` under
+  `orion_battle_paused_start`), `ngOnInit` pauses `BattleTimeService` right after
+  `reset()`. While the battle has not run yet (`awaitingStart`: paused at battle time 0) a
+  banner says how to start. Space toggles pause (not while typing, not after the battle). No
+  battle time passes while paused, so the outcome is the same as with an immediate start.
+- **Tests:** `battle-screen.component.spec.ts` turns paused start off in its setup (its tests
+  drive a running battle) and covers the window and the paused start in their own block;
+  `battle-ship-info.component.spec.ts` covers the card's values and matchup.
 
 1. **Click own stack** → `onStackClick` → `selectedStackId` set. Selection is UI-only and never changes any
    stack's orders. The panel shows the stack's order status and its TARGET mode buttons.
@@ -688,6 +712,7 @@ reset(): void                                      // speed=1, isPaused=false, e
 - **1x** — `setSpeed(0.625)`; **3x** — `setSpeed(1.875)`; dimmed when paused
 - **AUTO** — toggles AUTO battle (player side AI for stacks without manual orders); projected
   into the header's time-control group, styled with the shared HUD button mixin
+- **HOLD** — toggles paused start (battles open paused); same look as AUTO
 - The battle header has no back or ☰ menu button; leaving the battle is only possible from the
   bottom bar once the battle is over.
 

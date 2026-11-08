@@ -5,6 +5,7 @@ import { isWellFormedBelt } from '../components/star-map/asteroid-belts';
 import { StarMapData } from '../components/star-map/star-map.models';
 import { isWellFormedBlockedMask } from '../components/star-map/planet-surface/planet-surface';
 import shipData from '../components/star-map/ship-data.json';
+import { EQUIPMENT_SLOTS, getModule } from '../components/star-map/equipment';
 
 interface ShipDataFile {
   shipTypes: Array<{ id: string }>;
@@ -65,6 +66,67 @@ export interface SaveValidationResult {
   ok: boolean;
   errors: SaveValidationIssue[];
   warnings: SaveValidationIssue[];
+}
+
+/*
+ * A ship's `equipment` (docs/ship-equipment.md, B.7). A broken shape is an
+ * error; an unknown module, or one in the wrong slot, is only a warning:
+ * the id stays in the save and resolves to the standard module
+ * (equipment.ts moduleInSlot), so a later catalog can still use it.
+ */
+function validateLoadout(loadout: unknown, path: string, errors: SaveValidationIssue[], warnings: SaveValidationIssue[]): void {
+  if (loadout === undefined) {
+    return;
+  }
+  if (!loadout || typeof loadout !== 'object' || Array.isArray(loadout)) {
+    errors.push(error('equipment_invalid', path, 'equipment must be an object of slot → module id'));
+    return;
+  }
+  for (const [slot, moduleId] of Object.entries(loadout as Record<string, unknown>)) {
+    if (!(EQUIPMENT_SLOTS as readonly string[]).includes(slot)) {
+      errors.push(error('equipment_slot_invalid', `${path}.${slot}`, `unknown equipment slot "${slot}"`));
+      continue;
+    }
+    if (typeof moduleId !== 'string' || moduleId.length === 0) {
+      errors.push(error('equipment_module_invalid', `${path}.${slot}`, 'module id must be a non-empty string'));
+      continue;
+    }
+    const module = getModule(moduleId);
+    if (!module) {
+      warnings.push(warning('equipment_module_unknown', `${path}.${slot}`, `unknown module "${moduleId}"; the standard module is used`));
+    } else if (module.slot !== slot) {
+      warnings.push(warning('equipment_module_wrong_slot', `${path}.${slot}`, `module "${moduleId}" belongs to the ${module.slot} slot; the standard module is used`));
+    }
+  }
+}
+
+function validateEquipmentInventory(inventory: unknown, errors: SaveValidationIssue[], warnings: SaveValidationIssue[]): void {
+  if (!Array.isArray(inventory)) {
+    errors.push(error('equipment_inventory_not_array', 'equipmentInventory', 'equipmentInventory must be an array'));
+    return;
+  }
+  for (const [i, entry] of inventory.entries()) {
+    const path = `equipmentInventory[${i}]`;
+    if (!entry || typeof entry !== 'object') {
+      errors.push(error('equipment_inventory_entry_invalid', path, 'equipment inventory entry must be an object'));
+      continue;
+    }
+    const { factionId, modules } = entry as { factionId?: unknown; modules?: unknown };
+    if (typeof factionId !== 'string' || factionId.length === 0) {
+      errors.push(error('equipment_inventory_faction_invalid', `${path}.factionId`, 'factionId must be a non-empty string'));
+    }
+    if (!modules || typeof modules !== 'object' || Array.isArray(modules)) {
+      errors.push(error('equipment_inventory_modules_invalid', `${path}.modules`, 'modules must be an object of module id → count'));
+      continue;
+    }
+    for (const [moduleId, count] of Object.entries(modules as Record<string, unknown>)) {
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 0) {
+        errors.push(error('equipment_inventory_count_invalid', `${path}.modules.${moduleId}`, 'module count must be a non-negative integer'));
+      } else if (!getModule(moduleId) || getModule(moduleId)!.standard) {
+        warnings.push(warning('equipment_inventory_module_unknown', `${path}.modules.${moduleId}`, `unknown module "${moduleId}" in inventory; ignored`));
+      }
+    }
+  }
 }
 
 function error(code: string, path: string, message: string): SaveValidationIssue {
@@ -343,6 +405,7 @@ export function validateSaveData(
           ) {
             errors.push(error('ship_hp_invalid', `${shipPath}.currentHp`, 'currentHp must be a non-negative finite number'));
           }
+          validateLoadout(ship.equipment, `${shipPath}.equipment`, errors, warnings);
         }
       }
     }
@@ -385,9 +448,14 @@ export function validateSaveData(
           ) {
             errors.push(error('stock_ship_hp_invalid', `${shipPath}.currentHp`, 'currentHp must be a non-negative finite number'));
           }
+          validateLoadout(stockShip.equipment, `${shipPath}.equipment`, errors, warnings);
         }
       }
     }
+  }
+
+  if (save.equipmentInventory !== undefined) {
+    validateEquipmentInventory(save.equipmentInventory, errors, warnings);
   }
   if (save.production !== undefined && !Array.isArray(save.production)) {
     errors.push(error('production_not_array', 'production', 'production must be an array'));
@@ -427,7 +495,18 @@ export function validateSaveData(
           if (typeof order.startedAtTick !== 'number' || !Number.isFinite(order.startedAtTick)) {
             errors.push(error('order_tick_invalid', `${orderPath}.startedAtTick`, 'order startedAtTick must be a finite number'));
           }
-          if (typeof order.shipTypeId !== 'string' || order.shipTypeId.length === 0) {
+          // Equipment orders (ProductionOrder.equipmentId) build a module and carry shipTypeId ''.
+          const equipmentId = (order as { equipmentId?: unknown }).equipmentId;
+          if (equipmentId !== undefined) {
+            if (typeof equipmentId !== 'string' || equipmentId.length === 0) {
+              errors.push(error('order_equipment_invalid', `${orderPath}.equipmentId`, 'order equipmentId must be a non-empty string'));
+            } else if (!getModule(equipmentId) || getModule(equipmentId)!.standard) {
+              warnings.push(warning('order_equipment_unknown', `${orderPath}.equipmentId`, `unknown module "${equipmentId}"; the order is refunded`));
+            }
+            if (typeof order.shipTypeId !== 'string') {
+              errors.push(error('order_ship_type_invalid', `${orderPath}.shipTypeId`, 'order shipTypeId must be a string'));
+            }
+          } else if (typeof order.shipTypeId !== 'string' || order.shipTypeId.length === 0) {
             errors.push(error('order_ship_type_invalid', `${orderPath}.shipTypeId`, 'order shipTypeId must be a non-empty string'));
           } else if (!knownShipTypes.has(order.shipTypeId)) {
             warnings.push(warning('order_ship_type_unknown', `${orderPath}.shipTypeId`, `unknown ship type "${order.shipTypeId}"`));

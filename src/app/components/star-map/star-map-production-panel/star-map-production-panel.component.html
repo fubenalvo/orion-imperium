@@ -23,7 +23,7 @@
       @for (order of vm.queue; track order.id) {
         <div class="production-panel__row">
           <div class="production-panel__row-info">
-            <span class="production-panel__row-type">{{ order.shipTypeId | uppercase }}</span>
+            <span class="production-panel__row-type" [class.production-panel__row-type--module]="!!order.equipmentId">{{ orderLabel(order) | uppercase }}</span>
             @if (order.quantity > 1) {
               <span class="production-panel__row-qty">×{{ order.quantity }}</span>
             }
@@ -43,6 +43,45 @@
       <div class="production-panel__modal" (click)="$event.stopPropagation()">
         <div class="production-panel__modal-title">NEW PRODUCTION ORDER</div>
         <div class="production-panel__modal-body">
+          @if (vm.modules?.length) {
+            <div class="production-panel__tabs" role="tablist">
+              <button type="button" role="tab" class="production-panel__tab" [class.production-panel__tab--active]="tab === 'ships'" [attr.aria-selected]="tab === 'ships'" (click)="setTab('ships')">SHIPS</button>
+              <button type="button" role="tab" class="production-panel__tab" [class.production-panel__tab--active]="tab === 'equipment'" [attr.aria-selected]="tab === 'equipment'" (click)="setTab('equipment')">EQUIPMENT</button>
+            </div>
+          }
+
+          @if (tab === 'equipment') {
+            <!-- Ship equipment modules (docs/ship-equipment.md): built into the empire inventory, installed for free near a Spaceport planet. -->
+            <div class="production-panel__cycle">Modules go to the empire inventory · install them from SHIP CUSTOMIZATION</div>
+            <div class="production-panel__types">
+              @for (module of vm.modules ?? []; track module.id) {
+                <button
+                  class="production-panel__type production-panel__module"
+                  type="button"
+                  [class.production-panel__type--selected]="module.id === selectedModuleId"
+                  [class.production-panel__module--locked]="!module.unlocked"
+                  [disabled]="!module.unlocked"
+                  (click)="pickModule(module)"
+                >
+                  <span class="production-panel__type-name">{{ module.name }}</span>
+                  <span class="production-panel__module-slot">{{ module.slot }}</span>
+                  <span class="production-panel__module-effects">{{ module.effects.join(' · ') }}</span>
+                  @if (module.unlocked) {
+                    <span class="production-panel__type-cost">{{ module.credits }} cr · {{ module.rawmaterials }} rm / unit · {{ module.inInventory }} in stock</span>
+                  } @else {
+                    <span class="production-panel__type-cost">Needs {{ module.lockedBy ?? 'research' }}</span>
+                  }
+                </button>
+              }
+            </div>
+            @if (selectedModule; as module) {
+              <div class="production-panel__details">
+                <div class="production-panel__details-title">{{ module.name }} · {{ module.slot }}</div>
+                <p class="production-panel__details-note">{{ module.description }}</p>
+                <p class="production-panel__details-note">Build time {{ module.buildTime }}s @1 fac · installing is free</p>
+              </div>
+            }
+          } @else {
           <!-- The hull-class counter cycle in one line (hull-class.ts). -->
           <div class="production-panel__cycle" aria-label="Hull class counters">
             Light beats Heavy · Heavy beats Medium · Medium beats Light
@@ -88,8 +127,9 @@
               }
             </div>
           }
+          }
 
-          @if (selectedTypeId) {
+          @if (selectedTypeId || selectedModuleId) {
             <div class="production-panel__quantity">
               <button type="button" (click)="changeQuantity(-1)">−</button>
               <span class="production-panel__quantity-value">{{ selectedQuantity }}</span>
