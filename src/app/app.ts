@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { GameSettingsService } from './services/game-settings.service';
 import { TouchLongPressService } from './services/touch-long-press.service';
+import { UiSoundService } from './services/ui-sound.service';
 import { StarMapOptionsComponent } from './components/star-map-options/star-map-options.component';
 
 @Component({

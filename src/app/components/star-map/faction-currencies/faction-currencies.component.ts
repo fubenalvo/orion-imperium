@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ValueFlashDirective } from '../../shared/value-flash.directive';
 import { EconomyBreakdown, ResourceType } from '../../../services/economy.service';
 import {
   TRADE_BUY_CREDITS_PER_RAW,
@@ -32,7 +33,7 @@ export interface TradeSummaryView {
 @Component({
   selector: 'app-faction-currencies',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, ValueFlashDirective],
   templateUrl: './faction-currencies.component.html',
   styleUrl: './faction-currencies.component.scss',
 })

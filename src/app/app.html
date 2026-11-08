@@ -3,7 +3,7 @@
     <router-outlet />
 
     @if (gameSettingsService.optionsMenuOpen) {
-      <app-star-map-options></app-star-map-options>
+      <app-star-map-options animate.enter="ui-enter" animate.leave="ui-leave"></app-star-map-options>
     }
 
     <div class="crt-overlay"></div>

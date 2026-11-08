@@ -25,4 +25,26 @@
   box-shadow:
     inset 0 0 90px rgba(0, 0, 0, 0.6),
     inset 0 0 14px rgba(0, 0, 0, 0.9);
+  overflow: hidden;
+
+  /* One faint, soft sensor band drifting down the screen every 9 s. Unlike
+     the old flicker it only animates transform on its own compositor
+     layer, so nothing underneath is repainted and text stays sharp. */
+  &::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 18vh;
+    background: linear-gradient(180deg, transparent, rgba(var(--ui-accent-rgb), 0.022) 50%, transparent);
+    will-change: transform;
+    animation: ui-crt-band 9s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      content: none;
+    }
+  }
 }

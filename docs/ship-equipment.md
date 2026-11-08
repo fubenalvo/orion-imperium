@@ -174,7 +174,7 @@ In short:
   while it is open; Escape peels back pick → slot → screen.
 - **Layout and flow:** as in [D.5](#d5-layout-and-flow): roster (fleet, then
   the reserve when it can be refitted) with hull meters and three slot pips;
-  the hull SVG on a blueprint grid with three hardpoints (engine at the
+  the hull as line art (blueprint variant of its battle SVG) on a blueprint grid with three hardpoints (engine at the
   stern, weapon at the bow, defense above; upgraded ones amber, civil hulls'
   weapon / defense "Locked"); the resolved stats; the slot's modules with
   counts, "in production" counts and lock state, a REMOVE entry for an
@@ -1052,8 +1052,11 @@ shows the service's failure text, like `describeFailure` in Fleet Command.
    effective map speed and which ship limits it. Under the fleet, a
    collapsible **RESERVE** group lists the global stock by class (decided
    2026-11-08); its ships are customized the same way.
-3. Blueprint: the hull SVG (`public/ships/<type>.svg`, drawn large in the
-   faction color) on a blueprint grid, with three framed hardpoints joined
+3. Blueprint: the hull as cyan line art (`public/ships/blueprint/<type>.svg`,
+   generated from the battle art `public/ships/<type>.svg` by
+   `npm run sprites:blueprints`, `scripts/ship-blueprints/generate.mjs`:
+   outlines only, small details dropped; the coloured battle art was too
+   busy here) on a blueprint grid, with three framed hardpoints joined
    to the hull by leader lines: Engine at the stern, Weapon at the bow,
    Defense above the hull. Each shows the installed module's name and icon.
    The selected one gets the amber selection bar.

@@ -1,5 +1,6 @@
 import { Component, inject, HostListener } from '@angular/core';
 import { GameSettingsService } from '../../services/game-settings.service';
+import { UiSoundService } from '../../services/ui-sound.service';
 
 /*
  * =========================================================
@@ -7,7 +8,8 @@ import { GameSettingsService } from '../../services/game-settings.service';
  * =========================================================
  *
  * Overlay options menu accessible from the main menu and the
- * pause menu. Currently exposes the fog-of-war toggle.
+ * pause menu: the fog-of-war toggle and the UI sounds toggle
+ * (UiSoundService, remembered in localStorage).
  *
  * Lifecycle:
  *   - Rendered conditionally by App via the optionsMenuOpen
@@ -26,6 +28,8 @@ export class StarMapOptionsComponent {
   private gameSettingsService = inject(GameSettingsService);
 
   readonly fogOfWarEnabled = this.gameSettingsService.fogOfWarEnabled;
+
+  readonly uiSound = inject(UiSoundService);
 
   onToggleFogOfWar(): void {
     this.gameSettingsService.toggleFogOfWar();

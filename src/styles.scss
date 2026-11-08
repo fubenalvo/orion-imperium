@@ -10,6 +10,7 @@
 @use 'sass:meta';
 @use 'mixins' as *;
 @use 'ui';
+@use 'motion';
 
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
@@ -437,6 +438,8 @@ input[type='range']::-moz-range-thumb {
   color: var(--color-text);
   @include ui.glass;
   @include ui.brackets;
+  /* Boots once when created (styles/_motion.scss). */
+  animation: ui-panel-boot 0.36s var(--ui-ease-snap) both;
 }
 
 /* Panel header: the console heading — cyan uppercase title on the left,

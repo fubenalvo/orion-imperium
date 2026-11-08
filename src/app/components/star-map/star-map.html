@@ -275,7 +275,7 @@
     </app-star-map-navigation>
   } @else if (currentView === 'system') {
     <!-- SYSTEM VIEW -->
-    <div class="system-view">
+    <div class="system-view" animate.enter="ui-view-dive">
       <app-star-map-header
         [title]="selectedSystem?.name ?? ''"
         backLabel="STAR MAP"
@@ -372,7 +372,7 @@
     </div>
   } @else if (currentView === 'planet') {
     <!-- PLANET VIEW -->
-    <div class="planet-view">
+    <div class="planet-view" animate.enter="ui-view-dive">
       <app-star-map-header
         [title]="selectedPlanetTile?.name ?? ''"
         [backLabel]="selectedSystem?.name || 'SYSTEM'"
@@ -433,6 +433,11 @@
   <!-- Transient notice (asteroid rewards, cancelled routes, colonization).
        Rendered outside the view blocks so it shows in every view: a fleet
        can colonize in a system the player is not looking at. -->
+  <!-- One sensor sweep per view change (styles/_motion.scss): re-created whenever currentView changes. -->
+  @for (view of [currentView]; track view) {
+    <div class="ui-view-scan" aria-hidden="true"></div>
+  }
+
   @if (dysonCountdown; as countdown) {
     <div class="dyson-countdown" [class.dyson-countdown--own]="countdown.own" [style.--warmup-color]="countdown.color" role="status">
       <span class="dyson-countdown__label">DYSON SWARM</span>
@@ -464,6 +469,7 @@
   @if (fleetManagerFleets) {
     @defer (on immediate) {
     <app-star-map-fleet-manager
+      animate.enter="ui-enter" animate.leave="ui-leave"
       [fleets]="fleetManagerFleets"
       factionId="player"
       [factionColor]="getFactionColor('player')"
@@ -481,6 +487,7 @@
   @if (customizationFleet) {
     @defer (on immediate) {
     <app-ship-customization
+      animate.enter="ui-enter" animate.leave="ui-leave"
       [fleet]="customizationFleet"
       [reserve]="customizationReserve"
       [inventory]="customizationInventory"
@@ -500,6 +507,7 @@
   <!-- Exploration event (docs/exploration-anomalies.md); the game is paused while it is open. -->
   @if (anomalyEvent) {
     <app-star-map-anomaly-event
+      animate.enter="ui-enter" animate.leave="ui-leave"
       [vm]="anomalyEvent"
       [error]="anomalyError"
       (choose)="onAnomalyChoice($event)"
@@ -508,6 +516,7 @@
 
   @if (showDiplomacy) {
     <app-star-map-diplomacy
+      animate.enter="ui-enter" animate.leave="ui-leave"
       [rows]="getDiplomacyRows()"
       [summary]="getDiplomacySummary()"
       [message]="diplomacyMessage"
@@ -528,6 +537,7 @@
     @let negotiationVm = getNegotiationVm();
     @if (negotiationVm) {
       <app-star-map-peace-negotiation
+        animate.enter="ui-enter" animate.leave="ui-leave"
         [vm]="negotiationVm"
         (draftChange)="onNegotiationDraftChange($event)"
         (send)="onSendPeaceProposal($event)"
@@ -541,6 +551,7 @@
 
   @if (showResearchTree) {
     <app-star-map-research-tree
+      animate.enter="ui-enter" animate.leave="ui-leave"
       [faction]="getPlayerFaction()!"
       [researchPerSecond]="getPlayerEconomyBreakdown().net['research'] ?? 0"
       [creditsPerSecond]="getPlayerEconomyBreakdown().netPerSecond"

@@ -32,19 +32,8 @@
   border-radius: var(--ui-radius);
   @include ui.glass;
   @include ui.brackets(26px);
-  animation: sc-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 
-@keyframes sc-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 
 /* ---------- Header ---------- */
 
@@ -153,6 +142,7 @@
 }
 
 .sc-ship {
+  @include ui.stagger-in;
   display: flex;
   align-items: center;
   gap: 0.6em;
@@ -181,11 +171,14 @@
   box-shadow: inset 3px 0 0 var(--ui-amber);
 }
 
+/* Blueprint line art (public/ships/blueprint/): currentColor draws the lines,
+ * --bp-paper fills the shapes so a shape hides the outlines it covers. */
 .sc-ship__icon-box {
   display: inline-flex;
   flex: 0 0 3.2em;
   justify-content: center;
-  color: var(--faction);
+  color: rgba(var(--ui-accent-rgb), 0.85);
+  --bp-paper: var(--ui-surface);
 }
 
 .sc-ship__icon {
@@ -261,8 +254,9 @@
   max-width: 520px;
   max-height: 100%;
   overflow: visible;
-  color: var(--faction);
-  filter: drop-shadow(0 0 14px rgba(var(--ui-accent-rgb), 0.25));
+  color: var(--ui-accent);
+  --bp-paper: rgba(4, 18, 28, 0.88);
+  filter: drop-shadow(0 0 6px rgba(var(--ui-accent-rgb), 0.35));
 }
 
 /* Hardpoints sit around the hull; a leader line points at it. */
@@ -431,6 +425,7 @@
 }
 
 .sc-module {
+  @include ui.stagger-in;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.25em 0.6em;

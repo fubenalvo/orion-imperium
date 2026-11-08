@@ -820,7 +820,7 @@ several sit in per-frame paths.
 1. Add to `ship-data.json` (speed field 1-5 automatically becomes movement speed)
 2. Add tier to `TIER_LOOKUP` in `battle-ship-stats.ts`
 3. Stats auto-resolved via `ShipService`
-4. Add `public/ships/<id>.svg` (shared scale, root `id="ship"`) and its entry in `SHIP_ICONS`
+4. Add `public/ships/<id>.svg` (shared scale, root `id="ship"`) and its entry in `SHIP_ICONS`. Then run `npm run sprites:blueprints` to generate its line-art variant for the Ship Customization screen (`public/ships/blueprint/`).
    (`battle-grid/ship-icons.ts`); see [Ship icons](#ship-icons)
 
 ### Add New Combat Mechanic

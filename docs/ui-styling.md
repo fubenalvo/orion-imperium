@@ -197,7 +197,60 @@ antialiased (`-webkit-font-smoothing: antialiased`).
 `.crt-overlay` (`app.html`, textured in `app.scss`) lays faint static
 scanlines and a soft vignette over the whole game. It is deliberately
 static: an earlier flicker animation repainted the full viewport several
-times a second and its RGB sub-pixel stripes blurred small text.
+times a second and its RGB sub-pixel stripes blurred small text. The one
+moving part is a very faint sensor band on `::after` that drifts down every
+9 s; it animates only `transform` on its own compositor layer, so nothing
+underneath is repainted (removed under `prefers-reduced-motion`).
+
+## Motion and sound
+
+The UI is a console that powers on and off, not a web page that fades.
+Tokens, keyframes and the motion classes live in `src/styles/_motion.scss`
+(emitted once from `styles.scss`); button and tab states live in the
+`_ui.scss` mixins. Keyframe names are global (`ui-*`): Angular only
+rewrites keyframes a component defines itself, so components can reference
+them by name.
+
+| Effect | Where | How |
+|---|---|---|
+| Dialog power on / off | modal hosts in `star-map.html` (Fleet Command, Ship Customization, anomaly event, Diplomacy, peace negotiation, research tree), `app.html` (Options), the pause overlay and the production order dialog | `animate.enter="ui-enter" animate.leave="ui-leave"` (Angular native enter/leave). The whole dialog opens from a bright horizontal line like a CRT and collapses back into one on close (`ui-crt-on` / `ui-crt-off`); during the class the host is a full-screen fixed block, which every modal overlay already is. Dialogs no longer have their own slide-in. |
+| Panel boot | every `.panel-style` | Plays once on creation: opens from its centre line, brightness overshoot, one flicker (`ui-panel-boot`, 0.36 s). Ends with no clip and no filter (see the containing-block rule above). |
+| View change | `star-map.html` | A sensor sweep line runs down the screen on every galaxy / system / planet change (`.ui-view-scan`, re-created by `@for (view of [currentView]; track view)`); the system and planet views also "land" from slightly closer (`ui-view-dive`). |
+| Buttons | global `button`, `ui.button` | Hover: a light glint sweeps across the key (first background layer, moved by `background-position`) and a faint outer glow. Press: `scale: 0.97`, lit, shadow inside, instant in and eased out. `scale` is used instead of `transform` so buttons positioned with `transform` / `translate` keep working. Disabled: dead key with faint hatching. Focus: outline plus a soft ring. |
+| Primary button | `.btn-primary`, `ui.button-primary` | Breathes slowly (`ui-breathe`) so the call to action is easy to find; stops on hover. |
+| Selected key, tabs | `ui.button-selected`, `ui.tab` / `ui.tab-active` | The amber bar casts a glow upward; a hovered tab shows a quarter of its underline; the active tab's text glows. |
+| Meters | `ui.meter-fill` | Width glides (0.4 s) instead of jumping. |
+| Lists | `ui.stagger-in($count, $step)` | Rows slide in one after another when a list appears: pause menu buttons, Ship Customization roster and modules, Diplomacy cards, production queue and order types. Only plays on creation. |
+| Value jumps | `ValueFlashDirective` (`[uiValueFlash]`, `components/shared/`) on the header resources | A value that jumps (not a routine tick) flashes green / red and floats its delta ("−750") below it. The directive learns the routine step size from small changes and reacts only to a change at least 4× larger (and ≥ 10); the first change only teaches the baseline. |
+
+**Sounds** (`UiSoundService`, `services/ui-sound.service.ts`): short
+sounds synthesized with Web Audio — no audio files. A tick when the mouse
+moves onto a button, a key "thock" on press, a buzz on a disabled button, a
+rising sweep when a dialog powers on, a falling one when it powers off, and
+a tiny blip when a panel boots (not within 0.4 s of a dialog opening).
+`App` calls `install()` once; it listens on the document for
+`pointerover` / `pointerdown` on buttons and for `animationstart` of
+`ui-crt-on` / `ui-crt-off` / `ui-panel-boot`, so any element that uses
+the shared animations gets the sound for free — renaming those keyframes
+breaks the sounds. Every sound has a minimum gap so a fast sweep over a
+toolbar does not buzz. Browsers allow audio only after a gesture, so the
+AudioContext is created on the first pointerdown (silent before). The
+**UI SOUNDS** toggle in Options switches them off (localStorage
+`orion_ui_sounds`, default on, not in saves).
+
+**Reduced motion.** Under `prefers-reduced-motion: reduce` the UI motion
+(dialogs, panels, view dive, buttons, value flashes) runs in 0.001 s — the
+enter / leave animations still end, so Angular's bookkeeping completes —
+and the view sweep, the value deltas and the CRT band are hidden. Map and
+battle animations are game content and are not affected.
+
+**Rules for new UI.** Open a new modal with `animate.enter="ui-enter"
+animate.leave="ui-leave"` on its host (or on its full-screen overlay
+element) instead of a custom slide-in; give new lists `ui.stagger-in`
+where they appear as a whole; animate only `transform`, `opacity`,
+`clip-path` and `filter` for short one-shots, and never leave a
+`filter` or `transform` in an end state on an element that hosts fixed
+overlays.
 
 ## Screen treatments
 
@@ -208,7 +261,7 @@ times a second and its RGB sub-pixel stripes blurred small text.
 | System view | The planet info card's body is `PlanetDetailsComponent` (`star-map/planet-details/`), the same minimal summary as the planet view's Details tab (see below), so both show the same content, plus the building tags; uninhabited planets add a Colonization note (`.planet-info__note`, dim prose) explaining the next step; the scene stays dominant. The fleet panel shows a primary COLONIZE action button beside MOVE while the fleet can colonize |
 | Planet view | Opaque command sidebar (framed like every console panel; its frame is mostly off screen, so it reads as a metal left edge): header, underline tabs (amber bar on the active one), then the active tab. Details (`PlanetDetailsComponent`, shared with the system view's planet card) is minimal by design (a game panel, not a table): owner and type chip (a dim line with the type's effects off earthlike worlds), a headline block (population, signed income, satisfaction meter with target mark and a ▲/▼ trend), danger alerts only when energy or workers run short or a rebellion nears, three vital tiles (spare energy, spare workers, comfort coverage; warning/danger bottom edge), one raw/research yield strip, a one-line deposit with its remaining-share meter, and, in the system view card only, buildings as grouped tags ("Name ×N") (the planet view hides them with `showBuildings`: the buildings stand on the surface; a player Trading Post adds one traders line below). Exact figures (production/consumption, workforce, comfort points, drift sources, deposit amounts and richness) are in tooltips; the empire treasury is not repeated (the header shows it). Build: cards with warm cost text (unaffordable = warning edge, locked = faint). Production / assembly are sections of the sidebar, not nested boxes. Surface d-pad and zoom selector are small framed instruments |
 | Fleet command | Modal console sheet: location title with fleet/ship figures, a hint strip that follows the selection, an optional Reserve column (sunken surface, Spaceport stock) followed by fleet columns on raised surfaces edged in the faction color (class rows with faction-tinted ship SVGs, hull meters, accent-lit selection), dashed "transfer here" strips and new-fleet slot, sunken footer with change chips and Reset / Cancel / Apply (see [Fleet Organization](./fleet-organization.md#ui)) |
-| Ship customization | Full-height modal console sheet (`ship-customization/`): eyebrow + fleet title; three columns: a sunken roster (faction-edged ship rows with class SVGs, hull meters and three diamond slot pips, amber when upgraded; the Reserve group in warm text), a raised blueprint (the hull SVG large in the faction color on a cyan grid, three framed hardpoints with leader lines — engine at the stern, weapon at the bow, defense above — upgraded amber, selected accent-lit with the amber bar, locked dashed) above a sunken stat grid, and a sunken inventory column (module rows with counts, warm "+N" in production, faint locked, dashed REMOVE) with a raised comparison card (better values green, worse red). Columns stack below 1100 px. See [Ship Equipment](./ship-equipment.md) |
+| Ship customization | Full-height modal console sheet (`ship-customization/`): eyebrow + fleet title; three columns: a sunken roster (faction-edged ship rows with small blueprint hull icons, hull meters and three diamond slot pips, amber when upgraded; the Reserve group in warm text), a raised blueprint (the hull as cyan line art on a cyan grid — `public/ships/blueprint/`, generated from the battle SVGs by `npm run sprites:blueprints`: outlines only, filled with the paper color `--bp-paper` so covered lines stay hidden, no engine glow or small details, a dashed centreline; three framed hardpoints with leader lines — engine at the stern, weapon at the bow, defense above — upgraded amber, selected accent-lit with the amber bar, locked dashed) above a sunken stat grid, and a sunken inventory column (module rows with counts, warm "+N" in production, faint locked, dashed REMOVE) with a raised comparison card (better values green, worse red). Columns stack below 1100 px. See [Ship Equipment](./ship-equipment.md) |
 | Diplomacy | Modal console sheet opened from the header DIPLOMACY button (warm badge = open AI proposals): eyebrow + ruled title with gauges: your reputation (shield icon, two-way bar, word) and, only while at war or penalised, a crossed-swords war count ("2 WARS") and, once your exhaustion cuts output, OUTPUT −X%; a result notice; one raised card per empire edged in its faction color (danger wash at war; dimmed and sorted last when eliminated) with relation chip with an icon (crossed swords + war duration / hourglass + truce time left / handshake + peace, all in game time) and a row of icon gauges — attitude (two-way bar + word), fleet (3-segment meter + word), planets (count), and at war a full-width will-to-peace bar (WANTS WAR / WANTS PEACE ends; Unwilling / Open / Eager) — and a MORE DETAILS disclosure per card with the exact numbers and the reasons behind the peace gauge (no hover tooltips on this screen: they fail on touch); icons come from one inline SVG sprite in the template; plus a dim "Also at war with" line; an inline success notice for an open AI proposal (REVIEW primary / DECLINE), an inline danger notice that states the consequences before DECLARE WAR / BREAK TREATY (`btn-danger`); credit demands: an incoming demand as a warning notice (danger for an ultimatum) with a quoted, personality-toned message, ACCEPT (primary) / DECLINE, a refused-ultimatum notice with DECLARE WAR (`btn-danger`) / BACK DOWN, and the inline DEMAND CREDITS form (segmented kind buttons using `button-selected`, amount input, consequence text, SEND DEMAND primary or SEND ULTIMATUM danger); and a footer with the actions (only "Talks possible in …" as text; the reason a demand is unavailable and the truce lock are button tooltips). The rules footnote is a collapsed "How diplomacy works" disclosure. See [Diplomacy](./diplomacy.md#player-ui) |
 | Peace negotiation | Modal console sheet above the Diplomacy screen (game paused): faction-swatched title, two side cards edged in faction color, a success notice with the AI's terms on the table, two sunken draft columns (demand / offer: resource inputs with maxima, checkbox lists of systems and planets with warm value text, accent bar on selected rows), and a raised judgment panel (acceptance meter with a bright 50% threshold mark, verdict line, factor bars green/red); sunken footer with CLEAR / CANCEL / SEND PROPOSAL |
 | Research | Full-screen dialog: header (points, income, progress meter), status filters (dimming, not removing), then a blueprint-grid **tech board** — one column per tier, icon nodes with a status edge (green / cyan / amber lamp = researchable now / faint), price with RP and credit icons, banked-share bar — beside a **detail console** for the selected node: icon in a metal-rimmed porthole, effects as icon rows, hull class badges for unlocked combat hulls, clickable Requires / Leads-to chips, price, blocker, RESEARCH. Prerequisites and follow-ups of the selection are outlined on the board (cyan / amber dashes). Icons come from one inline SVG sprite in the template (see [Research](./research.md#ui)) |

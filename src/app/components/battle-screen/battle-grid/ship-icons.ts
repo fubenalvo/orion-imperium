@@ -65,6 +65,13 @@ export function shipIconFor(typeId: string): ShipIconDef {
   return SHIP_ICONS[typeId] ?? FALLBACK_SHIP_ICON;
 }
 
+/* Line-art variant for the Ship Customization screen, same viewBox (so the
+ * sizes above apply). Generated from the battle art into public/ships/blueprint/
+ * by `npm run sprites:blueprints`; regenerate after changing a ship SVG. */
+export function shipBlueprintHref(typeId: string): string {
+  return shipIconFor(typeId).href.replace('ships/', 'ships/blueprint/');
+}
+
 /* Stack cell box in field units — mirrors .stack-cell / .stack-cell--size-N
  * in battle-grid.component.scss (0.925 of a cell, +0.2 u gap per extra cell). */
 const STACK_BOX_FILL = 0.925;

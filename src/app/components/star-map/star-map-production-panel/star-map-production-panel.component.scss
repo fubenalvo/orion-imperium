@@ -63,6 +63,7 @@
 
 /* Queue entry: info line + progress meter, cancel on the right. */
 .production-panel__row {
+  @include ui.stagger-in;
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 0.35rem 0.6rem;
@@ -166,6 +167,7 @@
 }
 
 .production-panel__type {
+  @include ui.stagger-in;
   @include ui.control-reset;
   display: flex;
   flex-direction: column;

@@ -34,7 +34,6 @@
   border-radius: var(--ui-radius);
   @include ui.glass;
   @include ui.brackets(22px);
-  animation: pause-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 
   @include mobile-view {
     width: min(90vw, 420px);
@@ -73,6 +72,7 @@
 /* ---------- Menu entries (main menu style) ---------- */
 
 .pause-overlay__btn {
+  @include ui.stagger-in(6, 0.045s);
   @include ui.control-reset;
   position: relative;
   display: flex;

@@ -1,6 +1,6 @@
 import { Component, EventEmitter, HostListener, Input, OnChanges, Output } from '@angular/core';
 import { ShipService, ShipType } from '../../../services/ship.service';
-import { shipIconFor } from '../../battle-screen/battle-grid/ship-icons';
+import { shipBlueprintHref, shipIconFor } from '../../battle-screen/battle-grid/ship-icons';
 import { HullRoleComponent } from '../hull-role/hull-role.component';
 import { isCombatShipType } from '../ai-queries';
 import { EQUIPMENT_SLOTS, EquipmentDefinition, EquipmentSlot, describeModuleEffects, moduleInSlot } from '../equipment';
@@ -177,7 +177,7 @@ export class ShipCustomizationComponent implements OnChanges {
   }
 
   iconHref(typeId: string): string {
-    return shipIconFor(typeId).href;
+    return shipBlueprintHref(typeId);
   }
 
   /* Blueprint aspect from the SVG's natural size, so every hull fills the stage the same way. */

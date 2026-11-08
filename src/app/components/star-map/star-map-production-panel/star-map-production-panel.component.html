@@ -39,7 +39,7 @@
   </div>
 
   @if (showBuildMenu) {
-    <div class="production-panel__overlay" (click)="closeBuildMenu.emit()">
+    <div class="production-panel__overlay" animate.enter="ui-enter" animate.leave="ui-leave" (click)="closeBuildMenu.emit()">
       <div class="production-panel__modal" (click)="$event.stopPropagation()">
         <div class="production-panel__modal-title">NEW PRODUCTION ORDER</div>
         <div class="production-panel__modal-body">

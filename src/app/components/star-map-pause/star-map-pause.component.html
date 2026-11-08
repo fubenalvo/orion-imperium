@@ -1,5 +1,5 @@
 @if (pauseMenuOpen) {
-  <div class="pause-overlay">
+  <div class="pause-overlay" animate.enter="ui-enter" animate.leave="ui-leave">
     @if (!showSaveSlots && !showLoadSlots) {
       <div class="pause-overlay__content">
         <div class="pause-overlay__title">PAUSED</div>

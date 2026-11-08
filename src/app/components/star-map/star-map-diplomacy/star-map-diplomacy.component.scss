@@ -82,6 +82,7 @@
 }
 
 .diplomacy__card {
+  @include ui.stagger-in(8, 0.05s);
   display: flex;
   flex-direction: column;
   gap: 10px;

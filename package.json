@@ -9,7 +9,8 @@
     "test": "ng test",
     "test:long": "ng test --watch=false --configuration=long",
     "test:all": "ng test --watch=false --configuration=all",
-    "sprites:buildings": "node scripts/building-sprites/generate.mjs"
+    "sprites:buildings": "node scripts/building-sprites/generate.mjs",
+    "sprites:blueprints": "node scripts/ship-blueprints/generate.mjs"
   },
   "private": true,
   "packageManager": "npm@12.0.2",

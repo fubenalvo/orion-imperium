@@ -1,0 +1,327 @@
+/* =========================================================
+   UI MOTION — tokens, keyframes and the global motion classes
+   ---------------------------------------------------------
+   The console's "power" language (docs/ui-styling.md#motion-and-sound):
+   things switch ON like a CRT (a bright line that opens into the picture)
+   and switch OFF the same way in reverse; panels boot with a short
+   flicker; keys press in; values that jump flash and float their delta.
+
+   Emitted once from styles.scss. Keyframe names are global (prefix
+   `ui-`): component stylesheets reference them by name, and Angular
+   only rewrites keyframes a component defines itself. UiSoundService
+   listens for `animationstart` of ui-crt-on / ui-crt-off / ui-panel-boot
+   to play the matching sound, so renaming them breaks the sounds.
+
+   Everything here is switched off for prefers-reduced-motion.
+   ========================================================= */
+
+:root {
+  --ui-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ui-ease-snap: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ui-ease-in: cubic-bezier(0.55, 0, 0.75, 0.2);
+  --ui-dur-fast: 0.12s;
+  --ui-dur: 0.22s;
+  --ui-dur-slow: 0.38s;
+}
+
+/* ---------- Dialog power on / off ---------- */
+
+/* Angular `animate.enter` / `animate.leave` classes for modal hosts
+   (star-map.html, app.html, the pause menu). While the class is on, the
+   host is a full-screen block so the whole dialog (backdrop and sheet)
+   scales as one picture; every modal overlay already covers the screen,
+   so nothing moves when the class is removed. pointer-events: none on
+   leave stops a double click from hitting the dialog that is closing. */
+.ui-enter,
+.ui-leave {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  display: block;
+  transform-origin: 50% 50%;
+}
+
+.ui-enter {
+  animation: ui-crt-on 0.32s var(--ui-ease-out) both;
+}
+
+.ui-leave {
+  pointer-events: none;
+  animation: ui-crt-off 0.2s var(--ui-ease-in) both;
+}
+
+@keyframes ui-crt-on {
+  0% {
+    opacity: 0;
+    transform: scale(0.3, 0.006);
+    filter: brightness(3);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1, 0.006);
+    filter: brightness(2.4);
+  }
+  72% {
+    transform: scale(1, 1.012);
+    filter: brightness(1.25);
+  }
+  84% {
+    filter: brightness(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
+@keyframes ui-crt-off {
+  0% {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  55% {
+    opacity: 1;
+    transform: scale(1, 0.006);
+    filter: brightness(2.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0, 0.006);
+    filter: brightness(3);
+  }
+}
+
+/* ---------- Panel boot ---------- */
+
+/* Every .panel-style plays this once when it is created: the picture
+   opens from its centre line, overshoots in brightness and settles with
+   one flicker. The clip keeps 48px outside the box so the console frame
+   (drawn outside the border box, ui.brackets) is not cut off. */
+@keyframes ui-panel-boot {
+  0% {
+    opacity: 0;
+    clip-path: inset(50% -48px 50% -48px);
+    filter: brightness(1.8);
+  }
+  45% {
+    opacity: 1;
+    clip-path: inset(-48px -48px -48px -48px);
+    filter: brightness(1.5);
+  }
+  62% {
+    filter: brightness(0.75);
+  }
+  74% {
+    filter: brightness(1.2);
+  }
+  /* Ends with no clip and no filter: a lingering clip would cut popovers
+     that reach far outside the panel, and a filter would make the panel
+     the containing block of fixed overlays (docs/ui-styling.md). */
+  100% {
+    opacity: 1;
+    clip-path: none;
+    filter: none;
+  }
+}
+
+/* ---------- View changes (galaxy ↔ system ↔ planet) ---------- */
+
+/* Dive into a system or planet: the new view comes in from slightly
+   closer and settles (the camera "lands"). */
+.ui-view-dive {
+  animation: ui-view-dive 0.42s var(--ui-ease-out) both;
+}
+
+@keyframes ui-view-dive {
+  from {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A sensor sweep across the screen on every view change: one bright scan
+   line runs top to bottom with a fading wake. The element is re-created
+   per view (star-map.html) and only ever animates transform/opacity. */
+.ui-view-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 900;
+  overflow: hidden;
+  pointer-events: none;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 22vh;
+    background: linear-gradient(
+      180deg,
+      transparent,
+      rgba(var(--ui-accent-rgb), 0.05) 70%,
+      rgba(var(--ui-accent-rgb), 0.35) 98%,
+      rgba(230, 251, 255, 0.85) 100%
+    );
+    transform: translateY(-25vh);
+    animation: ui-scan-sweep 0.55s var(--ui-ease-snap) forwards;
+  }
+}
+
+@keyframes ui-scan-sweep {
+  0% {
+    opacity: 1;
+    transform: translateY(-25vh);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(105vh);
+  }
+}
+
+/* ---------- Value change feedback (ValueFlashDirective) ---------- */
+
+.ui-flash-up {
+  animation: ui-flash-up 0.7s ease-out;
+}
+
+.ui-flash-down {
+  animation: ui-flash-down 0.7s ease-out;
+}
+
+@keyframes ui-flash-up {
+  0% {
+    color: #fff;
+    text-shadow: 0 0 10px rgba(var(--ui-success-rgb), 0.9);
+  }
+  100% {
+    text-shadow: none;
+  }
+}
+
+@keyframes ui-flash-down {
+  0% {
+    color: var(--ui-danger-text);
+    text-shadow: 0 0 10px rgba(var(--ui-danger-rgb), 0.9);
+  }
+  100% {
+    text-shadow: none;
+  }
+}
+
+/* The floating "+1,250" / "−500" under a value that jumped (below, so it
+   never covers the neighbouring figures in a row of resources). */
+.ui-delta {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  z-index: 5;
+  translate: -50% 0;
+  font-size: 0.85em;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: ui-delta-rise 1.1s var(--ui-ease-out) forwards;
+
+  &--up {
+    color: var(--ui-success);
+    text-shadow: 0 0 6px rgba(var(--ui-success-rgb), 0.6);
+  }
+
+  &--down {
+    color: var(--ui-danger-text);
+    text-shadow: 0 0 6px rgba(var(--ui-danger-rgb), 0.6);
+  }
+}
+
+@keyframes ui-delta-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.5em) scale(1.25);
+  }
+  15% {
+    opacity: 1;
+    transform: none;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0.9em);
+  }
+}
+
+/* ---------- Small shared loops ---------- */
+
+/* Primary buttons idle with a slow breathing glow (ui.button-primary). */
+@keyframes ui-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 0 0 rgba(var(--ui-accent-rgb), 0);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.14),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+      0 0 12px rgba(var(--ui-accent-rgb), 0.28);
+  }
+}
+
+/* List rows that slide in one after the other (ui.stagger-in). */
+@keyframes ui-row-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* The slow sensor band that drifts down the CRT overlay (app.scss). */
+@keyframes ui-crt-band {
+  from {
+    transform: translateY(-30vh);
+  }
+  to {
+    transform: translateY(130vh);
+  }
+}
+
+/* ---------- Reduced motion ---------- */
+
+/* Only the UI chrome motion; map and battle effects are game content. The
+   enter/leave animations still run (0.001 s) so Angular's animationend
+   bookkeeping completes. */
+@media (prefers-reduced-motion: reduce) {
+  .ui-enter,
+  .ui-leave,
+  .ui-view-dive,
+  .panel-style,
+  button,
+  .button-style,
+  .ui-flash-up,
+  .ui-flash-down {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+  }
+
+  .ui-view-scan,
+  .ui-delta {
+    display: none;
+  }
+}
