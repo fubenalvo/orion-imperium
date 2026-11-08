@@ -4,7 +4,7 @@ import { ShipService } from '../../services/ship.service';
 import { PlanetBattleService } from '../../services/planet-battle.service';
 import { getBattleShipStats } from '../battle-screen/battle/battle-ship-stats';
 import { BATTLE_SPEED_MULTIPLIER } from '../battle-screen/battle/battle.types';
-import { getUpgradeModules } from './equipment';
+import { getModule, getUpgradeModules } from './equipment';
 import { MIN_BATTLE_SPEED, effectiveFleetSpeed, resolveShipStats } from './ship-stats';
 
 describe('ship-stats resolver', () => {
@@ -67,7 +67,7 @@ describe('ship-stats resolver', () => {
   it('scales fire rate by the weapon factor and keeps the hull rate for damage per shot', () => {
     const laser = resolveShipStats(type('dreadnought'), { weapon: 'laser_cannon' });
     expect(laser.hullFireRate).toBe(type('dreadnought').fireRate);
-    expect(laser.fireRate).toBeCloseTo(type('dreadnought').fireRate! * 1.2, 10);
+    expect(laser.fireRate).toBeCloseTo(type('dreadnought').fireRate! * getModule('laser_cannon')!.fireRateFactor!, 10);
     expect(laser.attackType).toBe('energy');
 
     const missiles = resolveShipStats(type('fighter'), { weapon: 'missile_launcher' });

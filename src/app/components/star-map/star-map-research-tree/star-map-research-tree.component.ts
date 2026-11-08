@@ -1,4 +1,5 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { getModule } from '../equipment';
 import { CommonModule } from '@angular/common';
 import { Faction, Technology, TechnologyBonusType } from '../star-map.models';
 import { ResearchService, TechnologyStatus } from '../../../services/research.service';
@@ -70,6 +71,12 @@ const BUILDING_CATEGORY: Record<string, TechCategory> = {
 export interface TechEffectRow {
   icon: TechCategory;
   text: string;
+}
+
+/* Icon of an equipment-module technology, by the module's slot. */
+function equipmentCategory(moduleId: string): TechCategory {
+  const slot = getModule(moduleId)?.slot;
+  return slot === 'defense' ? 'shields' : slot === 'engine' ? 'ships' : 'weapons';
 }
 
 @Component({
@@ -178,6 +185,8 @@ export class StarMapResearchTreeComponent {
   private techCategory(tech: Technology): TechCategory {
     if (tech.unlocksShips.includes('swarm_constructor')) return 'stellar';
     if (tech.unlocksShips.length > 0) return 'ships';
+    const equipment = tech.unlocksEquipment?.[0];
+    if (equipment) return equipmentCategory(equipment);
     const bonus = tech.bonuses?.[0];
     if (bonus) return BONUS_CATEGORY[bonus.type];
     const building = tech.unlocksBuildings[0];
@@ -237,7 +246,7 @@ export class StarMapResearchTreeComponent {
     if (tech.unlocksShips.length > 0)
       icons.push(tech.unlocksShips.includes('swarm_constructor') ? 'stellar' : 'ships');
     if (tech.unlocksBuildings.length > 0) icons.push('colony');
-    if ((tech.unlocksEquipment ?? []).length > 0) icons.push('weapons');
+    if ((tech.unlocksEquipment ?? []).length > 0) icons.push(equipmentCategory(tech.unlocksEquipment![0]));
     for (const bonus of tech.bonuses ?? []) icons.push(BONUS_CATEGORY[bonus.type]);
     return this.getEffects(tech).map((text, i) => ({
       icon: icons[i] ?? this.getCategory(tech),

@@ -119,7 +119,7 @@ describe('loadout resolution', () => {
   });
 
   it('describes effects from the data', () => {
-    expect(describeModuleEffects(getModule('laser_cannon')!)).toEqual(['energy damage', '+8 attack', 'fire rate ×1.2']);
+    expect(describeModuleEffects(getModule('laser_cannon')!)).toEqual(['energy damage', '+6 attack', 'fire rate ×1.1']);
     expect(describeModuleEffects(getModule('kinetic_barrier')!)).toEqual(['resists kinetic', '+6 armour', '-0.2 battle speed']);
   });
 });

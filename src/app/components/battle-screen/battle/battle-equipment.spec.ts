@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ShipService } from '../../../services/ship.service';
 import { PlanetBattleService } from '../../../services/planet-battle.service';
-import { ShipLoadout } from '../../star-map/equipment';
+import { ShipLoadout, getModule } from '../../star-map/equipment';
 import { MIN_TURN_RATE } from '../../star-map/ship-stats';
 import { autoResolveBattle } from './battle-auto-resolve';
 import { createBattleState } from './battle-state';
@@ -160,13 +160,16 @@ describe('battle with equipment', () => {
   describe('fire rate', () => {
     it('fires faster at the same damage per shot with a Laser Cannon', () => {
       const [laser, plain] = sideStacks(battleOf([...ships('dreadnought', 1, { weapon: 'laser_cannon' }), ...ships('dreadnought', 1)], ships('scout', 1)), 'attacker');
-      expect(laser.fireRate).toBeCloseTo(type('dreadnought').fireRate! * 1.2, 10);
+      const factor = getModule('laser_cannon')!.fireRateFactor!;
+      const added = getModule('laser_cannon')!.modifiers.find((m) => m.stat === 'attack')!.add;
+      expect(factor).toBeGreaterThan(1);
+      expect(laser.fireRate).toBeCloseTo(type('dreadnought').fireRate! * factor, 10);
       expect(laser.hullFireRate).toBe(type('dreadnought').fireRate);
       expect(volleyShare(laser)).toBe(volleyShare(plain));
-      expect(damagePerSecondFactor(laser)).toBeCloseTo(1.2, 10);
+      expect(damagePerSecondFactor(laser)).toBeCloseTo(factor, 10);
       expect(damagePerSecondFactor(plain)).toBe(1);
       // Targeting sees the extra damage per second.
-      expect(firepower(laser) / firepower(plain)).toBeCloseTo((type('dreadnought').attack + 8) * 1.2 / type('dreadnought').attack, 10);
+      expect(firepower(laser) / firepower(plain)).toBeCloseTo((type('dreadnought').attack + added) * factor / type('dreadnought').attack, 10);
     });
 
     it('adds no hullFireRate for a weapon that keeps the hull rate', () => {
@@ -200,7 +203,7 @@ describe('battle with equipment', () => {
 
     it('deals more damage per second with a faster weapon: Laser cruisers beat plain cruisers', () => {
       nextId = 1;
-      // Cruiser is energy already, so the Laser changes only attack (+8) and fire rate (×1.2).
+      // Cruiser is energy already, so the Laser changes only attack and fire rate.
       const { outcome } = autoResolveBattle(battleOf(ships('cruiser', 4), ships('cruiser', 4, { weapon: 'laser_cannon' })), shipService, planetBattleService);
       expect(outcome.winnerSide).toBe('defender');
     });

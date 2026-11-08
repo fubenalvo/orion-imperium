@@ -93,7 +93,7 @@ Each is now covered by a rule (see [AI Pipeline](./ai-pipeline.md)):
 
 ## Acceptance test
 
-`ai-simulation-late-economy.long.spec.ts`, "AI simulation — late economy" (large map, 4 personalities, 90 minutes; runs with `npm run test:long`, not in the default `npm test`; ~200 s): for every AI ≤ 10 arrears ticks, no rebellion, no rejected order, negative-net streak ≤ 300 s, ≥ 20 technologies, warships, ≥ 3 colonies; net ≤ 20% of gross income at minute 90; every AI has planets that need comfort. The opt-in report (`ORION_ECONOMY_REPORT=1`, both scenarios, `ORION_ECONOMY_MINUTES` for other sample minutes) prints per-faction samples (income, expenses, credits, coverage, the three largest planets) and summaries (opening times, colonies, gains and losses). The Dyson acceptance test still passes.
+`ai-simulation-late-economy.long.spec.ts`, "AI simulation — late economy" (large map, 4 personalities, 90 minutes; runs with `npm run test:long`, not in the default `npm test`; ~200 s): for every AI ≤ 10 arrears ticks, no rebellion, no rejected order, negative-net streak ≤ 300 s, ≥ 20 technologies, warships, ≥ 3 colonies; net ≤ 30% of gross income at minute 90 (20% originally, 25% since building construction time; 30% since AI ship equipment on 2026-11-08: refitted navies win more wars and the technologist measured 0.27 with 3,087 credits/s of income and ~704k credits — modules have no upkeep, so they cannot lower this ratio); every AI has planets that need comfort. The opt-in report (`ORION_ECONOMY_REPORT=1`, both scenarios, `ORION_ECONOMY_MINUTES` for other sample minutes) prints per-faction samples (income, expenses, credits, coverage, the three largest planets) and summaries (opening times, colonies, gains and losses). The Dyson acceptance test still passes.
 
 ## Decisions (2026-11-02)
 
@@ -106,5 +106,5 @@ Each is now covered by a rule (see [AI Pipeline](./ai-pipeline.md)):
 
 ## Open points
 
-- The remaining surplus of AIs at their ship cap. Raising the cap or giving rich AIs another sink (e.g. Dyson building for more personalities) would address it.
+- The remaining surplus of AIs at their ship cap (2026-11-08 with AI ship equipment: technologist ~704k, militarist ~626k credits at minute 90; modules do not absorb it). Raising the cap or giving rich AIs another sink (e.g. Dyson building for more personalities) would address it.
 - Whether the player finds comfort a chore: the display is always on, and a built comfort building keeps working without attention.

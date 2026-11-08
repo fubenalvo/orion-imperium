@@ -29,6 +29,8 @@ describe('EnemyActionService', () => {
       calculateEconomy: vi.fn(() => ({
         incomePerSecond: 1000, buildingUpkeepPerSecond: 200, shipUpkeepPerSecond: 50, stationUpkeepPerSecond: 0, netPerSecond: 750,
       })),
+      // Starter-building upkeep of a new colony (canSupportNewColony); 0 keeps these selection tests about selection.
+      colonyStarterUpkeepPerSecond: vi.fn(() => 0),
     };
     shipService = {
       getShipType: vi.fn(() => ({ id: 'colonizer', name: 'Colonizer', cost: 100 })),

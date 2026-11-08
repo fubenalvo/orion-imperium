@@ -115,15 +115,23 @@ function runwayCovers(netAfter: number, credits: number, income: number): boolea
  * non-negative afterwards, or its credits cover the resulting deficit for
  * COLONY_RUNWAY_SECONDS, as long as that deficit stays small
  * (COLONY_RUNWAY_MAX_DEFICIT_SHARE). Without this an expansionist kept colonizing at
- * ~0 net income and ended in permanent upkeep arrears.
+ * ~0 net income and ended in permanent upkeep arrears. The AI passes the
+ * upkeep of the colony's first buildings as well (starterUpkeep).
  */
 export function canSupportNewColony(
   breakdown: EconomyBreakdown,
   ownedPlanetCount: number,
   credits: number,
+  /* Upkeep of the colony's first buildings (EconomyService.colonyStarterUpkeepPerSecond); 0 = not counted. */
+  starterUpkeep = 0,
 ): boolean {
   if (ownedPlanetCount === 0) return true;
-  const netAfter = breakdown.netPerSecond - marginalColonyCost(breakdown, ownedPlanetCount);
+  // The starter buildings only matter to an empty treasury: credits that
+  // carry their upkeep for the runway absorb the dip until the colony pays.
+  // (Counting them always kept research-saving technologists from
+  // colonizing and left them a large unspent surplus, late-economy test.)
+  const starter = Math.max(0, credits) >= starterUpkeep * COLONY_RUNWAY_SECONDS ? 0 : starterUpkeep;
+  const netAfter = breakdown.netPerSecond - marginalColonyCost(breakdown, ownedPlanetCount) - starter;
   return netAfter >= 0 || runwayCovers(netAfter, credits, breakdown.incomePerSecond);
 }
 

@@ -278,6 +278,8 @@ export class EnemyEconomyService {
    * housing that creates income.
    */
   private static readonly CORE_RUNWAY_SECONDS = 300;
+  /* Seconds of a deficit the spending reserve keeps in the treasury (getSpendingReserve). */
+  private static readonly DEFICIT_RUNWAY_SECONDS = 120;
   // Raw purchases (buyRawMaterials) leave this much gross income in credits untouched, and buy in lots of this size.
   private static readonly RAW_PURCHASE_MARGIN_SECONDS = 300;
   private static readonly RAW_PURCHASE_LOT = 500;
@@ -508,7 +510,8 @@ export class EnemyEconomyService {
     // their prices, cheap optional buildings would otherwise always win.
     // Saving only works with positive net income; without it (e.g. a lone
     // fresh colony) growth buildings must not wait for a factory forever.
-    const canSave = this.getProjectedNet(faction, starSystems, context).net > 0;
+    const projectedNet = this.getProjectedNet(faction, starSystems, context).net;
+    const canSave = projectedNet > 0;
     const hasFactory = planets.some((p) => this.isFactoryPlanet(p));
     const factory = this.findBuilding('spaceship_factory');
     if (factory && !hasFactory && planets.length > 0 && canSave) {
@@ -532,6 +535,15 @@ export class EnemyEconomyService {
     // Research credits: the price of the technology research is waiting for
     // (see researchCreditReserve).
     reserve = addCosts(reserve, { credits: this.researchCreditReserve(faction), rawmaterials: 0 });
+
+    // In a deficit, DEFICIT_RUNWAY_SECONDS of it stay in the treasury: after a
+    // conquest the AI otherwise spent its credits down to zero on ships and
+    // optional buildings and fell into upkeep arrears (measured 2026-11-08,
+    // civilization scenario; the core tiers ignore the reserve and keep
+    // their own runway rule).
+    if (projectedNet < 0) {
+      reserve = addCosts(reserve, { credits: -projectedNet * EnemyEconomyService.DEFICIT_RUNWAY_SECONDS, rawmaterials: 0 });
+    }
 
     if (includeMilitary && this.militaryNeed(faction, starSystems, context).strength > 0) {
       const ship = this.selectMilitaryShip(faction, { credits: Infinity, rawmaterials: Infinity }, Infinity, 1, context);
@@ -1401,7 +1413,10 @@ export class EnemyEconomyService {
     const stockShips = (context.shipStock.find((s) => s.factionId === faction.id)?.ships ?? []).filter((s) => isCombat(s.type));
     const queued = this.pendingOrders(faction.id, context).filter((o) => isCombat(o.shipTypeId));
 
-    const current = this.shipService.calculateFleetStrength([...fleetShips, ...stockShips])
+    // Hull strength only: installed equipment must not stand in for hulls,
+    // or refitted factions would stop building ships and hoard credits
+    // (measured 2026-11-08, docs/ship-equipment.md roadmap 8b).
+    const current = this.shipService.calculateFleetStrength([...fleetShips, ...stockShips], { includeEquipment: false })
       + queued.reduce((sum, o) => sum + o.quantity * this.shipService.calculateFleetStrength([{ type: o.shipTypeId }]), 0);
     const count = fleetShips.length + stockShips.length + queued.reduce((sum, o) => sum + o.quantity, 0);
     // Personality scales the ship cap (bounded): militarists field larger navies.
@@ -1423,14 +1438,21 @@ export class EnemyEconomyService {
     return income * EnemyEconomyService.MILITARY_INCOME_SHARE * strengthPerUpkeep;
   }
 
-  /* Strength of hostile (at-war, see diplomacy.ts) fleets near the faction's systems. */
+  /*
+   * Hull strength of hostile (at-war, see diplomacy.ts) fleets near the
+   * faction's systems. Hulls only, like the faction's own strength in
+   * militaryNeed: a target fed by the enemy's modules but met with hulls
+   * only became a hull arms race that ended in upkeep arrears (measured
+   * 2026-11-08). Navy sizes stay what they were before equipment; modules
+   * come on top.
+   */
   private nearbyThreatStrength(faction: Faction, ownedSystems: StarSystem[], context: EconomyContext): number {
     const factions = context.factions ?? [];
     const hostile = hostileFactionIds(faction, factions);
     return (context.perceivedFleets ?? context.fleets)
       .filter((f) => hostile.has(f.factionId) && !f.destroyed)
       .filter((f) => ownedSystems.some((s) => Math.hypot(s.x - f.x, s.y - f.y) <= EnemyEconomyService.THREAT_RADIUS))
-      .reduce((sum, f) => sum + this.shipService.calculateFleetStrength(f.ships), 0);
+      .reduce((sum, f) => sum + this.shipService.calculateFleetStrength(f.ships, { includeEquipment: false }), 0);
   }
 
   /*
@@ -1599,7 +1621,7 @@ export class EnemyEconomyService {
       faction.id, context.factions ?? [faction], starSystems, context.fleets, context.shipStock,
     );
     const owned = this.getOwnedPlanetsSorted(faction.id, starSystems).length;
-    return canSupportNewColony(breakdown, owned, faction.currencies['credits'] ?? 0);
+    return canSupportNewColony(breakdown, owned, faction.currencies['credits'] ?? 0, this.economyService.colonyStarterUpkeepPerSecond(faction, owned));
   }
 
   private pendingOrders(factionId: string, context: EconomyContext): { shipTypeId: string; quantity: number }[] {

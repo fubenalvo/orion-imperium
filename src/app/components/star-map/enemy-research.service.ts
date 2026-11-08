@@ -9,6 +9,7 @@ import { hostileFactionIds } from './diplomacy';
 import { SpaceBaseService } from './space-base.service';
 import planetData from './planet-data.json';
 import { DYSON_ANCHOR_SHIP_TYPE } from './dyson-anchor';
+import { getModule } from './equipment';
 import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 /*
@@ -93,6 +94,18 @@ export class EnemyResearchService {
   private static readonly COMFORT_BUILDING_VALUE = 2.5;
   // Floor so effect-less leftovers (e.g. a bonus for hulls never built) still finish eventually.
   private static readonly MIN_VALUE = 0.05;
+  /*
+   * Equipment module technologies (docs/ship-equipment.md): a weapon or
+   * defense module improves the navy the faction already has, so its value
+   * grows with the combat fleet (full at EQUIPMENT_FULL_FLEET ships) and the
+   * military need. The AI does not build engines (EnemyEquipmentService), so
+   * engine technologies are worth little to it.
+   */
+  private static readonly EQUIPMENT_VALUE = 0.6;
+  private static readonly ENGINE_EQUIPMENT_VALUE = 0.1;
+  private static readonly EQUIPMENT_FULL_FLEET = 8;
+  private static readonly EQUIPMENT_UNAFFORDABLE_SHARE = 0.2;
+  private static readonly DEFICIT_RUNWAY_SECONDS = 120;
   private static readonly SAVE_HORIZON = 180;
   private static readonly SAVE_SCORE_RATIO = 1.5;
 
@@ -197,7 +210,12 @@ export class EnemyResearchService {
     scored.sort((a, b) => b.score - a.score || a.cost - b.cost || a.tech.id.localeCompare(b.tech.id));
 
     const points = faction.currencies['research'] ?? 0;
-    const spendableCredits = (faction.currencies['credits'] ?? 0) - this.coreCreditReserve(faction, starSystems, fleets, pipeline);
+    // While the faction runs a credit deficit, research leaves DEFICIT_RUNWAY_SECONDS
+    // of it in the treasury: research is a large credit sink (4 credits per
+    // point) and spending it down turned deficits into upkeep arrears once
+    // the tree grew (equipment technologies, 2026-11-08).
+    const deficitRunway = Math.max(0, -context.creditIncome) * EnemyResearchService.DEFICIT_RUNWAY_SECONDS;
+    const spendableCredits = (faction.currencies['credits'] ?? 0) - this.coreCreditReserve(faction, starSystems, fleets, pipeline) - deficitRunway;
     const creditCost = (s: { tech: Technology }) => this.researchService.getResearchCreditCost(faction, s.tech);
     const bestAffordable = scored.find((s) => s.cost <= points && creditCost(s) <= spendableCredits);
     const best = scored[0];
@@ -265,6 +283,7 @@ export class EnemyResearchService {
       if (capacity > 0 && (planet.population ?? 0) < capacity * 0.9) growthRoom++;
     }
     const ownShips = fleets.filter((f) => f.factionId === faction.id && !f.destroyed).flatMap((f) => f.ships.filter((s) => !s.destroyed));
+    const combatShips = ownShips.filter((s) => isCombatShipType(this.shipService.getShipType(s.type))).length;
     const strengthByType = new Map<string, number>();
     for (const ship of ownShips) {
       strengthByType.set(ship.type, (strengthByType.get(ship.type) ?? 0) + this.shipService.calculateFleetStrength([ship]));
@@ -289,6 +308,7 @@ export class EnemyResearchService {
       stationCount: this.countStations(faction.id, starSystems),
       hasFactory: owned.some((p) => p.buildings.some((b) => b.name === 'Spaceship Factory')),
       fleetStrength: [...strengthByType.values()].reduce((a, b) => a + b, 0),
+      combatShips,
       strengthByType,
       weights: {
         economy: weights.economy * peace,
@@ -390,6 +410,21 @@ export class EnemyResearchService {
     for (const bonus of tech.bonuses ?? []) {
       value += this.bonusValue(faction, bonus, ctx);
     }
+    for (const moduleId of tech.unlocksEquipment ?? []) {
+      if (this.researchService.isEquipmentUnlocked(faction, moduleId)) continue;
+      if (getModule(moduleId)?.slot === 'engine') {
+        value += EnemyResearchService.ENGINE_EQUIPMENT_VALUE;
+        continue;
+      }
+      const fleetShare = Math.min(1, ctx.combatShips / EnemyResearchService.EQUIPMENT_FULL_FLEET);
+      // Modules are bought from surplus only (EnemyEquipmentService): below
+      // that surplus the technology would be paid for (credits, 4 per point)
+      // without being used, and research spending emptied treasuries into
+      // upkeep arrears (measured 2026-11-08, civilization scenario).
+      const canUse = (faction.currencies['credits'] ?? 0) >= getAiPersonalityProfile(faction).equipment.minSurplusCredits
+        ? 1 : EnemyResearchService.EQUIPMENT_UNAFFORDABLE_SHARE;
+      value += EnemyResearchService.EQUIPMENT_VALUE * ctx.weights.military * militaryNeed * fleetShare * canUse;
+    }
     // The Swarm Constructor is not a combat ship; its worth is the
     // personality's Dyson ambition (ai-personality.ts `dyson`).
     if (tech.unlocksShips.includes(DYSON_ANCHOR_SHIP_TYPE) && !this.researchService.isShipUnlocked(faction, DYSON_ANCHOR_SHIP_TYPE)) {
@@ -477,6 +512,8 @@ interface ResearchContext {
   stationCount: number;
   hasFactory: boolean;
   fleetStrength: number;
+  /* Living combat ships in the faction's fleets (equipment technology value). */
+  combatShips: number;
   strengthByType: Map<string, number>;
   weights: { economy: number; research: number; expansion: number; military: number };
 }

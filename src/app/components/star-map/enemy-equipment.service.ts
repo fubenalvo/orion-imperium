@@ -99,16 +99,14 @@ export class EnemyEquipmentService {
   /* Smallest relative improvement worth a refit (stops swaps that change nothing). */
   static readonly MIN_GAIN = 0.03;
   /*
-   * OFF in the game until the module balance pass (decided 2026-11-08):
-   * switched on, refitting AIs decided the AI-vs-AI wars of the long
-   * simulations (the Dyson scenario's technologist fell from 1,319 to 76
-   * credits/s of income), also with doubled module prices. With fixed
-   * values a module on a light or medium hull is worth about a hull, with
-   * no upkeep and outside the ship cap. Turn on (and re-measure the long
-   * simulations) once docs/ship-equipment.md C.1's value-per-price limit
-   * is met. Unit tests switch it on per instance.
+   * On for every personality since the module balance pass (2026-11-08).
+   * The long simulations only stay stable together with the economy fixes
+   * made then: hull-only military need / threat, the deficit runways in
+   * the spending reserve and research, and the colony brake's starter
+   * upkeep (docs/ai-pipeline.md, Ship equipment). Switching this off or
+   * changing those rules means re-running `npm run test:long`.
    */
-  static readonly ENABLED_BY_DEFAULT = false;
+  static readonly ENABLED_BY_DEFAULT = true;
   enabled = EnemyEquipmentService.ENABLED_BY_DEFAULT;
 
   private readonly accumulators = new Map<string, number>();

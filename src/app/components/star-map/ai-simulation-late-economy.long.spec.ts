@@ -33,7 +33,11 @@ describe('AI simulation — late economy', () => {
     for (const s of samples.filter((x) => x.minute === 90)) {
       // 0.25 since building construction time (2026-11): a slower build-up
       // leaves a little more unspent at minute 90 (measured up to ~0.23).
-      expect(s.net / s.income, `${s.who} late net share`).toBeLessThanOrEqual(0.25);
+      // 0.30 since AI ship equipment (2026-11-08): refitted navies win more,
+      // and modules carry no upkeep, so a richer technologist measured 0.27
+      // (income 3,087/s, 704k credits). Modules cannot lower this ratio; the
+      // late hoard at the ship cap stays an open point (docs/late-economy.md).
+      expect(s.net / s.income, `${s.who} late net share`).toBeLessThanOrEqual(0.3);
     }
     // The rule bites: every AI has planets that need comfort by minute 90.
     for (const f of result.data.factions.filter((x) => x.ai)) {

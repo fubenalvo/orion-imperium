@@ -80,15 +80,17 @@ describe('Technology effects — inventory', () => {
   it('every researchable technology has a real effect: a unique unlock or a bonus', () => {
     const shipUnlockers = new Map<string, number>();
     const buildingUnlockers = new Map<string, number>();
+    const equipmentUnlockers = new Map<string, number>();
     for (const tech of research.getAllTechnologies()) {
       tech.unlocksShips.forEach((id) => shipUnlockers.set(id, (shipUnlockers.get(id) ?? 0) + 1));
       tech.unlocksBuildings.forEach((id) => buildingUnlockers.set(id, (buildingUnlockers.get(id) ?? 0) + 1));
+      (tech.unlocksEquipment ?? []).forEach((id) => equipmentUnlockers.set(id, (equipmentUnlockers.get(id) ?? 0) + 1));
     }
-    // No duplicate unlocks: a second unlocker of the same ship/building would be a no-op technology.
-    for (const [id, count] of [...shipUnlockers, ...buildingUnlockers]) expect(count, id).toBe(1);
+    // No duplicate unlocks: a second unlocker of the same ship/building/module would be a no-op technology.
+    for (const [id, count] of [...shipUnlockers, ...buildingUnlockers, ...equipmentUnlockers]) expect(count, id).toBe(1);
 
     for (const tech of research.getAllTechnologies().filter((t) => !STARTING.includes(t.id))) {
-      const hasUnlock = tech.unlocksShips.length + tech.unlocksBuildings.length > 0;
+      const hasUnlock = tech.unlocksShips.length + tech.unlocksBuildings.length + (tech.unlocksEquipment ?? []).length > 0;
       const hasBonus = (tech.bonuses ?? []).length > 0;
       expect(hasUnlock || hasBonus, `${tech.id} has no effect`).toBe(true);
       expect(research.describeEffects(tech).length, `${tech.id} effect text`).toBeGreaterThan(0);

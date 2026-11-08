@@ -1,11 +1,10 @@
 # Ship Equipment (Engine / Weapon / Defense modules)
 
-> **Status: Phases 1–8 of the roadmap implemented (catalog, stat resolver,
+> **Status: Phases 1–8b of the roadmap implemented (catalog, stat resolver,
 > persistence, battle, map speed, production / inventory / install rules /
-> research unlocks, UI, battle info and displays, AI).** The player builds,
-> installs and uses modules. The AI's refit rules are implemented and
-> tested but switched off in the game until the balance pass (roadmap 8b).
-> Only 8b and the optional extensions of Phase 9
+> research unlocks, UI, battle info and displays, AI, module balance pass).**
+> The player and every AI personality build, install and use modules; each
+> module has its own technology. Only the optional extensions of Phase 9
 > are still the plan; sections B–D describe the design the implementation
 > follows, and the "Implemented so far" notes record where it differs
 > as each phase lands (see [Implementation roadmap](#e-implementation-roadmap)).
@@ -112,8 +111,9 @@ In short:
 
 ### Phase 5: production, inventory, install rules, research
 
-- **Research:** `Technology.unlocksEquipment` on eight existing
-  technologies (table in [Research](./research.md)), `isEquipmentUnlocked`,
+- **Research:** `Technology.unlocksEquipment` (first on eight existing
+  technologies; since Phase 8b one technology per module, table in
+  [Research](./research.md)), `isEquipmentUnlocked`,
   an "Unlocks ship equipment" effect line, and `validateTechnologies`
   rejects unknown or standard module ids.
 - **Production** ([Ship Production → Equipment orders](./ship-production.md#equipment-orders)):
@@ -225,21 +225,20 @@ In short:
   against the hostile navy it has seen (weapon by damage type, defense by
   profile; no engines), one order at a time, only on a factory the economy
   left idle and only from surplus credits beyond its spending reserve
-  (personality `equipment.minSurplusCredits`: militarist 1500, balanced
+  (personality `equipment.minSurplusCredits`: militarist and balanced
   2500, expansionist and technologist 3000); it installs inventory modules
   on ships at a Spaceport planet and in the reserve, heaviest hulls first.
 - `ShipService.calculateFleetStrength` counts installed modules, so the AI's
-  military target, threat checks and forecasts see refitted fleets (the
-  player's and its own). Standard ships count exactly as before.
+  forecasts and attack decisions see refitted fleets (the player's and its
+  own). Standard ships count exactly as before. Military need and nearby
+  threat use `{ includeEquipment: false }` (hull strength, Phase 8b).
 - Ledger kinds `equipment_queued` / `equipment_installed`.
 - **Difference from the design (E, Phase 8):** the design said militarists
   refit first by navy coverage; the coverage gate was dropped after
   measuring (a wealthy faction's military target grows with its credits,
   so the gate never opened). The surplus gate and the idle-factory rule keep
   hulls first instead.
-- **Switched off in the game** (`EnemyEquipmentService.ENABLED_BY_DEFAULT =
-  false`, your decision 2026-11-08) until the balance pass (roadmap 8b).
-  Switched on, refitting AIs decided the AI-vs-AI wars of the long
+- **First switch-on (before 8b):** refitting AIs decided the AI-vs-AI wars of the long
   simulations (Dyson scenario: the technologist fell from 1,319 to 76
   credits/s of income and never reached Stellar Engineering), also with the
   technologist excluded and with doubled module prices. Cause: with fixed
@@ -247,10 +246,39 @@ In short:
   credit, with no upkeep and outside the ship cap, which breaks C.1's
   value-per-price limit; late-game AIs have the surplus to refit
   everything. Details: [AI Pipeline → Ship equipment](./ai-pipeline.md#ship-equipment-enemyequipmentservice).
-  Off, the game plays exactly as before (all long simulations pass); the
-  AI still sees the player's modules through `calculateFleetStrength`.
+  The AI was kept off until Phase 8b.
 - **Tests:** `enemy-equipment.spec.ts` (threat weighting, counter choice,
   install rules, ordering gates, strength).
+
+### Phase 8b: module balance pass
+
+- **AI on for every personality** (`EnemyEquipmentService.ENABLED_BY_DEFAULT
+  = true`, decided 2026-11-08: equipment should help the non-militarist
+  AIs too).
+- **One technology per module** (decided 2026-11-08, replacing "existing
+  technologies"): Ion Drives, Laser Optics, Guided Missiles, Energy
+  Shielding, Mass Drivers, Fusion Drives, Kinetic Armor, Point Defense,
+  Warp Field Theory, Shield Harmonics (1000–2600 points, each behind the
+  technology that unlocked the module before; table in
+  [Research](./research.md#technology-inventory)). A faction can buy the
+  one module it wants without a military research path. The AI values
+  them by the combat ships that would carry the module
+  ([AI Pipeline](./ai-pipeline.md#ship-equipment-enemyequipmentservice)).
+- **Laser Cannon** toned down to attack +6 and fire rate ×1.1 (was +8,
+  ×1.2): the only module clearly better per price than hulls.
+  `module-balance.spec.ts` (battle-screen) pins this: in an equal-resource
+  mirror auto-resolve, a pure stat module may not beat the same credits
+  spent on hulls by more than 5% (budgets 14,400 and 43,200), and an
+  equally large refitted fleet must not lose. Other prices are unchanged.
+- **AI economy fixes** found in the long simulations (details in
+  [AI Pipeline](./ai-pipeline.md#ship-equipment-enemyequipmentservice)):
+  hull-only military need and threat, a 120 s deficit runway in the
+  spending reserve and in research, the colony brake counting the new
+  colony's starter-building upkeep, the militarist's surplus 1500 → 2500.
+- **Late surplus:** the late-economy test's net-share limit rose to 0.30
+  ([Late Economy](./late-economy.md#acceptance-test)); modules carry no
+  upkeep and do not absorb the late credit hoard (open point, see F).
+- `npm run test:long` passes with every AI refitting.
 
 Every ship gets three equipment slots: **Engine**, **Weapon**, **Defense**.
 Ships leave the factory with standard equipment. Upgrade modules are built in
@@ -282,7 +310,7 @@ Related: [Battle Rules](./battle-rules.md), [Ship Production](./ship-production.
 | Does the weapon module set the fire rate? | **Yes, and fire rate changes damage per second.** The weapon gives a fire-rate factor on the hull's own rate; this is the one modifier that is a multiplier, not a fixed value | [B.4](#b4-ship-stat-calculation), [C.1](#c1-design-limits-from-the-existing-balance), [C.2](#c2-recommended-initial-catalog) |
 | Reserve ships | **Can be customized too**: the screen lists the reserve next to the fleet | [B.5](#b5-production-and-inventory-rules), [D.5](#d5-layout-and-flow) |
 | Civil hulls (colonizer, outpost ship, swarm constructor) | **Engine slot only**; weapon and defense slots are locked | [C.4](#c4-factory-equipment-per-ship-class) |
-| Research gating | **Existing technologies**; the research tree doesn't change | [C.2](#c2-recommended-initial-catalog) |
+| Research gating | **One technology per module** (Phase 8b; first decided as existing technologies) | [C.2](#c2-recommended-initial-catalog) |
 | Missile interception mechanic | **No**; the Point-Defense Array's missile resistance covers it | [C.2](#c2-recommended-initial-catalog) |
 | Destroyed ships, resale | **Modules are lost with the ship; no resale** | [B.5](#b5-production-and-inventory-rules) |
 | Module upkeep | **None for now**; revisit after the Phase 8 long simulations | [C.5](#c5-cost-model) |
@@ -596,7 +624,7 @@ cadence and damage per second. The targeting estimate (`firepower` mode,
 `weakest` mode's time-to-kill), `shotScale` and the AI strength
 calculation (Phase 8) must use the same `fireRate / hullFireRate` ratio so
 they agree with combat. This is the one modifier that grows with the hull's
-attack: a Laser Cannon's +20% shots are worth more on a dreadnought than on a
+attack: a Laser Cannon's +10% shots are worth more on a dreadnought than on a
 fighter, accepted with the decision.
 
 **Order: research first, modules second.** Research multiplies only the
@@ -812,9 +840,9 @@ and the defense keeps the hull's profile. Not buildable, no price.
 
 | Module | Map speed | Battle speed | Turn rate | Price | Unlock (existing tech) |
 |---|---|---|---|---|---|
-| Ion Engine | +0.5 | +0.5 | −20 °/s (wide turns) | 150 / 100 | Advanced Engineering |
-| Fusion Engine | 0 | +0.3 | +60 °/s (agile) | 300 / 200 | Fusion Power |
-| Warp Drive | +1 | −0.3 | 0 | 500 / 300 | Orbital Engineering |
+| Ion Engine | +0.5 | +0.5 | −20 °/s (wide turns) | 150 / 100 | Ion Drives |
+| Fusion Engine | 0 | +0.3 | +60 °/s (agile) | 300 / 200 | Fusion Drives |
+| Warp Drive | +1 | −0.3 | 0 | 500 / 300 | Warp Field Theory |
 
 Effect examples: Ion on a scout (speed 5) +10%, on a dreadnought (speed 1)
 +50%; Fusion turn rate on a fighter (240 °/s) +25%, on a dreadnought
@@ -824,14 +852,14 @@ Effect examples: Ion on a scout (speed 5) +10%, on a dreadnought (speed 1)
 
 | Module | Sets attackType | Effect | Fire rate | Trade-off | Price | Unlock |
 |---|---|---|---|---|---|---|
-| Missile Launcher | missile | attack +8, range +1 | ×0.85 (slow salvos) | fewer shots | 150 / 100 | Missile Technology |
-| Laser Cannon | energy | attack +8 | ×1.2 (rapid fire) | none beyond type | 250 / 150 | Advanced Engineering |
-| Railgun | kinetic | attack +16 | ×1.0 | battle speed −0.3 (mass) | 300 / 250 | Military Engineering |
+| Missile Launcher | missile | attack +8, range +1 | ×0.85 (slow salvos) | fewer shots | 150 / 100 | Guided Missiles |
+| Laser Cannon | energy | attack +6 | ×1.1 (rapid fire) | none beyond type | 250 / 150 | Laser Optics |
+| Railgun | kinetic | attack +16 | ×1.0 | battle speed −0.3 (mass) | 300 / 250 | Mass Drivers |
 
 How they compare (damage per second relative to today, before the damage-type
-table): a fighter (attack 15) gets 1.30× with a Missile Launcher, 1.84× with a
+table): a fighter (attack 15) gets 1.30× with a Missile Launcher, 1.54× with a
 Laser Cannon and 2.07× with a Railgun; a dreadnought (attack 175) gets 0.89×,
-1.25× and 1.09×. The Railgun is the light-hull weapon, the Laser Cannon the
+1.14× and 1.09× (Laser values since Phase 8b). The Railgun is the light-hull weapon, the Laser Cannon the
 heavy-hull weapon, and the Missile Launcher trades damage on heavy hulls for
 reach.
 
@@ -839,10 +867,10 @@ reach.
 
 | Module | Sets profile (resists) | Effect | Trade-off | Price | Unlock |
 |---|---|---|---|---|---|
-| Energy Shield | energy (weak to kinetic) | shield +40 | none beyond profile | 200 / 150 | Military Engineering |
-| Point-Defense Array | missile (weak to energy) | armour +3, shield +20 | none beyond profile | 250 / 200 | Advanced Weapons |
-| Kinetic Barrier | kinetic (weak to missile) | armour +6 | battle speed −0.2 (mass) | 250 / 250 | Advanced Manufacturing |
-| Advanced Shield Generator | keeps the hull's profile | shield +60, shield regen +3 | none | 500 / 300 | Frigate Technology |
+| Energy Shield | energy (weak to kinetic) | shield +40 | none beyond profile | 200 / 150 | Energy Shielding |
+| Point-Defense Array | missile (weak to energy) | armour +3, shield +20 | none beyond profile | 250 / 200 | Point Defense |
+| Kinetic Barrier | kinetic (weak to missile) | armour +6 | battle speed −0.2 (mass) | 250 / 250 | Kinetic Armor |
+| Advanced Shield Generator | keeps the hull's profile | shield +60, shield regen +3 | none | 500 / 300 | Shield Harmonics |
 
 Notes:
 
@@ -858,9 +886,8 @@ Notes:
 - The weapon pick is mainly a **damage-type** choice against the enemy's
   defense profiles, plus raw attack. The defense pick is a **profile**
   choice against the enemy's weapon types, plus durability.
-- Unlocks use existing technologies (decided 2026-11-08), so the research
-  tree doesn't change; each module adds itself to one technology's
-  `unlocksEquipment`.
+- Each module has its own technology (Phase 8b; Phase 5 first used
+  existing technologies), listed in its technology's `unlocksEquipment`.
 
 ### C.3 Counter relationships
 
@@ -1117,8 +1144,8 @@ and `npm run test:long` after Phases 3, 4, 5 and 8.
 | **5. Production, inventory and research** (done 2026-11-08) | `ProductionOrder.equipmentId`, queue / tick / ETA / refund / validation / `rebaseFromSave` for equipment orders; `ShipEquipmentService` (install, uninstall, all atomic, free); `SpaceportService.spaceportPlanetNear` (2-cell rule); `unlocksEquipment` in research + "unlocked by exactly one technology" test; `describeEffects` lists module unlocks | Equipment orders build into the inventory, refund on cancel / stall / planet loss, are never refunded as unknown ships, survive save/load; conservation invariant under random operation sequences; every failure changes nothing; location rule at distance 0, 2 and 3 (and diagonals); AI-faction calls work the same | 2 |
 | **6. Customization UI** (done 2026-11-08) | Equipment section in the production dialog and queue; fleet-panel button; StarMap open/close/pause/autosave; the `ship-customization/` component tree | Component specs (enable rule, flow, confirm/cancel, failure text, counts in production); run the app (Playwright) and check desktop and narrow layouts | 3, 4, 5 |
 | **7. Battle info and displays** (done 2026-11-08) | Battle screen paused start and ship info window ([D.6](#d6-battle-screen-paused-start-and-ship-info-window)); fleet-panel ATK/DEF from resolved stats; Fleet Command rows show an "upgraded" marker; research cards show module unlocks | Battle screen specs: starts paused, Space / ▶ starts it, outcome identical with and without the paused start, enemy left click opens the window without selecting, own left click selects and opens; panel values match battle stats | 3 (the paused start alone has no dependency and can ship first) |
-| **8. AI** (done 2026-11-08; off in the game until 8b) | `calculateFleetStrength` with loadouts; AI orders modules in its factories and installs them at its Spaceport planets by personality (militarist first), choosing profile and weapon from perceived enemy damage types; respects the spending policy and the factory capacity it needs for ships | AI unit specs; `npm run test:long`, check APM ledger and that no personality starves its economy or its ship production | 5 (7 for debug display) |
-| **8b. Module balance pass** (next) | An equal-budget auto-resolve spec for modules (like `hull-balance.spec.ts`, budgets including module prices and the upkeep a hull would cost over a game); retune module values / prices (or add module upkeep) until a refit is clearly worse per price than a hull (C.1); switch `EnemyEquipmentService.ENABLED_BY_DEFAULT` on and re-measure every long simulation | Module spec passes; `npm run test:long` passes with the AI refitting; refits visible in a 60-minute game | 8 |
+| **8. AI** (done 2026-11-08) | `calculateFleetStrength` with loadouts; AI orders modules in its factories and installs them at its Spaceport planets by personality (militarist first), choosing profile and weapon from perceived enemy damage types; respects the spending policy and the factory capacity it needs for ships | AI unit specs; `npm run test:long`, check APM ledger and that no personality starves its economy or its ship production | 5 (7 for debug display) |
+| **8b. Module balance pass** (done 2026-11-08: one technology per module, Laser toned down, AI on for every personality, AI economy fixes; module upkeep not needed) | An equal-budget auto-resolve spec for modules (like `hull-balance.spec.ts`, budgets including module prices and the upkeep a hull would cost over a game); retune module values / prices (or add module upkeep) until a refit is clearly worse per price than a hull (C.1); switch `EnemyEquipmentService.ENABLED_BY_DEFAULT` on and re-measure every long simulation | Module spec passes; `npm run test:long` passes with the AI refitting; refits visible in a 60-minute game | 8 |
 | **9. Optional extensions** | An ORDER shortcut on the customization screen; "apply to all ships of this class"; module upkeep if Phase 8 shows it is needed | Per feature | 6, 8 |
 
 Documentation per phase: rewrite this file from design into the current
@@ -1141,7 +1168,7 @@ fleet speed follows the slowest engine), [Game Systems](./game-systems.md)
 | Equipment orders refunded as unknown ships | `ProductionService.tick`, `rebaseFromSave`, `getOrderEta`, save validation all assume `shipTypeId` | Branch on `equipmentId` first in every one of them; dedicated specs |
 | Light hulls overpowered by fixed values | +16 attack doubles a fighter | Value-per-price limit (C.1) checked by an equal-budget spec including module prices; tune values there |
 | Fire-rate factor breaks agreement between systems | combat, auto-resolve, targeting estimate, `shotScale`, AI strength all derive damage per second | One helper for the `fireRate / hullFireRate` ratio; a spec comparing auto-resolve and targeting estimates for a Laser-fitted stack |
-| Upkeep-free power late game | ship upkeep is progressive, modules have none | Measure in long AI sims (Phase 8); add module upkeep if needed (F) |
+| Upkeep-free power late game | ship upkeep is progressive, modules have none | Measured in Phase 8b: not needed for balance (modules stay at or below hulls per price), but modules do not absorb the late credit hoard either (F) |
 | Factory capacity contention | modules and ships share one queue per planet | Intended (it's the cost of building modules). Watch the AI in Phase 8 so it doesn't starve ship production |
 | Stack stats wrong for mixed loadouts | `buildStacks` groups by type only; front-ship attackType decides a stack's weapon | Group by loadout key; test with mixed fleets above the 28-ship limit |
 | More stacks than deployment slots | many distinct loadouts of one type in a big fleet | Placement already falls back to any free cell; worst case is visual crowding. Measure with a 40-ship mixed fleet |

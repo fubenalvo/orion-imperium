@@ -81,7 +81,11 @@ export class ShipService {
    * fleet roster (flagged `destroyed: true`), so callers passing a raw
    * `fleet.ships` array would otherwise see pre-battle strength.
    */
-  calculateFleetStrength(ships: { type: string; destroyed?: boolean; equipment?: ShipLoadout | null }[]): number {
+  calculateFleetStrength(
+    ships: { type: string; destroyed?: boolean; equipment?: ShipLoadout | null }[],
+    options: { includeEquipment?: boolean } = {},
+  ): number {
+    const includeEquipment = options.includeEquipment ?? true;
     return ships.reduce((sum, ship) => {
       if (ship.destroyed === true) {
         return sum;
@@ -90,7 +94,10 @@ export class ShipService {
       if (!shipType) {
         return sum;
       }
-      if (!ship.equipment) {
+      // includeEquipment false: hull strength only, for the AI's military
+      // target (EnemyEconomyService.militaryNeed), so modules add to a navy
+      // instead of replacing hulls (docs/ship-equipment.md, roadmap 8b).
+      if (!ship.equipment || !includeEquipment) {
         return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
       }
       // Installed modules count (docs/ship-equipment.md, Phase 8): fixed

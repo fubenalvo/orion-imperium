@@ -59,10 +59,13 @@ describe('research effect icons', () => {
   it('give the equipment line its own icon so bonus icons stay aligned', () => {
     TestBed.configureTestingModule({});
     const component = TestBed.createComponent(StarMapResearchTreeComponent).componentInstance;
-    const tech = TestBed.inject(ResearchService).getTechnology('advanced_weapons')!;
+    const tech = TestBed.inject(ResearchService).getTechnology('point_defense')!;
     const rows = component.getEffectRows(tech);
     expect(rows.map((r) => r.text)[0]).toContain('Unlocks ship equipment: Point-Defense Array');
-    expect(rows[0].icon).toBe('weapons');
+    // Defense modules use the shields icon, weapons the weapons icon, engines the ships icon.
+    expect(rows[0].icon).toBe('shields');
+    expect(component.getEffectRows(TestBed.inject(ResearchService).getTechnology('mass_drivers')!)[0].icon).toBe('weapons');
+    expect(component.getEffectRows(TestBed.inject(ResearchService).getTechnology('warp_field_theory')!)[0].icon).toBe('ships');
     // The bonus lines that follow keep their own categories.
     expect(rows.length).toBe(1 + (tech.bonuses?.length ?? 0));
   });

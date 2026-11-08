@@ -148,7 +148,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     commerce: { bankShare: 0, tradingPosts: 0, richBankShare: 0.5, richTradingPosts: 1 },
     civilizationAssaultAfter: 480,
     dyson: { build: 'never', huntAnchors: 3, researchValue: 0 },
-    equipment: { minSurplusCredits: 1500 },
+    equipment: { minSurplusCredits: 2500 },
   },
   technologist: {
     id: 'technologist',

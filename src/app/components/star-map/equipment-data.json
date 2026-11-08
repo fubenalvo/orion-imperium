@@ -77,9 +77,9 @@
       "slot": "weapon",
       "description": "Rapid-fire energy weapon. More shots per second.",
       "attackType": "energy",
-      "fireRateFactor": 1.2,
+      "fireRateFactor": 1.1,
       "modifiers": [
-        { "stat": "attack", "add": 8 }
+        { "stat": "attack", "add": 6 }
       ],
       "price": { "credits": 250, "rawmaterials": 150 }
     },

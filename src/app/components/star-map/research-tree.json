@@ -43,8 +43,7 @@
       "researchCost": 800,
       "prerequisites": ["basic_engineering"],
       "unlocksShips": ["corvette", "frigate"],
-      "unlocksBuildings": [],
-      "unlocksEquipment": ["ion_engine", "laser_cannon"]
+      "unlocksBuildings": []
     },
     {
       "id": "advanced_construction",
@@ -63,8 +62,7 @@
       "researchCost": 1000,
       "prerequisites": ["basic_engineering"],
       "unlocksShips": ["destroyer"],
-      "unlocksBuildings": ["planetary_shield"],
-      "unlocksEquipment": ["railgun", "energy_shield"]
+      "unlocksBuildings": ["planetary_shield"]
     },
     {
       "id": "orbital_engineering",
@@ -74,7 +72,6 @@
       "prerequisites": ["advanced_engineering"],
       "unlocksShips": [],
       "unlocksBuildings": [],
-      "unlocksEquipment": ["warp_drive"],
       "bonuses": [{ "type": "shipBuildSpeed", "value": 0.25 }]
     },
     {
@@ -104,7 +101,6 @@
       "prerequisites": ["advanced_industry"],
       "unlocksShips": [],
       "unlocksBuildings": [],
-      "unlocksEquipment": ["kinetic_barrier"],
       "bonuses": [{ "type": "rawOutput", "value": 0.25 }]
     },
     {
@@ -134,8 +130,7 @@
       "researchCost": 1200,
       "prerequisites": ["improved_power"],
       "unlocksShips": [],
-      "unlocksBuildings": ["fusion_plant"],
-      "unlocksEquipment": ["fusion_engine"]
+      "unlocksBuildings": ["fusion_plant"]
     },
     {
       "id": "advanced_power",
@@ -243,7 +238,6 @@
       "prerequisites": ["advanced_engineering"],
       "unlocksShips": [],
       "unlocksBuildings": [],
-      "unlocksEquipment": ["advanced_shield_generator"],
       "bonuses": [{ "type": "shipShield", "value": 0.15, "shipTypes": ["scout", "fighter", "corvette", "frigate", "destroyer", "cruiser", "carrier", "battleship", "battlecruiser", "dreadnought"] }]
     },
     {
@@ -293,7 +287,6 @@
       "prerequisites": ["military_engineering"],
       "unlocksShips": [],
       "unlocksBuildings": [],
-      "unlocksEquipment": ["point_defense_array"],
       "bonuses": [{ "type": "shipAttack", "value": 0.15, "shipTypes": ["scout", "fighter", "corvette", "frigate", "destroyer", "cruiser", "carrier", "battleship", "battlecruiser", "dreadnought"] }]
     },
     {
@@ -313,8 +306,7 @@
       "researchCost": 600,
       "prerequisites": ["basic_engineering"],
       "unlocksShips": [],
-      "unlocksBuildings": ["missile_turret"],
-      "unlocksEquipment": ["missile_launcher"]
+      "unlocksBuildings": ["missile_turret"]
     },
     {
       "id": "turret_research_1",
@@ -364,6 +356,106 @@
       "prerequisites": ["applied_science", "advanced_power"],
       "unlocksShips": ["swarm_constructor"],
       "unlocksBuildings": []
+    },
+    {
+      "id": "ion_drives",
+      "name": "Ion Drives",
+      "description": "Efficient ion thrusters for warships: a little faster on the star map and in battle. Unlocks the Ion Engine module.",
+      "researchCost": 1000,
+      "prerequisites": ["advanced_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["ion_engine"]
+    },
+    {
+      "id": "laser_optics",
+      "name": "Laser Optics",
+      "description": "Focusing arrays for rapid-fire energy weapons. Unlocks the Laser Cannon module.",
+      "researchCost": 1100,
+      "prerequisites": ["advanced_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["laser_cannon"]
+    },
+    {
+      "id": "guided_missiles",
+      "name": "Guided Missiles",
+      "description": "Ship-mounted missile racks with extra reach. Unlocks the Missile Launcher module.",
+      "researchCost": 1000,
+      "prerequisites": ["missile_technology"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["missile_launcher"]
+    },
+    {
+      "id": "energy_shielding",
+      "name": "Energy Shielding",
+      "description": "Shield emitters tuned against energy weapons. Unlocks the Energy Shield module.",
+      "researchCost": 1100,
+      "prerequisites": ["military_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["energy_shield"]
+    },
+    {
+      "id": "mass_drivers",
+      "name": "Mass Drivers",
+      "description": "Electromagnetic accelerators for heavy kinetic rounds. Unlocks the Railgun module.",
+      "researchCost": 1400,
+      "prerequisites": ["military_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["railgun"]
+    },
+    {
+      "id": "fusion_drives",
+      "name": "Fusion Drives",
+      "description": "Vectored fusion thrust for tight combat manoeuvres. Unlocks the Fusion Engine module.",
+      "researchCost": 1800,
+      "prerequisites": ["fusion_power"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["fusion_engine"]
+    },
+    {
+      "id": "kinetic_armor",
+      "name": "Kinetic Armor",
+      "description": "Layered plating against kinetic rounds. Unlocks the Kinetic Barrier module.",
+      "researchCost": 2000,
+      "prerequisites": ["advanced_manufacturing"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["kinetic_barrier"]
+    },
+    {
+      "id": "point_defense",
+      "name": "Point Defense",
+      "description": "Flak turrets that break up incoming missiles. Unlocks the Point-Defense Array module.",
+      "researchCost": 2200,
+      "prerequisites": ["advanced_weapons"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["point_defense_array"]
+    },
+    {
+      "id": "warp_field_theory",
+      "name": "Warp Field Theory",
+      "description": "Long-range warp drives for faster travel between stars. Unlocks the Warp Drive module.",
+      "researchCost": 2600,
+      "prerequisites": ["orbital_engineering"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["warp_drive"]
+    },
+    {
+      "id": "shield_harmonics",
+      "name": "Shield Harmonics",
+      "description": "High-capacity shields with fast regeneration. Unlocks the Advanced Shield Generator module.",
+      "researchCost": 2600,
+      "prerequisites": ["frigate_technology"],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["advanced_shield_generator"]
     }
   ]
 }

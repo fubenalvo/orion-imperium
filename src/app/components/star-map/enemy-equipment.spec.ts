@@ -18,7 +18,8 @@ const cell = (col: number, row: number) => ({
   y: (row - 1) * SYSTEM_CELL_SIZE_VW + SYSTEM_CELL_SIZE_VW / 2,
 });
 
-const ALL_TECH = ['basic_engineering', 'advanced_engineering', 'military_engineering', 'missile_technology', 'advanced_manufacturing', 'advanced_weapons', 'frigate_technology'];
+const ALL_TECH = ['basic_engineering', 'advanced_engineering', 'military_engineering', 'missile_technology', 'advanced_manufacturing', 'advanced_weapons', 'frigate_technology',
+  'laser_optics', 'guided_missiles', 'energy_shielding', 'mass_drivers', 'kinetic_armor', 'point_defense', 'shield_harmonics'];
 
 const aiFaction = (personality: Faction['aiPersonality'] = 'balanced', credits = 20000): Faction =>
   ({
@@ -67,8 +68,6 @@ describe('EnemyEquipmentService', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({});
     service = TestBed.inject(EnemyEquipmentService);
-    // Off in the game until the balance pass (see ENABLED_BY_DEFAULT); the rules are tested here.
-    service.enabled = true;
     economy = TestBed.inject(EnemyEconomyService);
     vi.spyOn(economy, 'getProjectedNet').mockReturnValue({ net: 10, income: 50, rawNet: 5, upkeepScale: 1 } as never);
     vi.spyOn(economy, 'isRawConstrained').mockReturnValue(false);
@@ -138,17 +137,16 @@ describe('EnemyEquipmentService', () => {
   });
 
   it('waits for the personality surplus, positive net income and enough credits', () => {
-    // 2000 credits: short of a balanced faction's surplus (2500 + two module prices),
-    // enough for a militarist (1500 + two prices of the cheapest wanted module).
-    const balanced = world();
-    balanced.faction.currencies['credits'] = 2000;
-    decide(balanced);
-    expect(queued(balanced)).toEqual([]);
-    const militarist = world();
-    militarist.data.factions[0] = aiFaction('militarist', 1500 + 2 * 250);
-    militarist.faction = militarist.data.factions[0];
-    decide(militarist);
-    expect(queued(militarist).length).toBe(1);
+    // The personality's surplus (balanced: 2500) comes on top of two module
+    // prices (at most 2 × 500 credits): 2000 credits are too little, 3500 enough.
+    const short = world();
+    short.faction.currencies['credits'] = 2000;
+    decide(short);
+    expect(queued(short)).toEqual([]);
+    const enough = world();
+    enough.faction.currencies['credits'] = 2500 + 2 * 500;
+    decide(enough);
+    expect(queued(enough).length).toBe(1);
 
     (economy.getProjectedNet as ReturnType<typeof vi.fn>).mockReturnValue({ net: -1, income: 50, rawNet: 0, upkeepScale: 1 });
     const broke = world();
@@ -169,11 +167,11 @@ describe('EnemyEquipmentService', () => {
     expect(queued(w).filter((o) => o.equipmentId)).toEqual([]);
   });
 
-  it('is off by default in the game', () => {
-    expect(EnemyEquipmentService.ENABLED_BY_DEFAULT).toBe(false);
+  it('is on in the game, and does nothing while switched off', () => {
+    expect(EnemyEquipmentService.ENABLED_BY_DEFAULT).toBe(true);
     const w = world();
     addToInventory(w.data, 'enemy1', 'railgun', 1);
-    service.enabled = EnemyEquipmentService.ENABLED_BY_DEFAULT;
+    service.enabled = false;
     expect(decide(w)).toBe(false);
     expect(queued(w)).toEqual([]);
     expect(w.guard.ships.every((s) => !s.equipment)).toBe(true);

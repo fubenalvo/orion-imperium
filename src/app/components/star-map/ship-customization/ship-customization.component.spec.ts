@@ -62,7 +62,7 @@ describe('ship customization view model', () => {
     const cruiser = ships.getShipType('cruiser')!;
     const toLaser = compareLoadouts(cruiser, f.ships[0], withModule(f.ships[0].equipment, 'weapon', 'laser_cannon'), f);
     const byLabel = Object.fromEntries(toLaser.map((l) => [l.label, l]));
-    expect(byLabel['Attack']).toMatchObject({ from: `${cruiser.attack + 16}`, to: `${cruiser.attack + 8}`, trend: -1 });
+    expect(byLabel['Attack']).toMatchObject({ from: `${cruiser.attack + 16}`, to: `${cruiser.attack + 6}`, trend: -1 });
     expect(byLabel['Fire rate'].trend).toBe(1);
     expect(byLabel['Damage type']).toMatchObject({ from: 'kinetic', to: 'energy', trend: 0 });
     expect(byLabel['Shield']).toBeUndefined();

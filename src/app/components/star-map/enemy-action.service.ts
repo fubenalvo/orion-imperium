@@ -619,7 +619,7 @@ export class EnemyActionService {
     if (!faction) return false;
     const breakdown = this.economyService.calculateEconomy(factionId, factions, starSystems, fleets, shipStock);
     const owned = starSystems.reduce((n, s) => n + s.planetsTiles.filter((p) => p.factionId === factionId).length, 0);
-    return canSupportNewColony(breakdown, owned, faction.currencies['credits'] ?? 0);
+    return canSupportNewColony(breakdown, owned, faction.currencies['credits'] ?? 0, this.economyService.colonyStarterUpkeepPerSecond(faction, owned));
   }
 
   private canProduceColonizer(factionId: string, factions: Faction[], starSystems: StarSystem[]): boolean {

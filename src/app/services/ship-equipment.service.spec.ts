@@ -87,11 +87,13 @@ describe('equipment unlocks (research)', () => {
   });
 
   it('tells which modules a faction may build and names them in the effects', () => {
-    const f = faction(['basic_engineering', 'military_engineering']);
+    const f = faction(['basic_engineering', 'military_engineering', 'mass_drivers', 'energy_shielding']);
     expect(research.isEquipmentUnlocked(f, 'railgun')).toBe(true);
     expect(research.isEquipmentUnlocked(f, 'energy_shield')).toBe(true);
     expect(research.isEquipmentUnlocked(f, 'warp_drive')).toBe(false);
-    expect(research.describeEffects(research.getTechnology('military_engineering')!)).toContain('Unlocks ship equipment: Railgun, Energy Shield');
+    expect(research.isEquipmentUnlocked(faction(['basic_engineering', 'military_engineering']), 'railgun')).toBe(false);
+    expect(research.describeEffects(research.getTechnology('mass_drivers')!)).toContain('Unlocks ship equipment: Railgun');
+    expect(research.getTechnology('mass_drivers')!.prerequisites).toEqual(['military_engineering']);
   });
 });
 
@@ -124,7 +126,7 @@ describe('ProductionService equipment orders', () => {
     production = TestBed.inject(ProductionService);
   });
 
-  const setup = (researched = ['basic_engineering', 'military_engineering']) => {
+  const setup = (researched = ['basic_engineering', 'military_engineering', 'mass_drivers', 'energy_shielding']) => {
     const planet = planetTile();
     const systems = [systemWith(planet)];
     const factions = [faction(researched)];

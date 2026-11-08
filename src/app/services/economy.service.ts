@@ -694,6 +694,20 @@ export class EconomyService {
       * this.research.getModifiers(owner).buildingUpkeep * scale;
   }
 
+  /*
+   * Upkeep a fresh colony adds within its first minutes: the AI builds its
+   * first housing block and a Mining Complex there (EnemyEconomyService tiers
+   * H and M), at the empire upkeep scale it will have with that planet. The
+   * AI colony brake (canSupportNewColony) counts it: without it a faction
+   * colonized at a near-zero margin and turned negative minutes later
+   * (measured 2026-11-08, late-economy scenario).
+   */
+  colonyStarterUpkeepPerSecond(owner: Faction | null | undefined, ownedPlanetCount: number): number {
+    const scale = empireUpkeepScale(ownedPlanetCount + 1);
+    return this.getBuildingUpkeepPerSecond('Small Residential Block', owner, scale)
+      + this.getBuildingUpkeepPerSecond('Mining Complex', owner, scale);
+  }
+
   getShipUpkeepPerSecond(shipTypeId: string, owner?: Faction | null, scale = 1): number {
     return (this.shipService.getShipType(shipTypeId)?.maintenanceCost ?? 0) * UPKEEP_CREDITS_PER_POINT
       * this.research.getModifiers(owner).shipUpkeep * scale;
