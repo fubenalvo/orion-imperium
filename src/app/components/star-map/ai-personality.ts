@@ -44,6 +44,8 @@ export type { AiPersonality } from './star-map.models';
  *   that get a Bank (at most one each), `tradingPosts` the number of posts
  *   the faction keeps; the `rich` values apply instead while the faction has
  *   a large credit surplus (a militarist builds them only then).
+ * - `equipment.minSurplusCredits`: surplus credits beyond the spending
+ *   reserve before the faction builds equipment modules.
  * - `civilizationAssaultAfter`: game seconds before the faction may attack
  *   an independent civilization world (docs/trade-network.md#ai). Keeps
  *   civilizations alive through the opening; a militarist strikes first, a
@@ -79,6 +81,15 @@ export interface AiPersonalityProfile {
    *  - researchValue: worth of Stellar Engineering in technology scoring.
    */
   dyson: { build: 'always' | 'rich' | 'never'; huntAnchors: number; researchValue: number };
+  /*
+   * Ship equipment (docs/ship-equipment.md, Phase 8; EnemyEquipmentService):
+   * modules are a use for surplus, never a competitor of hulls and growth.
+   * minSurplusCredits: credits the faction must hold beyond its spending
+   * reserve (which includes the next warship while the navy is short) and
+   * beyond the module price margin before it orders one. Lower = refits
+   * earlier (a militarist).
+   */
+  equipment: { minSurplusCredits: number };
 }
 
 export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonalityProfile>> = {
@@ -99,6 +110,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     commerce: { bankShare: 0.5, tradingPosts: 1, richBankShare: 1, richTradingPosts: 1 },
     civilizationAssaultAfter: 720,
     dyson: { build: 'rich', huntAnchors: 5, researchValue: 2 },
+    equipment: { minSurplusCredits: 2500 },
   },
   expansionist: {
     id: 'expansionist',
@@ -117,6 +129,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     commerce: { bankShare: 0.34, tradingPosts: 2, richBankShare: 0.5, richTradingPosts: 2 },
     civilizationAssaultAfter: 600,
     dyson: { build: 'never', huntAnchors: 6, researchValue: 0 },
+    equipment: { minSurplusCredits: 3000 },
   },
   militarist: {
     id: 'militarist',
@@ -135,6 +148,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     commerce: { bankShare: 0, tradingPosts: 0, richBankShare: 0.5, richTradingPosts: 1 },
     civilizationAssaultAfter: 480,
     dyson: { build: 'never', huntAnchors: 3, researchValue: 0 },
+    equipment: { minSurplusCredits: 1500 },
   },
   technologist: {
     id: 'technologist',
@@ -155,6 +169,8 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     commerce: { bankShare: 1, tradingPosts: 2, richBankShare: 1, richTradingPosts: 2 },
     civilizationAssaultAfter: 1200,
     dyson: { build: 'always', huntAnchors: 6, researchValue: 8 },
+    // Credits are its research bottleneck: modules would slow the tree (measured, docs/ai-pipeline.md).
+    equipment: { minSurplusCredits: 3000 },
   },
 };
 

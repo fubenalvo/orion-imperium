@@ -1,17 +1,19 @@
 # Ship Equipment (Engine / Weapon / Defense modules)
 
-> **Status: Phases 1–7 of the roadmap implemented (catalog, stat resolver,
+> **Status: Phases 1–8 of the roadmap implemented (catalog, stat resolver,
 > persistence, battle, map speed, production / inventory / install rules /
-> research unlocks, UI, battle info and displays).** The player can build,
-> install, inspect and use modules. The AI doesn't use them yet (Phase 8).
-> Everything from Phase 8 on is still
-> the plan and must be rewritten into a description of the implementation
+> research unlocks, UI, battle info and displays, AI).** The player builds,
+> installs and uses modules. The AI's refit rules are implemented and
+> tested but switched off in the game until the balance pass (roadmap 8b).
+> Only 8b and the optional extensions of Phase 9
+> are still the plan; sections B–D describe the design the implementation
+> follows, and the "Implemented so far" notes record where it differs
 > as each phase lands (see [Implementation roadmap](#e-implementation-roadmap)).
 > Written 2026-11-08 from an inspection of the code at commit `30f72c4`;
 > the design decisions were made the same day (see
 > [Decisions](#decisions-2026-11-08)).
 
-## Implemented so far (Phases 1–7)
+## Implemented so far (Phases 1–8)
 
 ### Phase 1: catalog and resolver
 
@@ -214,7 +216,41 @@ In short:
   start with banner, enemy info with matchup, Space to start, Fleet Command
   and fleet panel totals agree.
 
-The AI ignores modules (Phase 8).
+### Phase 8: AI
+
+- `EnemyEquipmentService` (`enemy-equipment.service.ts`), run by
+  `StarMapAiTickService` after mining, every 5 s per AI faction. Rules,
+  tuning and measurements: [AI Pipeline → Ship equipment](./ai-pipeline.md#ship-equipment-enemyequipmentservice).
+  In short: it builds the module most of its combat ships would gain from
+  against the hostile navy it has seen (weapon by damage type, defense by
+  profile; no engines), one order at a time, only on a factory the economy
+  left idle and only from surplus credits beyond its spending reserve
+  (personality `equipment.minSurplusCredits`: militarist 1500, balanced
+  2500, expansionist and technologist 3000); it installs inventory modules
+  on ships at a Spaceport planet and in the reserve, heaviest hulls first.
+- `ShipService.calculateFleetStrength` counts installed modules, so the AI's
+  military target, threat checks and forecasts see refitted fleets (the
+  player's and its own). Standard ships count exactly as before.
+- Ledger kinds `equipment_queued` / `equipment_installed`.
+- **Difference from the design (E, Phase 8):** the design said militarists
+  refit first by navy coverage; the coverage gate was dropped after
+  measuring (a wealthy faction's military target grows with its credits,
+  so the gate never opened). The surplus gate and the idle-factory rule keep
+  hulls first instead.
+- **Switched off in the game** (`EnemyEquipmentService.ENABLED_BY_DEFAULT =
+  false`, your decision 2026-11-08) until the balance pass (roadmap 8b).
+  Switched on, refitting AIs decided the AI-vs-AI wars of the long
+  simulations (Dyson scenario: the technologist fell from 1,319 to 76
+  credits/s of income and never reached Stellar Engineering), also with the
+  technologist excluded and with doubled module prices. Cause: with fixed
+  values a module on a light or medium hull is worth about a hull per
+  credit, with no upkeep and outside the ship cap, which breaks C.1's
+  value-per-price limit; late-game AIs have the surplus to refit
+  everything. Details: [AI Pipeline → Ship equipment](./ai-pipeline.md#ship-equipment-enemyequipmentservice).
+  Off, the game plays exactly as before (all long simulations pass); the
+  AI still sees the player's modules through `calculateFleetStrength`.
+- **Tests:** `enemy-equipment.spec.ts` (threat weighting, counter choice,
+  install rules, ordering gates, strength).
 
 Every ship gets three equipment slots: **Engine**, **Weapon**, **Defense**.
 Ships leave the factory with standard equipment. Upgrade modules are built in
@@ -1081,7 +1117,8 @@ and `npm run test:long` after Phases 3, 4, 5 and 8.
 | **5. Production, inventory and research** (done 2026-11-08) | `ProductionOrder.equipmentId`, queue / tick / ETA / refund / validation / `rebaseFromSave` for equipment orders; `ShipEquipmentService` (install, uninstall, all atomic, free); `SpaceportService.spaceportPlanetNear` (2-cell rule); `unlocksEquipment` in research + "unlocked by exactly one technology" test; `describeEffects` lists module unlocks | Equipment orders build into the inventory, refund on cancel / stall / planet loss, are never refunded as unknown ships, survive save/load; conservation invariant under random operation sequences; every failure changes nothing; location rule at distance 0, 2 and 3 (and diagonals); AI-faction calls work the same | 2 |
 | **6. Customization UI** (done 2026-11-08) | Equipment section in the production dialog and queue; fleet-panel button; StarMap open/close/pause/autosave; the `ship-customization/` component tree | Component specs (enable rule, flow, confirm/cancel, failure text, counts in production); run the app (Playwright) and check desktop and narrow layouts | 3, 4, 5 |
 | **7. Battle info and displays** (done 2026-11-08) | Battle screen paused start and ship info window ([D.6](#d6-battle-screen-paused-start-and-ship-info-window)); fleet-panel ATK/DEF from resolved stats; Fleet Command rows show an "upgraded" marker; research cards show module unlocks | Battle screen specs: starts paused, Space / ▶ starts it, outcome identical with and without the paused start, enemy left click opens the window without selecting, own left click selects and opens; panel values match battle stats | 3 (the paused start alone has no dependency and can ship first) |
-| **8. AI** | `calculateFleetStrength` with loadouts; AI orders modules in its factories and installs them at its Spaceport planets by personality (militarist first), choosing profile and weapon from perceived enemy damage types; respects the spending policy and the factory capacity it needs for ships | AI unit specs; `npm run test:long`, check APM ledger and that no personality starves its economy or its ship production | 5 (7 for debug display) |
+| **8. AI** (done 2026-11-08; off in the game until 8b) | `calculateFleetStrength` with loadouts; AI orders modules in its factories and installs them at its Spaceport planets by personality (militarist first), choosing profile and weapon from perceived enemy damage types; respects the spending policy and the factory capacity it needs for ships | AI unit specs; `npm run test:long`, check APM ledger and that no personality starves its economy or its ship production | 5 (7 for debug display) |
+| **8b. Module balance pass** (next) | An equal-budget auto-resolve spec for modules (like `hull-balance.spec.ts`, budgets including module prices and the upkeep a hull would cost over a game); retune module values / prices (or add module upkeep) until a refit is clearly worse per price than a hull (C.1); switch `EnemyEquipmentService.ENABLED_BY_DEFAULT` on and re-measure every long simulation | Module spec passes; `npm run test:long` passes with the AI refitting; refits visible in a 60-minute game | 8 |
 | **9. Optional extensions** | An ORDER shortcut on the customization screen; "apply to all ships of this class"; module upkeep if Phase 8 shows it is needed | Per feature | 6, 8 |
 
 Documentation per phase: rewrite this file from design into the current

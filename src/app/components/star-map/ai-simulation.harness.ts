@@ -518,6 +518,7 @@ export function runScenario(options: ScenarioOptions): ScenarioResult {
       shipStock: data.shipStock!,
       production: data.production!,
       gameSeconds: time + (options.startGameSeconds ?? 0),
+      equipmentInventory: (data.equipmentInventory ??= []),
     });
     const tickMs = performance.now() - tickStart;
     aiTickTotal += tickMs;

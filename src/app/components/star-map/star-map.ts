@@ -3926,6 +3926,7 @@ loadError = '';
       shipStock: this.shipStock,
       production: this.production,
       gameSeconds: this.gameSeconds,
+      equipmentInventory: this.equipmentInventory,
     });
 
     const diplomacyChanged = this.handleDiplomacyEvents();

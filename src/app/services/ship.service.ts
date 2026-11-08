@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
 import shipData from '../components/star-map/ship-data.json';
 import { HullClass } from '../components/star-map/hull-class';
+import type { ShipLoadout } from '../components/star-map/equipment';
+import { resolveShipStats } from '../components/star-map/ship-stats';
 
 export type ProductionBuildingKind = 'spaceship_factory' | 'orbital_factory';
 
@@ -79,7 +81,7 @@ export class ShipService {
    * fleet roster (flagged `destroyed: true`), so callers passing a raw
    * `fleet.ships` array would otherwise see pre-battle strength.
    */
-  calculateFleetStrength(ships: { type: string; destroyed?: boolean }[]): number {
+  calculateFleetStrength(ships: { type: string; destroyed?: boolean; equipment?: ShipLoadout | null }[]): number {
     return ships.reduce((sum, ship) => {
       if (ship.destroyed === true) {
         return sum;
@@ -88,7 +90,16 @@ export class ShipService {
       if (!shipType) {
         return sum;
       }
-      return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
+      if (!ship.equipment) {
+        return sum + shipType.attack + shipType.defense + shipType.hitPoints / 10 + shipType.shield / 10;
+      }
+      // Installed modules count (docs/ship-equipment.md, Phase 8): fixed
+      // additions, and a weapon's fire-rate factor scales attack like it
+      // scales damage per second. Standard ships take the branch above, so
+      // their strength is unchanged.
+      const stats = resolveShipStats(shipType, ship.equipment);
+      const attack = stats.attack * (stats.fireRate / stats.hullFireRate);
+      return sum + attack + stats.defense + shipType.hitPoints / 10 + stats.shield / 10;
     }, 0);
   }
 

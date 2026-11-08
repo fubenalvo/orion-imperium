@@ -14,10 +14,11 @@ import { EnemyProgressService } from './enemy-progress.service';
 import { EnemyReachService } from './enemy-reach.service';
 import { EnemyIntelService } from './enemy-intel.service';
 import { EnemyMiningService } from './enemy-mining.service';
+import { EnemyEquipmentService } from './enemy-equipment.service';
 import { EnemyDysonService } from './enemy-dyson.service';
 import { isCivilianMissionFleet } from './space-base';
 import { Battle } from '../battle-screen/battle/battle.types';
-import { Faction, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiFactionIds } from './star-map.models';
+import { Faction, FactionEquipmentInventory, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiFactionIds } from './star-map.models';
 import { EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { OpeningGraceService } from './opening-grace';
@@ -80,6 +81,7 @@ export class StarMapAiTickService {
     private enemyDiplomacyService: EnemyDiplomacyService,
     private diplomacyService: DiplomacyService,
     private enemyMiningService: EnemyMiningService,
+    private enemyEquipmentService: EnemyEquipmentService,
     private enemyDysonService: EnemyDysonService,
     private openingGrace: OpeningGraceService,
     private actionLedger: AiActionLedger,
@@ -110,6 +112,12 @@ export class StarMapAiTickService {
       production: FactionProduction[];
       /* Game seconds played (StarMapData.gameSeconds); missing = 0, the opening. */
       gameSeconds?: number;
+      /*
+       * Equipment inventory (StarMapData.equipmentInventory), passed by
+       * reference so AI refits and the factory tick share one array; missing
+       * = the AI neither builds nor installs modules this frame.
+       */
+      equipmentInventory?: FactionEquipmentInventory[];
     },
   ): boolean {
     this.enemyFleetService.setGameSeconds(data.gameSeconds ?? 0);
@@ -313,6 +321,10 @@ export class StarMapAiTickService {
       }) || economyChanged;
       // Asteroid mining (outpost ships) renews raw supply as deposits run dry.
       economyChanged = this.enemyMiningService.tick(gameDeltaTime, faction, data, viewOf(faction.id)) || economyChanged;
+      // Ship equipment: build modules and refit ships at Spaceport planets (docs/ship-equipment.md).
+      if (data.equipmentInventory) {
+        economyChanged = this.enemyEquipmentService.tick(gameDeltaTime, faction, { ...data, equipmentInventory: data.equipmentInventory }, viewOf(faction.id)) || economyChanged;
+      }
       // Dyson Swarm: build anchors, hunt a rival's anchors, guard own ones.
       economyChanged = this.enemyDysonService.tick(gameDeltaTime, faction, data, pipelineFleetIds) || economyChanged;
     }
@@ -363,6 +375,7 @@ export class StarMapAiTickService {
     this.enemyReachService.reset();
     this.enemyIntelService.reset();
     this.enemyMiningService.reset();
+    this.enemyEquipmentService.reset();
     this.enemyDysonService.reset();
     this.colonizationAccumulators.clear();
     this.actionLedger.reset();
