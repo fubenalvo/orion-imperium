@@ -32,6 +32,13 @@
       font-size: 16px;
       cursor: pointer;
     }
+
+    button.cheat {
+      font: inherit;
+      padding: 0 0.4em;
+      border: 1px solid var(--ui-line);
+      border-radius: var(--ui-radius);
+    }
   }
 
   // Action-rate comparison: one row per AI faction, numbers right-aligned.

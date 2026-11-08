@@ -18,4 +18,6 @@ export class AiDebugPanelComponent {
   @Input() consoleEnabled = false;
   @Output() close = new EventEmitter<void>();
   @Output() toggleConsole = new EventEmitter<void>();
+  /* Developer cheat: StarMap adds a fixed amount of every stock resource to the player. */
+  @Output() grantResources = new EventEmitter<void>();
 }

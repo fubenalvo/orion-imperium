@@ -5,6 +5,7 @@
       <input type="checkbox" [checked]="consoleEnabled" (change)="toggleConsole.emit()" />
       console events
     </label>
+    <button type="button" class="cheat" (click)="grantResources.emit()" title="Add 50,000 credits, raw materials and research points to the player">+50K ALL</button>
     <button type="button" (click)="close.emit()" aria-label="Close AI debug panel">×</button>
   </header>
   @if (snapshots.length) {

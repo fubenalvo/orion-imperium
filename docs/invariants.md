@@ -274,7 +274,7 @@ See [AI Pipeline](./ai-pipeline.md) for context.
 - **Neutral posture and personality:** the balanced personality without threats reproduces the Phase 4 constants (military ×1, home guard 30%, assault survival 50%); factions without `aiPersonality` are balanced.
 - **One carrier, one colonization objective:** a colonizer carrier serves at most one objective at a time (primary or parallel slot), and the parallel slot never targets the primary's planet. The AI tick never executes both slots on the same fleet in one frame (the primary wins).
 - **AI fog of war:** with fog of war on, AI decision layers only read `EnemyIntelService.getView` (sensed or remembered information); only the executor, invasion and construction touch the real world, and they re-validate every decision.
-- **AI debug output is passive:** `EnemyDebugService` never changes state, runs only on demand (≈1 Hz while the F9 panel is open) and logs nothing unless console output is switched on.
+- **AI debug output is passive:** `EnemyDebugService` never changes state, runs only on demand (≈1 Hz while the F9 panel is open) and logs nothing unless console output is switched on. (The panel's +50K ALL cheat button is a separate, explicit player action in `StarMap`, not part of `EnemyDebugService`.)
 - **Production follows ownership:** an order on a planet its faction no longer owns is refunded and dropped.
 - **Throttled recovery:** `EnemyProgressService` replans a faction at most once per 60 s per detector and never resets the whole AI.
 - **Truthful change reporting:** AI layers return `true` from `tick` only when game state actually changed; no-op movement orders and repeated attack/defend confirmations return `false`.

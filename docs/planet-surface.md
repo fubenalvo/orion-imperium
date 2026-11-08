@@ -295,6 +295,10 @@ inset or the projection. The old raster sprites in
   of headroom); the world margin keeps the view filled with terrain.
 - Zoom and pan are view state only and are never saved.
 
+### Weather overlay
+
+`.planet-surface__weather` (z-index 9, under the atmosphere vignette and the d-pad) holds three screen-space layers (`.wx--a/b/c`) styled per planet type through `[data-weather]` in `star-map-planet-screen.component.scss`: earthlike white cloud decks with matching shadows, marslike gusting rust dust storm, venuslike falling ash, rising embers and a lava glow, ice two-depth snowfall with frosted edges, desert blown sand, dust haze and sun glare, gasgiant counter-flowing cloud bands with lightning. It is pure CSS (no change detection). Each scrolling layer is oversized by `--pad` and translated by `(--dx, --dy)`, which must be whole multiples of its `background-size` tile, with `--pad` >= |dx|, |dy|, or the loop shows a seam or uncovered edge. Animations stop under `prefers-reduced-motion`. The weather is cosmetic and screen-fixed; it does not follow the camera.
+
 ## Known limitations
 
 - Terrain baked into the canvas cannot occlude sprites. Height caps keep

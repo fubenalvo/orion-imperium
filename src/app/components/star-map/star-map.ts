@@ -5259,6 +5259,17 @@ loadError = '';
     this.aiDebugService.consoleEnabled = !this.aiDebugService.consoleEnabled;
   }
 
+  /* Developer cheat from the F9 panel: instantly adds 50,000 of each stock resource to the player. */
+  grantDebugResources(): void {
+    const player = this.factions.find((f) => f.id === 'player');
+    if (!player) return;
+    for (const key of ['credits', 'rawmaterials', 'research'] as const) {
+      player.currencies[key] = (player.currencies[key] ?? 0) + 50000;
+    }
+    this.showMapNotice('Debug: +50,000 credits, raw materials and research points.');
+    this.cdr.detectChanges();
+  }
+
   /* Rebuilds the debug snapshots at most once per real second; returns true when refreshed. */
   private refreshAiDebug(): boolean {
     if (!this.aiDebugVisible) {

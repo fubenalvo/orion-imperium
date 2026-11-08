@@ -431,3 +431,9 @@
 [50604202ms] [LOG] Angular is running in development mode. @ http://localhost:4200/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
 [50604316ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4200/:0
 [50604426ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4200/:0
+[51020787ms] [LOG] Angular is running in development mode. @ http://localhost:4200/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
+[51020899ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4200/:0
+[51020985ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4200/:0
+[51164976ms] [LOG] Angular is running in development mode. @ http://localhost:4200/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
+[51165106ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4200/:0
+[51165164ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4200/:0

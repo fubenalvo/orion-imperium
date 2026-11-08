@@ -286,6 +286,13 @@
         </div>
       </div>
 
+      <!-- Per-planet-type weather (screen space, CSS only); see the scss. -->
+      <div class="planet-surface__weather" [attr.data-weather]="planet?.type ?? 'earthlike'" aria-hidden="true">
+        <div class="wx wx--a"></div>
+        <div class="wx wx--b"></div>
+        <div class="wx wx--c"></div>
+      </div>
+
       <div class="planet-surface__atmosphere" aria-hidden="true"></div>
 
       <!-- SURFACE NAVIGATION D-PAD -->
