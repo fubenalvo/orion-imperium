@@ -1,4 +1,6 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { GameSound, UiSoundService } from '../../../services/ui-sound.service';
+import type { CombatClass } from '../../star-map/hull-class';
 import {
   ANIMATION_MS,
   BATTLE_CELL_HEIGHT_VW,
@@ -230,12 +232,23 @@ export function segmentHitsStack(
   );
 }
 
+/* Weapon sound pitch per hull class: bigger guns sound deeper. */
+const HULL_PITCH: Record<CombatClass, number> = { light: 1.3, medium: 1, heavy: 0.7, structure: 0.8 };
+
+/* Stereo position of a battle sound from a field x (vw); kept off the
+ * extremes so a sound on the edge is still heard in both ears. */
+function battlePan(xVw: number): number {
+  return ((xVw / BATTLE_FIELD_WIDTH_VW) * 2 - 1) * 0.7;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BattleCombatService {
   constructor(
     private anim: BattleAnimationService,
     private time: BattleTimeService,
   ) {}
+
+  private readonly sound = inject(UiSoundService);
 
   private nextProjectileId = 1;
   /* Completion callbacks for attackStack() promises, keyed by projectile id.
@@ -357,6 +370,10 @@ export class BattleCombatService {
     };
     state.projectiles.push(projectile);
     attacker.firing = true;
+    const attackType = attacker.ships.find((s) => s.alive)?.attackType;
+    const fireSound: GameSound =
+      attackType === 'missile' ? 'fire-missile' : attackType === 'kinetic' ? 'fire-kinetic' : 'fire-energy';
+    this.sound.play(fireSound, { pan: battlePan(attacker.x), pitch: HULL_PITCH[attacker.hullClass ?? 'medium'] });
     this.anim.tick();
     return new Promise((resolve) => {
       this.projectileResolvers.set(projectile.id, () => resolve(true));
@@ -430,6 +447,8 @@ export class BattleCombatService {
   }
 
   private resolveHit(state: BattleModelState, p: BattleProjectile, target: BattleStack): void {
+    // The front ship takes the hit first; read its shield before the damage.
+    const shielded = (target.ships.find((s) => s.alive)?.shield ?? 0) > 0;
     const { damage, kills, targetDestroyed } = applyVolleyDamage(state, p.volley, target);
     state.log.push({
       round: state.round,
@@ -449,6 +468,8 @@ export class BattleCombatService {
       scale: p.scale,
       color: p.color,
     });
+    const hitSound: GameSound = targetDestroyed ? 'stack-destroyed' : kills > 0 ? 'ship-lost' : shielded ? 'shield-hit' : 'hit';
+    this.sound.play(hitSound, { pan: battlePan(target.x) });
     checkVictory(state);
   }
 

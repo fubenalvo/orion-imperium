@@ -117,7 +117,7 @@ the top edge.
   `.fleet-info`, `.planet-info`: left + bottom), the map navigation console
   with the minimap (right + bottom) and the map roster (left + top, under
   the header).
-  Used by pause, options, research, production order, currency breakdown,
+  Used by pause, options, research, currency breakdown,
   battle result and game end.
 
 Rules:
@@ -127,9 +127,13 @@ Rules:
   example `.planet-surface__atmosphere`).
 - `backdrop-filter`, `filter` and `transform` (also a lingering animation
   end state) make an element the containing block of `position: fixed`
-  descendants. Panels that host fixed overlays (the planet sidebar hosts the
-  production dialog and currency breakdown) set `backdrop-filter: none`, and
-  entrance animations end on `transform: none`.
+  descendants. Entrance animations end on `transform: none`, and the
+  `.panel-style` boot uses fill-mode `backwards` (with `both`, Chrome keeps
+  the end keyframe's `filter: none` as `brightness(1)`, trapping every fixed
+  overlay inside the panel). The planet sidebar is the one deliberate
+  exception: it sets `contain: layout` so the production order dialog (a
+  fixed overlay with `inset: 0`) fills exactly the sidebar column, without
+  a backdrop or console frame of its own.
 
 ### Controls
 
@@ -224,11 +228,13 @@ them by name.
 | Value jumps | `ValueFlashDirective` (`[uiValueFlash]`, `components/shared/`) on the header resources | A value that jumps (not a routine tick) flashes green / red and floats its delta ("−750") below it. The directive learns the routine step size from small changes and reacts only to a change at least 4× larger (and ≥ 10); the first change only teaches the baseline. |
 
 **Sounds** (`UiSoundService`, `services/ui-sound.service.ts`): short
-retro sci-fi sounds synthesized with Web Audio — no audio files. Lowpassed
-square waves give an 8-bit chirp when the mouse moves onto a button and a
+retro sci-fi sounds synthesized with Web Audio — no audio files. Moving
+the mouse onto an enabled button gives a soft click (a short band-passed
+noise tick over a tiny falling sine); lowpassed square waves give a
 two-note beep (plus a metallic FM click) on press; a disabled button gives
-a low two-step saw buzz; a dialog powering on plays a rising arpeggio over
-a warbling (vibrato) sweep, powering off a falling one; a panel boot plays
+a low two-step saw buzz; a dialog powering on plays a 1960s bridge-console
+style sine whistle (slides up, holds with vibrato) followed by a quick
+burble of sine "bloops", powering off a falling whistle and a low bloop; a panel boot plays
 a short high "data chatter" (not within 0.4 s of a dialog opening).
 `App` calls `install()` once; it listens on the document for
 `pointerover` / `pointerdown` on buttons and for `animationstart` of
@@ -239,6 +245,70 @@ toolbar does not buzz. Browsers allow audio only after a gesture, so the
 AudioContext is created on the first pointerdown (silent before). The
 **UI SOUNDS** toggle in Options switches them off (localStorage
 `orion_ui_sounds`, default on, not in saves).
+
+The same service plays the **game event sounds** (`GameSound`), which the
+owning code triggers directly rather than through document listeners:
+
+| Event | Sound | Played by |
+|---|---|---|
+| Accepted move / intercept order (map fleet, battle stack) | `order-move`: two rising sine bloops | `StarMap.moveSelectedFleet`, `onInterceptAsteroid`; `BattleScreenComponent.onCellCommand` |
+| Accepted attack / raid order | `order-attack`: three rising square notes over a saw swell | `StarMap.orderAttack`, `onRaidTrader`; `BattleScreenComponent.onStackCommand` |
+| Rejected order | `deny` (same as a disabled button) | the same handlers |
+| Battle volley | `fire-energy` (the four `laser1–4` samples in rotation), `fire-kinetic` (synthesized only, noise layers without a pitched tone: crack, darkening muzzle blast, mid bark, brown-noise punch and rolling tail, faint barrel ring), `fire-missile` (`rocket1`), by the first living ship's `attackType`; pitch ×1.3 light, ×1 medium, ×0.7 heavy, ×0.8 structure (samples follow it at half strength) | `BattleCombatService.attackStack` |
+| Bolt hits a stack whose front ship still has shields / hits unshielded without a kill / kills ships / destroys the stack | `shield-hit` (`shiedhit1`) / `hit` (synthesized) / `ship-lost` (`explosion1`, faster and quieter) / `stack-destroyed` (`explosion1`, slower and louder, plus a sub-bass thump) | `BattleCombatService.resolveHit` (the shield is read before the damage) |
+| Any stack moving or turning | engine hum: `engineloop` looped once for the whole field, fades in in ~0.2 s, out in ~0.6 s; off while paused, after the decision and when the screen closes | `BattleScreenComponent.gameLoopCallback` → `UiSoundService.setEngineLoop` (turning reported by `updateStackHeadings`) |
+
+**Battle samples.** `public/sfx/*.ogg` (`shiedhit1.ogg` keeps the file's
+own spelling) are fetched and decoded right after the AudioContext is
+created (first click), listed in `SAMPLE_FILES`. They go through a clean
+battle input (compressor and a lighter reverb send, no saturation, which
+would distort mastered recordings). A sample that is still loading or
+failed to decode falls back to the synthesized sound below, so every
+battle sound always has a voice.
+
+The synthesized battle sounds (fallbacks, and the kinetic shot and plain
+hit) are layered rather than single waveforms: the laser is two
+detuned saws under a resonant, closing lowpass plus an FM shimmer; the
+kinetic shot a noise crack, a falling noise body, a sine thump and a short
+metal ring; the missile an ignition pop, a swelling whoosh and a brown-noise
+rumble; an explosion a crack, a darkening noise body, a long rumble, a
+sub-bass thump and thinning debris crackle (`explosion()`, smaller for
+`ship-lost`). Each play varies pitch (±8 %) and noise offset, so a long
+fight does not repeat one sample. They run through a shared battle bus
+(`createBattleBus`): tanh saturation, a compressor that keeps many
+simultaneous shots from clipping, and a synthetic-room reverb send. They
+are panned by the stack's x position (±0.7) so the side of the field is
+audible. Orders are right clicks, which the global
+`pointerdown` listener ignores (left button only), so an order never also
+plays the button press sound. Auto-resolved battles have no sounds.
+
+**Music** (`MusicService`, `services/music.service.ts`; files in
+`public/music/`). Background tracks by scene, each a looping `<audio>`
+element:
+
+| Scene | Track | Set by |
+|---|---|---|
+| `title` | `title.mp3` (restarts on entry) | `MainMenu.ngOnInit` |
+| `space` | `sector.mp3` (resumes where it stopped) | `StarMap` constructor and the `currentView` setter (galaxy and system view) |
+| `planet` | `airy.mp3` (resumes) | `StarMap.currentView` setter (`'planet'`, the surface view) |
+| `battle` | `urgent.mp3` (restarts on entry) | `BattleScreenComponent.ngOnInit` |
+
+A scene change is always a crossfade (2.5 s; 1.2 s into a battle), also
+when it changes again mid-fade; a faded-out track is paused. `currentView`
+is an accessor on `StarMap` so every view change reaches the music —
+assigning the backing field directly would bypass it. Stingers play once
+over the music, which is ducked to 35 % meanwhile: `hover.mp3` for every
+map notice (`showMapNotice`, at most every 0.8 s) and `victory.mp3` for
+the victory popup (not for a defeat), the battle result popup (unless the
+player's side lost; `BattleScreenComponent.ngAfterViewChecked`), opening the
+Diplomacy screen and an exploration event; closing the Diplomacy screen, the
+event or the battle screen fades that fanfare out. Stingers follow the **UI SOUNDS** toggle; the music has its
+own **MUSIC** toggle and **MUSIC VOLUME** slider in Options (localStorage
+`orion_music`, default on at 50 %, not in saves). A play() refused by the
+browser's autoplay rule is retried on the next pointerdown / keydown, so
+the title music may start with the first click. Under jsdom (unit tests)
+the service creates no elements. `pulse.mp3` and `transmission.mp3` are in
+the folder but not used yet.
 
 **Reduced motion.** Under `prefers-reduced-motion: reduce` the UI motion
 (dialogs, panels, view dive, buttons, value flashes) runs in 0.001 s — the
@@ -360,7 +430,7 @@ Rules:
 | Main menu | See [Main Menu](#main-menu). |
 | Star map (galaxy) | Static deep stars + twinkle (`.star-map-deep`), wrapping nebula field (`SpaceNebulaFieldComponent`, 0.12x camera), the star-texture parallax layer (`.star-map-background`, 0.3x camera), faint dust in front (`.star-map-foreground`, 0.6x). Stars are light sources (corona, diffraction spikes, hot core; a rotating dashed ring when selected). Sensor range is a soft borderless field; the fog layer has soft edges (a one-pixel-per-cell canvas, smoothly upscaled); the navigation grid is a hairline. Movement paths have a soft beam under the dashes. Gameplay terrain follows the same look: textured, color-tinted nebula gas, a lensed black hole (Einstein ring, tilted accretion disk, bloom; its dashed no-fly outline appears only while a fleet is selected), and relief-lit static asteroid belts (details in [Star Map Terrain](./star-map-terrain.md)). Empire territory is a quiet layer under the fog: faint blurred faction tint, thin cell-edge borders (solid for the player, dashed for foreign empires), faint dashed base claim rings and small turning-ring station markers (details in [Territory](./territory.md#rendering)). Styles: `_star-map-backdrop.scss`, `_star-map-star-system.scss`. |
 | System view | The system's star at the right edge is the single light source: light wash, slowly turning soft corona rays, glow, granulated disc. Planets use `planet-sphere` lit from the right with per-type palettes; faint orbit rings (`orbitDiameterVw`) connect each planet to the star; hover shows a halo ring. A nebula sits opposite the star. Styles: `star-map-system-grid.component.scss` (scene) and `_star-map-system-view.scss` (wrapper). |
-| Battle | Deep stars with a distant star in the band above the field, two nebula formations framing the left and lower right (the middle stays calm behind the units), twinkling dust and a vignette. The field is a fading hairline grid with corner brackets. Ships carry a faction-colored glow and engine light; explosions add a shockwave ring. The planet in planet battles uses `planet-sphere` with a deep palette derived from `--planet-color`. |
+| Battle | Deep stars with a distant star in the band above the field, two nebula formations framing the left and lower right (the middle stays calm behind the units), twinkling dust, a forward-motion star stream (two faint star planes drifting left at different speeds, the near one with slightly stretched stars; the main menu dust technique of sliding exactly one tile per loop; off under reduced motion) and a vignette. The field is a fading hairline grid with corner brackets. Ships carry a faction-colored glow and engine light; explosions add a shockwave ring. The planet in planet battles uses `planet-sphere` with a deep palette derived from `--planet-color`. |
 
 ### Galaxy view: backdrop over the fog
 

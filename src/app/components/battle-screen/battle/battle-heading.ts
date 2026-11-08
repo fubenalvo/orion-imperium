@@ -109,10 +109,12 @@ function desiredHeading(stack: BattleStack): number {
   return defaultHeading(stack.side);
 }
 
-export function updateStackHeadings(state: BattleModelState, deltaTime: number): void {
+/* Returns true when any stack turned this frame (drives the engine sound). */
+export function updateStackHeadings(state: BattleModelState, deltaTime: number): boolean {
   if (deltaTime <= 0) {
-    return;
+    return false;
   }
+  let turned = false;
   for (const stack of state.stacks) {
     if (stack.destroyed) {
       continue;
@@ -122,7 +124,9 @@ export function updateStackHeadings(state: BattleModelState, deltaTime: number):
     const maxStep = turnRate(stack) * deltaTime;
     const step = Math.abs(diff) <= maxStep ? diff : Math.sign(diff) * maxStep;
     stack.heading = angleDelta(0, current + step);
+    if (Math.abs(step) > 0.01) turned = true;
   }
+  return turned;
 }
 
 /* Speed multiplier (0 < f ≤ 1) for a stack travelling by (dx, dy) this frame,

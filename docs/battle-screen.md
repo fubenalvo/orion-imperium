@@ -519,6 +519,9 @@ updateProjectiles(state, deltaSec)   // every unpaused frame, also after victory
   the bolt's path; the cadence jitter is a hash of stack id and time)
 - **Shared rule**: `applyVolleyDamage()` is also used by the auto-resolver, which has no
   projectiles (every volley hits)
+- **Sounds**: `attackStack()` plays a weapon sound per volley and `resolveHit()` a hit /
+  ship-lost / stack-destroyed sound through `UiSoundService`; player orders play an
+  acknowledgement (see [UI Styling](./ui-styling.md#motion-and-sound))
 - **Shields/weapon types**: Loaded from data and applied in `BattleCombatService.attackStack()` and `BattleAiService`. Shield absorbs before hull for immobile targets; weapon effectiveness scales via `attackType` vs `weakness`. See [Battle Rules](./battle-rules.md) §Combat.
 
 ### 7. Animation Lock (`BattleAnimationService`)

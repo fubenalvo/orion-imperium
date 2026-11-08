@@ -93,6 +93,39 @@
 
 }
 
+/* Same strip as a checkbox row, with the range input filling the middle. */
+.star-map-options__slider-label {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  padding: 0.75em 0.9em;
+  border-left: 2px solid rgba(var(--ui-accent-rgb), 0.35);
+  background: linear-gradient(90deg, rgba(10, 34, 44, 0.65), rgba(10, 34, 44, 0.15));
+  color: var(--ui-ink);
+  font-family: var(--font-primary);
+  font-size: var(--ui-fs-md);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.star-map-options__slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--ui-accent);
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+}
+
+.star-map-options__slider-value {
+  min-width: 3.2em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Look from the global button rule. */
 .star-map-options__btn-back {
   align-self: center;

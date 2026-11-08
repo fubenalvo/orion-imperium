@@ -4,7 +4,11 @@
   <!-- Parallax starfield. Purely decorative, behind everything (z-layer: background). -->
   <div class="battle-bg-deep" [style.transform]="bgDeepTransform"></div>
   <div class="battle-bg-nebula" [style.transform]="bgNebulaTransform"></div>
-  <div class="battle-bg-foreground" [style.transform]="bgForegroundTransform"></div>
+  <div class="battle-bg-foreground" [style.transform]="bgForegroundTransform">
+    <!-- Drifting star planes that give a slow "flying forward" feel (see .battle-bg-stream). -->
+    <div class="battle-bg-stream battle-bg-stream--mid"></div>
+    <div class="battle-bg-stream battle-bg-stream--near"></div>
+  </div>
 
   <!--
     Three-row layout: HUD bar / battlefield / command bar. The HUD rows have

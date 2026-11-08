@@ -1,4 +1,5 @@
-import { Component, ElementRef, HostListener, OnInit, OnDestroy } from '@angular/core';
+import { Component, ElementRef, HostListener, OnInit, OnDestroy, inject } from '@angular/core';
+import { MusicService } from '../services/music.service';
 import { Router } from '@angular/router';
 import {
   SaveGameService,
@@ -35,6 +36,7 @@ export class MainMenu implements OnInit, OnDestroy {
   showIOSGuide = false;
 
   private deferredPrompt: BeforeInstallPromptEvent | null = null;
+  private readonly music = inject(MusicService);
 
   constructor(
     private saveGameService: SaveGameService,
@@ -45,6 +47,7 @@ export class MainMenu implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
+    this.music.setScene('title');
     this.updateInstallVisibility();
     this.startParallax();
   }

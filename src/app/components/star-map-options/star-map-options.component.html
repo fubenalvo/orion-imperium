@@ -27,6 +27,35 @@
         </label>
       </div>
 
+      <div class="star-map-options__row">
+        <label class="star-map-options__checkbox-label">
+          <input
+            type="checkbox"
+            class="star-map-options__checkbox"
+            [checked]="music.enabled()"
+            (change)="music.toggle()"
+          />
+          <span>MUSIC</span>
+        </label>
+      </div>
+
+      <div class="star-map-options__row">
+        <label class="star-map-options__slider-label">
+          <span>MUSIC VOLUME</span>
+          <input
+            type="range"
+            class="star-map-options__slider"
+            min="0"
+            max="100"
+            step="5"
+            [value]="music.volume() * 100"
+            [disabled]="!music.enabled()"
+            (input)="onMusicVolume($event)"
+          />
+          <span class="star-map-options__slider-value">{{ (music.volume() * 100).toFixed(0) }}%</span>
+        </label>
+      </div>
+
       <button class="star-map-options__btn-back" type="button" (click)="onClose()">BACK</button>
     </div>
   </div>

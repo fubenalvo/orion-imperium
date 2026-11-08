@@ -438,8 +438,11 @@ input[type='range']::-moz-range-thumb {
   color: var(--color-text);
   @include ui.glass;
   @include ui.brackets;
-  /* Boots once when created (styles/_motion.scss). */
-  animation: ui-panel-boot 0.36s var(--ui-ease-snap) both;
+  /* Boots once when created (styles/_motion.scss). Fill-mode backwards,
+     not both: Chrome interpolates the last keyframe's `filter: none` from
+     brightness() as brightness(1), and a retained filter would make every
+     panel the containing block of its fixed overlays. */
+  animation: ui-panel-boot 0.36s var(--ui-ease-snap) backwards;
 }
 
 /* Panel header: the console heading — cyan uppercase title on the left,

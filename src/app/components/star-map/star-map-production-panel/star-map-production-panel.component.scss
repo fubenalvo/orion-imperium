@@ -4,7 +4,7 @@
    PRODUCTION PANEL (Spaceship Factory, planet sidebar)
    Lives inside the sidebar's glass column, so it is laid out
    as sections rather than as another boxed panel. The order
-   dialog is a separate glass modal over the whole screen.
+   dialog covers the whole sidebar column (see below).
    ========================================================= */
 
 .production-panel {
@@ -115,49 +115,45 @@
 
 /* ---------- New order dialog ---------- */
 
+/* The dialog takes over the whole planet sidebar column: the sidebar is the
+   containing block of this fixed overlay on purpose (contain: layout in
+   star-map-planet-screen.component.scss), so `inset: 0` fills exactly the
+   sidebar's frame. It therefore has no backdrop, no console frame and no
+   radius of its own; the sidebar already carries the frame. */
 .production-panel__overlay {
   position: fixed;
   inset: 0;
   z-index: 1200;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  @include ui.backdrop;
 }
 
 .production-panel__modal {
   position: relative;
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.9rem;
-  width: min(520px, 100%);
-  max-height: 84vh;
-  padding: 1.3rem 1.4rem;
-  border-radius: var(--ui-radius);
+  min-width: 0;
   font-size: var(--ui-fs-sm);
-  @include ui.glass;
-  @include ui.brackets(18px);
+  background:
+    repeating-linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.028) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgba(6, 20, 27, 0.98), rgba(2, 8, 12, 0.99));
 }
 
-/* Only the body scrolls: the modal carries the corner brackets, which
-   would scroll away (and add a 1px horizontal overflow) if the modal
-   itself were the scroll container. */
+/* Only the body scrolls, so the title and its close button stay put. */
 .production-panel__modal-body {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   gap: 0.9rem;
   min-height: 0;
+  padding: 0.9em 1em 1.2em;
   overflow-x: hidden;
   overflow-y: auto;
   @include ui.scroll;
 }
 
 .production-panel__modal-title {
-  @include ui.modal-title;
-  font-size: var(--ui-fs-md);
-  letter-spacing: 0.28em;
+  flex: 0 0 auto;
 }
 
 .production-panel__types {
@@ -187,7 +183,7 @@
     background 0.2s ease;
 }
 
-.production-panel__type:hover,
+.production-panel__type:hover:not(:disabled),
 .production-panel__type--selected {
   border-color: var(--ui-accent);
   background: linear-gradient(160deg, rgba(var(--ui-accent-rgb), 0.16), rgba(4, 12, 17, 0.6));
@@ -310,9 +306,16 @@
   text-transform: none;
 }
 
+/* Not researched yet. The fade sits on the children: the card's own opacity
+   is held at 1 by the stagger-in animation (fill-mode both). */
 .production-panel__module--locked {
-  opacity: 0.5;
+  border-color: rgba(var(--ui-accent-rgb), 0.1);
+  background: rgba(4, 12, 17, 0.35);
   cursor: not-allowed;
+
+  > * {
+    opacity: 0.45;
+  }
 }
 
 .production-panel__row-type--module {

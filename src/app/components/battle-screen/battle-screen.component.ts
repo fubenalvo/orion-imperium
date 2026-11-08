@@ -7,7 +7,10 @@
   OnDestroy,
   OnInit,
   ViewChild,
+  inject,
 } from '@angular/core';
+import { UiSoundService } from '../../services/ui-sound.service';
+import { MusicService } from '../../services/music.service';
 import { Router } from '@angular/router';
 import { Subscription, skip } from 'rxjs';
 import { CommonModule } from '@angular/common';
@@ -145,6 +148,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private motionEnabled = false;
   private motionPermissionRequested = false;
   private resultModalFocused = false;
+  private resultFanfarePlayed = false;
   private moveFailedUntil = 0;
   private movementHintTimer: number | null = null;
 
@@ -152,6 +156,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private shieldRegenAccumulator = 0;
   private autoBattleTickAccumulator = 0;
   private replanAccumulator = 0;
+  private readonly sound = inject(UiSoundService);
+  private readonly music = inject(MusicService);
 
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
@@ -514,6 +520,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   ngOnInit(): void {
+    this.music.setScene('battle');
     if (this.battle) {
       this.state = createBattleState(this.battle, this.shipService, this.planetBattleService);
       const state = this.state;
@@ -534,6 +541,13 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   ngAfterViewChecked(): void {
+    if (this.showBattleResult && !this.resultFanfarePlayed) {
+      this.resultFanfarePlayed = true;
+      // The fanfare celebrates a win: a defeat of the player's own side keeps
+      // the plain battle music. A battle with no player side counts as a win.
+      const playerLost = this.playerSides.length > 0 && !this.playerSides.some((side) => side === this.state?.winner);
+      if (!playerLost) this.music.playStinger('fanfare');
+    }
     if (this.showBattleResult && !this.resultModalFocused) {
       this.resultBackButton?.nativeElement.focus();
       this.resultModalFocused = true;
@@ -547,6 +561,9 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.battleTimeSub.unsubscribe();
     this.movement.cancelPendingMovementWaits();
     this.gameLoop.stopGameLoop();
+    this.sound.setEngineLoop(false);
+    // Leaving through the result popup fades the fanfare out with it.
+    if (this.resultFanfarePlayed) this.music.stopStinger('fanfare');
     this.combat.clearProjectiles(this.state);
     this.anim.reset();
     this.battleTime.reset();
@@ -589,6 +606,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
       return;
     }
     this.orderAttack(selected, target);
+    this.sound.play('order-attack');
   }
 
   /* Right click on a cell: move order for the selected stack. */
@@ -600,7 +618,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     if (!selected) {
       return;
     }
-    void this.orderMove(selected, col, row);
+    void this.orderMove(selected, col, row).then((ok) => this.sound.play(ok ? 'order-move' : 'deny'));
   }
 
   /*
@@ -821,12 +839,14 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
     const state = this.state;
     const running = !state.winner && !this.battleTime.isPaused && deltaTime > 0;
+    let enginesActive = false;
 
     if (running) {
       const deltaMs = deltaTime * 1000;
       // Headings first: this frame's movement speed depends on how far each
       // hull is still turned away from its course (battle-heading.ts).
-      updateStackHeadings(state, deltaTime);
+      const turned = updateStackHeadings(state, deltaTime);
+      enginesActive = turned || state.stacks.some((s) => s.moving && !s.destroyed && !s.immobile);
       updateStackPositions(state, deltaTime, (stackId) => this.movement.completeMovement(stackId));
 
       this.aiTickAccumulator += deltaMs;
@@ -869,6 +889,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     }
 
     checkVictory(state);
+    // Off while paused or decided, so the hum never outlives the action.
+    this.sound.setEngineLoop(enginesActive);
     this.anim.tick();
   }
 

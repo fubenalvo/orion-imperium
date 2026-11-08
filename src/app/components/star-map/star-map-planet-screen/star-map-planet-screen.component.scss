@@ -736,10 +736,12 @@
   border-bottom: 0;
   border-radius: 0;
   background: linear-gradient(180deg, rgba(6, 20, 27, 0.94), rgba(2, 8, 12, 0.96));
-  /* The sidebar is opaque, and a backdrop-filter would make it the
-     containing block of the position: fixed overlays rendered inside it
-     (production order dialog, currency breakdown), trapping them here. */
+  /* The sidebar is opaque, so it needs no blur. */
   backdrop-filter: none;
+  /* Deliberately the containing block of position: fixed descendants: the
+     production order dialog (star-map-production-panel) is a fixed overlay
+     with inset: 0 that should fill exactly this column, not the screen. */
+  contain: layout;
 }
 
 .planet-sidebar__caption {

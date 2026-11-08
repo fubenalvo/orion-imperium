@@ -50,6 +50,14 @@ describe('battle heading', () => {
     expect(angleDelta(0, 180)).toBe(180);
   });
 
+  it('reports whether any stack turned (engine sound)', () => {
+    const stack = makeStack({ moving: true, targetX: 10, targetY: 20 });
+    const state = stateOf(stack);
+    expect(updateStackHeadings(state, 1 / 60)).toBe(true);
+    run(state, 2);
+    expect(updateStackHeadings(state, 1 / 60)).toBe(false);
+  });
+
   it('turns gradually toward the movement target, not instantly', () => {
     const stack = makeStack({ moving: true, targetX: 10, targetY: 20 }); // straight down = 90°
     const state = stateOf(stack);

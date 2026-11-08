@@ -154,10 +154,70 @@
   }
 }
 
+/* Forward-motion star stream, the same technique as the main menu dust:
+   each plane is one tile wider than its parent and slides left by exactly
+   one tile per loop, so the loop wraps seamlessly. Two planes at different
+   speeds give parallax depth; the near plane's stars are slightly stretched
+   along the travel axis. Kept faint and small so ships, bolts and markers
+   stay the most contrasted things on screen. The planes are children of
+   .battle-bg-foreground, so its pointer parallax still moves them while
+   their own animation owns the drift (no transform conflict). */
+.battle-bg-stream {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  will-change: transform;
+
+  &--mid {
+    width: calc(100% + 560px);
+    opacity: 0.55;
+    background-image:
+      radial-gradient(1.2px 1.2px at 12% 18%, #fff 50%, transparent 100%),
+      radial-gradient(1px 1px at 47% 63%, #cfe6ff 50%, transparent 100%),
+      radial-gradient(1.4px 1px at 78% 34%, #fff 50%, transparent 100%),
+      radial-gradient(1px 1px at 29% 87%, #ffe9cf 50%, transparent 100%),
+      radial-gradient(1.2px 1px at 91% 76%, #d9f3ff 50%, transparent 100%);
+    background-size: 560px 430px;
+    animation: battle-stream-mid 70s linear infinite;
+  }
+
+  &--near {
+    width: calc(100% + 820px);
+    opacity: 0.5;
+    background-image:
+      radial-gradient(7px 1.4px at 21% 29%, rgba(220, 245, 255, 0.85) 30%, transparent 100%),
+      radial-gradient(5px 1.2px at 66% 71%, rgba(255, 236, 210, 0.75) 30%, transparent 100%),
+      radial-gradient(9px 1.6px at 84% 13%, rgba(200, 238, 248, 0.7) 30%, transparent 100%),
+      radial-gradient(6px 1.3px at 38% 92%, rgba(230, 248, 255, 0.7) 30%, transparent 100%);
+    background-size: 820px 610px;
+    animation: battle-stream-near 32s linear infinite;
+  }
+}
+
+@keyframes battle-stream-mid {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-560px, 0, 0);
+  }
+}
+
+@keyframes battle-stream-near {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-820px, 0, 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .battle-bg-deep::after,
   .battle-bg-nebula::before,
-  .battle-bg-foreground::before {
+  .battle-bg-foreground::before,
+  .battle-bg-stream {
     animation: none;
   }
 }

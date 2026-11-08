@@ -14,7 +14,10 @@ import {
   ChangeDetectorRef,
   NgZone,
   AfterViewInit,
+  inject,
 } from '@angular/core';
+import { GameSound, UiSoundService } from '../../services/ui-sound.service';
+import { MusicService } from '../../services/music.service';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -286,7 +289,17 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
   styleUrl: './star-map.scss',
 })
 export class StarMap implements AfterViewInit, OnDestroy {
-  currentView: 'map' | 'system' | 'planet' = 'map';
+  private readonly music = inject(MusicService);
+  private _currentView: 'map' | 'system' | 'planet' = 'map';
+  /* Every view change goes through here, so the background music follows
+     it: the surface view has its own track, galaxy and system share one. */
+  get currentView(): 'map' | 'system' | 'planet' {
+    return this._currentView;
+  }
+  set currentView(view: 'map' | 'system' | 'planet') {
+    this._currentView = view;
+    this.music.setScene(view === 'planet' ? 'planet' : 'space');
+  }
 
 pauseMenuOpen = false;
 loadError = '';
@@ -301,6 +314,7 @@ loadError = '';
   cellSizeVw = initialStarMapData.map.cellSizeVw;
   cellSizeVh = initialStarMapData.map.cellSizeVh;
   private readonly gridBreakpointPx = 1300;
+  private readonly sound = inject(UiSoundService);
 
   // Game state
   starSystems: StarSystem[] = initialStarMapData.starSystems;
@@ -590,6 +604,7 @@ loadError = '';
     private borderService: BorderService,
     private anomalyService: AnomalyService,
   ) {
+    this.music.setScene(this.currentView === 'planet' ? 'planet' : 'space');
     this.movementService.initialize(
       this.cellSizeVw,
       this.cellSizeVh,
@@ -905,6 +920,7 @@ loadError = '';
       return;
     }
     const result = this.asteroidService.orderIntercept(fleet, this.selectedAsteroidId);
+    this.sound.play(result.ok ? 'order-move' : 'deny');
     if (result.ok) {
       fleet.attackFleetId = null;
       fleet.raidTraderId = null;
@@ -1111,18 +1127,22 @@ loadError = '';
     const trader = this.selectedTraderId == null ? undefined : this.tradeNetworkService.getTrader(this.selectedTraderId);
     if (!fleet || !trader || trader.status !== 'travelling') return;
     if (this.traderRaidBlocker(fleet, trader)) {
+      this.sound.play('deny');
       this.showMapNotice('An allied trader: it cannot be raided.');
       return;
     }
     if (fleet.raidTraderId === trader.id) return;
     if (this.tradeNetworkService.raidDamagePerSecond(fleet) <= 0) {
+      this.sound.play('deny');
       this.showMapNotice(`${fleet.name} has no warships to raid with.`);
       return;
     }
     if (!this.movementService.planGalaxyRoute({ x: fleet.x, y: fleet.y }, { x: trader.x, y: trader.y }).ok) {
+      this.sound.play('deny');
       this.showMapNotice(`${fleet.name}: no safe route to the trader.`);
       return;
     }
+    this.sound.play('order-attack');
     fleet.interceptAsteroidId = null;
     fleet.attackFleetId = null;
     fleet.raidTraderId = trader.id;
@@ -1238,6 +1258,7 @@ loadError = '';
   }
 
   private showMapNotice(text: string): void {
+    this.music.playStinger('notification');
     this.mapNotice = text;
     this.mapNoticeClock = 0;
   }
@@ -2115,10 +2136,12 @@ loadError = '';
   openDiplomacy(): void {
     this.diplomacyMessage = null;
     this.showDiplomacy = true;
+    this.music.playStinger('fanfare');
   }
 
   closeDiplomacy(): void {
     this.showDiplomacy = false;
+    this.music.stopStinger('fanfare');
   }
 
   /* Number of open AI peace proposals; drives the header badge. */
@@ -3264,7 +3287,7 @@ loadError = '';
     if (!fleet || this.currentView !== 'map') {
       return;
     }
-    if (this.moveSelectedFleet(quarry.x, quarry.y)) {
+    if (this.moveSelectedFleet(quarry.x, quarry.y, 'order-attack')) {
       fleet.attackFleetId = quarry.id;
       this.simStateDirty = true;
     }
@@ -3506,8 +3529,18 @@ loadError = '';
    * Commands the selected fleet to move to the given world coordinates.
    * Returns true when the order was accepted. Any accepted manual order
    * replaces an attack order (orderAttack re-sets it afterwards).
+   * `orderSound` plays when the order is accepted (a rejection buzzes).
    */
-  moveSelectedFleet(x: number, y: number): boolean {
+  moveSelectedFleet(x: number, y: number, orderSound: GameSound = 'order-move'): boolean {
+    if (!this.selectedFleet) {
+      return false;
+    }
+    const accepted = this.applyFleetMove(x, y);
+    this.sound.play(accepted ? orderSound : 'deny');
+    return accepted;
+  }
+
+  private applyFleetMove(x: number, y: number): boolean {
     if (!this.selectedFleet) {
       return false;
     }
@@ -4503,12 +4536,14 @@ loadError = '';
       this.anomalyResumeOnClose = !this.gameTimeService.isPaused;
       this.gameTimeService.pause();
     }
+    this.music.playStinger('fanfare');
     this.anomalyEvent = this.anomalyService.buildEventVm(pending, this.anomalyContext());
     this.anomalyError = null;
     return true;
   }
 
   private closeAnomalyEvent(): void {
+    this.music.stopStinger('fanfare');
     this.anomalyEvent = null;
     this.anomalyError = null;
     if (this.anomalyResumeOnClose) {
@@ -5125,6 +5160,8 @@ loadError = '';
     const outcome = this.gameOutcomeService.evaluate(data);
     if (outcome !== 'inProgress') {
       this.gameOutcome = outcome;
+      // The fanfare celebrates a win; a defeat keeps the plain music.
+      if (outcome === 'victory') this.music.playStinger('fanfare');
       data.gameOutcome = outcome;
       this.saveGameService.saveToSlot(SaveSlotId.AUTOSAVE, data);
       this.gameTimeService.pause();

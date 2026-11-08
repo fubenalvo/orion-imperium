@@ -11,6 +11,7 @@ import { BattleCombatService, segmentHitsStack } from './battle-combat.service';
 import { BattleAnimationService } from './battle-animation.service';
 import { ANIMATION_MS } from './battle.types';
 import { stackCenterVw } from './battle-grid';
+import { UiSoundService } from '../../../services/ui-sound.service';
 
 describe('BattleCombatService', () => {
   let stopClock: () => void = () => {};
@@ -111,6 +112,18 @@ describe('BattleCombatService', () => {
     return merged;
   };
 
+  it('plays the shield-hit sound when the front ship still has shields', async () => {
+    const play = vi.spyOn(TestBed.inject(UiSoundService), 'play');
+    const state = setup([fleetShip(0, 'fighter')], [fleetShip(100, 'frigate')]);
+    const atk = getStacks(state, 'attacker')[0];
+    const def = getStacks(state, 'defender')[0];
+    placeAdjacent(atk, def);
+    expect(def.ships[0].shield ?? 0).toBeGreaterThan(0);
+
+    await land(combat.attackStack(state, atk.stackId, def.stackId));
+    expect(play.mock.calls.map((c) => c[0])).toContain('shield-hit');
+  });
+
   it('applies the armour-reduced reference volley to the front shield', async () => {
     const state = setup(
       Array.from({ length: 5 }, (_, i) => fleetShip(i, 'fighter')),
@@ -176,6 +189,24 @@ describe('BattleCombatService', () => {
     expect(def.destroyed).toBe(true);
     expect(state.winner).toBe('attacker');
     expect(state.log[0].kills).toBe(1);
+  });
+
+  it('plays a weapon sound on fire and an explosion when the stack dies', async () => {
+    const play = vi.spyOn(TestBed.inject(UiSoundService), 'play');
+    const state = setup(
+      Array.from({ length: 5 }, (_, i) => fleetShip(i, 'fighter')),
+      [fleetShip(100, 'scout')],
+    );
+    const atk = mergeSameTypeStacks(state, 'attacker');
+    const def = getStacks(state, 'defender')[0];
+    placeAdjacent(atk, def);
+
+    const p = combat.attackStack(state, atk.stackId, def.stackId);
+    expect(play.mock.calls[0][0]).toMatch(/^fire-/);
+    await vi.advanceTimersByTimeAsync(FLIGHT_MS);
+    await vi.advanceTimersByTimeAsync(ANIMATION_MS.explosion);
+    await p;
+    expect(play.mock.calls.map((c) => c[0])).toContain('stack-destroyed');
   });
 
   it('runs the bolt -> impact -> clear lifecycle', async () => {

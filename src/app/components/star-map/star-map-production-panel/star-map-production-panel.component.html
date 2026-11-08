@@ -41,7 +41,10 @@
   @if (showBuildMenu) {
     <div class="production-panel__overlay" animate.enter="ui-enter" animate.leave="ui-leave" (click)="closeBuildMenu.emit()">
       <div class="production-panel__modal" (click)="$event.stopPropagation()">
-        <div class="production-panel__modal-title">NEW PRODUCTION ORDER</div>
+        <div class="panel-style__title production-panel__modal-title">
+          NEW PRODUCTION ORDER
+          <button type="button" class="close-btn" aria-label="Close" (click)="closeBuildMenu.emit()">X</button>
+        </div>
         <div class="production-panel__modal-body">
           @if (vm.modules?.length) {
             <div class="production-panel__tabs" role="tablist">
