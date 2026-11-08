@@ -180,16 +180,19 @@
       </svg>
     }
 
-    <!-- FOG OF WAR CELLS (viewport-culled, unexplored areas) -->
+    <!--
+      FOG OF WAR: one canvas pixel per grid cell over the whole map, drawn in
+      ngAfterViewChecked (fog-layer.ts). Never viewport-culled: the camera
+      transition would otherwise show unfogged strips while panning/zooming.
+    -->
     @if (sensorRangeEnabled) {
-      @for (cell of fogCells; track cell.col + '-' + cell.row) {
-        <div
-          class="fog-cell"
-          [class.fog-cell--explored]="cell.explored"
-          [style.gridColumn]="cell.col"
-          [style.gridRow]="cell.row"
-        ></div>
-      }
+      <canvas
+        #fogCanvas
+        class="fog-layer"
+        [style.width]="gridColumns * cellSizeVw + 'vw'"
+        [style.height]="gridRows * cellSizeVh + 'vw'"
+        aria-hidden="true"
+      ></canvas>
     }
 
     <!-- SENSOR RANGE HIGHLIGHT CELLS -->

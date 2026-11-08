@@ -98,7 +98,20 @@
           "defaultConfiguration": "development"
         },
         "test": {
-          "builder": "@angular/build:unit-test"
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "runnerConfig": "vitest.config.ts",
+            "exclude": ["src/**/*.long.spec.ts"]
+          },
+          "configurations": {
+            "long": {
+              "include": ["src/**/*.long.spec.ts"],
+              "exclude": []
+            },
+            "all": {
+              "exclude": []
+            }
+          }
         }
       }
     }

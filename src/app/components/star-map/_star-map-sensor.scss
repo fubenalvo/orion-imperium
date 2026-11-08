@@ -3,27 +3,19 @@
    ========================================================= */
 
 /* =========================================================
-   FOG OF WAR CELLS
+   FOG OF WAR LAYER (galaxy map)
+   One canvas pixel per grid cell, stretched over the whole grid (colors and
+   alphas in star-map-galaxy-view/fog-layer.ts). The default smooth
+   upscaling is what softens the edge of explored space: do not set
+   `image-rendering: pixelated` here, it brings back the hard cell staircase.
    ========================================================= */
 
-.fog-cell {
-  position: relative;
-  width: var(--cell-size-vw, 5vw);
-  height: var(--cell-size-vw, 5vw);
-  /* Unexplored space: nearly black, so hidden terrain only faintly shows through. */
-  background: rgba(1, 4, 8, 0.82);
-  /* The spread shadow overlaps neighbouring cells, turning the hard cell
-     staircase at the edge of explored space into a soft falloff. Inside a
-     fogged region the overlap is invisible (same color). */
-  box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.45) calc(var(--cell-size-vw, 5vw) * 0.12) rgba(1, 4, 8, 0.7);
+.fog-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
   z-index: 5;
   pointer-events: none;
-}
-
-.fog-cell--explored {
-  /* Explored but currently out of sensor range. */
-  background: rgba(1, 4, 8, 0.5);
-  box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.4) calc(var(--cell-size-vw, 5vw) * 0.08) rgba(1, 4, 8, 0.35);
 }
 
 /* =========================================================

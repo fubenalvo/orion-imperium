@@ -531,34 +531,6 @@ export class StarMapSensorService {
     return (col - fleetCell.col) ** 2 + (row - fleetCell.row) ** 2;
   }
 
-  /**
-   * Returns the viewport bounds in grid cells, with a 1-cell buffer.
-   * Used to cull fog cells to only those visible on screen.
-   */
-  getViewportCells(
-    cameraX: number,
-    cameraY: number,
-    viewportWidthVw: number,
-    viewportHeightVw: number,
-    cellSizeVw: number,
-    cellSizeVh: number,
-    gridColumns: number,
-    gridRows: number,
-  ): { col: number; row: number }[] {
-    const startCol = Math.max(1, Math.floor(cameraX / cellSizeVw) - 1);
-    const endCol = Math.min(gridColumns, Math.floor((cameraX + viewportWidthVw) / cellSizeVw) + 2);
-    const startRow = Math.max(1, Math.floor(cameraY / cellSizeVh) - 1);
-    const endRow = Math.min(gridRows, Math.floor((cameraY + viewportHeightVw) / cellSizeVh) + 2);
-
-    const cells: { col: number; row: number }[] = [];
-    for (let col = startCol; col <= endCol; col++) {
-      for (let row = startRow; row <= endRow; row++) {
-        cells.push({ col, row });
-      }
-    }
-    return cells;
-  }
-
   private getFactionColor(factions: Faction[], factionId: string): string {
     const f = factions.find((x) => x.id === factionId);
     return f ? f.color : '#ffffff';

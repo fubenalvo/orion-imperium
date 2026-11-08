@@ -7,6 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
+    "test:long": "ng test --watch=false --configuration=long",
+    "test:all": "ng test --watch=false --configuration=all",
     "sprites:buildings": "node scripts/building-sprites/generate.mjs"
   },
   "private": true,

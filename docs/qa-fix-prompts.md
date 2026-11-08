@@ -168,10 +168,10 @@ Fixed on 2026-11-02: the active Shield Pulse was replaced by a passive **shield 
 
 **Problem.** The probe used for this QA session (5-minute snapshots of planets, ships, credits, raw, techs, population and relations per faction, plus ownership history and per-faction traces) was a throwaway copy of the `ai-simulation.spec.ts` harness. It found issues the existing suites miss (prompts 1, 7, 8, 9) because those run ≤ 40 minutes, mostly without civilizations, and assert per-run totals rather than trends.
 
-**Files.** `src/app/components/star-map/ai-simulation.spec.ts` (`runScenario`, `leagueRows`, `economyRows`), `docs/ai-pipeline.md` (Tests).
+**Files.** `src/app/components/star-map/ai-simulation.harness.ts` (`runScenario`, `leagueRows`, `economyRows`), `docs/ai-pipeline.md` (Tests).
 
 **Task.**
-1. Export the harness helpers into a shared test utility (e.g. `ai-simulation.harness.ts`) so other specs can reuse them without copying 650 lines.
+1. ~~Export the harness helpers into a shared test utility~~ Done: `ai-simulation.harness.ts` (shared by the split `ai-simulation*.spec.ts` files). Long reports belong in a `*.long.spec.ts` file or behind an env flag, see `docs/ai-pipeline.md` (Tests).
 2. Add an opt-in long-game report spec (skipped unless an env flag such as `QA_LONG=1` is set) that runs 60-minute medium/large games with civilizations and prints a time-series table to stdout.
 3. Fix the research currency key in any snapshot (`research`, not `researchpoints`).
 4. Promote the cheap, stable checks into the regular suites: arrears limit with civilizations (prompt 1), at least one AI–AI war on 5-AI maps (prompt 7, once fixed).

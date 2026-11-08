@@ -130,7 +130,7 @@ describe('Small galaxy regression', () => {
     startGame(smallConfig(189352119));
     const { map, el } = openGalaxyView();
 
-    expect(el.querySelectorAll('app-star-map-galaxy-view .fog-cell').length).toBeGreaterThan(0);
+    expect(el.querySelectorAll('app-star-map-galaxy-view canvas.fog-layer')).toHaveLength(1);
     expect(map.exploredGridCells.size).toBeLessThan((map.mapWidth * map.mapHeight) / 4);
     expect(map.visibleFleets.every((f) => f.factionId === 'player')).toBe(true);
     const foreign = map.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId !== 'player');

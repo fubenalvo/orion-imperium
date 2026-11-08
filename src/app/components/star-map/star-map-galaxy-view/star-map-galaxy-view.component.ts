@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, Input, ViewChild } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { AsteroidType, Fleet, FleetTrail, StarSystem, SpecialObject } from '../star-map.models';
 import { StarMapMovementService } from '../star-map-movement.service';
@@ -7,6 +7,7 @@ import { SensorCellInfo, SensorPreviewCellInfo } from '../star-map-sensor.servic
 import { blackHoleNavigationRadius } from '../fleet-navigation';
 import { BeltView } from '../asteroid-belts';
 import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
+import { FogLayerPainter } from './fog-layer';
 
 /* Pre-built SVG paths of one nebula (grid units; see nebulaSvgPath). */
 export interface NebulaView {
@@ -127,7 +128,7 @@ export interface AnomalyMapView {
  * =========================================================
  *
  * Presentational child of StarMap: renders the galaxy map
- * viewport (world grid, fog-of-war cells, sensor highlights,
+ * viewport (world grid, fog-of-war layer, sensor highlights,
  * star systems, fleets, and the movement target marker).
  *
  * All simulation/selection/camera logic stays in the parent.
@@ -143,7 +144,7 @@ export interface AnomalyMapView {
   templateUrl: './star-map-galaxy-view.component.html',
   styleUrl: './star-map-galaxy-view.component.scss',
 })
-export class StarMapGalaxyViewComponent {
+export class StarMapGalaxyViewComponent implements AfterViewChecked {
   @Input() cameraX = 0;
   @Input() cameraY = 0;
   @Input() zoom = 1;
@@ -152,7 +153,8 @@ export class StarMapGalaxyViewComponent {
   @Input() gridColumns = 0;
   @Input() gridRows = 0;
   @Input() sensorRangeEnabled = true;
-  @Input() fogCells: { col: number; row: number; explored: boolean }[] = [];
+  /* Cells the player has ever sensed (StarMap.exploredGridCells; only grows). Drawn by the fog layer, see fog-layer.ts. */
+  @Input() exploredCells: ReadonlySet<string> = new Set();
   @Input() sensorRangeCells: SensorCellInfo[] = [];
   @Input() sensorPreviewCells: SensorPreviewCellInfo[] = [];
   @Input() systems: StarSystem[] = [];
@@ -211,7 +213,22 @@ export class StarMapGalaxyViewComponent {
   @Input() onFleetContextMenu: (fleet: Fleet, event: MouseEvent) => void = () => {};
   @Input() onAsteroidContextMenu: (asteroidId: number, event: MouseEvent) => void = () => {};
 
+  /* Present only while fog is on (the canvas sits inside @if). */
+  @ViewChild('fogCanvas') fogCanvas?: ElementRef<HTMLCanvasElement>;
+  private readonly fogPainter = new FogLayerPainter();
+
   constructor(public movementService: StarMapMovementService) {}
+
+  /*
+   * Redraws the fog canvas after each check. The painter skips the work when
+   * the explored set and the sensed cells did not change, so this is cheap
+   * on frames where only other things moved.
+   */
+  ngAfterViewChecked(): void {
+    const canvas = this.fogCanvas?.nativeElement;
+    if (!canvas) return;
+    this.fogPainter.paint(canvas, this.gridColumns, this.gridRows, this.exploredCells, this.sensorRangeCells);
+  }
 
   /*
    * Size of the black hole visual in world vw, derived from its no-fly

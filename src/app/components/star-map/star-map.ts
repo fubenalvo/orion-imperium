@@ -1601,38 +1601,6 @@ loadError = '';
   }
 
   /**
-   * Returns fog cells (unexplored cells within the viewport) for template rendering.
-   * Called only when the camera is stationary or the explored set changes.
-   */
-  get fogCells(): { col: number; row: number; explored: boolean }[] {
-    if (!this.sensorRangeEnabled) {
-      return [];
-    }
-
-    const cells = this.sensorService.getViewportCells(
-      this.cameraX,
-      this.cameraY,
-      this.visibleWidthVw,
-      this.visibleHeightVw,
-      this.cellSizeVw,
-      this.cellSizeVh,
-      this.mapWidth,
-      this.mapHeight,
-    );
-
-    const fog: { col: number; row: number; explored: boolean }[] = [];
-    for (const cell of cells) {
-      const key = `${cell.col}-${cell.row}`;
-      if (!this.exploredGridCells.has(key)) {
-        fog.push({ col: cell.col, row: cell.row, explored: false });
-      } else if (!this.sensorRangeCells.has(key) && this.sensorRangeEnabled) {
-        fog.push({ col: cell.col, row: cell.row, explored: true });
-      }
-    }
-    return fog;
-  }
-
-  /**
    * Returns the sensor range cells for the selected fleet in system view,
    * split into fully-clear cells and outer-ring preview cells.
    */

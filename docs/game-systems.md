@@ -52,7 +52,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 - AI factions obey the same fog of war with the same sensor rules (per-faction knowledge in `EnemyIntelService`, see [AI Pipeline](./ai-pipeline.md#fog-of-war-enemyintelservice)); with fog disabled they see what the player sees.
 - **Nebulae** shorten sensor radii: a source inside a nebula, or a target cell inside one, is sensed at 60% of the radius (applied once). Player layer and AI intel share this rule; see [Star Map Terrain](./star-map-terrain.md#sensor-penalty).
 - A pulsing animation (`sensor-pulse`, 2.5s) highlights active sensor area.
-- **Fog strength:** unexplored cells are covered at 88% black, explored cells outside current sensor range at 55%. All terrain (nebulae, asteroid belts, the black hole and its no-fly ring) is drawn *under* the fog layer, so anything not yet explored is strongly dimmed; fleets, trails, markers and visible drifting asteroids stay above it.
+- **Fog strength:** unexplored cells are covered at 82% near-black, explored cells outside current sensor range at 50% (`fog-layer.ts`). All terrain (nebulae, asteroid belts, the black hole and its no-fly ring) is drawn *under* the fog layer, so anything not yet explored is strongly dimmed; fleets, trails, markers and visible drifting asteroids stay above it.
 - **Minimap fog:** the minimap darkens every unexplored cell (97% opacity, so unexplored content shows at ~3% brightness) over terrain and stars, under fleets and the viewport frame. It is one SVG path of per-row runs, rebuilt only when the explored set grows; hidden when fog of war is off.
 
 **Exploration tracking:**
@@ -63,11 +63,11 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 
 **Fog of war layers (galaxy map):**
 
-- **Black fog** — cells never explored, fully hidden (dark `rgba(0,0,0,0.85)` overlay).
-- **Grey fog** — cells previously explored but currently outside sensor range (`rgba(0,0,0,0.45)`), still visible but dimmed.
+- **Black fog** — cells never explored, strongly dimmed (82% alpha).
+- **Grey fog** — cells previously explored but currently outside sensor range (50% alpha), still visible but dimmed. Preview-ring cells count as outside range.
 - **Visible** — cells currently in sensor range, shown with faction-colored highlight.
 
-Fog cells are viewport-culled (only cells within the camera's visible area + 1-cell buffer are rendered) for performance on the 100×60 grid.
+**Fog rendering:** the fog is one `<canvas class="fog-layer">` in the galaxy view with one pixel per grid cell, stretched over the whole grid; the browser's smooth upscaling gives the soft edge of explored space (`star-map-galaxy-view/fog-layer.ts`). It is redrawn in `ngAfterViewChecked` only when the explored set grows or the sensed cells change. It is deliberately **not** viewport-culled: `.map-world` animates pan and zoom with a 100 ms transform transition, and culled fog cells (the earlier implementation) were computed for the new camera at once, so the old view briefly showed unfogged areas during every pan and zoom (the reported fog flicker).
 
 **Fleet visibility:**
 
@@ -145,7 +145,6 @@ responsive. `stopGameLoop()` is used on component destroy.
 - Rendering: `StarMapGalaxyViewComponent.worldTransform` = `translate(-camera * zoom vw) scale(zoom)` with `transform-origin: 0 0` on `.map-world`. All world content (systems, fleets, trails, fog, target marker) is inside `.map-world`, so it scales together; the grid coordinate system and cell sizes are unchanged.
 - Every screen→world conversion (map click, drag, arrow/d-pad pan step, fog culling, minimap viewport rectangle and click-to-center) divides screen vw by `zoom`. The minimap receives the visible extent through `viewportWidthVw`/`viewportHeightVw`.
 - Zoom is a view preference and is not saved; the saved camera is in world units, so it is valid at any zoom. Parallax background layers stay in screen space and are not scaled.
-- More visible area means more viewport-culled fog cells are rendered at far zoom levels.
 - Background is rendered at 200% of the grid extent and translated at `0.3 * cameraX/Y` for parallax. The `bgWidthVw`, `bgHeightVw`, `bgLeftVw`, `bgTopVw` getters on `StarMap` keep the background centered on the viewport at all times. It only carries the star texture; the other backdrop layers (static deep stars, the wrapping nebula field at `0.12 *` camera, foreground dust at `0.6 *` camera) are viewport-sized. See [UI Styling](./ui-styling.md#space-scenery).
 
 ### Selection

@@ -103,6 +103,13 @@ Prefer documenting:
 
 Avoid documenting obvious implementation details.
 
+## Running tests
+
+- `npm test` (`ng test`) runs every spec except the multi-minute AI game simulations (`*.long.spec.ts`); about 1.5 minutes.
+- `npm run test:long` runs only the `*.long.spec.ts` simulations (about 5–6 minutes); `npm run test:all` runs everything.
+- While working, run only the affected specs (`npx ng test --watch=false --include <path>`). Run the full `npm test` once before finishing, and `npm run test:long` only after changes to AI behavior, economy, diplomacy or balance values.
+- A new test that plays a game for minutes belongs in a `*.long.spec.ts` file; keep the default suite fast. See `docs/ai-pipeline.md` (Tests).
+
 ## Documentation files
 
 For sufficiently complex systems, prefer creating dedicated Markdown documentation rather than putting large amounts of information into source-code comments.

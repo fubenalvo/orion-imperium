@@ -93,7 +93,7 @@ Each is now covered by a rule (see [AI Pipeline](./ai-pipeline.md)):
 
 ## Acceptance test
 
-`ai-simulation.spec.ts`, "AI simulation — late economy" (large map, 4 personalities, 90 minutes, runs by default, ~75 s): for every AI ≤ 10 arrears ticks, no rebellion, no rejected order, negative-net streak ≤ 300 s, ≥ 20 technologies, warships, ≥ 3 colonies; net ≤ 20% of gross income at minute 90; every AI has planets that need comfort. The opt-in report (`ORION_ECONOMY_REPORT=1`, both scenarios, `ORION_ECONOMY_MINUTES` for other sample minutes) prints per-faction samples (income, expenses, credits, coverage, the three largest planets) and summaries (opening times, colonies, gains and losses). The Dyson acceptance test still passes.
+`ai-simulation-late-economy.long.spec.ts`, "AI simulation — late economy" (large map, 4 personalities, 90 minutes; runs with `npm run test:long`, not in the default `npm test`; ~200 s): for every AI ≤ 10 arrears ticks, no rebellion, no rejected order, negative-net streak ≤ 300 s, ≥ 20 technologies, warships, ≥ 3 colonies; net ≤ 20% of gross income at minute 90; every AI has planets that need comfort. The opt-in report (`ORION_ECONOMY_REPORT=1`, both scenarios, `ORION_ECONOMY_MINUTES` for other sample minutes) prints per-faction samples (income, expenses, credits, coverage, the three largest planets) and summaries (opening times, colonies, gains and losses). The Dyson acceptance test still passes.
 
 ## Decisions (2026-11-02)
 
