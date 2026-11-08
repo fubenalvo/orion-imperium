@@ -98,7 +98,13 @@ Home systems have at least 3 planets.
   galaxy seed and planet id, kept clear of the starting buildings) during generation; all other
   planets receive the identical terrain on first load. See [Planet Surface](./planet-surface.md).
 - **Starting assets:** 1000 credits / 2500 raw materials / 1000 research (scaled for AI by difficulty), a raw-material deposit on every homeworld (deposit tiles placed on free ground after the starting buildings; the finite reserve comes from `ensurePlanetDeposits`, see [Economy](./economy.md#economic-safety)), the
-  four basic technologies, and fleets placed 3–6 cells from the home system on free cells. The
+  four basic technologies, and the starting fleets. The human's fleet is stationed at the
+  homeworld: on the home system's galaxy cell with `Fleet.system` set to the homeworld's footprint
+  center (the same spot `FleetAssemblyService` uses for a fleet assembled at a Spaceport), so it
+  shows next to the homeworld in the system view. AI fleets start on free cells 3–6 cells from
+  their home system on purpose: `EnemyFleetService` keeps the strongest fleet on the home cell as
+  the home guard and never sends a faction's only fleet away from it, so an AI fleet starting at
+  home never explored (see [AI pipeline](./ai-pipeline.md)). The
   human always starts with one small scouting fleet (ORION: 2 scouts + 1 fighter), which keeps
   the starting upkeep low; the AI's starting fleet follows its difficulty (Easy: the same as the
   human, Normal: 2 frigates, Hard: 2 frigates + 3 cruisers; `startingFleetPreset` in
@@ -107,14 +113,15 @@ Home systems have at least 3 planets.
 - **Visibility:** every star system starts `explored: true` — star positions and names are known
   and drawn on the galaxy view and minimap, as on every legacy-map game. Fog of war still covers
   grid cells (`exploredGridCells` starts `[]`; a *missing* field means a legacy all-explored save),
-  enemy fleets (sensor range) and planet details (only the human homeworld starts
-  `PlanetTile.explored`). `StarSystem.explored` decides whether a system is rendered at all, and
+  enemy fleets (sensor range) and planet details (only the planets of the human's home system
+  start `PlanetTile.explored`). `StarSystem.explored` decides whether a system is rendered at all, and
   sensor ranges (3–5 cells) are far shorter than system spacing (≥ 22 cells), so hiding systems
   made the rest of the galaxy undiscoverable (generator v1 bug).
 - **Start view:** `defaultView` opens the human homeworld; the camera is centered on the home
   system so leaving the planet view lands there.
 - **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }` (current
-  generator version: 8 — nebulae keep clear of the Dyson ring zone). `seed` is the
+  generator version: 9 — the human's starting fleet stationed at the homeworld, the human's whole
+  home system explored). `seed` is the
   seed that actually produced the galaxy (after retries).
 
 ## AI difficulty (`components/star-map/ai-difficulty.ts`)

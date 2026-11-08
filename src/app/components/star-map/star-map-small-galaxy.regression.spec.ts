@@ -133,7 +133,11 @@ describe('Small galaxy regression', () => {
     expect(el.querySelectorAll('app-star-map-galaxy-view canvas.fog-layer')).toHaveLength(1);
     expect(map.exploredGridCells.size).toBeLessThan((map.mapWidth * map.mapHeight) / 4);
     expect(map.visibleFleets.every((f) => f.factionId === 'player')).toBe(true);
-    const foreign = map.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.factionId !== 'player');
+    // The human's home system starts fully explored; every other system's planets stay hidden.
+    const foreign = map.starSystems
+      .filter((s) => !s.planetsTiles.some((p) => p.factionId === 'player'))
+      .flatMap((s) => s.planetsTiles);
+    expect(foreign.length).toBeGreaterThan(0);
     expect(foreign.every((p) => !p.explored)).toBe(true);
   });
 

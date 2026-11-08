@@ -17,5 +17,7 @@ export class App {
   constructor() {
     // Touch long-press acts as a right-click everywhere in the game.
     inject(TouchLongPressService).install();
+    // Global UI sound listeners (button hover/press, dialog power on/off).
+    inject(UiSoundService).install();
   }
 }

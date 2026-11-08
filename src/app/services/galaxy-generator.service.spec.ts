@@ -14,6 +14,7 @@ import { validateGeneratedGalaxy } from './galaxy-validation';
 import { GALAXY_SIZE_PRESETS, NewGameConfig, PLAYER_COLOR_PALETTE } from './new-game.models';
 import { addPlayer, createDefaultNewGameConfig, setGalaxySize } from './new-game-config';
 import { INITIAL_WAR_LOCK_SECONDS } from '../components/star-map/diplomacy';
+import { planetFootprintCenterVw } from '../components/star-map/system-grid';
 
 const generator = new GalaxyGeneratorService();
 const SIZES: GalaxySize[] = ['small', 'medium', 'large'];
@@ -215,17 +216,38 @@ describe('GalaxyGeneratorService', () => {
       expect(faction.currencies['credits']).toBeGreaterThan(0);
       expect(faction.researchedTechnologies).toContain('basic_engineering');
     }
-    // The game starts on the human homeworld, which is explored.
+    // The game starts on the human homeworld; its whole system is explored.
     const home = data.starSystems.find((s) => s.id === data.defaultView!.systemId)!;
     const homeworld = home.planetsTiles.find((p) => p.id === data.defaultView!.planetId)!;
     expect(data.defaultView!.type).toBe('planet');
     expect(homeworld.factionId).toBe('player');
-    expect(homeworld.explored).toBe(true);
-    // Star positions are known; cell fog and planet details are not.
+    expect(home.planetsTiles.length).toBeGreaterThan(1);
+    // Star positions are known; cell fog and planets outside the home system are not.
     expect(data.exploredGridCells).toEqual([]);
     expect(data.starSystems.every((s) => s.explored)).toBe(true);
     const explored = data.starSystems.flatMap((s) => s.planetsTiles).filter((p) => p.explored);
-    expect(explored.map((p) => p.id)).toEqual([homeworld.id]);
+    expect(explored.map((p) => p.id).sort()).toEqual(home.planetsTiles.map((p) => p.id).sort());
+  });
+
+  it("stations the human's starting fleet at its homeworld; AI fleets start near home", () => {
+    const data = generator.generate(configFor('large', 4), 99);
+    // Planet 1 of a home system is the faction's homeworld.
+    const homeOf = (factionId: string) => data.starSystems.find((s) => s.planetsTiles[0]?.factionId === factionId)!;
+    const playerFleets = data.fleets.filter((f) => f.factionId === 'player');
+    expect(playerFleets.length).toBeGreaterThan(0);
+    for (const fleet of playerFleets) {
+      const home = homeOf('player');
+      const spawn = planetFootprintCenterVw(home.planetsTiles[0]);
+      expect({ x: fleet.x, y: fleet.y }).toEqual({ x: home.x, y: home.y });
+      expect(fleet.system).toEqual({ id: home.id, x: spawn.x, y: spawn.y, targetX: null, targetY: null });
+    }
+    // Off the home cell on purpose: EnemyFleetService never sends a lone
+    // home-cell fleet away (home guard), so the AI would not explore.
+    for (const fleet of data.fleets.filter((f) => f.factionId !== 'player')) {
+      const home = homeOf(fleet.factionId);
+      expect(fleet.system).toBeNull();
+      expect(`${fleet.x}-${fleet.y}`).not.toBe(`${home.x}-${home.y}`);
+    }
   });
 
   it('starts every homeworld energy-positive so no faction rebels immediately', () => {

@@ -30,6 +30,7 @@ import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroi
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
 import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star-map/diplomacy';
 import { generateCivilizationSystems } from '../components/star-map/civilizations';
+import { planetFootprintCenterVw, systemCellAtVw } from '../components/star-map/system-grid';
 
 /*
  * =========================================================
@@ -96,8 +97,12 @@ import { generateCivilizationSystems } from '../components/star-map/civilization
  *    everything else is unchanged for a seed.
  * 8: nebulae keep clear of the Dyson ring zone around the black hole
  *    (dyson-ring.ts), so a seed's nebulae may differ from version 7.
+ * 9: the human's starting fleet is stationed at the homeworld (inside the
+ *    home system) instead of 3–6 cells away, and every planet of the human's
+ *    home system starts explored. AI fleets keep their version 8 cells for
+ *    a seed.
  */
-export const GALAXY_GENERATOR_VERSION = 8;
+export const GALAXY_GENERATOR_VERSION = 9;
 /* Derives the civilization rng stream from the seed (keeps the main stream untouched). */
 const CIVILIZATION_RNG_SALT = 0x6c1b7a55;
 export const BLACK_HOLE_SIZE = { width: 4, height: 4 } as const;
@@ -558,8 +563,7 @@ export class GalaxyGeneratorService {
   /*
    * Turns planet 1 of the home system into the faction homeworld and, for
    * AI factions, colonizes difficulty-dependent extra planets in the same
-   * system. The human's home system and homeworld start explored, matching
-   * the legacy SOL/Earth start.
+   * system. Every planet of the human's home system starts explored.
    */
   private settleHomeSystem(system: StarSystem, participant: ParticipantAssignment, faction: Faction): void {
     const homeworld = system.planetsTiles[0];
@@ -579,8 +583,11 @@ export class GalaxyGeneratorService {
       }
     }
 
+    // The human knows its own home system: every planet in it starts
+    // explored. AI factions do not use PlanetTile.explored (it is the
+    // player's fog), so it stays false for them.
     if (faction.id === PLAYER_FACTION_ID) {
-      homeworld.explored = true;
+      for (const planet of system.planetsTiles) planet.explored = true;
     }
   }
 
@@ -646,6 +653,19 @@ export class GalaxyGeneratorService {
     return result;
   }
 
+  /*
+   * The human's starting fleets are stationed at the homeworld: on the home
+   * system's galaxy cell, inside the system at the homeworld's system-grid
+   * cell — the same placement FleetAssemblyService gives a fleet assembled
+   * at a Spaceport — so the game opens with the fleet next to the homeworld.
+   *
+   * AI starting fleets deliberately stay on a free cell 3–6 cells from home.
+   * EnemyFleetService treats the strongest fleet on the home cell as the
+   * home guard and never sends a faction's only fleet away from there, and
+   * EnemyEconomyService merges new ships into a fleet parked at the
+   * Spaceport. An AI fleet starting on the home cell therefore never
+   * explored or expanded (the AI simulation specs caught it).
+   */
   private buildFleets(
     rng: Rng,
     preset: GalaxySizePreset,
@@ -672,20 +692,18 @@ export class GalaxyGeneratorService {
         const name = isAi
           ? (aiFleetNames[aiNameIndex++] ?? `FLEET-${nextFleetId}`)
           : (PLAYER_FLEET_NAMES[fleetIndex] ?? `FLEET-${nextFleetId}`);
-        const pos = this.placeFleetNearHome(rng, preset, center, home, occupied);
-        occupied.add(`${pos.x}-${pos.y}`);
         const types = template.ships.flatMap((group) => Array.from({ length: group.count }, () => group.shipType));
         const ships = types.map((type, k) => ({
           id: nextShipId++,
           name: `${name}-${k + 1}`,
           type,
         }));
-        fleets.push({
+        const fleet: Fleet = {
           id: nextFleetId++,
           name,
           factionId: participant.factionId,
-          x: pos.x,
-          y: pos.y,
+          x: home.x,
+          y: home.y,
           targetX: null,
           targetY: null,
           speed: template.speed,
@@ -693,7 +711,24 @@ export class GalaxyGeneratorService {
           destroyed: false,
           sensorRange: 3,
           ships,
-        });
+        };
+        // The near-home cell is drawn for the human's fleet too (and then
+        // left unused) so the rng stream and the occupied cells stay as
+        // they were: AI fleet cells for a seed match generator version 8,
+        // and the seeded AI simulation specs keep their scenarios.
+        const pos = this.placeFleetNearHome(rng, preset, center, home, occupied);
+        occupied.add(`${pos.x}-${pos.y}`);
+        if (isAi) {
+          fleet.x = pos.x;
+          fleet.y = pos.y;
+        } else {
+          const spawn = planetFootprintCenterVw(home.planetsTiles[0]);
+          const spawnCell = systemCellAtVw(spawn.x, spawn.y);
+          fleet.system = { id: home.id, x: spawn.x, y: spawn.y, targetX: null, targetY: null };
+          fleet.gridCol = spawnCell.col;
+          fleet.gridRow = spawnCell.row;
+        }
+        fleets.push(fleet);
       });
     });
     return fleets;

@@ -224,10 +224,12 @@ them by name.
 | Value jumps | `ValueFlashDirective` (`[uiValueFlash]`, `components/shared/`) on the header resources | A value that jumps (not a routine tick) flashes green / red and floats its delta ("−750") below it. The directive learns the routine step size from small changes and reacts only to a change at least 4× larger (and ≥ 10); the first change only teaches the baseline. |
 
 **Sounds** (`UiSoundService`, `services/ui-sound.service.ts`): short
-sounds synthesized with Web Audio — no audio files. A tick when the mouse
-moves onto a button, a key "thock" on press, a buzz on a disabled button, a
-rising sweep when a dialog powers on, a falling one when it powers off, and
-a tiny blip when a panel boots (not within 0.4 s of a dialog opening).
+retro sci-fi sounds synthesized with Web Audio — no audio files. Lowpassed
+square waves give an 8-bit chirp when the mouse moves onto a button and a
+two-note beep (plus a metallic FM click) on press; a disabled button gives
+a low two-step saw buzz; a dialog powering on plays a rising arpeggio over
+a warbling (vibrato) sweep, powering off a falling one; a panel boot plays
+a short high "data chatter" (not within 0.4 s of a dialog opening).
 `App` calls `install()` once; it listens on the document for
 `pointerover` / `pointerdown` on buttons and for `animationstart` of
 `ui-crt-on` / `ui-crt-off` / `ui-panel-boot`, so any element that uses
