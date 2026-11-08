@@ -853,6 +853,46 @@
   }
 }
 
+/* Credits reuse the install-guide overlay and panel; only the content differs. */
+.credits {
+  width: min(520px, 100%);
+  overflow-y: auto;
+}
+
+.credits__list {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(6px, 1.8dvh, 16px);
+  margin: 0;
+  text-align: center;
+}
+
+.credits__entry {
+  dt {
+    color: var(--accent);
+    font-size: clamp(0.8rem, 1.8dvh, 1rem);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    opacity: 0.8;
+  }
+
+  dd {
+    margin: 0.2em 0 0;
+    color: var(--ink);
+    font-size: clamp(1rem, 2.4dvh, 1.3rem);
+    letter-spacing: 0.06em;
+  }
+}
+
+.credits__note {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(0.85rem, 1.9dvh, 1rem);
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0.75;
+}
+
 /* =========================================================
    LAYOUT MODES
    ========================================================= */

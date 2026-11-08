@@ -87,7 +87,7 @@
             </button>
           }
 
-          <button type="button" class="menu-item">
+          <button type="button" class="menu-item" (click)="showCredits = true">
             <span class="menu-item__label">CREDITS</span>
             <span class="menu-item__hint">The makers of the empire</span>
           </button>
@@ -152,6 +152,36 @@
           <li>Tap &ldquo;Add&rdquo; to confirm</li>
         </ol>
         <button class="ios-guide__done" type="button" (click)="onCloseIOSGuide()">DONE</button>
+      </div>
+    </div>
+  }
+
+  @if (showCredits) {
+    <div class="ios-guide-overlay" (click)="showCredits = false">
+      <div
+        class="ios-guide-content credits"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="credits-title"
+        (click)="$event.stopPropagation()"
+      >
+        <div class="ios-guide__title" id="credits-title">CREDITS</div>
+        <dl class="credits__list">
+          <div class="credits__entry">
+            <dt>Game by</dt>
+            <dd>Fubenalvo</dd>
+          </div>
+          <div class="credits__entry">
+            <dt>Music</dt>
+            <dd>Dark Sci-Fi Audio Pack &ndash; SRG774 &ndash; CC0 1.0</dd>
+          </div>
+        </dl>
+        <p class="credits__note">
+          Orion Imperium is a learning project: an experiment to see how far a game can be
+          taken with today's AI tools. Please treat it accordingly &mdash; as an experiment,
+          not a finished commercial product.
+        </p>
+        <button class="ios-guide__done" type="button" (click)="showCredits = false">CLOSE</button>
       </div>
     </div>
   }

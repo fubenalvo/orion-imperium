@@ -34,6 +34,7 @@ export class MainMenu implements OnInit, OnDestroy {
   showLoadGameSlots = false;
   showInstallButton = false;
   showIOSGuide = false;
+  showCredits = false;
 
   private deferredPrompt: BeforeInstallPromptEvent | null = null;
   private readonly music = inject(MusicService);
