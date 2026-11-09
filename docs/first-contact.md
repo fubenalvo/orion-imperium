@@ -1,6 +1,9 @@
 # First Contact (Design)
 
-Status: **design only, not implemented** (2026-11-09). Owner decisions of 2026-11-09: every game
+Status: **implemented** (2026-11-09, Phase 4a of [Campaign Design](./campaign-design.md)); see
+[Implementation](#implementation-and-tests) for the code and where it differs from the design below.
+
+The design text follows; the original decisions: Owner decisions of 2026-11-09: every game
 mode (skirmish and campaign) starts with the other empires unknown; the first meeting is a short
 formal dialogue that decides whether two empires start as friends or enemies; warlike empires
 almost never start or keep a lasting peace; a clearly stronger player is attacked less often by
@@ -167,9 +170,11 @@ clearly stronger empire is not befriended but attacked less often.
 
 While a warlike AI is at peace with an empire (after contact, a treaty or an expired truce):
 
-- **No friendship:** its opinion of the other drifts −0.5 per minute toward −50 instead of the
-  usual +1 per minute toward +60. Paying its demands gives the normal small opinion gain, which
-  the drift wears away.
+- **No friendship (as built: no special drift).** The design had its opinion drift −0.5 per
+  minute toward −50 at peace. Implemented and measured on 2026-11-09, it pushed militarists
+  below their treachery threshold (−40), so they broke truces and wars never settled; two
+  long simulations had AIs in arrears. Dropped: the normal peace drift applies, and opinion
+  simply does not protect (next point).
 - **Opinion does not protect:** its restless war check (`minWars` 1) ignores opinion
   (`restlessOpinionMax` 100).
 - **Against an equal or weaker empire** (strength ratio ≤ its `restlessWarRatio`): the restless
@@ -239,7 +244,33 @@ load from the sensor state, so it is never lost.
 
 ## Implementation and tests
 
-Planned files: `contact-dialogue.ts` (question pools, closing lines; pure data),
+**As built (2026-11-09).**
+
+| File | Role |
+|---|---|
+| `contact-dialogue.ts` | The dialogue content below as data; every reply also has a `tone` (open / neutral / hard) |
+| `first-contact.ts` | Pure rules: temperament, seeded question choice and reply order, `evaluateContact`, AI stance and in-character replies |
+| `first-contact.service.ts` | `FirstContactService`: detection once per game second, the player's queue, `buildDialogue`, `resolvePlayerContact`, AI–AI resolution, `autoResolvePlayerContacts` for headless games |
+| `star-map-first-contact/` | The dialogue (greeting → two questions → stance and gift → their answer) |
+| `diplomacy.ts` | `inContact`, `makeContact`; contact, `peaceSeconds`, `grudgeCooldown` in normalization |
+| `enemy-diplomacy.service.ts` | No war or demand before contact; restless warlike AIs ignore opinion; the grudge clock (`grudgeAllows`) |
+
+Differences from the design above:
+
+- **State:** the contact flag lives on the relation (`FactionRelation.contact: false`, symmetric, missing = met) instead of a separate `StarMapData.contacts` list; relations are already saved, normalized and symmetric, and older saves need nothing. `contactAnswers` is not saved: the reply flags (e.g. `offered_tribute`) go to a running campaign mission as session flags.
+- **Sighting assets:** fleets (not in a wormhole), owned systems and space bases; traders do not trigger a contact.
+- **AI–AI asker:** the first empire of the pair in faction order asks; the other answers in character (by reply tone).
+- **Pending meetings** are not saved: after a load the meeting is detected again, so it is neither lost nor repeated.
+- **Simulations:** `ScenarioOptions.firstContact` (default off) runs contact detection and answers the player's meetings neutrally; the older scenarios keep the opening-war premise they were measured with.
+- **Tutorial:** the `diplomacy` hint waits for the first met empire (`TutorialContext.metEmpires`).
+
+**First measurement** (`ai-simulation-first-contact.long.spec.ts`, 30-minute games with a passive player; medium / 3 AIs seed 31337, large / 5 AIs seed 4242):
+
+- meetings from minute 2 to 13 for most pairs (the latest at minute 28); every warlike–warlike meeting ended in war, technologist–balanced and technologist–player in peace, the militarist that met the player at minute 2 in war;
+- AIs spend 10–24 of 30 minutes at war with another AI (before, with opening wars, warlike AIs 28–30): wars start later, then run;
+- peak war exhaustion of the expansionists 57–68 (before 30–43); others 12–33. Watch whether this needs tuning (the warlike threshold or base).
+
+Planned files (design): `contact-dialogue.ts` (question pools, closing lines; pure data),
 `first-contact.ts` (pure evaluation, question choice, seeded roll), the trigger in `StarMap` and
 `EnemyIntelService`, `components/star-map/star-map-first-contact/` (dialog), display rule in
 `star-map-display.util.ts`, the warlike rules in `diplomacy.ts` / `EnemyDiplomacyService`, the

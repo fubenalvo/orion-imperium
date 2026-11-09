@@ -29,7 +29,7 @@ Facts the step order is built on (see the linked docs for details):
 - Time runs in real time. AIs do not attack the player for the first 4 minutes (opening grace), so
   the core steps should fit roughly into that window.
 - Orders: **left click selects, right click orders** (long press on touch). There is no MOVE button.
-- Everyone starts at war with everyone (opening war lock); peace comes from Diplomacy.
+- Every other empire is unknown until first met; a contact dialogue then decides war or peace ([First Contact](./first-contact.md)). Diplomacy matters from that first meeting.
 
 ## Hint bubble
 
@@ -143,7 +143,7 @@ it only on an assembled fleet kept the assembly hint hidden behind it.
 | `colonize` | the Colonizer is at a colonizable planet | COLONIZE, else as above | a second player planet |
 | `research` | not in battle; trigger: 3 min played or a fleet has moved | research icon in the header | research tree opened |
 | `back-to-planet` | galaxy view and planet work pending: no Spaceport yet, a finished factory with nothing ordered (before the first Colonizer), or ships in stock at a finished Spaceport; repeatable | first planet in the roster | a planet view opened (roster or planet panel) |
-| `diplomacy` | not in battle; trigger: 4 min played (end of the opening grace) or a hostile fleet seen | DIPLOMACY button | Diplomacy opened |
+| `diplomacy` | not in battle; trigger: the player has met an AI empire (`metEmpires`) | DIPLOMACY button | Diplomacy opened |
 | `finished` | not in battle; after colonize, research and diplomacy | resource bar | closed |
 
 `to-map` waits while a fleet is selected because a new fleet is assembled into the system view with
@@ -174,7 +174,7 @@ read without the clock running: `StarMap.loadGame` pauses right after `GameTimeS
 `TutorialService.shouldStartPaused(gameSeconds)` (tutorial on, game clock 0, `time` not done). The
 `time` hint points at the play / speed controls and is done when the player unpauses. This mirrors
 the battle screen's paused start. With the tutorial off, and on every later load, the game starts as
-before. The opening grace and the opening war lock count game time, so the paused seconds do not
+before. The opening grace counts game time, so the paused seconds do not
 use them up.
 
 ## Implementation

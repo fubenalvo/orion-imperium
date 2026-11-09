@@ -31,7 +31,9 @@ Related: [Planet Capture](./planet-capture.md) (capture rules, game outcome), [E
 | `neutral` | either side on team 0 (`independent` rebels, `unhabited`) | neutral fleets never fight; neutral rebel planets can be captured by anyone (`canAttackPlanetOf`) |
 | `war` / `peace` | every other pair (a *treaty pair*) | stored in `Faction.relations[otherId]` |
 
-`areFactionsHostile(a, b)` ⇔ `war`: battle detection, AI threat and target selection, attack orders and the legacy AI layers use it (or `hostileFactionIds`). Planet capture uses `canAttackPlanetOf`. New games give every participant its own team and start everyone at war with everyone (opening lock, see below).
+`areFactionsHostile(a, b)` ⇔ `war`: battle detection, AI threat and target selection, attack orders and the legacy AI layers use it (or `hostileFactionIds`). Planet capture uses `canAttackPlanetOf`. New games give every participant its own team; nobody has met anyone yet, so every pair starts at peace without a lock and **first contact** decides war or peace when two empires meet ([First Contact](./first-contact.md)).
+
+**Contact (`inContact`, `FactionRelation.contact`).** A pair that has not met (`contact: false` on both sides, symmetric; missing = met, so older saves and every pair after its meeting count as met) cannot declare war (`no_contact`), cannot demand (`no_contact`), has no border incidents and no opinion drift, is skipped by AI diplomacy, and is not listed on the Diplomacy screen; the player sees the other empire as "Unknown". `makeContact` marks a pair as met; `FirstContactService` decides the starting relation.
 
 ## Time
 
@@ -57,7 +59,7 @@ The UI shows durations as game time through `formatGameDuration` (`diplomacy.ts`
 
 ## Opinion
 
-A's opinion of B. Changes: B declares war on A −30; B breaks a truce with A −60; peace signed +10 both; B takes one of A's planets by force −10; B raids one of A's traders while at peace −(5 + cargo / 200), at most −20 ([Trade Network](./trade-network.md#raids)); drift per minute of game time: +1 at peace up to +60, −0.5 at war down to −50.
+A's opinion of B. Changes: B declares war on A −30; B breaks a truce with A −60; peace signed +10 both; B takes one of A's planets by force −10; B raids one of A's traders while at peace −(5 + cargo / 200), at most −20 ([Trade Network](./trade-network.md#raids)); drift per minute of game time: +1 at peace up to +60, −0.5 at war down to −50. Pairs that have not met do not drift. (A souring peace drift for warlike empires was tried with first contact and dropped: it pushed militarists below the treachery threshold, truces broke, wars never settled and AIs fell into arrears in the 90-minute simulations. Warlike AIs ignore opinion in their restless wars instead.)
 
 **Effective opinion** = opinion + 0.5 × the other's reputation (clamped). This is how reputation reaches *every* faction: each AI judges a faction by its own history with it plus that faction's general trustworthiness.
 
@@ -85,7 +87,7 @@ Effects:
 
 - **Peace is permanent.** It ends only by a war declaration or a treaty breach.
 - A peace treaty starts a **truce** of `TRUCE_SECONDS` = 600 s (10 minutes of game time). During it `declareWar` is refused (`truce`); only `breakTreaty` can end it (an explicit, confirmed action — treachery). After the truce, peace stays and war may be declared normally.
-- A war must last `WAR_MIN_DURATION_SECONDS` (60 s) before negotiation; the opening wars of a new game are locked for `INITIAL_WAR_LOCK_SECONDS` (4 minutes). Separately, a hidden **opening grace** keeps every AI from attacking the human player during the first 4 minutes of game time ([Planet Capture](./planet-capture.md#opening-grace-opening-gracets)); the two durations are independent constants that happen to be equal.
+- A war must last `WAR_MIN_DURATION_SECONDS` (60 s) before negotiation, also a war that started at first contact. (`INITIAL_WAR_LOCK_SECONDS`, the 4-minute lock of the former opening wars, is only used by older saves and by AI simulations that keep the old premise.) Separately, a hidden **opening grace** keeps every AI from attacking the human player during the first 4 minutes of game time ([Planet Capture](./planet-capture.md#opening-grace-opening-gracets)); the two durations are independent constants that happen to be equal.
 
 ## Peace treaties (`peace-treaty.ts`)
 
@@ -136,6 +138,8 @@ Deterministic and explainable.
 | expansionist | −0.3 | 0.65 | 1 | 15 | no | 1 | 0.9 | 65 |
 | militarist | −0.45 | 0.85 | 2 | 30 | yes | 1 | 1 | 75 |
 | technologist | +0.15 | 0.5 | 1 | 0 | no | 0 | — | — |
+
+**After first contact (2026-11-09, [First Contact](./first-contact.md#warlike-empires-after-contact)).** The warlike profiles' `restlessOpinionMax` is 100, so opinion no longer protects a peace partner from a restless warlike AI. A clearly stronger partner (ratio above the restless war ratio) is attacked only through the **grudge clock**: after a seeded 15–25 minutes of continuous peace (`FactionRelation.peaceSeconds`, per pair) and then not again for 30 minutes (`grudgeCooldown` on the declarer's side). `peaceSeconds` restarts with every peace and war.
 
 **Warlike and peaceful temperaments** (2026-11-03, `isWarlikePersonality`). Militarists and expansionists are *warlike*: their negative `peaceBias` makes them settle only when they are losing or exhausted (and otherwise ask to be paid), and `minWars` 1 makes them look for a new war as soon as the 10-minute truce after a peace runs out. Balanced and technologist AIs keep the earlier, peaceful behavior. This was added because in long games every AI settled into peace by about minute 15 ([QA prompt 7](./qa-fix-prompts.md)). Measured in `ai-simulation.spec.ts` (30-minute medium and large games): the warlike AIs stay at war with another AI for 28–30 of the 30 minutes (mostly by never settling the opening wars), peak war exhaustion stays at 30–43, nobody falls into arrears, and they research a little less (10–16 technologies against 18–20 for the technologist). In the 90-minute Dyson run, wars between AIs keep starting and ending until the end of the game. What keeps a warlike neighbour at peace: being stronger than it (ratio above its `restlessWarRatio`), a very high effective opinion (above `restlessOpinionMax`; peace drift alone reaches 60, so it takes reputation too), a war it is already fighting elsewhere, or its own exhaustion. The Diplomacy screen marks warlike empires with a WARLIKE chip next to the personality.
 

@@ -27,7 +27,8 @@ import { ResearchService } from '../../services/research.service';
 import { Fleet } from './star-map.models';
 import { ensurePlanetResources } from './star-map-resources.util';
 import { getPlanetGridSize } from './star-map-display.util';
-import { areFactionsHostile, getFactionWarExhaustion, getRelationKind, normalizeRelations } from './diplomacy';
+import { INITIAL_WAR_LOCK_SECONDS, areFactionsHostile, getFactionWarExhaustion, getRelationKind, inContact, normalizeRelations } from './diplomacy';
+import { FirstContactService } from './first-contact.service';
 import { getAiPersonalityProfile } from './ai-personality';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { StarMapBattleDetectionService } from './star-map-battle-detection.service';
@@ -103,6 +104,12 @@ export interface ScenarioOptions {
   pirates?: boolean;
   /* One-shot state changes applied once simulated time reaches `at`. */
   events?: { at: number; apply: (data: StarMapData) => void }[];
+  /*
+   * First contact (docs/first-contact.md): start with nobody met, as New
+   * Game does, and run contact detection. Default off: the older scenarios
+   * keep the opening-war premise they were measured with.
+   */
+  firstContact?: boolean;
   /*
    * Pre-diplomacy world: every AI on team 2 (permanent allies, as on saves
    * from before diplomacy). For scenarios whose premise is "AIs against the
@@ -202,6 +209,8 @@ export interface ScenarioResult {
   aiBattles: number;
   /* Pirate incursion notices with their game time (only with options.pirates). */
   pirateLog: { time: number; text: string }[];
+  /* First contacts (only with options.firstContact): when each pair met and what followed. */
+  firstContacts: { time: number; a: string; b: string; state: 'war' | 'peace' }[];
 }
 
 export const AI_COLORS = ['#d65757', '#39b8a8', '#b07cff', '#7bd66b', '#ff9a3c', '#ff6fcf'];
@@ -227,6 +236,13 @@ export function generate(options: ScenarioOptions): StarMapData {
   ensurePlanetResources(data.starSystems.flatMap((s) => s.planetsTiles), getPlanetGridSize);
   if (options.removePlayerFleets) {
     data.fleets = data.fleets.filter((f) => f.factionId !== 'player');
+  }
+  if (!options.firstContact) {
+    // The scenarios measured before first contact (docs/first-contact.md)
+    // keep their premise: everyone has met and starts at war, under the old
+    // opening war lock.
+    for (const faction of data.factions) delete faction.relations;
+    normalizeRelations(data.factions, INITIAL_WAR_LOCK_SECONDS);
   }
   if (options.aiAlliance) {
     for (const faction of data.factions) {
@@ -378,6 +394,8 @@ export function runScenario(options: ScenarioOptions): ScenarioResult {
   TestBed.inject(DysonRingService).configure(data.specialObjects);
   tradeNetwork.restore(data.tradeNetwork, data.galaxy?.seed ?? 0, data.starSystems);
   const traderRaids: (TraderRaid & { time: number })[] = [];
+  const firstContacts: ScenarioResult['firstContacts'] = [];
+  const metPairs = new Set<string>();
   const playerBattles: { time: number; planetId: number; winner: string }[] = [];
   let outcome: GameOutcome = 'inProgress';
   let outcomeAt: number | null = null;
@@ -394,6 +412,8 @@ export function runScenario(options: ScenarioOptions): ScenarioResult {
   const knownFleetCombat = new Map(data.fleets.map((f) => [f.id, livingCombat(f)] as const));
   const contactKeys = new Set<string>();
   const diplomacy = TestBed.inject(DiplomacyService);
+  const firstContact = TestBed.inject(FirstContactService);
+  firstContact.reset();
   const battleDetection = TestBed.inject(StarMapBattleDetectionService);
   const triggeredBattles = new Set<string>();
   let aiBattles = 0;
@@ -444,6 +464,20 @@ export function runScenario(options: ScenarioOptions): ScenarioResult {
     // between two AI factions at war are auto-resolved on contact (battles
     // with the player would open the battle screen; the harness has none).
     diplomacy.tick(dt, data.factions, data);
+    if (options.firstContact) {
+      firstContact.tick(dt, { factions: data.factions, fleets: data.fleets, starSystems: data.starSystems, seed: data.galaxy?.seed ?? 0 });
+      // The passive stand-in player answers every meeting neutrally.
+      firstContact.autoResolvePlayerContacts({ factions: data.factions, fleets: data.fleets, starSystems: data.starSystems, seed: data.galaxy?.seed ?? 0 });
+      const empires = data.factions.filter((f) => f.team !== 0 && f.outlaw !== true);
+      for (let i = 0; i < empires.length; i++) {
+        for (let j = i + 1; j < empires.length; j++) {
+          const key = `${empires[i].id}|${empires[j].id}`;
+          if (metPairs.has(key) || !inContact(empires[i], empires[j])) continue;
+          metPairs.add(key);
+          firstContacts.push({ time, a: empires[i].id, b: empires[j].id, state: getRelationKind(empires[i], empires[j]) === 'war' ? 'war' : 'peace' });
+        }
+      }
+    }
     battleDetection.checkForBattles(
       data.fleets,
       data.factions,
@@ -704,7 +738,7 @@ export function runScenario(options: ScenarioOptions): ScenarioResult {
   colonizationSpy.mockRestore();
   goalSpy.mockRestore();
   return {
-    data, traderRaids, frames, changedFrames, traces, colonizerFleetHijacks, ownershipChanges, playerBattles, outcome, outcomeAt, fogViolations, aiBattles, pirateLog,
+    data, traderRaids, frames, changedFrames, traces, colonizerFleetHijacks, ownershipChanges, playerBattles, outcome, outcomeAt, fogViolations, aiBattles, pirateLog, firstContacts,
     aiTickMs: { total: aiTickTotal, max: aiTickMax, perFrame: aiTickTotal / Math.max(1, frames) },
   };
 }

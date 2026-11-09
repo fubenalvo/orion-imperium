@@ -28,7 +28,7 @@ import { SAVE_VERSION } from './save-validation';
 import { GAME_VERSION } from '../game-version';
 import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
 import { GALAXY_SIZE_PRESETS, GalaxySizePreset, NewGameConfig, PlayerSetup } from './new-game.models';
-import { INITIAL_WAR_LOCK_SECONDS, normalizeRelations } from '../components/star-map/diplomacy';
+import { normalizeRelations } from '../components/star-map/diplomacy';
 import { generateCivilizationSystems } from '../components/star-map/civilizations';
 import { planetFootprintCenterVw, systemCellAtVw } from '../components/star-map/system-grid';
 
@@ -556,7 +556,18 @@ export class GalaxyGeneratorService {
       return faction;
     });
     const all = [...factions, ...NEUTRAL_FACTIONS.map((f) => structuredClone(f))];
-    normalizeRelations(all, INITIAL_WAR_LOCK_SECONDS);
+    // First contact (docs/first-contact.md): no participant has met another.
+    // Un-met pairs are at peace without a lock; the contact decides war or
+    // peace when they meet.
+    for (let i = 0; i < factions.length; i++) {
+      for (let j = i + 1; j < factions.length; j++) {
+        const a = factions[i];
+        const b = factions[j];
+        (a.relations ??= {})[b.id] = { state: 'peace', lockRemaining: 0, contact: false };
+        (b.relations ??= {})[a.id] = { state: 'peace', lockRemaining: 0, contact: false };
+      }
+    }
+    normalizeRelations(all, 0);
     return all;
   }
 

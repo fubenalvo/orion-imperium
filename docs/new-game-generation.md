@@ -88,8 +88,9 @@ Home systems have at least 3 planets.
   `EconomyService` resolves planets by name.
 - **Factions:** the human → id `'player'` (team 1); AIs → `'enemy1'…` in config order (teams 2, 3, …
   — one team each, `ai: true`, `aiDifficulty`, `aiPersonality`); the neutral `independent` and `unhabited` factions are always added.
-  No two participants are permanent allies: everyone starts at war with everyone, under the opening
-  war lock (`normalizeRelations(factions, INITIAL_WAR_LOCK_SECONDS)`), and treaties decide later who
+  No two participants are permanent allies, and nobody has met anyone: every participant pair starts
+  at peace without a lock and `contact: false`; first contact decides war or peace when two empires
+  meet ([First Contact](./first-contact.md)), and treaties decide later who
   fights whom. See [Diplomacy](./diplomacy.md). (Pre-diplomacy saves keep all AIs on team 2.)
 - **Homeworld** (planet 1 of each home system, earthlike/medium, population 1200): the Capital (core
   building) in the middle, with a Large Residential Block, a Fusion Power Plant, a Laser Turret and a

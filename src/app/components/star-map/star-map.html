@@ -576,6 +576,17 @@
     ></app-star-map-anomaly-event>
   }
 
+  <!-- First contact dialogue (docs/first-contact.md); the game is paused while it is open. -->
+  @if (contactDialogue) {
+    <app-star-map-first-contact
+      animate.enter="ui-enter" animate.leave="ui-leave"
+      [vm]="contactDialogue"
+      [result]="contactResult"
+      (answer)="onContactAnswer($event)"
+      (close)="onContactClose()"
+    ></app-star-map-first-contact>
+  }
+
   <!-- Campaign story message; the game is paused while it is open. -->
   @if (campaignMessage) {
     <app-star-map-campaign-message

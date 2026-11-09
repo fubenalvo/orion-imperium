@@ -1,0 +1,95 @@
+<div class="contact-overlay">
+  <div
+    class="contact-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="contact-title"
+    [style.--empire-color]="vm.empireColor"
+  >
+    <div class="contact__body">
+      <header class="contact__header">
+        <span class="contact__eyebrow">First contact · game paused</span>
+        <h2 class="contact__title" id="contact-title">
+          <span class="contact__diamond" aria-hidden="true"></span>
+          {{ vm.empireName }}
+        </h2>
+        <div class="contact__meta">
+          <span class="ui-chip" [class.ui-chip--danger]="vm.warlike">{{ vm.temperament | uppercase }}</span>
+          <span class="contact__hint">Their fleet: {{ vm.strengthHint }}</span>
+        </div>
+      </header>
+
+      @if (result) {
+        <p class="contact__speech">“{{ result.closing }}”</p>
+        @if (result.giftLine) {
+          <p class="contact__speech">“{{ result.giftLine }}”</p>
+        }
+        <p class="contact__summary" [class.contact__summary--war]="result.outcome === 'war'">{{ result.summary }}</p>
+        <div class="contact__actions">
+          <button type="button" class="btn-primary" (click)="close.emit()">CLOSE</button>
+        </div>
+      } @else if (step === 0) {
+        <p class="contact__speech">“{{ vm.greeting }}”</p>
+        <div class="contact__actions">
+          <button type="button" class="btn-primary" (click)="next()">LISTEN</button>
+        </div>
+      } @else if (onQuestion) {
+        <div class="contact__step">QUESTION {{ step }} OF {{ vm.questions.length }}</div>
+        <p class="contact__speech">“{{ vm.questions[questionIndex].text }}”</p>
+        <div class="contact__replies" role="radiogroup" [attr.aria-label]="'Reply to question ' + step">
+          @for (reply of vm.questions[questionIndex].replies; track reply.index) {
+            <button
+              type="button"
+              class="contact__reply"
+              role="radio"
+              [class.contact__reply--active]="replies[questionIndex] === reply.index"
+              [attr.aria-checked]="replies[questionIndex] === reply.index"
+              (click)="pickReply(reply.index)"
+            >
+              {{ reply.text }}
+            </button>
+          }
+        </div>
+        <div class="contact__actions">
+          <button type="button" class="btn-primary" [disabled]="replies[questionIndex] === null" (click)="next()">ANSWER</button>
+        </div>
+      } @else if (onStance) {
+        <div class="contact__step">YOUR STANCE</div>
+        <div class="contact__stances" role="radiogroup" aria-label="Stance">
+          @for (s of stances; track s.id) {
+            <button
+              type="button"
+              class="contact__stance"
+              role="radio"
+              [class.contact__stance--active]="stance === s.id"
+              [attr.aria-checked]="stance === s.id"
+              (click)="stance = s.id"
+            >
+              <span class="contact__stance-label">{{ s.label }}</span>
+              <span class="contact__stance-hint">{{ s.hint }}</span>
+            </button>
+          }
+        </div>
+        <div class="contact__step">GIFT</div>
+        <div class="contact__gifts" role="radiogroup" aria-label="Gift">
+          @for (g of vm.giftTiers; track g.tier) {
+            <button
+              type="button"
+              class="contact__gift"
+              role="radio"
+              [class.contact__gift--active]="giftTier === g.tier"
+              [attr.aria-checked]="giftTier === g.tier"
+              [disabled]="!g.affordable"
+              (click)="giftTier = g.tier"
+            >
+              {{ g.credits === 0 ? 'None' : g.credits.toLocaleString('en-US') + ' cr' }}
+            </button>
+          }
+        </div>
+        <div class="contact__actions">
+          <button type="button" class="btn-primary" [disabled]="!stance || sent" (click)="send()">SEND</button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

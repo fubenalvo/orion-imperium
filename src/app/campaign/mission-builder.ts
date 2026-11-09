@@ -208,8 +208,9 @@ function buildFactions(mission: MissionDefinition, options: MissionBuildOptions)
     const a = byId.get(relation.a);
     const b = byId.get(relation.b);
     if (!a || !b) continue;
-    (a.relations ??= {})[b.id] = { state: relation.state, lockRemaining: 0, opinion: relation.opinion ?? 0 } as FactionRelation;
-    (b.relations ??= {})[a.id] = { state: relation.state, lockRemaining: 0, opinion: relation.opinionBA ?? relation.opinion ?? 0 } as FactionRelation;
+    const contact = relation.contact === false ? { contact: false } : {};
+    (a.relations ??= {})[b.id] = { state: relation.state, lockRemaining: 0, opinion: relation.opinion ?? 0, ...contact } as FactionRelation;
+    (b.relations ??= {})[a.id] = { state: relation.state, lockRemaining: 0, opinion: relation.opinionBA ?? relation.opinion ?? 0, ...contact } as FactionRelation;
   }
   // Fills every field; mission validation guarantees no pair is left to the
   // "missing = war" default.

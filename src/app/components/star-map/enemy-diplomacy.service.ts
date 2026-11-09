@@ -1,3 +1,4 @@
+import { isWarlikeFaction } from './ai-personality';
 import { Injectable } from '@angular/core';
 import { ShipService } from '../../services/ship.service';
 import { DemandFailure, DiplomacyService } from '../../services/diplomacy.service';
@@ -12,6 +13,7 @@ import {
   getRelation,
   getWarExhaustion,
   isTreatyPair,
+  inContact,
   isTruceActive,
 } from './diplomacy';
 import {
@@ -160,12 +162,12 @@ const DIPLOMACY_PROFILES: Readonly<Record<AiPersonality, DiplomacyProfile>> = {
   },
   expansionist: {
     peaceBias: -0.3, warRatio: 0.65, maxWars: 1, warOpinionMax: 15, treachery: false,
-    minWars: 1, restlessWarRatio: 0.9, restlessOpinionMax: 65,
+    minWars: 1, restlessWarRatio: 0.9, restlessOpinionMax: 100,
     demandCooldown: 420, demandShare: 0.6, threatRatio: 0.55, tributeRatio: 0.7, followThrough: -0.15, refusalTolerance: 1.1, yieldBias: -0.05, generosity: 0,
   },
   militarist: {
     peaceBias: -0.45, warRatio: 0.85, maxWars: 2, warOpinionMax: 30, treachery: true,
-    minWars: 1, restlessWarRatio: 1, restlessOpinionMax: 75,
+    minWars: 1, restlessWarRatio: 1, restlessOpinionMax: 100,
     demandCooldown: 300, demandShare: 0.8, threatRatio: 0.8, tributeRatio: 0.9, followThrough: 0.35, refusalTolerance: 1.4, yieldBias: -0.2, generosity: -0.1,
   },
   technologist: {
@@ -283,6 +285,11 @@ export class EnemyDiplomacyService {
   static readonly PROPOSE_MIN_PRESSURE = 0.1;
   /* Own worst exhaustion from which the AI starts no new war. */
   static readonly NO_NEW_WAR_EXHAUSTION = 40;
+  /* Grudge clock against clearly stronger empires (docs/first-contact.md). */
+  static readonly GRUDGE_MIN_PEACE_SECONDS = 15 * 60;
+  static readonly GRUDGE_EXTRA_PEACE_SECONDS = 10 * 60;
+  static readonly GRUDGE_COOLDOWN_SECONDS = 30 * 60;
+
   /* A restless warlike AI starts a new war only with at least this share of its scale in credits. */
   static readonly RESTLESS_MIN_TREASURY = 0.5;
   /* Raw materials are valued at this many credits each. */
@@ -664,6 +671,7 @@ export class EnemyDiplomacyService {
     let best: (DemandPlan & { rank: number; ratio: number }) | undefined;
     for (const other of ctx.factions) {
       if (!isTreatyPair(ai, other) || getRelation(ai, other)?.state !== 'peace' || !isFactionAlive(other.id, ctx)) continue;
+      if (!inContact(ai, other)) continue;
       if (!this.diplomacy.canIssueDemand(ai, other, 'request', MIN_DEMAND_CREDITS, ctx).ok) continue;
       const ratio = this.strengthRatio(other, ai, ctx);
       const distance = this.empireDistance(ai.id, other.id, ctx);
@@ -786,32 +794,57 @@ export class EnemyDiplomacyService {
     const warRatio = restless ? Math.max(profile.warRatio, profile.restlessWarRatio) : profile.warRatio;
     const warOpinionMax = restless ? Math.max(profile.warOpinionMax, profile.restlessOpinionMax) : profile.warOpinionMax;
     if (getFactionWarExhaustion(ai) >= EnemyDiplomacyService.NO_NEW_WAR_EXHAUSTION) return false;
-    let best: { target: Faction; ratio: number; distance: number; breach: boolean } | undefined;
+    let best: { target: Faction; ratio: number; distance: number; breach: boolean; grudge: boolean } | undefined;
     for (const other of ctx.factions) {
       if (!isTreatyPair(ai, other) || !isFactionAlive(other.id, ctx)) continue;
       if (getRelation(ai, other)?.state !== 'peace') continue;
+      // Empires that have not met cannot go to war (docs/first-contact.md).
+      if (!inContact(ai, other)) continue;
       // An open demand between the two is answered first: an ultimatum's
       // war, if any, comes from its follow-through, not from a parallel declaration.
       if (this.diplomacy.hasOpenDemand(ai.id, other.id)) continue;
       const ratio = this.strengthRatio(other, ai, ctx);
       const distance = this.empireDistance(ai.id, other.id, ctx);
       const opinion = getEffectiveOpinion(ai, other);
-      if (distance > EnemyDiplomacyService.WAR_REACH || ratio > warRatio || opinion > warOpinionMax) continue;
+      // The grudge clock (docs/first-contact.md): a restless warlike AI does
+      // not befriend a clearly stronger empire either, but attacks it rarely —
+      // only after a long peace and at most once per GRUDGE_COOLDOWN.
+      const grudge = restless && ratio > warRatio && this.grudgeAllows(ai, other);
+      if (distance > EnemyDiplomacyService.WAR_REACH || (ratio > warRatio && !grudge) || opinion > warOpinionMax) continue;
       const breach = isTruceActive(ai, other);
       if (breach && !(profile.treachery && ratio <= profile.warRatio * 0.5 && opinion <= -40)) continue;
       if (!best || ratio < best.ratio || (ratio === best.ratio && distance < best.distance)) {
-        best = { target: other, ratio, distance, breach };
+        best = { target: other, ratio, distance, breach, grudge };
       }
     }
     if (!best) return false;
     const result = best.breach ? this.diplomacy.breakTreaty(ai, best.target) : this.diplomacy.declareWar(ai, best.target);
     const kind = best.breach ? 'treaty_broken' : 'war_declared';
+    if (result.ok && best.grudge) {
+      const entry = ai.relations?.[best.target.id];
+      if (entry) entry.grudgeCooldown = EnemyDiplomacyService.GRUDGE_COOLDOWN_SECONDS;
+    }
     if (result.ok) this.actionLedger.record(ai, kind);
     else this.actionLedger.reject(ai, kind, rejectionReason(result));
     return result.ok;
   }
 
   /* ---------- Helpers ---------- */
+
+  /*
+   * May a restless warlike AI attack a clearly stronger peace partner now?
+   * After a seeded 15–25 minutes of continuous peace (per pair, so the same
+   * game always waits the same time) and not again within the cooldown.
+   */
+  private grudgeAllows(ai: Faction, other: Faction): boolean {
+    if (!isWarlikeFaction(ai)) return false;
+    const relation = getRelation(ai, other);
+    if (!relation || (relation.grudgeCooldown ?? 0) > 0) return false;
+    let hash = 2166136261;
+    for (const ch of `${ai.id}|${other.id}`) hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619) >>> 0;
+    const delay = EnemyDiplomacyService.GRUDGE_MIN_PEACE_SECONDS + (hash % (EnemyDiplomacyService.GRUDGE_EXTRA_PEACE_SECONDS + 1));
+    return (relation.peaceSeconds ?? 0) >= delay;
+  }
 
   private warEnemies(ai: Faction, ctx: DiplomacyContext): Faction[] {
     return ctx.factions.filter((other) => getRelation(ai, other)?.state === 'war' && isFactionAlive(other.id, ctx));

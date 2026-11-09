@@ -85,7 +85,7 @@ Assault state is in-memory; a genuine load resets it and assaults are re-planned
 
 ## Opening grace (`opening-grace.ts`)
 
-A hidden difficulty aid. Every game starts with everyone at war with everyone ([Diplomacy](./diplomacy.md#peace-truce-and-war-declarations)), but for the first `openingGraceSeconds` of the attacking AI's difficulty (**Easy 600 s, Normal 360 s, Hard 240 s** of game time, on the saved game clock `StarMapData.gameSeconds`; `OPENING_GRACE_SECONDS` is Normal's value, used for an AI without a difficulty) no AI attacks the human player. The war stands on paper; the player is not told about the grace (no notice, no UI).
+A hidden difficulty aid. Empires meet early and warlike ones usually meet the player at war ([First Contact](./first-contact.md)); older saves start with everyone at war. In either case, for the first `openingGraceSeconds` of the attacking AI's difficulty (**Easy 600 s, Normal 360 s, Hard 240 s** of game time, on the saved game clock `StarMapData.gameSeconds`; `OPENING_GRACE_SECONDS` is Normal's value, used for an AI without a difficulty) no AI attacks the human player. The war stands on paper; the player is not told about the grace (no notice, no UI).
 
 During the grace:
 

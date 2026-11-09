@@ -571,22 +571,49 @@ describe('EnemyDiplomacyService', () => {
       }
     });
 
-    it('is deterred by a clearly stronger neighbour, spares a close friend, and keeps a running truce', () => {
+    it('is held back by a clearly stronger neighbour at first, does not spare a friend, and keeps a running truce', () => {
       const strong = peacefulWorld('militarist', Array(5).fill('battleship'), Array(10).fill('battleship'));
       // The stronger (balanced) neighbour must not start the war itself.
       strong.b.relations!['enemy1'].opinion = 50;
       ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, strong);
       expect(getRelationKind(strong.a, strong.b), 'strong').toBe('peace');
 
+      // docs/first-contact.md: friendship does not protect from a warlike empire.
       const friend = peacefulWorld('militarist', Array(5).fill('battleship'), Array(4).fill('battleship'));
       friend.a.relations!['enemy2'].opinion = 90;
       ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, friend);
-      expect(getRelationKind(friend.a, friend.b), 'friend').toBe('peace');
+      expect(getRelationKind(friend.a, friend.b), 'friend').toBe('war');
 
       const truce = peacefulWorld('expansionist', Array(5).fill('battleship'), Array(4).fill('battleship'));
       startPeace(truce.a, truce.b, TRUCE_SECONDS);
       ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, truce);
       expect(getRelationKind(truce.a, truce.b), 'truce').toBe('peace');
+    });
+
+    it('attacks a clearly stronger neighbour only after the grudge clock, then not again for the cooldown', () => {
+      const ctx = peacefulWorld('militarist', Array(5).fill('battleship'), Array(10).fill('battleship'));
+      ctx.b.relations!['enemy1'].opinion = 50;
+      const entry = ctx.a.relations!['enemy2'];
+      entry.peaceSeconds = EnemyDiplomacyService.GRUDGE_MIN_PEACE_SECONDS - 1;
+      ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+      expect(getRelationKind(ctx.a, ctx.b), 'before the clock').toBe('peace');
+      entry.peaceSeconds = EnemyDiplomacyService.GRUDGE_MIN_PEACE_SECONDS + EnemyDiplomacyService.GRUDGE_EXTRA_PEACE_SECONDS;
+      entry.grudgeCooldown = 10;
+      ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+      expect(getRelationKind(ctx.a, ctx.b), 'during the cooldown').toBe('peace');
+      entry.grudgeCooldown = 0;
+      ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+      expect(getRelationKind(ctx.a, ctx.b), 'after the clock').toBe('war');
+      expect(ctx.a.relations!['enemy2'].grudgeCooldown).toBe(EnemyDiplomacyService.GRUDGE_COOLDOWN_SECONDS);
+    });
+
+    it('never declares war on, or demands from, an empire it has not met', () => {
+      const ctx = peacefulWorld('militarist', Array(5).fill('battleship'), Array(4).fill('battleship'));
+      ctx.a.relations!['enemy2'].contact = false;
+      ctx.b.relations!['enemy1'].contact = false;
+      for (let i = 0; i < 5; i++) ai.tick(EnemyDiplomacyService.DECISION_INTERVAL, ctx);
+      expect(getRelationKind(ctx.a, ctx.b)).toBe('peace');
+      expect(TestBed.inject(DiplomacyService).declareWar(ctx.a, ctx.b)).toMatchObject({ ok: false, reason: 'no_contact' });
     });
 
     it('is not restless while it already has a war', () => {

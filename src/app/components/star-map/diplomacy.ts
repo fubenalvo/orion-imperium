@@ -150,6 +150,22 @@ function relationEntry(a: Faction, b: Faction): FactionRelation {
   return created;
 }
 
+/*
+ * Have A and B met (docs/first-contact.md)? Neutral and outlaw factions,
+ * allies and pairs without the flag always count as met.
+ */
+export function inContact(a: Faction | undefined, b: Faction | undefined): boolean {
+  if (!a || !b || !isTreatyPair(a, b)) return true;
+  return a.relations?.[b.id]?.contact !== false && b.relations?.[a.id]?.contact !== false;
+}
+
+/* Marks the pair as met (both sides). Treaty state and opinions are set by the caller. */
+export function makeContact(a: Faction, b: Faction): void {
+  if (!isTreatyPair(a, b)) return;
+  delete relationEntry(a, b).contact;
+  delete relationEntry(b, a).contact;
+}
+
 /* Fleets of these factions fight on contact; the one hostility rule. */
 export function areFactionsHostile(a: Faction | undefined, b: Faction | undefined): boolean {
   return !!a && !!b && getRelationKind(a, b) === 'war';
@@ -384,6 +400,7 @@ export function startWar(a: Faction, b: Faction, lockSeconds: number, declarerId
     entry.shipsLostValue = 0;
     entry.planetsLost = 0;
     delete entry.passageRights;
+    delete entry.peaceSeconds;
     if (declarerId === undefined) delete entry.declaredBy;
   }
 }
@@ -409,6 +426,7 @@ export function startPeace(a: Faction, b: Faction, truceSeconds: number): void {
     entry.warExhaustion = 0;
     entry.shipsLostValue = 0;
     entry.planetsLost = 0;
+    entry.peaceSeconds = 0;
     delete entry.warSeconds;
     delete entry.declaredBy;
     delete entry.surpriseRecorded;
@@ -487,6 +505,10 @@ export function normalizeRelations(factions: Faction[], defaultLock = 0): void {
         if ((own?.demandsReceived ?? 0) > 0) entry.demandsReceived = own!.demandsReceived;
         if ((own?.demandsRefused ?? 0) > 0) entry.demandsRefused = own!.demandsRefused;
         if (state === 'peace' && own?.passageRights === true) entry.passageRights = true;
+        // Not met if either side says so (a half-written pair must not count as met).
+        if (ra?.contact === false || rb?.contact === false) entry.contact = false;
+        if (state === 'peace' && (shared.peaceSeconds ?? 0) > 0) entry.peaceSeconds = shared.peaceSeconds;
+        if ((own?.grudgeCooldown ?? 0) > 0) entry.grudgeCooldown = own!.grudgeCooldown;
         if (state === 'war') {
           entry.warExhaustion = own?.state === 'war' ? own.warExhaustion ?? 0 : 0;
           entry.shipsLostValue = own?.state === 'war' ? own.shipsLostValue ?? 0 : 0;
@@ -567,6 +589,7 @@ export function tickDiplomacyTime(
       for (const entry of [ra, rb]) {
         entry.lockRemaining = Math.max(0, entry.lockRemaining - deltaSeconds);
         decayDemandMemory(entry, deltaSeconds, minutes);
+        if ((entry.grudgeCooldown ?? 0) > 0) entry.grudgeCooldown = Math.max(0, entry.grudgeCooldown! - deltaSeconds);
       }
       if (wasTruce && ra.lockRemaining === 0) {
         ra.truce = false;
@@ -585,7 +608,15 @@ export function tickDiplomacyTime(
           }
         }
       } else {
+        // Empires that have not met do not know each other yet: no drift.
+        if (ra.contact === false || rb.contact === false) continue;
+        // No special drift for warlike empires: their restless wars ignore
+        // opinion instead (enemy-diplomacy.service.ts). A souring drift was
+        // tried on 2026-11-09 and drove militarist opinion below the treachery
+        // threshold, so truces broke and wars never settled (AIs in arrears in
+        // the 90-minute simulations).
         for (const entry of [ra, rb]) {
+          entry.peaceSeconds = (entry.peaceSeconds ?? 0) + deltaSeconds;
           if ((entry.opinion ?? 0) < OPINION_PEACE_DRIFT_CAP) {
             entry.opinion = Math.min(OPINION_PEACE_DRIFT_CAP, (entry.opinion ?? 0) + OPINION_PEACE_DRIFT_PER_MINUTE * minutes);
           }

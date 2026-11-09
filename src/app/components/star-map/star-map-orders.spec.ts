@@ -1,3 +1,4 @@
+import { makeContact, startWar } from './diplomacy';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { vi } from 'vitest';
@@ -21,6 +22,12 @@ describe('StarMap right-click orders', () => {
     vi.spyOn(map['cdr'], 'detectChanges').mockImplementation(() => {});
     map.ngOnInit();
     map.currentView = 'map';
+    // New games start with nobody met (docs/first-contact.md); these orders need a war.
+    const player = map.factions.find((f) => f.id === 'player')!;
+    for (const ai of map.factions.filter((f) => f.ai)) {
+      makeContact(player, ai);
+      startWar(player, ai, 0);
+    }
     return map;
   };
 

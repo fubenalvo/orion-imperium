@@ -1,3 +1,4 @@
+import { inContact, isTreatyPair } from '../star-map/diplomacy';
 import planetData from '../star-map/planet-data.json';
 import { isBuildingComplete } from '../star-map/building-construction';
 import { hasTradingPost } from '../star-map/trade';
@@ -34,6 +35,12 @@ export interface TutorialContextInput {
   selectedFleet: Fleet | null;
   colonizerReady: (fleet: Fleet) => boolean;
   hostileFleetId: number | null;
+}
+
+function metEmpireCount(factions: readonly Faction[]): number {
+  const player = factions.find((f) => f.id === 'player');
+  if (!player) return 0;
+  return factions.filter((f) => f.ai === true && isTreatyPair(player, f) && inContact(player, f)).length;
 }
 
 export function buildTutorialContext(input: TutorialContextInput): TutorialContext {
@@ -90,5 +97,6 @@ export function buildTutorialContext(input: TutorialContextInput): TutorialConte
     hostileFleetId: input.hostileFleetId,
     hasTradingPost: tradingPost,
     rawMaterials: input.factions.find((f) => f.id === 'player')?.currencies['rawmaterials'] ?? 0,
+    metEmpires: metEmpireCount(input.factions),
   };
 }

@@ -50,6 +50,8 @@ export interface TutorialContext {
   hostileFleetId: number | null;
   hasTradingPost: boolean;
   rawMaterials: number;
+  /* AI empires the player has met (docs/first-contact.md); the Diplomacy hint waits for the first. */
+  metEmpires: number;
 }
 
 export type TutorialSide = 'top' | 'bottom' | 'left' | 'right';
@@ -101,8 +103,6 @@ export type TutorialEvent =
 /* Game time after which the star-map steps show even if the build steps were ignored. */
 export const TUTORIAL_MAP_STEPS_AFTER_SECONDS = 90;
 export const TUTORIAL_RESEARCH_AFTER_SECONDS = 180;
-/* End of the opening grace (planet-capture.md): the first AI attacks may come. */
-export const TUTORIAL_DIPLOMACY_AFTER_SECONDS = 240;
 /* Raw materials below this, with a Trading Post, point at the exchange. */
 export const TUTORIAL_RAW_LOW = 300;
 
@@ -382,11 +382,12 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   },
   {
     id: 'diplomacy',
-    text: 'Everyone starts at war with you — negotiate peace here.',
+    text: 'You have met another empire — war, peace and demands are handled here.',
     anchors: fixed('hud.diplomacy'),
     side: 'bottom',
     when: (c) => c.scene !== 'battle',
-    trigger: (c) => c.gameSeconds >= TUTORIAL_DIPLOMACY_AFTER_SECONDS || c.hostileFleetId !== null,
+    // Before the first contact the screen would be empty (docs/first-contact.md).
+    trigger: (c) => c.metEmpires > 0,
     doneOn: ['diplomacy-opened'],
   },
   {
@@ -462,5 +463,6 @@ export function emptyTutorialContext(scene: TutorialScene = 'none'): TutorialCon
     hostileFleetId: null,
     hasTradingPost: false,
     rawMaterials: 0,
+    metEmpires: 0,
   };
 }

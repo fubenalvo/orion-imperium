@@ -246,6 +246,8 @@ export interface MissionRelationSpec {
   /* Opinion both ways unless `opinionBA` is given. */
   opinion?: number;
   opinionBA?: number;
+  /* false: the empires have not met yet (docs/first-contact.md); missing = met. */
+  contact?: boolean;
 }
 
 export interface MissionMapSpec {

@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a, 1b, 2, 3 and 3b implemented** (the campaign engine, its UI, Missions 1 and 2, wormhole transit, see
+Status: **Phases 1a, 1b, 2, 3, 3b and 4a implemented** (the campaign engine, its UI, Missions 1 and 2, wormhole transit, first contact in every game mode, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -124,7 +124,9 @@ Implemented subset and deviations from the design below:
 - Not done: no "via … wormhole" line in the fleet panel yet; AI strategic distance estimates stay straight-line (accepted, §11).
 - Tests: `wormholes.spec.ts` (route choice both ways, no dormant or single-mouth routing, travel time, a fleet's transit and arrival within 5% of the ETA, a reload mid-transit, a wormhole woken later) and `campaign/wormhole-transit.spec.ts` (real `StarMap`: hidden in transit, save/reload mid-transit, a blockade at the exit, traders routed through the wormhole).
 
-**Next:** Phase 4a (first contact in every game mode), then Phase 4b (Mission 3).
+**Phase 4a — first contact in every game mode (done, 2026-11-09).** See [First Contact](./first-contact.md#implementation-and-tests): unknown empires, the contact dialogue, warlike rules and the grudge clock, AI–AI contact, the first skirmish measurement. Campaign hooks in place: `MissionRelationSpec.contact: false` for un-met pairs in a mission, and reply flags (e.g. Varkon's `offered_tribute`) become session flags. Still for Phase 4b: forced contact and result overrides for scripted meetings.
+
+**Next:** Phase 4b (Mission 3: First Contact).
 
 ---
 

@@ -193,10 +193,10 @@ describe('GalaxyGeneratorService', () => {
     expect(byId.get('enemy1')).toMatchObject({ name: 'Bot One', color: '#d65757', ai: true, team: 2, aiDifficulty: 'hard' });
     // Every participant has its own team; nobody starts allied (docs/diplomacy.md).
     expect(byId.get('enemy2')).toMatchObject({ name: 'Bot Two', color: '#ff6fcf', ai: true, team: 3, aiDifficulty: 'easy' });
-    // Everyone starts at war with everyone else, under the opening war lock.
+    // First contact (docs/first-contact.md): nobody has met, everyone is at peace without a lock.
     for (const [a, b] of [['player', 'enemy1'], ['player', 'enemy2'], ['enemy1', 'enemy2']]) {
-      expect(byId.get(a)!.relations?.[b]).toMatchObject({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS, opinion: 0, warExhaustion: 0 });
-      expect(byId.get(b)!.relations?.[a]).toMatchObject({ state: 'war', lockRemaining: INITIAL_WAR_LOCK_SECONDS });
+      expect(byId.get(a)!.relations?.[b]).toMatchObject({ state: 'peace', lockRemaining: 0, opinion: 0, contact: false });
+      expect(byId.get(b)!.relations?.[a]).toMatchObject({ state: 'peace', lockRemaining: 0, contact: false });
     }
     expect(byId.get('independent')!.relations).toBeUndefined();
     expect(byId.has('independent')).toBe(true);

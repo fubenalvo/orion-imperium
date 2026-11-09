@@ -176,6 +176,17 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
 
 export const AI_PERSONALITIES: readonly AiPersonality[] = ['balanced', 'expansionist', 'militarist', 'technologist'];
 
+/*
+ * Warlike temperaments (docs/diplomacy.md, docs/first-contact.md): their
+ * peace sours over time and contact rarely ends in peace. Must match the
+ * personalities with minWars > 0 in EnemyDiplomacyService (tested).
+ */
+export const WARLIKE_PERSONALITIES: readonly AiPersonality[] = ['expansionist', 'militarist'];
+
+export function isWarlikeFaction(faction: Faction | undefined): boolean {
+  return !!faction && faction.ai === true && WARLIKE_PERSONALITIES.includes(getAiPersonalityProfile(faction).id);
+}
+
 export function isAiPersonality(value: unknown): value is AiPersonality {
   return typeof value === 'string' && (AI_PERSONALITIES as readonly string[]).includes(value);
 }

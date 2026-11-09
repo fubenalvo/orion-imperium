@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { ShipService } from '../../services/ship.service';
 import { Faction, Fleet, StarSystem } from './star-map.models';
 import { TerritoryService } from './territory.service';
-import { adjustOpinion, SECONDS_PER_MINUTE, getRelationKind, hasPassageRights, isTreatyPair } from './diplomacy';
+import { adjustOpinion, SECONDS_PER_MINUTE, getRelationKind, hasPassageRights, inContact, isTreatyPair } from './diplomacy';
 
 /*
  * Border-violation tuning (docs/territory.md#border-violations).
@@ -96,7 +96,7 @@ export class BorderService {
     if (ownerId === null || ownerId === fleet.factionId) return null;
     const owner = factions.find((f) => f.id === ownerId);
     const intruder = factions.find((f) => f.id === fleet.factionId);
-    if (!owner || !intruder || !isTreatyPair(owner, intruder)) return null;
+    if (!owner || !intruder || !isTreatyPair(owner, intruder) || !inContact(owner, intruder)) return null;
     if (getRelationKind(owner, intruder) !== 'peace' || hasPassageRights(owner, intruder)) return null;
     return ownerId;
   }

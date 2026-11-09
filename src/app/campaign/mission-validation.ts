@@ -136,6 +136,7 @@ export function validateMission(mission: MissionDefinition): string[] {
       err(`relation ${relation.a}–${relation.b} is not a pair of player/AI factions`);
     }
     if (listed.has(key)) err(`relation ${relation.a}–${relation.b} is listed twice`);
+    if (relation.contact === false && relation.state !== 'peace') err(`relation ${relation.a}–${relation.b}: empires that have not met must be at peace`);
     listed.add(key);
   }
   for (let i = 0; i < treatyFactions.length; i++) {

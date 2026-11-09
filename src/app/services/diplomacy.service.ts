@@ -20,7 +20,7 @@ import {
   recordThreatCarriedOut,
   startPeace,
   startWar,
-  tickDiplomacyTime,
+  tickDiplomacyTime, inContact,
 } from '../components/star-map/diplomacy';
 import {
   DEMAND_NUISANCE_OPINION,
@@ -89,7 +89,7 @@ import { DYSON_CASUS_BELLI_ANCHORS, dysonAnchorCount } from '../components/star-
  * restoreDemands. Demand cooldowns and memories live on the factions.
  */
 
-export type DiplomacyFailure = 'invalid' | 'already' | 'locked' | 'truce' | 'not_in_truce';
+export type DiplomacyFailure = 'invalid' | 'already' | 'locked' | 'truce' | 'not_in_truce' | 'no_contact';
 
 export interface DiplomacyResult {
   ok: boolean;
@@ -123,7 +123,7 @@ export interface DiplomacyEvent {
 }
 
 /** Why a demand action is not possible right now. */
-export type DemandFailure = DemandInvalidReason | 'cooldown' | 'open_demand' | 'player_queue_full' | 'not_found' | 'war_failed';
+export type DemandFailure = DemandInvalidReason | 'cooldown' | 'open_demand' | 'player_queue_full' | 'not_found' | 'war_failed' | 'no_contact';
 
 /** Result of a demand check or action. */
 export interface DemandResult {
@@ -200,6 +200,8 @@ export class DiplomacyService {
   canDeclareWar(a: Faction, b: Faction): DiplomacyResult {
     const relation = getRelation(a, b);
     if (!relation) return { ok: false, reason: 'invalid' };
+    // Nobody declares war on an empire it has not met (docs/first-contact.md).
+    if (!inContact(a, b)) return { ok: false, reason: 'no_contact' };
     if (relation.state === 'war') return { ok: false, reason: 'already' };
     if (isTruceActive(a, b)) return { ok: false, reason: 'truce', waitSeconds: relation.lockRemaining };
     return { ok: true };
@@ -286,6 +288,7 @@ export class DiplomacyService {
    * the cap on demands waiting for the human.
    */
   canIssueDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, world: TreatyWorld): DemandResult {
+    if (!inContact(demander, target)) return { ok: false, reason: 'no_contact' };
     const validation = validateDemand({ kind, demanderId: demander.id, targetId: target.id, amount }, world);
     if (!validation.ok) return { ok: false, reason: validation.reason };
     const wait = Math.max(demander.demandCooldown ?? 0, getDemandCooldown(demander, target));

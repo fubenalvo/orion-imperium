@@ -84,9 +84,9 @@ describe('tutorial steps', () => {
     expect(ids({ ...ctx, colonizerMoving: true })).not.toContain('colonizer-leave-planet');
   });
 
-  it('offers diplomacy at the end of the opening grace', () => {
-    expect(ids(opening({ paused: false, gameSeconds: 200 }))).not.toContain('diplomacy');
-    expect(ids(opening({ paused: false, gameSeconds: 240 }))).toContain('diplomacy');
+  it('offers diplomacy once the player has met an empire (docs/first-contact.md)', () => {
+    expect(ids(opening({ paused: false, gameSeconds: 900, metEmpires: 0 }))).not.toContain('diplomacy');
+    expect(ids(opening({ paused: false, gameSeconds: 60, metEmpires: 1 }))).toContain('diplomacy');
   });
 });
 

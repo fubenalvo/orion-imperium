@@ -124,7 +124,7 @@ import {
   SystemAsteroid,
   getAiFactionIds,
 } from './star-map.models';
-import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration, getRelationKind, isNeutralFaction } from './diplomacy';
+import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration, getRelationKind, inContact, isNeutralFaction } from './diplomacy';
 import { DemandFailure, DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
 import { DiplomacyContext, EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { DEMAND_RULES, DemandInvalidReason, DemandKind, FOLLOW_THROUGH_SECONDS, describeDemandInvalid } from './diplomatic-demand';
@@ -235,6 +235,8 @@ import { AnomalyContext, AnomalyEventVm, AnomalyService } from './anomaly.servic
 import { StarMapAnomalyEventComponent } from './star-map-anomaly-event/star-map-anomaly-event.component';
 import { CampaignMessageVm, StarMapCampaignMessageComponent } from './star-map-campaign-message/star-map-campaign-message.component';
 import { StarMapCampaignObjectivesComponent } from './star-map-campaign-objectives/star-map-campaign-objectives.component';
+import { ContactAnswer, StarMapFirstContactComponent } from './star-map-first-contact/star-map-first-contact.component';
+import { ContactDialogueVm, ContactResolution, ContactWorld, FirstContactService } from './first-contact.service';
 import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
 import { ensureColonyCore, isCoreOwner } from './colony-core';
@@ -273,6 +275,9 @@ import { buildTutorialContext } from '../tutorial/tutorial-context';
 
 const initialStarMapData = structuredClone(starMapData) as StarMapData;
 
+/* Display color of an empire the player has not met (docs/first-contact.md). */
+export const UNKNOWN_EMPIRE_COLOR = '#8a8f99';
+
 @Component({
   selector: 'app-star-map',
   imports: [
@@ -300,6 +305,7 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapAnomalyEventComponent,
     StarMapCampaignMessageComponent,
     StarMapCampaignObjectivesComponent,
+    StarMapFirstContactComponent,
   ],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
@@ -314,6 +320,11 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /* The open story message (one at a time, never over the anomaly dialog). */
   campaignMessage: CampaignMessageVm | null = null;
   private campaignMessageResumeOnClose = false;
+  /* First contact (docs/first-contact.md): the open dialogue and its result. */
+  private readonly firstContact = inject(FirstContactService);
+  contactDialogue: ContactDialogueVm | null = null;
+  contactResult: ContactResolution | null = null;
+  private contactResumeOnClose = false;
   /* Campaign wormholes (StarMapData.wormholes); empty in generated galaxies. */
   wormholes: Wormhole[] = [];
   /* Objective tracker rows, refreshed once per economy tick. */
@@ -1947,12 +1958,26 @@ loadError = '';
 
   /** Returns the color associated with a faction ID. */
   getFactionColor(factionId: string): string {
+    if (this.isUnknownEmpire(factionId)) return UNKNOWN_EMPIRE_COLOR;
     return getFactionColorUtil(this.factions, factionId);
   }
 
   /** Returns the display name of a faction by its ID. */
   getFactionName(factionId: string): string {
+    if (this.isUnknownEmpire(factionId)) return 'Unknown';
     return getFactionNameUtil(this.factions, factionId);
+  }
+
+  /*
+   * An empire the player has not met yet (docs/first-contact.md): every
+   * panel, marker and territory goes through the two helpers above, so it
+   * shows as "Unknown" in neutral grey until the contact.
+   */
+  isUnknownEmpire(factionId: string): boolean {
+    if (factionId === 'player') return false;
+    const player = this.factions.find((f) => f.id === 'player');
+    const other = this.factions.find((f) => f.id === factionId);
+    return !inContact(player, other);
   }
 
   /** Returns the player's currencies as key-value pairs. */
@@ -2480,6 +2505,8 @@ loadError = '';
         return `Nothing to change: that is already the state with ${target.name}.`;
       case 'not_in_truce':
         return `There is no running truce with ${target.name}.`;
+      case 'no_contact':
+        return 'You have not met this empire yet.';
       default:
         return `No treaty is possible with ${target.name}.`;
     }
@@ -4133,7 +4160,7 @@ loadError = '';
 
     const visibilityChanged = this.updateSensorVisibility();
     const territoryChanged = this.refreshTerritoryViews();
-    const anomaliesChanged = this.updateAnomalies() || this.syncCampaignMessage();
+    const anomaliesChanged = this.updateAnomalies() || this.updateFirstContact(gameDeltaTime) || this.syncCampaignMessage();
 
     const productionResult = this.productionService.tick(
       gameDeltaTime,
@@ -5006,6 +5033,7 @@ loadError = '';
           !!this.customizationFleet ||
           !!this.anomalyEvent ||
           !!this.campaignMessage ||
+          !!this.contactDialogue ||
           this.aiDebugVisible ||
           this.gameOutcome !== 'inProgress' ||
           this.gameSettingsService.optionsMenuOpen,
@@ -5129,6 +5157,11 @@ loadError = '';
     this.campaign.restore(data.campaign ?? null);
     this.tutorial.setExcludedSteps(this.campaign.mission?.tutorialExcludedSteps ?? []);
     this.wormholes = data.wormholes ?? [];
+    // Meetings are re-detected from the world after every load (docs/first-contact.md).
+    this.firstContact.reset();
+    this.contactDialogue = null;
+    this.contactResult = null;
+    this.contactResumeOnClose = false;
     // A pending story message re-opens from the restored session on the next frame.
     this.campaignMessage = null;
     this.campaignMessageResumeOnClose = false;
@@ -5509,11 +5542,11 @@ loadError = '';
    */
   private syncCampaignMessage(): boolean {
     const session = this.campaign.state;
-    const pending = session && !this.anomalyEvent && this.gameOutcome === 'inProgress'
+    const pending = session && !this.anomalyEvent && !this.contactDialogue && this.gameOutcome === 'inProgress'
       ? this.campaign.pendingEvent
       : null;
     if (!pending || !session) {
-      if (!this.campaignMessage || this.anomalyEvent) return false;
+      if (!this.campaignMessage || this.anomalyEvent || this.contactDialogue) return false;
       this.closeCampaignMessage();
       return true;
     }
@@ -5563,6 +5596,60 @@ loadError = '';
       // Opens the next queued message, or closes the dialog and resumes.
       this.syncCampaignMessage();
     }
+    this.cdr.detectChanges();
+  }
+
+  /* --- First contact (docs/first-contact.md) --- */
+
+  private contactWorld(): ContactWorld {
+    return { factions: this.factions, fleets: this.fleets, starSystems: this.starSystems, seed: this.galaxy?.seed ?? 0 };
+  }
+
+  /*
+   * Detects meetings (once per second of game time) and opens the oldest
+   * one with the player as a dialogue, pausing the game. Never over another
+   * modal dialog or a decided game.
+   */
+  private updateFirstContact(gameDeltaTime: number): boolean {
+    const { notices, changed } = this.firstContact.tick(gameDeltaTime, this.contactWorld());
+    if (notices.length > 0) this.showMapNotice(notices.join(' '));
+    if (changed) this.saveGame();
+    if (this.contactDialogue || this.anomalyEvent || this.campaignMessage || this.gameOutcome !== 'inProgress') return changed;
+    const pending = this.firstContact.pendingPlayerContact;
+    if (!pending) return changed;
+    const vm = this.firstContact.buildDialogue(pending, this.contactWorld());
+    if (!vm) return changed;
+    this.contactResumeOnClose = !this.gameTimeService.isPaused;
+    this.gameTimeService.pause();
+    this.music.playStinger('notification');
+    this.contactDialogue = vm;
+    this.contactResult = null;
+    return true;
+  }
+
+  onContactAnswer(answer: ContactAnswer): void {
+    const dialogue = this.contactDialogue;
+    if (!dialogue) return;
+    const result = this.firstContact.resolvePlayerContact(dialogue.factionId, answer.replies, answer.stance, answer.giftTier, this.contactWorld());
+    if (!result) {
+      this.onContactClose();
+      return;
+    }
+    this.contactResult = result;
+    // Reply flags (e.g. Varkon's "offered tribute") are remembered by a campaign mission.
+    if (this.campaign.active && result.flags.length > 0) {
+      this.applyCampaignResult(this.campaign.applyExternalEffects(result.flags.map((flag) => ({ kind: 'flag' as const, flag, value: true })), this.campaignWorld()));
+    }
+    this.checkGameOutcome();
+    this.saveGame();
+    this.cdr.detectChanges();
+  }
+
+  onContactClose(): void {
+    this.contactDialogue = null;
+    this.contactResult = null;
+    if (this.contactResumeOnClose) this.gameTimeService.resume();
+    this.contactResumeOnClose = false;
     this.cdr.detectChanges();
   }
 

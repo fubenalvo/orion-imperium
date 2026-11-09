@@ -1,3 +1,4 @@
+import { makeContact } from './diplomacy';
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StarMap } from './star-map';
@@ -71,6 +72,8 @@ describe('Dyson victory (StarMap session)', () => {
   it('an AI holding the ring means defeat, and losing an anchor cancels the warm-up', () => {
     const map = start();
     const ai = map.factions.find((f) => f.ai)!;
+    // An empire the player has not met is shown as "Unknown" (docs/first-contact.md).
+    makeContact(map.factions.find((f) => f.id === 'player')!, ai);
     const bases = TestBed.inject(SpaceBaseService);
     bases.restore(fullRing(ai.id));
     tick(map, 100);

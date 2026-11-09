@@ -8,6 +8,7 @@ import {
   getWarExhaustion,
   getWarExhaustionPenalty,
   isTreatyPair,
+  inContact,
   isTruceActive,
 } from './diplomacy';
 import { PeaceTreaty, TreatyItem, describeTreatyInvalid, isFactionAlive } from './peace-treaty';
@@ -210,7 +211,8 @@ export function buildDiplomacyRows(
 ): DiplomacyRowVm[] {
   const playerStrength = enemyDiplomacy.militaryStrength(player.id, world.fleets);
   return world.factions
-    .filter((f) => isTreatyPair(player, f))
+    // Empires the player has not met are not listed (docs/first-contact.md).
+    .filter((f) => isTreatyPair(player, f) && inContact(player, f))
     .map((f) => {
       const relation = getRelation(player, f)!;
       const planets = world.starSystems.reduce((n, s) => n + s.planetsTiles.filter((p) => p.factionId === f.id).length, 0);

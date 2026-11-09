@@ -234,6 +234,21 @@ export interface FactionRelation {
    */
   passageRights?: boolean;
   /*
+   * First contact (docs/first-contact.md): false while the two empires have
+   * not met. Symmetric. Missing = met (every save from before the feature,
+   * and every pair after its contact). Before contact the pair is at peace,
+   * cannot declare war, demand or negotiate, and the other empire is shown
+   * as "Unknown" to the player.
+   */
+  contact?: boolean;
+  /* Game seconds of the current peace (symmetric; reset by every war and peace). */
+  peaceSeconds?: number;
+  /*
+   * Warlike holder only: game seconds until it may declare another war on a
+   * clearly stronger empire (the grudge clock, docs/first-contact.md).
+   */
+  grudgeCooldown?: number;
+  /*
    * Credit demands (diplomatic-demand.ts), per side, kept across war and
    * peace. `demandCooldown`: game seconds until the holder may demand from
    * the other again. `demandsReceived`: decaying memory of the other's
