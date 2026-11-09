@@ -1,6 +1,7 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **design only, nothing implemented** (2026-11-09; owner decisions of 2026-11-09 applied:
+Status: **Phase 1a implemented** (the campaign engine without UI, see
+[Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
 in every game mode). This document is the plan for a
@@ -25,6 +26,7 @@ Related: [Architecture](./architecture.md), [Data Models](./data-models.md),
 
 ## Contents
 
+0. [Implementation status](#implementation-status)
 1. [Executive summary](#1-executive-summary)
 2. [Codebase audit](#2-codebase-audit)
 3. [Existing systems and reusable components](#3-existing-systems-and-reusable-components)
@@ -46,6 +48,37 @@ Related: [Architecture](./architecture.md), [Data Models](./data-models.md),
 19. [MVP scope versus optional features](#19-mvp-scope-versus-optional-features)
 20. [Recommended development order](#20-recommended-development-order)
 21. [Assumptions and open questions](#21-assumptions-and-open-questions)
+
+---
+
+## Implementation status
+
+**Phase 1a — campaign engine (done, 2026-11-09).** Code in `src/app/campaign/`:
+
+| File | What it does |
+|---|---|
+| `campaign.models.ts` | Mission definition, map spec, conditions, effects, story events, endings, session state (`StarMapData.campaign`), progress |
+| `campaign-objectives.ts` | Pure condition evaluation over a world snapshot (`CampaignWorld`) and the session |
+| `campaign-effects.ts` | Pure effect application (flags, values, rewards, granted / revealed technologies, mission end) |
+| `campaign.service.ts` | The live session: `restore` / `serialize`, `notify`, the 1 Hz `tick`, `chooseEventOption`, `objectiveViews`, research horizon hand-off |
+| `campaign-progress.service.ts` | Unlocks, results and carry (`localStorage` key `orion_campaign`, corrupt values quarantined) |
+| `mission-builder.ts` | Mission definition → `StarMapData` (deterministic, no black hole, empty anomaly state) |
+| `mission-validation.ts` | Mission rules (5:3 map, spacing ≥ 15 cells, relations for every treaty pair, horizon closed and cumulative, references, belt connectivity) |
+| `campaign-mission.service.ts` | Start (like `NewGameService`) and restart-from-save |
+| `missions/` | Registry; `m0-fixture.ts` is a developer fixture (`devOnly`, never listed) |
+
+Wired into the game: `StarMap` restores and serializes the session, feeds counted events (`battle_won` / `battle_lost`, `technology_researched`, `building_placed`, `fleet_assembled`, `planet_colonized`, `war_declared`, `peace_signed`), ticks the campaign inside the economy tick, saves at once on every campaign change and runs the outcome check on a decided mission. `GameOutcomeService` lets the mission decide (rule 1a); the game-end dialog shows the ending or defeat text. Pirate incursions follow `rules.pirates`. The main menu clears the session. `ResearchService` has the research horizon and the `campaignOnly` flag ([Research](./research.md)); the AI research paths respect it.
+
+Implemented subset and deviations from the design below:
+
+- Conditions: `all`, `any`, `not`, `flag`, `value_at_least`, `objective_done`, `game_time_at_least`, `event_count` (new: reads the counters above), `system_charted`, `systems_charted`, `planets_owned`, `planet_owned_by`, `population_at_least`, `building_complete`, `technology`, `fleet_tag_destroyed`, `fleet_at`, `opinion_at_least`, `relation`, `held_for`. Composite conditions evaluate every child, so nested timers advance consistently. Later phases add `contact`, `war_exhaustion_at_least`, `system_controlled`, `site_claimed`, `anomaly_resolved`.
+- Effects: `notice`, `event`, `flag`, `value`, `reveal_objective`, `resources`, `grant_technology`, `reveal_technology`, `end_mission`, `fail_mission`. Later phases add `spawn_fleet`, `contact`, `start_war`, `start_peace`, `opinion`, `force_demand`, `protect_planet`, `site_state`, `wormhole_state`.
+- The session also stores `carry` (what the start took from earlier missions, used by restart) and `rules` (copied from the definition, so `GameOutcomeService` needs no registry).
+- Story events: non-modal events become map notices; modal events wait in `pendingEvents` and are answered through `CampaignService.chooseEventOption`. **There is no dialog yet (Phase 1b)**, so a modal event currently waits unseen.
+- Not yet done from §14: rejecting a skirmish save that lists a campaign-only technology (no such technology exists before Mission 6).
+- Tests: `campaign-objectives.spec.ts`, `campaign.service.spec.ts`, `campaign-progress.service.spec.ts`, `mission-builder.spec.ts` (builder and validation), `campaign-outcome.spec.ts`, `campaign-session.spec.ts` (real `StarMap`: no instant victory, objectives saved at once, reload, battle return without repeated rewards, victory through an event choice, defeat, pirates off, horizon, a normal game afterwards), `services/research-horizon.spec.ts`. `registerTestMission` lets specs add definitions; the game never uses it.
+
+**Next:** Phase 1b (campaign screen, objective tracker, story dialog, debrief / defeat options).
 
 ---
 

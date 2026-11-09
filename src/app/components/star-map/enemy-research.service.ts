@@ -194,7 +194,8 @@ export class EnemyResearchService {
     const researched = new Set(faction.researchedTechnologies ?? []);
     const available = this.researchService
       .getAllTechnologies()
-      .filter((tech) => !researched.has(tech.id) && tech.prerequisites.every((p) => researched.has(p)));
+      .filter((tech) => !researched.has(tech.id) && tech.prerequisites.every((p) => researched.has(p))
+        && this.researchService.isAvailable(faction, tech.id));
     if (available.length === 0) {
       this.targets.delete(faction.id);
       return undefined;
@@ -444,7 +445,7 @@ export class EnemyResearchService {
     const hypothetical: Faction = { ...faction, researchedTechnologies: [...researched] };
     let best = 0;
     for (const next of this.researchService.getAllTechnologies()) {
-      if (researched.has(next.id) || !next.prerequisites.includes(tech.id)) {
+      if (researched.has(next.id) || !next.prerequisites.includes(tech.id) || !this.researchService.isAvailable(faction, next.id)) {
         continue;
       }
       if (!next.prerequisites.every((p) => researched.has(p))) {

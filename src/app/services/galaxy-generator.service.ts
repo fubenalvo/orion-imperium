@@ -127,7 +127,7 @@ interface Point {
  * on the system grid (system-grid.ts). Same screen positions as the legacy
  * map's 18×10 layout ({12,3}, {10,5}, {8,4}, {6,2}, {4,6}, {2,3}).
  */
-const PLANET_SYSTEM_LAYOUT: readonly Point[] = [
+export const PLANET_SYSTEM_LAYOUT: readonly Point[] = [
   { x: 23, y: 5 },
   { x: 19, y: 9 },
   { x: 15, y: 7 },
@@ -138,7 +138,7 @@ const PLANET_SYSTEM_LAYOUT: readonly Point[] = [
 
 const PLANET_TYPES: readonly PlanetType[] = ['earthlike', 'marslike', 'venuslike', 'gasgiant', 'ice', 'desert'];
 const PLANET_SIZES: readonly PlanetSize[] = ['tiny', 'small', 'medium', 'big', 'huge'];
-const STAR_COLORS: readonly string[] = ['#ffcc00', '#5ca8ff', '#f3f3f3', '#39b8a8', '#d65757', '#888888'];
+export const STAR_COLORS: readonly string[] = ['#ffcc00', '#5ca8ff', '#f3f3f3', '#39b8a8', '#d65757', '#888888'];
 
 const STAR_NAMES: readonly string[] = [
   'SOL', 'VEGA', 'SIRIUS', 'ARCTURUS', 'RIGEL', 'ALTAIR', 'BETELGEUSE', 'PROCYON', 'DENEB',
@@ -160,7 +160,7 @@ const FLEET_NAMES: readonly string[] = [
   'WARDEN', 'NOMAD', 'CORSAIR', 'TALON', 'HARBINGER', 'ZEALOT', 'SENTINEL', 'NEMESIS',
 ];
 
-const STARTING_TECHNOLOGIES = ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power'];
+export const STARTING_TECHNOLOGIES = ['basic_engineering', 'basic_science', 'basic_industry', 'basic_power'];
 /*
  * Starting stock. Raw materials cover the first Spaceship Factory and
  * Mining Complex (750 + 375) with room to spare, because the factory no
@@ -182,7 +182,7 @@ const COLONY_POPULATION = 100;
  * starts energy-positive with room for a Mining Complex and a factory.
  * Authored at the origin; centerLayout moves it to the middle of the grid.
  */
-const HOMEWORLD_BUILDINGS: readonly PlanetBuilding[] = [
+export const HOMEWORLD_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Large Residential Block', size: 3, x: 0, y: 0 },
   { name: 'Fusion Power Plant', size: 3, x: 6, y: 0 },
   { name: 'Capital', size: 3, x: 3, y: 3 },
@@ -191,7 +191,7 @@ const HOMEWORLD_BUILDINGS: readonly PlanetBuilding[] = [
 ];
 
 /* Extra AI colonies (difficulty bonus). Centered like the homeworld layout. */
-const COLONY_BUILDINGS: readonly PlanetBuilding[] = [
+export const COLONY_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Small Residential Block', size: 1, x: 0, y: 0 },
   { name: 'Colony Center', size: 2, x: 1, y: 0 },
   { name: 'Solar Array', size: 2, x: 3, y: 0 },
@@ -225,7 +225,7 @@ const FLEET_PRESETS: Readonly<Record<'player' | 'reduced' | 'standard' | 'reinfo
 const PLAYER_FLEET_NAMES = ['ORION', 'PEGASUS', 'PHOENIX'];
 
 /* Neutral factions copied from the legacy map. */
-const NEUTRAL_FACTIONS: readonly Faction[] = [
+export const NEUTRAL_FACTIONS: readonly Faction[] = [
   {
     id: 'independent',
     name: 'Independent',

@@ -1,3 +1,4 @@
+import type { CampaignSessionState } from '../../campaign/campaign.models';
 import type { DiplomaticDemand } from './diplomatic-demand';
 import type { DysonBonusId } from './dyson-anchor';
 import type { ShipLoadout } from './equipment';
@@ -78,6 +79,13 @@ export interface Technology {
   unlocksEquipment?: string[];
   /* Mechanical effects; aggregated by ResearchService.getModifiers (docs/research.md). */
   bonuses?: TechnologyBonus[];
+  /*
+   * Campaign-only (ancient) technology: never visible, researchable or
+   * granted outside a campaign mission, and inside one only through the
+   * mission's research horizon or a grant (docs/campaign-design.md §14).
+   * Missing = false.
+   */
+  campaignOnly?: boolean;
 }
 
 /*
@@ -776,6 +784,12 @@ export interface StarMapData {
    * (games from before the tutorial).
    */
   tutorial?: TutorialState;
+  /*
+   * The running story-campaign mission (docs/campaign-design.md §13):
+   * objective statuses, flags, timers and the mission rules copied at build
+   * time. Missing = not a campaign game. Restored by CampaignService.
+   */
+  campaign?: CampaignSessionState;
 }
 
 export interface TutorialState {

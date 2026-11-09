@@ -6,7 +6,9 @@
           {{ gameOutcome === 'victory' ? 'VICTORY' : 'DEFEAT' }}
         </div>
         <div class="game-end-message">
-          @if (dysonWinnerName; as dysonWinner) {
+          @if (campaignEndText; as campaignText) {
+            {{ campaignText }}
+          } @else if (dysonWinnerName; as dysonWinner) {
             {{ gameOutcome === 'victory' ? 'The Dyson swarm is complete. You held every anchor around the black hole through the warm-up, and the galaxy runs on your light.' : dysonWinner + ' completed the Dyson swarm around the black hole and held it through the warm-up.' }}
           } @else {
             {{ gameOutcome === 'victory' ? 'Galactic conquest achieved. All inhabited systems are under player or allied control.' : 'The empire has fallen. No inhabited planets remain under player control and no surviving fleets remain.' }}

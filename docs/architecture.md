@@ -175,6 +175,18 @@ src/app/
       → Strict validation of freshly generated galaxies
     new-game.service.ts
       → Start Game workflow: validate → generate → validate → save → activate
+
+  campaign/
+    campaign.models.ts, campaign-objectives.ts, campaign-effects.ts
+      → Story campaign data model and the pure objective / effect rules
+    campaign.service.ts
+      → Live mission session (restore/serialize with the save, notify, 1 Hz tick)
+    campaign-progress.service.ts
+      → Unlocks and results across missions (localStorage 'orion_campaign')
+    mission-builder.ts, mission-validation.ts, campaign-mission.service.ts
+      → Mission definition → StarMapData; mission rules; start/restart flow
+    missions/
+      → Mission registry and mission definitions (docs/campaign-design.md)
 ```
 
 See [New Game Generation](./new-game-generation.md) for the generation and setup rules.

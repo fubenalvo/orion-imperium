@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Inject, Injectable, InjectionToken, Optional } from '@angular/core';
 import { Faction, Technology, TechnologyBonus, TechnologyBonusType } from '../components/star-map/star-map.models';
 import researchTreeData from '../components/star-map/research-tree.json';
 import shipData from '../components/star-map/ship-data.json';
@@ -86,7 +86,7 @@ export interface ResearchPrice {
 
 export interface ResearchResult {
   ok: boolean;
-  reason?: 'already_researched' | 'prerequisites_missing' | 'insufficient_research' | 'insufficient_credits';
+  reason?: 'already_researched' | 'outside_horizon' | 'prerequisites_missing' | 'insufficient_research' | 'insufficient_credits';
   technology?: Technology;
 }
 
@@ -117,6 +117,22 @@ export interface ValidationError {
  *  - persist state (save/load is handled by StarMapData)
  */
 
+/*
+ * Replaces research-tree.json (tests only). Production code never provides
+ * it, so the service reads the shipped tree.
+ */
+export const RESEARCH_TECHNOLOGIES = new InjectionToken<Technology[]>('RESEARCH_TECHNOLOGIES');
+
+/*
+ * Research horizon of a running campaign mission (docs/campaign-design.md
+ * §14): the technologies that exist in this mission. `extras` adds entries
+ * per faction. Owned technologies are always available.
+ */
+export interface ResearchHorizon {
+  technologies: readonly string[];
+  extras?: Readonly<Record<string, readonly string[]>>;
+}
+
 const STARTING_TECHNOLOGY_IDS = [
   'basic_engineering',
   'basic_science',
@@ -130,16 +146,60 @@ export class ResearchService {
   private readonly technologyMap: Map<string, Technology>;
   private readonly validationErrors: ValidationError[];
   private readonly modifierCache = new Map<string, TechModifiers>();
+  /* Outside a campaign: the tree without campaign-only technologies. */
+  private readonly standardTechnologies: Technology[];
+  private horizon: { all: Set<string>; extras: Map<string, Set<string>> } | null = null;
 
-  constructor() {
+  constructor(@Optional() @Inject(RESEARCH_TECHNOLOGIES) technologies: Technology[] | null = null) {
     const data = researchTreeData as { technologies: Technology[] };
-    this.technologies = data.technologies;
+    this.technologies = technologies ?? data.technologies;
     this.technologyMap = new Map(this.technologies.map((t) => [t.id, t]));
+    this.standardTechnologies = this.technologies.filter((t) => t.campaignOnly !== true);
     this.validationErrors = this.validateTechnologies();
   }
 
+  /*
+   * The technologies that exist in this session: every technology during a
+   * campaign mission (availability per faction is `isAvailable`), the tree
+   * without campaign-only technologies otherwise — so skirmish code paths
+   * never see them. Bonuses (getModifiers) still count every owned id.
+   */
   getAllTechnologies(): Technology[] {
-    return this.technologies;
+    return this.horizon ? this.technologies : this.standardTechnologies;
+  }
+
+  /*
+   * Sets (or clears, with null) the campaign research horizon. Called by
+   * CampaignService on every load and whenever a mission effect reveals a
+   * technology; every load of a non-campaign game clears it.
+   */
+  setCampaignHorizon(horizon: ResearchHorizon | null): void {
+    if (!horizon) {
+      this.horizon = null;
+      return;
+    }
+    this.horizon = {
+      all: new Set(horizon.technologies),
+      extras: new Map(Object.entries(horizon.extras ?? {}).map(([id, list]) => [id, new Set(list)])),
+    };
+  }
+
+  hasCampaignHorizon(): boolean {
+    return this.horizon !== null;
+  }
+
+  /*
+   * isAvailable: the technology exists for this faction right now — it is
+   * owned, or (campaign) inside the horizon, or (otherwise) not campaign-only.
+   * Unavailable technologies are hidden in the research tree, skipped by the
+   * AI and refused by researchTechnology.
+   */
+  isAvailable(faction: Faction | null | undefined, technologyId: string): boolean {
+    const tech = this.technologyMap.get(technologyId);
+    if (!tech) return false;
+    if (faction?.researchedTechnologies?.includes(technologyId)) return true;
+    if (!this.horizon) return tech.campaignOnly !== true;
+    return this.horizon.all.has(technologyId) || (!!faction && !!this.horizon.extras.get(faction.id)?.has(technologyId));
   }
 
   getTechnology(id: string): Technology | undefined {
@@ -201,7 +261,7 @@ export class ResearchService {
       return 'researched';
     }
     const tech = this.technologyMap.get(technologyId);
-    if (!tech) {
+    if (!tech || !this.isAvailable(faction, technologyId)) {
       return 'locked';
     }
     const researched = faction.researchedTechnologies ?? [];
@@ -368,6 +428,7 @@ export class ResearchService {
     const tech = this.technologyMap.get(technologyId);
     if (!tech) return 'unknown_technology';
     if (this.isResearched(faction, technologyId)) return 'already_researched';
+    if (!this.isAvailable(faction, technologyId)) return 'outside_horizon';
     const researched = faction.researchedTechnologies ?? [];
     if (!tech.prerequisites.every((prereq) => researched.includes(prereq))) return 'prerequisites_missing';
     const price = this.getResearchPrice(faction, tech);
@@ -397,6 +458,9 @@ export class ResearchService {
     }
     if (this.isResearched(faction, technologyId)) {
       return { ok: false, reason: 'already_researched', technology: tech };
+    }
+    if (!this.isAvailable(faction, technologyId)) {
+      return { ok: false, reason: 'outside_horizon', technology: tech };
     }
     const researched = faction.researchedTechnologies ?? [];
     const hasPrerequisites = tech.prerequisites.every((prereq) => researched.includes(prereq));

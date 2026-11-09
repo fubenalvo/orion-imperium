@@ -591,6 +591,7 @@ export class EnemyEconomyService {
     let best: number | undefined;
     for (const tech of this.researchService.getAllTechnologies()) {
       if (researched.has(tech.id) || !tech.prerequisites.every((p) => researched.has(p))) continue;
+      if (!this.researchService.isAvailable(faction, tech.id)) continue;
       const price = this.researchService.getResearchPrice(faction, tech);
       if (price.research <= points && (best === undefined || price.credits < best)) best = price.credits;
     }
@@ -661,7 +662,8 @@ export class EnemyEconomyService {
   private isResearchStarved(faction: Faction, researchNet: number): boolean {
     const researched = new Set(faction.researchedTechnologies ?? []);
     const available = this.researchService.getAllTechnologies()
-      .filter((t) => !researched.has(t.id) && t.prerequisites.every((p) => researched.has(p)));
+      .filter((t) => !researched.has(t.id) && t.prerequisites.every((p) => researched.has(p))
+        && this.researchService.isAvailable(faction, t.id));
     if (available.length === 0) return false;
     const dearest = available
       .map((t) => this.researchService.getResearchPrice(faction, t))
@@ -683,7 +685,8 @@ export class EnemyEconomyService {
     const points = faction.currencies['research'] ?? 0;
     const credits = faction.currencies['credits'] ?? 0;
     const covered = this.researchService.getAllTechnologies()
-      .filter((t) => !researched.has(t.id) && t.prerequisites.every((p) => researched.has(p)))
+      .filter((t) => !researched.has(t.id) && t.prerequisites.every((p) => researched.has(p))
+        && this.researchService.isAvailable(faction, t.id))
       .map((t) => this.researchService.getResearchPrice(faction, t))
       .filter((price) => points >= price.research);
     return covered.length > 0 && covered.every((price) => credits < price.credits);

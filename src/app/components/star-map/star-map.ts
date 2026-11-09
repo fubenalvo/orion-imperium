@@ -237,6 +237,8 @@ import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.comp
 import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
 import { ensureColonyCore, isCoreOwner } from './colony-core';
 import { TutorialService } from '../../services/tutorial.service';
+import { CampaignService, CampaignTickResult } from '../../campaign/campaign.service';
+import { CampaignWorld } from '../../campaign/campaign-objectives';
 import { buildTutorialContext } from '../tutorial/tutorial-context';
 
 /*
@@ -294,6 +296,8 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
 export class StarMap implements AfterViewInit, OnDestroy {
   private readonly music = inject(MusicService);
   private readonly tutorial = inject(TutorialService);
+  /* Story campaign session (docs/campaign-design.md): null-object outside campaign games. */
+  private readonly campaign = inject(CampaignService);
   // Real time (ms) of the last tutorial context snapshot; see publishTutorialContext.
   private tutorialPublishedAt = 0;
   private _currentView: 'map' | 'system' | 'planet' = 'map';
@@ -1971,6 +1975,7 @@ loadError = '';
 
     // The building starts as a construction site (building-construction.ts).
     startBuildingConstruction(planet, buildingDef, event.x, event.y, price);
+    this.campaign.notify('building_placed');
 
     this.cdr.detectChanges();
   }
@@ -2485,6 +2490,8 @@ loadError = '';
     const lines: string[] = [];
     for (const event of events) {
       const involvesPlayer = event.initiatorId === 'player' || event.targetId === 'player';
+      if (involvesPlayer && (event.kind === 'war' || event.kind === 'breach')) this.campaign.notify('war_declared');
+      if (involvesPlayer && event.kind === 'peace') this.campaign.notify('peace_signed');
       switch (event.kind) {
         case 'war':
           lines.push((event.targetId === 'player'
@@ -2531,6 +2538,7 @@ loadError = '';
   }
 
   onTechnologyResearched(): void {
+    this.campaign.notify('technology_researched');
     this.cdr.detectChanges();
     this.saveGame();
   }
@@ -2563,6 +2571,7 @@ loadError = '';
       return;
     }
     this.tutorial.notify('fleet-assembled');
+    this.campaign.notify('fleet_assembled');
     if (result.fleet) {
       // Place the new fleet on its host planet's system cell and
       // transition into the system view. The view flip MUST happen
@@ -2620,6 +2629,7 @@ loadError = '';
       return;
     }
     this.showMapNotice(`${fleet.name} colonized ${planet.name}.`);
+    this.campaign.notify('planet_colonized');
     if (result.fleetRetired) {
       this.deselectFleet();
     }
@@ -4061,7 +4071,8 @@ loadError = '';
     const constructionChanged = this.updateStationConstruction(gameDeltaTime);
     const repairChanged = this.updateFleetRepair(gameDeltaTime);
     const dysonChanged = this.updateDysonSwarm(gameDeltaTime);
-    const pirateNotices = this.pirateIncursion.tick(gameDeltaTime, {
+    // Campaign missions may switch pirate incursions off (MissionRules.pirates).
+    const pirateNotices = !this.campaign.piratesAllowed() ? [] : this.pirateIncursion.tick(gameDeltaTime, {
       gameSeconds: this.gameSeconds, factions: this.factions, fleets: this.fleets, starSystems: this.starSystems,
       shipStock: this.shipStock, mapWidth: this.mapWidth, mapHeight: this.mapHeight,
     });
@@ -4137,8 +4148,12 @@ loadError = '';
         ...this.economyService.calculateEconomy('player', this.factions, this.starSystems, this.fleets, this.shipStock),
         unpaidUpkeepPerSecond: playerUnpaidUpkeep,
       };
+      const economySeconds = this.economyAccumulator;
       this.economyAccumulator = 0;
       economyUpdated = true;
+      // Campaign objectives are evaluated here, once per economy tick (1 s of
+      // game time), never per frame (docs/campaign-design.md §12).
+      this.tickCampaign(economySeconds);
       for (const deposit of playerDeposits) {
         if (deposit.isEmpty()) {
           this.showMapNotice(`Mining stopped: ${deposit.label} is depleted. Find new deposits to keep raw materials flowing.`);
@@ -4924,6 +4939,7 @@ loadError = '';
       tradeNetwork: this.tradeNetworkService.serialize(),
       gameSeconds: this.gameSeconds,
       tutorial: this.tutorial.serialize(),
+      campaign: this.campaign.serialize(),
     };
   }
 
@@ -5071,6 +5087,10 @@ loadError = '';
     this.gameSeconds = Number.isFinite(data.gameSeconds) ? Math.max(0, data.gameSeconds!) : 0;
     // A battle return keeps the steps finished on the battle screen (its save is pre-battle).
     this.tutorial.restore(data.tutorial, !!options.resumeAi);
+    // The whole session is in the save, so a battle return needs no merge
+    // (the battle screen only edits the autosave written before it opened).
+    // Also sets or clears the campaign research horizon.
+    this.campaign.restore(data.campaign ?? null);
     // The grace checks must not run on the previous session's clock before the first AI tick.
     this.openingGrace.setGameSeconds(this.gameSeconds);
     // A pending event re-opens from the restored state on the next frame.
@@ -5319,6 +5339,7 @@ loadError = '';
     }
 
     if (battleResult) {
+      this.notifyCampaignBattle(battleResult);
       this.applyBattleResult(battleResult);
       // Pirate ambush (exploration anomaly): victory loot, paid exactly once
       // because the battle result is consumed (cleared) right below.
@@ -5351,6 +5372,56 @@ loadError = '';
    * the same encounter. Destroyed fleets are marked destroyed and
    * left in place (they are filtered from rendering and movement).
    */
+  /*
+   * Campaign event counters for a battle the player fought: won when a
+   * player fleet is on the winning side, lost when one is on the losing side.
+   * Called before the result is applied, while the fleets still exist.
+   */
+  private notifyCampaignBattle(result: BattleOutcome): void {
+    if (!this.campaign.active) return;
+    const winner = result.winnerSide === 'attacker' ? result.attacker : result.defender;
+    const loser = result.winnerSide === 'attacker' ? result.defender : result.attacker;
+    const isPlayers = (fleetId: number) => this.fleets.some((f) => f.id === fleetId && f.factionId === 'player');
+    if (isPlayers(winner.fleetId)) this.campaign.notify('battle_won');
+    else if (isPlayers(loser.fleetId)) this.campaign.notify('battle_lost');
+  }
+
+  /* Game-end dialog text of a decided campaign mission (its ending or defeat reason). */
+  get campaignEndText(): string | null {
+    const outcome = this.campaign.outcome;
+    const mission = this.campaign.mission;
+    if (!outcome || !mission) return null;
+    if (outcome.kind === 'defeat') return outcome.reason ?? 'Mission failed.';
+    const ending = mission.endings.find((e) => e.id === outcome.endingId);
+    return ending ? `${ending.title}. ${ending.debrief}` : 'Mission complete.';
+  }
+
+  private campaignWorld(): CampaignWorld {
+    return {
+      gameSeconds: this.gameSeconds,
+      factions: this.factions,
+      starSystems: this.starSystems,
+      fleets: this.fleets,
+      exploredGridCells: this.exploredGridCells,
+    };
+  }
+
+  private tickCampaign(seconds: number): void {
+    if (!this.campaign.active) return;
+    this.applyCampaignResult(this.campaign.tick(seconds, this.campaignWorld()));
+  }
+
+  /*
+   * Every campaign change is saved at once (like anomaly resolutions), so a
+   * reload after a battle can neither repeat nor lose a reward or an
+   * objective. A decided mission then goes through the normal outcome check.
+   */
+  private applyCampaignResult(result: CampaignTickResult): void {
+    if (result.notices.length > 0) this.showMapNotice(result.notices.join(' '));
+    if (result.changed) this.saveGame();
+    if (result.outcome) this.checkGameOutcome();
+  }
+
   private checkGameOutcome(): void {
     if (this.gameOutcome !== 'inProgress') return;
     const data = this.serializeGameState();

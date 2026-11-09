@@ -1,5 +1,6 @@
 import { Component, ElementRef, HostListener, OnInit, OnDestroy, inject } from '@angular/core';
 import { MusicService } from '../services/music.service';
+import { CampaignService } from '../campaign/campaign.service';
 import { TutorialService } from '../services/tutorial.service';
 import { Router } from '@angular/router';
 import {
@@ -40,6 +41,7 @@ export class MainMenu implements OnInit, OnDestroy {
   private deferredPrompt: BeforeInstallPromptEvent | null = null;
   private readonly music = inject(MusicService);
   private readonly tutorial = inject(TutorialService);
+  private readonly campaign = inject(CampaignService);
 
   constructor(
     private saveGameService: SaveGameService,
@@ -53,6 +55,8 @@ export class MainMenu implements OnInit, OnDestroy {
     this.music.setScene('title');
     // No game is running here: no hints, and Options hides the TUTORIAL toggle.
     this.tutorial.leaveGame();
+    // No campaign rules (research horizon) may leak into the next game.
+    this.campaign.leave();
     this.updateInstallVisibility();
     this.startParallax();
   }

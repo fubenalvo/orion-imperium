@@ -23,6 +23,10 @@ export type GameOutcome = 'inProgress' | 'victory' | 'defeat';
  *  1. Terminal outcomes are sticky: once a save carries 'victory' or
  *     'defeat' it is returned unchanged, so later ticks can never
  *     overwrite it.
+ *  1a. Story campaign (docs/campaign-design.md): a save with `campaign`
+ *     ends through the mission (its saved outcome) or elimination (rule 2);
+ *     rules 1b and 3 apply only when the mission sets
+ *     `rules.standardVictory`.
  *  1b. Dyson Swarm (docs/dyson-swarm.md): a completed warm-up in the save
  *     (dysonWarmup.remaining 0) decides the game for its holder: victory
  *     when the holder is allied, defeat otherwise. The warm-up only runs
@@ -64,6 +68,25 @@ export class GameOutcomeService {
       this.lastOutcome = data.gameOutcome;
       return data.gameOutcome;
     }
+    // Story campaign (docs/campaign-design.md §12): the mission decides the
+    // game. Its own outcome comes first; otherwise only elimination ends it,
+    // unless the mission also accepts the standard victory. Without this,
+    // missions with no AI empire were won on the first evaluation.
+    if (data.campaign) {
+      const decided = data.campaign.outcome?.kind;
+      if (decided === 'victory' || decided === 'defeat') {
+        this.lastOutcome = decided;
+        return decided;
+      }
+      if (this.isEliminated(data.factions, data.starSystems, data.fleets)) {
+        this.lastOutcome = 'defeat';
+        return 'defeat';
+      }
+      if (data.campaign.rules?.standardVictory !== true) {
+        this.lastOutcome = 'inProgress';
+        return 'inProgress';
+      }
+    }
     const dyson = data.dysonWarmup;
     if (dyson && typeof dyson.factionId === 'string' && dyson.remaining <= 0) {
       const outcome: GameOutcome = this.alliedFactionIds(data.factions).has(dyson.factionId) ? 'victory' : 'defeat';
@@ -84,6 +107,14 @@ export class GameOutcomeService {
       if (faction.ai === false && faction.team !== 0 && faction.team === player.team) allied.add(faction.id);
     }
     return allied;
+  }
+
+  /* Rule 2: the allied side owns no planet and has no living colonizer. */
+  isEliminated(factions: Faction[], starSystems: StarSystem[], fleets: Fleet[]): boolean {
+    if (!factions.some((f) => f.id === 'player')) return true;
+    const allied = this.alliedFactionIds(factions);
+    const ownsPlanet = starSystems.some((system) => (system.planetsTiles ?? []).some((p) => allied.has(p.factionId)));
+    return !ownsPlanet && ![...allied].some((id) => this.hasLivingColonizer(fleets, id));
   }
 
   evaluateOutcome(factions: Faction[], starSystems: StarSystem[], fleets: Fleet[]): GameOutcome {

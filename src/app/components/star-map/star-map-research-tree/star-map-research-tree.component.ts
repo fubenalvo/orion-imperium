@@ -129,7 +129,9 @@ export class StarMapResearchTreeComponent {
 
   getTier(tech: Technology): number {
     if (!this.tierById) {
-      const byId = new Map(this.getAllTechnologies().map((t) => [t.id, t] as const));
+      // Tiers come from the whole session tree, so a technology revealed later
+      // (campaign research horizon) lands in the same column as it always would.
+      const byId = new Map(this.researchService.getAllTechnologies().map((t) => [t.id, t] as const));
       const tiers = new Map<string, number>();
       const resolve = (t: Technology, visiting: Set<string>): number => {
         const known = tiers.get(t.id);
@@ -295,8 +297,9 @@ export class StarMapResearchTreeComponent {
     return result;
   }
 
+  /* The technologies shown: owned or available to the player (campaign research horizon). */
   getAllTechnologies(): Technology[] {
-    return this.researchService.getAllTechnologies();
+    return this.researchService.getAllTechnologies().filter((t) => this.researchService.isAvailable(this.faction, t.id));
   }
 
   getStatus(technologyId: string): TechnologyStatus {

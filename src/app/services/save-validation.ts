@@ -652,5 +652,17 @@ export function validateSaveData(
     errors.push(error('fog_not_array', 'exploredGridCells', 'exploredGridCells must be an array'));
   }
 
+  // Story campaign session (docs/campaign-design.md §14): only the shape is
+  // checked here; CampaignService.restore sanitizes the contents against the
+  // mission definition, which may have changed since the save was written.
+  if (save.campaign !== undefined) {
+    const campaign = save.campaign as unknown as Record<string, unknown> | null;
+    if (!campaign || typeof campaign !== 'object' || Array.isArray(campaign)
+      || typeof campaign['missionId'] !== 'string'
+      || !campaign['objectives'] || typeof campaign['objectives'] !== 'object') {
+      errors.push(error('campaign_invalid', 'campaign', 'campaign must be an object with a missionId and objectives'));
+    }
+  }
+
   return { ok: errors.length === 0, errors, warnings };
 }
