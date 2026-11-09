@@ -2996,7 +2996,7 @@ loadError = '';
   // Selection handlers
 
   /** Selects a fleet, updates the camera, and tracks its movement target. */
-  selectFleet(fleet: Fleet): void {
+  selectFleet(fleet: Fleet, options: { centerCamera?: boolean } = {}): void {
     this.selectedFleet = fleet;
     this.fleetMoveError = null;
 
@@ -3005,7 +3005,7 @@ loadError = '';
     }
     this.selectedPlanetTile = null;
 
-    if (this.currentView === 'map') {
+    if (this.currentView === 'map' && options.centerCamera !== false) {
       this.centerCameraOnGridPosition(fleet.x, fleet.y);
     }
 
@@ -3443,6 +3443,14 @@ loadError = '';
 
     event.stopPropagation();
 
+    // A fleet on a star system's cell takes part in that cell's rotation.
+    const fleetSystem =
+      this.currentView === 'map' ? this.starSystems.find((s) => this.movementService.isFleetInSystem(fleet, s)) : undefined;
+    if (fleetSystem) {
+      this.onMapSystemCellClick(fleetSystem);
+      return;
+    }
+
     if (this.currentView === 'map') {
       const cell = this.movementService.calculateGridCell(fleet.x, fleet.y);
       const items = this.movementService.getObjectsAtMapCell(
@@ -3470,48 +3478,68 @@ loadError = '';
   }
 
   /*
-   * Map double click (touch: double tap) on a star system enters it. Detected
-   * here from two clicks instead of the dblclick event, because mobile
-   * browsers do not fire dblclick reliably on a map with touch-action: none,
-   * and a touch long-press is already the move order (TouchLongPressService).
+   * Double click (touch: double tap) on a star system on the map enters it;
+   * on a planet in the system view it opens the planet. Detected here from
+   * two clicks on the same object instead of the dblclick event, because
+   * mobile browsers do not fire dblclick reliably on a map with
+   * touch-action: none, and a touch long-press is already the move order
+   * (TouchLongPressService). The first click still does its single-click
+   * work (select / rotate), the second one only opens.
    */
-  private static readonly SYSTEM_DOUBLE_CLICK_MS = 400;
-  private lastSystemClick: { systemId: string; at: number } | null = null;
+  private static readonly DOUBLE_CLICK_MS = 400;
+  private lastObjectClick: { key: string; at: number } | null = null;
 
-  /** Handles a click on a star system, showing a context menu if objects overlap. */
+  private isDoubleClick(key: string): boolean {
+    const now = performance.now();
+    const last = this.lastObjectClick;
+    const isDouble = last?.key === key && now - last.at <= StarMap.DOUBLE_CLICK_MS;
+    this.lastObjectClick = isDouble ? null : { key, at: now };
+    return isDouble;
+  }
+
+  /** Handles a click on a star system (map: rotate through what stands there, double click enters). */
   onSystemClick(system: StarSystem, event: MouseEvent): void {
+    event.stopPropagation();
     if (this.currentView === 'map') {
-      const now = performance.now();
-      const last = this.lastSystemClick;
-      const isDouble = last?.systemId === system.id && now - last.at <= StarMap.SYSTEM_DOUBLE_CLICK_MS;
-      this.lastSystemClick = isDouble ? null : { systemId: system.id, at: now };
-      if (isDouble) {
-        event.stopPropagation();
-        this.closeContextMenu();
-        this.selectedSystem = system;
-        this.selectedPlanetTile = null;
-        this.enterSystem();
-        this.cdr.detectChanges();
-        return;
-      }
+      this.onMapSystemCellClick(system);
+      return;
     }
     if (this.contextMenu) {
       this.closeContextMenu();
-      event.stopPropagation();
       return;
     }
+    this.selectSystem(system);
+  }
 
-    event.stopPropagation();
-
-    if (this.currentView === 'map') {
-      const cell = this.movementService.calculateGridCell(system.x, system.y);
-      const items = this.movementService.getObjectsAtMapCell(
-        this.fleets,
-        this.starSystems,
-        cell.col,
-        cell.row,
-      );
-      this.handleObjectClick(items, event);
+  /*
+   * A map click on a star system's cell, on the star or on a fleet standing
+   * there. A double click enters the system (the fleet picked by the first
+   * click stays selected). A single click rotates the selection through the
+   * visible fleets on the cell (own fleets first, in roster order), then the
+   * system itself, then the first fleet again; with no fleet there it simply
+   * selects the system. This replaces the disambiguation menu for system
+   * cells; open-space cells keep the menu.
+   */
+  private onMapSystemCellClick(system: StarSystem): void {
+    this.closeContextMenu();
+    if (this.isDoubleClick(`system:${system.id}`)) {
+      this.selectedSystem = system;
+      this.selectedPlanetTile = null;
+      this.enterSystem();
+      this.cdr.detectChanges();
+      return;
+    }
+    const fleets = this.visibleFleets.filter((f) => this.movementService.isFleetInSystem(f, system));
+    fleets.sort((a, b) => Number(b.factionId === 'player') - Number(a.factionId === 'player'));
+    const selectedFleetIndex = this.selectedFleet ? fleets.findIndex((f) => f.id === this.selectedFleet!.id) : -1;
+    // Rotation slots: each fleet, then the system (slot fleets.length).
+    const current =
+      selectedFleetIndex >= 0 ? selectedFleetIndex : this.selectedSystem?.id === system.id ? fleets.length : -1;
+    const next = (current + 1) % (fleets.length + 1);
+    if (next < fleets.length) {
+      // No camera jump: the cell is on screen, and a moved map would make
+      // the second click of a double click miss the system.
+      this.selectFleet(fleets[next], { centerCamera: false });
     } else {
       this.selectSystem(system);
     }
@@ -3519,6 +3547,13 @@ loadError = '';
 
   /** Handles a click on a planet tile, showing a context menu if fleets are present. */
   onPlanetClick(planet: PlanetTile, event: MouseEvent): void {
+    if (this.currentView === 'system' && this.isDoubleClick(`planet:${planet.id}`)) {
+      event.stopPropagation();
+      this.closeContextMenu();
+      this.selectPlanetTile(planet);
+      this.openPlanetView();
+      return;
+    }
     if (this.contextMenu) {
       this.closeContextMenu();
       event.stopPropagation();

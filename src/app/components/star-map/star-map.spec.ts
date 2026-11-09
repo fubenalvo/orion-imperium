@@ -952,6 +952,43 @@ describe('StarMap', () => {
       expect(component.selectedSystem?.id).toBe(system.id);
     });
 
+    it('rotates a single click through the fleets on a system, then the system itself', () => {
+      const system = component.starSystems[0];
+      const [first, second] = component.fleets.filter((f) => f.factionId === 'player');
+      for (const fleet of [first, second]) {
+        fleet.destroyed = false;
+        fleet.x = system.x;
+        fleet.y = system.y;
+      }
+      const onCell = component.visibleFleets.filter((f) => component.movementService.isFleetInSystem(f, system));
+      component.currentView = 'map';
+      component.selectedFleet = null;
+      component.selectedSystem = null;
+      const picks: (number | string)[] = [];
+      // A closure, so TypeScript does not keep the null narrowing from above.
+      const pick = () => component.selectedFleet?.id ?? component.selectedSystem!.id;
+      for (let i = 0; i <= onCell.length; i++) {
+        component['lastObjectClick'] = null; // a later click, not a double click
+        component.onSystemClick(system, click());
+        picks.push(pick());
+      }
+      expect(picks.slice(0, onCell.length).sort()).toEqual(onCell.map((f) => f.id).sort());
+      expect(picks[onCell.length]).toBe(system.id);
+      expect(component.currentView).toBe('map');
+    });
+
+    it('opens a planet on a double click in the system view', () => {
+      const system = component.starSystems[0];
+      const planet = system.planetsTiles[0];
+      planet.explored = true;
+      component.currentView = 'system';
+      component.selectedSystem = system;
+      component.onPlanetClick(planet, click());
+      component.onPlanetClick(planet, click());
+      expect(component.currentView).toBe('planet');
+      expect(component.selectedPlanetTile?.id).toBe(planet.id);
+    });
+
     it('offers to enter the system the selected fleet arrived at, and enters with the fleet selected', () => {
       const system = component.starSystems[0];
       const fleet = component.fleets.find((f) => f.factionId === 'player')!;

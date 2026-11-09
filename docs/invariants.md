@@ -110,7 +110,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 
 ## Context Menu Behaviour
 
-- The context menu is shown only when more than one object is registered at the same grid cell (`handleObjectClick`, `onPlanetClick`).
+- The context menu is shown only when more than one object is registered at the same grid cell (`handleObjectClick`, `onPlanetClick`). Exception: a left click on a star system's galaxy cell (the star or a fleet on it) never opens it; it rotates the selection instead (`onMapSystemCellClick`, see [Game Systems](./game-systems.md) Map shortcuts).
 - Map view: fleets and star systems share a cell.
 - System view: fleets and planets share a cell.
 - Picking a context-menu item routes to the matching `select*` handler. Any open context menu is closed on the next click or selection.
