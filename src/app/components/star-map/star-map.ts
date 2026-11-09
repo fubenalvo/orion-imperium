@@ -4089,6 +4089,12 @@ loadError = '';
       fleets: this.fleets,
     });
     const tradeChanged = this.handleTraderRaids(tradeResult.raids) || tradeResult.changed;
+    // Campaign trade objectives count what the player actually received.
+    if (this.campaign.active && tradeResult.deliveries.length > 0) {
+      const income = tradeResult.deliveries.reduce((sum, d) =>
+        sum + (d.homeOwnerId === 'player' ? d.credits : 0) + (d.destinationOwnerId === 'player' ? d.portFee : 0), 0);
+      if (income > 0) this.campaign.addValue('trade_income', income);
+    }
     const constructionChanged = this.updateStationConstruction(gameDeltaTime);
     const repairChanged = this.updateFleetRepair(gameDeltaTime);
     const dysonChanged = this.updateDysonSwarm(gameDeltaTime);
@@ -5468,6 +5474,10 @@ loadError = '';
         this.exploredGridCells.add(`${col}-${row}`);
       }
     }
+    // A system a mission hides (StarSystem.explored false) is drawn once it is charted this way.
+    for (const system of this.starSystems) {
+      if (!system.explored && Math.hypot(system.x - area.x, system.y - area.y) <= r) system.explored = true;
+    }
   }
 
   private tickCampaign(seconds: number): void {
@@ -5509,8 +5519,8 @@ loadError = '';
     const world = this.campaignWorld();
     this.campaignMessage = {
       eventId: pending.id,
-      speakerName: speaker?.name ?? 'Mission Control',
-      speakerColor: speaker?.color ?? 'var(--ui-accent)',
+      speakerName: pending.speakerName ?? speaker?.name ?? 'Mission Control',
+      speakerColor: pending.speakerColor ?? speaker?.color ?? 'var(--ui-accent)',
       title: pending.title,
       text: pending.text,
       choices: (pending.choices ?? []).map((choice) => ({

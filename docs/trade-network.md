@@ -66,7 +66,7 @@ On delivery (`payDelivery`):
 - neutral owners (independent civilizations, rebels) receive nothing — a civilian trader between two civilian nodes pays nobody, it is only a raid target;
 - a faction owning both ends receives both (120%).
 
-Amounts are whole credits. Like collected asteroids, trade income is a windfall outside the economy tick: no difficulty or war-exhaustion multiplier applies. A battle-return reload restores credits and traders from the same snapshot, so a delivery can neither repeat nor vanish.
+Amounts are whole credits. Every delivery is reported in `TradeNetworkTickResult.deliveries`; in a campaign mission StarMap adds the player's share (cargo of own traders and port fees) to the mission value `trade_income` ([Campaign Design](./campaign-design.md#implementation-status)). Like collected asteroids, trade income is a windfall outside the economy tick: no difficulty or war-exhaustion multiplier applies. A battle-return reload restores credits and traders from the same snapshot, so a delivery can neither repeat nor vanish.
 
 Expected size: a typical 50-cell trip (~220 s with the stop) carries 1250 credits, so a node's two traders earn its owner about 11 credits/s plus port fees, against the Trading Post's 4.5–8 credits/s upkeep.
 

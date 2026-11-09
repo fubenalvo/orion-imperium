@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a, 1b and 2 implemented** (the campaign engine, its UI and Mission 1, see
+Status: **Phases 1a, 1b, 2 and 3 implemented** (the campaign engine, its UI, Missions 1 and 2, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -101,7 +101,19 @@ Implemented subset and deviations from the design below:
 - **Deviations from §6:** the strike group is 3 fighters, not 2 frigates (frigates need Advanced Engineering, which is only optional in the M1 horizon); the sentinel is 2 fighters; the briefing message opens after the first game second (objectives are evaluated on the economy tick, which needs the clock running); the `enemy-fleet` hint stays on (it teaches the attack order for the sentinel); optional objectives are the Mars colony and Fighter Technology (the asteroid wreck and "flawless" ideas were dropped: M1 has one anomaly by design).
 - Tests: `missions/m1-discovery.spec.ts` (design counts, the belt detour, sentinel on the lens inside the revealed area, a full scripted playthrough in `StarMap` through the real anomaly pipeline, a colonizer without escort does not count, no Diplomacy hint, lens hidden until explored). Checked in the browser: campaign screen, opening message, tracker in the planet view, the lens on the map.
 
-**Next:** Phase 3 — Mission 2 (Beyond the Gate), then Phase 3b (wormhole transit).
+**Phase 3 — Mission 2 "Beyond the Gate" (done, 2026-11-09).** `campaign/missions/m2-beyond-the-gate.ts`, requires Mission 1.
+
+- **Map** as in §7 (140×84; Threshold, Cinder, Veyl, Sunder Drift, Tessaly, Far Echo; 10 planets), with one change: Far Echo has a single planet and Tessaly a second, unsettled one, which keeps 10 planets and 2 inhabited. The Threshold gate is a dormant single-mouth wormhole near Landfall.
+- **Tracks:** settle (population 1,500 — needs housing; 3 planets) and explore (chart 5 of 6 systems; meet Tessaly Hold; trade). Trade is met by 3,000 credits of trade income **or** League standing 30. Finale: decode the relay at Far Echo (a Remnant warden of 3 fighters guards it). Optional: Trading Post (+10 standing), Sunder Drift mining station, the warden (+10 standing), Advanced Radar.
+- **Hidden system:** `MissionSystemSpec.hidden` writes `StarSystem.explored = false`; Tessaly sits in the Shroud nebula and appears when sensors reach it or when `reveal_area` covers it (the Echo Beacon's *triangulate* choice). `StarMap.revealArea` now also marks hidden systems inside the area as explored.
+- **Civilization:** `layout: 'civilization_capital'` uses the generator's civilization capital (`CAPITAL_BUILDINGS`, now exported) — Bank, Trading Post, shield and turrets; `satisfaction` can be authored.
+- **Rich belt:** `MissionSystemSpec.richAsteroids` sets the deposits of the first asteroids of the deterministic in-system belt (Sunder Drift 18,000 / 15,000 / 12,000). New condition `mining_station`.
+- **Trade income:** StarMap adds what the player receives from each trade delivery (cargo of own traders + port fees, `TradeNetworkTickResult.deliveries`) to the campaign value `trade_income` (`CampaignService.addValue`).
+- **Story anomalies:** `echo_beacon` (open space) and `relay_signal` (Far Echo). Story events can name a non-faction speaker (`speakerName`, `speakerColor`); Tessaly Hold's first-contact message offers three answers that set League standing.
+- **Carry-over:** the ending records `m2_tessaly_met` and `league_standing` (new `recordValues`). Mission 1 technologies inside the M2 horizon carry over; the campaign screen now counts carried technologies without the four basics.
+- Tests: `missions/m2-beyond-the-gate.spec.ts` (design counts, hidden Tessaly as a trading civilization, rich deposits, routes around the belt, carried technologies, the beacon charting Tessaly, trade income from deliveries, a full scripted playthrough with the recorded standing).
+
+**Next:** Phase 3b (wormhole transit for fleets and traders), then Phase 4a (first contact in every game mode).
 
 ---
 

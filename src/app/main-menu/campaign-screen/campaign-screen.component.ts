@@ -5,6 +5,7 @@ import { MANUAL_SLOT_START, SaveSlot } from '../../services/save-game.service';
 import { CampaignProgressService } from '../../campaign/campaign-progress.service';
 import { MissionDefinition } from '../../campaign/campaign.models';
 import { MISSION_DEFINITIONS } from '../../campaign/missions';
+import { STARTING_TECHNOLOGIES } from '../../services/galaxy-generator.service';
 
 export interface CampaignStartRequest {
   missionId: string;
@@ -99,7 +100,8 @@ export class CampaignScreenComponent implements OnInit {
     if (!mission) return 0;
     const carried = this.progress.carryFor(mission, MISSION_DEFINITIONS.map((m) => m.id)).technologies;
     const horizon = new Set(mission.researchHorizon);
-    return carried.filter((id) => horizon.has(id)).length;
+    // The four basics every start has are not "carried over".
+    return carried.filter((id) => horizon.has(id) && !STARTING_TECHNOLOGIES.includes(id)).length;
   }
 
   /* Difficulty only matters when the mission has AI empires. */

@@ -1,13 +1,14 @@
 import { MissionDefinition } from '../campaign.models';
 import { M0_FIXTURE } from './m0-fixture';
 import { M1_DISCOVERY } from './m1-discovery';
+import { M2_BEYOND_THE_GATE } from './m2-beyond-the-gate';
 
 /*
  * The mission registry: every mission the game knows, in campaign order.
  * A saved session refers to its mission by id; CampaignService looks the
  * definition up here on every load.
  */
-export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [M1_DISCOVERY, M0_FIXTURE];
+export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [M1_DISCOVERY, M2_BEYOND_THE_GATE, M0_FIXTURE];
 
 /* Extra definitions registered by unit tests only; never used by the game. */
 const testMissions: MissionDefinition[] = [];

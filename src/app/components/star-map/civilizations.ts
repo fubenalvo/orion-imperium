@@ -58,7 +58,7 @@ export const CIVILIZATION_CONFIG = {
  * see AiPersonalityProfile.civilizationAssaultAfter). Authored at the
  * origin; centerLayout centers it.
  */
-const CAPITAL_BUILDINGS: readonly PlanetBuilding[] = [
+export const CAPITAL_BUILDINGS: readonly PlanetBuilding[] = [
   { name: 'Large Residential Block', size: 3, x: 0, y: 0 },
   { name: 'Medium Residential Block', size: 2, x: 3, y: 0 },
   { name: 'Fusion Power Plant', size: 3, x: 5, y: 0 },

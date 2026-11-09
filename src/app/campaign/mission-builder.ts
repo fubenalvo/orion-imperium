@@ -23,6 +23,7 @@ import { generateResourceTilesForPlanet } from '../components/star-map/star-map-
 import { ensurePlanetDeposits } from '../components/star-map/raw-deposits';
 import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroids';
 import { normalizeRelations } from '../components/star-map/diplomacy';
+import { CAPITAL_BUILDINGS } from '../components/star-map/civilizations';
 import { planetFootprintCenterVw, systemCellAtVw } from '../components/star-map/system-grid';
 import { ANOMALY_CONFIG } from '../components/star-map/anomalies';
 import { Anomaly } from '../components/star-map/star-map.models';
@@ -81,9 +82,10 @@ export function buildMission(mission: MissionDefinition, options: MissionBuildOp
       y: systemSpec.y,
       planets: systemSpec.planets.length,
       color: systemSpec.color,
-      // Star positions are always known (the generator's visibility rule);
-      // "charted" for objectives means the cell was explored.
-      explored: true,
+      // Star positions are known (the generator's visibility rule) unless the
+      // mission hides a system; StarMap reveals it once sensors reach it.
+      // "Charted" for objectives means the cell was explored.
+      explored: systemSpec.hidden !== true,
       planetsTiles: [],
     };
     systemSpec.planets.forEach((planetSpec, i) => {
@@ -112,6 +114,16 @@ export function buildMission(mission: MissionDefinition, options: MissionBuildOp
   });
   ensurePlanetDeposits(depositPlanets);
   ensureSystemAsteroidBelts(starSystems, seed);
+  // Resource-rich belts: authored deposits on the first asteroids of the deterministic belt.
+  spec.systems.forEach((systemSpec, si) => {
+    const asteroids = starSystems[si].asteroidBelt?.asteroids ?? [];
+    (systemSpec.richAsteroids ?? []).forEach((amount, i) => {
+      const asteroid = asteroids[i];
+      if (!asteroid) return;
+      asteroid.rawMaterials = amount;
+      asteroid.totalRawMaterials = amount;
+    });
+  });
 
   const fleetTags: Record<string, number[]> = {};
   let nextShipId = 1;
@@ -242,7 +254,11 @@ function buildPlanet(spec: MissionPlanetSpec, id: number, index: number): Planet
     explored: spec.explored ?? false,
   };
   if (spec.civilization) planet.civilization = spec.civilization;
-  const template = spec.layout === 'homeworld' ? HOMEWORLD_BUILDINGS : spec.layout === 'colony' ? COLONY_BUILDINGS : [];
+  if (spec.satisfaction !== undefined) planet.satisfaction = spec.satisfaction;
+  const template = spec.layout === 'homeworld' ? HOMEWORLD_BUILDINGS
+    : spec.layout === 'colony' ? COLONY_BUILDINGS
+    : spec.layout === 'civilization_capital' ? CAPITAL_BUILDINGS
+    : [];
   planet.buildings = centerLayout(template, getPlanetGridSize(planet));
   return planet;
 }

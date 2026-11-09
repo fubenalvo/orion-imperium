@@ -130,6 +130,78 @@ export const ANOMALY_DEFINITIONS: Record<AnomalyType, AnomalyDefinition> = {
    * Both choices chart the lens at Kepler Deep (reveal_area) and set the
    * flag the mission's objective chain reads.
    */
+  /*
+   * Campaign, Mission 2: a repeating signal in open space. Triangulating it
+   * charts the hidden Tessaly system; recording it is worth research.
+   */
+  echo_beacon: {
+    name: 'Echo Beacon',
+    category: 'Story',
+    description:
+      'A faint signal repeats every few seconds, too regular to be natural and too old to be human. ' +
+      'Its echoes come back from somewhere inside the nebula to the north-east.',
+    choices: [
+      {
+        id: 'triangulate',
+        label: 'Triangulate the echoes',
+        effects: [
+          {
+            kind: 'campaign',
+            summary: 'Charts the source of the echoes',
+            effects: [
+              { kind: 'flag', flag: 'm2_echo_triangulated', value: true },
+              { kind: 'reveal_area', x: 112, y: 22, radius: 7 },
+            ],
+          },
+        ],
+        outcome: 'The echoes converge on a star hidden in the nebula. Someone lives there.',
+      },
+      {
+        id: 'record',
+        label: 'Record it for analysis',
+        effects: [{ kind: 'resource', resource: 'research', amount: 300 }],
+        outcome: 'The science teams take the recording apart. Its structure is unlike any human code.',
+      },
+    ],
+  },
+  /*
+   * Campaign, Mission 2 finale: the relay at Far Echo. Decoding it ends the
+   * mission (an objective reads the resolved anomaly); both choices decode.
+   */
+  relay_signal: {
+    name: 'The Relay',
+    category: 'Story',
+    description:
+      'An ancient relay buoy hangs at the edge of Far Echo, still transmitting. Part of its message is new: ' +
+      'a survey code that is not Remnant. Someone else has been here, and recently.',
+    choices: [
+      {
+        id: 'decode',
+        label: 'Decode the transmission',
+        effects: [
+          {
+            kind: 'campaign',
+            summary: 'Decodes the relay (mission objective)',
+            effects: [{ kind: 'flag', flag: 'm2_relay_decoded', value: true }],
+          },
+        ],
+        outcome: 'The survey code resolves into a name: the Concordium. We are not alone, and the gate was built.',
+      },
+      {
+        id: 'study',
+        label: 'Study the buoy itself',
+        effects: [
+          { kind: 'resource', resource: 'research', amount: 400 },
+          {
+            kind: 'campaign',
+            summary: 'Decodes the relay (mission objective)',
+            effects: [{ kind: 'flag', flag: 'm2_relay_decoded', value: true }],
+          },
+        ],
+        outcome: 'The buoy is Remnant work, but its newest message was written by someone else: the Concordium.',
+      },
+    ],
+  },
   probe_wreck: {
     name: 'Wreck of the Far Reach',
     category: 'Story',

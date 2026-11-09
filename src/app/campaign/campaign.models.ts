@@ -72,6 +72,8 @@ export type Condition =
   | { kind: 'fleet_at'; x: number; y: number; radius?: number; ships?: Record<string, number>; minCombatShips?: number; factionId?: string }
   /* A player fleet anywhere with at least these ships / warships. */
   | { kind: 'fleet_with'; ships?: Record<string, number>; minCombatShips?: number; factionId?: string }
+  /* The player owns a mining station (complete or under construction), optionally in a given system. */
+  | { kind: 'mining_station'; systemId?: string }
   /* A campaign anomaly (by its mission key) was resolved, optionally with this choice. */
   | { kind: 'anomaly_resolved'; key: string; choiceId?: string }
   | { kind: 'opinion_at_least'; holder: string; of: string; value: number }
@@ -130,6 +132,9 @@ export interface StoryEventDef {
   /* Fires once when true; without a trigger only an `event` effect fires it. */
   trigger?: Condition;
   speaker: string;
+  /* Overrides for speakers that are not factions (a civilization, a station). */
+  speakerName?: string;
+  speakerColor?: string;
   title: string;
   text: string;
   /* Modal dialog (pauses) vs a map notice. Choices force a dialog. */
@@ -146,6 +151,8 @@ export interface EndingDef {
   records?: Record<string, FlagValue>;
   /* Session flags copied into the records when set (choices made during the mission). */
   recordFlags?: string[];
+  /* Session values copied into the records (e.g. a standing), under the same key. */
+  recordValues?: string[];
 }
 
 export interface MissionRules {
@@ -182,7 +189,8 @@ export interface MissionFactionSpec {
   technologies?: string[];
 }
 
-export type MissionPlanetLayout = 'homeworld' | 'colony' | 'none';
+/* Starting buildings: the generator's templates, or an independent civilization's capital. */
+export type MissionPlanetLayout = 'homeworld' | 'colony' | 'civilization_capital' | 'none';
 
 export interface MissionPlanetSpec {
   name: string;
@@ -191,8 +199,10 @@ export interface MissionPlanetSpec {
   owner?: string;
   civilization?: string;
   population?: number;
-  /* Starting buildings (centered on the surface): the generator's templates. */
+  /* Starting buildings (centered on the surface). */
   layout?: MissionPlanetLayout;
+  /* Satisfaction at start (civilizations use 60); missing = 100. */
+  satisfaction?: number;
   /* A raw-material deposit next to free ground from the start (like homeworlds). */
   deposit?: boolean;
   explored?: boolean;
@@ -205,6 +215,13 @@ export interface MissionSystemSpec {
   y: number;
   color: string;
   planets: MissionPlanetSpec[];
+  /* Not drawn until the player's sensors reach it (StarSystem.explored false). */
+  hidden?: boolean;
+  /*
+   * A resource-rich in-system belt: the first asteroids of the system's
+   * deterministic belt get these deposits (raw materials each).
+   */
+  richAsteroids?: number[];
 }
 
 export interface MissionFleetSpec {

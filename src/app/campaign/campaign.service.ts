@@ -122,6 +122,16 @@ export class CampaignService {
     this.restore(null);
   }
 
+  /*
+   * Adds to a mission value from outside the definition (trade income from
+   * deliveries). Counted like an event: saved with the next tick.
+   */
+  addValue(key: string, delta: number): void {
+    if (!this.session || this.session.outcome || delta === 0) return;
+    this.session.values[key] = (this.session.values[key] ?? 0) + delta;
+    this.dirty = true;
+  }
+
   notify(kind: CampaignEventKind, count = 1): void {
     if (!this.session || this.session.outcome) return;
     this.session.counters[kind] = (this.session.counters[kind] ?? 0) + count;
@@ -333,6 +343,7 @@ export class CampaignService {
       records: {
         ...(ending?.records ?? {}),
         ...Object.fromEntries((ending?.recordFlags ?? []).filter((f) => session.flags[f] !== undefined).map((f) => [f, session.flags[f]])),
+        ...Object.fromEntries((ending?.recordValues ?? []).map((v) => [v, session.values[v] ?? 0])),
       },
       researchedTechnologies: [...(player?.researchedTechnologies ?? [])],
     });

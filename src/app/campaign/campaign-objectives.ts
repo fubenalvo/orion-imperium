@@ -113,6 +113,10 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
       return world.fleets.some((fleet) => fleetMatches(fleet, condition));
     case 'fleet_with':
       return world.fleets.some((fleet) => fleetMatches(fleet, condition));
+    case 'mining_station':
+      return world.starSystems.some((system) =>
+        (condition.systemId === undefined || system.id === condition.systemId)
+        && (system.asteroidBelt?.asteroids ?? []).some((a) => a.miningStation?.factionId === 'player'));
     case 'anomaly_resolved': {
       const anomaly = world.anomalies?.find((a) => a.key === condition.key);
       return anomaly?.status === 'resolved' && (condition.choiceId === undefined || anomaly.choiceId === condition.choiceId);

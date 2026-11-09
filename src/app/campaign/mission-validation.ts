@@ -75,6 +75,7 @@ export function validateMission(mission: MissionDefinition): string[] {
       planetNames.add(planet.name);
       if (planet.owner !== undefined && !knownFaction(planet.owner)) err(`planet "${planet.name}" has an unknown owner`);
       if (planet.civilization !== undefined && planet.owner !== 'independent') err(`civilization planet "${planet.name}" must be independent`);
+      if (planet.layout && planet.layout !== 'none' && planet.owner === undefined) err(`planet "${planet.name}" has buildings but no owner`);
     }
   }
   for (let i = 0; i < map.systems.length; i++) {
@@ -304,6 +305,9 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
     case 'relation':
       faction(condition.a);
       faction(condition.b);
+      return;
+    case 'mining_station':
+      if (condition.systemId !== undefined && !refs.systemIds.has(condition.systemId)) err(`condition references unknown system "${condition.systemId}"`);
       return;
     case 'anomaly_resolved':
       if (!refs.anomalyKeys.has(condition.key)) err(`condition references unknown anomaly "${condition.key}"`);

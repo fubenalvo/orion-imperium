@@ -895,7 +895,7 @@ export interface TradeNetworkState {
  * story anomalies (docs/campaign-design.md): authored by missions only,
  * never generated (they are not in ANOMALY_TYPES).
  */
-export type AnomalyType = 'ancient_wreck' | 'distress_signal' | 'pirate_trap' | 'derelict_outpost' | 'probe_wreck';
+export type AnomalyType = 'ancient_wreck' | 'distress_signal' | 'pirate_trap' | 'derelict_outpost' | 'probe_wreck' | 'echo_beacon' | 'relay_signal';
 
 /*
  * Where an anomaly waits. `x`/`y` is always the galaxy cell that is checked
