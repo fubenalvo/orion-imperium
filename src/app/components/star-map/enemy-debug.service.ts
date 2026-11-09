@@ -10,6 +10,7 @@ import { EnemyProgressService, ActionRecord, DeadlockEvent } from './enemy-progr
 import { EnemyIntelService, IntelSummary } from './enemy-intel.service';
 import { EconomyService } from '../../services/economy.service';
 import { getAiPersonalityProfile } from './ai-personality';
+import { getAiAdaptiveFactor, isAdaptiveDifficultyEnabled } from './ai-difficulty';
 import { AiActionLedger, AiActionSnapshot } from './ai-action-ledger';
 
 /*
@@ -111,7 +112,9 @@ export class EnemyDebugService {
       factionId: faction.id,
       name: faction.name,
       personality: getAiPersonalityProfile(faction).id,
-      difficulty: faction.aiDifficulty ?? 'normal',
+      // Adaptive games show the current factor next to the difficulty (ai-difficulty.ts).
+      difficulty: (faction.aiDifficulty ?? 'normal')
+        + (isAdaptiveDifficultyEnabled() ? ` ×${getAiAdaptiveFactor(faction).toFixed(2)}` : ''),
       priority: this.plan.getPosture(faction).primary,
       strategy: this.strategy.getStrategy(faction.id) ?? '—',
       goal: describeGoal(goal),

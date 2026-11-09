@@ -27,8 +27,11 @@ preset.
 
 ## Configuration (`services/new-game.models.ts`, `services/new-game-config.ts`)
 
-`NewGameConfig = { galaxySize, players: PlayerSetup[], seed? }`,
-`PlayerSetup = { name, color, controller: 'human' | 'ai', difficulty }`.
+`NewGameConfig = { galaxySize, players: PlayerSetup[], seed?, tutorial? }`,
+`PlayerSetup = { name, color, controller: 'human' | 'ai', difficulty }`. `tutorial` (missing = on;
+the TUTORIAL checkbox above START) is applied by `NewGameService.startNewGame` only, so headless
+`createGame` callers (simulations) never get it. Adaptive difficulty is not part of the
+configuration: it is a global Options setting (see Adaptive difficulty below).
 
 Rules (enforced by `validateNewGameConfig`, kept true by the UI helpers):
 
@@ -138,15 +141,64 @@ separate AI implementation.
 | Attack strength advantage     | 1.6×    | 1.2×     | 1.0×       | `EnemyStrategyService`, `EnemyFleetService` (accepted risk) |
 | Combat forecast (decision quality) | no (summed strength) | yes | yes | `EnemyFleetService` interceptions and retreats |
 | Reaction interval (fleet decisions) | 4 s | 2 s | 2 s | `EnemyFleetService` |
-| Income multiplier (gains only)| 0.75    | 1        | 1.3        | `EconomyService`        |
+| Income multiplier (gains only)| 0.7     | 1        | 1.3        | `EconomyService`        |
+| Navy target (strength and ship cap) | 0.6× | 0.85×  | 1×         | `EnemyEconomyService.militaryNeed` |
+| Colonization pause after a planet gain | 360 s | 120 s | none   | `EnemyGoalService`      |
+| Opening grace (no attack on the player) | 600 s | 360 s | 240 s | `opening-grace.ts`      |
+| Adaptive band (`aiAdaptiveFactor`) | 0.6–1.1 | 0.75–1.2 | 0.9–1.35 | `AiAdaptiveDifficultyService` |
+| Adaptive target (AI power / player power) | 0.85 | 1 | 1.2     | `AiAdaptiveDifficultyService` |
 | Starting resources            | 0.75×   | 1×       | 1.5×       | generator               |
-| Starting fleets               | 2 frigates | human roster | human roster + 4 destroyers | generator |
-| Extra home-system colonies    | 0       | 1        | 2          | generator               |
+| Starting fleets               | human roster (2 scouts + 1 fighter) | 2 frigates | 2 frigates + 3 cruisers | generator |
+| Extra home-system colonies    | 0       | 0        | 2          | generator               |
 
-`normal` is the reference setting: factions without `aiDifficulty` (older saves, the legacy map)
-are treated as Normal. Difficulty changes decision quality (forecast vs crude strength sums,
-reaction speed, risk appetite) and the income multiplier on legitimately produced income; it never
-bypasses game rules.
+`normal` is the reference setting for decision quality: factions without `aiDifficulty` (older
+saves, the legacy map) are treated as Normal. Difficulty changes decision quality (forecast vs
+crude strength sums, reaction speed, risk appetite), tempo (navy size, colonization pause, opening
+grace) and the income multiplier on legitimately produced income; it never bypasses game rules.
+
+**Tempo values (2026-11-09).** Play testing found every difficulty too fast for a human. The APM
+report ([AI Pipeline](./ai-pipeline.md#action-ledger-aiactionledger)) showed the AI acts only 4–8 times per game minute on
+every difficulty, so the gap is expansion pace and navy size, not decision speed. Easy and Normal
+were therefore slowed on tempo: lower navy target, a colonization pause, a longer opening grace, no
+extra starting colony on Normal, Easy income 0.75 → 0.7. Measured with a passive player on a small
+map after 30 minutes (seeds 31337 and 4242): AI planets Easy 2–5 (before 6–7), Normal 4–8 (before
+6–8), Hard 5–9 (unchanged); warships Normal 13–17 (before 16–21). Rejected while tuning:
+
+- Easy income 0.6: Easy AIs founded their first colony only after 10–15 minutes.
+- Normal pause 240 s: on the large map (late-economy acceptance test) the technologist lost the
+  land race to its neighbours during the pauses and founded 2 colonies in 90 minutes; at 120 s it
+  founds 5. The same run exposed the stale-target idle fixed in
+  [AI Pipeline](./ai-pipeline.md#colonization).
+
+The colonization pause runs from the last planet gain (colonization or conquest) and only blocks
+starting a new colonize goal; a run already under way continues. It is in memory, so after a
+load the first colonization is not delayed.
+
+### Adaptive difficulty (`components/star-map/ai-adaptive-difficulty.service.ts`)
+
+**ADAPTIVE AI** is a global setting in the Options menu (`AiSettingsService`, localStorage key
+`orion_ai_adaptive`, not in saves, default on). It applies to every game, including saves made
+before it existed, and takes effect at once. The App root component creates the service, which
+pushes the stored value into a module-level switch in `ai-difficulty.ts`
+(`setAdaptiveDifficultyEnabled`), because the economy and AI read the factor from plain
+functions. Headless games (simulations, unit tests) never create it, so the switch stays off and
+their measurements stay comparable.
+
+While it is on, every AI with a difficulty is adaptive; a missing `Faction.aiAdaptiveFactor`
+counts as 1 and is written on the first update. Once per game minute
+`AiAdaptiveDifficultyService` compares each adaptive AI's empire power with the human's
+(the geometric mean of the smoothed ratios of planets, population, combat strength of fleets plus
+reserve, and researched technologies) and moves the factor by 0.05 toward the difficulty's target
+ratio; inside ±15% of the target it holds (no oscillation). The factor is clamped to the
+difficulty's band, so the chosen difficulty still sets the floor and the ceiling. It multiplies
+the AI's income multiplier and navy target and divides its colonization pause; it never changes
+combat rules or grants resources directly. It reads the real world, not the AI's fog-of-war view
+(a game director, not an AI decision), and the AI never reads the power ratio. Nothing changes
+while the player owns no planet. The factor is saved on the faction (optional field, no save
+version change; save validation accepts 0.25–2); the minute accumulator is in memory. With the
+option off the saved factor is kept but ignored (factor 1) and does not move, so turning it back
+on resumes where it stopped. The AI debug panel shows the factor next to the difficulty
+(`normal ×0.85`) while the option is on.
 
 ## AI personality (`components/star-map/ai-personality.ts`)
 

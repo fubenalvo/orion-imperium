@@ -36,6 +36,8 @@ Fixed on 2026-11-01: a request for N ships is queued as N single-ship orders (fu
 
 **Partly addressed (2026-11-03):** a hidden 4-minute opening grace (no AI attack of any kind on the player, every difficulty) was added ([Planet Capture](./planet-capture.md#opening-grace-opening-gracets)). It does not cover the minute-16 loss below; the longer, difficulty-dependent protection against planet assaults is still open.
 
+**Further addressed (2026-11-09):** the grace is now difficulty-dependent (Easy 600 s, Normal 360 s, Hard 240 s), Easy and Normal are slower (navy target, colonization pause, Easy income 0.7, no extra starting colony on Normal) and an optional adaptive difficulty follows the player ([New Game Generation](./new-game-generation.md#ai-difficulty-componentsstar-mapai-difficultyts)). The passive-player survival time below was **not re-measured**; the 25-minute acceptance check is still open.
+
 **Problem.** In S2E (small map, 2 Easy AIs) a passive player lost their homeworld at **minute 16**; on Normal/medium it took 32 minutes, on Hard/large 35. A first-time player who is still learning the planet surface and the energy rule can easily play close to passively for the first 10–15 minutes, so Easy is harsher than its label. Small maps make it worse because the AI is close.
 
 **Files.** `src/app/components/star-map/ai-difficulty.ts` (`AI_DIFFICULTY_PROFILES.easy`: `attackStrengthAdvantage 1.6`, `incomeMultiplier 0.75`, `reactionInterval 2`), `src/app/components/star-map/enemy-invasion.service.ts`, `src/app/components/star-map/enemy-plan.service.ts`, `src/app/services/game-outcome.service.ts`.

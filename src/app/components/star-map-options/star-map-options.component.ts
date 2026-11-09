@@ -3,6 +3,7 @@ import { GameSettingsService } from '../../services/game-settings.service';
 import { UiSoundService } from '../../services/ui-sound.service';
 import { MusicService } from '../../services/music.service';
 import { TutorialService } from '../../services/tutorial.service';
+import { AiSettingsService } from '../../services/ai-settings.service';
 
 /*
  * =========================================================
@@ -12,7 +13,8 @@ import { TutorialService } from '../../services/tutorial.service';
  * Overlay options menu accessible from the main menu and the
  * pause menu: the fog-of-war toggle, the UI sounds toggle
  * (UiSoundService) and the music toggle and volume (MusicService),
- * both remembered in localStorage, and — inside a game — the TUTORIAL
+ * both remembered in localStorage, the global ADAPTIVE AI toggle
+ * (AiSettingsService, localStorage), and — inside a game — the TUTORIAL
  * toggle and RESET TUTORIAL (TutorialService, saved with the game).
  *
  * Lifecycle:
@@ -35,6 +37,7 @@ export class StarMapOptionsComponent {
 
   readonly uiSound = inject(UiSoundService);
   readonly music = inject(MusicService);
+  readonly aiSettings = inject(AiSettingsService);
   /* In a game only: the tutorial flag belongs to the running game (docs/tutorial-hints.md). */
   readonly tutorial = inject(TutorialService);
 

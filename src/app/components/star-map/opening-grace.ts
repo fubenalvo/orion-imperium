@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Faction, Fleet } from './star-map.models';
+import { AI_DIFFICULTY_PROFILES, getAiDifficultyProfile } from './ai-difficulty';
 
 /*
  * =========================================================
@@ -7,7 +8,8 @@ import { Faction, Fleet } from './star-map.models';
  * =========================================================
  *
  * Every game starts with everyone at war with everyone (docs/diplomacy.md).
- * For the first OPENING_GRACE_SECONDS of game time an AI still does not
+ * For the first openingGraceSeconds of game time (per attacking AI, from its
+ * difficulty: Easy 600 s, Normal 360 s, Hard 240 s) an AI still does not
  * attack the human player: the war stands on paper, but no AI starts a
  * fleet battle, a planet assault or a station battle against the player,
  * and the AI layers do not pick the player's fleets or planets as attack
@@ -22,23 +24,25 @@ import { Faction, Fleet } from './star-map.models';
  * - The clock is the saved game clock (StarMapData.gameSeconds), so the
  *   grace survives save/load and ends at the same moment at any speed.
  *
- * The 240 s value is a first guess, not a measured balance value: watch
+ * The values are guesses, not measured balance values (Hard keeps the
+ * original 240 s; Easy and Normal were lengthened 2026-11-09): watch
  * the opening in play (and the passive-player survival times in the QA
  * runs, docs/qa-fix-prompts.md) and change it if the opening is still too
  * harsh or too soft. See docs/planet-capture.md, "Opening grace".
  */
-export const OPENING_GRACE_SECONDS = 240;
+/* The grace of an AI without a difficulty (treated as Normal). */
+export const OPENING_GRACE_SECONDS = AI_DIFFICULTY_PROFILES.normal.openingGraceSeconds;
 
 /* The human player's faction (the codebase's single human empire). */
 const HUMAN_FACTION_ID = 'player';
 
 /* True while `attacker` (an AI) must not attack `target` (the human). */
 export function isSparedByOpeningGrace(
-  attacker: Pick<Faction, 'ai'> | undefined,
+  attacker: Pick<Faction, 'ai' | 'aiDifficulty'> | undefined,
   target: Pick<Faction, 'id'> | string | undefined,
   gameSeconds: number,
 ): boolean {
-  if (!(gameSeconds < OPENING_GRACE_SECONDS) || attacker?.ai !== true) return false;
+  if (attacker?.ai !== true || !(gameSeconds < getAiDifficultyProfile(attacker).openingGraceSeconds)) return false;
   const targetId = typeof target === 'string' ? target : target?.id;
   return targetId === HUMAN_FACTION_ID;
 }
@@ -84,7 +88,7 @@ export class OpeningGraceService {
     return this.seconds;
   }
 
-  spares(attacker: Pick<Faction, 'ai'> | undefined, target: Pick<Faction, 'id'> | string | undefined): boolean {
+  spares(attacker: Pick<Faction, 'ai' | 'aiDifficulty'> | undefined, target: Pick<Faction, 'id'> | string | undefined): boolean {
     return isSparedByOpeningGrace(attacker, target, this.seconds);
   }
 

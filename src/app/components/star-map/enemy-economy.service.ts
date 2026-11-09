@@ -23,6 +23,7 @@ import { FleetAssemblyService } from '../../services/fleet-assembly.service';
 import { canSupportNewColony, isCombatShipType } from './ai-queries';
 import { EnemyPlanService } from './enemy-plan.service';
 import { getAiPersonalityProfile } from './ai-personality';
+import { getAiMilitaryMultiplier } from './ai-difficulty';
 import planetData from './planet-data.json';
 import { ResourceCost, addCosts, buildingCost, canAffordCost, payCost, shipCost } from '../../services/resource-cost';
 import { hostileFactionIds } from './diplomacy';
@@ -1399,6 +1400,9 @@ export class EnemyEconomyService {
     target = Math.max(target, this.nearbyThreatStrength(faction, ownedSystems, context) * EnemyEconomyService.THREAT_COVER);
     // Posture: personality preference and current threat level.
     target *= this.planService.getPosture(faction).militaryTargetMultiplier;
+    // Difficulty tempo and adaptive factor (ai-difficulty.ts); also scales the ship cap below.
+    const difficultyScale = getAiMilitaryMultiplier(faction);
+    target *= difficultyScale;
     if (wealthy) {
       // Each HOARD_THRESHOLD of surplus credits adds another baseline's
       // worth of strength; WEALTHY_SHIP_CAP bounds the result.
@@ -1421,7 +1425,7 @@ export class EnemyEconomyService {
     const count = fleetShips.length + stockShips.length + queued.reduce((sum, o) => sum + o.quantity, 0);
     // Personality scales the ship cap (bounded): militarists field larger navies.
     const capScale = Math.min(1.5, getAiPersonalityProfile(faction).militaryTarget);
-    const cap = Math.round((wealthy ? EnemyEconomyService.WEALTHY_SHIP_CAP : EnemyEconomyService.MILITARY_SHIP_CAP) * capScale);
+    const cap = Math.round((wealthy ? EnemyEconomyService.WEALTHY_SHIP_CAP : EnemyEconomyService.MILITARY_SHIP_CAP) * capScale * difficultyScale);
     return { strength: target - current, slots: cap - count };
   }
 

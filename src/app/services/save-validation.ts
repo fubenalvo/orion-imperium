@@ -1,4 +1,5 @@
 import { isAiPersonality } from '../components/star-map/ai-personality';
+import { ADAPTIVE_FACTOR_LIMITS } from '../components/star-map/ai-difficulty';
 import { isWellFormedNebula } from '../components/star-map/nebula';
 import { isWellFormedAsteroid } from '../components/star-map/drifting-asteroids';
 import { isWellFormedBelt } from '../components/star-map/asteroid-belts';
@@ -558,6 +559,11 @@ export function validateSaveData(
       const difficulty = (faction as { aiDifficulty?: unknown } | null)?.aiDifficulty;
       if (difficulty !== undefined && difficulty !== 'easy' && difficulty !== 'normal' && difficulty !== 'hard') {
         errors.push(error('ai_difficulty_invalid', `factions[${i}].aiDifficulty`, 'aiDifficulty must be easy, normal, or hard'));
+      }
+      const adaptive = (faction as { aiAdaptiveFactor?: unknown } | null)?.aiAdaptiveFactor;
+      if (adaptive !== undefined && (typeof adaptive !== 'number' || !Number.isFinite(adaptive)
+        || adaptive < ADAPTIVE_FACTOR_LIMITS[0] || adaptive > ADAPTIVE_FACTOR_LIMITS[1])) {
+        errors.push(error('ai_adaptive_factor_invalid', `factions[${i}].aiAdaptiveFactor`, 'aiAdaptiveFactor must be a number between 0.25 and 2'));
       }
       const personality = (faction as { aiPersonality?: unknown } | null)?.aiPersonality;
       if (personality !== undefined && !isAiPersonality(personality)) {

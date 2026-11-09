@@ -100,9 +100,10 @@ describe('Small galaxy regression', () => {
     expect(civilizationWorlds.length).toBeGreaterThan(0);
     expect(civilizationWorlds.every((p) => p.factionId === 'independent')).toBe(true);
     expect(planets.filter((p) => p.factionId === 'player')).toHaveLength(1);
-    expect(planets.filter((p) => p.factionId === 'enemy1')).toHaveLength(2);
-    expect(planets.filter((p) => p.factionId === 'enemy2')).toHaveLength(2);
-    expect(planets.filter((p) => p.factionId === 'unhabited')).toHaveLength(planets.length - 5 - civilizationWorlds.length);
+    // Normal AIs start with their homeworld only (extraColonies 0, ai-difficulty.ts).
+    expect(planets.filter((p) => p.factionId === 'enemy1')).toHaveLength(1);
+    expect(planets.filter((p) => p.factionId === 'enemy2')).toHaveLength(1);
+    expect(planets.filter((p) => p.factionId === 'unhabited')).toHaveLength(planets.length - 3 - civilizationWorlds.length);
     expect(planets.filter((p) => p.factionId === 'independent')).toHaveLength(civilizationWorlds.length);
   });
 

@@ -40,12 +40,15 @@ describe('AI simulation (headless multi-minute games)', () => {
   /*
    * docs/trade-network.md#ai. Seed 31339 gives a technologist and a balanced
    * AI (both build commerce without a surplus); 31337 an expansionist and a
-   * militarist. Not a health check: over 20 minutes the AIs may fight each other.
+   * militarist. Not a health check: over 25 minutes the AIs may fight each other.
+   * 25, not 20, minutes since Normal lost its extra starting colony and got a
+   * colonization pause (ai-difficulty.ts, 2026-11-09): the technologist's
+   * first Bank now comes after minute 20.
    */
   it.each([31339, 31337])('AIs invest in Banks and Trading Posts by personality, respect the civilization gate and raid only allowed traders (seed %i)', (seed) => {
     const civilizationPlanets = new Set<number>();
     const options: ScenarioOptions = {
-      size: 'medium', aiCount: 2, seconds: 1200, dt: 1 / 60, removePlayerFleets: true, civilizations: true, seed,
+      size: 'medium', aiCount: 2, seconds: 1500, dt: 1 / 60, removePlayerFleets: true, civilizations: true, seed,
       prepare: (data) => {
         for (const planet of data.starSystems.flatMap((s) => s.planetsTiles)) {
           if (planet.civilization !== undefined) civilizationPlanets.add(planet.id);
@@ -61,7 +64,7 @@ describe('AI simulation (headless multi-minute games)', () => {
       // Every personality that builds Trading Posts without a surplus has one,
       // and so do those that build Banks. A militarist builds a post only
       // from a large surplus, which the slower economy since the colony
-      // cores (2026-11) no longer reaches within 20 minutes.
+      // cores (2026-11) no longer reaches within the scenario.
       if (profile.commerce.tradingPosts >= 1) {
         expect(owned(faction.id, 'Trading Post'), `${faction.id} (${faction.aiPersonality}) trading posts`).toBeGreaterThanOrEqual(1);
       }

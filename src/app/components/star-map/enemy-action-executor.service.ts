@@ -94,8 +94,25 @@ export class EnemyActionExecutor {
   private readonly confirmedEngagements = new Map<string, string>();
   // Reason an authoritative service refused the current execution (measurement only).
   private refusal: string | undefined;
+  /*
+   * Set when a colonize move_to_target found its target planet already owned
+   * in the real world although the faction's (fog-of-war) view still shows it
+   * free. StarMapAiTickService takes it after the executor call and abandons
+   * that goal slot, so the carrier does not idle until the goal times out
+   * (measured 2026-11-09: ~5 minutes per stale target, which left a
+   * technologist with 2 colonies in 90 minutes). The refusal itself already
+   * depends on the real state, so dropping the goal reveals nothing new.
+   */
+  private colonizeTargetTaken = false;
   // `${factionId}|${parallel}` → identity of the last counted move order (measurement only).
   private readonly countedMoves = new Map<string, string>();
+
+  /* True once after a tick whose colonize move found its target already owned (see colonizeTargetTaken). */
+  takeColonizeTargetTaken(): boolean {
+    const taken = this.colonizeTargetTaken;
+    this.colonizeTargetTaken = false;
+    return taken;
+  }
 
   reset(): void {
     this.confirmedEngagements.clear();
@@ -136,6 +153,7 @@ export class EnemyActionExecutor {
     }
 
     this.refusal = undefined;
+    this.colonizeTargetTaken = false;
     const executed = this.execute(action, faction, factions, starSystems, production, shipStock, fleets);
     const kind = this.ledgerKind(action);
     if (kind && executed) {
@@ -638,6 +656,7 @@ export class EnemyActionExecutor {
       const system = starSystems.find((s) => s.id === goal.targetSystemId);
       const planet = system?.planetsTiles.find((p) => p.id === goal.targetPlanetId);
       if (!system || !planet || planet.factionId !== 'unhabited') {
+        this.colonizeTargetTaken = planet !== undefined && planet.factionId !== 'unhabited';
         return false;
       }
       destX = system.x;

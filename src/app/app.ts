@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { GameSettingsService } from './services/game-settings.service';
 import { TouchLongPressService } from './services/touch-long-press.service';
 import { UiSoundService } from './services/ui-sound.service';
+import { AiSettingsService } from './services/ai-settings.service';
 import { StarMapOptionsComponent } from './components/star-map-options/star-map-options.component';
 import { OrientationGateComponent } from './components/orientation-gate/orientation-gate.component';
 import { TutorialHintComponent } from './components/tutorial/tutorial-hint.component';
@@ -21,5 +22,7 @@ export class App {
     inject(TouchLongPressService).install();
     // Global UI sound listeners (button hover/press, dialog power on/off).
     inject(UiSoundService).install();
+    // Applies the stored ADAPTIVE AI preference before any game runs (ai-settings.service.ts).
+    inject(AiSettingsService);
   }
 }

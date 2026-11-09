@@ -85,7 +85,7 @@ Assault state is in-memory; a genuine load resets it and assaults are re-planned
 
 ## Opening grace (`opening-grace.ts`)
 
-A hidden difficulty aid. Every game starts with everyone at war with everyone ([Diplomacy](./diplomacy.md#peace-truce-and-war-declarations)), but for the first `OPENING_GRACE_SECONDS` (**240 s = 4 minutes** of game time, on the saved game clock `StarMapData.gameSeconds`) no AI attacks the human player. The war stands on paper; the player is not told about the grace (no notice, no UI).
+A hidden difficulty aid. Every game starts with everyone at war with everyone ([Diplomacy](./diplomacy.md#peace-truce-and-war-declarations)), but for the first `openingGraceSeconds` of the attacking AI's difficulty (**Easy 600 s, Normal 360 s, Hard 240 s** of game time, on the saved game clock `StarMapData.gameSeconds`; `OPENING_GRACE_SECONDS` is Normal's value, used for an AI without a difficulty) no AI attacks the human player. The war stands on paper; the player is not told about the grace (no notice, no UI).
 
 During the grace:
 
@@ -95,7 +95,7 @@ During the grace:
 
 Not affected: the player's own attacks on AI fleets, planets and stations; AI-vs-AI wars; the AI's view of the player as a threat (posture, defend goals), so it can still prepare. `OpeningGraceService` holds the clock for these checks: StarMap sets it on every load and `StarMapAiTickService.tick` on every tick that gets the saved clock. Without a clock (a service used outside a game session, as in unit tests) the grace is off.
 
-**Keep watching this value.** 240 s is a first guess, not a measured balance value. It was added on 2026-11-03 together with the warlike AI temperaments, which make the opening wars much harder to end. Check in play and in the QA runs whether 4 minutes is right: a first-time player should not lose ships or planets to the AI before they know the controls, and the opening should still feel like a war. Change `OPENING_GRACE_SECONDS` if it is too short or too long, and record the reason here. A longer, difficulty-dependent protection against planet assaults is still open as [QA prompt 4](./qa-fix-prompts.md).
+**Keep watching these values.** They are guesses, not measured balance values. The grace was added on 2026-11-03 (240 s for every difficulty) together with the warlike AI temperaments, which make the opening wars much harder to end; on 2026-11-09 Easy and Normal got longer graces because play testing found every difficulty too fast for a human (Hard kept 240 s). Check in play and in the QA runs: a first-time player should not lose ships or planets to the AI before they know the controls, and the opening should still feel like a war. Change `openingGraceSeconds` in `ai-difficulty.ts` if a value is too short or too long, and record the reason here. A longer, difficulty-dependent protection against planet assaults is still open as [QA prompt 4](./qa-fix-prompts.md).
 
 ## Game outcome (`GameOutcomeService`)
 

@@ -133,6 +133,9 @@ describe('AI simulation — Phase 2 economy and expansion', () => {
     const options: ScenarioOptions = {
       size: 'medium',
       aiCount: 2,
+      // Premise: other planets exist from the start. Only Hard still starts
+      // with extra home-system colonies (ai-difficulty.ts extraColonies).
+      difficulty: 'hard',
       seconds: 600,
       dt: 1 / 60,
       removePlayerFleets: true,

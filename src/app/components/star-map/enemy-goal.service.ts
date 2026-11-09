@@ -17,6 +17,7 @@ import { EnemyReachService } from './enemy-reach.service';
 import { TerritoryService } from './territory.service';
 import { isAsteroidSurveyedBy, rawOutlook, rawSupplyPressure } from './raw-deposits';
 import { OpeningGraceService } from './opening-grace';
+import { getAiColonizationCooldown } from './ai-difficulty';
 
 /*
  * =========================================================
@@ -100,6 +101,16 @@ export class EnemyGoalService {
   // filled when EnemyProgressService abandons a stuck attack goal.
   private readonly abandonedAttackTargets = new Map<string, Map<number, number>>();
   private readonly ATTACK_RETRY_DELAY = 120;
+  /*
+   * Colonization pause (difficulty tempo, ai-difficulty.ts): owned planet
+   * count at the last tick and the clock time it last grew (colonization or
+   * conquest). No new colonize goal starts until the faction's
+   * getAiColonizationCooldown has passed since that growth; goals already
+   * running continue. In memory only: after a load the first colonization
+   * is not delayed.
+   */
+  private readonly planetCounts = new Map<string, number>();
+  private readonly lastGrowthAt = new Map<string, number>();
 
   constructor(
     private readonly shipService: ShipService,
@@ -117,6 +128,8 @@ export class EnemyGoalService {
     this.colonizationGoals.clear();
     this.colonizationStartedAt.clear();
     this.abandonedAttackTargets.clear();
+    this.planetCounts.clear();
+    this.lastGrowthAt.clear();
   }
 
   /* The parallel colonization objective, if any (never equal to the primary goal). */
@@ -166,6 +179,10 @@ export class EnemyGoalService {
     this.clocks.set(factionId, clock);
     this.colonizationReach.set(factionId, this.reachService.getReach(factions.find((f) => f.id === factionId)));
     this.ownedSystemsCache.set(factionId, starSystems.filter((s) => s.planetsTiles.some((p) => p.factionId === factionId)));
+    const planetCount = starSystems.reduce((n, s) => n + s.planetsTiles.filter((p) => p.factionId === factionId).length, 0);
+    const previousCount = this.planetCounts.get(factionId);
+    if (previousCount !== undefined && planetCount > previousCount) this.lastGrowthAt.set(factionId, clock);
+    this.planetCounts.set(factionId, planetCount);
 
     const accumulator = (this.accumulators.get(factionId) ?? 0) + gameDeltaTime;
     if (accumulator < this.STRATEGY_TICK_INTERVAL) {
@@ -359,6 +376,13 @@ export class EnemyGoalService {
     }
   }
 
+  /* True while the difficulty's colonization pause since the last planet gain runs (see planetCounts). */
+  private isColonizationPaused(factionId: string, faction: Faction | undefined): boolean {
+    const grewAt = this.lastGrowthAt.get(factionId);
+    if (grewAt === undefined) return false;
+    return (this.clocks.get(factionId) ?? 0) - grewAt < getAiColonizationCooldown(faction);
+  }
+
   private selectColonizeGoal(
     factionId: string,
     fleets: Fleet[],
@@ -374,6 +398,9 @@ export class EnemyGoalService {
     );
 
     if (enemyFleets.length === 0 || candidates.length === 0) {
+      return undefined;
+    }
+    if (this.isColonizationPaused(factionId, self)) {
       return undefined;
     }
 

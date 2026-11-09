@@ -19,6 +19,7 @@ System-level description of how AI-controlled factions (`Faction.ai === true`) m
    6. `EnemyActionExecutor` — executes the current action every frame, through the regular game services (production, fleet assembly, movement targets, planet ownership).
    7. `EnemyEconomyService` — background economy per faction (construction, military production, deployment), every 2 s, **independent of the current goal**; then `EnemyMiningService` — asteroid mining with outpost ships, every 3 s ([Asteroid mining](#asteroid-mining-enemyminingservice)); then `EnemyEquipmentService` — ship equipment modules (build and install), every 5 s ([Ship equipment](#ship-equipment-enemyequipmentservice)).
    8. `EnemyProgressService` — deadlock detection and targeted replanning (every 10 s).
+   9. `AiAdaptiveDifficultyService` — adaptive difficulty factor of adaptive AIs (every 60 s; see Personalities and difficulty).
 3. Production, then the 1 s economy tick.
 
 Layers 2–5 only inspect state; the executor, the economy, mining, fleet and research services and `EnemyAiService` (fleet targets) mutate game state. Movement set in frame N takes effect in frame N+1 because movement runs before the AI.
@@ -146,7 +147,7 @@ reach = `AI_COLONIZATION_REACH` (60) × personality reach (expansionist 1.35) ×
 
 ## Personalities and difficulty
 
-**Opening grace.** For the first 240 s of game time no AI layer attacks the human player (assaults, interceptions, pursuit, attack goals, raids); threat and defense still see the player. Hidden from the player and a value to keep watching; rules in [Planet Capture](./planet-capture.md#opening-grace-opening-gracets).
+**Opening grace.** For the first seconds of game time set by the attacking AI's difficulty (Easy 600 s, Normal 360 s, Hard 240 s) no AI layer attacks the human player (assaults, interceptions, pursuit, attack goals, raids); threat and defense still see the player. Hidden from the player and a value to keep watching; rules in [Planet Capture](./planet-capture.md#opening-grace-opening-gracets).
 
 Data in `ai-personality.ts` and `ai-difficulty.ts`. Personalities never change rules or grant resources:
 
@@ -166,6 +167,8 @@ Data in `ai-personality.ts` and `ai-difficulty.ts`. Personalities never change r
 Credits are every faction's research bottleneck (research costs 4 credits per point), so more labs alone do not make a faction research more. The technologist therefore pays for research with a smaller navy (military target ×0.6), slower expansion (weight 0.75) and `fundsResearchFirst`: its research credit reserve is kept even from colonizer purchases (`EnemyActionExecutor.executeProduceColonizer`), and it reserves its research target's credits before the points are banked. The simulation (15 minutes, two AIs per personality) requires technologists to acquire at least 10% more research volume than militarists; they may buy slightly fewer — but more expensive — technologies. The price: a technologist's first colonizer waits until its research target is funded, so it expands later than the other personalities.
 
 Difficulty affects decision quality: Normal/Hard judge interceptions and retreats with a battle forecast (real combat rules); Easy uses summed strength and decides fleet moves every 4 s instead of 2 s. `attackStrengthAdvantage` sets the accepted risk (with a forecast: the attackers must keep ≥ 1 − 1/advantage of their strength). The income multiplier remains the only economic advantage.
+
+Difficulty also sets the tempo (2026-11-09; values and measurements in [New Game Generation](./new-game-generation.md#ai-difficulty-componentsstar-mapai-difficultyts)): `militaryTargetMultiplier` scales the navy target and ship cap in `EnemyEconomyService.militaryNeed` (on top of the personality), and `colonizationCooldownSeconds` keeps `EnemyGoalService` from starting a new colonize goal until that long after the faction's planet count last grew. **Adaptive difficulty** (`AiAdaptiveDifficultyService`, last step of the tick, once per game minute) while the global ADAPTIVE AI option is on (Options menu, `AiSettingsService`) moves `Faction.aiAdaptiveFactor` inside the difficulty's band from the AI-to-player power ratio; the factor multiplies the income multiplier and the navy target and divides the colonization pause. It reads the real world; no AI layer reads the ratio.
 
 ## Fleet movement ownership
 
@@ -284,6 +287,8 @@ Both from the late-economy work ([Late Economy](./late-economy.md)), in `EnemyEc
 5. **Travel:** `move_to_target` to the target system; the carrier is reserved so nothing else retargets it. No-op once parked at the destination.
 6. **Arrival / colonize:** arrival is judged on the galaxy map (`Math.floor(fleet.x/y)` equals the system cell). The executor colonizes with the colonizer-carrying fleet, removes that colonizer, sets `planet.factionId`, and retires the fleet if it is now empty. The planet is no longer `unhabited`, so this runs exactly once.
 7. **Next objective:** the goal becomes invalid and the next goal is selected on the following goal tick.
+
+**Stale targets:** the goal layer chooses from the fog-of-war view, the executor checks the real planet. When `move_to_target` finds the target planet already owned, `StarMapAiTickService` abandons that goal slot at once (`EnemyActionExecutor.takeColonizeTargetTaken`; the target is skipped for 600 s like a timed-out one), so the carrier picks the next target instead of idling until the timeout. Before 2026-11-09 each stale target cost ~5 minutes, which left a technologist boxed in by its neighbours with 2 colonies in 90 minutes.
 
 **Failure recovery:** a colonization goal still unfinished after 480 s (production + assembly + ~300 s maximum travel, with margin) is abandoned and its target is skipped for 600 s. A lost colonizer is simply rebuilt while the goal is valid; a faction with no remaining targets gets no colonize goal and keeps developing through the economy service.
 

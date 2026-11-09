@@ -6,7 +6,7 @@ import { ProductionService } from './production.service';
 import { ShipStockService } from './ship-stock.service';
 import { ResearchService, TechModifiers } from './research.service';
 import planetData from '../components/star-map/planet-data.json';
-import { getAiDifficultyProfile } from '../components/star-map/ai-difficulty';
+import { getAiIncomeMultiplier } from '../components/star-map/ai-difficulty';
 import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
 import { extractMiningStations, miningRatePerSecond } from '../components/star-map/mining-station';
 import { SpaceBaseService } from '../components/star-map/space-base.service';
@@ -35,13 +35,14 @@ import { comfortCoverage, comfortNeed, comfortProvided, excessShare, satisfactio
 
 /*
  * Multiplier on a faction's gains (credit income, raw and research output;
- * never costs): the AI difficulty multiplier (1 for the human) reduced by
+ * never costs): the AI difficulty multiplier including the adaptive factor
+ * (ai-difficulty.ts getAiIncomeMultiplier; 1 for the human) reduced by
  * the war-exhaustion penalty (docs/diplomacy.md), so the HUD, the economy
  * tick and the AI all see the same reduced numbers.
  */
 function gainMultiplier(faction: Faction | null | undefined): number {
   if (!faction) return 1;
-  return getAiDifficultyProfile(faction).incomeMultiplier * (1 - getWarExhaustionPenalty(faction));
+  return getAiIncomeMultiplier(faction) * (1 - getWarExhaustionPenalty(faction));
 }
 
 /*

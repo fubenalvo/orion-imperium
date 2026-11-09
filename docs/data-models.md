@@ -43,6 +43,7 @@ The root save format. Contains everything needed to reconstruct a game session:
 - `ai?: boolean`: `true` when the AI pipeline should tick this faction. Replaces the previous hardcoded `enemy1`/`enemy2` ID sets — any faction with `ai: true` is managed by the AI layers (V3 target selection → V4.1 strategy → V4.2 goal → V4.3 capability → V5 action → V5.1/V5.2 execution). `false` for player and neutral factions. Set by the galaxy generator.
 - `aiPersonality?`: `'balanced' | 'expansionist' | 'militarist' | 'technologist'` – only for `ai: true`; profiles in `ai-personality.ts`; missing (older saves, legacy map) is `'balanced'`; validated by `save-validation.ts` when present.
 - `aiDifficulty?`: `'easy' | 'normal' | 'hard'` – only for `ai: true`. Tuning lives in `ai-difficulty.ts`; set by the galaxy generator; missing is treated as `'normal'`
+- `aiAdaptiveFactor?`: number – adaptive difficulty factor of an AI faction, written once per game minute while the global ADAPTIVE AI option (Options menu, `AiSettingsService`) is on (missing = 1; kept but ignored while the option is off). Clamped to the difficulty's band when read; moved by `AiAdaptiveDifficultyService`; save validation accepts 0.25–2. See [New Game Generation](./new-game-generation.md#adaptive-difficulty-componentsstar-mapai-adaptive-difficultyservicets).
 - `currencies`: `Record<string, number>` containing at least `credits`, `rawmaterials`, `research`
 
 ## Ship Stock & Production

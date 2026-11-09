@@ -11,6 +11,7 @@ import {
   mapCenter,
 } from './galaxy-generator.service';
 import { validateGeneratedGalaxy } from './galaxy-validation';
+import { AI_DIFFICULTY_PROFILES } from '../components/star-map/ai-difficulty';
 import { GALAXY_SIZE_PRESETS, NewGameConfig, PLAYER_COLOR_PALETTE } from './new-game.models';
 import { addPlayer, createDefaultNewGameConfig, setGalaxySize } from './new-game-config';
 import { INITIAL_WAR_LOCK_SECONDS } from '../components/star-map/diplomacy';
@@ -284,7 +285,9 @@ describe('GalaxyGeneratorService', () => {
     const hard = withDifficulty('hard');
     expect(easy.credits).toBeLessThan(normal.credits);
     expect(normal.credits).toBeLessThan(hard.credits);
-    expect(easy.planets).toBeLessThan(normal.planets);
+    expect(easy.planets).toBe(1 + AI_DIFFICULTY_PROFILES.easy.extraColonies);
+    expect(normal.planets).toBe(1 + AI_DIFFICULTY_PROFILES.normal.extraColonies);
+    expect(hard.planets).toBe(1 + AI_DIFFICULTY_PROFILES.hard.extraColonies);
     expect(normal.planets).toBeLessThan(hard.planets);
     expect(easy.ships).toBeLessThan(normal.ships);
     expect(normal.ships).toBeLessThan(hard.ships);

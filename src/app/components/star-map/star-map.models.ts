@@ -143,6 +143,14 @@ export interface Faction {
    * missing on older saves and the legacy map, treated as 'balanced'.
    */
   aiPersonality?: AiPersonality;
+  /*
+   * Adaptive difficulty (ai-difficulty.ts): written by
+   * AiAdaptiveDifficultyService once per game minute while the global
+   * ADAPTIVE AI option is on; multiplies income, navy target and
+   * colonization pace inside the difficulty's band. Missing = 1. Kept but
+   * ignored while the option is off.
+   */
+  aiAdaptiveFactor?: number;
   currencies: Record<string, number>;
   researchedTechnologies?: string[];
   /*

@@ -23,6 +23,7 @@ import { EnemyDiplomacyService } from './enemy-diplomacy.service';
 import { DiplomacyService } from '../../services/diplomacy.service';
 import { OpeningGraceService } from './opening-grace';
 import { AiActionLedger } from './ai-action-ledger';
+import { AiAdaptiveDifficultyService } from './ai-adaptive-difficulty.service';
 
 /*
  * =========================================================
@@ -60,6 +61,8 @@ import { AiActionLedger } from './ai-action-ledger';
  * AI treaty decisions (EnemyDiplomacyService) run first in every tick.
  * AiActionLedger (measurement only) gets its game clock here and is reset
  * with the pipeline; it is kept across the battle-screen round trip.
+ * AiAdaptiveDifficultyService (adaptive difficulty factor) runs last, once
+ * per game minute.
  */
 @Injectable({ providedIn: 'root' })
 export class StarMapAiTickService {
@@ -85,6 +88,7 @@ export class StarMapAiTickService {
     private enemyDysonService: EnemyDysonService,
     private openingGrace: OpeningGraceService,
     private actionLedger: AiActionLedger,
+    private adaptiveDifficulty: AiAdaptiveDifficultyService,
   ) {}
 
   // Cadence of the parallel colonization objective's action evaluation.
@@ -281,6 +285,7 @@ export class StarMapAiTickService {
       if (gameDeltaTime > 0) {
         this.enemyProgressService.recordExecution(factionId, action, executed);
       }
+      if (this.enemyActionExecutor.takeColonizeTargetTaken()) this.enemyGoalService.abandonGoal(factionId, 'primary');
       actionExecuted = executed || actionExecuted;
       // One writer per fleet: if the parallel colonization slot holds the
       // same fleet as the primary action (a carrier re-bound between their
@@ -302,6 +307,9 @@ export class StarMapAiTickService {
         data.fleets,
         true,
       ) || actionExecuted;
+      if (!sharesPrimaryFleet && this.enemyActionExecutor.takeColonizeTargetTaken()) {
+        this.enemyGoalService.abandonGoal(factionId, 'colonization');
+      }
     }
 
     // Background economy (construction, military production, deployment)
@@ -346,9 +354,10 @@ export class StarMapAiTickService {
     }
 
     this.actionLedger.sampleIfDue(data.factions, data.starSystems, data.fleets);
+    const adaptiveChanged = this.adaptiveDifficulty.tick(gameDeltaTime, data);
 
     return diplomacyChanged || operationsChanged || aiChanged || strategyChanged || goalChanged || actionChanged
-      || actionExecuted || economyChanged || recoveryChanged;
+      || actionExecuted || economyChanged || recoveryChanged || adaptiveChanged;
   }
 
   /*
@@ -379,6 +388,7 @@ export class StarMapAiTickService {
     this.enemyDysonService.reset();
     this.colonizationAccumulators.clear();
     this.actionLedger.reset();
+    this.adaptiveDifficulty.reset();
   }
 
   /*

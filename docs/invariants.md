@@ -333,7 +333,7 @@ See [Planet Capture](./planet-capture.md).
 
 ## Opening grace
 
-- **No AI aggression against the player before `OPENING_GRACE_SECONDS`** of the saved game clock: no AI-started fleet battle, planet assault or capture, station battle, interception or trader raid against the human. The player's own attacks and AI-vs-AI wars are never blocked. Every check goes through `opening-grace.ts`, so the rule has one source of truth. See [Planet Capture](./planet-capture.md#opening-grace-opening-gracets).
+- **No AI aggression against the player before the attacking AI's `openingGraceSeconds`** (by difficulty, `ai-difficulty.ts`) of the saved game clock: no AI-started fleet battle, planet assault or capture, station battle, interception or trader raid against the human. The player's own attacks and AI-vs-AI wars are never blocked. Every check goes through `opening-grace.ts`, so the rule has one source of truth. See [Planet Capture](./planet-capture.md#opening-grace-opening-gracets).
 
 ## Exploration anomalies
 
