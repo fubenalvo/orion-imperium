@@ -93,6 +93,21 @@
       </div>
     }
 
+    <!-- JUMP POINT: where fleets enter the system (system-grid.ts). Quiet ring
+         normally; pulses red with a label while hostiles are at or near it. -->
+    <div
+      class="jump-point"
+      [class.jump-point--alert]="!!entryAlert"
+      [style.left]="entryPoint.x + 'vw'"
+      [style.top]="entryPoint.y + 'vw'"
+      aria-hidden="true"
+    >
+      <span class="jump-point__ring"></span>
+      @if (entryAlert) {
+        <span class="jump-point__label" role="status">{{ entryAlertLabel }}</span>
+      }
+    </div>
+
     <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
     @if (sensorRangeEnabled) {
       @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {

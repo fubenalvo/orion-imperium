@@ -32,7 +32,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 
 - On `enterSystem()`:
   - `currentView` is set to `'system'`.
-  - Every active fleet whose `x`/`y` cell matches the selected system's cell is given a `SystemLocation` with default position `(2.5, 32.5)` vw if it does not already have one.
+  - Every active fleet whose `x`/`y` cell matches the selected system's cell is given a `SystemLocation` with default position `SYSTEM_FLEET_ENTRY_VW` `(2.5, 17.5)` vw if it does not already have one.
   - `gridCol`/`gridRow` are recalculated from `system.x`/`system.y` for fleets in the system.
   - The visible target marker is updated to the selected fleet's `system.targetX`/`system.targetY` if set, otherwise cleared.
 - On `leaveSystem()`:

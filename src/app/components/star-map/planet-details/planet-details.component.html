@@ -8,7 +8,7 @@
   <div class="planet-details__hint">
     Independent civilization. It trades with every Trading Post and can be conquered.
   </div>
-} @else if (planet?.type !== 'earthlike') {
+} @else if (planet?.type !== 'earthlike' && !compact) {
   <div class="planet-details__hint">{{ planetTypeSummary }}</div>
 }
 
@@ -131,6 +131,12 @@
       <img src="icon-research.png" alt="" width="14" height="14" />
       {{ signed(planetEconomy.netRates.research) }}/s
     </span>
+    @if (compact) {
+      <span [title]="buildingsTooltip">
+        <img src="icon-build.png" alt="" width="14" height="14" />
+        {{ buildingCount }}
+      </span>
+    }
   </div>
 }
 
@@ -149,16 +155,20 @@
         <span class="ui-meter__fill" [style.width.%]="100 - deposit.depletedPercent"></span>
       </span>
     }
-    @if (deposit.status === 'unmined') {
+    @if (deposit.status === 'unmined' && !compact) {
       <div class="planet-details__hint">Build a Mining Complex next to a deposit tile.</div>
     }
   </div>
 }
 
-@if (showBuildings) {
+@if (compact && !planetEconomy && buildingCount > 0) {
+  <div class="ui-label" [title]="buildingsTooltip">
+    <img src="icon-build.png" alt="" width="14" height="14" /> Buildings · {{ buildingCount }}
+  </div>
+} @else if (showBuildings && !compact) {
   <div class="ui-label">
     <img src="icon-build.png" alt="" width="14" height="14" /> Buildings ·
-    {{ planet?.buildings?.length ?? 0 }}
+    {{ buildingCount }}
   </div>
   <div class="planet-details__buildings">
     @for (group of buildingGroups; track group.name) {

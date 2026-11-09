@@ -112,4 +112,4 @@ The AI uses the same placement (`EnemyEconomyService.tryConstruct` → `startBui
 - Turret construction times sit below the suggested military band (see above).
 - No construction queue and no limit on simultaneous sites (see Rules).
 - A site cannot be attacked or damaged in a planet battle; it simply does not fight.
-- The system view's planet card lists sites among the buildings without marking them.
+- The system view's planet card counts sites among the buildings (and lists them in the count's tooltip) without marking them.

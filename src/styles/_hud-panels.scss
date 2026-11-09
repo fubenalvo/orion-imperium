@@ -371,6 +371,44 @@
   }
 }
 
+/* Planet view: the title row also carries the ◀ ▶ planet steppers, which
+   stay on phones (only the word is dropped there). */
+.fleet-buttons__title--steps {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+
+  @include mobile-view {
+    display: flex;
+    justify-content: center;
+
+    .fleet-buttons__title-text {
+      display: none;
+    }
+  }
+}
+
+.fleet-buttons__step {
+  display: inline-flex;
+  gap: 0.25em;
+  margin-left: auto;
+
+  button {
+    @include ui.control-reset;
+    padding: 0.1em 0.45em;
+    border: 1px solid rgba(var(--ui-accent-rgb), 0.35);
+    border-radius: var(--ui-radius);
+    color: var(--ui-ink);
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      border-color: rgba(var(--ui-accent-rgb), 0.8);
+      color: var(--ui-accent);
+    }
+  }
+}
+
 .fleet-btn {
   @include ui.control-reset;
   position: relative;

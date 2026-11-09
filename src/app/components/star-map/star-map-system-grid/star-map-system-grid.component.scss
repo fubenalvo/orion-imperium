@@ -590,7 +590,59 @@
   z-index: 12;
 }
 
+/* Jump point (system-grid.ts SYSTEM_FLEET_ENTRY_VW): a faint ring where
+   fleets enter; red and pulsing while hostiles are at or near it. Never
+   takes the pointer, so move orders onto the entry cell still work. */
+.jump-point {
+  position: absolute;
+  z-index: 6;
+  width: 3vw;
+  height: 3vw;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.jump-point__ring {
+  position: absolute;
+  inset: 0;
+  border: 1px dashed rgba(var(--ui-accent-rgb), 0.35);
+  border-radius: 50%;
+}
+
+.jump-point--alert .jump-point__ring {
+  border: 2px solid var(--ui-danger);
+  box-shadow: 0 0 0.8vw rgba(var(--ui-danger-rgb), 0.7);
+  animation: jump-point-pulse 1.1s ease-in-out infinite;
+}
+
+.jump-point__label {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 0.4vw);
+  transform: translateY(-50%);
+  padding: 0.15em 0.5em;
+  border-radius: var(--ui-radius);
+  background: rgba(30, 6, 6, 0.8);
+  color: var(--ui-danger-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+@keyframes jump-point-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.55;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .jump-point--alert .jump-point__ring,
   .sun-rays,
   .sun-glow,
   .sun-core::before,

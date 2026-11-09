@@ -7,7 +7,9 @@ import { depletionFraction } from '../raw-deposits';
 import { isStationComplete } from '../station-construction';
 import { StarMapMovementService } from '../star-map-movement.service';
 import { FleetShipComponent } from '../fleet-ship/fleet-ship.component';
+import { SystemEntryAlert } from '../system-pursuit';
 import {
+  SYSTEM_FLEET_ENTRY_VW,
   SYSTEM_PLANET_FOOTPRINT,
   SYSTEM_SUN_CENTER_X_VW,
   SYSTEM_SUN_CENTER_Y_VW,
@@ -53,6 +55,15 @@ export interface AnomalyCellView {
 })
 export class StarMapSystemGridViewComponent {
   @Input() selectedSystem: StarSystem | null = null;
+  /* Hostile fleets at or approaching the entry point; null keeps the jump point quiet. */
+  @Input() entryAlert: SystemEntryAlert | null = null;
+  readonly entryPoint = SYSTEM_FLEET_ENTRY_VW;
+
+  get entryAlertLabel(): string {
+    const alert = this.entryAlert;
+    if (!alert) return '';
+    return alert.kind === 'present' ? 'HOSTILE AT JUMP POINT' : `HOSTILE INBOUND · ~${Math.max(1, Math.ceil(alert.seconds ?? 0))} S`;
+  }
   @Input() anomalyCells: AnomalyCellView[] = [];
   @Input() selectedFleet: Fleet | null = null;
   @Input() fleets: Fleet[] = [];

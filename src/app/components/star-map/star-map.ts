@@ -229,6 +229,7 @@ import {
   validateMiningStationDeployment,
 } from './mining-station';
 import { SYSTEM_FLEET_ENTRY_VW } from './system-grid';
+import { SystemEntryAlert, systemEntryAlert } from './system-pursuit';
 import { minedDepositsOf } from './raw-deposits';
 import { AnomalyContext, AnomalyEventVm, AnomalyService } from './anomaly.service';
 import { StarMapAnomalyEventComponent } from './star-map-anomaly-event/star-map-anomaly-event.component';
@@ -358,6 +359,17 @@ loadError = '';
   private gameSeconds = 0;
   // Short gameplay notice on the galaxy HUD (asteroid collected, route blocked…).
   mapNotice: string | null = null;
+  /*
+   * The selected player fleet that just stopped on a star system's galaxy
+   * cell, which the map offers to enter (view state only, never saved). The
+   * prompt hides itself once the fleet is deselected, gets a new order or
+   * the view changes (see systemArrivalPrompt).
+   */
+  private systemArrival: { fleetId: number; systemId: string } | null = null;
+  /* Jump-point warning of the viewed system (system-pursuit.ts), refreshed each frame in the system view. */
+  systemEntryAlert: SystemEntryAlert | null = null;
+  /* Hostile fleets already announced for the viewed system, so each one raises one notice per visit. */
+  private announcedSystemThreats = new Set<number>();
   /* Throttles redraws of construction progress to once per second of game time. */
   private constructionRedrawClock = 0;
   /* Game time collected for the next fleet repair step (fleet-repair.ts). */
@@ -1877,6 +1889,11 @@ loadError = '';
   leaveSystem(): void {
     this.saveGame();
     this.currentView = 'map';
+    // Back on the map over the system just left (it may have been opened
+    // from the roster or by switching planets); the fleet selection stays.
+    if (this.selectedSystem) {
+      this.centerCameraOnGridPosition(this.selectedSystem.x, this.selectedSystem.y);
+    }
 
     for (const fleet of this.fleets) {
       if (fleet.destroyed) {
@@ -3012,6 +3029,40 @@ loadError = '';
     this.cdr.detectChanges();
   }
 
+  /* Remembers a map arrival of the selected player fleet on a star system's cell. */
+  private offerSystemEntry(fleet: Fleet): void {
+    this.systemArrival = null;
+    if (this.currentView !== 'map' || fleet.factionId !== 'player') return;
+    const system = this.starSystems.find((s) => this.movementService.isFleetInSystem(fleet, s));
+    if (system) this.systemArrival = { fleetId: fleet.id, systemId: system.id };
+  }
+
+  /* The "enter system?" prompt for the galaxy map, or null when it does not apply any more. */
+  get systemArrivalPrompt(): { fleetName: string; systemName: string } | null {
+    const arrival = this.systemArrival;
+    const fleet = this.selectedFleet;
+    if (!arrival || this.currentView !== 'map' || fleet?.id !== arrival.fleetId || fleet.destroyed) return null;
+    if (fleet.targetX !== null || fleet.targetY !== null) return null;
+    const system = this.starSystems.find((s) => s.id === arrival.systemId);
+    if (!system || !this.movementService.isFleetInSystem(fleet, system)) return null;
+    return { fleetName: fleet.name, systemName: system.name };
+  }
+
+  /* Enters the system the selected fleet arrived at, keeping the fleet selected so it can move on at once. */
+  enterArrivedSystem(): void {
+    const system = this.systemArrival && this.starSystems.find((s) => s.id === this.systemArrival!.systemId);
+    this.systemArrival = null;
+    if (!system) return;
+    this.selectedSystem = system;
+    this.selectedPlanetTile = null;
+    this.enterSystem();
+    this.cdr.detectChanges();
+  }
+
+  dismissSystemArrival(): void {
+    this.systemArrival = null;
+  }
+
   /** Clears the current fleet selection and its movement target. */
   deselectFleet(): void {
     this.selectedFleet = null;
@@ -3418,8 +3469,32 @@ loadError = '';
     }
   }
 
+  /*
+   * Map double click (touch: double tap) on a star system enters it. Detected
+   * here from two clicks instead of the dblclick event, because mobile
+   * browsers do not fire dblclick reliably on a map with touch-action: none,
+   * and a touch long-press is already the move order (TouchLongPressService).
+   */
+  private static readonly SYSTEM_DOUBLE_CLICK_MS = 400;
+  private lastSystemClick: { systemId: string; at: number } | null = null;
+
   /** Handles a click on a star system, showing a context menu if objects overlap. */
   onSystemClick(system: StarSystem, event: MouseEvent): void {
+    if (this.currentView === 'map') {
+      const now = performance.now();
+      const last = this.lastSystemClick;
+      const isDouble = last?.systemId === system.id && now - last.at <= StarMap.SYSTEM_DOUBLE_CLICK_MS;
+      this.lastSystemClick = isDouble ? null : { systemId: system.id, at: now };
+      if (isDouble) {
+        event.stopPropagation();
+        this.closeContextMenu();
+        this.selectedSystem = system;
+        this.selectedPlanetTile = null;
+        this.enterSystem();
+        this.cdr.detectChanges();
+        return;
+      }
+    }
     if (this.contextMenu) {
       this.closeContextMenu();
       event.stopPropagation();
@@ -4342,6 +4417,8 @@ loadError = '';
 
   /** Advances fleet movement and checks for new battles each frame. */
   private updateFleets(deltaTime: number): boolean {
+    const pursuitChanged =
+      deltaTime > 0 && this.battleDetectionService.updateSystemPursuit(this.fleets, this.factions, this.starSystems);
     const didMoveFleets = this.movementService.updateFleets(
       this.fleets,
       this.starSystems,
@@ -4352,6 +4429,7 @@ loadError = '';
         if (this.selectedFleet?.id === fleetId) {
           this.targetX = null;
           this.targetY = null;
+          this.offerSystemEntry(this.selectedFleet);
         }
       },
       (fleetId: number) => {
@@ -4425,7 +4503,47 @@ loadError = '';
       );
     }
 
-    return didMoveFleets;
+    const alertChanged = this.updateSystemEntryAlert();
+    return didMoveFleets || pursuitChanged || alertChanged;
+  }
+
+  /*
+   * System view only: fleets that reached the viewed system while the player
+   * watches appear at the entry point (as on entering the view), and the
+   * jump-point warning plus a one-time notice per hostile fleet are updated.
+   */
+  private updateSystemEntryAlert(): boolean {
+    const system = this.currentView === 'system' ? this.selectedSystem : null;
+    if (!system) {
+      this.announcedSystemThreats.clear();
+      const had = this.systemEntryAlert !== null;
+      this.systemEntryAlert = null;
+      return had;
+    }
+    this.initFleetsInSystem(system);
+    const player = this.factions.find((f) => f.id === 'player');
+    const alert = systemEntryAlert(this.fleets, system, {
+      isThreat: (fleet) =>
+        fleet.factionId !== 'player' &&
+        areFactionsHostile(player, this.factions.find((f) => f.id === fleet.factionId)) &&
+        this.isFleetVisible(fleet),
+      cellsPerSecond: (fleet) => StarMapMovementService.galaxyCellsPerSecond(fleet),
+    });
+    const fresh = alert?.fleetIds.filter((id) => !this.announcedSystemThreats.has(id)) ?? [];
+    if (fresh.length > 0) {
+      fresh.forEach((id) => this.announcedSystemThreats.add(id));
+      this.showMapNotice(
+        alert!.kind === 'present'
+          ? `Hostile fleet at the ${system.name} jump point.`
+          : `Hostile fleet inbound to ${system.name}.`,
+      );
+    }
+    const changed =
+      (alert === null) !== (this.systemEntryAlert === null) ||
+      alert?.kind !== this.systemEntryAlert?.kind ||
+      Math.ceil(alert?.seconds ?? 0) !== Math.ceil(this.systemEntryAlert?.seconds ?? 0);
+    this.systemEntryAlert = alert;
+    return changed;
   }
 
   /**

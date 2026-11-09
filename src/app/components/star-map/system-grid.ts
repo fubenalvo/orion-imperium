@@ -32,10 +32,21 @@ export const SYSTEM_SUN_CENTER_X_VW = 95;
 export const SYSTEM_SUN_CENTER_Y_VW = 17.5;
 
 /*
- * Where a fleet that has no in-system position yet appears (vw): the
- * bottom-left corner, far from the star. Belt generation keeps this cell free.
+ * Where a fleet that has no in-system position yet appears (vw): the middle
+ * of the left edge, far from the star. Belt generation keeps this cell free,
+ * and no PLANET_SYSTEM_LAYOUT slot (galaxy-generator.service.ts) covers it.
+ * A fleet without an in-system position counts as standing here for the
+ * in-system battle separation (system-pursuit.ts).
  */
-export const SYSTEM_FLEET_ENTRY_VW = { x: 2.5, y: 32.5 } as const;
+export const SYSTEM_FLEET_ENTRY_VW = { x: 2.5, y: 17.5 } as const;
+
+/*
+ * In-system speed as a share of the fleet's engine-adjusted speed (vw/s).
+ * The galaxy map moves at 1/10 of the same value; the system scene is far
+ * smaller, so half speed keeps an in-system crossing at a readable pace
+ * without making it as slow as a galaxy jump.
+ */
+export const SYSTEM_SPEED_FACTOR = 0.5;
 
 /* Center (vw) of a 1-indexed system cell. */
 export function systemCellCenterVw(col: number, row: number): { x: number; y: number } {

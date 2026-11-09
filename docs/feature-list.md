@@ -109,7 +109,7 @@ The game runs continuously when unpaused (time speeds 1× and 3×). All simulati
 
 **Grid:** 36×14 cells, 2.5vw each. Each planet covers a 2×2 block whose top-left cell is the planet's `x`/`y`, with a fallback formula for out-of-bounds values.
 
-**Fleet placement:** Fleets in the system are positioned at default coordinates (2.5, 32.5) vw and can be moved via click-to-move within the system grid.
+**Fleet placement:** Fleets in the system are positioned at default coordinates (2.5, 17.5) vw (middle of the left edge) and can be moved via click-to-move within the system grid.
 
 **Asteroid belt:** every system has a ring of asteroids between planet orbits. One in ten holds a large raw-material deposit, revealed only when a player fleet flies onto that cell. An outpost ship can deploy a mining station on a surveyed deposit to extract it ([Territory](./territory.md#mining-stations)). See [Game Systems](./game-systems.md#star-system-view).
 

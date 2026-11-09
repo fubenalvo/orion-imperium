@@ -6,6 +6,7 @@ import { effectiveFleetSpeed } from './ship-stats';
 import {
   SYSTEM_CELL_SIZE_VW,
   SYSTEM_PLANET_FOOTPRINT,
+  SYSTEM_SPEED_FACTOR,
   planetFootprintCenterVw,
   planetFootprintOrigin,
   systemCellAtVw,
@@ -360,8 +361,8 @@ export class StarMapMovementService {
             onTargetReached(fleet.id);
           }
         } else {
-          // In-system speed is the same engine-adjusted value in vw/s.
-          const movement = effectiveFleetSpeed(fleet) * deltaTime;
+          // In-system speed: the engine-adjusted value in vw/s, scaled by SYSTEM_SPEED_FACTOR.
+          const movement = effectiveFleetSpeed(fleet) * SYSTEM_SPEED_FACTOR * deltaTime;
           const step = Math.min(movement, distance);
           fleet.system.x = fleet.system.x + (dx / distance) * step;
           fleet.system.y = fleet.system.y + (dy / distance) * step;

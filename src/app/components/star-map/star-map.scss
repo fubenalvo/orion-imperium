@@ -158,6 +158,34 @@
   }
 }
 
+/* "Enter system?" prompt after the selected fleet stops on a star system
+   (galaxy map only). Sits under the map notice so both can show at once;
+   unlike the notice it takes clicks. */
+.system-arrival {
+  position: absolute;
+  top: calc(var(--game-header-h) + var(--ui-edge) + 3.2em);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6em 0.9em;
+  max-width: min(92%, 640px);
+  padding: 0.5em 0.8em 0.5em 1.2em;
+  border-radius: var(--ui-radius);
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  letter-spacing: 0.08em;
+  transform: translateX(-50%);
+  z-index: 41;
+  @include ui.glass;
+  animation: notice-in 0.3s ease both;
+
+  b {
+    color: var(--ui-accent);
+  }
+}
+
 @keyframes notice-in {
   from {
     opacity: 0;

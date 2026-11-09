@@ -940,6 +940,51 @@ describe('StarMap', () => {
    * Rejected fleet moves used to fail silently. The movement rules are
    * unchanged; the player now gets the reason in the fleet panel.
    */
+  describe('Map → system navigation', () => {
+    const click = () => ({ stopPropagation: () => {}, clientX: 0, clientY: 0 }) as unknown as MouseEvent;
+
+    it('enters a star system on a double click (or double tap)', () => {
+      const system = component.starSystems[0];
+      component.currentView = 'map';
+      component.onSystemClick(system, click());
+      component.onSystemClick(system, click());
+      expect(component.currentView).toBe('system');
+      expect(component.selectedSystem?.id).toBe(system.id);
+    });
+
+    it('offers to enter the system the selected fleet arrived at, and enters with the fleet selected', () => {
+      const system = component.starSystems[0];
+      const fleet = component.fleets.find((f) => f.factionId === 'player')!;
+      fleet.destroyed = false;
+      fleet.x = system.x;
+      fleet.y = system.y;
+      fleet.targetX = null;
+      fleet.targetY = null;
+      component.currentView = 'map';
+      component.selectFleet(fleet);
+      component['offerSystemEntry'](fleet);
+      expect(component.systemArrivalPrompt?.systemName).toBe(system.name);
+
+      component.enterArrivedSystem();
+
+      expect(component.currentView).toBe('system');
+      expect(component.selectedFleet?.id).toBe(fleet.id);
+      expect(component.systemArrivalPrompt).toBeNull();
+    });
+
+    it('centers the map on the system when leaving it', () => {
+      const system = component.starSystems[0];
+      component.currentView = 'system';
+      component.selectedSystem = system;
+      component.cameraX = 0;
+      component.cameraY = 0;
+      const spy = vi.spyOn(component as any, 'centerCameraOnGridPosition');
+      component.leaveSystem();
+      expect(component.currentView).toBe('map');
+      expect(spy).toHaveBeenCalledWith(system.x, system.y);
+    });
+  });
+
   describe('Fleet move rejection feedback', () => {
     // Center of a 1-indexed system grid cell, in system-view vw (5vw cells).
     const setup = () => {

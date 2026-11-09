@@ -3,12 +3,21 @@
   <div class="map-roster panel-style">
     @if (playerPlanets.length > 0) {
       <nav class="fleet-buttons" aria-label="Your planets">
-        <div class="fleet-buttons__title">Planets</div>
+        <div class="fleet-buttons__title" [class.fleet-buttons__title--steps]="selectedPlanetId !== null && playerPlanets.length > 1">
+          <span class="fleet-buttons__title-text">Planets</span>
+          @if (selectedPlanetId !== null && playerPlanets.length > 1) {
+            <span class="fleet-buttons__step">
+              <button type="button" aria-label="Previous planet" title="Previous planet" (click)="step(-1); $event.stopPropagation()">◀</button>
+              <button type="button" aria-label="Next planet" title="Next planet" (click)="step(1); $event.stopPropagation()">▶</button>
+            </span>
+          }
+        </div>
         <div class="fleet-buttons__list">
           @for (entry of playerPlanets; track entry.planet) {
             <button
               class="fleet-btn"
-              [appTutorialAnchor]="$first ? 'roster.planet' : null"
+              [class.selected]="selectedPlanetId === entry.planet.id"
+              [appTutorialAnchor]="showFleets && $first ? 'roster.planet' : null"
               [style.--fleet-color]="getFactionColor('player')"
               type="button"
               [title]="entry.planet.name + ' — ' + entry.system.name"

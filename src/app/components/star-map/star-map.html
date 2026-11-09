@@ -288,6 +288,7 @@
 
       <app-star-map-system-grid
         [selectedSystem]="selectedSystem"
+        [entryAlert]="systemEntryAlert"
         [selectedFleet]="selectedFleet"
         [fleets]="visibleFleets"
         [repairingFleetIds]="repairingFleetIds"
@@ -417,6 +418,16 @@
         >
         </app-star-map-planet-screen>
       }
+
+      <!-- PLANET ROSTER: jump to another own planet without leaving the planet view -->
+      <app-star-map-fleet-buttons
+        [systems]="starSystems"
+        [showFleets]="false"
+        [selectedPlanetId]="selectedPlanetTile?.id ?? null"
+        [getFactionColor]="boundGetFactionColor"
+        (openPlanet)="openPlanetFromRoster($event)"
+      >
+      </app-star-map-fleet-buttons>
     </div>
   }
 
@@ -437,6 +448,19 @@
   }
   @if (mapNotice) {
     <div class="map-notice" role="status">{{ mapNotice }}</div>
+  }
+  @if (systemArrivalPrompt; as arrival) {
+    <div class="system-arrival" role="dialog" aria-label="Enter star system">
+      <span class="system-arrival__text"
+        >{{ arrival.fleetName }} arrived at <b>{{ arrival.systemName }}</b></span
+      >
+      <button class="btn-primary" type="button" (click)="enterArrivedSystem(); $event.stopPropagation()">
+        ENTER SYSTEM
+      </button>
+      <button class="btn-ghost" type="button" (click)="dismissSystemArrival(); $event.stopPropagation()">
+        STAY
+      </button>
+    </div>
   }
 
   <app-star-map-context-menu

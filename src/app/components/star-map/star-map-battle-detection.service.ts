@@ -22,6 +22,7 @@ import {
 } from './station-defense';
 import { isStationComplete } from './station-construction';
 import { isCombatShipType } from './ai-queries';
+import { separatedInsideSystem, updateSystemPursuit } from './system-pursuit';
 
 /*
  * =========================================================
@@ -276,6 +277,15 @@ export class StarMapBattleDetectionService {
           continue;
         }
 
+        // Inside a star system a fleet with a human side fights only on the
+        // same in-system cell (system-pursuit.ts). Not marked as triggered.
+        if (
+          (!isComputerSide(faction1) || !isComputerSide(faction2)) &&
+          separatedInsideSystem(fleet1, fleet2, starSystems)
+        ) {
+          continue;
+        }
+
         // Opening grace (opening-grace.ts): an AI does not attack the player
         // yet; only a contact the player started is fought. Not marked as
         // triggered, so the contact can still become a battle later.
@@ -329,6 +339,33 @@ export class StarMapBattleDetectionService {
     }
 
     return false;
+  }
+
+  /*
+   * Computer-side fleets stopped in a star system chase hostile human fleets
+   * that are inside it, starting from the entry point (system-pursuit.ts).
+   * Run before movement each frame. Returns true when a pursuit changed.
+   */
+  updateSystemPursuit(fleets: Fleet[], factions: Faction[], starSystems: StarSystem[]): boolean {
+    const factionOf = (fleet: Fleet) => factions.find((f) => f.id === fleet.factionId);
+    return updateSystemPursuit(fleets, starSystems, {
+      isComputerFleet: (fleet) => {
+        const faction = factionOf(fleet);
+        return !faction || isComputerSide(faction);
+      },
+      mayHunt: (hunter, quarry) => {
+        const attacker = factionOf(hunter);
+        const target = factionOf(quarry);
+        return (
+          !!attacker &&
+          !!target &&
+          areFactionsHostile(attacker, target) &&
+          !this.openingGrace.spares(attacker, target) &&
+          this.hasLivingWarship(hunter) &&
+          this.hasLivingShips(quarry)
+        );
+      },
+    });
   }
 
   private hasLivingWarship(fleet: Fleet): boolean {

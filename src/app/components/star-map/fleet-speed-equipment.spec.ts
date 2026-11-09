@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { StarMapMovementService } from './star-map-movement.service';
 import { Fleet, FleetShip } from './star-map.models';
 import { ShipLoadout } from './equipment';
+import { SYSTEM_SPEED_FACTOR } from './system-grid';
 
 /*
  * Phase 4 of docs/ship-equipment.md: engines change map speed. A fleet
@@ -97,8 +98,8 @@ describe('map speed with engines', () => {
     const plain = inSystem([ship(1, 'cruiser')]);
     const warp = inSystem([ship(1, 'cruiser', WARP)]);
     advance(createService(), [plain, warp], 2, 'system');
-    // In-system speed is vw/s: 4 → 8 vw in 2 s, 5 → 10 vw.
-    expect(plain.system!.x - 5).toBeCloseTo(8, 6);
-    expect(warp.system!.x - 5).toBeCloseTo(10, 6);
+    // In-system speed is vw/s × SYSTEM_SPEED_FACTOR (0.5): 4 → 4 vw in 2 s, 5 → 5 vw.
+    expect(plain.system!.x - 5).toBeCloseTo(8 * SYSTEM_SPEED_FACTOR, 6);
+    expect(warp.system!.x - 5).toBeCloseTo(10 * SYSTEM_SPEED_FACTOR, 6);
   });
 });

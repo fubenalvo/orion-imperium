@@ -94,7 +94,7 @@ In short:
   the plain stored speed. Galaxy movement, the remaining-travel ETA,
   drifting-asteroid intercepts and every AI estimate go through it.
 - The in-system step (`fleet.system` movement, vw/s) uses
-  `effectiveFleetSpeed(fleet)` too.
+  `effectiveFleetSpeed(fleet)` too, scaled by `SYSTEM_SPEED_FACTOR` (0.5).
 - `strategicSpeedBonus` skips ships without an engine module, because the
   movement step calls it per moving fleet per frame.
 - Fleet panel: the Speed row shows the effective speed, plus

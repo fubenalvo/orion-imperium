@@ -335,7 +335,7 @@ interface BattleOutcome {
 
 ### 1. Entry (StarMap → BattleScreen)
 
-**Trigger:** `StarMapBattleDetectionService.checkForBattles()` detects hostile fleets on same galaxy cell, or `StarMapPlanetArrivalService` detects fleet arriving at defended enemy planet.
+**Trigger:** `StarMapBattleDetectionService.checkForBattles()` detects hostile fleets on same galaxy cell (and, inside a star system with a human side, the same in-system cell — `system-pursuit.ts`), or `StarMapPlanetArrivalService` detects fleet arriving at defended enemy planet.
 
 ```typescript
 // StarMap calls:

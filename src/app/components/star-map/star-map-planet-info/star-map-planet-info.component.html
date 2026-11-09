@@ -22,6 +22,7 @@
         [planetEconomy]="planetEconomy"
         [getFactionName]="getFactionName"
         [getFactionColor]="getFactionColor"
+        [compact]="true"
       />
 
       @if (colonization) {
@@ -40,9 +41,7 @@
               COLONIZE.
             }
             @default {
-              Move a fleet carrying a Colonizer onto this planet, then press COLONIZE in the fleet
-              panel. Colonizers are built at a Spaceship Factory and assembled into a fleet at a
-              Spaceport.
+              Move a fleet carrying a Colonizer here, then press COLONIZE.
             }
           }
         </div>

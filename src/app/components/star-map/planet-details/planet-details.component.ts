@@ -30,9 +30,12 @@ export class PlanetDetailsComponent {
   @Input() planetEconomy: PlanetEconomyEntry | null = null;
   @Input() getFactionName: (factionId: string) => string = () => 'Unknown';
   @Input() getFactionColor: (factionId: string) => string = () => '#fff';
-  /* Off on the planet screen, where the buildings stand on the surface itself;
-     the system view's planet info card keeps the list. */
+  /* Off on the planet screen, where the buildings stand on the surface itself. */
   @Input() showBuildings = true;
+  /* The system view's planet card: buildings shrink to a count (the list is
+     its tooltip), and the planet-type and deposit how-to hints are dropped,
+     so the card stays small over the system scene. */
+  @Input() compact = false;
 
   /* Below this drift (%/s) satisfaction counts as steady, so tiny oscillations show no arrow. */
   private static readonly SATISFACTION_STEADY_DRIFT = 0.01;
@@ -144,6 +147,16 @@ export class PlanetDetailsComponent {
     return [...counts]
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  }
+
+  get buildingCount(): number {
+    return this.planet?.buildings?.length ?? 0;
+  }
+
+  get buildingsTooltip(): string {
+    const groups = this.buildingGroups;
+    if (groups.length === 0) return 'No buildings yet.';
+    return ['Buildings', ...groups.map((g) => (g.count > 1 ? `${g.name} ×${g.count}` : g.name))].join('\n');
   }
 
   /* Rounded, sign-prefixed readout ("+140", "−7"). */
