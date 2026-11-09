@@ -1,5 +1,6 @@
 import { Injectable, NgZone } from '@angular/core';
 import { GameTimeService } from '../../services/game-time.service';
+import { FrameLimitService } from '../../services/frame-limit.service';
 
 /*
  * =========================================================
@@ -29,6 +30,7 @@ export class StarMapGameLoopService {
   constructor(
     private ngZone: NgZone,
     private gameTimeService: GameTimeService,
+    private frameLimit: FrameLimitService,
   ) {}
 
   /*
@@ -56,6 +58,11 @@ export class StarMapGameLoopService {
    * systems advance by 0.
    */
   private tick(time: number, updateCallback: (deltaTime: number) => void): void {
+    // FPS cap (frame-limit.service.ts): skip this frame without moving lastFrameTime.
+    if (this.frameLimit.shouldSkip(time - this.lastFrameTime, this.gameTimeService.isPaused)) {
+      this.animationFrameId = requestAnimationFrame((nextTime) => this.tick(nextTime, updateCallback));
+      return;
+    }
     const realDeltaTime = Math.min((time - this.lastFrameTime) / 1000, 0.1);
     this.lastFrameTime = time;
 

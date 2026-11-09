@@ -68,6 +68,18 @@
         </label>
       </div>
 
+      <div class="star-map-options__row">
+        <label class="star-map-options__checkbox-label">
+          <input
+            type="checkbox"
+            class="star-map-options__checkbox"
+            [checked]="frameLimit.enabled()"
+            (change)="frameLimit.toggle()"
+          />
+          <span>FPS LIMIT</span>
+        </label>
+      </div>
+
       @if (tutorial.inGame()) {
         <div class="star-map-options__row">
           <label class="star-map-options__checkbox-label">

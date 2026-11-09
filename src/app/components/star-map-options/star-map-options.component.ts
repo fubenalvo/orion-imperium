@@ -4,6 +4,7 @@ import { UiSoundService } from '../../services/ui-sound.service';
 import { MusicService } from '../../services/music.service';
 import { TutorialService } from '../../services/tutorial.service';
 import { AiSettingsService } from '../../services/ai-settings.service';
+import { FrameLimitService } from '../../services/frame-limit.service';
 
 /*
  * =========================================================
@@ -14,7 +15,8 @@ import { AiSettingsService } from '../../services/ai-settings.service';
  * pause menu: the fog-of-war toggle, the UI sounds toggle
  * (UiSoundService) and the music toggle and volume (MusicService),
  * both remembered in localStorage, the global ADAPTIVE AI toggle
- * (AiSettingsService, localStorage), and — inside a game — the TUTORIAL
+ * (AiSettingsService, localStorage), the FPS LIMIT toggle
+ * (FrameLimitService, localStorage), and — inside a game — the TUTORIAL
  * toggle and RESET TUTORIAL (TutorialService, saved with the game).
  *
  * Lifecycle:
@@ -38,6 +40,7 @@ export class StarMapOptionsComponent {
   readonly uiSound = inject(UiSoundService);
   readonly music = inject(MusicService);
   readonly aiSettings = inject(AiSettingsService);
+  readonly frameLimit = inject(FrameLimitService);
   /* In a game only: the tutorial flag belongs to the running game (docs/tutorial-hints.md). */
   readonly tutorial = inject(TutorialService);
 

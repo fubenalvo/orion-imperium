@@ -186,3 +186,7 @@ The centralized design makes the following straightforward:
 
 See also: [Game Systems](./game-systems.md) (game loop section),
 [Invariants](./invariants.md) (pause/resume guarantees).
+
+## Frame-rate cap
+
+`FrameLimitService` caps both requestAnimationFrame loops (star map and battle) to save battery and heat on phones: 10 FPS while paused, 30 FPS on touch devices (`pointer: coarse`), 60 FPS otherwise. Skipped frames keep `lastFrameTime`, so the next processed frame carries the full elapsed time and game speed is unchanged. The FPS LIMIT Options toggle (localStorage `orion_frame_limit`, default on) removes the cap.

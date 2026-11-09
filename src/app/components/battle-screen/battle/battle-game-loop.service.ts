@@ -1,5 +1,6 @@
 import { Injectable, NgZone } from '@angular/core';
 import { BattleTimeService } from './battle-time.service';
+import { FrameLimitService } from '../../../services/frame-limit.service';
 
 /*
  * =========================================================
@@ -25,6 +26,7 @@ export class BattleGameLoopService {
   constructor(
     private ngZone: NgZone,
     private time: BattleTimeService,
+    private frameLimit: FrameLimitService,
   ) {}
 
   /*
@@ -45,6 +47,11 @@ export class BattleGameLoopService {
    * when the browser tab is suspended), calls the update callback.
    */
   private tick(time: number, updateCallback: (deltaTime: number, realDeltaTime: number) => void): void {
+    // FPS cap (frame-limit.service.ts): skip this frame without moving lastFrameTime.
+    if (this.frameLimit.shouldSkip(time - this.lastFrameTime, this.time.isPaused)) {
+      this.animationFrameId = requestAnimationFrame((nextTime) => this.tick(nextTime, updateCallback));
+      return;
+    }
     const realDeltaTime = Math.min((time - this.lastFrameTime) / 1000, 0.1);
     this.lastFrameTime = time;
 
