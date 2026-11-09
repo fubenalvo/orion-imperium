@@ -1,0 +1,389 @@
+- generic [ref=f2e100]:
+  - generic [ref=f2e101]:
+    - banner [ref=f2e104]:
+      - generic [ref=f2e105]:
+        - button "Back to SAIPH" [ref=f2e106] [cursor=pointer]:
+          - generic [aria-hidden] [ref=f2e107]: ‹
+        - generic "Ydar" [ref=f2e109]
+      - group "Time controls" [ref=f2e110]:
+        - button "Pause / Resume" [ref=f2e111] [cursor=pointer]: ⏸
+        - button "1x speed" [ref=f2e112] [cursor=pointer]: 1x
+        - button "3x speed" [ref=f2e113] [cursor=pointer]: 3x
+      - generic [ref=f2e114]:
+        - generic [ref=f2e115]:
+          - generic [ref=f2e117]:
+            - generic [ref=f2e118] [cursor=pointer]: 4,176
+            - generic [ref=f2e121]:
+              - generic [ref=f2e122] [cursor=pointer]
+              - generic [ref=f2e123] [cursor=pointer]: 2,608
+            - generic [ref=f2e124]:
+              - generic [ref=f2e125] [cursor=pointer]
+              - generic [ref=f2e126] [cursor=pointer]: 1,225
+          - button "0" [ref=f2e129] [cursor=pointer]
+          - button "Diplomacy" [ref=f2e132] [cursor=pointer]:
+            - generic [aria-hidden] [ref=f2e133]: ⚖
+        - button "Enter full screen" [ref=f2e134] [cursor=pointer]
+        - button "Open pause menu" [ref=f2e137] [cursor=pointer]
+    - generic [ref=f2e528]:
+      - generic [ref=f2e529]:
+        - generic [ref=f2e530]:
+          - generic:
+            - generic:
+              - generic: Large Residential Block
+              - generic: Fusion Power Plant
+              - generic: Capital
+              - generic: Research Laboratory
+              - generic: Laser Turret
+        - generic [ref=f2e857]:
+          - button "▲" [ref=f2e858] [cursor=pointer]
+          - button "◀" [ref=f2e859] [cursor=pointer]
+          - button "●" [ref=f2e860] [cursor=pointer]
+          - button "▶" [ref=f2e861] [cursor=pointer]
+          - button "▼" [ref=f2e862] [cursor=pointer]
+        - group "Surface zoom" [ref=f2e863]:
+          - button "CLOSE" [pressed] [ref=f2e864] [cursor=pointer]
+          - button "MEDIUM" [ref=f2e865] [cursor=pointer]
+          - button "FAR" [ref=f2e866] [cursor=pointer]
+          - button "NAMES" [pressed] [ref=f2e867] [cursor=pointer]
+      - complementary [ref=f2e868]:
+        - generic [ref=f2e869]:
+          - text: Ydar
+          - generic [ref=f2e870]: SURFACE
+        - tablist [ref=f2e871]:
+          - tab "DETAILS" [selected] [ref=f2e872] [cursor=pointer]
+          - tab "BUILD" [ref=f2e873] [cursor=pointer]
+        - generic [ref=f2e875]:
+          - generic [ref=f2e876]:
+            - 'generic "Ideal world: no penalties" [ref=f2e877]': EARTHLIKE
+            - generic [ref=f2e878]: Terran Empire
+          - generic [ref=f2e879]:
+            - generic [ref=f2e880]:
+              - generic [ref=f2e881]: 1,200
+              - generic [ref=f2e882]: Population
+            - generic "Credits this planet earns after its upkeep" [ref=f2e883]:
+              - generic [ref=f2e884]: +73/s
+              - generic [ref=f2e885]: Income
+            - generic "Heading toward 100% (+0.00%/s) Entertainment -0.01/s" [ref=f2e886]:
+              - generic [ref=f2e887]:
+                - generic [ref=f2e888]: Satisfaction
+                - generic [ref=f2e889]: 100%
+          - generic [ref=f2e893]:
+            - 'generic "Energy: 120 produced, 42 used" [ref=f2e894]':
+              - generic [ref=f2e895]: "+78"
+              - generic [ref=f2e896]: Energy
+            - 'generic "Workers: 200 available, 105 needed" [ref=f2e897]':
+              - generic [ref=f2e898]: "+95"
+              - generic [ref=f2e899]: Workers
+            - generic "No comfort needed below 5,000 people." [ref=f2e900]:
+              - generic [aria-hidden] [ref=f2e901]: ☺
+              - generic [ref=f2e902]: OK
+              - generic [ref=f2e903]: Comfort
+          - generic [ref=f2e904]:
+            - generic "Raw materials per second" [ref=f2e905]: +2/s
+            - generic "Research per second" [ref=f2e906]: +5/s
+          - 'generic "Unmined: 41,500 of 41,500 left · richness ×1.02" [ref=f2e907]':
+            - generic [ref=f2e908]:
+              - generic [ref=f2e909]: Deposit
+              - generic [ref=f2e910]: UNMINED
+            - generic [ref=f2e913]: Build a Mining Complex next to a deposit tile.
+  - dialog [ref=f2e915]:
+    - banner [ref=f2e916]:
+      - heading "Research" [level=2] [ref=f2e918]
+      - generic [ref=f2e919]:
+        - generic [ref=f2e921]:
+          - generic [ref=f2e922]: 1,220
+          - generic [ref=f2e923]: Research points · +5/s
+        - generic [ref=f2e925]:
+          - generic [ref=f2e926]: 4,106
+          - generic [ref=f2e927]: Credits · research also costs credits
+        - generic [ref=f2e929]:
+          - generic [ref=f2e930]: Technologies
+          - generic [ref=f2e931]: 4 / 47
+      - button "Close research" [ref=f2e934] [cursor=pointer]: CLOSE
+    - tablist "Filter technologies" [ref=f2e935]:
+      - tab "ALL 47" [selected] [ref=f2e936] [cursor=pointer]:
+        - text: ALL
+        - generic [ref=f2e937]: "47"
+      - tab "AVAILABLE 11" [ref=f2e938] [cursor=pointer]:
+        - text: AVAILABLE
+        - generic [ref=f2e939]: "11"
+      - tab "RESEARCHED 4" [ref=f2e940] [cursor=pointer]:
+        - text: RESEARCHED
+        - generic [ref=f2e941]: "4"
+      - tab "LOCKED 32" [ref=f2e942] [cursor=pointer]:
+        - text: LOCKED
+        - generic [ref=f2e943]: "32"
+    - generic [ref=f2e944]:
+      - list "Technologies" [ref=f2e945]:
+        - generic [ref=f2e946]:
+          - generic [ref=f2e947]:
+            - generic [ref=f2e948]: TIER I
+            - generic [ref=f2e949]: 4/4
+          - listitem "Basic Engineering · RESEARCHED" [ref=f2e950] [cursor=pointer]:
+            - generic [ref=f2e954]:
+              - generic [ref=f2e955]: Basic Engineering
+              - generic [ref=f2e956]: DONE
+          - listitem "Basic Science · RESEARCHED" [ref=f2e959] [cursor=pointer]:
+            - generic [ref=f2e963]:
+              - generic [ref=f2e964]: Basic Science
+              - generic [ref=f2e965]: DONE
+          - listitem "Basic Industry · RESEARCHED" [ref=f2e968] [cursor=pointer]:
+            - generic [ref=f2e972]:
+              - generic [ref=f2e973]: Basic Industry
+              - generic [ref=f2e974]: DONE
+          - listitem "Basic Power · RESEARCHED" [ref=f2e977] [cursor=pointer]:
+            - generic [ref=f2e981]:
+              - generic [ref=f2e982]: Basic Power
+              - generic [ref=f2e983]: DONE
+        - generic [ref=f2e986]:
+          - generic [ref=f2e987]:
+            - generic [ref=f2e988]: TIER II
+            - generic [ref=f2e989]: 0/11
+          - listitem "Advanced Engineering · AVAILABLE" [ref=f2e990] [cursor=pointer]:
+            - generic [ref=f2e994]:
+              - generic [ref=f2e995]: Advanced Engineering
+              - generic [ref=f2e996]:
+                - generic [ref=f2e997]: "800"
+                - generic [ref=f2e1000]: 3,200
+          - listitem "Military Engineering · AVAILABLE" [ref=f2e1003] [cursor=pointer]:
+            - generic [ref=f2e1007]:
+              - generic [ref=f2e1008]: Military Engineering
+              - generic [ref=f2e1009]:
+                - generic [ref=f2e1010]: 1,000
+                - generic [ref=f2e1013]: 4,000
+          - listitem "Advanced Industry · AVAILABLE" [ref=f2e1016] [cursor=pointer]:
+            - generic [ref=f2e1020]:
+              - generic [ref=f2e1021]: Advanced Industry
+              - generic [ref=f2e1022]:
+                - generic [ref=f2e1023]: "800"
+                - generic [ref=f2e1026]: 3,200
+          - listitem "Improved Power · AVAILABLE" [ref=f2e1029] [cursor=pointer]:
+            - generic [ref=f2e1033]:
+              - generic [ref=f2e1034]: Improved Power
+              - generic [ref=f2e1035]:
+                - generic [ref=f2e1036]: "600"
+                - generic [ref=f2e1039]: 2,400
+          - listitem "Advanced Science · AVAILABLE" [ref=f2e1042] [cursor=pointer]:
+            - generic [ref=f2e1046]:
+              - generic [ref=f2e1047]: Advanced Science
+              - generic [ref=f2e1048]:
+                - generic [ref=f2e1049]: "700"
+                - generic [ref=f2e1052]: 2,800
+          - listitem "Basic Radar Enhancement · AVAILABLE" [ref=f2e1055] [cursor=pointer]:
+            - generic [ref=f2e1059]:
+              - generic [ref=f2e1060]: Basic Radar Enhancement
+              - generic [ref=f2e1061]:
+                - generic [ref=f2e1062]: "500"
+                - generic [ref=f2e1065]: 2,000
+          - listitem "Scout Technology · AVAILABLE" [ref=f2e1068] [cursor=pointer]:
+            - generic [ref=f2e1072]:
+              - generic [ref=f2e1073]: Scout Technology
+              - generic [ref=f2e1074]:
+                - generic [ref=f2e1075]: "400"
+                - generic [ref=f2e1078]: 1,600
+          - listitem "Fighter Technology · AVAILABLE" [ref=f2e1081] [cursor=pointer]:
+            - generic [ref=f2e1085]:
+              - generic [ref=f2e1086]: Fighter Technology
+              - generic [ref=f2e1087]:
+                - generic [ref=f2e1088]: "600"
+                - generic [ref=f2e1091]: 2,400
+          - listitem "Missile Technology · AVAILABLE" [ref=f2e1094] [cursor=pointer]:
+            - generic [ref=f2e1098]:
+              - generic [ref=f2e1099]: Missile Technology
+              - generic [ref=f2e1100]:
+                - generic [ref=f2e1101]: "600"
+                - generic [ref=f2e1104]: 2,400
+          - listitem "Turret Research I · AVAILABLE" [ref=f2e1107] [cursor=pointer]:
+            - generic [ref=f2e1111]:
+              - generic [ref=f2e1112]: Turret Research I
+              - generic [ref=f2e1113]:
+                - generic [ref=f2e1114]: "700"
+                - generic [ref=f2e1117]: 2,800
+          - listitem "Orbital Repair Docks · AVAILABLE" [ref=f2e1120] [cursor=pointer]:
+            - generic [ref=f2e1124]:
+              - generic [ref=f2e1125]: Orbital Repair Docks
+              - generic [ref=f2e1126]:
+                - generic [ref=f2e1127]: "900"
+                - generic [ref=f2e1130]: 3,600
+        - generic [ref=f2e1133]:
+          - generic [ref=f2e1134]:
+            - generic [ref=f2e1135]: TIER III
+            - generic [ref=f2e1136]: 0/16
+          - listitem "Advanced Construction · LOCKED" [ref=f2e1137] [cursor=pointer]:
+            - generic [ref=f2e1141]:
+              - generic [ref=f2e1142]: Advanced Construction
+              - generic [ref=f2e1143]: LOCKED
+          - listitem "Orbital Engineering · LOCKED" [ref=f2e1146] [cursor=pointer]:
+            - generic [ref=f2e1150]:
+              - generic [ref=f2e1151]: Orbital Engineering
+              - generic [ref=f2e1152]: LOCKED
+          - listitem "Advanced Manufacturing · LOCKED" [ref=f2e1155] [cursor=pointer]:
+            - generic [ref=f2e1159]:
+              - generic [ref=f2e1160]: Advanced Manufacturing
+              - generic [ref=f2e1161]: LOCKED
+          - listitem "Fusion Power · LOCKED" [ref=f2e1164] [cursor=pointer]:
+            - generic [ref=f2e1168]:
+              - generic [ref=f2e1169]: Fusion Power
+              - generic [ref=f2e1170]: LOCKED
+          - listitem "Advanced Research · LOCKED" [ref=f2e1173] [cursor=pointer]:
+            - generic [ref=f2e1177]:
+              - generic [ref=f2e1178]: Advanced Research
+              - generic [ref=f2e1179]: LOCKED
+          - listitem "Advanced Sensor Arrays · LOCKED" [ref=f2e1182] [cursor=pointer]:
+            - generic [ref=f2e1186]:
+              - generic [ref=f2e1187]: Advanced Sensor Arrays
+              - generic [ref=f2e1188]: LOCKED
+          - listitem "Corvette Technology · LOCKED" [ref=f2e1191] [cursor=pointer]:
+            - generic [ref=f2e1195]:
+              - generic [ref=f2e1196]: Corvette Technology
+              - generic [ref=f2e1197]: LOCKED
+          - listitem "Frigate Technology · LOCKED" [ref=f2e1200] [cursor=pointer]:
+            - generic [ref=f2e1204]:
+              - generic [ref=f2e1205]: Frigate Technology
+              - generic [ref=f2e1206]: LOCKED
+          - listitem "Destroyer Technology · LOCKED" [ref=f2e1209] [cursor=pointer]:
+            - generic [ref=f2e1213]:
+              - generic [ref=f2e1214]: Destroyer Technology
+              - generic [ref=f2e1215]: LOCKED
+          - listitem "Advanced Weapons · LOCKED" [ref=f2e1218] [cursor=pointer]:
+            - generic [ref=f2e1222]:
+              - generic [ref=f2e1223]: Advanced Weapons
+              - generic [ref=f2e1224]: LOCKED
+          - listitem "Turret Research II · LOCKED" [ref=f2e1227] [cursor=pointer]:
+            - generic [ref=f2e1231]:
+              - generic [ref=f2e1232]: Turret Research II
+              - generic [ref=f2e1233]: LOCKED
+          - listitem "Ion Drives · LOCKED" [ref=f2e1236] [cursor=pointer]:
+            - generic [ref=f2e1240]:
+              - generic [ref=f2e1241]: Ion Drives
+              - generic [ref=f2e1242]: LOCKED
+          - listitem "Laser Optics · LOCKED" [ref=f2e1245] [cursor=pointer]:
+            - generic [ref=f2e1249]:
+              - generic [ref=f2e1250]: Laser Optics
+              - generic [ref=f2e1251]: LOCKED
+          - listitem "Guided Missiles · LOCKED" [ref=f2e1254] [cursor=pointer]:
+            - generic [ref=f2e1258]:
+              - generic [ref=f2e1259]: Guided Missiles
+              - generic [ref=f2e1260]: LOCKED
+          - listitem "Energy Shielding · LOCKED" [ref=f2e1263] [cursor=pointer]:
+            - generic [ref=f2e1267]:
+              - generic [ref=f2e1268]: Energy Shielding
+              - generic [ref=f2e1269]: LOCKED
+          - listitem "Mass Drivers · LOCKED" [ref=f2e1272] [cursor=pointer]:
+            - generic [ref=f2e1276]:
+              - generic [ref=f2e1277]: Mass Drivers
+              - generic [ref=f2e1278]: LOCKED
+        - generic [ref=f2e1281]:
+          - generic [ref=f2e1282]:
+            - generic [ref=f2e1283]: TIER IV
+            - generic [ref=f2e1284]: 0/13
+          - listitem "Advanced Shipyards · LOCKED" [ref=f2e1285] [cursor=pointer]:
+            - generic [ref=f2e1289]:
+              - generic [ref=f2e1290]: Advanced Shipyards
+              - generic [ref=f2e1291]: LOCKED
+          - listitem "Urban Infrastructure · LOCKED" [ref=f2e1294] [cursor=pointer]:
+            - generic [ref=f2e1298]:
+              - generic [ref=f2e1299]: Urban Infrastructure
+              - generic [ref=f2e1300]: LOCKED
+          - listitem "Advanced Power Infrastructure · LOCKED" [ref=f2e1303] [cursor=pointer]:
+            - generic [ref=f2e1307]:
+              - generic [ref=f2e1308]: Advanced Power Infrastructure
+              - generic [ref=f2e1309]: LOCKED
+          - listitem "Applied Science · LOCKED" [ref=f2e1312] [cursor=pointer]:
+            - generic [ref=f2e1316]:
+              - generic [ref=f2e1317]: Applied Science
+              - generic [ref=f2e1318]: LOCKED
+          - listitem "Long-Range Scanning · LOCKED" [ref=f2e1321] [cursor=pointer]:
+            - generic [ref=f2e1325]:
+              - generic [ref=f2e1326]: Long-Range Scanning
+              - generic [ref=f2e1327]: LOCKED
+          - listitem "Capital Ship Technology · LOCKED" [ref=f2e1330] [cursor=pointer]:
+            - generic [ref=f2e1334]:
+              - generic [ref=f2e1335]: Capital Ship Technology
+              - generic [ref=f2e1336]: LOCKED
+          - listitem "Colonization Technology · LOCKED" [ref=f2e1339] [cursor=pointer]:
+            - generic [ref=f2e1343]:
+              - generic [ref=f2e1344]: Colonization Technology
+              - generic [ref=f2e1345]: LOCKED
+          - listitem "Turret Research III · LOCKED" [ref=f2e1348] [cursor=pointer]:
+            - generic [ref=f2e1352]:
+              - generic [ref=f2e1353]: Turret Research III
+              - generic [ref=f2e1354]: LOCKED
+          - listitem "Fusion Drives · LOCKED" [ref=f2e1357] [cursor=pointer]:
+            - generic [ref=f2e1361]:
+              - generic [ref=f2e1362]: Fusion Drives
+              - generic [ref=f2e1363]: LOCKED
+          - listitem "Kinetic Armor · LOCKED" [ref=f2e1366] [cursor=pointer]:
+            - generic [ref=f2e1370]:
+              - generic [ref=f2e1371]: Kinetic Armor
+              - generic [ref=f2e1372]: LOCKED
+          - listitem "Point Defense · LOCKED" [ref=f2e1375] [cursor=pointer]:
+            - generic [ref=f2e1379]:
+              - generic [ref=f2e1380]: Point Defense
+              - generic [ref=f2e1381]: LOCKED
+          - listitem "Warp Field Theory · LOCKED" [ref=f2e1384] [cursor=pointer]:
+            - generic [ref=f2e1388]:
+              - generic [ref=f2e1389]: Warp Field Theory
+              - generic [ref=f2e1390]: LOCKED
+          - listitem "Shield Harmonics · LOCKED" [ref=f2e1393] [cursor=pointer]:
+            - generic [ref=f2e1397]:
+              - generic [ref=f2e1398]: Shield Harmonics
+              - generic [ref=f2e1399]: LOCKED
+        - generic [ref=f2e1402]:
+          - generic [ref=f2e1403]:
+            - generic [ref=f2e1404]: TIER V
+            - generic [ref=f2e1405]: 0/3
+          - listitem "Cruiser Technology · LOCKED" [ref=f2e1406] [cursor=pointer]:
+            - generic [ref=f2e1410]:
+              - generic [ref=f2e1411]: Cruiser Technology
+              - generic [ref=f2e1412]: LOCKED
+          - listitem "Carrier Technology · LOCKED" [ref=f2e1415] [cursor=pointer]:
+            - generic [ref=f2e1419]:
+              - generic [ref=f2e1420]: Carrier Technology
+              - generic [ref=f2e1421]: LOCKED
+          - listitem "Stellar Engineering · LOCKED" [ref=f2e1424] [cursor=pointer]:
+            - generic [ref=f2e1428]:
+              - generic [ref=f2e1429]: Stellar Engineering
+              - generic [ref=f2e1430]: LOCKED
+      - complementary [ref=f2e1433]:
+        - generic [ref=f2e1438]:
+          - text: TIER II · AVAILABLE
+          - heading "Advanced Engineering" [level=3] [ref=f2e1439]
+        - paragraph [ref=f2e1440]: Improved hull design, shielding, and construction methods. Enables escort-class vessels.
+        - list "Effects" [ref=f2e1441]:
+          - listitem [ref=f2e1442]:
+            - generic [ref=f2e1445]: "Unlocks ships: Corvette, Frigate"
+        - list "Ship roles" [ref=f2e1446]:
+          - listitem [ref=f2e1447]:
+            - generic [ref=f2e1448]: Corvette
+            - generic [ref=f2e1450]:
+              - generic [ref=f2e1451]: Light
+              - generic "Strong vs heavy hulls (+35% damage). Weak vs medium hulls (they deal +35% damage)." [ref=f2e1452]:
+                - generic [ref=f2e1453]: beats Heavy
+                - generic [ref=f2e1454]: ·
+                - generic [ref=f2e1455]: weak to Medium
+          - listitem [ref=f2e1456]:
+            - generic [ref=f2e1457]: Frigate
+            - generic [ref=f2e1459]:
+              - generic [ref=f2e1460]: Light
+              - generic "Strong vs heavy hulls (+35% damage). Weak vs medium hulls (they deal +35% damage)." [ref=f2e1461]:
+                - generic [ref=f2e1462]: beats Heavy
+                - generic [ref=f2e1463]: ·
+                - generic [ref=f2e1464]: weak to Medium
+        - generic [ref=f2e1465]:
+          - generic [ref=f2e1466]: Requires
+          - button "Basic Engineering" [ref=f2e1467] [cursor=pointer]
+        - generic [ref=f2e1470]:
+          - generic [ref=f2e1471]: Leads to
+          - button "Advanced Construction" [ref=f2e1472] [cursor=pointer]
+          - button "Orbital Engineering" [ref=f2e1475] [cursor=pointer]
+          - button "Corvette Technology" [ref=f2e1478] [cursor=pointer]
+          - button "Frigate Technology" [ref=f2e1481] [cursor=pointer]
+          - button "Ion Drives" [ref=f2e1484] [cursor=pointer]
+          - button "Laser Optics" [ref=f2e1487] [cursor=pointer]
+        - generic [ref=f2e1490]:
+          - generic [ref=f2e1491]:
+            - generic "Research points" [ref=f2e1492]: "800"
+            - generic "Credits" [ref=f2e1495]: 3,200
+          - generic "100% of the cost banked" [ref=f2e1498]
+          - button "RESEARCH" [ref=f2e1500] [cursor=pointer]

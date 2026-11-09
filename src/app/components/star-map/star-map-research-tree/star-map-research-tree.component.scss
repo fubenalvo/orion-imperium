@@ -622,9 +622,155 @@
   letter-spacing: 0.24em;
 }
 
-/* ---------- Narrow screens ---------- */
+/* ---------- Phones (portrait and landscape) ---------- */
 
-@media (max-width: 900px) {
+/*
+ * The game is played in landscape on phones, so the viewport is wide but
+ * very short. The board and the detail console therefore stay side by side
+ * (stacking them left two thin strips); instead the whole dialog takes one
+ * more step down the type scale by overriding the --ui-fs-* tokens locally
+ * (everything inside sizes from them or from em), and the fixed paddings,
+ * column widths and the detail width shrink with it.
+ */
+@include compact-view {
+  .research-tree-overlay {
+    padding: 6px 10px;
+  }
+
+  .research-tree-panel {
+    --ui-fs-xs: 0.56rem;
+    --ui-fs-sm: 0.62rem;
+    --ui-fs-md: 0.7rem;
+    --ui-fs-lg: 0.82rem;
+    --ui-fs-xl: 1rem;
+
+    height: calc(100dvh - 12px);
+    @include ui.brackets(14px);
+  }
+
+  .research-tree__header {
+    gap: 12px;
+    padding: 8px 14px 6px;
+  }
+
+  .research-tree__eyebrow {
+    display: none;
+  }
+
+  .research-tree__summary {
+    gap: 14px;
+  }
+
+  .research-tree__points {
+    gap: 0.45em;
+
+    img {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .research-tree__progress {
+    width: clamp(90px, 14vw, 160px);
+  }
+
+  .research-tree__filters {
+    overflow-x: auto;
+    padding: 0 14px;
+  }
+
+  .research-tree__filter {
+    padding-inline: 0.8em;
+  }
+
+  .rt-main {
+    grid-template-columns: minmax(0, 1fr) clamp(200px, 34vw, 280px);
+  }
+
+  .rt-board {
+    gap: 10px;
+    padding: 8px 10px 10px;
+    background-size: 18px 18px;
+  }
+
+  .rt-column {
+    flex-basis: clamp(128px, 17vw, 168px);
+    gap: 5px;
+  }
+
+  .rt-column__head {
+    padding-bottom: 3px;
+  }
+
+  .rt-node,
+  .rt-node:hover:not(:disabled) {
+    grid-template-columns: 2em minmax(0, 1fr);
+    gap: 0.45em;
+    min-height: 2.8em;
+    padding: 0.3em 0.4em 0.35em;
+  }
+
+  .rt-node__icon {
+    width: 2em;
+    height: 2em;
+
+    svg {
+      width: 1.25em;
+      height: 1.25em;
+    }
+  }
+
+  .rt-detail {
+    gap: 7px;
+    padding: 8px 10px;
+  }
+
+  .rt-detail__head {
+    gap: 8px;
+  }
+
+  .rt-detail__icon {
+    width: 3em;
+    height: 3em;
+    border-width: 2px;
+
+    svg {
+      width: 1.6em;
+      height: 1.6em;
+    }
+  }
+
+  .rt-detail__desc {
+    padding-bottom: 6px;
+    line-height: 1.35;
+  }
+
+  .rt-effects,
+  .rt-ships {
+    gap: 3px;
+  }
+
+  .rt-effect {
+    padding: 0.3em 0.45em;
+  }
+
+  .rt-links {
+    gap: 4px;
+  }
+
+  .rt-detail__buy {
+    gap: 6px;
+    padding-top: 7px;
+  }
+
+  .rt-detail__btn {
+    min-height: 2.3em;
+  }
+}
+
+/* Very narrow portrait screens only: there is no room for two columns,
+   so the detail console moves under the board. */
+@media (max-width: 560px) and (orientation: portrait) {
   .research-tree__header {
     grid-template-columns: 1fr auto;
   }
@@ -635,11 +781,6 @@
     justify-content: space-between;
   }
 
-  .research-tree__filters {
-    overflow-x: auto;
-  }
-
-  /* Board on top, detail console below it. */
   .rt-main {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) minmax(0, 46%);
@@ -648,15 +789,5 @@
   .rt-detail {
     border-top: 1px solid var(--ui-line);
     border-left: 0;
-  }
-}
-
-@media (max-width: 768px) {
-  .research-tree-overlay {
-    padding: 2vw;
-  }
-
-  .research-tree-panel {
-    height: 96dvh;
   }
 }

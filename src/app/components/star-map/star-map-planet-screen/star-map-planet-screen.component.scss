@@ -921,29 +921,30 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 }
 
 /*
- * Surface navigation d-pad: overlays the bottom-left of the surface so it
- * never covers the sidebar or the grid center. Rendered above the cloud/color
- * overlays (z-index 10) so the buttons stay clickable.
+ * Surface navigation d-pad: docked flush into the bottom-left corner of the
+ * surface (no left / bottom frame) so it never covers the sidebar or the grid
+ * center. Rendered above the cloud/color overlays (z-index 10) so the buttons
+ * stay clickable. Kept compact (1.8em cells) because the surface is often
+ * viewed on a landscape phone.
  */
 .planet-surface__nav {
   position: absolute;
-  left: var(--ui-edge);
-  bottom: var(--ui-edge);
   z-index: 20;
   display: grid;
-  grid-template-columns: repeat(3, 2.4em);
-  grid-template-rows: repeat(3, 2.4em);
-  gap: 0.25em;
-  padding: 0.45em;
-  border-radius: var(--ui-radius);
+  grid-template-columns: repeat(3, 1.8em);
+  grid-template-rows: repeat(3, 1.8em);
+  gap: 0.19em;
+  padding: 0.34em;
   @include ui.glass(0.85);
   @include ui.brackets(10px);
+  @include ui.frame-docked(left bottom, 22px);
 }
 
 .planet-surface__nav-btn {
-  @include ui.icon-size(2.4em);
+  /* rem, not em: the glyph font-size below would shrink an em size twice. */
+  @include ui.icon-size(1.53rem);
   color: var(--ui-ink-dim);
-  font-size: 0.85rem;
+  font-size: 0.64rem;
 }
 
 /* Recenter: a lit diamond instead of a dot glyph. */
@@ -957,8 +958,8 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 0.5rem;
-    height: 0.5rem;
+    width: 0.375rem;
+    height: 0.375rem;
     border: 1px solid var(--ui-accent);
     transform: translate(-50%, -50%) rotate(45deg);
   }
