@@ -1,0 +1,93 @@
+<div class="campaign-screen">
+  <div class="campaign-screen__title">CAMPAIGN</div>
+  <div class="campaign-screen__subtitle">THE SILENT FRONTIER</div>
+
+  <div class="campaign-layout">
+    <ol class="mission-list" aria-label="Missions">
+      @for (card of cards; track card.mission.id) {
+        <li>
+          <button
+            type="button"
+            class="mission-card"
+            [class.mission-card--active]="card.mission.id === selectedId"
+            [class.mission-card--locked]="card.status === 'locked'"
+            [class.mission-card--completed]="card.status === 'completed'"
+            [attr.aria-pressed]="card.mission.id === selectedId"
+            [disabled]="card.status === 'locked'"
+            (click)="select(card)"
+          >
+            <span class="mission-card__number">{{ card.number > 0 ? card.number : '·' }}</span>
+            <span class="mission-card__text">
+              <span class="mission-card__title">{{ card.mission.title }}</span>
+              <span class="mission-card__subtitle">{{ card.mission.subtitle }}</span>
+            </span>
+            <span class="mission-card__status">{{ statusLabel(card) }}</span>
+          </button>
+        </li>
+      } @empty {
+        <li class="mission-list__empty">No missions yet.</li>
+      }
+    </ol>
+
+    @if (selected; as card) {
+      <section class="briefing" aria-live="polite">
+        <div class="briefing__eyebrow">MISSION BRIEFING</div>
+        <h2 class="briefing__title">{{ card.mission.title }}</h2>
+        @for (paragraph of card.mission.briefing; track $index) {
+          <p class="briefing__text">{{ paragraph }}</p>
+        }
+        @if (card.endingTitle) {
+          <p class="briefing__note">Completed: {{ card.endingTitle }}. Playing it again replaces this result.</p>
+        }
+        @if (carriedTechnologyCount > 0) {
+          <p class="briefing__note">{{ carriedTechnologyCount }} technologies carried over from the previous mission.</p>
+        }
+
+        <div class="briefing__label">DIFFICULTY</div>
+        <div class="difficulties" role="radiogroup" aria-label="Difficulty">
+          @for (d of difficulties; track d.id) {
+            <button
+              type="button"
+              class="difficulty"
+              role="radio"
+              [class.difficulty--active]="difficulty === d.id"
+              [attr.aria-checked]="difficulty === d.id"
+              (click)="setDifficulty(d.id)"
+            >
+              {{ d.label }}
+            </button>
+          }
+        </div>
+
+        <label class="briefing__field">
+          <span class="briefing__label">SAVE SLOT</span>
+          <select (change)="setSlot($event)" aria-label="Save slot">
+            @for (entry of manualSlots; track entry.index) {
+              <option [value]="entry.index" [selected]="entry.index === slotIndex">
+                Slot {{ entry.index + 1 }} — {{ formatSlotDate(entry.slot.date) }}
+              </option>
+            }
+          </select>
+        </label>
+        @if (selectedSlotHasSave) {
+          <p class="campaign-warning">The selected slot already contains a save and will be overwritten.</p>
+        }
+      </section>
+    }
+  </div>
+
+  @if (startError.length > 0) {
+    <ul class="campaign-errors" role="alert">
+      @for (error of startError; track $index) {
+        <li>{{ error }}</li>
+      }
+    </ul>
+  }
+
+  <div class="campaign-actions">
+    <button type="button" (click)="cancel.emit()">BACK</button>
+    <button type="button" class="btn-primary" [disabled]="!canStart" (click)="onStart()">
+      {{ starting ? 'PREPARING…' : 'START MISSION' }}
+    </button>
+  </div>
+</div>

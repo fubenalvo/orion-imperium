@@ -27,3 +27,10 @@ export function getMissionDefinition(id: string): MissionDefinition | undefined 
 export function campaignMissions(): MissionDefinition[] {
   return MISSION_DEFINITIONS.filter((m) => !m.devOnly);
 }
+
+/* "Campaign · <mission>" for save slot lists; null for a non-campaign save. */
+export function campaignSlotLabel(data: { campaign?: { missionId: string } } | null | undefined): string | null {
+  const missionId = data?.campaign?.missionId;
+  if (!missionId) return null;
+  return `Campaign · ${getMissionDefinition(missionId)?.title ?? missionId}`;
+}

@@ -1,0 +1,130 @@
+@use 'ui';
+
+/* Campaign objective tracker: a compact console panel the StarMap places on
+   the map (see .campaign-tracker in star-map.scss). */
+
+:host {
+  display: block;
+}
+
+.tracker {
+  display: flex;
+  flex-direction: column;
+  width: min(19em, 42vw);
+  border-radius: var(--ui-radius);
+  font-size: var(--ui-fs-sm);
+  @include ui.glass;
+}
+
+.tracker__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: 'eyebrow chevron' 'mission chevron';
+  align-items: center;
+  gap: 0.35em 0.6em;
+  width: 100%;
+  min-height: 0;
+  padding: 0.55em 0.8em;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  text-align: left;
+  text-transform: none;
+}
+
+.tracker__eyebrow {
+  grid-area: eyebrow;
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+}
+
+.tracker__mission {
+  grid-area: mission;
+  overflow: hidden;
+  color: var(--ui-ink-bright);
+  letter-spacing: 0.14em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tracker__chevron {
+  grid-area: chevron;
+  color: var(--ui-ink-dim);
+}
+
+.tracker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  margin: 0;
+  padding: 0.2em 0.8em 0.7em;
+  list-style: none;
+}
+
+.tracker__section {
+  padding: 0 0.8em 0.2em;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+}
+
+.objective {
+  display: flex;
+  gap: 0.55em;
+  line-height: 1.3;
+
+  &__marker {
+    flex-shrink: 0;
+    width: 1em;
+    color: var(--ui-accent);
+    text-align: center;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1em;
+    min-width: 0;
+  }
+
+  &__title {
+    color: var(--ui-ink);
+  }
+
+  &__progress {
+    color: var(--ui-accent-text);
+    font-size: var(--ui-fs-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__description {
+    color: var(--ui-ink-dim);
+    font-size: var(--ui-fs-xs);
+  }
+
+  &--optional &__marker {
+    color: var(--ui-ink-dim);
+  }
+
+  &--done {
+    opacity: 0.6;
+
+    .objective__marker {
+      color: var(--ui-success);
+    }
+  }
+
+  &--failed {
+    opacity: 0.6;
+
+    .objective__marker {
+      color: var(--ui-danger-text);
+    }
+
+    .objective__title {
+      text-decoration: line-through;
+    }
+  }
+}

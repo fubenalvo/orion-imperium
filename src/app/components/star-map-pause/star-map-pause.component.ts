@@ -1,3 +1,4 @@
+import { campaignSlotLabel } from '../../campaign/missions';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { SaveGameService, SaveSlot, SaveSlotId, incompatibleSlotLabel } from '../../services/save-game.service';
 
@@ -59,6 +60,12 @@ export class StarMapPauseComponent {
 
   incompatibleLabel(slot: SaveSlot): string {
     return incompatibleSlotLabel(slot);
+  }
+
+  /* Date of the slot; campaign saves also name their mission. */
+  slotLabel(slot: SaveSlot): string {
+    const campaign = campaignSlotLabel(slot.data);
+    return campaign ? `${campaign} — ${this.formatDate(slot.date)}` : this.formatDate(slot.date);
   }
 
   formatDate(date: string | null): string {

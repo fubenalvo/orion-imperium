@@ -36,7 +36,7 @@
                 (click)="onSaveSlotSelected($index)"
               >
                 <span class="save-slot__index">Slot {{ $index + 1 }}</span>
-                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+                <span class="save-slot__date">{{ slotLabel(slot) }}</span>
               </button>
             }
           }
@@ -70,7 +70,7 @@
               @if (slot.incompatible) {
                 <span class="save-slot__date">{{ incompatibleLabel(slot) }}</span>
               } @else {
-                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+                <span class="save-slot__date">{{ slotLabel(slot) }}</span>
               }
             </button>
           }

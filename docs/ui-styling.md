@@ -432,6 +432,15 @@ Rules:
 | System view | The system's star at the right edge is the single light source: light wash, slowly turning soft corona rays, glow, granulated disc. Planets use `planet-sphere` lit from the right with per-type palettes; faint orbit rings (`orbitDiameterVw`) connect each planet to the star; hover shows a halo ring. A nebula sits opposite the star. Styles: `star-map-system-grid.component.scss` (scene) and `_star-map-system-view.scss` (wrapper). |
 | Battle | Deep stars with a distant star in the band above the field, two nebula formations framing the left and lower right (the middle stays calm behind the units), twinkling dust, a forward-motion star stream (two faint star planes drifting left at different speeds, the near one with slightly stretched stars; the main menu dust technique of sliding exactly one tile per loop; off under reduced motion) and a vignette. The field is a fading hairline grid with corner brackets. Ships carry a faction-colored glow and engine light; explosions add a shockwave ring. The planet in planet battles uses `planet-sphere` with a deep palette derived from `--planet-color`. |
 
+### Story campaign UI
+
+The campaign screens reuse existing treatments, no new look ([Campaign Design](./campaign-design.md#implementation-status)):
+
+- **Campaign screen** (`main-menu/campaign-screen/`): hosted in the main menu's glass sheet like the New Game setup, with the same selectable-card style (the galaxy-size cards) for missions and difficulty, and a briefing panel.
+- **Objective tracker** (`star-map-campaign-objectives/`): a compact `ui.glass` panel at the right edge under the header (`.campaign-tracker` in `star-map.scss`), galaxy and system views only (the planet view's side panel sits there). Collapsible; ◆ open, ✓ done (success color), ✕ failed (struck through).
+- **Story message** (`star-map-campaign-message/`): the exploration-event dialog frame (`ui.glass` + `ui.brackets`), accented with the speaker's faction color through `--speaker-color`.
+- **Mission end**: the game-end dialog with MISSION COMPLETE / MISSION FAILED; `.game-end-title--long` shrinks the letter-spaced title so it stays inside the frame.
+
 ### Galaxy view: backdrop over the fog
 
 At the start of a game nearly the whole galaxy is fogged, which would hide

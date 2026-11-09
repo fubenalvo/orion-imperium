@@ -1,6 +1,6 @@
 <main
   class="main-menu"
-  [class.main-menu--sheet]="showNewGameSetup"
+  [class.main-menu--sheet]="showNewGameSetup || showCampaign"
   [class.main-menu--load]="showLoadGameSlots"
 >
   <!--
@@ -49,7 +49,7 @@
     <div class="scene__veil"></div>
   </div>
 
-  @if (!showNewGameSetup) {
+  @if (!showNewGameSetup && !showCampaign) {
     <section class="menu">
       <header class="menu__brand">
         <img src="logo.png" title="Orion Imperium" alt="Orion Imperium Logo" class="game-logo" />
@@ -58,6 +58,11 @@
 
       @if (!showLoadGameSlots) {
         <nav class="menu__nav" aria-label="Main menu">
+          <button type="button" class="menu-item" (click)="openCampaign()">
+            <span class="menu-item__label">CAMPAIGN</span>
+            <span class="menu-item__hint">The Silent Frontier</span>
+          </button>
+
           <button type="button" class="menu-item" (click)="openNewGameSetup()">
             <span class="menu-item__label">NEW GAME</span>
             <span class="menu-item__hint">Forge a new empire</span>
@@ -71,7 +76,7 @@
           >
             <span class="menu-item__label">LOAD GAME</span>
             <span class="menu-item__hint">
-              {{ hasAnySave ? 'Resume a saved campaign' : 'No saved campaigns yet' }}
+              {{ hasAnySave ? 'Resume a saved game' : 'No saved games yet' }}
             </span>
           </button>
 
@@ -112,7 +117,7 @@
               @if (slot.incompatible) {
                 <span class="save-slot__date">{{ incompatibleLabel(slot) }}</span>
               } @else {
-                <span class="save-slot__date">{{ formatDate(slot.date) }}</span>
+                <span class="save-slot__date">{{ slotLabel(slot) }}</span>
               }
             </button>
           }
@@ -138,6 +143,21 @@
           (start)="onStartNewGame($event)"
           (cancel)="closeNewGameSetup()"
         ></app-new-game-setup>
+      </div>
+    </div>
+  }
+
+  @if (showCampaign) {
+    <div class="sheet">
+      <div class="sheet__panel">
+        <app-campaign-screen
+          [slots]="slots"
+          [startError]="campaignErrors"
+          [starting]="startingMission"
+          [initialMissionId]="campaignMissionId"
+          (start)="onStartMission($event)"
+          (cancel)="closeCampaign()"
+        ></app-campaign-screen>
       </div>
     </div>
   }

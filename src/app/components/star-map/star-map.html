@@ -2,26 +2,60 @@
   @if (gameOutcome !== 'inProgress') {
     <div class="game-end-overlay" role="dialog" aria-modal="true">
       <div class="game-end-modal">
-        <div class="game-end-title" [class.game-end-title--victory]="gameOutcome === 'victory'" [class.game-end-title--defeat]="gameOutcome === 'defeat'">
-          {{ gameOutcome === 'victory' ? 'VICTORY' : 'DEFEAT' }}
+        <div class="game-end-title" [class.game-end-title--long]="campaignActive" [class.game-end-title--victory]="gameOutcome === 'victory'" [class.game-end-title--defeat]="gameOutcome === 'defeat'">
+          @if (campaignActive) {
+            {{ gameOutcome === 'victory' ? 'MISSION COMPLETE' : 'MISSION FAILED' }}
+          } @else {
+            {{ gameOutcome === 'victory' ? 'VICTORY' : 'DEFEAT' }}
+          }
         </div>
         <div class="game-end-message">
           @if (campaignEndText; as campaignText) {
             {{ campaignText }}
+          } @else if (campaignActive) {
+            {{ gameOutcome === 'victory' ? 'Mission complete.' : 'Your empire has fallen: no planet and no colony ship remain.' }}
           } @else if (dysonWinnerName; as dysonWinner) {
             {{ gameOutcome === 'victory' ? 'The Dyson swarm is complete. You held every anchor around the black hole through the warm-up, and the galaxy runs on your light.' : dysonWinner + ' completed the Dyson swarm around the black hole and held it through the warm-up.' }}
           } @else {
             {{ gameOutcome === 'victory' ? 'Galactic conquest achieved. All inhabited systems are under player or allied control.' : 'The empire has fallen. No inhabited planets remain under player control and no surviving fleets remain.' }}
           }
         </div>
-        <div class="game-end-stats">
-          <div>Inhabited planets controlled by player/allies: {{ getAlliedInhabitedPlanetCount() }}</div>
-          <div>Total inhabited planets: {{ getTotalInhabitedPlanetCount() }}</div>
-        </div>
-        <div class="game-end-actions">
-          <button class="game-end-btn btn-primary" type="button" (click)="returnToMainMenu()">RETURN TO MAIN MENU</button>
-          <button class="game-end-btn" type="button" (click)="startNewGameFromEnd()">START NEW GAME</button>
-        </div>
+        @if (campaignActive) {
+          @if (gameOutcome === 'victory') {
+            <div class="game-end-actions">
+              <button class="game-end-btn btn-primary" type="button" (click)="openCampaignScreen()">
+                {{ nextMissionId ? 'NEXT MISSION' : 'CAMPAIGN' }}
+              </button>
+              <button class="game-end-btn" type="button" (click)="returnToMainMenu()">MAIN MENU</button>
+            </div>
+          } @else if (showCampaignLoadSlots) {
+            <div class="game-end-slots" role="group" aria-label="Load a save of this mission">
+              @for (entry of campaignSaveSlots; track entry.index) {
+                <button class="game-end-btn" type="button" (click)="loadMissionSave(entry.index)">
+                  Slot {{ entry.index + 1 }} — {{ formatSlotDate(entry.date) }}
+                </button>
+              } @empty {
+                <p class="game-end-slots__empty">No saves of this mission yet.</p>
+              }
+              <button class="game-end-btn" type="button" (click)="showCampaignLoadSlots = false">BACK</button>
+            </div>
+          } @else {
+            <div class="game-end-actions">
+              <button class="game-end-btn btn-primary" type="button" (click)="showCampaignLoadSlots = true">LOAD SAVE</button>
+              <button class="game-end-btn" type="button" (click)="restartMission()">RESTART MISSION</button>
+              <button class="game-end-btn" type="button" (click)="returnToMainMenu()">MAIN MENU</button>
+            </div>
+          }
+        } @else {
+          <div class="game-end-stats">
+            <div>Inhabited planets controlled by player/allies: {{ getAlliedInhabitedPlanetCount() }}</div>
+            <div>Total inhabited planets: {{ getTotalInhabitedPlanetCount() }}</div>
+          </div>
+          <div class="game-end-actions">
+            <button class="game-end-btn btn-primary" type="button" (click)="returnToMainMenu()">RETURN TO MAIN MENU</button>
+            <button class="game-end-btn" type="button" (click)="startNewGameFromEnd()">START NEW GAME</button>
+          </div>
+        }
       </div>
     </div>
   }
@@ -448,6 +482,15 @@
       <span class="dyson-countdown__time">{{ countdown.time }}</span>
     </div>
   }
+  <!-- Campaign objective tracker (docs/campaign-design.md); galaxy and system views only. -->
+  @if (campaignActive && currentView !== 'planet' && campaignObjectives.length > 0) {
+    <app-star-map-campaign-objectives
+      class="campaign-tracker"
+      [missionTitle]="campaignMissionTitle"
+      [objectives]="campaignObjectives"
+    ></app-star-map-campaign-objectives>
+  }
+
   @if (mapNotice) {
     <div class="map-notice" role="status">{{ mapNotice }}</div>
   }
@@ -529,6 +572,15 @@
       [error]="anomalyError"
       (choose)="onAnomalyChoice($event)"
     ></app-star-map-anomaly-event>
+  }
+
+  <!-- Campaign story message; the game is paused while it is open. -->
+  @if (campaignMessage) {
+    <app-star-map-campaign-message
+      animate.enter="ui-enter" animate.leave="ui-leave"
+      [vm]="campaignMessage"
+      (choose)="onCampaignChoice($event)"
+    ></app-star-map-campaign-message>
   }
 
   @if (showDiplomacy) {

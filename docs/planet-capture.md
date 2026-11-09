@@ -112,7 +112,7 @@ Rules 2 and 3 are mutually exclusive. An AI faction without planets but with a f
 
 Outcome checks run on battle return, on load, after a player treaty change, and in the frame loop whenever `PlanetOwnershipService.revision` changed, an AI-vs-AI battle was auto-resolved, or an AI treaty event happened.
 
-A terminal outcome shows the victory / defeat dialog (`.game-end-overlay` in `star-map.html`) in every orientation. The portrait "rotate your device" gate now lives at the app root (`OrientationGateComponent`) and covers it on an upright touch device; the dialog once sat inside the old star-map overlay by mistake and so never appeared in landscape.
+A terminal outcome shows the victory / defeat dialog (`.game-end-overlay` in `star-map.html`) in every orientation. In a campaign mission it reads MISSION COMPLETE / MISSION FAILED with the mission's own text and actions ([Campaign Design](./campaign-design.md#implementation-status)). The portrait "rotate your device" gate now lives at the app root (`OrientationGateComponent`) and covers it on an upright touch device; the dialog once sat inside the old star-map overlay by mistake and so never appeared in landscape.
 
 ## Tests
 

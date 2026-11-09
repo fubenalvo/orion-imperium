@@ -7,6 +7,7 @@ import { SaveGameService, SaveSlotId } from '../services/save-game.service';
 import { GameOutcomeService } from '../services/game-outcome.service';
 import { ResearchService } from '../services/research.service';
 import { PirateIncursionService } from '../components/star-map/pirate-incursion';
+import { GameTimeService } from '../services/game-time.service';
 import { CampaignMissionService } from './campaign-mission.service';
 import { CampaignService } from './campaign.service';
 import { CampaignProgressService } from './campaign-progress.service';
@@ -154,6 +155,64 @@ describe('Campaign session in StarMap', () => {
     });
     run(map, 1.5);
     expect(campaign().state!.counters.battle_won).toBe(1);
+  });
+
+  it('opens the story message paused, and resumes the game after the answer', () => {
+    const map = start();
+    run(map, 2);
+    chartProxima(map);
+    run(map, 1.5);
+    killSentinel(map);
+    run(map, 1.5);
+    const time = TestBed.inject(GameTimeService);
+    expect(map.campaignMessage?.eventId).toBe('sentinel_down');
+    expect(map.campaignMessage?.speakerName).toBe('Mission Control');
+    expect(time.isPaused).toBe(true);
+    map.onCampaignChoice('report');
+    expect(map.campaignMessage).toBeNull();
+    expect(map.gameOutcome).toBe('victory');
+    expect(map.nextMissionId, 'the fixture unlocks no story mission').toBeNull();
+  });
+
+  it('re-opens a pending message after a reload', () => {
+    const map = start();
+    run(map, 2);
+    chartProxima(map);
+    run(map, 1.5);
+    killSentinel(map);
+    run(map, 1.5);
+    const reloaded = createStarMap();
+    expect(reloaded.campaignMessage).toBeNull();
+    run(reloaded, 0.25);
+    expect(reloaded.campaignMessage?.eventId).toBe('sentinel_down');
+  });
+
+  it('refreshes the objective tracker on the economy tick', () => {
+    const map = start();
+    run(map, 2);
+    expect(map.campaignObjectives.map((o) => o.id)).toEqual(['chart_proxima', 'research_radar']);
+    expect(map.campaignMissionTitle).toBe('Proving Ground');
+  });
+
+  it('after a defeat: lists the saves of this mission, loads one, or restarts the mission', () => {
+    const map = start();
+    run(map, 2);
+    (campaign().state as any).flags['force_defeat'] = true;
+    run(map, 1.5);
+    expect(map.gameOutcome).toBe('defeat');
+    expect(map.campaignSaveSlots.map((s) => s.index)).toEqual([SLOT]);
+
+    map.loadMissionSave(SLOT);
+    expect(map.gameOutcome).toBe('inProgress');
+    expect(campaign().state!.flags['force_defeat']).toBeUndefined();
+
+    (campaign().state as any).flags['force_defeat'] = true;
+    run(map, 1.5);
+    expect(map.gameOutcome).toBe('defeat');
+    map.restartMission();
+    expect(map.gameOutcome).toBe('inProgress');
+    expect(campaign().state!.missionId).toBe('m0_fixture');
+    expect(autosave().gameSeconds).toBe(0);
   });
 
   it('leaves a normal game without campaign rules after a campaign was played', () => {

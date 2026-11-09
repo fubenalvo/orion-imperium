@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phase 1a implemented** (the campaign engine without UI, see
+Status: **Phases 1a and 1b implemented** (the campaign engine and its UI, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -74,11 +74,22 @@ Implemented subset and deviations from the design below:
 - Conditions: `all`, `any`, `not`, `flag`, `value_at_least`, `objective_done`, `game_time_at_least`, `event_count` (new: reads the counters above), `system_charted`, `systems_charted`, `planets_owned`, `planet_owned_by`, `population_at_least`, `building_complete`, `technology`, `fleet_tag_destroyed`, `fleet_at`, `opinion_at_least`, `relation`, `held_for`. Composite conditions evaluate every child, so nested timers advance consistently. Later phases add `contact`, `war_exhaustion_at_least`, `system_controlled`, `site_claimed`, `anomaly_resolved`.
 - Effects: `notice`, `event`, `flag`, `value`, `reveal_objective`, `resources`, `grant_technology`, `reveal_technology`, `end_mission`, `fail_mission`. Later phases add `spawn_fleet`, `contact`, `start_war`, `start_peace`, `opinion`, `force_demand`, `protect_planet`, `site_state`, `wormhole_state`.
 - The session also stores `carry` (what the start took from earlier missions, used by restart) and `rules` (copied from the definition, so `GameOutcomeService` needs no registry).
-- Story events: non-modal events become map notices; modal events wait in `pendingEvents` and are answered through `CampaignService.chooseEventOption`. **There is no dialog yet (Phase 1b)**, so a modal event currently waits unseen.
+- Story events: non-modal events become map notices; modal events wait in `pendingEvents` and are answered through `CampaignService.chooseEventOption` (dialog: Phase 1b below).
 - Not yet done from §14: rejecting a skirmish save that lists a campaign-only technology (no such technology exists before Mission 6).
 - Tests: `campaign-objectives.spec.ts`, `campaign.service.spec.ts`, `campaign-progress.service.spec.ts`, `mission-builder.spec.ts` (builder and validation), `campaign-outcome.spec.ts`, `campaign-session.spec.ts` (real `StarMap`: no instant victory, objectives saved at once, reload, battle return without repeated rewards, victory through an event choice, defeat, pirates off, horizon, a normal game afterwards), `services/research-horizon.spec.ts`. `registerTestMission` lets specs add definitions; the game never uses it.
 
-**Next:** Phase 1b (campaign screen, objective tracker, story dialog, debrief / defeat options).
+**Phase 1b — campaign UI (done, 2026-11-09).**
+
+- **Main menu:** a CAMPAIGN entry opens `CampaignScreenComponent` (`main-menu/campaign-screen/`) in the menu's sheet: missions with their status (locked / available / completed with the ending reached), the selected mission's briefing, the number of carried technologies, difficulty (defaults to the last one used) and save slot. START MISSION runs `CampaignMissionService.startMission` and navigates only on success. Developer missions (`devOnly`) are listed only in dev mode (`isDevMode()`), so the fixture is playable from `ng serve` but never in a release. The menu opens the screen by itself when it is navigated to with the state `{ openCampaign: true, missionId }` (`MainMenuNavigationState`).
+- **Objective tracker:** `StarMapCampaignObjectivesComponent`, right edge under the header, galaxy and system views (not the planet view, whose side panel is there). Main objectives, then optional ones; done / failed dimmed; progress `current / target`; collapsible. `StarMap.campaignObjectives` is refreshed on the economy tick.
+- **Story message:** `StarMapCampaignMessageComponent`. `StarMap.syncCampaignMessage` (each frame, from the anomaly update step) opens the oldest pending event, pauses the game and resumes it after the answer if it was running; it never opens over the anomaly dialog or a decided game, and re-opens after a reload. Choices whose `requires` fails are shown disabled. A message without choices has CONTINUE. The tutorial hides its hints while it is open (`modalOpen`).
+- **Mission end** (the game-end dialog): MISSION COMPLETE with the ending text and NEXT MISSION (the next story mission now unlocked) or CAMPAIGN, plus MAIN MENU; MISSION FAILED with the reason and **LOAD SAVE** (the undecided manual saves of this mission), **RESTART MISSION** (rebuild from the definition with the start's difficulty and carry, `CampaignMissionService.restartFromSave`) and **MAIN MENU** — the owner's decision of 2026-11-09.
+- **Save lists:** campaign saves are labelled "Campaign · <mission> — <date>" in the main menu and pause menu (`campaignSlotLabel`). The LOAD GAME hint now says "saved game" (the word "campaign" belongs to the story mode).
+- Tests: `campaign-screen.component.spec.ts`, `star-map-campaign-message.component.spec.ts`, `star-map-campaign-objectives.component.spec.ts`, and `campaign-session.spec.ts` (dialog pause/resume, re-open after reload, tracker refresh, LOAD SAVE and RESTART after a defeat). Checked in the browser on the fixture: campaign screen, tracker in galaxy and system views, story dialog, victory and defeat dialogs, LOAD SAVE and RESTART.
+
+**Known gaps of the UI:** objectives are not shown in the planet view; clicking an objective does not center the camera yet (no `locate` data in the model).
+
+**Next:** Phase 2 — Mission 1 (exit wormhole, Remnant sentinel, tutorial profile).
 
 ---
 

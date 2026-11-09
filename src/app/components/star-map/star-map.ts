@@ -233,12 +233,19 @@ import { SystemEntryAlert, systemEntryAlert } from './system-pursuit';
 import { minedDepositsOf } from './raw-deposits';
 import { AnomalyContext, AnomalyEventVm, AnomalyService } from './anomaly.service';
 import { StarMapAnomalyEventComponent } from './star-map-anomaly-event/star-map-anomaly-event.component';
+import { CampaignMessageVm, StarMapCampaignMessageComponent } from './star-map-campaign-message/star-map-campaign-message.component';
+import { StarMapCampaignObjectivesComponent } from './star-map-campaign-objectives/star-map-campaign-objectives.component';
 import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
 import { ensureColonyCore, isCoreOwner } from './colony-core';
 import { TutorialService } from '../../services/tutorial.service';
-import { CampaignService, CampaignTickResult } from '../../campaign/campaign.service';
+import { CampaignService, CampaignTickResult, ObjectiveView } from '../../campaign/campaign.service';
+import { CampaignMissionService } from '../../campaign/campaign-mission.service';
+import { MISSION_DEFINITIONS } from '../../campaign/missions';
+import { CampaignProgressService } from '../../campaign/campaign-progress.service';
+import { evaluateCondition } from '../../campaign/campaign-objectives';
 import { CampaignWorld } from '../../campaign/campaign-objectives';
+import { CampaignSessionState } from '../../campaign/campaign.models';
 import { buildTutorialContext } from '../tutorial/tutorial-context';
 
 /*
@@ -289,6 +296,8 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
     StarMapFleetManagerComponent,
     ShipCustomizationComponent,
     StarMapAnomalyEventComponent,
+    StarMapCampaignMessageComponent,
+    StarMapCampaignObjectivesComponent,
   ],
   templateUrl: './star-map.html',
   styleUrl: './star-map.scss',
@@ -298,6 +307,15 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private readonly tutorial = inject(TutorialService);
   /* Story campaign session (docs/campaign-design.md): null-object outside campaign games. */
   private readonly campaign = inject(CampaignService);
+  private readonly campaignMissions = inject(CampaignMissionService);
+  private readonly campaignProgress = inject(CampaignProgressService);
+  /* The open story message (one at a time, never over the anomaly dialog). */
+  campaignMessage: CampaignMessageVm | null = null;
+  private campaignMessageResumeOnClose = false;
+  /* Objective tracker rows, refreshed once per economy tick. */
+  campaignObjectives: ObjectiveView[] = [];
+  /* Mission defeat: the LOAD SAVE list is open. */
+  showCampaignLoadSlots = false;
   // Real time (ms) of the last tutorial context snapshot; see publishTutorialContext.
   private tutorialPublishedAt = 0;
   private _currentView: 'map' | 'system' | 'planet' = 'map';
@@ -4104,7 +4122,7 @@ loadError = '';
 
     const visibilityChanged = this.updateSensorVisibility();
     const territoryChanged = this.refreshTerritoryViews();
-    const anomaliesChanged = this.updateAnomalies();
+    const anomaliesChanged = this.updateAnomalies() || this.syncCampaignMessage();
 
     const productionResult = this.productionService.tick(
       gameDeltaTime,
@@ -4971,6 +4989,7 @@ loadError = '';
           !!this.fleetManagerFleets ||
           !!this.customizationFleet ||
           !!this.anomalyEvent ||
+          !!this.campaignMessage ||
           this.aiDebugVisible ||
           this.gameOutcome !== 'inProgress' ||
           this.gameSettingsService.optionsMenuOpen,
@@ -5091,6 +5110,11 @@ loadError = '';
     // (the battle screen only edits the autosave written before it opened).
     // Also sets or clears the campaign research horizon.
     this.campaign.restore(data.campaign ?? null);
+    // A pending story message re-opens from the restored session on the next frame.
+    this.campaignMessage = null;
+    this.campaignMessageResumeOnClose = false;
+    this.showCampaignLoadSlots = false;
+    this.campaignObjectives = [];
     // The grace checks must not run on the previous session's clock before the first AI tick.
     this.openingGrace.setGameSeconds(this.gameSeconds);
     // A pending event re-opens from the restored state on the next frame.
@@ -5409,6 +5433,127 @@ loadError = '';
   private tickCampaign(seconds: number): void {
     if (!this.campaign.active) return;
     this.applyCampaignResult(this.campaign.tick(seconds, this.campaignWorld()));
+    this.campaignObjectives = this.campaign.objectiveViews(this.campaignWorld());
+  }
+
+  get campaignActive(): boolean {
+    return this.campaign.active;
+  }
+
+  get campaignMissionTitle(): string {
+    return this.campaign.mission?.title ?? '';
+  }
+
+  /*
+   * Opens the oldest pending story message, pausing the game, or closes the
+   * dialog once nothing is pending. Waits while the anomaly dialog is open
+   * or the game is decided, so two modal dialogs never stack.
+   */
+  private syncCampaignMessage(): boolean {
+    const session = this.campaign.state;
+    const pending = session && !this.anomalyEvent && this.gameOutcome === 'inProgress'
+      ? this.campaign.pendingEvent
+      : null;
+    if (!pending || !session) {
+      if (!this.campaignMessage || this.anomalyEvent) return false;
+      this.closeCampaignMessage();
+      return true;
+    }
+    if (this.campaignMessage?.eventId === pending.id) return false;
+    if (!this.campaignMessage) {
+      this.campaignMessageResumeOnClose = !this.gameTimeService.isPaused;
+      this.gameTimeService.pause();
+    }
+    this.music.playStinger('notification');
+    const speaker = this.factions.find((f) => f.id === pending.speaker);
+    const world = this.campaignWorld();
+    this.campaignMessage = {
+      eventId: pending.id,
+      speakerName: speaker?.name ?? 'Mission Control',
+      speakerColor: speaker?.color ?? 'var(--ui-accent)',
+      title: pending.title,
+      text: pending.text,
+      choices: (pending.choices ?? []).map((choice) => ({
+        id: choice.id,
+        label: choice.label,
+        consequences: choice.consequences,
+        // dt 0: the availability check advances no held_for timer.
+        disabled: !!choice.requires && !evaluateCondition(choice.requires, { world, session: session as CampaignSessionState, dt: 0 }),
+      })),
+    };
+    return true;
+  }
+
+  private closeCampaignMessage(): void {
+    this.campaignMessage = null;
+    if (this.campaignMessageResumeOnClose) this.gameTimeService.resume();
+    this.campaignMessageResumeOnClose = false;
+  }
+
+  /* The player answered the story message (null = CONTINUE). */
+  onCampaignChoice(choiceId: string | null): void {
+    const message = this.campaignMessage;
+    if (!message) return;
+    const result = this.campaign.chooseEventOption(message.eventId, choiceId, this.campaignWorld());
+    this.applyCampaignResult(result);
+    this.campaignObjectives = this.campaign.objectiveViews(this.campaignWorld());
+    if (this.gameOutcome !== 'inProgress') {
+      // The end dialog takes over; the game stays paused.
+      this.campaignMessage = null;
+      this.campaignMessageResumeOnClose = false;
+    } else {
+      // Opens the next queued message, or closes the dialog and resumes.
+      this.syncCampaignMessage();
+    }
+    this.cdr.detectChanges();
+  }
+
+  /* --- Mission end dialog (campaign games) --- */
+
+  /* The next story mission, now unlocked by this victory. */
+  get nextMissionId(): string | null {
+    const current = this.campaign.mission;
+    if (!current || this.gameOutcome !== 'victory') return null;
+    const next = MISSION_DEFINITIONS.find((m) => !m.devOnly && m.requires.includes(current.id) && this.campaignProgress.isUnlocked(m));
+    return next?.id ?? null;
+  }
+
+  /* NEXT MISSION / CAMPAIGN: the main menu's campaign screen, the next mission selected. */
+  openCampaignScreen(): void {
+    this.saveGame();
+    this.router.navigate([''], { state: { openCampaign: true, missionId: this.nextMissionId ?? this.campaign.mission?.id } });
+  }
+
+  /* RESTART MISSION: rebuild from the definition with the start's difficulty and carry. */
+  restartMission(): void {
+    const result = this.campaignMissions.restartFromSave(this.serializeGameState());
+    if (!result.ok) {
+      this.showMapNotice(result.errors[0]);
+      return;
+    }
+    this.battleService.clearBattle();
+    this.loadGame();
+    this.cdr.detectChanges();
+  }
+
+  /* Manual saves of this mission that are still undecided (LOAD SAVE after a defeat). */
+  get campaignSaveSlots(): { index: number; date: string | null }[] {
+    const missionId = this.campaign.state?.missionId;
+    if (!missionId) return [];
+    return this.saveGameService.getSlots()
+      .map((slot, index) => ({ slot, index }))
+      .filter(({ slot, index }) => index !== SaveSlotId.AUTOSAVE && !slot.incompatible
+        && slot.data?.campaign?.missionId === missionId && (slot.data.gameOutcome ?? 'inProgress') === 'inProgress')
+      .map(({ slot, index }) => ({ index, date: slot.date }));
+  }
+
+  loadMissionSave(slotIndex: number): void {
+    this.loadFromMenu(slotIndex);
+    this.cdr.detectChanges();
+  }
+
+  formatSlotDate(date: string | null): string {
+    return date ? new Date(date).toLocaleString() : 'Empty';
   }
 
   /*

@@ -1,0 +1,47 @@
+<div class="message-overlay">
+  <div
+    class="message-panel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="campaign-message-title"
+    aria-describedby="campaign-message-text"
+    [style.--speaker-color]="vm.speakerColor"
+  >
+    <div class="message__body">
+      <header class="message__header">
+        <span class="message__eyebrow">Incoming transmission · game paused</span>
+        <h2 class="message__title" id="campaign-message-title">
+          <span class="message__diamond" aria-hidden="true"></span>
+          {{ vm.title }}
+        </h2>
+        <span class="message__speaker">{{ vm.speakerName }}</span>
+      </header>
+
+      <p class="message__text" id="campaign-message-text">{{ vm.text }}</p>
+
+      @if (vm.choices.length > 0) {
+        <div class="message__choices">
+          @for (choice of vm.choices; track choice.id) {
+            <section class="message__choice" [class.message__choice--disabled]="choice.disabled">
+              <button
+                type="button"
+                class="message__choice-btn"
+                [class.btn-primary]="$first && !choice.disabled"
+                [disabled]="choice.disabled || answered"
+                [attr.aria-describedby]="'campaign-choice-' + choice.id"
+                (click)="pick(choice.id)"
+              >
+                {{ choice.label }}
+              </button>
+              <p class="message__consequences" [id]="'campaign-choice-' + choice.id">{{ choice.consequences }}</p>
+            </section>
+          }
+        </div>
+      } @else {
+        <div class="message__actions">
+          <button type="button" class="btn-primary" [disabled]="answered" (click)="pick(null)">CONTINUE</button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

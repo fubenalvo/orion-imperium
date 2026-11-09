@@ -198,7 +198,7 @@ use them up.
 - Context publishing — `StarMap.publishTutorialContext` from the game loop (which also runs while
   paused), at most every 250 ms, only while the tutorial is on, plus once after every load. Dialogs
   StarMap knows (pause menu, Options, research, diplomacy, negotiation, Fleet Command, ship
-  customization, anomaly event, AI debug, game end) set `modalOpen`, which hides every hint.
+  customization, anomaly event, campaign story message, AI debug, game end) set `modalOpen`, which hides every hint.
 - Events (`notify`) — planet tab opened, Mining Complex / factory / Spaceport picked (planet
   screen), ship stock opened (header), fleet assembled, system entered from the panel, a planet view opened, research tree and
   Diplomacy opened (StarMap).

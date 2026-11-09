@@ -1,0 +1,130 @@
+@use 'ui';
+
+/* =========================================================
+   CAMPAIGN STORY MESSAGE
+   ---------------------------------------------------------
+   Same modal frame as the exploration event dialog, with the
+   speaker's faction color as the accent (--speaker-color).
+   ========================================================= */
+
+.message-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1010;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(8px, 2.5vw, 40px);
+  @include ui.backdrop;
+}
+
+.message-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 600px;
+  max-height: min(94vh, 900px);
+  border-radius: var(--ui-radius);
+  @include ui.glass;
+  @include ui.brackets(22px, var(--speaker-color, var(--ui-accent)));
+}
+
+.message__body {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 1.6vh, 18px);
+  min-height: 0;
+  padding: clamp(14px, 2.4vh, 26px) clamp(16px, 2.4vw, 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  @include ui.scroll;
+}
+
+.message__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding-bottom: 0.8em;
+  border-bottom: 1px solid var(--ui-line-soft);
+}
+
+.message__eyebrow {
+  color: var(--speaker-color, var(--ui-accent-text));
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.message__title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-xl);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.message__diamond {
+  flex-shrink: 0;
+  width: 0.5em;
+  height: 0.5em;
+  transform: rotate(45deg);
+  background: var(--speaker-color, var(--ui-accent));
+  box-shadow: 0 0 10px var(--speaker-color, var(--ui-accent));
+}
+
+.message__speaker {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.12em;
+}
+
+.message__text {
+  margin: 0;
+  color: var(--ui-ink);
+  font-size: var(--ui-fs-sm);
+  line-height: 1.55;
+}
+
+.message__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+
+.message__choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  padding: 0.7em 0.8em;
+  border: 1px solid var(--ui-line-soft);
+  border-radius: var(--ui-radius);
+  background: rgba(255, 255, 255, 0.02);
+
+  &--disabled {
+    opacity: 0.6;
+  }
+}
+
+.message__choice-btn {
+  align-self: flex-start;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.message__consequences {
+  margin: 0;
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.06em;
+}
+
+.message__actions {
+  display: flex;
+  justify-content: flex-end;
+}

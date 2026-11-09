@@ -1,3 +1,4 @@
+import { campaignSlotLabel } from '../campaign/missions';
 import { Component, ElementRef, HostListener, OnInit, OnDestroy, inject } from '@angular/core';
 import { MusicService } from '../services/music.service';
 import { CampaignService } from '../campaign/campaign.service';
@@ -16,6 +17,18 @@ import { NewGameService } from '../services/new-game.service';
 import { NewGameConfig } from '../services/new-game.models';
 import { createDefaultNewGameConfig } from '../services/new-game-config';
 import { NewGameSetupComponent, NewGameStartRequest } from './new-game-setup/new-game-setup.component';
+import { CampaignScreenComponent, CampaignStartRequest } from './campaign-screen/campaign-screen.component';
+import { CampaignMissionService } from '../campaign/campaign-mission.service';
+
+/*
+ * Navigation state that opens the campaign screen when the main menu
+ * appears (NEXT MISSION on a mission debrief), optionally with a mission
+ * selected.
+ */
+export interface MainMenuNavigationState {
+  openCampaign?: boolean;
+  missionId?: string;
+}
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): void;
@@ -24,7 +37,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 @Component({
   selector: 'app-main-menu',
-  imports: [NewGameSetupComponent],
+  imports: [NewGameSetupComponent, CampaignScreenComponent],
   styleUrl: './main-menu.scss',
   templateUrl: './main-menu.html',
 })
@@ -32,6 +45,10 @@ export class MainMenu implements OnInit, OnDestroy {
   readonly gameVersion = GAME_VERSION;
   showNewGameSetup = false;
   newGameErrors: string[] = [];
+  showCampaign = false;
+  campaignErrors: string[] = [];
+  startingMission = false;
+  campaignMissionId: string | null = null;
   startingNewGame = false;
   showLoadGameSlots = false;
   showInstallButton = false;
@@ -42,6 +59,7 @@ export class MainMenu implements OnInit, OnDestroy {
   private readonly music = inject(MusicService);
   private readonly tutorial = inject(TutorialService);
   private readonly campaign = inject(CampaignService);
+  private readonly campaignMissions = inject(CampaignMissionService);
 
   constructor(
     private saveGameService: SaveGameService,
@@ -57,6 +75,8 @@ export class MainMenu implements OnInit, OnDestroy {
     this.tutorial.leaveGame();
     // No campaign rules (research horizon) may leak into the next game.
     this.campaign.leave();
+    const state = (typeof history !== 'undefined' ? history.state : null) as MainMenuNavigationState | null;
+    if (state?.openCampaign) this.openCampaign(state.missionId ?? null);
     this.updateInstallVisibility();
     this.startParallax();
   }
@@ -139,6 +159,12 @@ export class MainMenu implements OnInit, OnDestroy {
     return this.saveGameService.hasAnySave();
   }
 
+  /* Date of the slot; campaign saves also name their mission. */
+  slotLabel(slot: SaveSlot): string {
+    const campaign = campaignSlotLabel(slot.data);
+    return campaign ? `${campaign} — ${this.formatDate(slot.date)}` : this.formatDate(slot.date);
+  }
+
   formatDate(date: string | null): string {
     if (!date) {
       return 'Empty';
@@ -173,6 +199,30 @@ export class MainMenu implements OnInit, OnDestroy {
   openNewGameSetup(): void {
     this.newGameErrors = [];
     this.showNewGameSetup = true;
+  }
+
+  openCampaign(missionId: string | null = null): void {
+    this.campaignErrors = [];
+    this.campaignMissionId = missionId;
+    this.showCampaign = true;
+  }
+
+  closeCampaign(): void {
+    this.showCampaign = false;
+    this.campaignErrors = [];
+  }
+
+  /* Builds the mission into the chosen slot and activates it; navigates only on success. */
+  onStartMission(request: CampaignStartRequest): void {
+    this.startingMission = true;
+    const result = this.campaignMissions.startMission(request.missionId, request.difficulty, request.slotIndex);
+    this.startingMission = false;
+    if (!result.ok) {
+      this.campaignErrors = result.errors;
+      return;
+    }
+    this.campaignErrors = [];
+    this.router.navigate(['/star-map']);
   }
 
   closeNewGameSetup(): void {
