@@ -1,14 +1,4 @@
 <div class="star-map" [style.--cell-size-vw]="cellSizeVw + 'vw'">
-  @if (!isLandscape) {
-    <div class="landscape-overlay">
-      <div class="landscape-overlay__content">
-        <div class="landscape-overlay__icon">&#128241;</div>
-        <div class="landscape-overlay__title">LANDSCAPE MODE REQUIRED</div>
-        <div class="landscape-overlay__text">Please rotate your device to play</div>
-      </div>
-    </div>
-  }
-
   @if (gameOutcome !== 'inProgress') {
     <div class="game-end-overlay" role="dialog" aria-modal="true">
       <div class="game-end-modal">

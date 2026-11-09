@@ -1,4 +1,5 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, inject } from '@angular/core';
+import { TutorialService } from '../../../services/tutorial.service';
 import { CommonModule } from '@angular/common';
 
 export interface ShipStockEntryDisplay {
@@ -19,9 +20,11 @@ export class StarMapShipStockComponent {
   @Input() totalShips = 0;
 
   showDetails = false;
+  private readonly tutorial = inject(TutorialService);
 
   toggleDetails(): void {
     this.showDetails = !this.showDetails;
+    if (this.showDetails) this.tutorial.notify('stock-opened');
   }
 
   closeDetails(event: MouseEvent): void {

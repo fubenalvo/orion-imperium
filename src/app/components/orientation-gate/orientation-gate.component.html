@@ -1,0 +1,13 @@
+@if (blocked()) {
+  <div class="orientation-gate" role="alertdialog" aria-modal="true" aria-labelledby="orientation-gate-title">
+    <img class="orientation-gate__logo" src="logo.png" alt="Orion Imperium" />
+    <div class="orientation-gate__panel">
+      <svg class="orientation-gate__icon" viewBox="0 0 64 64" aria-hidden="true">
+        <rect class="orientation-gate__phone" x="22" y="10" width="20" height="36" rx="3" />
+        <path class="orientation-gate__arrow" d="M14 40a20 20 0 0 0 20 14M30 50l4 4-4 4" />
+      </svg>
+      <div class="orientation-gate__title" id="orientation-gate-title">ROTATE YOUR DEVICE</div>
+      <div class="orientation-gate__text">Orion Imperium is played in landscape</div>
+    </div>
+  </div>
+}

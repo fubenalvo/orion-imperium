@@ -81,7 +81,7 @@ One SVG in grid units inside the transformed world (scales with zoom), under the
 | Step | Rule |
 |---|---|
 | Spawn | First after 40–80 s of game time, then every 90–170 s, only while fewer than `maxActive` (3) are active. Entry: uniform point on the map border; direction: toward a random point in the central 50% of the map; must cross ≥ 50% of the shorter map side and keep ≥ 3 cells from any black hole no-fly zone (else retried, then skipped until the next interval). |
-| Move | Straight line, constant speed 0.12–0.2 cells/s; position = start + dir × `traveled`. Driven by the scaled game delta: frozen while paused, faster at 3×. |
+| Move | Straight line, constant speed 0.12–0.2 cells/s; position = start + dir × `traveled`. Driven by the scaled game delta: frozen while paused, faster at 5×. |
 | Exit | Removed when `traveled ≥ length` (reached the opposite border). |
 | Collect | A living fleet of a non-neutral faction within `collectRadius` (1 cell, gameplay coordinates) collects it; closest wins, ties → lowest fleet id. The asteroid is removed in the same step the reward is added (exactly once). `StarMap` autosaves immediately after a collection so a battle-return reload cannot bring it back. |
 

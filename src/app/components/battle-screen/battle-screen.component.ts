@@ -1,4 +1,5 @@
-﻿import {
+﻿import { TutorialService } from '../../services/tutorial.service';
+import {
   AfterViewChecked,
   ChangeDetectorRef,
   Component,
@@ -158,6 +159,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   private replanAccumulator = 0;
   private readonly sound = inject(UiSoundService);
   private readonly music = inject(MusicService);
+  private readonly tutorial = inject(TutorialService);
 
   @ViewChild('resultBackButton') resultBackButton: ElementRef<HTMLButtonElement> | null = null;
 
@@ -346,10 +348,10 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
     this.battleTime.setSpeed(speed);
   }
 
-  /** Battle's internal speeds are shown as 1x / 3x in the shared header. */
+  /** Battle's internal speeds are shown as 1x / 5x in the shared header. */
   readonly battleSpeedOptions: readonly GameHeaderSpeedOption[] = [
     { value: 0.625, label: '1x' },
-    { value: 1.875, label: '3x' },
+    { value: 3.125, label: '5x' },
   ];
 
   onHeaderSpeed(speed: number): void {
@@ -541,6 +543,8 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   ngAfterViewChecked(): void {
+    // Tutorial hint "the battle is paused" (docs/tutorial-hints.md); not over the result popup.
+    this.tutorial.setBattleScene(this.battlePaused && !this.showBattleResult);
     if (this.showBattleResult && !this.resultFanfarePlayed) {
       this.resultFanfarePlayed = true;
       // The fanfare celebrates a win: a defeat of the player's own side keeps
@@ -557,6 +561,7 @@ export class BattleScreenComponent implements OnInit, AfterViewChecked, OnDestro
   }
 
   ngOnDestroy(): void {
+    this.tutorial.setScene('none');
     this.ticksSub.unsubscribe();
     this.battleTimeSub.unsubscribe();
     this.movement.cancelPendingMovementWaits();

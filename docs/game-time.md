@@ -13,29 +13,30 @@ that every gameplay system receives each frame.
 - **Real time** — wall-clock seconds elapsed between `requestAnimationFrame` frames.
   It is always > 0 when the browser is active and the RAF loop is running.
 - **Game time** — simulation seconds. When paused, game time does not advance at all.
-  At 3× speed, game time advances three times as fast as real time.
+  At 5× speed, game time advances five times as fast as real time.
 
 ```text
 realDeltaTime   →  GameTimeService.getScaledDeltaTime  →  gameDeltaTime
 0.016 s (60fps)                                           0.016 s at 1×
-                                                          0.048 s at 3×
+                                                          0.08 s  at 5×
                                                           0 s     at pause
 ```
 
 The 0.1-second clamp on `realDeltaTime` is applied in `StarMapGameLoopService.tick`
-**before** scaling, so even at 3× the per-frame spike is capped at 0.3 s.
+**before** scaling, so even at 5× the per-frame spike is capped at 0.5 s. Map movement
+clamps each step to the remaining distance, so a long frame cannot overshoot a target.
 
 ### Speed multiplier
 
-`GameSpeed` is a numeric type (`1 | 3`), not an enum of labels. This makes future
+`GameSpeed` is a numeric type (`1 | 5`), not an enum of labels. This makes future
 speeds trivial to add:
 
 ```ts
-export type GameSpeed = 1 | 3;
+export type GameSpeed = 1 | 5;
 // Future: 0.5 | 1 | 3 | 5 — just extend the union
 ```
 
-Speed `1` = normal, `3` = fast. 3× is the only fast speed in the game; the battle screen uses the same 1x / 3x labels. Paused is tracked as a separate boolean
+Speed `1` = normal, `5` = fast. 5× is the only fast speed in the game (it replaced 3× in 2026-11 so long waits for fleets and construction pass quicker); the battle screen uses the same 1x / 5x labels. Paused is tracked as a separate boolean
 (`isPaused`) so that `togglePause()` / `pause()` / `resume()` preserve the current
 speed across pause cycles.
 
@@ -44,7 +45,7 @@ speed across pause cycles.
 ```ts
 state$: BehaviorSubject<TimeState>   // { speed, isPaused, gameElapsedTime }
 
-get speed(): GameSpeed               // 1 or 3
+get speed(): GameSpeed               // 1 or 5
 get isPaused(): boolean
 get gameElapsedTime(): number        // accumulated simulation seconds
 
@@ -81,13 +82,13 @@ update even without a simulation change.
 ## Time Controls (Header)
 
 The `StarMapHeaderComponent` (through the shared `GameHeaderComponent`, see
-[UI Styling → Game Header](./ui-styling.md#game-header)) renders three buttons: **⏸**, **1x**, **3x**.
+[UI Styling → Game Header](./ui-styling.md#game-header)) renders three buttons: **⏸**, **1x**, **5x**.
 
 - **⏸** (pause toggle) — calls `gameTimeService.togglePause()`. Active state
   highlighted when paused.
 - **1x** — calls `gameTimeService.setSpeed(1)`. Active when `speed === 1 && !isPaused`.
   Clicking while paused sets speed to 1 and un-pauses.
-- **3x** — calls `gameTimeService.setSpeed(3)`. Active when `speed === 3 && !isPaused`.
+- **5x** — calls `gameTimeService.setSpeed(5)`. Active when `speed === 5 && !isPaused`.
   Same pause-resume behavior as 1x.
 
 When paused, the speed buttons are visually dimmed. The simulation systems receive
@@ -101,7 +102,7 @@ Handled by `StarMap.handleKeyboard` (`@HostListener('window:keydown')`):
 |-----|--------|
 | Space | Toggle pause/resume |
 | 1 | Set speed to 1× |
-| 3 | Set speed to 3× |
+| 5 | Set speed to 5× |
 
 Arrow keys continue to pan the camera (step-based, not time-dependent).
 
@@ -145,7 +146,7 @@ additional battles firing while the player was still fighting the first one.
 ## Battle-Local Time (`BattleTimeService`)
 
 The battle minigame has its own independent time control system (`BattleTimeService`)
-with pause/1x/3x buttons in the battle header. It is a separate instance from
+with pause/1x/5x buttons in the battle header. It is a separate instance from
 `GameTimeService` and does not affect the global simulation time.
 
 **Key Differences from `GameTimeService`:**
@@ -163,7 +164,11 @@ See [Battle Screen](./battle-screen.md#battle-local-time-controls) for full deta
   loading a save, and the return from the battle screen (which reloads the
   autosave). `reset()` un-pauses and clears `gameElapsedTime` but **keeps the
   speed**: the chosen speed is a session preference, so a battle no longer
-  drops 3× back to 1×.
+  drops 5× back to 1×.
+- Exception: a new game with the tutorial on (game clock 0, the tutorial's
+  time step not done) is paused right after the reset, so the first hints
+  can be read; the player starts the clock. See
+  [Tutorial Hints](./tutorial-hints.md#paused-start).
 - Speed is **not persisted** in saved game data; a fresh app session starts at 1×.
 
 ## Future Extensions

@@ -122,10 +122,10 @@ responsive. `stopGameLoop()` is used on component destroy.
 
 ### Pause and Focus
 
-- Keyboard: `Space` toggles pause/resume, `1` sets 1× speed, `3` sets 3× speed (the speed is kept for the session, also across battles).
+- Keyboard: `Space` toggles pause/resume, `1` sets 1× speed, `5` sets 5× speed (the speed is kept for the session, also across battles).
 - Window `blur` and document `visibilitychange` (hidden) call `gameTimeService.pause()`.
 - The pause menu overlay (in `StarMapPauseComponent`) shows when `isPaused || pauseMenuOpen`.
-- Portrait orientation shows a "rotate your device" overlay; landscape is required to play.
+- On touch devices (coarse pointer) a portrait viewport shows the app-wide "rotate your device" gate with the game logo (`OrientationGateComponent`, in `app.html`), on every screen including the main menu; landscape is required. Desktop browsers are never blocked, even in a narrow window.
 - Opening the pause menu pauses the game; closing the menu resumes it.
 
 ### Camera and Drag
@@ -239,8 +239,8 @@ When no fleet battle started, `checkBaseBattles()` starts a static-defense battl
 - Confirming a build charges the building's `price` (credits) and `rawMaterialCost` through `payCost` (nothing is charged if either is short) and appends a new `PlanetBuilding` (with the chosen `x`/`y`) to `planet.buildings`. The build list shows both costs and disables unaffordable buildings. Confirmation reaches `StarMap.onBuildingConfirmed` through the `buildConfirmed` output only (a second input callback used to place and charge every building twice).
 - The same component is reused across the system view (when a planet is selected) and the planet view.
 - The sidebar exposes a tab strip with DETAILS, BUILD, PRODUCTION, ASSEMBLY and TRADE. Tab visibility is data-driven: BUILD is shown only for player-owned planets, PRODUCTION only when the planet has a Spaceship Factory, ASSEMBLY only when the planet has a Spaceport, and TRADE only on a player-owned planet with a Trading Post (trade network figures — this post's traders, inbound traders, network size, empire trade income of the last 5 minutes, see [Trade Network](./trade-network.md#ui) — and the credits ↔ raw materials exchange at deliberately bad rates, see [Economy](./economy.md#trading-post)). DETAILS is a minimal summary (see [UI Styling](./ui-styling.md) for its layout); it shows the planet type's effects as a hint line off earthlike worlds ([Economy](./economy.md#planet-types)). Selecting a tab replaces the sidebar's content area; no floating overlays are mounted outside the sidebar (the production and spaceport panels are re-used inline).
-- **Zoom levels:** a CLOSE / MEDIUM / FAR selector (bottom-right of the surface; top-right below 600px width) scales the whole scene via `PLANET_SURFACE_ZOOM_SCALES` (`1` / `0.733` / `0.537`, an even step) in the camera transform. CLOSE (`1`) is `PLANET_SURFACE_CELL_VW` (4.4vw per cell); the scale is applied around the world center, and the pan offset is rescaled on switch so the view does not jump. Pan clamp bounds use the scaled size.
-- Zoom is view-only state: it is never stored on the planet, in game state, or in saves. Every planet opening starts at MEDIUM (`DEFAULT_PLANET_SURFACE_ZOOM`) — the component is destroyed when the planet view closes, and a change of planet id resets it. There is no deliberate view-state persistence for the planet view (unlike `currentView`/camera, which the save system restores), so this does not conflict with any existing behaviour.
+- **Zoom:** continuous between `PLANET_SURFACE_ZOOM_MIN` and `PLANET_SURFACE_ZOOM_MAX` (`0.537`..`1.364`; `1` is `PLANET_SURFACE_CELL_VW`, 4.4vw per cell), applied as a scale in the camera transform. Mouse wheel, two-finger pinch, and a magnifier (reset) + slider tray (bottom-right of the surface; top-right below 600px width) change it. `setZoom` rescales the pan offset so the point under the cursor / pinch midpoint (or the center) stays put. Pan clamp bounds use the scaled size.
+- Zoom is view-only state: it is never stored on the planet, in game state, or in saves. Every planet opening starts at `DEFAULT_PLANET_SURFACE_ZOOM` (`0.733`) — the component is destroyed when the planet view closes, and a change of planet id resets it. There is no deliberate view-state persistence for the planet view (unlike `currentView`/camera, which the save system restores), so this does not conflict with any existing behaviour.
 
 ## Save System
 

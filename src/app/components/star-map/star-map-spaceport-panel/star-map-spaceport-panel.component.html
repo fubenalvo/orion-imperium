@@ -60,7 +60,7 @@
             <div class="spaceport-panel__row-controls">
               <button type="button" (click)="dec(entry.typeId)">−</button>
               <span class="spaceport-panel__row-count">{{ count(entry.typeId) }}</span>
-              <button type="button" (click)="inc(entry.typeId, entry.available)">+</button>
+              <button type="button" [appTutorialAnchor]="$first ? 'assembly.add' : null" (click)="inc(entry.typeId, entry.available)">+</button>
             </div>
           </div>
         }
@@ -83,7 +83,7 @@
 
     <div class="spaceport-panel__actions">
       <button type="button" (click)="close.emit()">CANCEL</button>
-      <button type="button" class="btn-primary" [disabled]="!canConfirm()" (click)="confirmClick()">
+      <button type="button" class="btn-primary" [appTutorialAnchor]="canConfirm() ? 'assembly.create' : null" [disabled]="!canConfirm()" (click)="confirmClick()">
         CREATE FLEET ({{ totalSelected() }})
       </button>
     </div>

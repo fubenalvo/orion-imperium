@@ -19,6 +19,7 @@
   ></app-faction-currencies>
 
   <app-star-map-ship-stock
+    appTutorialAnchor="hud.stock"
     [entries]="shipStockEntries"
     [totalShips]="shipStockTotal"
   ></app-star-map-ship-stock>
@@ -26,6 +27,7 @@
   <button
     type="button"
     class="diplomacy-toggle"
+    appTutorialAnchor="hud.diplomacy"
     [class.diplomacy-toggle--alert]="diplomacyAlerts > 0"
     (click)="openDiplomacy.emit()"
     [title]="diplomacyAlerts > 0 ? 'Diplomacy: ' + diplomacyAlerts + ' peace offer(s) waiting' : 'Diplomacy'"

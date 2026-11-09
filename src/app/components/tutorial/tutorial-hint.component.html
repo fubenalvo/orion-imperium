@@ -1,0 +1,17 @@
+@if (shown(); as hint) {
+  <div class="tutorial-hint" animate.enter="ui-enter">
+    <div #ring class="tutorial-hint__ring" aria-hidden="true"></div>
+    <div #bubble class="tutorial-hint__bubble" role="status" aria-live="polite">
+      <span #arrow class="tutorial-hint__arrow" aria-hidden="true"></span>
+      <p class="tutorial-hint__text">{{ hint.text }}</p>
+      <button type="button" class="tutorial-hint__close" aria-label="Close hint" title="Close hint" (click)="close()">✕</button>
+      <button type="button" class="tutorial-hint__off" (click)="turnOff()">TUTORIAL OFF</button>
+    </div>
+  </div>
+}
+
+@if (offNotice()) {
+  <div class="tutorial-hint__notice" role="status" animate.enter="ui-enter" animate.leave="ui-leave">
+    Tutorial off — turn it back on in Options.
+  </div>
+}

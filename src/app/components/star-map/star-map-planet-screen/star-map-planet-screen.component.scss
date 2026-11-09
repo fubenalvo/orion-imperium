@@ -247,6 +247,14 @@
   box-shadow: inset 0 0 0 0.08vw rgba(255, 190, 90, 0.55);
 }
 
+/* Tutorial: marks the cell where the Mining Complex fits (docs/tutorial-hints.md).
+   Clicks pass through to the cell underneath. */
+.planet-surface__tutorial-spot {
+  pointer-events: none;
+  background: rgba(var(--ui-accent-rgb), 0.3);
+  box-shadow: inset 0 0 0 0.1vw var(--ui-accent);
+}
+
 .planet-surface__cell--build-valid {
   background: rgba(53, 229, 134, 0.38);
   box-shadow: inset 0 0 0 0.08vw rgba(53, 229, 134, 0.9);
@@ -998,9 +1006,10 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 }
 
 /*
- * Zoom level selector: bottom-right of the surface, mirroring the d-pad on
- * the bottom-left so neither covers the grid center. A segmented control in
- * the same tray language as the header time controls.
+ * Zoom tray: bottom-right of the surface, mirroring the d-pad on the
+ * bottom-left so neither covers the grid center. Magnifier (resets the
+ * zoom), a slider (global range styling from styles.scss) and the NAMES
+ * toggle, floating on the surface without a panel.
  */
 .planet-surface__zoom {
   position: absolute;
@@ -1008,10 +1017,12 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
   bottom: var(--ui-edge);
   z-index: 20;
   display: flex;
-  gap: 0.25em;
+  align-items: center;
+  gap: 0.4em;
   padding: 0.3em;
-  border-radius: var(--ui-radius);
-  @include ui.glass(0.85);
+  // No panel behind the tray, so it does not cover the surface; a soft
+  // shadow keeps the icon, slider and NAMES legible on bright terrain.
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.9));
 
   // On narrow screens the surface is too thin for both overlays on one row,
   // so the selector moves to the (empty) top-right corner instead.
@@ -1033,6 +1044,52 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 
 .planet-surface__zoom-btn--active {
   @include ui.button-selected;
+}
+
+.planet-surface__zoom-icon {
+  display: grid;
+  place-items: center;
+  width: 2.3em;
+  height: 2.3em;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-accent);
+  cursor: pointer;
+
+  svg {
+    width: 1.3em;
+    height: 1.3em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+  }
+
+  // A bare icon: drop the global button frame and glow in every state.
+  &,
+  &:hover:not(:disabled),
+  &:active:not(:disabled),
+  &:focus-visible {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    filter: none;
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--ui-ink);
+  }
+}
+
+.planet-surface__zoom-slider {
+  width: 9em;
+  // Thumb dragging must not start a surface pan or a pinch.
+  touch-action: none;
+
+  @media (max-width: 600px) {
+    width: 6.5em;
+  }
 }
 
 /* =========================================================
@@ -1107,6 +1164,84 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
   display: flex;
   flex-direction: column;
   gap: 0.3em;
+}
+
+/* Category header (build-categories.ts): a quiet label with a rule, not a
+   second row style, so the building rows stay the focus. */
+.build-category {
+  @include ui.control-reset;
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  width: 100%;
+  margin-top: 0.55em;
+  padding: 0.35em 0.15em;
+  border: 0;
+  border-bottom: 1px solid var(--ui-line-soft);
+  background: transparent;
+  box-shadow: none;
+  color: var(--ui-accent);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: 0.18em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+
+  &:first-child {
+    margin-top: 0;
+  }
+
+  &:hover {
+    background: transparent;
+    box-shadow: none;
+    filter: none;
+    color: var(--ui-ink);
+  }
+
+  &--closed {
+    color: var(--ui-ink-dim);
+  }
+}
+
+/* Right-pointing when closed, down when open. */
+.build-category__chevron {
+  flex: 0 0 auto;
+  width: 0.45em;
+  height: 0.45em;
+  border-right: 1px solid currentColor;
+  border-bottom: 1px solid currentColor;
+  transform: rotate(45deg) translate(-0.1em, -0.1em);
+  transition: transform 0.15s ease;
+
+  .build-category--closed & {
+    transform: rotate(-45deg);
+  }
+}
+
+.build-category__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.build-category__count {
+  flex: 0 0 auto;
+  color: var(--ui-ink-faint);
+  letter-spacing: 0.06em;
+}
+
+.build-category__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .build-category__chevron {
+    transition: none;
+  }
 }
 
 .planet-sidebar__build-item {

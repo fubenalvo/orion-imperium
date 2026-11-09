@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { hasTradingPost } from '../trade';
 import {
   buildingConstructionProgress,
@@ -20,7 +21,10 @@ import {
   ViewChild,
   ElementRef,
   HostListener,
+  inject,
 } from '@angular/core';
+import { TutorialService } from '../../../services/tutorial.service';
+import { TutorialEvent } from '../../tutorial/tutorial-steps';
 import { CommonModule } from '@angular/common';
 import { PlanetDetailsComponent } from '../planet-details/planet-details.component';
 import {
@@ -32,6 +36,14 @@ import {
 } from '../star-map.models';
 import { depositMiningBlocker } from '../raw-deposits';
 import { BuildingInfo, describeBuilding, unlockingTechnologyName } from '../building-info';
+import {
+  BuildCategoryGroup,
+  BuildCategoryId,
+  buildCategoryOf,
+  groupBuildingsByCategory,
+  loadCollapsedBuildCategories,
+  saveCollapsedBuildCategories,
+} from './build-categories';
 import {
   StarMapProductionPanelComponent,
   ProductionPanelViewModel,
@@ -108,22 +120,27 @@ export interface TradePostView {
   inbound: number;
 }
 
-/** Predefined camera distances for the planet surface view. */
-export type PlanetSurfaceZoomLevel = 'close' | 'medium' | 'far';
-
 /**
- * Screen-space scale of the surface per zoom level, relative to
- * PLANET_SURFACE_CELL_VW. Consecutive levels differ by the same factor
- * (~0.73), so CLOSE / MEDIUM / FAR keep an even progression.
+ * Continuous camera zoom of the planet surface view, as a screen-space scale
+ * relative to PLANET_SURFACE_CELL_VW. The range spans the former FAR (0.537)
+ * to one even step (~1.36x) beyond the former CLOSE (1), so the closest view
+ * shows building details. The default is the former MEDIUM framing.
  */
-export const PLANET_SURFACE_ZOOM_SCALES: Record<PlanetSurfaceZoomLevel, number> = {
-  close: 1,
-  medium: 0.733,
-  far: 0.537,
-};
+export const PLANET_SURFACE_ZOOM_MIN = 0.537;
+export const PLANET_SURFACE_ZOOM_MAX = 1.364;
+/** Zoom scale active whenever a planet surface is opened. */
+export const DEFAULT_PLANET_SURFACE_ZOOM = 0.733;
+/**
+ * Mouse-wheel sensitivity: the scale changes by exp(-deltaY * this), so one
+ * ~100 px wheel notch is a ~14% step and trackpad scrolling stays smooth.
+ */
+const WHEEL_ZOOM_SENSITIVITY = 0.0015;
+/** Steps of the zoom slider; the slider is logarithmic in scale. */
+export const PLANET_SURFACE_ZOOM_SLIDER_STEPS = 100;
 
-/** Zoom level active whenever a planet surface is opened. */
-export const DEFAULT_PLANET_SURFACE_ZOOM: PlanetSurfaceZoomLevel = 'medium';
+function clampZoom(scale: number): number {
+  return Math.max(PLANET_SURFACE_ZOOM_MIN, Math.min(PLANET_SURFACE_ZOOM_MAX, scale));
+}
 
 /*
  * Sprites stand inset from their footprint; the gap is where streets run.
@@ -189,7 +206,10 @@ const EMPTY_SETTLEMENT: SettlementLayout = { streets: '', accessRoads: [], plots
  *   - PRODUCTION: only when the planet has a Spaceship Factory
  *   - ASSEMBLY:   only when the planet has a Spaceport
  *
- * Zoom levels (CLOSE / MEDIUM / FAR):
+ * Zoom (continuous, PLANET_SURFACE_ZOOM_MIN..MAX):
+ * - Driven by the slider (logarithmic), the magnifier button (reset), the
+ *   mouse wheel and a two-finger pinch; wheel and pinch zoom around the
+ *   pointer / finger midpoint, so the point under them stays put.
  * - Purely presentational camera state; never written to the planet, the
  *   game state, or the save. The zoom is a `scale()` on the camera, so all
  *   layers scale together and build placement logic is unaffected.
@@ -218,6 +238,7 @@ const EMPTY_SETTLEMENT: SettlementLayout = { streets: '', accessRoads: [], plots
     PlanetDetailsComponent,
     StarMapProductionPanelComponent,
     StarMapSpaceportPanelComponent,
+    TutorialAnchorDirective,
   ],
   templateUrl: './star-map-planet-screen.component.html',
   styleUrl: './star-map-planet-screen.component.scss',
@@ -394,6 +415,8 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   readonly cellVw = PLANET_SURFACE_CELL_VW;
   readonly margin = PLANET_SURFACE_MARGIN;
+  private readonly tutorial = inject(TutorialService);
+  private tutorialSpotCache: { key: string; spot: { row: number; col: number } | null } | null = null;
   private readonly _buildingTypes: BuildingType[] = (planetData as { buildings: BuildingType[] }).buildings;
 
   // Surface panning state (in vw units, matching the codebase grid convention).
@@ -415,11 +438,29 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   private maxScrollX = 0;
   private maxScrollY = 0;
 
-  readonly zoomLevels: readonly PlanetSurfaceZoomLevel[] = ['close', 'medium', 'far'];
-  zoomLevel: PlanetSurfaceZoomLevel = DEFAULT_PLANET_SURFACE_ZOOM;
+  zoomScale = DEFAULT_PLANET_SURFACE_ZOOM;
+  readonly zoomSliderSteps = PLANET_SURFACE_ZOOM_SLIDER_STEPS;
 
-  get zoomScale(): number {
-    return PLANET_SURFACE_ZOOM_SCALES[this.zoomLevel];
+  /*
+   * Touch pointers currently down on the viewport (client px). Two of them
+   * switch from drag panning to pinch zoom; every pinch move is computed from
+   * the gesture start values, so rounding does not drift.
+   */
+  private readonly touchPointers = new Map<number, { x: number; y: number }>();
+  private pinchStart: {
+    dist: number;
+    scale: number;
+    mid: { x: number; y: number };
+    scrollX: number;
+    scrollY: number;
+  } | null = null;
+
+  /** Slider position (0..zoomSliderSteps), logarithmic in the zoom scale. */
+  get zoomSliderValue(): number {
+    const t =
+      Math.log(this.zoomScale / PLANET_SURFACE_ZOOM_MIN) /
+      Math.log(PLANET_SURFACE_ZOOM_MAX / PLANET_SURFACE_ZOOM_MIN);
+    return Math.round(t * PLANET_SURFACE_ZOOM_SLIDER_STEPS);
   }
 
   @ViewChild('surfaceViewport') surfaceViewport: ElementRef<HTMLElement> | null = null;
@@ -443,6 +484,30 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   }
 
   readonly buildableTypes: BuildingType[] = this._buildingTypes.filter((b) => !b.autoPlaced);
+
+  /* The BUILD tab shows buildableTypes in collapsible categories (build-categories.ts). */
+  readonly buildCategoryGroups: BuildCategoryGroup<BuildingType>[] =
+    groupBuildingsByCategory(this.buildableTypes);
+  private readonly collapsedBuildCategories = loadCollapsedBuildCategories();
+
+  isBuildCategoryOpen(id: BuildCategoryId): boolean {
+    return !this.collapsedBuildCategories.has(id);
+  }
+
+  toggleBuildCategory(id: BuildCategoryId): void {
+    if (this.collapsedBuildCategories.has(id)) {
+      this.collapsedBuildCategories.delete(id);
+    } else {
+      this.collapsedBuildCategories.add(id);
+      // An open info box inside the collapsed category would otherwise
+      // reappear unexpectedly when the category is opened again.
+      const expanded = this.buildableTypes.find((b) => b.id === this.expandedBuildingId);
+      if (expanded && buildCategoryOf(expanded) === id) {
+        this.expandedBuildingId = null;
+      }
+    }
+    saveCollapsedBuildCategories(this.collapsedBuildCategories);
+  }
 
   getBuildingName(building: BuildingType): string {
     return building.name;
@@ -605,6 +670,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   setTab(tab: PlanetSidebarTab): void {
     this.activeTab = tab;
+    if (tab !== 'details') this.tutorial.notify(`planet-tab:${tab}` as TutorialEvent);
     this.expandedBuildingId = null;
     this.showProductionBuildMenu = false;
     if (tab === 'build') {
@@ -646,6 +712,9 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   selectBuildingType(buildingId: string): void {
     const building = this.buildingTypes.find((b) => b.id === buildingId) ?? null;
+    if (['mining_complex', 'spaceship_factory', 'spaceport'].includes(buildingId)) {
+      this.tutorial.notify(`pick:${buildingId}` as TutorialEvent);
+    }
     this.selectedBuildingType = building;
     this.expandedBuildingId = null;
     this.isBuildMode = true;
@@ -704,6 +773,39 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       return false;
     }
     return mask[row * this.gridSize + col] === 1;
+  }
+
+  /*
+   * Tutorial anchor (docs/tutorial-hints.md): while a Mining Complex is being
+   * placed and no cell is picked yet, the first top-left cell where it is
+   * valid, i.e. touching the deposit. Clicking that cell gives a valid
+   * preview. Cached per planet and building count: the search runs the
+   * placement rule over the grid.
+   */
+  get tutorialMineSpot(): { row: number; col: number } | null {
+    const type = this.selectedBuildingType;
+    if (!this.isBuildMode || type?.id !== 'mining_complex' || this.selectedCell || !this.planet || !this.tutorial.enabled()) {
+      return null;
+    }
+    const key = `${this.planet.id}:${this.planet.buildings.length}:${this.gridSize}`;
+    if (this.tutorialSpotCache?.key !== key) {
+      this.tutorialSpotCache = { key, spot: this.findMineSpot(type) };
+    }
+    return this.tutorialSpotCache.spot;
+  }
+
+  private findMineSpot(type: BuildingType): { row: number; col: number } | null {
+    const planet = this.planet!;
+    for (const tile of planet.resourceTiles ?? []) {
+      for (let row = tile.y - type.size; row <= tile.y + 1; row++) {
+        for (let col = tile.x - type.size; col <= tile.x + 1; col++) {
+          if (checkBuildingPlacement(planet, this.gridSize, type, col, row) === null) {
+            return { row, col };
+          }
+        }
+      }
+    }
+    return null;
   }
 
   isResourceTile(row: number, col: number): boolean {
@@ -771,7 +873,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       planetChange &&
       planetChange.previousValue?.id !== planetChange.currentValue?.id
     ) {
-      this.zoomLevel = DEFAULT_PLANET_SURFACE_ZOOM;
+      this.zoomScale = DEFAULT_PLANET_SURFACE_ZOOM;
       this.centerScroll();
       // A placement preview belongs to the planet it was started on.
       if (planetChange.previousValue) {
@@ -790,19 +892,55 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   }
 
   /**
-   * Switches the camera zoom. The scroll offset is rescaled so the surface
-   * point under the viewport center stays put instead of jumping, then it is
-   * re-clamped against the new (scaled) bounds.
+   * Sets the camera zoom (clamped to the allowed range). The scroll offset is
+   * rescaled so the surface point under `anchor` stays put instead of
+   * jumping, then re-clamped against the new (scaled) bounds. `anchor` is in
+   * vw relative to the viewport center; the default keeps the center fixed.
    */
-  setZoomLevel(level: PlanetSurfaceZoomLevel): void {
-    if (level === this.zoomLevel) {
+  setZoom(scale: number, anchor: { x: number; y: number } = { x: 0, y: 0 }): void {
+    const next = clampZoom(scale);
+    if (next === this.zoomScale) {
       return;
     }
-    const ratio = PLANET_SURFACE_ZOOM_SCALES[level] / this.zoomScale;
-    this.zoomLevel = level;
-    this.scrollX *= ratio;
-    this.scrollY *= ratio;
+    const ratio = next / this.zoomScale;
+    this.zoomScale = next;
+    // Screen point p shows world point (p + scroll) / scale; keep it under p.
+    this.scrollX = (anchor.x + this.scrollX) * ratio - anchor.x;
+    this.scrollY = (anchor.y + this.scrollY) * ratio - anchor.y;
     this.updateClamp();
+  }
+
+  onZoomSlider(event: Event): void {
+    const t = Number((event.target as HTMLInputElement).value) / PLANET_SURFACE_ZOOM_SLIDER_STEPS;
+    this.setZoom(PLANET_SURFACE_ZOOM_MIN * Math.pow(PLANET_SURFACE_ZOOM_MAX / PLANET_SURFACE_ZOOM_MIN, t));
+  }
+
+  resetZoom(): void {
+    this.setZoom(DEFAULT_PLANET_SURFACE_ZOOM);
+  }
+
+  /** Mouse wheel / trackpad scroll on the surface zooms around the cursor. */
+  onSurfaceWheel(event: WheelEvent): void {
+    event.preventDefault();
+    // deltaMode 1 = lines, 2 = pages (rare); normalize to pixels.
+    const px = event.deltaY * (event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 400 : 1);
+    this.setZoom(
+      this.zoomScale * Math.exp(-px * WHEEL_ZOOM_SENSITIVITY),
+      this.viewportOffsetVw(event.clientX, event.clientY),
+    );
+  }
+
+  /** Client px -> vw offset from the viewport center (the camera origin). */
+  private viewportOffsetVw(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = this.surfaceViewport?.nativeElement.getBoundingClientRect();
+    if (!rect) {
+      return { x: 0, y: 0 };
+    }
+    const vwUnit = window.innerWidth / 100;
+    return {
+      x: (clientX - (rect.left + rect.width / 2)) / vwUnit,
+      y: (clientY - (rect.top + rect.height / 2)) / vwUnit,
+    };
   }
 
   @HostListener('window:resize')
@@ -903,6 +1041,16 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   /** Pointer down on the surface viewport — begins drag tracking. */
   onSurfacePointerDown(event: PointerEvent): void {
+    if (event.pointerType === 'touch') {
+      this.touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (this.touchPointers.size === 2) {
+        this.startPinch(event.currentTarget as HTMLElement);
+        return;
+      }
+      if (this.touchPointers.size > 2) {
+        return;
+      }
+    }
     this.dragMoved = false;
     this.wasDragged = false;
     // While in build mode, cells are interactive (building placement), so
@@ -925,6 +1073,13 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   /** Pointer move during drag — updates scroll with clamping. */
   onSurfacePointerMove(event: PointerEvent): void {
+    if (this.touchPointers.has(event.pointerId)) {
+      this.touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (this.pinchStart) {
+        this.updatePinch();
+        return;
+      }
+    }
     if (!this.isSurfaceDragging) {
       return;
     }
@@ -943,12 +1098,21 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   /** Pointer up — ends drag; a short drag that moved is treated as a pan. */
   onSurfacePointerUp(event: PointerEvent): void {
-    if (!this.isSurfaceDragging) {
-      return;
-    }
     const viewport = event.currentTarget as HTMLElement;
     if (viewport.hasPointerCapture(event.pointerId)) {
       viewport.releasePointerCapture(event.pointerId);
+    }
+    this.touchPointers.delete(event.pointerId);
+    if (this.pinchStart) {
+      // A pinch ends when a finger lifts; the remaining finger does not
+      // resume panning, so the view does not jump to it.
+      if (this.touchPointers.size < 2) {
+        this.pinchStart = null;
+      }
+      return;
+    }
+    if (!this.isSurfaceDragging) {
+      return;
     }
     viewport.classList.remove('dragging');
 
@@ -956,6 +1120,54 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     if (this.dragMoved) {
       this.wasDragged = true;
     }
+  }
+
+  /**
+   * Begins a two-finger pinch: a running drag stops, and the gesture counts
+   * as a drag so its trailing click cannot place a building.
+   */
+  private startPinch(viewport: HTMLElement): void {
+    const [a, b] = [...this.touchPointers.values()];
+    for (const id of this.touchPointers.keys()) {
+      if (!viewport.hasPointerCapture(id)) {
+        try {
+          viewport.setPointerCapture(id);
+        } catch {
+          // The pointer may already be gone; the pinch works without capture.
+        }
+      }
+    }
+    this.isSurfaceDragging = false;
+    this.dragMoved = true;
+    this.wasDragged = true;
+    viewport.classList.remove('dragging');
+    this.pinchStart = {
+      dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      scale: this.zoomScale,
+      mid: this.viewportOffsetVw((a.x + b.x) / 2, (a.y + b.y) / 2),
+      scrollX: this.scrollX,
+      scrollY: this.scrollY,
+    };
+  }
+
+  /**
+   * Pinch zoom and two-finger pan together: the world point that was under
+   * the start midpoint is kept under the current midpoint.
+   */
+  private updatePinch(): void {
+    const start = this.pinchStart;
+    if (!start || this.touchPointers.size < 2) {
+      return;
+    }
+    const [a, b] = [...this.touchPointers.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = this.viewportOffsetVw((a.x + b.x) / 2, (a.y + b.y) / 2);
+    const scale = clampZoom((start.scale * dist) / start.dist);
+    const ratio = scale / start.scale;
+    this.zoomScale = scale;
+    this.scrollX = (start.mid.x + start.scrollX) * ratio - mid.x;
+    this.scrollY = (start.mid.y + start.scrollY) * ratio - mid.y;
+    this.updateClamp();
   }
 
   /** Returns true when the drag started on an interactive grid element. */

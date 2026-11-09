@@ -1,5 +1,6 @@
 import { Component, ElementRef, HostListener, OnInit, OnDestroy, inject } from '@angular/core';
 import { MusicService } from '../services/music.service';
+import { TutorialService } from '../services/tutorial.service';
 import { Router } from '@angular/router';
 import {
   SaveGameService,
@@ -38,6 +39,7 @@ export class MainMenu implements OnInit, OnDestroy {
 
   private deferredPrompt: BeforeInstallPromptEvent | null = null;
   private readonly music = inject(MusicService);
+  private readonly tutorial = inject(TutorialService);
 
   constructor(
     private saveGameService: SaveGameService,
@@ -49,6 +51,8 @@ export class MainMenu implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.music.setScene('title');
+    // No game is running here: no hints, and Options hides the TUTORIAL toggle.
+    this.tutorial.leaveGame();
     this.updateInstallVisibility();
     this.startParallax();
   }

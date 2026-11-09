@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { EconomyBreakdown } from '../../../services/economy.service';
@@ -18,7 +19,7 @@ import { GameHeaderComponent, GameHeaderSpeedOption } from '../../game-header/ga
  * Star-map flavour of the shared GameHeaderComponent, used by every
  * star-map view (map, system, planet). It fills the generic header with
  * the view title, an optional back button, the strategic time controls
- * ([⏸] [1x] [3x]), the player's currency row, the global ship stock
+ * ([⏸] [1x] [5x]), the player's currency row, the global ship stock
  * indicator, the DIPLOMACY button and the pause-menu button.
  *
  * The header overlays the top --game-header-h of its parent; view content
@@ -33,7 +34,7 @@ import { GameHeaderComponent, GameHeaderSpeedOption } from '../../game-header/ga
 @Component({
   selector: 'app-star-map-header',
   standalone: true,
-  imports: [CommonModule, GameHeaderComponent, FactionCurrenciesComponent, StarMapShipStockComponent],
+  imports: [CommonModule, GameHeaderComponent, FactionCurrenciesComponent, StarMapShipStockComponent, TutorialAnchorDirective],
   templateUrl: './star-map-header.component.html',
   styleUrl: './star-map-header.component.scss',
 })
@@ -62,7 +63,7 @@ export class StarMapHeaderComponent {
 
   readonly speedOptions: readonly GameHeaderSpeedOption[] = [
     { value: 1, label: '1x' },
-    { value: 3, label: '3x' },
+    { value: 5, label: '5x' },
   ];
 
   onSetSpeed(speed: number): void {

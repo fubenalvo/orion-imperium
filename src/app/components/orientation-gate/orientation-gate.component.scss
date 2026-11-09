@@ -1,0 +1,111 @@
+/* Above every screen and the CRT texture (z-index 10000 in app.scss). */
+.orientation-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 16px;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(8, 28, 36, 0.92), rgba(1, 4, 7, 1)),
+    #010407;
+  text-align: center;
+}
+
+.orientation-gate__logo {
+  display: block;
+  width: min(78vw, 340px);
+  height: auto;
+  filter: drop-shadow(0 0 18px rgba(109, 229, 211, 0.18));
+}
+
+.orientation-gate__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: min(100%, 360px);
+  padding: 1.8rem 1.4rem;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(160deg, rgba(10, 30, 40, 0.9), rgba(3, 10, 15, 0.94));
+
+  /* Console corner brackets, as on the other panels. */
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border: 0 solid var(--ui-accent);
+  }
+
+  &::before {
+    top: -1px;
+    left: -1px;
+    border-width: 2px 0 0 2px;
+  }
+
+  &::after {
+    right: -1px;
+    bottom: -1px;
+    border-width: 0 2px 2px 0;
+  }
+}
+
+.orientation-gate__icon {
+  width: 64px;
+  height: 64px;
+  fill: none;
+  stroke: var(--ui-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The phone turns to landscape and back, showing what to do. */
+.orientation-gate__phone {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: orientation-gate-turn 2.6s ease-in-out infinite;
+}
+
+.orientation-gate__arrow {
+  opacity: 0.6;
+}
+
+.orientation-gate__title {
+  color: var(--ui-accent);
+  font-size: 1.15rem;
+  letter-spacing: 0.28em;
+}
+
+.orientation-gate__text {
+  color: var(--ui-ink-dim);
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+}
+
+@keyframes orientation-gate-turn {
+  0%,
+  25% {
+    transform: rotate(0deg);
+  }
+  50%,
+  75% {
+    transform: rotate(-90deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orientation-gate__phone {
+    animation: none;
+  }
+}

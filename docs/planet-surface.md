@@ -165,7 +165,19 @@ A building under construction is drawn as a construction site (sprite kind `site
 
 ## Building info box
 
-The build list stays one compact row per building (name, price, energy,
+The build list is grouped into collapsible categories
+(`star-map-planet-screen/build-categories.ts`): Housing, Energy, Comfort,
+Resources & Research, Trade & Finance, Shipyards, Planetary Defense, in that
+order (a new colony's usual needs first). The category comes from the
+building's `role`, with id overrides where a role is shared (the Spaceship
+Factory sits under Shipyards, the Mining Complex under Resources); an
+unknown role falls into Other, so a new building is never hidden. Inside a
+category buildings are sorted by credit price. Every category is open by
+default; the collapsed ones are remembered per browser in localStorage
+(`orion_build_categories_collapsed`, not in saves). Collapsing a category
+closes an info box open inside it.
+
+The list stays one compact row per building (name, price, energy,
 comfort). Clicking a row does not start placement: it opens an info box
 directly under the row (one at a time; clicking the row again closes it).
 The box's BUILD button starts placement. Content comes from
@@ -287,10 +299,15 @@ inset or the projection. The old raster sprites in
 
 ### Camera
 
-- Zoom levels CLOSE / MEDIUM / FAR scale `PLANET_SURFACE_CELL_VW` (4.4vw)
-  by 1 / 0.733 / 0.537 — each step is the same factor. CLOSE matches the old
-  MEDIUM framing and MEDIUM the old FAR; FAR is a new overview where the
-  largest colony fits the view.
+- Zoom is continuous: the camera scales `PLANET_SURFACE_CELL_VW` (4.4vw) by
+  `PLANET_SURFACE_ZOOM_MIN`..`MAX` (0.537..1.364, default 0.733). 0.537 is
+  the overview where the largest colony fits the view; 1.364 is one even step
+  (~1.36x) closer than the unscaled cell size, for building detail.
+- Inputs: the mouse wheel (zooms around the cursor), a two-finger pinch on
+  touch screens (zooms around the finger midpoint and pans with it; the
+  gesture never places a building), and the tray at the bottom-right
+  (top-right below 600px): a magnifier button that resets to the default,
+  a logarithmic slider, and the NAMES toggle.
 - The camera center may roam over the grid's projected diamond (plus one cell
   of headroom); the world margin keeps the view filled with terrain.
 - Zoom and pan are view state only and are never saved.
@@ -304,7 +321,7 @@ inset or the projection. The old raster sprites in
 - Terrain baked into the canvas cannot occlude sprites. Height caps keep
   terrain in front of the grid low, but decor or rocks right next to a
   building can still be drawn behind it.
-- The terrain canvas is rasterized at ≤ 40 px per cell; at CLOSE zoom on
-  large screens it is upscaled (smooth filtering plus per-pixel grain hide
+- The terrain canvas is rasterized at ≤ 40 px per cell and does not depend
+  on the zoom; at the closest zoom levels it is upscaled (smooth filtering plus per-pixel grain hide
   most of it).
 - Under jsdom (unit tests) the terrain canvas is not rendered.

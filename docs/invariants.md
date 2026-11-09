@@ -70,10 +70,10 @@ Conditions that must remain true across the codebase. When changing any code tha
   `GameTimeService.pause()` / `resume()` / `togglePause()` preserve the current speed.
 - Window `blur` and document `visibilitychange` (hidden) call `gameTimeService.pause()`
   but do **not** open the pause-menu overlay.
-- The "rotate your device" overlay is purely visual; it does not pause or resume the loop.
+- The "rotate your device" gate (`OrientationGateComponent`, app root) pauses the star map and battle clocks when it appears and never resumes them; the player resumes on purpose.
 - Time speed is a runtime/UI preference, not strategic state. It is NOT persisted in
-  saves. `GameTimeService.reset()` (called on game start and after loading) restores
-  speed=1, isPaused=false, gameElapsedTime=0.
+  saves. `GameTimeService.reset()` (called on game start and after loading) sets
+  isPaused=false and gameElapsedTime=0 and keeps the session's speed.
 - `ProductionService.tick` early-returns when `deltaTime <= 0` to prevent the
   frame-based stall timeout (`tickCounter`) from advancing during pause.
 
@@ -133,7 +133,7 @@ Conditions that must remain true across the codebase. When changing any code tha
   - comfort alone never lowers the target below `100 × COMFORT_CONFIG.floor` (60); only an energy shortage (target 0 at a 50% shortfall), the offsets and arrears can push a planet toward rebellion. The floor must stay above the AI's stability threshold (`EnemyPlanService.STABILITY_THRESHOLD`, 40).
   - Energy production includes the planet's core building (Capital 20, Colony Center 10), flat: technologies and planet types never scale it.
   - Comfort, need and target are derived from population and buildings every time; nothing about them is saved.
-  - The step is proportional to `deltaTime` (the game-time accumulator passed from `StarMap`), so satisfaction is frozen while paused and moves 3× as fast at speed 3x — no per-system pause/speed checks are needed.
+  - The step is proportional to `deltaTime` (the game-time accumulator passed from `StarMap`), so satisfaction is frozen while paused and moves 5× as fast at speed 5x — no per-system pause/speed checks are needed.
 - When `satisfaction` reaches `0`, `factionId !== 'independent'` and the planet has no running capture grace (`rebellionGraceSeconds`), the planet's `factionId` is set to `'independent'` (rebellion). A capture always leaves satisfaction ≥ 40 and starts a 120 s grace ([Planet Capture](./planet-capture.md#after-a-capture)). This happens **before** the credits tick for the same frame, so a planet that flips contributes `0` credits on the tick it flips. Once `independent`, `satisfaction` stays at `0` and the planet no longer contributes to any faction's owned-planet economy.
 - Energy balance ≥ 0 means the planet is considered powered; `>= 0` (not `> 0`) is the recovery threshold so a perfectly balanced grid counts as healthy.
 
@@ -149,7 +149,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 
 ## Population Growth Invariants
 
-- Population grows continuously via `EconomyService.applyEconomyDelta`, driven by the **same 1s game-time accumulator** (`StarMap.economyAccumulator`) that drives satisfaction drift. The per-tick growth is `POPULATION_GROWTH_BASE_RATE (0.005/s) × satisfactionMultiplier × habitabilityMultiplier × capacityRemaining × deltaTime`, so it is **frozen while paused** (`deltaTime === 0`) and runs **3× at speed 3x** — no independent timers or per-planet update loops, mirroring morale drift.
+- Population grows continuously via `EconomyService.applyEconomyDelta`, driven by the **same 1s game-time accumulator** (`StarMap.economyAccumulator`) that drives satisfaction drift. The per-tick growth is `POPULATION_GROWTH_BASE_RATE (0.005/s) × satisfactionMultiplier × habitabilityMultiplier × capacityRemaining × deltaTime`, so it is **frozen while paused** (`deltaTime === 0`) and runs **5× at speed 5x** — no independent timers or per-planet update loops, mirroring morale drift.
 - `capacityRemaining = max(0, populationCapacity - population)`. `populationCapacity` is the sum of the `population` field of all residential (`role === 'housing'`) buildings on the planet (Small 100 / Medium 300 / Large 700 from `planet-data.json`). Growth is applied as a float and **clamped to capacity**, so a planet at capacity grows by 0.
 - `satisfactionMultiplier = clamp(satisfaction / 100, 0, 1)`. Independent planets have `satisfaction` locked at `0`, so they never grow.
 - `habitabilityMultiplier = max(0, 1 + PLANET_TYPE_HABITABILITY[planet.type])` — note `PLANET_TYPE_HABITABILITY` is a **satisfaction drift** value, not a 0..1 score: the multiplier is `1 + drift` (`earthlike`/`gasgiant` = 1.0; `desert`/`venuslike` = 0.95; `marslike` = 0.97; `ice` = 0.92). This multiplier is independent of the satisfaction target, which *also* uses habitability (as an offset above the free population).

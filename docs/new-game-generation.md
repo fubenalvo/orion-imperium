@@ -119,6 +119,10 @@ Home systems have at least 3 planets.
   made the rest of the galaxy undiscoverable (generator v1 bug).
 - **Start view:** `defaultView` opens the human homeworld; the camera is centered on the home
   system so leaving the planet view lands there.
+- **Tutorial:** the setup screen has a TUTORIAL checkbox right above START GAME, checked by
+  default. `NewGameService.startNewGame` writes it as `StarMapData.tutorial = { enabled, done: [] }`
+  (headless `createGame` callers get no tutorial field). A tutorial game starts paused. See
+  [Tutorial Hints](./tutorial-hints.md).
 - **Metadata:** `StarMapData.galaxy = { size, seed, requestedSeed, generatorVersion }` (current
   generator version: 9 — the human's starting fleet stationed at the homeworld, the human's whole
   home system explored). `seed` is the

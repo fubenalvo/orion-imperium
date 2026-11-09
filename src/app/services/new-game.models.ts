@@ -27,6 +27,8 @@ export interface NewGameConfig {
   players: PlayerSetup[];
   /* Optional uint32 seed; a random seed is chosen when null/undefined. */
   seed?: number | null;
+  /* Tutorial hints for this game (docs/tutorial-hints.md); missing = on. */
+  tutorial?: boolean;
 }
 
 export interface GalaxySizePreset {

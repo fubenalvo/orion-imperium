@@ -3,6 +3,7 @@
     @if (backLabel) {
       <button
         class="game-header__btn game-header__back"
+        appTutorialAnchor="hud.back"
         type="button"
         (click)="back.emit()"
         [attr.aria-label]="'Back to ' + backLabel"
@@ -21,7 +22,7 @@
     </div>
   </div>
 
-  <div class="game-header__center" role="group" aria-label="Time controls">
+  <div class="game-header__center" role="group" aria-label="Time controls" appTutorialAnchor="hud.time">
     @if (speedOptions.length > 0) {
       <button
         class="game-header__btn"

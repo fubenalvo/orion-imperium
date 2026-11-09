@@ -657,11 +657,11 @@ saveGame();  // Persists to AUTOSAVE
 
 ## Battle-Local Time Controls
 
-The battle minigame has its own independent time control system (`BattleTimeService`) with pause/1x/3x buttons in the battle header, mirroring the Star Map header. The global `GameTimeService` remains paused while on `/battle` and is not affected by battle controls.
+The battle minigame has its own independent time control system (`BattleTimeService`) with pause/1x/5x buttons in the battle header, mirroring the Star Map header. The global `GameTimeService` remains paused while on `/battle` and is not affected by battle controls.
 
 **API (`BattleTimeService`):**
 ```typescript
-type BattleSpeed = 0.625 | 1.875;  // shown as "1x" / "3x"; 0.625 is the default pace
+type BattleSpeed = 0.625 | 3.125;  // shown as "1x" / "5x"; 0.625 is the default pace
 
 state$: BehaviorSubject<{ speed: BattleSpeed; isPaused: boolean; battleElapsedTime: number }>
 // BehaviorSubject: BattleScreenComponent subscribes with skip(1) so the synchronous replay
@@ -685,7 +685,7 @@ reset(): void                                      // speed=1, isPaused=false, e
 **Frame-Driven Wait Scheduler:**
 - `BattleTimeService.wait(durationMs)` returns a Promise resolved by the frame-driven scheduler
 - `onTick()` advances all pending waits by the scaled delta time
-- Works with pause/speed: waits don't advance when paused, advance 3× at 3× speed
+- Works with pause/speed: waits don't advance when paused, advance 5× at 5× speed
 - No `setTimeout`/`setInterval` — deterministic under test by calling `onTick()`
 
 **What Is Affected by Battle Time:**
@@ -710,9 +710,9 @@ reset(): void                                      // speed=1, isPaused=false, e
   take effect when the simulation resumes, so any number of stacks can be ordered during a pause.
 
 **Header Controls** (rendered by the shared `GameHeaderComponent`; the battle passes
-`battleSpeedOptions` that map the internal speeds to the same 1x / 3x labels as the star map):
+`battleSpeedOptions` that map the internal speeds to the same 1x / 5x labels as the star map):
 - **⏸** — `battleTime.togglePause()`; active when paused
-- **1x** — `setSpeed(0.625)`; **3x** — `setSpeed(1.875)`; dimmed when paused
+- **1x** — `setSpeed(0.625)`; **5x** — `setSpeed(3.125)`; dimmed when paused
 - **AUTO** — toggles AUTO battle (player side AI for stacks without manual orders); projected
   into the header's time-control group, styled with the shared HUD button mixin
 - **HOLD** — toggles paused start (battles open paused); same look as AUTO

@@ -755,13 +755,26 @@ export interface StarMapData {
    */
   tradeNetwork?: TradeNetworkState;
   /*
-   * Game seconds played (scaled game time: paused = 0, 3x = three per real
+   * Game seconds played (scaled game time: paused = 0, 5x = five per real
    * second). Saved so rules that depend on how long the game has run (the
    * AI's civilization assault gate) survive loads. Missing = 0 (older saves).
    */
   gameSeconds?: number;
   /* Pirate incursion event state (pirate-incursion.ts); missing = quiet, nothing happened yet. */
   pirates?: import('./pirate-incursion').PirateIncursionState;
+  /*
+   * Tutorial hints (docs/tutorial-hints.md): on/off for this game (set by the
+   * New Game checkbox) and the finished step ids. Missing = tutorial off
+   * (games from before the tutorial).
+   */
+  tutorial?: TutorialState;
+}
+
+export interface TutorialState {
+  enabled: boolean;
+  done: string[];
+  /* Steps whose latched start condition has held (tutorial-steps.ts `trigger`); missing = none. */
+  unlocked?: string[];
 }
 
 /* ---------- Civilian trade network (trade-network.ts) ---------- */

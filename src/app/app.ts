@@ -4,10 +4,12 @@ import { GameSettingsService } from './services/game-settings.service';
 import { TouchLongPressService } from './services/touch-long-press.service';
 import { UiSoundService } from './services/ui-sound.service';
 import { StarMapOptionsComponent } from './components/star-map-options/star-map-options.component';
+import { OrientationGateComponent } from './components/orientation-gate/orientation-gate.component';
+import { TutorialHintComponent } from './components/tutorial/tutorial-hint.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, StarMapOptionsComponent],
+  imports: [RouterOutlet, StarMapOptionsComponent, OrientationGateComponent, TutorialHintComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

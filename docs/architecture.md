@@ -130,7 +130,7 @@ src/app/
         → Currency HUD with expandable economy breakdown
     star-map-header/
         → Star-map flavour of the shared game header: title, back button,
-          time controls ([⏸] [1x] [3x]), currencies, ship stock, ☰ pause-menu button
+          time controls ([⏸] [1x] [5x]), currencies, ship stock, ☰ pause-menu button
     star-map-navigation/
         → Camera pan controls, minimap, viewport position
     star-map-pause/
@@ -214,6 +214,6 @@ The empty legacy directories `src/app/components/ship`, `src/app/components/ship
 ## Cross-Cutting Concerns
 
 - The `requestAnimationFrame` loop runs outside the Angular zone and always runs (it is never canceled for pause). `GameTimeService.getScaledDeltaTime()` produces a scaled delta — 0 when paused, `realDeltaTime * speed` when running — which all simulation systems receive. `StarMap` triggers change detection only when fleets moved or the economy tick fired, or when `GameTimeService.state$` emits a discrete state change (pause/resume/speed).
-- Window blur, document visibility hidden, and device-portrait orientation all pause the game automatically.
+- Window blur, document visibility hidden, and holding a touch device upright all pause the game automatically. The last one shows the app-wide "rotate your device" gate (`components/orientation-gate/`, mounted in `app.html`), which covers every route, the main menu included.
 - The map viewport is drag-to-pan in addition to keyboard/button navigation; pointer capture is used so the drag continues even when the cursor leaves the viewport.
 - On viewport resize, the cell size switches between desktop (`2vw`) and mobile (`3.5vw`) at a 1300px breakpoint, and the camera is scaled proportionally so the same grid area stays in view.

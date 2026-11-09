@@ -80,6 +80,8 @@ export class NewGameService {
     if (!result.ok) {
       return result;
     }
+    // Only interactive games carry the tutorial; headless createGame() callers never show it.
+    result.data.tutorial = { enabled: config.tutorial !== false, done: [] };
     if (!this.saveGameService.saveToSlot(slotIndex, result.data)) {
       return { ok: false, errors: [`Could not save the new game (${this.saveGameService.lastError ?? 'storage error'}).`] };
     }

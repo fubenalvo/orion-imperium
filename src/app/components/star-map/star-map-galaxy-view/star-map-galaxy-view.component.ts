@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { AfterViewChecked, Component, ElementRef, Input, ViewChild } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { AsteroidType, Fleet, FleetTrail, StarSystem, SpecialObject } from '../star-map.models';
@@ -140,7 +141,7 @@ export interface AnomalyMapView {
 @Component({
   selector: 'app-star-map-galaxy-view',
   standalone: true,
-  imports: [StarMapBlackholeComponent, FleetShipComponent],
+  imports: [StarMapBlackholeComponent, FleetShipComponent, TutorialAnchorDirective],
   templateUrl: './star-map-galaxy-view.component.html',
   styleUrl: './star-map-galaxy-view.component.scss',
 })

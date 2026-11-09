@@ -235,6 +235,8 @@ import { StarMapAnomalyEventComponent } from './star-map-anomaly-event/star-map-
 import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
 import { ensureColonyCore, isCoreOwner } from './colony-core';
+import { TutorialService } from '../../services/tutorial.service';
+import { buildTutorialContext } from '../tutorial/tutorial-context';
 
 /*
  * =========================================================
@@ -290,6 +292,9 @@ const initialStarMapData = structuredClone(starMapData) as StarMapData;
 })
 export class StarMap implements AfterViewInit, OnDestroy {
   private readonly music = inject(MusicService);
+  private readonly tutorial = inject(TutorialService);
+  // Real time (ms) of the last tutorial context snapshot; see publishTutorialContext.
+  private tutorialPublishedAt = 0;
   private _currentView: 'map' | 'system' | 'planet' = 'map';
   /* Every view change goes through here, so the background music follows
      it: the surface view has its own track, galaxy and system share one. */
@@ -530,8 +535,6 @@ loadError = '';
   aiDebugVisible = false;
   aiDebugSnapshots: AiDebugSnapshot[] = [];
   private aiDebugRefreshedAt = 0;
-
-  isLandscape = false;
 
   // Event handlers for focus tracking
   private onWindowBlur = (): void => this.gameTimeService.pause();
@@ -1707,6 +1710,7 @@ loadError = '';
   enterSystem(): void {
     this.saveGame();
     if (this.selectedSystem) {
+      this.tutorial.notify('system-entered');
       this.currentView = 'system';
       this.initFleetsInSystem(this.selectedSystem);
       this.syncTargetFromSelectedFleet();
@@ -2125,6 +2129,7 @@ loadError = '';
 
   openResearchTree(): void {
     this.showResearchTree = true;
+    this.tutorial.notify('research-opened');
   }
 
   closeResearchTree(): void {
@@ -2136,6 +2141,7 @@ loadError = '';
   openDiplomacy(): void {
     this.diplomacyMessage = null;
     this.showDiplomacy = true;
+    this.tutorial.notify('diplomacy-opened');
     this.music.playStinger('fanfare');
   }
 
@@ -2539,6 +2545,7 @@ loadError = '';
       this.spaceportError = this.describeAssemblyError(result.reason);
       return;
     }
+    this.tutorial.notify('fleet-assembled');
     if (result.fleet) {
       // Place the new fleet on its host planet's system cell and
       // transition into the system view. The view flip MUST happen
@@ -3062,6 +3069,7 @@ loadError = '';
     if (!this.selectedPlanetTile || !this.selectedPlanetTile.explored) {
       return;
     }
+    this.tutorial.notify('planet-opened');
     this.saveGame();
     this.currentView = 'planet';
   }
@@ -3074,6 +3082,7 @@ loadError = '';
    * leaving the system returns there too.
    */
   openPlanetFromRoster({ system, planet }: RosterPlanet): void {
+    this.tutorial.notify('planet-opened');
     this.saveGame();
     this.selectedFleet = null;
     this.fleetMoveError = null;
@@ -3892,8 +3901,6 @@ loadError = '';
   ngAfterViewInit(): void {
     this.startGameLoop();
     this.setupFocusHandlers();
-    window.addEventListener('orientationchange', this.onOrientationChange);
-    this.checkOrientation();
   }
 
   /** Registers the game loop tick callback with the game loop service. */
@@ -3910,6 +3917,7 @@ loadError = '';
    * multiply speed themselves; that is centralized in GameTimeService.
    */
   private gameLoopCallback(gameDeltaTime: number): void {
+    this.publishTutorialContext();
     if (this.gameOutcome !== 'inProgress') {
       this.cdr.detectChanges();
       return;
@@ -4679,20 +4687,6 @@ loadError = '';
     document.addEventListener('visibilitychange', this.onVisibilityChange);
   }
 
-  /** Detects whether the device is currently in landscape orientation. */
-  private checkOrientation(): void {
-    if (typeof screen !== 'undefined' && screen.orientation && screen.orientation.type) {
-      this.isLandscape = screen.orientation.type.includes('landscape');
-    } else {
-      this.isLandscape = window.innerWidth > window.innerHeight;
-    }
-    this.cdr.detectChanges();
-  }
-
-  private onOrientationChange = (): void => {
-    this.checkOrientation();
-  };
-
   @HostListener('window:resize')
   onResize(): void {
     const oldCellSizeVw = this.cellSizeVw;
@@ -4716,7 +4710,6 @@ loadError = '';
     }
 
     this.clampCamera();
-    this.checkOrientation();
   }
 
   /** Resumes the game loop via GameTimeService. Kept as a thin wrapper for backward compat with StarMapPauseComponent's resumeGame output. */
@@ -4724,7 +4717,7 @@ loadError = '';
     this.gameTimeService.resume();
   }
 
-  /** Header time control: set simulation speed (1x or 3x) and un-pause. */
+  /** Header time control: set simulation speed (1x or 5x) and un-pause. */
   onSetSpeed(speed: GameSpeed): void {
     this.gameTimeService.setSpeed(speed);
   }
@@ -4777,7 +4770,51 @@ loadError = '';
       pirates: this.pirateIncursion.serialize(),
       tradeNetwork: this.tradeNetworkService.serialize(),
       gameSeconds: this.gameSeconds,
+      tutorial: this.tutorial.serialize(),
     };
+  }
+
+  /*
+   * Tutorial hints (docs/tutorial-hints.md): a snapshot of what the steps
+   * read, at most every 250 ms of real time (the loop also runs while
+   * paused). Skipped while the tutorial is off, except right after a load
+   * so the skip rule still sees the game.
+   */
+  private publishTutorialContext(force = false): void {
+    if (!this.tutorial.enabled() && !force) return;
+    const now = performance.now();
+    if (!force && now - this.tutorialPublishedAt < 250) return;
+    this.tutorialPublishedAt = now;
+    const player = this.fleets.find((f) => f.factionId === 'player' && !f.destroyed) ?? null;
+    const hostile = player
+      ? this.visibleFleets.find((f) => f.factionId !== 'player' && this.areFleetsHostile(player, f))
+      : undefined;
+    this.tutorial.setContext(
+      buildTutorialContext({
+        scene: this.currentView,
+        paused: this.gameTimeService.isPaused,
+        gameSeconds: this.gameSeconds,
+        modalOpen:
+          this.pauseMenuOpen ||
+          this.showResearchTree ||
+          this.showDiplomacy ||
+          !!this.negotiation ||
+          !!this.fleetManagerFleets ||
+          !!this.customizationFleet ||
+          !!this.anomalyEvent ||
+          this.aiDebugVisible ||
+          this.gameOutcome !== 'inProgress' ||
+          this.gameSettingsService.optionsMenuOpen,
+        starSystems: this.starSystems,
+        fleets: this.fleets,
+        factions: this.factions,
+        shipStock: this.shipStock,
+        production: this.production,
+        selectedFleet: this.selectedFleet,
+        colonizerReady: (fleet) => this.arrivalService.getColonizablePlanet(fleet, this.starSystems, this.factions) !== null,
+        hostileFleetId: hostile?.id ?? null,
+      }),
+    );
   }
 
   /** Serializes the current game state into the autosave slot. */
@@ -4879,6 +4916,8 @@ loadError = '';
     });
     this.tradeNetworkService.restore(data.tradeNetwork, this.galaxy?.seed ?? 0, this.starSystems);
     this.gameSeconds = Number.isFinite(data.gameSeconds) ? Math.max(0, data.gameSeconds!) : 0;
+    // A battle return keeps the steps finished on the battle screen (its save is pre-battle).
+    this.tutorial.restore(data.tutorial, !!options.resumeAi);
     // The grace checks must not run on the previous session's clock before the first AI tick.
     this.openingGrace.setGameSeconds(this.gameSeconds);
     // A pending event re-opens from the restored state on the next frame.
@@ -5004,6 +5043,10 @@ loadError = '';
     // Un-pause and clear elapsed time on every load; the chosen speed is
     // kept for the session (also across battles, which reload the autosave).
     this.gameTimeService.reset();
+    // A new tutorial game starts paused so the first hints can be read (docs/tutorial-hints.md).
+    if (this.tutorial.shouldStartPaused(this.gameSeconds)) {
+      this.gameTimeService.pause();
+    }
 
     if (options.resumeAi) {
       this.aiTickService.resumeAfterBattle();
@@ -5015,6 +5058,7 @@ loadError = '';
     this.diplomacyService.restoreDemands(data.diplomaticDemands, this.factions);
 
     this.clampCamera();
+    this.publishTutorialContext(true);
   }
 
   /** Removes a fleet from the game state and clears it from the selection if needed. */
@@ -5233,9 +5277,9 @@ loadError = '';
         event.preventDefault();
         this.gameTimeService.setSpeed(1);
         break;
-      case '3':
+      case '5':
         event.preventDefault();
-        this.gameTimeService.setSpeed(3);
+        this.gameTimeService.setSpeed(5);
         break;
       case 'Escape':
         event.preventDefault();
@@ -5294,6 +5338,8 @@ loadError = '';
   /** Saves the game, removes event listeners, and stops the game loop when the component is destroyed. */
   ngOnDestroy(): void {
     this.saveGame();
+    // No hints between screens; the battle screen or the next load sets the scene again.
+    this.tutorial.setScene('none');
 
     this.routerSubscription.unsubscribe();
     this.timeControlSubscription?.unsubscribe();
@@ -5301,7 +5347,6 @@ loadError = '';
 
     window.removeEventListener('blur', this.onWindowBlur);
     document.removeEventListener('visibilitychange', this.onVisibilityChange);
-    window.removeEventListener('orientationchange', this.onOrientationChange);
 
     this.gameLoopService.stopGameLoop();
   }

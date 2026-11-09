@@ -1,6 +1,10 @@
-<div class="faction-currencies">
+<div class="faction-currencies" appTutorialAnchor="hud.resources">
   @for (currency of currencies; track currency.name) {
-    <div class="faction-currencies__item" [class.faction-currencies__item--credits]="currency.name === 'credits'">
+    <div
+      class="faction-currencies__item"
+      [class.faction-currencies__item--credits]="currency.name === 'credits'"
+      [appTutorialAnchor]="currency.name === 'research' ? 'hud.research' : currency.name === 'rawmaterials' ? 'hud.raw' : null"
+    >
       @switch (currency.name) {
         @case ('credits') {
           <span class="faction-currencies__icon faction-currencies__icon--clickable" (click)="toggleBreakdown('credits')">

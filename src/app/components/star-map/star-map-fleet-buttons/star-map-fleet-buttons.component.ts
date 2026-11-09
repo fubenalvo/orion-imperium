@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Fleet, PlanetTile, StarSystem } from '../star-map.models';
@@ -16,7 +17,7 @@ export interface RosterPlanet {
 @Component({
   selector: 'app-star-map-fleet-buttons',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TutorialAnchorDirective],
   templateUrl: './star-map-fleet-buttons.component.html',
   styleUrl: './star-map-fleet-buttons.component.scss',
 })

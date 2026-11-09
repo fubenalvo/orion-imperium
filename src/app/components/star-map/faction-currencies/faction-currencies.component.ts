@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ValueFlashDirective } from '../../shared/value-flash.directive';
@@ -33,7 +34,7 @@ export interface TradeSummaryView {
 @Component({
   selector: 'app-faction-currencies',
   standalone: true,
-  imports: [CommonModule, ValueFlashDirective],
+  imports: [CommonModule, ValueFlashDirective, TutorialAnchorDirective],
   templateUrl: './faction-currencies.component.html',
   styleUrl: './faction-currencies.component.scss',
 })

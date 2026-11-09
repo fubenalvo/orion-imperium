@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import {
   Component,
   EventEmitter,
@@ -27,7 +28,7 @@ export interface SpaceportPanelViewModel {
 @Component({
   selector: 'app-star-map-spaceport-panel',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TutorialAnchorDirective],
   templateUrl: './star-map-spaceport-panel.component.html',
   styleUrl: './star-map-spaceport-panel.component.scss',
 })

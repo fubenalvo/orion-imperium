@@ -144,6 +144,7 @@
         >
           <button
             class="fleet"
+            [appTutorialAnchor]="'system.fleet.' + fleet.id"
             [class.selected]="selectedFleet?.id === fleet.id"
             [class.moving]="fleet.system?.targetX !== null && fleet.system?.targetY !== null"
             [class.arriced]="fleet.system?.targetX === null || fleet.system?.targetY === null"

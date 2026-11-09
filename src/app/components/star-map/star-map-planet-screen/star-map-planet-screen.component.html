@@ -30,6 +30,7 @@
         (pointerup)="onSurfacePointerUp($event)"
         (pointercancel)="onSurfacePointerUp($event)"
         (pointerleave)="onSurfaceLeave()"
+        (wheel)="onSurfaceWheel($event)"
       >
         <div class="planet-surface__camera" [style.transform]="cameraTransform">
           <div
@@ -195,6 +196,16 @@
                   ></div>
                 }
               }
+              <!-- Tutorial anchor: the cell a Mining Complex can go (docs/tutorial-hints.md). -->
+              @if (tutorialMineSpot; as spot) {
+                <div
+                  class="planet-surface__tutorial-spot"
+                  appTutorialAnchor="surface.mine-spot"
+                  aria-hidden="true"
+                  [style.grid-column]="spot.col + 1"
+                  [style.grid-row]="spot.row + 1"
+                ></div>
+              }
             </div>
           </div>
 
@@ -350,19 +361,32 @@
         </button>
       </div>
 
-      <!-- SURFACE ZOOM LEVELS -->
+      <!-- SURFACE ZOOM: magnifier (reset) + slider; wheel and pinch also zoom -->
       <div class="planet-surface__zoom" role="group" aria-label="Surface zoom">
-        @for (level of zoomLevels; track level) {
-          <button
-            class="planet-surface__zoom-btn"
-            [class.planet-surface__zoom-btn--active]="zoomLevel === level"
-            [attr.aria-pressed]="zoomLevel === level"
-            type="button"
-            (click)="setZoomLevel(level); $event.stopPropagation()"
-          >
-            {{ level | uppercase }}
-          </button>
-        }
+        <button
+          class="planet-surface__zoom-icon"
+          type="button"
+          title="Reset zoom"
+          aria-label="Reset zoom"
+          (click)="resetZoom(); $event.stopPropagation()"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="10" cy="10" r="6.5" />
+            <line x1="14.8" y1="14.8" x2="21" y2="21" />
+          </svg>
+        </button>
+        <input
+          class="planet-surface__zoom-slider"
+          type="range"
+          min="0"
+          [max]="zoomSliderSteps"
+          step="1"
+          aria-label="Zoom"
+          [value]="zoomSliderValue"
+          (input)="onZoomSlider($event)"
+          (pointerdown)="$event.stopPropagation()"
+          (click)="$event.stopPropagation()"
+        />
         <button
           class="planet-surface__zoom-btn"
           [class.planet-surface__zoom-btn--active]="showLabels"
@@ -387,6 +411,7 @@
           <button
             class="planet-sidebar__tab"
             [class.planet-sidebar__tab--active]="activeTab === tab"
+            [appTutorialAnchor]="'planet.tab.' + tab"
             role="tab"
             [attr.aria-selected]="activeTab === tab"
             type="button"
@@ -416,7 +441,7 @@
             @if (!isBuildMode) {
               @let sites = constructionSiteViews;
               @if (sites.length > 0) {
-                <section class="construction-list" aria-label="Under construction">
+                <section class="construction-list" aria-label="Under construction" appTutorialAnchor="planet.construction">
                   <div class="construction-list__title">
                     <svg class="construction-list__icon" viewBox="0 0 16 16" aria-hidden="true">
                       <path d="M2 15V3h1v12M2 3h12M5 3l-3 3M10 3v5" />
@@ -458,7 +483,23 @@
                 </section>
               }
               <div class="planet-sidebar__build-list">
-                @for (building of buildableTypes; track building.id) {
+                @for (group of buildCategoryGroups; track group.category.id) {
+                  @let categoryOpen = isBuildCategoryOpen(group.category.id);
+                  <button
+                    class="build-category"
+                    [class.build-category--closed]="!categoryOpen"
+                    type="button"
+                    [attr.aria-expanded]="categoryOpen"
+                    [attr.aria-controls]="'build-category-' + group.category.id"
+                    (click)="toggleBuildCategory(group.category.id)"
+                  >
+                    <span class="build-category__chevron" aria-hidden="true"></span>
+                    <span class="build-category__label">{{ group.category.label }}</span>
+                    <span class="build-category__count">{{ group.buildings.length }}</span>
+                  </button>
+                  @if (categoryOpen) {
+                  <div class="build-category__items" [id]="'build-category-' + group.category.id">
+                @for (building of group.buildings; track building.id) {
                   @let expanded = expandedBuildingId === building.id;
                   <div
                     class="planet-sidebar__build-row"
@@ -469,6 +510,7 @@
                        starts from the box's BUILD button. -->
                   <button
                     class="planet-sidebar__build-item"
+                    [appTutorialAnchor]="'build.row.' + building.id"
                     [class.planet-sidebar__build-item--unavailable]="!!getBuildBlocker(building)"
                     [class.planet-sidebar__build-item--locked]="!isBuildingUnlocked(building.id)"
                     type="button"
@@ -537,6 +579,7 @@
                       <button
                         class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
                         type="button"
+                        [appTutorialAnchor]="blocker ? null : 'build.start.' + building.id"
                         [disabled]="!!blocker"
                         (click)="selectBuildingType(building.id)"
                       >
@@ -548,6 +591,9 @@
                     </div>
                   }
                   </div>
+                }
+                  </div>
+                  }
                 }
               </div>
             } @else {
@@ -566,6 +612,7 @@
                     [class.planet-sidebar__build-hint--danger]="
                       causesEnergyShortage(selectedBuildingType)
                     "
+                    [appTutorialAnchor]="causesEnergyShortage(selectedBuildingType) ? 'build.energy-short' : null"
                   >
                     Energy after building: {{ energyAfter.production | number: '1.0-0' }} /
                     {{ energyAfter.consumption | number: '1.0-0' }}
@@ -579,6 +626,7 @@
                     <button
                       class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
                       type="button"
+                      [appTutorialAnchor]="'build.confirm.' + selectedBuildingType?.id"
                       (click)="confirmBuild()"
                     >
                       BUILD

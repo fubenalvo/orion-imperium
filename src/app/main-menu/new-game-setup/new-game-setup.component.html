@@ -130,6 +130,12 @@
     </ul>
   }
 
+  <label class="setup-tutorial">
+    <input type="checkbox" [checked]="tutorial" (change)="tutorial = $any($event.target).checked" />
+    <span class="setup-tutorial__label">TUTORIAL</span>
+    <span class="setup-tutorial__hint">Short hints for your first steps</span>
+  </label>
+
   <div class="setup-actions">
     <button type="button" (click)="cancel.emit()">BACK</button>
     <button type="button" class="setup-actions__start btn-primary" [disabled]="starting || validationErrors.length > 0" (click)="onStart()">

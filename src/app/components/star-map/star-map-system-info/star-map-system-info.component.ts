@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { StarSystem } from '../star-map.models';
@@ -51,7 +52,7 @@ export function getSystemStatus(
 @Component({
   selector: 'app-star-map-system-info',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TutorialAnchorDirective],
   templateUrl: './star-map-system-info.component.html',
   styleUrl: './star-map-system-info.component.scss',
 })

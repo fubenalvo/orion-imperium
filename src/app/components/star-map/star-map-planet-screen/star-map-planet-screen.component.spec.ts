@@ -1,6 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import {
-  PLANET_SURFACE_ZOOM_SCALES,
+  DEFAULT_PLANET_SURFACE_ZOOM,
+  PLANET_SURFACE_ZOOM_MAX,
+  PLANET_SURFACE_ZOOM_MIN,
   StarMapPlanetScreenComponent,
 } from './star-map-planet-screen.component';
 import { PlanetTile, ResourceDeposit } from '../star-map.models';
@@ -260,92 +262,138 @@ describe('StarMapPlanetScreenComponent', () => {
     });
   });
 
-  describe('surface zoom levels', () => {
-    const zoomButtons = (): HTMLButtonElement[] =>
-      Array.from(fixture.nativeElement.querySelectorAll('.planet-surface__zoom-btn'));
+  describe('surface zoom', () => {
+    const slider = (): HTMLInputElement =>
+      fixture.nativeElement.querySelector('.planet-surface__zoom-slider');
+    // jsdom has no layout, so clamping would pin every pan offset to 0.
+    const disableClamp = () => ((component as any).updateClamp = () => {});
+    const pointer = (type: string, id: number, x: number, y: number, pointerType = 'touch') =>
+      ({
+        type,
+        pointerId: id,
+        pointerType,
+        clientX: x,
+        clientY: y,
+        target: fixture.nativeElement,
+        currentTarget: {
+          setPointerCapture: () => {},
+          releasePointerCapture: () => {},
+          hasPointerCapture: () => false,
+          classList: { add: () => {}, remove: () => {} },
+        },
+      }) as unknown as PointerEvent;
 
-    it('opens at the MEDIUM zoom level', () => {
-      expect(component.zoomLevel).toBe('medium');
-      const active = fixture.nativeElement.querySelector('.planet-surface__zoom-btn--active');
-      expect(active.textContent.trim()).toBe('MEDIUM');
-      expect(component.cameraTransform).toContain(`scale(${PLANET_SURFACE_ZOOM_SCALES.medium})`);
+    it('opens at the default zoom with the slider in sync', () => {
+      expect(component.zoomScale).toBe(DEFAULT_PLANET_SURFACE_ZOOM);
+      expect(component.cameraTransform).toContain(`scale(${DEFAULT_PLANET_SURFACE_ZOOM})`);
+      fixture.detectChanges();
+      expect(Number(slider().value)).toBe(component.zoomSliderValue);
     });
 
-    it('keeps CLOSE at the unscaled cell size', () => {
-      expect(PLANET_SURFACE_ZOOM_SCALES.close).toBe(1);
-      component.setZoomLevel('close');
-      expect(component.cameraTransform).toBe('translate(0vw, 0vw) scale(1)');
+    it('reaches closer than the unscaled cell size', () => {
+      expect(PLANET_SURFACE_ZOOM_MAX).toBeGreaterThan(1);
+      expect(PLANET_SURFACE_ZOOM_MIN).toBeLessThan(DEFAULT_PLANET_SURFACE_ZOOM);
     });
 
-    it('orders the levels CLOSE > MEDIUM > FAR in scale', () => {
-      expect(PLANET_SURFACE_ZOOM_SCALES.close).toBeGreaterThan(PLANET_SURFACE_ZOOM_SCALES.medium);
-      expect(PLANET_SURFACE_ZOOM_SCALES.medium).toBeGreaterThan(PLANET_SURFACE_ZOOM_SCALES.far);
+    it('clamps the zoom to its range', () => {
+      component.setZoom(10);
+      expect(component.zoomScale).toBe(PLANET_SURFACE_ZOOM_MAX);
+      expect(component.zoomSliderValue).toBe(component.zoomSliderSteps);
+      component.setZoom(0.01);
+      expect(component.zoomScale).toBe(PLANET_SURFACE_ZOOM_MIN);
+      expect(component.zoomSliderValue).toBe(0);
     });
 
-    it('keeps an even step between consecutive levels', () => {
-      const closeToMedium = PLANET_SURFACE_ZOOM_SCALES.medium / PLANET_SURFACE_ZOOM_SCALES.close;
-      const mediumToFar = PLANET_SURFACE_ZOOM_SCALES.far / PLANET_SURFACE_ZOOM_SCALES.medium;
-      expect(mediumToFar).toBeCloseTo(closeToMedium, 2);
+    it('maps the slider ends to the zoom range', () => {
+      fixture.detectChanges();
+      slider().value = String(component.zoomSliderSteps);
+      slider().dispatchEvent(new Event('input'));
+      expect(component.zoomScale).toBeCloseTo(PLANET_SURFACE_ZOOM_MAX);
+      slider().value = '0';
+      slider().dispatchEvent(new Event('input'));
+      expect(component.zoomScale).toBeCloseTo(PLANET_SURFACE_ZOOM_MIN);
     });
 
-    it('switches level through the buttons, repeatedly, marking exactly one active', () => {
-      const labels = ['CLOSE', 'MEDIUM', 'FAR'];
-      for (let round = 0; round < 3; round++) {
-        for (const label of [...labels, ...[...labels].reverse()]) {
-          zoomButtons().find((b) => b.textContent!.trim() === label)!.click();
-          fixture.detectChanges();
-          // Only the zoom-level buttons; the NAMES toggle in the same group is on by default.
-          const active = [
-            ...fixture.nativeElement.querySelectorAll('.planet-surface__zoom-btn--active'),
-          ].filter((b: Element) => labels.includes(b.textContent!.trim()));
-          expect(active.length).toBe(1);
-          expect(active[0].textContent.trim()).toBe(label);
-          expect(component.zoomLevel).toBe(label.toLowerCase());
-        }
-      }
+    it('resets to the default zoom with the magnifier', () => {
+      component.setZoom(PLANET_SURFACE_ZOOM_MAX);
+      fixture.detectChanges();
+      fixture.nativeElement.querySelector('.planet-surface__zoom-icon').click();
+      expect(component.zoomScale).toBe(DEFAULT_PLANET_SURFACE_ZOOM);
+    });
+
+    it('zooms in on wheel up and out on wheel down', () => {
+      const wheel = (deltaY: number) =>
+        component.onSurfaceWheel(new WheelEvent('wheel', { deltaY, cancelable: true }));
+      wheel(-100);
+      expect(component.zoomScale).toBeGreaterThan(DEFAULT_PLANET_SURFACE_ZOOM);
+      wheel(100);
+      wheel(100);
+      expect(component.zoomScale).toBeLessThan(DEFAULT_PLANET_SURFACE_ZOOM);
+    });
+
+    it('rescales the pan offset so the viewed center point stays put', () => {
+      component.setZoom(1);
+      component.scrollX = 4;
+      component.scrollY = -2;
+      disableClamp();
+      component.setZoom(0.6);
+      expect(component.scrollX).toBeCloseTo(2.4);
+      expect(component.scrollY).toBeCloseTo(-1.2);
+    });
+
+    it('keeps the point under an off-center anchor in place', () => {
+      component.setZoom(1);
+      disableClamp();
+      const anchor = { x: 10, y: 5 };
+      const worldBefore = (anchor.x + component.scrollX) / component.zoomScale;
+      component.setZoom(1.25, anchor);
+      expect((anchor.x + component.scrollX) / component.zoomScale).toBeCloseTo(worldBefore);
+    });
+
+    it('zooms in with a two-finger pinch and blocks the trailing click', () => {
+      disableClamp();
+      component.onSurfacePointerDown(pointer('pointerdown', 1, 100, 100));
+      component.onSurfacePointerDown(pointer('pointerdown', 2, 200, 100));
+      component.onSurfacePointerMove(pointer('pointermove', 2, 250, 100));
+      expect(component.zoomScale).toBeCloseTo(DEFAULT_PLANET_SURFACE_ZOOM * 1.5);
+      component.onSurfacePointerUp(pointer('pointerup', 2, 250, 100));
+      component.onSurfacePointerUp(pointer('pointerup', 1, 100, 100));
+
+      component.selectBuildingType('small_residential');
+      component.onCellClick(0, 0);
+      expect(component.selectedCell).toBeNull();
     });
 
     it('does not touch planet data when zooming', () => {
       const before = JSON.stringify(mockPlanet);
-      component.setZoomLevel('far');
-      component.setZoomLevel('close');
+      component.setZoom(PLANET_SURFACE_ZOOM_MIN);
+      component.setZoom(PLANET_SURFACE_ZOOM_MAX);
       expect(JSON.stringify(mockPlanet)).toBe(before);
     });
 
-    it('rescales the pan offset so the viewed point stays centered', () => {
-      component.setZoomLevel('close');
-      component.scrollX = 4;
-      component.scrollY = -2;
-      // jsdom has no layout, so disable clamping to observe the raw rescale.
-      (component as any).updateClamp = () => {};
-      component.setZoomLevel('far');
-      expect(component.scrollX).toBeCloseTo(4 * PLANET_SURFACE_ZOOM_SCALES.far);
-      expect(component.scrollY).toBeCloseTo(-2 * PLANET_SURFACE_ZOOM_SCALES.far);
-    });
-
-    it('resets to MEDIUM when a different planet is shown', () => {
-      component.setZoomLevel('far');
+    it('resets to the default when a different planet is shown', () => {
+      component.setZoom(PLANET_SURFACE_ZOOM_MIN);
       fixture.componentRef.setInput('planet', { ...mockPlanet, id: 2, name: 'Other' });
       fixture.detectChanges();
-      expect(component.zoomLevel).toBe('medium');
+      expect(component.zoomScale).toBe(DEFAULT_PLANET_SURFACE_ZOOM);
     });
 
     it('keeps the chosen zoom when the same planet object is refreshed', () => {
       fixture.componentRef.setInput('planet', mockPlanet);
       fixture.detectChanges();
-      component.setZoomLevel('far');
+      component.setZoom(PLANET_SURFACE_ZOOM_MIN);
       fixture.componentRef.setInput('planet', { ...mockPlanet });
       fixture.detectChanges();
-      expect(component.zoomLevel).toBe('far');
+      expect(component.zoomScale).toBe(PLANET_SURFACE_ZOOM_MIN);
     });
 
-    it('starts at MEDIUM again on a fresh component (planet view reopened)', () => {
-      component.setZoomLevel('close');
+    it('starts at the default again on a fresh component (planet view reopened)', () => {
+      component.setZoom(PLANET_SURFACE_ZOOM_MAX);
       fixture.destroy();
       const reopened = TestBed.createComponent(StarMapPlanetScreenComponent);
       reopened.componentInstance.planet = mockPlanet;
       reopened.detectChanges();
-      expect(reopened.componentInstance.zoomLevel).toBe('medium');
+      expect(reopened.componentInstance.zoomScale).toBe(DEFAULT_PLANET_SURFACE_ZOOM);
     });
   });
 

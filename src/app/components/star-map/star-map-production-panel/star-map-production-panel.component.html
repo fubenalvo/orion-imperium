@@ -7,7 +7,7 @@
     </span>
   </div>
 
-  <button class="production-panel__add btn-primary" type="button" (click)="openBuildMenu.emit()">
+  <button class="production-panel__add btn-primary" type="button" appTutorialAnchor="production.add" (click)="openBuildMenu.emit()">
     + QUEUE NEW ORDER
   </button>
 
@@ -93,7 +93,7 @@
           <div class="production-panel__types">
             @if (selectedTypeId == null) {
               @for (type of vm.buildable; track type.id) {
-                <button class="production-panel__type" type="button" (click)="pickType(type.id)">
+                <button class="production-panel__type" type="button" [appTutorialAnchor]="'production.type.' + type.id" (click)="pickType(type.id)">
                   <span class="production-panel__type-name">{{ type.name }}</span>
                   @if (isCombat(type)) {
                     <app-hull-role [shipType]="type" [compact]="true"></app-hull-role>
@@ -147,6 +147,7 @@
               <button
                 type="button"
                 class="btn-primary"
+                [appTutorialAnchor]="selectedTypeId === 'colonizer' && canQueue() ? 'production.queue' : null"
                 [disabled]="!canQueue()"
                 (click)="confirmQueue()"
               >QUEUE</button>

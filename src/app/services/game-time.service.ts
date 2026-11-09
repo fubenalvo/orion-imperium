@@ -12,7 +12,7 @@ import { BehaviorSubject } from 'rxjs';
  *
  * Time states:
  *   speed = 1 → gameDelta = realDelta (normal)
- *   speed = 3 → gameDelta = realDelta * 3 (fast)
+ *   speed = 5 → gameDelta = realDelta * 5 (fast)
  *   isPaused = true → gameDelta = 0 (simulation frozen)
  *
  * The RAF loop always runs (see StarMapGameLoopService); it
@@ -33,7 +33,7 @@ import { BehaviorSubject } from 'rxjs';
  * unnecessary change detection.
  */
 
-export type GameSpeed = 1 | 3;
+export type GameSpeed = 1 | 5;
 
 export interface TimeState {
   speed: GameSpeed;
@@ -129,7 +129,7 @@ export class GameTimeService {
    * reset: Un-pauses and clears elapsed time. Called on every StarMap load:
    * new game, loading a save and the return from the battle screen (which
    * reloads the autosave). The speed is a session preference, so it is
-   * kept; resetting it here made every battle drop 3x back to 1x.
+   * kept; resetting it here made every battle drop 5x back to 1x.
    */
   reset(): void {
     this._isPaused = false;

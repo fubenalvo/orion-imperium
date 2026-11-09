@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import {
   Component,
   EventEmitter,
@@ -55,7 +56,7 @@ export interface ProductionPanelViewModel {
 @Component({
   selector: 'app-star-map-production-panel',
   standalone: true,
-  imports: [CommonModule, HullRoleComponent],
+  imports: [CommonModule, HullRoleComponent, TutorialAnchorDirective],
   templateUrl: './star-map-production-panel.component.html',
   styleUrl: './star-map-production-panel.component.scss',
 })

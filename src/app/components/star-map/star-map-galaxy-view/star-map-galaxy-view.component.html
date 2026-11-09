@@ -292,6 +292,7 @@
       >
         <button
           class="fleet"
+          [appTutorialAnchor]="'map.fleet.' + fleet.id"
           [class.selected]="selectedFleet?.id === fleet.id"
           [class.moving]="fleet.targetX !== null && fleet.targetY !== null"
           [class.arriced]="fleet.targetX === null || fleet.targetY === null"
@@ -487,6 +488,7 @@
         ></div>
         <button
           class="asteroid"
+          [appTutorialAnchor]="$first ? 'map.asteroid' : null"
           type="button"
           [attr.aria-label]="asteroid.label"
           [title]="asteroid.label + ' — click to intercept (right-click with a fleet selected)'"
@@ -534,7 +536,8 @@
         [attr.aria-label]="anomaly.title"
       >
         <span class="anomaly-marker__pulse" aria-hidden="true"></span>
-        <span class="anomaly-marker__glyph" aria-hidden="true">?</span>
+        <!-- The marker itself is 0×0; the glyph is the visible tutorial anchor. -->
+        <span class="anomaly-marker__glyph" aria-hidden="true" [appTutorialAnchor]="$first ? 'map.anomaly' : null">?</span>
       </div>
     }
 

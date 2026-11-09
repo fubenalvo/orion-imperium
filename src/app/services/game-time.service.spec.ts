@@ -34,13 +34,13 @@ describe('GameTimeService', () => {
       expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.016, 5);
     });
 
-    it('should return realDeltaTime * 3 at 3x speed', () => {
-      service.setSpeed(3);
-      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.048, 5);
+    it('should return realDeltaTime * 5 at 5x speed', () => {
+      service.setSpeed(5);
+      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.08, 5);
     });
 
     it('should return 0 when paused', () => {
-      service.setSpeed(3);
+      service.setSpeed(5);
       service.pause();
       expect(service.getScaledDeltaTime(0.016)).toBe(0);
     });
@@ -54,22 +54,22 @@ describe('GameTimeService', () => {
 
   describe('setSpeed', () => {
     it('should set speed to 1', () => {
-      service.setSpeed(3);
+      service.setSpeed(5);
       service.setSpeed(1);
       expect(service.speed).toBe(1);
     });
 
-    it('should set speed to 3', () => {
+    it('should set speed to 5', () => {
       service.setSpeed(1);
-      service.setSpeed(3);
-      expect(service.speed).toBe(3);
+      service.setSpeed(5);
+      expect(service.speed).toBe(5);
     });
 
     it('should un-pause when called', () => {
       service.pause();
-      service.setSpeed(3);
+      service.setSpeed(5);
       expect(service.isPaused).toBe(false);
-      expect(service.speed).toBe(3);
+      expect(service.speed).toBe(5);
     });
   });
 
@@ -85,13 +85,13 @@ describe('GameTimeService', () => {
       expect(service.isPaused).toBe(false);
     });
 
-    it('should preserve speed across pause/resume cycle at 3x', () => {
-      service.setSpeed(3);
+    it('should preserve speed across pause/resume cycle at 5x', () => {
+      service.setSpeed(5);
       service.pause();
-      expect(service.speed).toBe(3);
+      expect(service.speed).toBe(5);
       service.resume();
-      expect(service.speed).toBe(3);
-      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.048, 5);
+      expect(service.speed).toBe(5);
+      expect(service.getScaledDeltaTime(0.016)).toBeCloseTo(0.08, 5);
     });
 
     it('should be a no-op when already paused', () => {
@@ -123,10 +123,10 @@ describe('GameTimeService', () => {
     });
 
     it('should preserve speed on toggle', () => {
-      service.setSpeed(3);
+      service.setSpeed(5);
       service.togglePause();
       service.togglePause();
-      expect(service.speed).toBe(3);
+      expect(service.speed).toBe(5);
       expect(service.isPaused).toBe(false);
     });
   });
@@ -139,15 +139,15 @@ describe('GameTimeService', () => {
       expect(service.gameElapsedTime).toBeCloseTo(2, 5);
     });
 
-    it('should accumulate elapsed time at 3x', () => {
-      service.setSpeed(3);
+    it('should accumulate elapsed time at 5x', () => {
+      service.setSpeed(5);
       service.onTick(1);
       service.onTick(1);
-      expect(service.gameElapsedTime).toBeCloseTo(6, 5);
+      expect(service.gameElapsedTime).toBeCloseTo(10, 5);
     });
 
     it('should not accumulate when paused', () => {
-      service.setSpeed(3);
+      service.setSpeed(5);
       service.pause();
       service.onTick(1);
       service.onTick(2);
@@ -157,10 +157,10 @@ describe('GameTimeService', () => {
 
   describe('reset', () => {
     it('should keep the speed (a session preference, also across battles)', () => {
-      service.setSpeed(3);
+      service.setSpeed(5);
       service.pause();
       service.reset();
-      expect(service.speed).toBe(3);
+      expect(service.speed).toBe(5);
       expect(service.isPaused).toBe(false);
     });
 
@@ -193,12 +193,12 @@ describe('GameTimeService', () => {
       sub.unsubscribe();
       sub2.unsubscribe();
 
-      service.setSpeed(3);
+      service.setSpeed(5);
       // BehaviorSubject emits synchronously — subscribe gets the latest
-      expect(service.state$.value.speed).toBe(3);
+      expect(service.state$.value.speed).toBe(5);
 
       const lateSub = service.state$.subscribe((s) => {
-        expect(s.speed).toBe(3);
+        expect(s.speed).toBe(5);
       });
       lateSub.unsubscribe();
     });

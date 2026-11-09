@@ -53,12 +53,13 @@
     @if (isPlayerFleet) {
       <!-- Orders are right clicks only (same rule as the battle screen); this
            hint replaces the old MOVE button for discoverability. -->
-      <p class="fleet-info__order-hint">Right-click: move · attack · intercept</p>
+      <p class="fleet-info__order-hint" appTutorialAnchor="fleet.panel">Right-click: move · attack · intercept</p>
       <div class="fleet-actions">
         @if (colonizeTargetName) {
           <button
             type="button"
             class="action-btn btn-primary colonize-btn"
+            appTutorialAnchor="fleet.colonize"
             [title]="'Settle ' + colonizeTargetName + ' (uses one Colonizer)'"
             (click)="colonize.emit(); $event.stopPropagation()"
           >

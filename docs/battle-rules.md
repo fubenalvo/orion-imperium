@@ -353,7 +353,7 @@ and the full design are in [Ship Equipment](./ship-equipment.md). In battle (`cr
 ## Real-Time Model
 
 Battles run on a real-time game loop (`BattleGameLoopService` — RAF, outside the Angular zone).
-Delta time is scaled by the battle-local `BattleTimeService` (pause / 1x / 3x) and is 0 while
+Delta time is scaled by the battle-local `BattleTimeService` (pause / 1x / 5x) and is 0 while
 paused; the star-map `GameTimeService` stays paused during battle. Each frame
 (`BattleScreenComponent.gameLoopCallback`) runs, in order:
 

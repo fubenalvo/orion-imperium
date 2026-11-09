@@ -226,6 +226,33 @@
   font-size: 0.95em;
 }
 
+/* Sits right above START GAME so it is easy to switch off before starting. */
+.setup-tutorial {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6em;
+  cursor: pointer;
+
+  input {
+    width: 1.1em;
+    height: 1.1em;
+    margin: 0;
+    accent-color: var(--ui-accent);
+    cursor: pointer;
+  }
+}
+
+.setup-tutorial__label {
+  color: var(--ui-ink-bright);
+  letter-spacing: var(--ui-track-wide);
+}
+
+.setup-tutorial__hint {
+  color: var(--ui-ink-dim);
+  font-size: var(--ui-fs-xs);
+}
+
 .setup-actions {
   display: flex;
   justify-content: space-between;

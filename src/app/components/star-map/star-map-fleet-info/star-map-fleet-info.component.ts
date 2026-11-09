@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Fleet, FleetShipTypeSummary } from '../star-map.models';
@@ -6,7 +7,7 @@ import { effectiveFleetSpeed } from '../ship-stats';
 @Component({
   selector: 'app-star-map-fleet-info',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, TutorialAnchorDirective],
   templateUrl: './star-map-fleet-info.component.html',
   styleUrl: './star-map-fleet-info.component.scss',
 })

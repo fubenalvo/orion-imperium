@@ -8,6 +8,7 @@
           @for (entry of playerPlanets; track entry.planet) {
             <button
               class="fleet-btn"
+              [appTutorialAnchor]="$first ? 'roster.planet' : null"
               [style.--fleet-color]="getFactionColor('player')"
               type="button"
               [title]="entry.planet.name + ' — ' + entry.system.name"
@@ -28,6 +29,7 @@
             <button
               class="fleet-btn"
               [class.selected]="selectedFleetId === fleet.id"
+              [appTutorialAnchor]="'roster.fleet.' + fleet.id"
               [style.--fleet-color]="getFactionColor(fleet.factionId)"
               type="button"
               (click)="selectFleet.emit(fleet); $event.stopPropagation()"

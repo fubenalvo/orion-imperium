@@ -6,6 +6,12 @@
       <app-star-map-options animate.enter="ui-enter" animate.leave="ui-leave"></app-star-map-options>
     }
 
+    <!-- Tutorial hints (docs/tutorial-hints.md): one layer for every screen. -->
+    <app-tutorial-hint />
+
     <div class="crt-overlay"></div>
+
+    <!-- Landscape-only game: covers every screen on a touch device held upright. -->
+    <app-orientation-gate />
   </div>
 </div>

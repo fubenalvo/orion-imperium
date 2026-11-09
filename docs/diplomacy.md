@@ -35,7 +35,7 @@ Related: [Planet Capture](./planet-capture.md) (capture rules, game outcome), [E
 
 ## Time
 
-The game is real-time: there are no turns, rounds or diplomatic steps. Every diplomatic timer (war lock, truce, war duration, AI proposal lifetime and cooldown, AI decision interval) is in seconds of scaled game time, and every rate (opinion and reputation drift, war exhaustion) is **per minute of game time** (`SECONDS_PER_MINUTE` = 60), applied continuously as `rate × delta / 60` on every frame by `DiplomacyService.tick` → `tickDiplomacyTime` (and `EnemyDiplomacyService.tick`, `BorderService.tick`), called from `StarMap.gameLoopCallback` with the scaled delta. Nothing advances on a player action. Everything freezes while paused (delta 0), resumes from the same state, runs 3× at speed 3, and there is no partial state to save.
+The game is real-time: there are no turns, rounds or diplomatic steps. Every diplomatic timer (war lock, truce, war duration, AI proposal lifetime and cooldown, AI decision interval) is in seconds of scaled game time, and every rate (opinion and reputation drift, war exhaustion) is **per minute of game time** (`SECONDS_PER_MINUTE` = 60), applied continuously as `rate × delta / 60` on every frame by `DiplomacyService.tick` → `tickDiplomacyTime` (and `EnemyDiplomacyService.tick`, `BorderService.tick`), called from `StarMap.gameLoopCallback` with the scaled delta. Nothing advances on a player action. Everything freezes while paused (delta 0), resumes from the same state, runs 5× at speed 5, and there is no partial state to save.
 
 The UI shows durations as game time through `formatGameDuration` (`diplomacy.ts`): "45 s", "4 min 30 s", "1 h 5 min" — war duration, truce time left, wait before negotiating, open proposal time.
 

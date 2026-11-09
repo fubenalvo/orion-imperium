@@ -1,0 +1,164 @@
+@use 'ui';
+
+/* =========================================================
+   TUTORIAL HINT (docs/tutorial-hints.md)
+   A fixed layer over the game, under the CRT overlay. Only the
+   bubble takes pointer events. Ring and bubble start hidden and
+   are shown by the component once it has placed them, so they
+   never flash at the top-left corner for a frame.
+   ========================================================= */
+
+.tutorial-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+}
+
+.tutorial-hint__ring {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  border: 2px solid var(--ui-accent);
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 0 14px rgba(var(--ui-accent-rgb), 0.55),
+    inset 0 0 10px rgba(var(--ui-accent-rgb), 0.25);
+  animation: tutorial-ring-pulse 1.6s ease-in-out infinite;
+}
+
+.tutorial-hint__bubble {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 8px 30px 6px 10px;
+  pointer-events: auto;
+  font-family: var(--font-primary);
+  color: var(--ui-ink-bright);
+  @include ui.glass;
+  border-color: var(--ui-line-strong);
+  box-shadow:
+    var(--ui-shadow-panel),
+    0 0 18px rgba(var(--ui-accent-rgb), 0.25);
+}
+
+.tutorial-hint__text {
+  margin: 0;
+  font-size: var(--ui-fs-sm);
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+
+.tutorial-hint__close {
+  @include ui.control-reset;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  color: var(--ui-ink-dim);
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--ui-ink-bright);
+  }
+}
+
+.tutorial-hint__off {
+  @include ui.control-reset;
+  display: block;
+  margin: 6px 0 0 auto;
+  padding: 2px 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: var(--ui-accent-text);
+  font-size: var(--ui-fs-xs);
+  letter-spacing: var(--ui-track-wide);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--ui-ink-bright);
+    text-decoration: underline;
+  }
+}
+
+/* A rotated square half outside the bubble edge facing the anchor;
+   `data-side` is the side of the anchor the bubble sits on. */
+.tutorial-hint__arrow {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: rgb(0, 24, 34);
+  border: 1px solid var(--ui-line-strong);
+  transform: rotate(45deg);
+
+  &[data-side='bottom'] {
+    top: 0;
+    border-right: none;
+    border-bottom: none;
+  }
+
+  &[data-side='top'] {
+    top: 100% !important;
+    border-left: none;
+    border-top: none;
+  }
+
+  &[data-side='right'] {
+    left: 0;
+    border-right: none;
+    border-top: none;
+  }
+
+  &[data-side='left'] {
+    left: 100% !important;
+    border-left: none;
+    border-bottom: none;
+  }
+}
+
+.tutorial-hint__notice {
+  position: fixed;
+  left: 50%;
+  bottom: 12vh;
+  z-index: 9000;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  font-family: var(--font-primary);
+  font-size: var(--ui-fs-sm);
+  color: var(--ui-ink-bright);
+  pointer-events: none;
+  @include ui.glass;
+}
+
+@keyframes tutorial-ring-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-hint__ring {
+    animation: none;
+  }
+}

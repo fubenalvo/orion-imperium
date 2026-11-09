@@ -1,3 +1,4 @@
+import { TutorialAnchorDirective } from '../tutorial/tutorial-anchor.directive';
 import { Component, EventEmitter, HostListener, Input, Output } from '@angular/core';
 
 export interface GameHeaderSpeedOption {
@@ -43,6 +44,7 @@ export interface GameHeaderSpeedOption {
 @Component({
   selector: 'app-game-header',
   standalone: true,
+  imports: [TutorialAnchorDirective],
   templateUrl: './game-header.component.html',
   styleUrl: './game-header.component.scss',
 })

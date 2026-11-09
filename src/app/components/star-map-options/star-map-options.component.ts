@@ -2,6 +2,7 @@ import { Component, inject, HostListener } from '@angular/core';
 import { GameSettingsService } from '../../services/game-settings.service';
 import { UiSoundService } from '../../services/ui-sound.service';
 import { MusicService } from '../../services/music.service';
+import { TutorialService } from '../../services/tutorial.service';
 
 /*
  * =========================================================
@@ -11,7 +12,8 @@ import { MusicService } from '../../services/music.service';
  * Overlay options menu accessible from the main menu and the
  * pause menu: the fog-of-war toggle, the UI sounds toggle
  * (UiSoundService) and the music toggle and volume (MusicService),
- * both remembered in localStorage.
+ * both remembered in localStorage, and — inside a game — the TUTORIAL
+ * toggle and RESET TUTORIAL (TutorialService, saved with the game).
  *
  * Lifecycle:
  *   - Rendered conditionally by App via the optionsMenuOpen
@@ -33,6 +35,8 @@ export class StarMapOptionsComponent {
 
   readonly uiSound = inject(UiSoundService);
   readonly music = inject(MusicService);
+  /* In a game only: the tutorial flag belongs to the running game (docs/tutorial-hints.md). */
+  readonly tutorial = inject(TutorialService);
 
   onMusicVolume(event: Event): void {
     this.music.setVolume(Number((event.target as HTMLInputElement).value) / 100);

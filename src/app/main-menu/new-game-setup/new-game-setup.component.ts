@@ -54,6 +54,8 @@ export class NewGameSetupComponent implements OnInit {
   config: NewGameConfig = createDefaultNewGameConfig();
   slotIndex: number = MANUAL_SLOT_START;
   seedText = '';
+  /* New Game TUTORIAL checkbox: on by default for every new game (docs/tutorial-hints.md). */
+  tutorial = true;
 
   readonly galaxySizes = GALAXY_SIZES.map((id) => GALAXY_SIZE_PRESETS[id]);
   readonly palette = PLAYER_COLOR_PALETTE;
@@ -163,6 +165,7 @@ export class NewGameSetupComponent implements OnInit {
     return {
       ...this.config,
       seed,
+      tutorial: this.tutorial,
       players: this.config.players.map((p) => ({ ...p, name: p.name.trim() })),
     };
   }

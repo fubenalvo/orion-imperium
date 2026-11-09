@@ -1,5 +1,6 @@
 import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
+import { TutorialAnchorDirective } from '../../tutorial/tutorial-anchor.directive';
 import { Fleet, FleetTrail, PlanetTile, StarSystem, SystemAsteroid } from '../star-map.models';
 import { AsteroidHint } from '../mining-station';
 import { depletionFraction } from '../raw-deposits';
@@ -46,7 +47,7 @@ export interface AnomalyCellView {
 @Component({
   selector: 'app-star-map-system-grid',
   standalone: true,
-  imports: [NgClass, FleetShipComponent],
+  imports: [NgClass, FleetShipComponent, TutorialAnchorDirective],
   templateUrl: './star-map-system-grid.component.html',
   styleUrl: './star-map-system-grid.component.scss',
 })

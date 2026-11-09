@@ -495,7 +495,7 @@ Three layout modes reorganise the UI rather than scaling it:
 |---|---|---|
 | Default | landscape | Left column; on ultrawide the column is anchored to a centered 16:9 safe area. Planet lower right. |
 | Short landscape | `max-height: 560px` and aspect ≥ 5/4 | Logo and navigation side by side; hints, Load Game title and moon hidden. |
-| Portrait | aspect ≤ 4/5 or width ≤ 560px | Centered column; planet rises from the bottom edge; moon hidden. |
+| Portrait | aspect ≤ 4/5 or width ≤ 560px | Centered column; planet rises from the bottom edge; moon hidden. On touch devices this mode is covered by the app-wide "rotate your device" gate (logo, a turning-phone icon, console panel; `components/orientation-gate/`), so it only shows in narrow desktop windows. |
 
 The only internal scroll area is the New Game setup form itself, which is
 long by nature and bounded by its own `max-height`.
