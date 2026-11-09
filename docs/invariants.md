@@ -169,7 +169,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 
 - Each fleet has a `sensorRange` field (default 3 if missing from save data). This field is a **minimum floor** (the global +2 bonus is added on top at computation time, never stored) — the effective range can be higher when individual ships have a greater `ShipType.range`. The range is in galaxy grid cells and defines a Euclidean circle of visibility.
 - Sensor ranges are computed around integer grid positions: `Math.floor(fleet.x)` for fleets and `system.gridCol`/`system.gridRow` for star systems.
-- Player-owned star systems (≥1 planet with `factionId === 'player'`) provide a fixed 7-grid sensor radius (5 + 2) regardless of fleet presence.
+- Player-owned star systems (≥1 planet with `factionId === 'player'`) provide a fixed 11-grid sensor radius (1.5 × (5 + 2), rounded up) regardless of fleet presence.
 - Only **player** sensor ranges are highlighted on the galaxy map. Enemy fleet sensor ranges are never shown.
 - `exploredGridCells` (a `Set<string>` of `"col-row"` keys, persisted as `string[]`) is monotonic: once a cell is explored it stays explored forever.
 - `StarSystem.explored` is set to `true` when the system's grid cell enters any player sensor range, and never reset to `false`.

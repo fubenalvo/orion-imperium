@@ -76,7 +76,12 @@ export interface SensorLayerResult {
  */
 export const SENSOR_RANGE_GLOBAL_BONUS = 2;
 export const DEFAULT_FLEET_SENSOR_RANGE = 3;
-export const PLAYER_SYSTEM_SENSOR_RANGE = 5 + SENSOR_RANGE_GLOBAL_BONUS;
+/*
+ * Base sensor radius of an owned star system (player and AI alike, research
+ * bonus added on top): 1.5 × the original 5 + global bonus (7), rounded up to
+ * whole cells → 11.
+ */
+export const PLAYER_SYSTEM_SENSOR_RANGE = Math.ceil((5 + SENSOR_RANGE_GLOBAL_BONUS) * 1.5);
 
 @Injectable({ providedIn: 'root' })
 export class StarMapSensorService {

@@ -38,8 +38,13 @@ import { DysonRing, dysonWedgeAt, isInDysonRingZone } from './dyson-ring';
  * cells, and distances are measured between cell coordinates.
  */
 export const TERRITORY_CONFIG = {
-  /* Claim radius around a star system with an owner (cells). Systems are 22–30+ cells apart. */
-  systemClaimRadius: 7,
+  /*
+   * Claim radius around a star system with an owner (cells): 1.5 × the
+   * original 7, rounded up to a whole cell because the claim loops walk
+   * integer cells. Systems are 22–30+ cells apart, so neighbouring discs can
+   * touch; the overlap rule below decides those cells.
+   */
+  systemClaimRadius: 11,
   /* Claim radius around a space base (cells); smaller than a system's. */
   baseClaimRadius: 5,
 } as const;

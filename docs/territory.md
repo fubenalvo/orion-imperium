@@ -33,7 +33,7 @@ Territory is computed from planet owners and bases, so it can never disagree wit
 
 **Claim sources**
 
-- **Star system:** claims a disc of `systemClaimRadius` = 7 cells around its star for its *claim owner* — the non-neutral faction owning the most planets there (ties: higher total population, then lower faction id). A system with no non-neutral planet owner claims nothing. Systems are generated 22–30+ cells apart, so system discs rarely touch.
+- **Star system:** claims a disc of `systemClaimRadius` = 11 cells around its star (1.5 × the original 7, rounded up) for its *claim owner* — the non-neutral faction owning the most planets there (ties: higher total population, then lower faction id). A system with no non-neutral planet owner claims nothing. Systems are generated 22–30+ cells apart, so neighbouring system discs can touch; the overlap rule below decides those cells.
 - **Space base:** claims a disc of `baseClaimRadius` = 5 cells around itself for its owner.
 
 Neutral factions (team 0: `independent` rebels, `unhabited`) never own territory.

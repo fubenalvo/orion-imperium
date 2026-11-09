@@ -82,7 +82,7 @@ See `docs/game-systems.md` / Fog of War & Sensor Range for gameplay rules.
 ### Fleet.sensorRange
 
 - `sensorRange?: number` — sensor range **minimum floor** in galaxy grid cells (default 3). The effective range is computed as `max(fleet.sensorRange, max ShipType.range among non-destroyed ships) + SENSOR_RANGE_GLOBAL_BONUS (2)` via `StarMapSensorService.getFleetSensorRange()`. Stored per-fleet in `star-map-data.json` and persisted in save data.
-- Player-owned star systems (those containing ≥1 planet with `factionId === 'player'`) provide a fixed 7-grid sensor radius (5 + the global +2 bonus) on the galaxy map, regardless of fleet presence.
+- Player-owned star systems (those containing ≥1 planet with `factionId === 'player'`) provide a fixed 11-grid sensor radius (1.5 × (5 + the global +2 bonus), rounded up; research bonus on top) on the galaxy map, regardless of fleet presence.
 - A Euclidean circle (`dx² + dy² <= range²`) defines the set of cells visible from a given center.
 
 ### exploredGridCells

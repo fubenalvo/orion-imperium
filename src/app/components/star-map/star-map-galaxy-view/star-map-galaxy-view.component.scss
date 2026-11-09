@@ -44,20 +44,23 @@
 .nebula-layer {
   z-index: 4;
   mix-blend-mode: screen;
+  /* Vivid colors: the grayscale texture times the tint reads washed out
+     after the screen blend, so the whole static layer is saturated. */
+  filter: saturate(1.8);
 }
 
 .nebula__halo {
-  opacity: 0.05;
-}
-
-/* The flat glow is now only the base light; the gas texture carries the
-   detail, so the body is much fainter than before. */
-.nebula__body {
   opacity: 0.16;
 }
 
+/* Base glow under the gas texture: dense enough that the nebula reads as a
+   solid colored cloud out to its edge, not a faint veil. */
+.nebula__body {
+  opacity: 0.4;
+}
+
 .nebula__core {
-  opacity: 0.14;
+  opacity: 0.32;
 }
 
 /* Gas structure: an isolated group (it is masked) screened over the glow,
@@ -72,13 +75,13 @@
 .nebula__texture {
   /* High contrast: dark lanes go fully black (transparent after the
      screen blend), so the gas shows as filaments, not as a flat fill. */
-  filter: grayscale(1) contrast(1.6) brightness(1.5);
+  filter: grayscale(1) contrast(1.5) brightness(1.9);
 }
 
 /* Pale wisps on top of the tinted gas (see the template). */
 .nebula__texture--wisps {
   mix-blend-mode: screen;
-  opacity: 0.22;
+  opacity: 0.14;
 }
 
 .nebula__tint {

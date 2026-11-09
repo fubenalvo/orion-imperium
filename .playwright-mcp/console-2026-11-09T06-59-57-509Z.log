@@ -2,3 +2,11 @@
 [     124ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4321/:0
 [     154ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4321/:0
 [     324ms] [WARNING] NG0913: An image with src http://localhost:4321/logo.png has intrinsic file dimensions much larger than its rendered size. This can negatively impact application loading performance. For more information about addressing or disabling this warning, see https://v22.angular.dev/errors/NG0913. Find more at https://v22.angular.dev/errors/NG0913 @ http://localhost:4321/@vite/client:524
+[  879386ms] [LOG] Angular is running in development mode. @ http://localhost:4321/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
+[  879955ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4321/star-map:0
+[ 1159117ms] [LOG] Angular is running in development mode. @ http://localhost:4321/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
+[ 1159670ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4321/star-map:0
+[ 1181273ms] [LOG] Angular is running in development mode. @ http://localhost:4321/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
+[ 1181817ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4321/star-map:0
+[ 1184783ms] [LOG] Angular is running in development mode. @ http://localhost:4321/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=b2f6ce21:12236
+[ 1185368ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4321/star-map:0

@@ -259,14 +259,14 @@ describe('global sensor range bonus', () => {
     expect(layer.cells.has('50-55')).toBe(true);
     expect(layer.cells.has('50-56')).toBe(false);
 
-    // Owned systems: 5 + 2 = 7.
+    // Owned systems: ceil((5 + 2) × 1.5) = 11.
     const system = {
       id: 's', name: 'S', x: 20, y: 20, gridCol: 20, gridRow: 20, planets: 1, color: '#fff',
       planetsTiles: [{ id: 1, index: 0, name: 'P', factionId: 'player', x: 1, y: 1, type: 'earthlike' as const, size: 'small' as const, population: 1, buildings: [], explored: true }],
     };
     const sysLayer = service.computeGalaxySensorCells([], [system], factions, 100, 100);
-    expect(sysLayer.cells.has('20-27')).toBe(true);
-    expect(sysLayer.cells.has('20-28')).toBe(false);
+    expect(sysLayer.cells.has('20-31')).toBe(true);
+    expect(sysLayer.cells.has('20-32')).toBe(false);
 
     // System view uses the same +2, in range units of 2 system cells:
     // (3 + 2) × 2 = 10 cells from the fleet's cell (1, 1).

@@ -41,7 +41,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 **Sources of sensor range (galaxy map, player faction only):**
 
 1. **Player fleets** — each fleet has a `sensorRange` field (default 3 grid cells) which serves as a **minimum floor**. The effective range is `max(fleet.sensorRange, max ShipType.range among non-destroyed ships)` — if any ship in the fleet has a longer `range`, that ship's range is used instead — plus `SENSOR_RANGE_GLOBAL_BONUS` (2 cells, applied to every sensor source, player and AI, galaxy and system view). The effective range is centered on the fleet's current integer grid position (`Math.floor(fleet.x)`, `Math.floor(fleet.y)`).
-2. **Player-owned star systems** — any star system containing at least one planet with `factionId === 'player'` provides a fixed 7-grid-radius sensor range (5 + the global +2 bonus), centered on the system's grid cell. This is the "base visibility" — your home territory is always partially detected even without a fleet present.
+2. **Player-owned star systems** — any star system containing at least one planet with `factionId === 'player'` provides a fixed 11-grid-radius sensor range (1.5 × (5 + the global +2 bonus), rounded up; research bonus on top), centered on the system's grid cell. This is the "base visibility" — your home territory is always partially detected even without a fleet present.
 3. **Player space bases** — observation posts with a fixed `SPACE_BASE_CONFIG.sensorRange` (6) + research bonus, same priority as owned systems ([Territory](./territory.md#space-bases)).
 
 **Rendering:**

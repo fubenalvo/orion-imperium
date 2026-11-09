@@ -425,8 +425,8 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   @ViewChild('surfaceViewport') surfaceViewport: ElementRef<HTMLElement> | null = null;
   @ViewChild('terrainHost') terrainHost: ElementRef<HTMLElement> | null = null;
 
-  // Building names are shown by default; the NAMES toggle hides them.
-  showLabels = true;
+  // Building names are hidden by default (hover still shows one); the NAMES toggle shows them all.
+  showLabels = false;
   terrainReady = false;
   terrainBox: { left: number; top: number; width: number; height: number } | null = null;
   settlement: SettlementLayout = EMPTY_SETTLEMENT;
@@ -1146,7 +1146,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   /** Label anchor (vw at zoom 1) above a building's footprint center. */
   labelPosition(b: PlanetBuilding): { left: number; top: number } {
     const p = this.project(this.margin + b.x + b.size / 2, this.margin + b.y + b.size / 2);
-    return { left: p.x, top: p.y - b.size * 0.6 * this.cellVw };
+    return { left: p.x, top: p.y - b.size * 0.45 * this.cellVw };
   }
 
   toggleLabels(): void {

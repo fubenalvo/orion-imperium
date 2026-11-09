@@ -550,19 +550,21 @@
   position: absolute;
   transform: translate(-50%, -100%);
   white-space: nowrap;
-  padding: 0.15em 0.55em;
-  font-size: 0.85rem;
-  letter-spacing: 0.06em;
-  color: var(--color-text-bright);
-  background: rgba(3, 10, 20, 0.72);
-  border: 1px solid rgba(var(--ui-accent-rgb), 0.55);
+  /* Kept small and quiet: just readable, so labels do not dominate the
+     surface art. The hover variant brings the accent back. */
+  padding: 0.05em 0.4em;
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  color: rgba(225, 235, 245, 0.85);
+  background: rgba(3, 10, 20, 0.55);
+  border: 1px solid rgba(var(--ui-accent-rgb), 0.25);
   border-radius: 2px;
-  box-shadow: 0 0 10px rgba(var(--ui-accent-rgb), 0.25);
 }
 
 .planet-surface__building-name--hover {
   color: var(--color-blue-bright);
   border-color: var(--color-blue-bright);
+  box-shadow: 0 0 8px rgba(var(--ui-accent-rgb), 0.3);
   z-index: 1;
 }
 
@@ -672,8 +674,8 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --dx: -90vw;
     --dy: 90vw;
     --dur: 150s;
-    opacity: 0.38;
-    filter: brightness(1.6);
+    opacity: 0.55;
+    filter: brightness(1.8);
   }
 
   .wx--b {
@@ -681,8 +683,8 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --pad: 150vw;
     --dx: -150vw;
     --dur: 230s;
-    opacity: 0.2;
-    filter: brightness(1.5) blur(2px);
+    opacity: 0.32;
+    filter: brightness(1.7) blur(2px);
   }
 
   /* Same tile and timing as .wx--a, offset down-right: the cloud shadows. */
@@ -693,7 +695,7 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --dy: 90vw;
     --dur: 150s;
     background-position: 5vw 6vw;
-    opacity: 0.22;
+    opacity: 0.32;
     filter: brightness(0) blur(5px);
   }
 }
@@ -705,8 +707,8 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --pad: 140vw;
     --dx: -140vw;
     --dur: 32s;
-    --lo: 0.12;
-    --hi: 0.5;
+    --lo: 0.25;
+    --hi: 0.72;
     filter: sepia(1) saturate(2.6) hue-rotate(-18deg) brightness(0.95);
     animation:
       wx-scroll var(--dur) linear infinite,
@@ -714,14 +716,14 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
   }
 
   .wx--b {
-    background-image: wx-dots(ellipse 10px 1.3px, (rgba(236, 160, 100, 0.9), transparent), $wx-pts-a);
+    background-image: wx-dots(ellipse 14px 1.8px, (rgba(236, 160, 100, 0.9), transparent), $wx-pts-a);
     background-size: 220px 220px;
     --pad: 440px;
     --dx: -440px;
     --dy: 220px;
     --dur: 3.5s;
-    --lo: 0.35;
-    --hi: 0.85;
+    --lo: 0.55;
+    --hi: 1;
     animation:
       wx-scroll var(--dur) linear infinite,
       wx-pulse 9s ease-in-out infinite alternate;
@@ -731,7 +733,7 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     background-image: linear-gradient(
       100deg,
       rgba(190, 90, 40, 0),
-      rgba(205, 110, 55, 0.3) 50%,
+      rgba(215, 115, 55, 0.48) 50%,
       rgba(190, 90, 40, 0)
     );
     background-size: 200vw 100%;
@@ -745,17 +747,17 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 /* Venuslike (hot): falling ash, rising embers, a pulsing lava glow below. */
 [data-weather='venuslike'] {
   .wx--a {
-    background-image: wx-dots(circle 1.8px, (rgba(70, 64, 62, 0.95), transparent), $wx-pts-a);
+    background-image: wx-dots(circle 2.4px, (rgba(70, 64, 62, 1), transparent), $wx-pts-a);
     background-size: 180px 180px;
     --pad: 360px;
     --dx: -180px;
     --dy: 360px;
     --dur: 20s;
-    opacity: 0.8;
+    opacity: 1;
   }
 
   .wx--b {
-    background-image: wx-dots(circle 2px, (#fff0c0, #ff8a2a 45%, transparent), $wx-pts-b);
+    background-image: wx-dots(circle 3px, (#fff6d0, #ff8a2a 40%, transparent), $wx-pts-b);
     background-size: 240px 240px;
     --pad: 480px;
     --dx: 240px;
@@ -775,8 +777,8 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --lo: 0.45;
     --hi: 1;
     background-image:
-      linear-gradient(to top, rgba(255, 80, 20, 0.38), transparent 45%),
-      radial-gradient(ellipse at 50% 120%, rgba(255, 120, 40, 0.3), transparent 60%);
+      linear-gradient(to top, rgba(255, 80, 20, 0.55), transparent 50%),
+      radial-gradient(ellipse at 50% 120%, rgba(255, 120, 40, 0.45), transparent 65%);
     mix-blend-mode: screen;
   }
 }
@@ -784,23 +786,23 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 /* Ice: two depths of snowfall drifting at different angles, frosted edges. */
 [data-weather='ice'] {
   .wx--a {
-    background-image: wx-dots(circle 1.4px, (rgba(255, 255, 255, 0.95), transparent), $wx-pts-a);
+    background-image: wx-dots(circle 1.9px, (#fff, transparent), $wx-pts-a);
     background-size: 160px 160px;
     --pad: 480px;
     --dx: 160px;
     --dy: 480px;
     --dur: 24s;
-    opacity: 0.75;
+    opacity: 0.95;
   }
 
   .wx--b {
-    background-image: wx-dots(circle 3px, (#fff, rgba(255, 255, 255, 0.6) 40%, transparent), $wx-pts-b);
+    background-image: wx-dots(circle 4px, (#fff, rgba(255, 255, 255, 0.6) 40%, transparent), $wx-pts-b);
     background-size: 300px 300px;
     --pad: 900px;
     --dx: -300px;
     --dy: 900px;
     --dur: 15s;
-    opacity: 0.9;
+    opacity: 1;
   }
 
   .wx--c {
@@ -808,21 +810,21 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --dur: 8s;
     --lo: 0.7;
     --hi: 1;
-    background-image: radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(215, 238, 255, 0.4) 100%);
+    background-image: radial-gradient(ellipse at 50% 50%, transparent 45%, rgba(215, 238, 255, 0.6) 100%);
   }
 }
 
 /* Desert: wind-blown sand, a faint dust haze and pulsing sun glare. */
 [data-weather='desert'] {
   .wx--a {
-    background-image: wx-dots(ellipse 7px 1px, (rgba(245, 210, 150, 0.85), transparent), $wx-pts-b);
+    background-image: wx-dots(ellipse 10px 1.5px, (rgba(245, 210, 150, 1), transparent), $wx-pts-b);
     background-size: 260px 260px;
     --pad: 520px;
     --dx: -520px;
     --dy: 260px;
     --dur: 6s;
-    --lo: 0.2;
-    --hi: 0.6;
+    --lo: 0.35;
+    --hi: 0.85;
     animation:
       wx-scroll var(--dur) linear infinite,
       wx-pulse 7s ease-in-out infinite alternate;
@@ -833,7 +835,7 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --dur: 7s;
     --lo: 0.55;
     --hi: 1;
-    background-image: radial-gradient(circle at 86% 6%, rgba(255, 244, 205, 0.5), transparent 42%);
+    background-image: radial-gradient(circle at 86% 6%, rgba(255, 244, 205, 0.7), transparent 48%);
     mix-blend-mode: screen;
   }
 
@@ -842,8 +844,8 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --pad: 120vw;
     --dx: -120vw;
     --dur: 90s;
-    opacity: 0.16;
-    filter: sepia(1) saturate(1.6) brightness(1.1);
+    opacity: 0.28;
+    filter: sepia(1) saturate(1.8) brightness(1.1);
   }
 }
 
@@ -854,7 +856,7 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --pad: 160vw;
     --dx: -160vw;
     --dur: 70s;
-    opacity: 0.38;
+    opacity: 0.55;
     filter: sepia(0.7) saturate(1.6) hue-rotate(-20deg);
   }
 
@@ -863,7 +865,7 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
     --pad: 110vw;
     --dx: 110vw;
     --dur: 55s;
-    opacity: 0.24;
+    opacity: 0.38;
     filter: sepia(0.4) brightness(0.8) blur(1px);
   }
 
@@ -906,11 +908,11 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
   }
 
   90% {
-    opacity: 0.32;
+    opacity: 0.5;
   }
 
   92% {
-    opacity: 0.22;
+    opacity: 0.35;
   }
 }
 
