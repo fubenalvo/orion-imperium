@@ -294,7 +294,7 @@ function buildAnomalies(mission: MissionDefinition, starSystems: StarSystem[]): 
     const site = system
       ? { kind: 'system' as const, x: Math.floor(system.x), y: Math.floor(system.y), systemId: system.id }
       : { kind: 'space' as const, x: Math.floor(spec.x ?? 1), y: Math.floor(spec.y ?? 1) };
-    return { id: i + 1, key: spec.key, type: spec.type, site, status: 'hidden' as const };
+    return { id: i + 1, key: spec.key, type: spec.type, site, status: 'hidden' as const, ...(spec.factionId ? { factionId: spec.factionId } : {}) };
   });
 }
 

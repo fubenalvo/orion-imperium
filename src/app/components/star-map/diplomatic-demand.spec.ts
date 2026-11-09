@@ -422,4 +422,14 @@ describe('financial demands and ultimatums', () => {
     expect(diplomacy.getDemand(pending.id)).toBeDefined();
     expect(ctx.player.currencies['credits']).toBe(100);
   });
+
+  it('16. a scripted campaign demand skips the cooldowns but no other rule', () => {
+    const ctx = world({ playerShips: strong, aShips: weak });
+    expect(ai.makeDemand(ctx.player, ctx.a, 'request', 500, ctx).ok).toBe(true);
+    expect(ai.makeDemand(ctx.player, ctx.b, 'request', 500, ctx).reason).toBe('cooldown');
+    expect(ai.makeDemand(ctx.player, ctx.b, 'request', 500, ctx, { ignoreCooldowns: true }).ok).toBe(true);
+    // Feasibility still applies: no more than the target holds.
+    const tooMuch = (ctx.b.currencies['credits'] ?? 0) + 1000;
+    expect(ai.makeDemand(ctx.player, ctx.b, 'request', tooMuch, ctx, { ignoreCooldowns: true }).reason).toBe('insufficient_credits');
+  });
 });

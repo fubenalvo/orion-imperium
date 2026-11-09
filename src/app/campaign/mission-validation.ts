@@ -199,12 +199,25 @@ export function validateMission(mission: MissionDefinition): string[] {
   }
   for (const event of mission.events ?? []) {
     if (event.trigger) checkCondition(event.trigger, refs, err);
+    checkEffects(event.effects, refs, err);
     for (const choice of event.choices ?? []) {
       checkEffects(choice.effects, refs, err);
       if (choice.requires) checkCondition(choice.requires, refs, err);
     }
   }
   for (const ending of mission.endings) checkCondition(ending.condition, refs, err);
+  for (const restraint of mission.aiRestraint ?? []) {
+    if (map.factions.find((f) => f.id === restraint.factionId)?.kind !== 'ai') err(`AI restraint for "${restraint.factionId}", which is not an AI empire`);
+    if (restraint.target !== undefined && !factionIds.has(restraint.target)) err(`AI restraint against unknown faction "${restraint.target}"`);
+  }
+  for (const id of Object.keys(mission.contactOverrides ?? {})) {
+    if (map.factions.find((f) => f.id === id)?.kind !== 'ai') err(`contact override for "${id}", which is not an AI empire`);
+  }
+  for (const anomaly of map.anomalies ?? []) {
+    if (anomaly.type === 'distress_signal' && map.factions.find((f) => f.id === anomaly.factionId)?.kind !== 'ai') {
+      err(`distress signal "${anomaly.key}" needs an AI sender (factionId)`);
+    }
+  }
   for (const defeat of mission.defeat ?? []) checkCondition(defeat.condition, refs, err);
 
   // --- Connectivity: every start reaches every system around the belts ---
@@ -305,8 +318,15 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
       faction(condition.of);
       return;
     case 'relation':
+    case 'in_contact':
       faction(condition.a);
       faction(condition.b);
+      return;
+    case 'event_count':
+      if (condition.factionId !== undefined) faction(condition.factionId);
+      return;
+    case 'tribute_pact':
+      faction(condition.receiver);
       return;
     case 'mining_station':
       if (condition.systemId !== undefined && !refs.systemIds.has(condition.systemId)) err(`condition references unknown system "${condition.systemId}"`);
@@ -348,6 +368,26 @@ function checkEffects(effects: readonly Effect[] | undefined, refs: Refs, err: (
         break;
       case 'end_mission':
         if (!refs.endingIds.has(effect.endingId)) err(`effect references unknown ending "${effect.endingId}"`);
+        break;
+      case 'contact':
+        if (!refs.factionIds.has(effect.factionId)) err(`effect references unknown faction "${effect.factionId}"`);
+        break;
+      case 'start_war':
+      case 'start_peace':
+        for (const id of [effect.a, effect.b]) if (!refs.factionIds.has(id)) err(`effect references unknown faction "${id}"`);
+        if (effect.kind === 'start_war' && effect.declarer !== undefined && effect.declarer !== effect.a && effect.declarer !== effect.b) {
+          err(`war declarer "${effect.declarer}" is not a side of the war`);
+        }
+        break;
+      case 'opinion':
+        for (const id of [effect.holder, effect.of]) if (!refs.factionIds.has(id)) err(`effect references unknown faction "${id}"`);
+        break;
+      case 'force_demand':
+        for (const id of [effect.demander, effect.target]) if (!refs.factionIds.has(id)) err(`effect references unknown faction "${id}"`);
+        break;
+      case 'tribute_pact':
+      case 'end_tribute_pact':
+        if (!refs.factionIds.has(effect.receiver)) err(`effect references unknown faction "${effect.receiver}"`);
         break;
       default:
         break;

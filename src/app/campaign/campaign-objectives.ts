@@ -1,7 +1,7 @@
 import { Anomaly, Faction, Fleet, StarSystem } from '../components/star-map/star-map.models';
 import { isCombatShipType } from '../components/star-map/ai-queries';
 import shipData from '../components/star-map/ship-data.json';
-import { getRelationKind } from '../components/star-map/diplomacy';
+import { getRelationKind, inContact } from '../components/star-map/diplomacy';
 import planetData from '../components/star-map/planet-data.json';
 import { CampaignSessionState, Condition, ObjectiveDef, ProgressDef } from './campaign.models';
 
@@ -82,7 +82,7 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
     case 'game_time_at_least':
       return world.gameSeconds >= condition.seconds;
     case 'event_count':
-      return (session.counters[condition.event] ?? 0) >= condition.atLeast;
+      return (session.counters[condition.factionId ? `${condition.event}:${condition.factionId}` : condition.event] ?? 0) >= condition.atLeast;
     case 'system_charted': {
       const system = world.starSystems.find((s) => s.id === condition.systemId);
       return !!system && isSystemCharted(world, system);
@@ -130,6 +130,13 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
       const b = world.factions.find((f) => f.id === condition.b);
       return !!a && !!b && getRelationKind(a, b) === condition.state;
     }
+    case 'in_contact': {
+      const a = world.factions.find((f) => f.id === condition.a);
+      const b = world.factions.find((f) => f.id === condition.b);
+      return !!a && !!b && inContact(a, b);
+    }
+    case 'tribute_pact':
+      return (session.tributePacts ?? []).some((p) => p.receiver === condition.receiver);
     case 'held_for': {
       const holds = evaluateCondition(condition.condition, ctx);
       const held = holds ? (session.heldTimers[condition.id] ?? 0) + ctx.dt : 0;

@@ -140,6 +140,15 @@ export interface PeaceProposal {
   secondsLeft: number;
 }
 
+/*
+ * `ignoreCooldowns`: a campaign `force_demand` (a scripted demand) skips the
+ * demander's cooldowns; every other rule still applies, and the demand
+ * still starts the cooldowns as usual.
+ */
+export interface DemandOptions {
+  ignoreCooldowns?: boolean;
+}
+
 /* How long an AI peace proposal to the player stays open (game seconds). */
 export const PEACE_OFFER_SECONDS = 90;
 
@@ -287,11 +296,11 @@ export class DiplomacyService {
    * per-pair cooldowns, that no other demand between the two is open, and
    * the cap on demands waiting for the human.
    */
-  canIssueDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, world: TreatyWorld): DemandResult {
+  canIssueDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, world: TreatyWorld, options?: DemandOptions): DemandResult {
     if (!inContact(demander, target)) return { ok: false, reason: 'no_contact' };
     const validation = validateDemand({ kind, demanderId: demander.id, targetId: target.id, amount }, world);
     if (!validation.ok) return { ok: false, reason: validation.reason };
-    const wait = Math.max(demander.demandCooldown ?? 0, getDemandCooldown(demander, target));
+    const wait = options?.ignoreCooldowns ? 0 : Math.max(demander.demandCooldown ?? 0, getDemandCooldown(demander, target));
     if (wait > 0) return { ok: false, reason: 'cooldown', waitSeconds: wait };
     if (this.hasOpenDemand(demander.id, target.id)) return { ok: false, reason: 'open_demand' };
     if (target.ai !== true && this.getPendingDemandsFor(target.id).length >= MAX_PENDING_PLAYER_DEMANDS) {
@@ -308,8 +317,8 @@ export class DiplomacyService {
    * The returned demand is not stored: an AI target answers at once; a
    * demand to the human is stored with addPendingDemand.
    */
-  issueDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, world: TreatyWorld, globalCooldown: number): DemandResult {
-    const check = this.canIssueDemand(demander, target, kind, amount, world);
+  issueDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, world: TreatyWorld, globalCooldown: number, options?: DemandOptions): DemandResult {
+    const check = this.canIssueDemand(demander, target, kind, amount, world, options);
     if (!check.ok) return check;
     const demand: DiplomaticDemand = {
       id: this.nextDemandId++,

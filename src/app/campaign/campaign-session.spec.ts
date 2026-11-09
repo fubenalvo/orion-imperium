@@ -154,7 +154,7 @@ describe('Campaign session in StarMap', () => {
       rounds: 1, battleType: 'fleet',
     });
     run(map, 1.5);
-    expect(campaign().state!.counters.battle_won).toBe(1);
+    expect(campaign().state!.counters['battle_won']).toBe(1);
   });
 
   it('opens the story message paused, and resumes the game after the answer', () => {

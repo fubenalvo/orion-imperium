@@ -6,14 +6,17 @@ import {
   CampaignEventKind,
   CampaignOutcome,
   CampaignSessionState,
+  ContactOverride,
   Effect,
   MissionDefinition,
   ObjectiveDef,
   ObjectiveState,
   StoryEventDef,
+  TributePactState,
 } from './campaign.models';
 import { CampaignWorld, evaluateCondition, objectiveProgress } from './campaign-objectives';
-import { EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } from './campaign-effects';
+import { CampaignDiplomacyAction, EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } from './campaign-effects';
+import { getRelation, inContact } from '../components/star-map/diplomacy';
 
 /*
  * =========================================================
@@ -31,7 +34,8 @@ import { EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } fro
  * - `notify` counts events that cannot be read from the world later
  *   (battles won, peace signed). StarMap feeds it from the handlers it
  *   already has; this service never drains another service's events.
- * - `tick` once per economy tick (1 s of game time): objectives, story
+ * - `tick` once per economy tick (1 s of game time): tribute pact
+ *   payments, planet-loss and war-exhaustion bookkeeping, objectives, story
  *   event triggers, endings and defeats. Returns `changed` so StarMap saves
  *   at once — every campaign change is persisted before anything else can
  *   reload the autosave, which is what makes rewards apply exactly once.
@@ -47,6 +51,8 @@ export interface CampaignTickResult {
   reveals: { x: number; y: number; radius: number }[];
   /* Wormholes to wake or close (wormhole_state effects). */
   wormholeStates: { wormholeId: string; state: 'dormant' | 'active' }[];
+  /* Wars, peace treaties and demands to apply through DiplomacyService. */
+  diplomacy: CampaignDiplomacyAction[];
   /* Set on the tick the mission was decided. */
   outcome: CampaignOutcome | null;
 }
@@ -62,6 +68,17 @@ export interface ObjectiveView {
 
 /* Upper bound for chained objective unlocks within one tick (a data cycle cannot loop). */
 const MAX_UNLOCK_PASSES = 8;
+
+function emptyTickResult(changed = false): CampaignTickResult {
+  return { changed, notices: [], reveals: [], wormholeStates: [], diplomacy: [], outcome: null };
+}
+
+function copyEffects(result: CampaignTickResult, effects: EffectResult): void {
+  result.notices = effects.notices;
+  result.reveals = effects.reveals;
+  result.wormholeStates = effects.wormholeStates;
+  result.diplomacy = effects.diplomacy;
+}
 
 @Injectable({ providedIn: 'root' })
 export class CampaignService {
@@ -134,20 +151,52 @@ export class CampaignService {
     this.dirty = true;
   }
 
-  notify(kind: CampaignEventKind, count = 1): void {
+  /* `factionId`: the other empire involved; also counted under "<kind>:<factionId>". */
+  notify(kind: CampaignEventKind, count = 1, factionId?: string): void {
     if (!this.session || this.session.outcome) return;
-    this.session.counters[kind] = (this.session.counters[kind] ?? 0) + count;
+    const counters = this.session.counters;
+    counters[kind] = (counters[kind] ?? 0) + count;
+    if (factionId) counters[`${kind}:${factionId}`] = (counters[`${kind}:${factionId}`] ?? 0) + count;
     this.dirty = true;
   }
 
+  /* Empires a `contact` effect brought to the player whose dialogue is not answered yet. */
+  get forcedContacts(): readonly string[] {
+    return this.session?.forcedContacts ?? [];
+  }
+
+  /* Does `payer` pay `receiver` a running tribute pact (the receiver's AI then leaves it alone)? */
+  hasTributePact(receiverId: string, payerId: string): boolean {
+    return payerId === 'player' && (this.session?.tributePacts ?? []).some((p) => p.receiver === receiverId);
+  }
+
+  /*
+   * Must the AI `aiId` leave `otherId` alone (no own demands, no war
+   * declaration)? A tribute pact the player pays, or the mission's scripted
+   * relations (MissionDefinition.aiRestraint) before their flag.
+   */
+  restrains(aiId: string, otherId: string): boolean {
+    if (!this.session) return false;
+    if (this.hasTributePact(aiId, otherId)) return true;
+    const flags = this.session.flags;
+    const flagSet = (flag: string | undefined) => flag !== undefined && flags[flag] !== undefined && flags[flag] !== false;
+    return (this.definition?.aiRestraint ?? []).some((r) => r.factionId === aiId && (r.target ?? 'player') === otherId && !flagSet(r.untilFlag));
+  }
+
+  /* The contact override of a scripted meeting (MissionDefinition.contactOverrides). */
+  contactOverride(factionId: string): ContactOverride | null {
+    return this.definition?.contactOverrides?.[factionId] ?? null;
+  }
+
   tick(dt: number, world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: this.dirty, notices: [], reveals: [], wormholeStates: [], outcome: null };
+    const result = emptyTickResult(this.dirty);
     this.dirty = false;
     const session = this.session;
     const mission = this.definition;
     if (!session || !mission || session.outcome) return result;
 
     const effects = emptyEffectResult();
+    if (this.updateBookkeeping(session, world, dt, effects)) result.changed = true;
     let advanced = false;
     for (let pass = 0; pass < MAX_UNLOCK_PASSES; pass++) {
       // Timers advance on the first pass only; later passes only settle
@@ -157,13 +206,14 @@ export class CampaignService {
       if (!this.updateObjectives(mission, session, world, passDt, effects)) break;
       result.changed = true;
     }
-    if (this.fireTriggeredEvents(mission, session, world, effects)) result.changed = true;
-    this.fireEffectEvents(mission, session, effects);
-    if (effects.notices.length > 0 || effects.events.length > 0) result.changed = true;
+    if (this.fireTriggeredEvents(mission, session, world, dt, effects)) result.changed = true;
+    this.fireEffectEvents(mission, session, effects, world);
+    if (effects.notices.length > 0 || effects.events.length > 0 || effects.diplomacy.length > 0) result.changed = true;
     if (effects.horizonChanged) this.applyHorizon();
 
     if (!session.outcome) {
-      const ctx = { world, session, dt: 0 };
+      // Endings and defeats are checked once per tick, so their held_for timers advance by dt.
+      const ctx = { world, session, dt };
       const defeat = mission.defeat?.find((d) => evaluateCondition(d.condition, ctx));
       if (defeat) {
         session.outcome = { kind: 'defeat', reason: defeat.reason };
@@ -177,10 +227,95 @@ export class CampaignService {
       result.outcome = session.outcome;
       this.recordVictory(world);
     }
-    result.notices = effects.notices;
-    result.reveals = effects.reveals;
-    result.wormholeStates = effects.wormholeStates;
+    copyEffects(result, effects);
     return result;
+  }
+
+  /*
+   * World bookkeeping before the objectives:
+   * - forced contacts that have been answered leave the list;
+   * - tribute pacts pay (or break: the receiver declares war) and end when
+   *   the two are at war anyway;
+   * - a player planet that changed hands counts as `planet_lost` (by its
+   *   new owner) whatever the reason, so no capture path needs a hook;
+   * - `war_exhaustion:<id>`: the highest war exhaustion an empire reached
+   *   in a war with the player (endings that reward wearing an enemy down).
+   */
+  private updateBookkeeping(session: CampaignSessionState, world: CampaignWorld, dt: number, effects: EffectResult): boolean {
+    let changed = false;
+    const player = world.factions.find((f) => f.id === 'player');
+    const byId = (id: string) => world.factions.find((f) => f.id === id);
+
+    if (session.forcedContacts?.length) {
+      const open = session.forcedContacts.filter((id) => !inContact(player, byId(id)));
+      if (open.length !== session.forcedContacts.length) {
+        session.forcedContacts = open;
+        changed = true;
+      }
+    }
+
+    for (const pact of [...(session.tributePacts ?? [])]) {
+      const receiver = byId(pact.receiver);
+      const remove = () => {
+        session.tributePacts = (session.tributePacts ?? []).filter((p) => p !== pact);
+        changed = true;
+      };
+      if (!player || !receiver) {
+        remove();
+        continue;
+      }
+      if (getRelation(receiver, player)?.state === 'war') {
+        remove();
+        session.flags['tribute_pact_broken'] = true;
+        effects.notices.push(`The tribute pact with ${receiver.name} is over: you are at war.`);
+        continue;
+      }
+      pact.untilNext -= dt;
+      if (pact.untilNext > 0) continue;
+      if ((player.currencies['credits'] ?? 0) < pact.amount) {
+        remove();
+        session.flags['tribute_pact_broken'] = true;
+        effects.notices.push(`You could not pay the tribute to ${receiver.name}. The pact is broken.`);
+        effects.diplomacy.push({ kind: 'start_war', a: pact.receiver, b: 'player', declarer: pact.receiver });
+        continue;
+      }
+      player.currencies['credits'] -= pact.amount;
+      receiver.currencies['credits'] = (receiver.currencies['credits'] ?? 0) + pact.amount;
+      const paidKey = `tribute_paid:${pact.receiver}`;
+      session.values[paidKey] = (session.values[paidKey] ?? 0) + pact.amount;
+      pact.untilNext += pact.intervalSeconds;
+      effects.notices.push(`Tribute paid to ${receiver.name}: ${pact.amount.toLocaleString('en-US')} credits.`);
+      changed = true;
+    }
+
+    const owners = new Map<string, string>();
+    for (const system of world.starSystems) {
+      for (const planet of system.planetsTiles) owners.set(planet.name, planet.factionId);
+    }
+    const current = [...owners].filter(([, owner]) => owner === 'player').map(([name]) => name);
+    const before = session.playerPlanets;
+    for (const name of before ?? []) {
+      const owner = owners.get(name);
+      if (owner === 'player') continue;
+      session.counters['planet_lost'] = (session.counters['planet_lost'] ?? 0) + 1;
+      if (owner) session.counters[`planet_lost:${owner}`] = (session.counters[`planet_lost:${owner}`] ?? 0) + 1;
+    }
+    if (!before || before.length !== current.length || current.some((name, i) => before[i] !== name)) {
+      session.playerPlanets = current;
+      changed = true;
+    }
+
+    for (const faction of world.factions) {
+      const relation = player && faction !== player ? getRelation(faction, player) : undefined;
+      if (relation?.state !== 'war') continue;
+      const key = `war_exhaustion:${faction.id}`;
+      const exhaustion = Math.floor(relation.warExhaustion ?? 0);
+      if (exhaustion > (session.values[key] ?? 0)) {
+        session.values[key] = exhaustion;
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   /*
@@ -189,17 +324,15 @@ export class CampaignService {
    * Events they request fire as usual; the outcome is checked on the next tick.
    */
   applyExternalEffects(effectsToApply: readonly Effect[], world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], wormholeStates: [], outcome: null };
+    const result = emptyTickResult();
     const session = this.session;
     const mission = this.definition;
     if (!session || !mission || session.outcome || effectsToApply.length === 0) return result;
     const effects = applyEffects(effectsToApply, session, world.factions);
-    this.fireEffectEvents(mission, session, effects);
+    this.fireEffectEvents(mission, session, effects, world);
     if (effects.horizonChanged) this.applyHorizon();
     result.changed = true;
-    result.notices = effects.notices;
-    result.reveals = effects.reveals;
-    result.wormholeStates = effects.wormholeStates;
+    copyEffects(result, effects);
     this.dirty = true;
     return result;
   }
@@ -216,7 +349,7 @@ export class CampaignService {
    * event from the queue; a stale or unavailable choice changes nothing.
    */
   chooseEventOption(eventId: string, choiceId: string | null, world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], wormholeStates: [], outcome: null };
+    const result = emptyTickResult();
     const session = this.session;
     const mission = this.definition;
     if (!session || !mission || session.pendingEvents[0] !== eventId) return result;
@@ -233,12 +366,10 @@ export class CampaignService {
       return result;
     }
     session.pendingEvents.shift();
-    this.fireEffectEvents(mission, session, effects);
+    this.fireEffectEvents(mission, session, effects, world);
     if (effects.horizonChanged) this.applyHorizon();
     result.changed = true;
-    result.notices = effects.notices;
-    result.reveals = effects.reveals;
-    result.wormholeStates = effects.wormholeStates;
+    copyEffects(result, effects);
     if (session.outcome && !decidedBefore) {
       result.outcome = session.outcome;
       this.recordVictory(world);
@@ -306,28 +437,36 @@ export class CampaignService {
     mergeEffectResults(effects, applyEffects(status === 'done' ? def.onComplete : def.onFail, session, world.factions));
   }
 
-  private fireTriggeredEvents(mission: MissionDefinition, session: CampaignSessionState, world: CampaignWorld, effects: EffectResult): boolean {
+  /* Once per tick, so held_for timers in triggers advance by the tick's dt (a fired event's timers stop). */
+  private fireTriggeredEvents(mission: MissionDefinition, session: CampaignSessionState, world: CampaignWorld, dt: number, effects: EffectResult): boolean {
     let fired = false;
     for (const event of mission.events ?? []) {
       if (!event.trigger || session.firedEvents.includes(event.id)) continue;
-      if (evaluateCondition(event.trigger, { world, session, dt: 0 })) {
-        this.fireEvent(event, session, effects);
+      if (evaluateCondition(event.trigger, { world, session, dt })) {
+        this.fireEvent(event, session, effects, world);
         fired = true;
       }
     }
     return fired;
   }
 
-  /* Events requested by effects; an event fires at most once per mission. */
-  private fireEffectEvents(mission: MissionDefinition, session: CampaignSessionState, effects: EffectResult): void {
-    for (const id of effects.events.splice(0)) {
+  /*
+   * Events requested by effects; an event fires at most once per mission.
+   * Loops until the queue is empty: a fired event's own effects may request
+   * further events (bounded, since each event fires once).
+   */
+  private fireEffectEvents(mission: MissionDefinition, session: CampaignSessionState, effects: EffectResult, world: CampaignWorld): void {
+    while (effects.events.length > 0) {
+      const id = effects.events.shift()!;
       const event = mission.events?.find((e) => e.id === id);
-      if (event && !session.firedEvents.includes(id)) this.fireEvent(event, session, effects);
+      if (event && !session.firedEvents.includes(id)) this.fireEvent(event, session, effects, world);
     }
   }
 
-  private fireEvent(event: StoryEventDef, session: CampaignSessionState, effects: EffectResult): void {
+  private fireEvent(event: StoryEventDef, session: CampaignSessionState, effects: EffectResult, world: CampaignWorld): void {
     session.firedEvents.push(event.id);
+    // Applied at once, so a later trigger in the same tick already sees them.
+    mergeEffectResults(effects, applyEffects(event.effects, session, world.factions));
     if (event.pause || (event.choices?.length ?? 0) > 0) {
       session.pendingEvents.push(event.id);
     } else {
@@ -359,6 +498,11 @@ export class CampaignService {
       ? { technologies: this.session.researchHorizon, extras: this.session.horizonExtras }
       : null);
   }
+}
+
+function isPactShape(value: unknown): value is TributePactState {
+  const p = value as TributePactState;
+  return !!p && typeof p.receiver === 'string' && [p.amount, p.intervalSeconds, p.untilNext].every((n) => typeof n === 'number' && Number.isFinite(n));
 }
 
 function isSessionShape(value: unknown): value is CampaignSessionState {
@@ -403,6 +547,9 @@ function sanitizeSession(saved: CampaignSessionState, mission: MissionDefinition
     fleetTags: record(saved.fleetTags, {}),
     researchHorizon: Array.isArray(saved.researchHorizon) ? strings(saved.researchHorizon) : [...mission.researchHorizon],
     horizonExtras: record(saved.horizonExtras, structuredClone(mission.horizonExtras ?? {})),
+    ...(Array.isArray(saved.forcedContacts) ? { forcedContacts: strings(saved.forcedContacts) } : {}),
+    ...(Array.isArray(saved.tributePacts) ? { tributePacts: saved.tributePacts.filter(isPactShape) } : {}),
+    ...(Array.isArray(saved.playerPlanets) ? { playerPlanets: strings(saved.playerPlanets) } : {}),
     ...(saved.outcome && (saved.outcome.kind === 'victory' || saved.outcome.kind === 'defeat') ? { outcome: saved.outcome } : {}),
   };
 }

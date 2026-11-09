@@ -211,14 +211,24 @@ Peaceful temperaments keep today's rules (positive peace drift, opinion limits o
 
 ## Campaign hooks
 
-- `contact` effect: force a meeting (an envoy) before any sighting; `delay_contact`: keep a pair
-  unknown until a flag (a mission's surprise reveal).
+Implemented in Phase 4b ([Campaign Design](./campaign-design.md#implementation-status), Mission 3):
+
+- `contact` effect: forces a meeting with the player (an envoy) before any sighting. The empire
+  is kept in `CampaignSessionState.forcedContacts` and re-queued with
+  `FirstContactService.requestContact` after every load until the dialogue is answered. A pair a
+  mission starts un-met (`MissionRelationSpec.contact: false`) stays unknown until a sighting or
+  this effect; a separate `delay_contact` was not needed.
 - Per-faction signature questions (below) are asked first.
-- Result override: a mission may replace the evaluation's outcome (M3: Varkon starts at a cold
-  peace at best, never warm).
-- **Tribute pact** (campaign only): a mission rule that suppresses one warlike faction's restless
-  war against the player while a periodic tribute is paid (M3 Appeasement, M5 partner role; see
-  [Campaign Design](./campaign-design.md#first-contact-all-game-modes)). A missed payment ends it.
+- Result override (`MissionDefinition.contactOverrides`): `outcome` replaces the evaluation's
+  treaty result and `maxOpinion` caps the starting opinion (M3: Varkon starts at a cold peace,
+  opinion at most −10, whatever the answers). The override replaces the result; it never adds a
+  second effect on top.
+- **Tribute pact** (campaign only, `tribute_pact` effect): the player pays the receiver a fixed sum
+  per interval in the campaign tick; while it runs, the receiver's AI makes no demands of the
+  player and declares no war on it (`EnemyDiplomacyService.setRestraintGuard`). A payment the
+  player cannot make breaks it: flag `tribute_pact_broken`, and the receiver declares war. A war
+  between the two ends it without a new declaration. M3: 250 credits every 2 minutes, offered
+  after the first paid Varkon demand.
 
 ## Skirmish balance
 

@@ -1,4 +1,5 @@
 import { Faction } from '../components/star-map/star-map.models';
+import { adjustOpinion } from '../components/star-map/diplomacy';
 import { CampaignSessionState, Effect } from './campaign.models';
 
 /*
@@ -9,7 +10,9 @@ import { CampaignSessionState, Effect } from './campaign.models';
  * Applies mission effects to the session state and the factions
  * (docs/campaign-design.md §13). Effects that need a dialog or a lookup in
  * the mission definition (`event`) are returned to CampaignService instead
- * of being handled here.
+ * of being handled here, and effects that must go through a StarMap-owned
+ * service (wars, peace, demands: DiplomacyService keeps their events and
+ * bookkeeping) are returned as `diplomacy` actions for StarMap to apply.
  *
  * Effects are applied exactly once: objectives complete once and events
  * fire once (both recorded in the session before the next save), so a
@@ -26,10 +29,14 @@ export interface EffectResult {
   reveals: { x: number; y: number; radius: number }[];
   /* Wormhole state changes StarMap applies (it owns the wormholes). */
   wormholeStates: { wormholeId: string; state: 'dormant' | 'active' }[];
+  /* War, peace and demand effects, in order (StarMap applies them through DiplomacyService). */
+  diplomacy: CampaignDiplomacyAction[];
 }
 
+export type CampaignDiplomacyAction = Extract<Effect, { kind: 'start_war' | 'start_peace' | 'force_demand' }>;
+
 export function emptyEffectResult(): EffectResult {
-  return { notices: [], events: [], horizonChanged: false, reveals: [], wormholeStates: [] };
+  return { notices: [], events: [], horizonChanged: false, reveals: [], wormholeStates: [], diplomacy: [] };
 }
 
 export function applyEffects(effects: readonly Effect[] | undefined, session: CampaignSessionState, factions: readonly Faction[]): EffectResult {
@@ -44,6 +51,7 @@ export function mergeEffectResults(into: EffectResult, from: EffectResult): Effe
   into.horizonChanged ||= from.horizonChanged;
   into.reveals.push(...from.reveals);
   into.wormholeStates.push(...from.wormholeStates);
+  into.diplomacy.push(...from.diplomacy);
   return into;
 }
 
@@ -103,6 +111,33 @@ function applyEffect(effect: Effect, session: CampaignSessionState, factions: re
       return;
     case 'reveal_area':
       result.reveals.push({ x: effect.x, y: effect.y, radius: effect.radius });
+      return;
+    case 'contact': {
+      const list = (session.forcedContacts ??= []);
+      if (!list.includes(effect.factionId)) list.push(effect.factionId);
+      return;
+    }
+    case 'start_war':
+    case 'start_peace':
+    case 'force_demand':
+      result.diplomacy.push(effect);
+      return;
+    case 'opinion': {
+      const holder = factions.find((f) => f.id === effect.holder);
+      const of = factions.find((f) => f.id === effect.of);
+      if (holder && of) adjustOpinion(holder, of, effect.delta);
+      return;
+    }
+    case 'tribute_pact': {
+      const pacts = (session.tributePacts ??= []);
+      // One pact per receiver: a second offer replaces the terms.
+      const others = pacts.filter((p) => p.receiver !== effect.receiver);
+      const interval = Math.max(10, effect.intervalSeconds);
+      session.tributePacts = [...others, { receiver: effect.receiver, amount: Math.max(0, Math.floor(effect.amount)), intervalSeconds: interval, untilNext: interval }];
+      return;
+    }
+    case 'end_tribute_pact':
+      if (session.tributePacts) session.tributePacts = session.tributePacts.filter((p) => p.receiver !== effect.receiver);
       return;
     case 'end_mission':
       session.outcome ??= { kind: 'victory', endingId: effect.endingId };

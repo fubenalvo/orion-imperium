@@ -42,6 +42,10 @@ import {
  *   until the dialogue is answered), so a reload never skips or repeats it.
  * - Results go through the diplomacy primitives (`makeContact`, `startWar`
  *   without a declarer, so a war from contact costs nobody reputation).
+ * - Campaign hooks: `requestContact` queues a meeting without a sighting
+ *   (a mission's envoy; StarMap re-requests it after a load until it is
+ *   answered), and a `ContactResultOverride` replaces the evaluation's
+ *   result of a scripted meeting.
  */
 
 export interface ContactWorld {
@@ -74,6 +78,12 @@ export interface ContactResolution {
   flags: string[];
 }
 
+/* A mission's override of a meeting's result (MissionDefinition.contactOverrides). */
+export interface ContactResultOverride {
+  outcome?: ContactOutcome;
+  maxOpinion?: number;
+}
+
 const SECONDS_BETWEEN_CHECKS = 1;
 
 @Injectable({ providedIn: 'root' })
@@ -92,6 +102,14 @@ export class FirstContactService {
   reset(): void {
     this.accumulator = 0;
     this.pending.length = 0;
+  }
+
+  /* Queues a meeting with the player without a sighting (no-op when queued or met). */
+  requestContact(factionId: string, world: ContactWorld): void {
+    const player = world.factions.find((f) => f.id === 'player');
+    const other = world.factions.find((f) => f.id === factionId);
+    if (!player || !other || inContact(player, other) || this.pending.includes(factionId)) return;
+    this.pending.push(factionId);
   }
 
   /* The oldest empire the player has met and not yet answered. */
@@ -173,7 +191,14 @@ export class FirstContactService {
    * i. Applies the gift, the treaty state and the opinions; removes the
    * contact from the queue. Null when the contact is no longer pending.
    */
-  resolvePlayerContact(factionId: string, replies: number[], stance: ContactStance, giftTier: number, world: ContactWorld): ContactResolution | null {
+  resolvePlayerContact(
+    factionId: string,
+    replies: number[],
+    stance: ContactStance,
+    giftTier: number,
+    world: ContactWorld,
+    override?: ContactResultOverride | null,
+  ): ContactResolution | null {
     const index = this.pending.indexOf(factionId);
     const player = world.factions.find((f) => f.id === 'player');
     const asker = world.factions.find((f) => f.id === factionId);
@@ -196,6 +221,9 @@ export class FirstContactService {
       territoriesClose: this.territoriesClose(asker, player, world),
       roll: seededUnit(world.seed, asker.id, player.id, 'contact'),
     });
+    // A scripted meeting replaces the result (it does not add to it).
+    if (override?.outcome) result.outcome = override.outcome;
+    if (override?.maxOpinion !== undefined) result.opinion = Math.min(result.opinion, override.maxOpinion);
     this.apply(asker, player, result.outcome, result.opinion);
     const closing = contactPool(temperament).closing;
     const line = result.outcome === 'war' ? closing.war : result.outcome === 'peace' ? closing.warm : closing.cold;

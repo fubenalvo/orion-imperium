@@ -28,7 +28,7 @@ describe('campaign objectives (conditions)', () => {
   it('reads flags, values, counters and objective states from the session', () => {
     session.flags['a'] = 'x';
     session.values['standing'] = 30;
-    session.counters.battle_won = 2;
+    session.counters['battle_won'] = 2;
     session.objectives['chart_proxima'].status = 'done';
     expect(check({ kind: 'flag', flag: 'a' })).toBe(true);
     expect(check({ kind: 'flag', flag: 'a', equals: 'y' })).toBe(false);

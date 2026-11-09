@@ -8,6 +8,7 @@ import {
   PlanetType,
   Wormhole,
 } from '../components/star-map/star-map.models';
+import type { DemandKind } from '../components/star-map/diplomatic-demand';
 
 /*
  * =========================================================
@@ -33,7 +34,16 @@ import {
 
 export type FlagValue = string | number | boolean;
 
-/* Counted events (CampaignService.notify) that conditions can read later. */
+/*
+ * Counted events (CampaignService.notify) that conditions can read later.
+ * Events about another empire are also counted per empire under
+ * "<kind>:<factionId>" (battle_won:varkon, demand_paid:varkon), so a
+ * condition can ask for either the total or one empire's count.
+ * - battle_won / battle_lost: the opponent's faction;
+ * - war_declared / peace_signed: the other side of the player's treaty;
+ * - demand_paid / demand_refused: the empire that demanded from the player;
+ * - planet_lost: the player's planet now owned by that faction (any reason).
+ */
 export type CampaignEventKind =
   | 'battle_won'
   | 'battle_lost'
@@ -42,7 +52,10 @@ export type CampaignEventKind =
   | 'fleet_assembled'
   | 'planet_colonized'
   | 'war_declared'
-  | 'peace_signed';
+  | 'peace_signed'
+  | 'demand_paid'
+  | 'demand_refused'
+  | 'planet_lost';
 
 /*
  * Conditions are evaluated once per economy tick (1 s of game time) and on
@@ -59,7 +72,8 @@ export type Condition =
   | { kind: 'value_at_least'; key: string; value: number }
   | { kind: 'objective_done'; id: string }
   | { kind: 'game_time_at_least'; seconds: number }
-  | { kind: 'event_count'; event: CampaignEventKind; atLeast: number }
+  /* `factionId`: only the events about that empire (see CampaignEventKind). */
+  | { kind: 'event_count'; event: CampaignEventKind; atLeast: number; factionId?: string }
   | { kind: 'system_charted'; systemId: string }
   | { kind: 'systems_charted'; count: number }
   | { kind: 'planets_owned'; count: number; factionId?: string }
@@ -78,6 +92,10 @@ export type Condition =
   | { kind: 'anomaly_resolved'; key: string; choiceId?: string }
   | { kind: 'opinion_at_least'; holder: string; of: string; value: number }
   | { kind: 'relation'; a: string; b: string; state: 'war' | 'peace' }
+  /* The two empires have met (docs/first-contact.md). */
+  | { kind: 'in_contact'; a: string; b: string }
+  /* The player pays this empire a running tribute pact. */
+  | { kind: 'tribute_pact'; receiver: string }
   | { kind: 'held_for'; id: string; seconds: number; condition: Condition };
 
 export type Effect =
@@ -93,6 +111,29 @@ export type Effect =
   | { kind: 'wormhole_state'; wormholeId: string; state: 'dormant' | 'active' }
   /* Marks the galaxy cells within `radius` of (x, y) as explored by the player. */
   | { kind: 'reveal_area'; x: number; y: number; radius: number }
+  /*
+   * Diplomacy (docs/campaign-design.md §13). `contact`: the player meets
+   * this empire now (its envoy arrives) — the contact dialogue opens even
+   * without a sighting, and again after a reload until it is answered.
+   * `start_war` goes through the war declaration (by `declarer`, or a
+   * declarer-less war); `start_peace` through a white-peace treaty;
+   * `force_demand` through the ordinary demand path, ignoring the
+   * demander's cooldowns (the amount is capped by the target's credits; a
+   * demand that is impossible — war, too little money — is skipped).
+   */
+  | { kind: 'contact'; factionId: string }
+  | { kind: 'start_war'; a: string; b: string; declarer?: string }
+  | { kind: 'start_peace'; a: string; b: string }
+  | { kind: 'opinion'; holder: string; of: string; delta: number }
+  | { kind: 'force_demand'; demander: string; target: string; demandKind: DemandKind; amount: number }
+  /*
+   * The player pays `receiver` `amount` credits every `intervalSeconds`;
+   * while it runs, the receiver's AI neither declares war on the player nor
+   * demands from it. A payment the player cannot make ends the pact
+   * (flag `tribute_pact_broken`) and the receiver declares war.
+   */
+  | { kind: 'tribute_pact'; receiver: string; amount: number; intervalSeconds: number }
+  | { kind: 'end_tribute_pact'; receiver: string }
   | { kind: 'end_mission'; endingId: string }
   | { kind: 'fail_mission'; reason: string };
 
@@ -141,6 +182,8 @@ export interface StoryEventDef {
   text: string;
   /* Modal dialog (pauses) vs a map notice. Choices force a dialog. */
   pause: boolean;
+  /* Applied once when the event fires (before any choice): an envoy arrives, a demand is made. */
+  effects?: Effect[];
   choices?: StoryChoiceDef[];
 }
 
@@ -170,6 +213,8 @@ export interface MissionRules {
 export interface MissionAnomalySpec {
   key: string;
   type: AnomalyType;
+  /* The empire a distress signal comes from. */
+  factionId?: string;
   /* A star system site (its cell) or an open-space cell. */
   systemId?: string;
   x?: number;
@@ -293,11 +338,40 @@ export interface MissionDefinition {
   horizonExtras?: Record<string, string[]>;
   /* Flags this mission reads, with defaults so it is playable standalone. */
   carryIn?: Record<string, FlagValue>;
+  /*
+   * Scripted first contacts (docs/first-contact.md#campaign-hooks): the
+   * mission replaces the evaluation's result for meetings with these
+   * empires. `outcome` forces the treaty state; `maxOpinion` caps the
+   * starting opinion (both ways).
+   */
+  contactOverrides?: Record<string, ContactOverride>;
+  /*
+   * Scripted relations: the AI empire `factionId` makes no demands of
+   * `target` (default the player) and declares no war on it on its own
+   * until `untilFlag` is set — for the whole mission without a flag. The
+   * mission's events act instead. Mission 3: Varkon spares the player until
+   * its ultimatum (so the tribute → ultimatum story is not pre-empted) and
+   * the Concordium for the whole mission (their war belongs to Mission 5).
+   */
+  aiRestraint?: { factionId: string; target?: string; untilFlag?: string }[];
   /* Tutorial steps that make no sense here (tutorial-steps.ts ids), e.g. 'diplomacy' without empires. */
   tutorialExcludedSteps?: string[];
 }
 
+export interface ContactOverride {
+  outcome?: 'peace' | 'cold_peace' | 'war';
+  maxOpinion?: number;
+}
+
 /* ---------- Runtime state (saved) ---------- */
+
+export interface TributePactState {
+  receiver: string;
+  amount: number;
+  intervalSeconds: number;
+  /* Game seconds until the next payment. */
+  untilNext: number;
+}
 
 export type ObjectiveStatus = 'locked' | 'active' | 'done' | 'failed';
 
@@ -325,7 +399,8 @@ export interface CampaignSessionState {
   rules: MissionRules;
   flags: Record<string, FlagValue>;
   values: Record<string, number>;
-  counters: Partial<Record<CampaignEventKind, number>>;
+  /* CampaignEventKind or "<kind>:<factionId>" → count. */
+  counters: Record<string, number>;
   objectives: Record<string, ObjectiveState>;
   heldTimers: Record<string, number>;
   firedEvents: string[];
@@ -334,6 +409,11 @@ export interface CampaignSessionState {
   fleetTags: Record<string, number[]>;
   researchHorizon: string[];
   horizonExtras: Record<string, string[]>;
+  /* `contact` effects not answered yet (re-queued after every load). */
+  forcedContacts?: string[];
+  tributePacts?: TributePactState[];
+  /* Names of the player's planets at the last tick; a name that left the list counts as `planet_lost`. */
+  playerPlanets?: string[];
   outcome?: CampaignOutcome;
 }
 

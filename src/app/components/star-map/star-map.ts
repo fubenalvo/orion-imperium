@@ -124,10 +124,10 @@ import {
   SystemAsteroid,
   getAiFactionIds,
 } from './star-map.models';
-import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration, getRelationKind, inContact, isNeutralFaction } from './diplomacy';
-import { DemandFailure, DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
+import { TRUCE_SECONDS, areFactionsAllied, areFactionsHostile, formatGameDuration, getRelationKind, inContact, isNeutralFaction, makeContact } from './diplomacy';
+import { DemandFailure, DiplomacyEvent, DiplomacyFailure, DiplomacyService } from '../../services/diplomacy.service';
 import { DiplomacyContext, EnemyDiplomacyService } from './enemy-diplomacy.service';
-import { DEMAND_RULES, DemandInvalidReason, DemandKind, FOLLOW_THROUGH_SECONDS, describeDemandInvalid } from './diplomatic-demand';
+import { DEMAND_RULES, DemandInvalidReason, DemandKind, FOLLOW_THROUGH_SECONDS, MAX_DEMAND_TARGET_SHARE, MIN_DEMAND_CREDITS, describeDemandInvalid, roundDemandAmount } from './diplomatic-demand';
 import { StarMapDiplomacyComponent } from './star-map-diplomacy/star-map-diplomacy.component';
 import { StarMapPeaceNegotiationComponent } from './star-map-peace-negotiation/star-map-peace-negotiation.component';
 import { PeaceTreaty, describeTreatyInvalid } from './peace-treaty';
@@ -242,6 +242,7 @@ import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.com
 import { ensureColonyCore, isCoreOwner } from './colony-core';
 import { TutorialService } from '../../services/tutorial.service';
 import { CampaignService, CampaignTickResult, ObjectiveView } from '../../campaign/campaign.service';
+import { CampaignDiplomacyAction } from '../../campaign/campaign-effects';
 import { CampaignMissionService } from '../../campaign/campaign-mission.service';
 import { MISSION_DEFINITIONS } from '../../campaign/missions';
 import { CampaignProgressService } from '../../campaign/campaign-progress.service';
@@ -2512,13 +2513,28 @@ loadError = '';
     }
   }
 
+  /* Campaign event counters for the player's treaties and the demands made of the player. */
+  private notifyCampaignDiplomacy(events: readonly DiplomacyEvent[]): void {
+    for (const event of events) {
+      const involvesPlayer = event.initiatorId === 'player' || event.targetId === 'player';
+      const otherSide = event.initiatorId === 'player' ? event.targetId : event.initiatorId;
+      if (involvesPlayer && (event.kind === 'war' || event.kind === 'breach')) this.campaign.notify('war_declared', 1, otherSide);
+      if (involvesPlayer && event.kind === 'peace') this.campaign.notify('peace_signed', 1, otherSide);
+      if (event.targetId === 'player' && event.kind === 'demand_paid') this.campaign.notify('demand_paid', 1, event.initiatorId);
+      if (event.targetId === 'player' && event.kind === 'demand_refused') this.campaign.notify('demand_refused', 1, event.initiatorId);
+    }
+  }
+
   private liveDiplomacyContext(): { factions: Faction[]; fleets: Fleet[]; starSystems: StarSystem[] } {
     return { factions: this.factions, fleets: this.fleets, starSystems: this.starSystems };
   }
 
-  /* Player treaty change: drop its events (the panel already reports it), re-check the outcome, save. */
+  /*
+   * Player treaty change: no map notice for its events (the panel already
+   * reports it), but the campaign still counts them; re-check the outcome, save.
+   */
   private afterTreatyChange(): void {
-    this.diplomacyService.drainEvents();
+    this.notifyCampaignDiplomacy(this.diplomacyService.drainEvents());
     this.checkGameOutcome();
     this.saveGame();
     this.cdr.detectChanges();
@@ -2538,10 +2554,9 @@ loadError = '';
     if (events.length === 0 && offers.length === 0) return false;
     const name = (id: string) => (id === 'player' ? 'you' : this.factions.find((f) => f.id === id)?.name ?? id);
     const lines: string[] = [];
+    this.notifyCampaignDiplomacy(events);
     for (const event of events) {
       const involvesPlayer = event.initiatorId === 'player' || event.targetId === 'player';
-      if (involvesPlayer && (event.kind === 'war' || event.kind === 'breach')) this.campaign.notify('war_declared');
-      if (involvesPlayer && event.kind === 'peace') this.campaign.notify('peace_signed');
       switch (event.kind) {
         case 'war':
           lines.push((event.targetId === 'player'
@@ -5156,6 +5171,8 @@ loadError = '';
     // Also sets or clears the campaign research horizon.
     this.campaign.restore(data.campaign ?? null);
     this.tutorial.setExcludedSteps(this.campaign.mission?.tutorialExcludedSteps ?? []);
+    // Tribute pacts and scripted pressure keep a campaign AI from its own war and demands.
+    this.enemyDiplomacyService.setRestraintGuard(this.campaign.active ? (ai, other) => this.campaign.restrains(ai.id, other.id) : null);
     this.wormholes = data.wormholes ?? [];
     // Meetings are re-detected from the world after every load (docs/first-contact.md).
     this.firstContact.reset();
@@ -5463,8 +5480,10 @@ loadError = '';
     const winner = result.winnerSide === 'attacker' ? result.attacker : result.defender;
     const loser = result.winnerSide === 'attacker' ? result.defender : result.attacker;
     const isPlayers = (fleetId: number) => this.fleets.some((f) => f.id === fleetId && f.factionId === 'player');
-    if (isPlayers(winner.fleetId)) this.campaign.notify('battle_won');
-    else if (isPlayers(loser.fleetId)) this.campaign.notify('battle_lost');
+    // The opponent's faction (a space base or a planet's defenders have no fleet; then only the total counts).
+    const factionOf = (fleetId: number) => this.fleets.find((f) => f.id === fleetId)?.factionId;
+    if (isPlayers(winner.fleetId)) this.campaign.notify('battle_won', 1, factionOf(loser.fleetId));
+    else if (isPlayers(loser.fleetId)) this.campaign.notify('battle_lost', 1, factionOf(winner.fleetId));
   }
 
   /* Game-end dialog text of a decided campaign mission (its ending or defeat reason). */
@@ -5613,6 +5632,8 @@ loadError = '';
   private updateFirstContact(gameDeltaTime: number): boolean {
     const { notices, changed } = this.firstContact.tick(gameDeltaTime, this.contactWorld());
     if (notices.length > 0) this.showMapNotice(notices.join(' '));
+    // A mission's envoys (campaign `contact` effect), again after every load until answered.
+    for (const id of this.campaign.forcedContacts) this.firstContact.requestContact(id, this.contactWorld());
     if (changed) this.saveGame();
     if (this.contactDialogue || this.anomalyEvent || this.campaignMessage || this.gameOutcome !== 'inProgress') return changed;
     const pending = this.firstContact.pendingPlayerContact;
@@ -5630,7 +5651,9 @@ loadError = '';
   onContactAnswer(answer: ContactAnswer): void {
     const dialogue = this.contactDialogue;
     if (!dialogue) return;
-    const result = this.firstContact.resolvePlayerContact(dialogue.factionId, answer.replies, answer.stance, answer.giftTier, this.contactWorld());
+    const result = this.firstContact.resolvePlayerContact(
+      dialogue.factionId, answer.replies, answer.stance, answer.giftTier, this.contactWorld(), this.campaign.contactOverride(dialogue.factionId),
+    );
     if (!result) {
       this.onContactClose();
       return;
@@ -5708,6 +5731,7 @@ loadError = '';
    */
   private applyCampaignResult(result: CampaignTickResult): void {
     for (const area of result.reveals) this.revealArea(area);
+    for (const action of result.diplomacy) this.applyCampaignDiplomacy(action);
     if (result.wormholeStates.length > 0) {
       for (const change of result.wormholeStates) {
         const wormhole = this.wormholes.find((w) => w.id === change.wormholeId);
@@ -5718,6 +5742,34 @@ loadError = '';
     if (result.notices.length > 0) this.showMapNotice(result.notices.join(' '));
     if (result.changed) this.saveGame();
     if (result.outcome) this.checkGameOutcome();
+  }
+
+  /*
+   * Campaign war, peace and demand effects, through the same services as a
+   * player or AI decision (events, reputation, cooldowns). An action that is
+   * impossible right now (already at war, a demand the target cannot pay) is
+   * skipped: missions treat these effects as attempts.
+   */
+  private applyCampaignDiplomacy(action: CampaignDiplomacyAction): void {
+    const byId = (id: string) => this.factions.find((f) => f.id === id);
+    const a = byId(action.kind === 'force_demand' ? action.demander : action.a);
+    const b = byId(action.kind === 'force_demand' ? action.target : action.b);
+    if (!a || !b) return;
+    if (action.kind === 'start_war') {
+      const declarer = action.declarer === b.id ? b : a;
+      const target = declarer === a ? b : a;
+      // A war needs a meeting first; the script brings it about.
+      if (!inContact(declarer, target)) makeContact(declarer, target);
+      if (this.diplomacyService.canBreakTreaty(declarer, target).ok) this.diplomacyService.breakTreaty(declarer, target);
+      else this.diplomacyService.declareWar(declarer, target);
+    } else if (action.kind === 'start_peace') {
+      this.diplomacyService.executeTreaty(this.liveDiplomacyContext(), { proposerId: a.id, recipientId: b.id, items: [] });
+    } else {
+      const cap = roundDemandAmount(Math.min(action.amount, (b.currencies['credits'] ?? 0) * MAX_DEMAND_TARGET_SHARE));
+      if (cap < MIN_DEMAND_CREDITS) return;
+      this.enemyDiplomacyService.makeDemand(a, b, action.demandKind, cap, this.demandContext(), { ignoreCooldowns: true });
+    }
+    this.handleDiplomacyEvents();
   }
 
   private checkGameOutcome(): void {

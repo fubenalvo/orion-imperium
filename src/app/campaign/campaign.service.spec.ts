@@ -114,7 +114,7 @@ describe('CampaignService', () => {
     service.notify('battle_won');
     service.notify('battle_won');
     expect(tick().changed).toBe(true);
-    expect(service.state!.counters.battle_won).toBe(2);
+    expect(service.state!.counters['battle_won']).toBe(2);
   });
 
   it('round-trips through serialize and restore, and drops what the definition does not know', () => {

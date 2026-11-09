@@ -298,6 +298,13 @@ export class EnemyDiplomacyService {
   static readonly BASELINE_PRESSURE = -0.2;
 
   private accumulator = 0;
+  /*
+   * Campaign restraint (docs/campaign-design.md, Mission 3): true when `ai`
+   * must leave `other` alone — no war declaration and no demand of its own
+   * (a tribute pact `other` pays, or a mission's scripted pressure). Set by
+   * StarMap on every load (null outside a campaign); kept across reset().
+   */
+  private restraintGuard: ((ai: Faction, other: Faction) => boolean) | null = null;
   /* AI faction id → seconds until it may propose peace to the player again. */
   private offerCooldowns = new Map<string, number>();
 
@@ -326,6 +333,10 @@ export class EnemyDiplomacyService {
   reset(): void {
     this.accumulator = 0;
     this.offerCooldowns.clear();
+  }
+
+  setRestraintGuard(guard: ((ai: Faction, other: Faction) => boolean) | null): void {
+    this.restraintGuard = guard;
   }
 
   /* Returns true when a treaty changed or an offer was made. */
@@ -504,9 +515,9 @@ export class EnemyDiplomacyService {
    * an AI target answers at once (answerDemand), a demand to the human is
    * stored and waits for the player.
    */
-  makeDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, ctx: DiplomacyContext): DemandOutcome {
+  makeDemand(demander: Faction, target: Faction, kind: DemandKind, amount: number, ctx: DiplomacyContext, options?: { ignoreCooldowns?: boolean }): DemandOutcome {
     const cooldown = demander.ai === true ? this.profileOf(demander).demandCooldown : PLAYER_DEMAND_COOLDOWN_SECONDS;
-    const issued = this.diplomacy.issueDemand(demander, target, kind, amount, ctx, cooldown);
+    const issued = this.diplomacy.issueDemand(demander, target, kind, amount, ctx, cooldown, options);
     if (!issued.ok || !issued.demand) {
       // The ledger ignores human demanders.
       this.actionLedger.reject(demander, 'demand_issued', issued.reason ?? 'rejected');
@@ -671,7 +682,7 @@ export class EnemyDiplomacyService {
     let best: (DemandPlan & { rank: number; ratio: number }) | undefined;
     for (const other of ctx.factions) {
       if (!isTreatyPair(ai, other) || getRelation(ai, other)?.state !== 'peace' || !isFactionAlive(other.id, ctx)) continue;
-      if (!inContact(ai, other)) continue;
+      if (!inContact(ai, other) || this.restraintGuard?.(ai, other)) continue;
       if (!this.diplomacy.canIssueDemand(ai, other, 'request', MIN_DEMAND_CREDITS, ctx).ok) continue;
       const ratio = this.strengthRatio(other, ai, ctx);
       const distance = this.empireDistance(ai.id, other.id, ctx);
@@ -800,6 +811,8 @@ export class EnemyDiplomacyService {
       if (getRelation(ai, other)?.state !== 'peace') continue;
       // Empires that have not met cannot go to war (docs/first-contact.md).
       if (!inContact(ai, other)) continue;
+      // A paid tribute pact or a mission script holds this AI back (campaign only).
+      if (this.restraintGuard?.(ai, other)) continue;
       // An open demand between the two is answered first: an ultimatum's
       // war, if any, comes from its follow-through, not from a parallel declaration.
       if (this.diplomacy.hasOpenDemand(ai.id, other.id)) continue;
