@@ -671,6 +671,20 @@ export interface SpaceBase {
   dysonBonus?: DysonBonusId;
 }
 
+/* A wormhole mouth: a galaxy cell, not an obstacle (docs/campaign-design.md §11). */
+export interface WormholeMouth {
+  x: number;
+  y: number;
+}
+
+export interface Wormhole {
+  id: string;
+  name: string;
+  /* A missing second mouth = an exit gate whose other end is beyond the map. */
+  mouths: [WormholeMouth] | [WormholeMouth, WormholeMouth];
+  state: 'dormant' | 'active';
+}
+
 export interface StarMapData {
   /*
    * Save format version (SAVE_VERSION). A save below
@@ -785,6 +799,12 @@ export interface StarMapData {
    */
   tutorial?: TutorialState;
   /*
+   * Wormholes of a campaign map (docs/campaign-design.md §11). Missing =
+   * none (every generated galaxy). Phase 2 has exit gates only (one mouth);
+   * two-mouth transit comes with Phase 3b.
+   */
+  wormholes?: Wormhole[];
+  /*
    * The running story-campaign mission (docs/campaign-design.md §13):
    * objective statuses, flags, timers and the mission rules copied at build
    * time. Missing = not a campaign game. Restored by CampaignService.
@@ -870,7 +890,12 @@ export interface TradeNetworkState {
 
 /* ---------- Exploration anomalies (anomalies.ts) ---------- */
 
-export type AnomalyType = 'ancient_wreck' | 'distress_signal' | 'pirate_trap' | 'derelict_outpost';
+/*
+ * The first four are the random exploration events. The rest are campaign
+ * story anomalies (docs/campaign-design.md): authored by missions only,
+ * never generated (they are not in ANOMALY_TYPES).
+ */
+export type AnomalyType = 'ancient_wreck' | 'distress_signal' | 'pirate_trap' | 'derelict_outpost' | 'probe_wreck';
 
 /*
  * Where an anomaly waits. `x`/`y` is always the galaxy cell that is checked
@@ -897,6 +922,8 @@ export interface AnomalySite {
 export type AnomalyStatus = 'hidden' | 'discovered' | 'active' | 'resolved';
 
 export interface Anomaly {
+  /* Campaign anomalies only: the mission's name for it (conditions refer to it). */
+  key?: string;
   id: number;
   type: AnomalyType;
   site: AnomalySite;

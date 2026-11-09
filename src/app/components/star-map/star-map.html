@@ -127,6 +127,7 @@
       [sensorPreviewCells]="sensorPreviewCellsArray"
       [systems]="exploredStarSystems"
       [specialObjects]="specialObjects"
+      [wormholes]="wormholeViews"
       [nebulae]="nebulaViews"
       [belts]="beltViews"
       [blackHoleRings]="blackHoleRings"
@@ -482,10 +483,11 @@
       <span class="dyson-countdown__time">{{ countdown.time }}</span>
     </div>
   }
-  <!-- Campaign objective tracker (docs/campaign-design.md); galaxy and system views only. -->
-  @if (campaignActive && currentView !== 'planet' && campaignObjectives.length > 0) {
+  <!-- Campaign objective tracker (docs/campaign-design.md); bottom-left in the planet view, where the side panel takes the right edge. -->
+  @if (campaignActive && campaignObjectives.length > 0) {
     <app-star-map-campaign-objectives
       class="campaign-tracker"
+      [class.campaign-tracker--planet]="currentView === 'planet'"
       [missionTitle]="campaignMissionTitle"
       [objectives]="campaignObjectives"
     ></app-star-map-campaign-objectives>

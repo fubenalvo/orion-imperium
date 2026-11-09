@@ -25,6 +25,7 @@ import { ensureSystemAsteroidBelts } from '../components/star-map/system-asteroi
 import { normalizeRelations } from '../components/star-map/diplomacy';
 import { planetFootprintCenterVw, systemCellAtVw } from '../components/star-map/system-grid';
 import { ANOMALY_CONFIG } from '../components/star-map/anomalies';
+import { Anomaly } from '../components/star-map/star-map.models';
 import { SAVE_VERSION } from '../services/save-validation';
 import { GAME_VERSION } from '../game-version';
 import {
@@ -160,7 +161,9 @@ export function buildMission(mission: MissionDefinition, options: MissionBuildOp
     nebulae: structuredClone(spec.nebulae ?? []),
     asteroidBelts: structuredClone(spec.asteroidBelts ?? []),
     asteroidEvents: initialAsteroidEvents(seed),
-    anomalies: { version: ANOMALY_CONFIG.generatorVersion, nextSeq: 1, anomalies: [] },
+    anomalies: { version: ANOMALY_CONFIG.generatorVersion, nextSeq: 1, anomalies: buildAnomalies(mission, starSystems) },
+    ...(spec.wormholes && spec.wormholes.length > 0 ? { wormholes: structuredClone(spec.wormholes) } : {}),
+    ...(mission.rules.tutorial ? { tutorial: { enabled: true, done: [] } } : {}),
     map: { width: spec.width, height: spec.height, cellSizeVw: 2, cellSizeVh: 2 },
     starSystems,
     fleets,
@@ -265,6 +268,17 @@ function initialSession(mission: MissionDefinition, options: MissionBuildOptions
     researchHorizon: [...mission.researchHorizon],
     horizonExtras: structuredClone(mission.horizonExtras ?? {}),
   };
+}
+
+/* Authored campaign anomalies, hidden until the player's sensors explore their cell. */
+function buildAnomalies(mission: MissionDefinition, starSystems: StarSystem[]): Anomaly[] {
+  return (mission.map.anomalies ?? []).map((spec, i) => {
+    const system = spec.systemId ? starSystems.find((s) => s.id === spec.systemId) : undefined;
+    const site = system
+      ? { kind: 'system' as const, x: Math.floor(system.x), y: Math.floor(system.y), systemId: system.id }
+      : { kind: 'space' as const, x: Math.floor(spec.x ?? 1), y: Math.floor(spec.y ?? 1) };
+    return { id: i + 1, key: spec.key, type: spec.type, site, status: 'hidden' as const };
+  });
 }
 
 function nearestGalaxySize(width: number): GalaxySize {

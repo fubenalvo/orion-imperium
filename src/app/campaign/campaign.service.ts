@@ -6,6 +6,7 @@ import {
   CampaignEventKind,
   CampaignOutcome,
   CampaignSessionState,
+  Effect,
   MissionDefinition,
   ObjectiveDef,
   ObjectiveState,
@@ -42,6 +43,8 @@ import { EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } fro
 export interface CampaignTickResult {
   changed: boolean;
   notices: string[];
+  /* Areas to mark as explored (reveal_area effects). */
+  reveals: { x: number; y: number; radius: number }[];
   /* Set on the tick the mission was decided. */
   outcome: CampaignOutcome | null;
 }
@@ -126,7 +129,7 @@ export class CampaignService {
   }
 
   tick(dt: number, world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: this.dirty, notices: [], outcome: null };
+    const result: CampaignTickResult = { changed: this.dirty, notices: [], reveals: [], outcome: null };
     this.dirty = false;
     const session = this.session;
     const mission = this.definition;
@@ -163,6 +166,27 @@ export class CampaignService {
       this.recordVictory(world);
     }
     result.notices = effects.notices;
+    result.reveals = effects.reveals;
+    return result;
+  }
+
+  /*
+   * Effects from outside the mission definition, applied at once: the story
+   * effects of a resolved campaign anomaly (AnomalyService returns them).
+   * Events they request fire as usual; the outcome is checked on the next tick.
+   */
+  applyExternalEffects(effectsToApply: readonly Effect[], world: CampaignWorld): CampaignTickResult {
+    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], outcome: null };
+    const session = this.session;
+    const mission = this.definition;
+    if (!session || !mission || session.outcome || effectsToApply.length === 0) return result;
+    const effects = applyEffects(effectsToApply, session, world.factions);
+    this.fireEffectEvents(mission, session, effects);
+    if (effects.horizonChanged) this.applyHorizon();
+    result.changed = true;
+    result.notices = effects.notices;
+    result.reveals = effects.reveals;
+    this.dirty = true;
     return result;
   }
 
@@ -178,7 +202,7 @@ export class CampaignService {
    * event from the queue; a stale or unavailable choice changes nothing.
    */
   chooseEventOption(eventId: string, choiceId: string | null, world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: false, notices: [], outcome: null };
+    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], outcome: null };
     const session = this.session;
     const mission = this.definition;
     if (!session || !mission || session.pendingEvents[0] !== eventId) return result;
@@ -199,6 +223,7 @@ export class CampaignService {
     if (effects.horizonChanged) this.applyHorizon();
     result.changed = true;
     result.notices = effects.notices;
+    result.reveals = effects.reveals;
     if (session.outcome && !decidedBefore) {
       result.outcome = session.outcome;
       this.recordVictory(world);
@@ -305,7 +330,10 @@ export class CampaignService {
     this.progress.recordCompletion(mission.id, {
       endingId: session.outcome.endingId ?? '',
       difficulty: session.difficulty,
-      records: { ...(ending?.records ?? {}) },
+      records: {
+        ...(ending?.records ?? {}),
+        ...Object.fromEntries((ending?.recordFlags ?? []).filter((f) => session.flags[f] !== undefined).map((f) => [f, session.flags[f]])),
+      },
       researchedTechnologies: [...(player?.researchedTechnologies ?? [])],
     });
   }

@@ -161,6 +161,8 @@ export class StarMapGalaxyViewComponent implements AfterViewChecked {
   @Input() systems: StarSystem[] = [];
   @Input() fleets: Fleet[] = [];
   @Input() specialObjects: SpecialObject[] = [];
+  /* Campaign wormhole mouths (explored ones only, StarMap.wormholeViews). */
+  @Input() wormholes: { key: string; x: number; y: number; name: string; active: boolean }[] = [];
   @Input() nebulae: NebulaView[] = [];
   @Input() belts: BeltView[] = [];
   @Input() blackHoleRings: BlackHoleRingView[] = [];

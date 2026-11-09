@@ -5,6 +5,8 @@ import { beltObstacles } from '../components/star-map/asteroid-belts';
 import { NavGraph } from '../components/star-map/fleet-navigation';
 import { STARTING_TECHNOLOGIES } from '../services/galaxy-generator.service';
 import { buildingNameForId } from './campaign-objectives';
+import { ANOMALY_DEFINITIONS } from '../components/star-map/anomalies';
+import { TUTORIAL_STEPS } from '../components/tutorial/tutorial-steps';
 import { Condition, Effect, MissionDefinition } from './campaign.models';
 
 /*
@@ -98,6 +100,31 @@ export function validateMission(mission: MissionDefinition): string[] {
     if (fleet.tag) fleetTags.add(fleet.tag);
   }
 
+  // --- Anomalies and wormholes ---
+  const anomalyKeys = new Set<string>();
+  for (const anomaly of map.anomalies ?? []) {
+    if (anomalyKeys.has(anomaly.key)) err(`duplicate anomaly key "${anomaly.key}"`);
+    anomalyKeys.add(anomaly.key);
+    if (!(anomaly.type in ANOMALY_DEFINITIONS)) err(`anomaly "${anomaly.key}" has an unknown type`);
+    if (anomaly.systemId !== undefined) {
+      if (!systemIds.has(anomaly.systemId)) err(`anomaly "${anomaly.key}" is in an unknown system`);
+    } else if (anomaly.x === undefined || anomaly.y === undefined || anomaly.x < 1 || anomaly.y < 1 || anomaly.x > map.width || anomaly.y > map.height) {
+      err(`anomaly "${anomaly.key}" needs a system or a cell inside the map`);
+    }
+  }
+  const systemCells = new Set(map.systems.map((s) => `${Math.floor(s.x)}-${Math.floor(s.y)}`));
+  const wormholeIds = new Set<string>();
+  for (const wormhole of map.wormholes ?? []) {
+    if (wormholeIds.has(wormhole.id)) err(`duplicate wormhole id "${wormhole.id}"`);
+    wormholeIds.add(wormhole.id);
+    for (const mouth of wormhole.mouths) {
+      if (mouth.x < 1 || mouth.y < 1 || mouth.x > map.width || mouth.y > map.height) err(`wormhole "${wormhole.id}" has a mouth outside the map`);
+      if (systemCells.has(`${Math.floor(mouth.x)}-${Math.floor(mouth.y)}`)) err(`wormhole "${wormhole.id}" has a mouth on a star system cell`);
+    }
+  }
+  const tutorialIds = new Set(TUTORIAL_STEPS.map((s) => s.id));
+  for (const id of mission.tutorialExcludedSteps ?? []) if (!tutorialIds.has(id)) err(`unknown tutorial step "${id}"`);
+
   // --- Relations: every treaty pair exactly once ---
   const treatyFactions = map.factions.filter((f) => f.kind !== 'outlaw').map((f) => f.id);
   const pairKey = (a: string, b: string) => [a, b].sort().join('|');
@@ -160,7 +187,7 @@ export function validateMission(mission: MissionDefinition): string[] {
   if (mission.endings.length === 0) err('a mission needs at least one ending');
 
   const heldIds = new Set<string>();
-  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds };
+  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds, anomalyKeys };
   for (const objective of mission.objectives) {
     for (const id of objective.after ?? []) if (!objectiveIds.has(id)) err(`objective "${objective.id}" waits for unknown "${id}"`);
     checkCondition(objective.condition, refs, err);
@@ -223,6 +250,7 @@ interface Refs {
   endingIds: Set<string>;
   fleetTags: Set<string>;
   heldIds: Set<string>;
+  anomalyKeys: Set<string>;
 }
 
 function checkCondition(condition: Condition, refs: Refs, err: (message: string) => void): void {
@@ -265,6 +293,7 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
       if (!refs.fleetTags.has(condition.tag)) err(`condition references unknown fleet tag "${condition.tag}"`);
       return;
     case 'fleet_at':
+    case 'fleet_with':
       faction(condition.factionId);
       for (const type of Object.keys(condition.ships ?? {})) if (!SHIP_TYPES.has(type)) err(`condition references unknown ship type "${type}"`);
       return;
@@ -275,6 +304,9 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
     case 'relation':
       faction(condition.a);
       faction(condition.b);
+      return;
+    case 'anomaly_resolved':
+      if (!refs.anomalyKeys.has(condition.key)) err(`condition references unknown anomaly "${condition.key}"`);
       return;
     case 'held_for':
       // Timers are keyed by id: two conditions sharing one would share a timer.

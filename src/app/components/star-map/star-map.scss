@@ -211,6 +211,14 @@
   top: calc(var(--game-header-h) + var(--ui-edge));
   right: var(--ui-edge);
   z-index: 35;
+
+  /* Planet view: the surface panel holds the right edge; sit above the camera controls. */
+  &--planet {
+    top: auto;
+    right: auto;
+    bottom: 9rem;
+    left: var(--ui-edge);
+  }
 }
 
 /* Mission defeat: LOAD SAVE list inside the end dialog. */

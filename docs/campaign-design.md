@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a and 1b implemented** (the campaign engine and its UI, see
+Status: **Phases 1a, 1b and 2 implemented** (the campaign engine, its UI and Mission 1, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -89,7 +89,19 @@ Implemented subset and deviations from the design below:
 
 **Known gaps of the UI:** objectives are not shown in the planet view; clicking an objective does not center the camera yet (no `locate` data in the model).
 
-**Next:** Phase 2 — Mission 1 (exit wormhole, Remnant sentinel, tutorial profile).
+**Phase 2 — Mission 1 "The Discovery" (done, 2026-11-09).** `campaign/missions/m1-discovery.ts`, first entry of the registry.
+
+- **Map** as designed in §7 (100×60; Sol, Proxima, Kepler Deep; 5 planets; one belt that forces the route past Proxima; the probe wreck at Proxima; the Kepler lens at (86, 40)).
+- **Wormholes:** `StarMapData.wormholes` (`Wormhole { id, name, mouths, state }`, optional) with the M1 exit gate (one mouth). The galaxy view draws a turning violet ring on explored mouths (`StarMap.wormholeViews`, `.wormhole-cell`). Transit between two mouths is Phase 3b; an exit gate is reached with a `fleet_at` objective.
+- **Remnant sentinel:** an outlaw faction (`remnant`) and a two-fighter fleet on the lens mouth. Outlaws have no AI, so it never moves; battle detection opens the battle screen like for pirates.
+- **Campaign anomalies:** the `probe_wreck` story type (not in `ANOMALY_TYPES`, never generated) and the anomaly effect `campaign` (story effects applied by `CampaignService.applyExternalEffects`; `AnomalyResolution.campaignEffects`). `Anomaly.key` names authored anomalies; the builder writes them from `MissionMapSpec.anomalies`. New condition `anomaly_resolved`, new effect `reveal_area` (StarMap marks the cells explored).
+- **Conditions:** `fleet_with` (a fleet anywhere with given ships), `fleet_at.minCombatShips` (living warships, `isCombatShipType`). Endings may copy session flags into the progress record (`recordFlags`, e.g. `m1_mars_colony`).
+- **Tutorial:** `MissionRules.tutorial` turns the hints on in the built save; `MissionDefinition.tutorialExcludedSteps` (`TutorialService.setExcludedSteps`, M1: `diplomacy`) count as done for selection without being saved as done.
+- **UI:** the objective tracker now also shows in the planet view (bottom left, above the camera controls); the campaign screen hides the difficulty for missions without AI empires.
+- **Deviations from §6:** the strike group is 3 fighters, not 2 frigates (frigates need Advanced Engineering, which is only optional in the M1 horizon); the sentinel is 2 fighters; the briefing message opens after the first game second (objectives are evaluated on the economy tick, which needs the clock running); the `enemy-fleet` hint stays on (it teaches the attack order for the sentinel); optional objectives are the Mars colony and Fighter Technology (the asteroid wreck and "flawless" ideas were dropped: M1 has one anomaly by design).
+- Tests: `missions/m1-discovery.spec.ts` (design counts, the belt detour, sentinel on the lens inside the revealed area, a full scripted playthrough in `StarMap` through the real anomaly pipeline, a colonizer without escort does not count, no Diplomacy hint, lens hidden until explored). Checked in the browser: campaign screen, opening message, tracker in the planet view, the lens on the map.
+
+**Next:** Phase 3 — Mission 2 (Beyond the Gate), then Phase 3b (wormhole transit).
 
 ---
 
@@ -522,12 +534,12 @@ Objective chain (sequential, each unlocking the next, with tutorial hints anchor
 | 4 | Research Basic Radar | Research | `basic_radar` researched |
 | 5 | Scout Proxima | Fleet selection, star map, right-click orders | system `proxima` explored |
 | 6 | Investigate the probe signal | Anomalies | anomaly `m1_probe` resolved |
-| 7 | Build 2 frigates and form a fleet | Production, stock, assembly | player fleet with ≥ 2 frigates |
-| 8 | Destroy the sentinel at Kepler Deep | Combat (battle screen) | fleet tagged `m1_sentinel` destroyed |
-| 9 | Build a Colonizer and send the expedition through the gate | Expedition | player fleet with a colonizer and ≥ 1 warship at site `m1_gate` |
+| 7 | Form a strike group of 3 fighters | Production, stock, assembly | a player fleet with ≥ 3 fighters |
+| 8 | Destroy the sentinel at Kepler Deep | Combat (battle screen) | fleet tagged `sentinel` destroyed |
+| 9 | Build a Colonizer and send the expedition through the gate | Expedition | player fleet with a colonizer and ≥ 1 warship on the lens mouth |
 
 Optional: colonize Mars (+ a carried-over flag `m1_mars_colony`; no mechanical carry-over);
-salvage the asteroid wreck (+raw); keep every ship alive (flag `m1_flawless`, cosmetic).
+research Fighter Technology.
 
 Victory: objective 9. Defeat: none in practice (no AI). The standard elimination rule stays as
 a safety net.
@@ -535,12 +547,11 @@ a safety net.
 Design notes:
 
 - The existing tutorial table already covers objectives 1–7 (homeworld → ships → star map →
-  research). The mission uses a **tutorial step profile** that disables the `diplomacy` and
-  `enemy-fleet` steps and adds anchors for the objective tracker. Hints and objectives are
-  separate: hints say *how*, objectives say *what*.
+  research). The mission switches off the `diplomacy` step (`tutorialExcludedSteps`). Hints and
+  objectives are separate: hints say *how*, objectives say *what*.
 - The drone is an outlaw faction fleet (`remnant`, team 0, `outlaw: true`, `ai: false`). It
   stays put and fights through normal battle detection, like the pirates. Its strength is fixed
-  (2 fighters + 1 corvette) and beatable by two frigates plus the starting fighter.
+  (2 fighters) and beatable by the strike group of 3 fighters plus the starting fleet.
 - The impassable belt between Sol and Kepler Deep forces the route through Proxima. This teaches
   that belts are walls without a separate lesson.
 

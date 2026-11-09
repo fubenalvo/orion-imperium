@@ -26,6 +26,57 @@
 }
 
 
+/* Campaign wormhole mouth (docs/campaign-design.md §11): a slowly turning
+   violet ring with a bright core, one cell in size but drawn larger; above
+   the fog (z 6) because only explored mouths are passed in. Dormant: grey. */
+.wormhole-cell {
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+
+  &__ring {
+    position: absolute;
+    width: 260%;
+    height: 260%;
+    border: 2px dashed rgba(186, 140, 255, 0.85);
+    border-radius: 50%;
+    box-shadow: 0 0 14px rgba(160, 110, 255, 0.55), inset 0 0 10px rgba(160, 110, 255, 0.45);
+    animation: wormhole-turn 9s linear infinite;
+  }
+
+  &__core {
+    width: 80%;
+    height: 80%;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff 0%, #d6c2ff 35%, rgba(120, 70, 220, 0) 75%);
+  }
+
+  &--dormant &__ring {
+    border-color: rgba(170, 170, 185, 0.5);
+    box-shadow: none;
+    animation: none;
+  }
+
+  &--dormant &__core {
+    background: radial-gradient(circle, rgba(200, 200, 210, 0.6) 0%, rgba(120, 120, 130, 0) 70%);
+  }
+}
+
+@keyframes wormhole-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wormhole-cell__ring {
+    animation: none;
+  }
+}
+
 /* =========================================================
    NEBULAE (docs/star-map-terrain.md)
    Large, soft, translucent clouds under the fog layer (z 5) and every

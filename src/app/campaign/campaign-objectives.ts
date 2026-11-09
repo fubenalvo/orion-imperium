@@ -1,4 +1,6 @@
-import { Faction, Fleet, StarSystem } from '../components/star-map/star-map.models';
+import { Anomaly, Faction, Fleet, StarSystem } from '../components/star-map/star-map.models';
+import { isCombatShipType } from '../components/star-map/ai-queries';
+import shipData from '../components/star-map/ship-data.json';
 import { getRelationKind } from '../components/star-map/diplomacy';
 import planetData from '../components/star-map/planet-data.json';
 import { CampaignSessionState, Condition, ObjectiveDef, ProgressDef } from './campaign.models';
@@ -25,6 +27,8 @@ export interface CampaignWorld {
   fleets: readonly Fleet[];
   /* Player-explored galaxy cells ("col-row"), StarMap.exploredGridCells. */
   exploredGridCells: ReadonlySet<string>;
+  /* The session's anomalies (AnomalyService), for `anomaly_resolved`. */
+  anomalies?: readonly Anomaly[];
 }
 
 export interface EvaluationContext {
@@ -33,6 +37,10 @@ export interface EvaluationContext {
   /* Game seconds since the last evaluation (0 = evaluate without advancing timers). */
   dt: number;
 }
+
+const SHIP_TYPES: ReadonlyMap<string, { role: string }> = new Map(
+  (shipData as { shipTypes: { id: string; role: string }[] }).shipTypes.map((s) => [s.id, s]),
+);
 
 const BUILDING_NAME_BY_ID: ReadonlyMap<string, string> = new Map(
   (planetData as { buildings: { id: string; name: string }[] }).buildings.map((b) => [b.id, b.name]),
@@ -103,6 +111,12 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
     }
     case 'fleet_at':
       return world.fleets.some((fleet) => fleetMatches(fleet, condition));
+    case 'fleet_with':
+      return world.fleets.some((fleet) => fleetMatches(fleet, condition));
+    case 'anomaly_resolved': {
+      const anomaly = world.anomalies?.find((a) => a.key === condition.key);
+      return anomaly?.status === 'resolved' && (condition.choiceId === undefined || anomaly.choiceId === condition.choiceId);
+    }
     case 'opinion_at_least': {
       const holder = world.factions.find((f) => f.id === condition.holder);
       return (holder?.relations?.[condition.of]?.opinion ?? -Infinity) >= condition.value;
@@ -182,13 +196,19 @@ function completeBuildingCount(world: CampaignWorld, buildingId: string, planetN
   return count;
 }
 
-function fleetMatches(fleet: Fleet, condition: Extract<Condition, { kind: 'fleet_at' }>): boolean {
+function fleetMatches(fleet: Fleet, condition: Extract<Condition, { kind: 'fleet_at' | 'fleet_with' }>): boolean {
   if (fleet.destroyed || fleet.factionId !== (condition.factionId ?? 'player')) return false;
-  const radius = condition.radius ?? 0;
-  if (Math.hypot(Math.floor(fleet.x) - condition.x, Math.floor(fleet.y) - condition.y) > radius) return false;
+  if (condition.kind === 'fleet_at') {
+    const radius = condition.radius ?? 0;
+    if (Math.hypot(Math.floor(fleet.x) - condition.x, Math.floor(fleet.y) - condition.y) > radius) return false;
+  }
   for (const [type, count] of Object.entries(condition.ships ?? {})) {
     const living = fleet.ships.filter((s) => s.type === type && s.destroyed !== true).length;
     if (living < count) return false;
+  }
+  if (condition.minCombatShips !== undefined) {
+    const warships = fleet.ships.filter((s) => s.destroyed !== true && isCombatShipType(SHIP_TYPES.get(s.type))).length;
+    if (warships < condition.minCombatShips) return false;
   }
   return true;
 }

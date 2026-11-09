@@ -334,6 +334,21 @@
       </div>
     }
 
+    <!-- WORMHOLE MOUTHS (campaign): a turning ring on the mouth's cell; dormant ones are grey. -->
+    @for (mouth of wormholes; track mouth.key) {
+      <div
+        class="wormhole-cell"
+        [class.wormhole-cell--dormant]="!mouth.active"
+        [style.gridColumn]="mouth.x"
+        [style.gridRow]="mouth.y"
+        [attr.title]="mouth.name"
+        aria-hidden="true"
+      >
+        <span class="wormhole-cell__ring"></span>
+        <span class="wormhole-cell__core"></span>
+      </div>
+    }
+
     <!--
       ASTEROID BELTS: impassable walls of rock. One SVG for all belts; rocks
       are merged into at most three paths per belt (one per shade), so

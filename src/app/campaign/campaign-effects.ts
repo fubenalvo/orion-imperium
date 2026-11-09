@@ -22,10 +22,12 @@ export interface EffectResult {
   events: string[];
   /* The research horizon changed; ResearchService must be updated. */
   horizonChanged: boolean;
+  /* Areas StarMap marks as explored (it owns the explored cells). */
+  reveals: { x: number; y: number; radius: number }[];
 }
 
 export function emptyEffectResult(): EffectResult {
-  return { notices: [], events: [], horizonChanged: false };
+  return { notices: [], events: [], horizonChanged: false, reveals: [] };
 }
 
 export function applyEffects(effects: readonly Effect[] | undefined, session: CampaignSessionState, factions: readonly Faction[]): EffectResult {
@@ -38,6 +40,7 @@ export function mergeEffectResults(into: EffectResult, from: EffectResult): Effe
   into.notices.push(...from.notices);
   into.events.push(...from.events);
   into.horizonChanged ||= from.horizonChanged;
+  into.reveals.push(...from.reveals);
   return into;
 }
 
@@ -92,6 +95,9 @@ function applyEffect(effect: Effect, session: CampaignSessionState, factions: re
       }
       return;
     }
+    case 'reveal_area':
+      result.reveals.push({ x: effect.x, y: effect.y, radius: effect.radius });
+      return;
     case 'end_mission':
       session.outcome ??= { kind: 'victory', endingId: effect.endingId };
       return;

@@ -1,10 +1,12 @@
 import {
   AiDifficulty,
   AiPersonality,
+  AnomalyType,
   AsteroidBelt,
   Nebula,
   PlanetSize,
   PlanetType,
+  Wormhole,
 } from '../components/star-map/star-map.models';
 
 /*
@@ -66,7 +68,12 @@ export type Condition =
   | { kind: 'building_complete'; buildingId: string; count?: number; planetName?: string }
   | { kind: 'technology'; technologyId: string; factionId?: string }
   | { kind: 'fleet_tag_destroyed'; tag: string }
-  | { kind: 'fleet_at'; x: number; y: number; radius?: number; ships?: Record<string, number>; factionId?: string }
+  /* `minCombatShips`: living warships (not scouts, colonizers or outpost ships) in the fleet. */
+  | { kind: 'fleet_at'; x: number; y: number; radius?: number; ships?: Record<string, number>; minCombatShips?: number; factionId?: string }
+  /* A player fleet anywhere with at least these ships / warships. */
+  | { kind: 'fleet_with'; ships?: Record<string, number>; minCombatShips?: number; factionId?: string }
+  /* A campaign anomaly (by its mission key) was resolved, optionally with this choice. */
+  | { kind: 'anomaly_resolved'; key: string; choiceId?: string }
   | { kind: 'opinion_at_least'; holder: string; of: string; value: number }
   | { kind: 'relation'; a: string; b: string; state: 'war' | 'peace' }
   | { kind: 'held_for'; id: string; seconds: number; condition: Condition };
@@ -80,6 +87,8 @@ export type Effect =
   | { kind: 'resources'; factionId: string; credits?: number; rawmaterials?: number; research?: number }
   | { kind: 'grant_technology'; factionId: string; technologyId: string }
   | { kind: 'reveal_technology'; technologyIds: string[]; factionId?: string }
+  /* Marks the galaxy cells within `radius` of (x, y) as explored by the player. */
+  | { kind: 'reveal_area'; x: number; y: number; radius: number }
   | { kind: 'end_mission'; endingId: string }
   | { kind: 'fail_mission'; reason: string };
 
@@ -135,6 +144,8 @@ export interface EndingDef {
   condition: Condition;
   /* Written to the campaign progress on victory; read by later missions. */
   records?: Record<string, FlagValue>;
+  /* Session flags copied into the records when set (choices made during the mission). */
+  recordFlags?: string[];
 }
 
 export interface MissionRules {
@@ -142,6 +153,18 @@ export interface MissionRules {
   standardVictory: boolean;
   /* Pirate incursions (PirateIncursionService) on or off. */
   pirates: boolean;
+  /* Tutorial hints on at the start (the player can still turn them off). */
+  tutorial?: boolean;
+}
+
+/* An authored campaign anomaly; the builder turns it into an AnomalyState entry. */
+export interface MissionAnomalySpec {
+  key: string;
+  type: AnomalyType;
+  /* A star system site (its cell) or an open-space cell. */
+  systemId?: string;
+  x?: number;
+  y?: number;
 }
 
 /* ---------- Map spec ---------- */
@@ -214,6 +237,8 @@ export interface MissionMapSpec {
   fleets: MissionFleetSpec[];
   nebulae?: Nebula[];
   asteroidBelts?: AsteroidBelt[];
+  wormholes?: Wormhole[];
+  anomalies?: MissionAnomalySpec[];
   /* Every pair of non-neutral, non-outlaw factions, symmetric (validated). */
   relations: MissionRelationSpec[];
   defaultView: { systemId: string; planetName: string };
@@ -247,6 +272,8 @@ export interface MissionDefinition {
   horizonExtras?: Record<string, string[]>;
   /* Flags this mission reads, with defaults so it is playable standalone. */
   carryIn?: Record<string, FlagValue>;
+  /* Tutorial steps that make no sense here (tutorial-steps.ts ids), e.g. 'diplomacy' without empires. */
+  tutorialExcludedSteps?: string[];
 }
 
 /* ---------- Runtime state (saved) ---------- */

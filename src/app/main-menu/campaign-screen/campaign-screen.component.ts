@@ -102,6 +102,11 @@ export class CampaignScreenComponent implements OnInit {
     return carried.filter((id) => horizon.has(id)).length;
   }
 
+  /* Difficulty only matters when the mission has AI empires. */
+  get hasAiFactions(): boolean {
+    return this.selected?.mission.map.factions.some((f) => f.kind === 'ai') ?? false;
+  }
+
   get canStart(): boolean {
     return !this.starting && !!this.selected && this.selected.status !== 'locked';
   }

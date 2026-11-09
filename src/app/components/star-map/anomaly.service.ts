@@ -24,6 +24,7 @@ import { ShipService } from '../../services/ship.service';
 import { ResearchService } from '../../services/research.service';
 import { DEFAULT_FLEET_SENSOR_RANGE } from './star-map-sensor.service';
 import { Battle, BattleOutcome } from '../battle-screen/battle/battle.types';
+import type { Effect as CampaignEffect } from '../../campaign/campaign.models';
 
 /*
  * Virtual pirate fleets use ids below -PIRATE_FLEET_ID_OFFSET (planets use
@@ -71,7 +72,8 @@ export interface AnomalyContext {
 }
 
 export type AnomalyResolution =
-  | { ok: true; anomaly: Anomaly; message: string; battle: Battle | null; newFleet: Fleet | null }
+  /* campaignEffects: story effects of campaign anomalies, for CampaignService (empty otherwise). */
+  | { ok: true; anomaly: Anomaly; message: string; battle: Battle | null; newFleet: Fleet | null; campaignEffects: CampaignEffect[] }
   | { ok: false; reason: string };
 
 /*
@@ -223,6 +225,9 @@ export class AnomalyService {
           });
           lines.push({ text: 'No loot', tone: 'neutral' });
           break;
+        case 'campaign':
+          lines.push({ text: effect.summary, tone: 'gain' });
+          break;
       }
     }
     if (lines.length === 0) lines.push({ text: 'No cost, no reward', tone: 'neutral' });
@@ -248,6 +253,7 @@ export class AnomalyService {
 
     let battle: Battle | null = null;
     let newFleet: Fleet | null = null;
+    const campaignEffects: CampaignEffect[] = [];
     const notes: string[] = [choice.outcome];
     for (const effect of choice.effects) {
       switch (effect.kind) {
@@ -272,13 +278,18 @@ export class AnomalyService {
         case 'fleet_damage':
           this.damageFleet(fleet, effect.fraction);
           break;
+        case 'campaign':
+          // Applied by CampaignService (StarMap forwards them), so this module
+          // stays independent of the campaign session.
+          campaignEffects.push(...effect.effects);
+          break;
       }
     }
     anomaly.status = 'resolved';
     anomaly.choiceId = choice.id;
     delete anomaly.fleetId;
     delete anomaly.activatedSeq;
-    return { ok: true, anomaly, message: `${def.name}: ${notes.join(' ')}`, battle, newFleet };
+    return { ok: true, anomaly, message: `${def.name}: ${notes.join(' ')}`, battle, newFleet, campaignEffects };
   }
 
   /* Existing purchase helpers for credits / raw materials; RP are added like other RP rewards. */

@@ -43,21 +43,25 @@
           <p class="briefing__note">{{ carriedTechnologyCount }} technologies carried over from the previous mission.</p>
         }
 
-        <div class="briefing__label">DIFFICULTY</div>
-        <div class="difficulties" role="radiogroup" aria-label="Difficulty">
-          @for (d of difficulties; track d.id) {
-            <button
-              type="button"
-              class="difficulty"
-              role="radio"
-              [class.difficulty--active]="difficulty === d.id"
-              [attr.aria-checked]="difficulty === d.id"
-              (click)="setDifficulty(d.id)"
-            >
-              {{ d.label }}
-            </button>
-          }
-        </div>
+        @if (hasAiFactions) {
+          <div class="briefing__label">DIFFICULTY</div>
+          <div class="difficulties" role="radiogroup" aria-label="Difficulty">
+            @for (d of difficulties; track d.id) {
+              <button
+                type="button"
+                class="difficulty"
+                role="radio"
+                [class.difficulty--active]="difficulty === d.id"
+                [attr.aria-checked]="difficulty === d.id"
+                (click)="setDifficulty(d.id)"
+              >
+                {{ d.label }}
+              </button>
+            }
+          </div>
+        } @else {
+          <p class="briefing__note">No rival empires in this mission.</p>
+        }
 
         <label class="briefing__field">
           <span class="briefing__label">SAVE SLOT</span>

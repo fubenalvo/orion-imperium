@@ -14,6 +14,7 @@ import { NavObstacle, buildNavObstacles, distanceToObstacleAxis } from './fleet-
 import { beltObstacles } from './asteroid-belts';
 import { systemCellAtVw } from './system-grid';
 import { OUTPOST_SHIP_TYPE } from './space-base';
+import type { Effect as CampaignEffect } from '../../campaign/campaign.models';
 
 /*
  * =========================================================
@@ -57,7 +58,13 @@ export type AnomalyEffect =
    * so it can be a cost without a resource check. The damage stays on the
    * ship (`Ship.currentHp`) until it is repaired at a Spaceport.
    */
-  | { kind: 'fleet_damage'; fraction: number };
+  | { kind: 'fleet_damage'; fraction: number }
+  /*
+   * Campaign story effects (flags, granted technologies, revealed areas, …),
+   * applied by CampaignService after the anomaly resolved. `summary` is the
+   * player-facing consequence line. Only campaign anomalies use it.
+   */
+  | { kind: 'campaign'; effects: CampaignEffect[]; summary: string };
 
 export interface AnomalyChoiceDef {
   id: string;
@@ -103,7 +110,7 @@ export const ANOMALY_CONFIG = {
     system: { ancient_wreck: 3, distress_signal: 3, pirate_trap: 2, derelict_outpost: 2 },
     asteroid: { ancient_wreck: 4, distress_signal: 1, pirate_trap: 2, derelict_outpost: 2 },
     space: { ancient_wreck: 2, distress_signal: 3, pirate_trap: 3, derelict_outpost: 1 },
-  } as Record<AnomalySite['kind'], Record<AnomalyType, number>>,
+  } as Record<AnomalySite['kind'], Partial<Record<AnomalyType, number>>>,
   /* Pirate ambush: a small fleet of existing ship types. */
   pirateFleet: ['fighter', 'fighter', 'corvette'] as readonly string[],
   pirateFactionName: 'Pirates',
@@ -118,6 +125,49 @@ export const ANOMALY_CONFIG = {
 } as const;
 
 export const ANOMALY_DEFINITIONS: Record<AnomalyType, AnomalyDefinition> = {
+  /*
+   * Campaign, Mission 1 (docs/campaign-design.md): the lost survey probe.
+   * Both choices chart the lens at Kepler Deep (reveal_area) and set the
+   * flag the mission's objective chain reads.
+   */
+  probe_wreck: {
+    name: 'Wreck of the Far Reach',
+    category: 'Story',
+    description:
+      'The survey probe Far Reach drifts without power, its hull scored by something it flew too close to. ' +
+      'Its last transmission is still in the buffer: a gravitational lens at Kepler Deep that should not exist.',
+    choices: [
+      {
+        id: 'download',
+        label: 'Download the flight logs',
+        effects: [
+          { kind: 'resource', resource: 'research', amount: 200 },
+          {
+            kind: 'campaign',
+            summary: 'Charts the lens at Kepler Deep',
+            effects: [
+              { kind: 'flag', flag: 'm1_probe_logs', value: true },
+              { kind: 'reveal_area', x: 82, y: 39, radius: 6 },
+            ],
+          },
+        ],
+        outcome: 'The logs map the lens in detail. Whatever it is, it is not natural.',
+      },
+      {
+        id: 'recover',
+        label: 'Recover the probe for parts',
+        effects: [
+          { kind: 'resource', resource: 'rawmaterials', amount: 300 },
+          {
+            kind: 'campaign',
+            summary: 'Charts the lens at Kepler Deep',
+            effects: [{ kind: 'reveal_area', x: 82, y: 39, radius: 6 }],
+          },
+        ],
+        outcome: 'The salvage crews strip the probe. Its navigation core still points at Kepler Deep.',
+      },
+    ],
+  },
   ancient_wreck: {
     name: 'Ancient Wreck',
     category: 'Derelict',
@@ -206,6 +256,7 @@ export const ANOMALY_DEFINITIONS: Record<AnomalyType, AnomalyDefinition> = {
   },
 };
 
+/* The random exploration events. Campaign story anomalies are never generated. */
 export const ANOMALY_TYPES: readonly AnomalyType[] = ['ancient_wreck', 'distress_signal', 'pirate_trap', 'derelict_outpost'];
 
 /* ---------- Generation ---------- */
@@ -230,11 +281,11 @@ function distressSenders(factions: Faction[]): Faction[] {
 
 function pickType(rng: StatefulRng, kind: AnomalySite['kind'], allowDistress: boolean): AnomalyType {
   const weights = ANOMALY_CONFIG.weights[kind];
-  const types = ANOMALY_TYPES.filter((t) => weights[t] > 0 && (allowDistress || t !== 'distress_signal'));
-  const total = types.reduce((sum, t) => sum + weights[t], 0);
+  const types = ANOMALY_TYPES.filter((t) => (weights[t] ?? 0) > 0 && (allowDistress || t !== 'distress_signal'));
+  const total = types.reduce((sum, t) => sum + (weights[t] ?? 0), 0);
   let roll = rng.next() * total;
   for (const type of types) {
-    roll -= weights[type];
+    roll -= weights[type] ?? 0;
     if (roll < 0) return type;
   }
   return types[types.length - 1];

@@ -77,6 +77,8 @@ save, never sees a hint for something already done. The rule runs only on a real
 (scene not `none`): the empty pre-load context reads as "not paused" and would otherwise finish the
 time step before the first frame.
 
+**Steps excluded by a campaign mission.** A mission can switch steps off (`MissionDefinition.tutorialExcludedSteps`, e.g. `diplomacy` in Mission 1, which has no empires). StarMap passes them to `TutorialService.setExcludedSteps` on every load; they count as done for selection and for `after` (so `finished` still comes), but are never saved as done, so a later normal game is unaffected. A mission with `rules.tutorial` starts with the hints on ([Campaign Design](./campaign-design.md#implementation-status)).
+
 **Repeatable steps.** A step with `repeatable` is done (closed or finished) only until its `when`
 turns false; then it may show again. Used by `back-to-planet`.
 

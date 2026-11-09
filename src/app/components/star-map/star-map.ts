@@ -246,6 +246,7 @@ import { CampaignProgressService } from '../../campaign/campaign-progress.servic
 import { evaluateCondition } from '../../campaign/campaign-objectives';
 import { CampaignWorld } from '../../campaign/campaign-objectives';
 import { CampaignSessionState } from '../../campaign/campaign.models';
+import { Wormhole } from './star-map.models';
 import { buildTutorialContext } from '../tutorial/tutorial-context';
 
 /*
@@ -312,6 +313,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /* The open story message (one at a time, never over the anomaly dialog). */
   campaignMessage: CampaignMessageVm | null = null;
   private campaignMessageResumeOnClose = false;
+  /* Campaign wormholes (StarMapData.wormholes); empty in generated galaxies. */
+  wormholes: Wormhole[] = [];
   /* Objective tracker rows, refreshed once per economy tick. */
   campaignObjectives: ObjectiveView[] = [];
   /* Mission defeat: the LOAD SAVE list is open. */
@@ -4778,6 +4781,10 @@ loadError = '';
       return;
     }
     this.showMapNotice(result.message);
+    // Story effects of a campaign anomaly (docs/campaign-design.md).
+    if (result.campaignEffects.length > 0) {
+      this.applyCampaignResult(this.campaign.applyExternalEffects(result.campaignEffects, this.campaignWorld()));
+    }
     // Switches to the next pending event, or closes the dialog (and resumes).
     this.syncAnomalyEvent();
     this.saveGame();
@@ -4958,6 +4965,7 @@ loadError = '';
       gameSeconds: this.gameSeconds,
       tutorial: this.tutorial.serialize(),
       campaign: this.campaign.serialize(),
+      ...(this.wormholes.length > 0 ? { wormholes: this.wormholes } : {}),
     };
   }
 
@@ -5110,6 +5118,8 @@ loadError = '';
     // (the battle screen only edits the autosave written before it opened).
     // Also sets or clears the campaign research horizon.
     this.campaign.restore(data.campaign ?? null);
+    this.tutorial.setExcludedSteps(this.campaign.mission?.tutorialExcludedSteps ?? []);
+    this.wormholes = data.wormholes ?? [];
     // A pending story message re-opens from the restored session on the next frame.
     this.campaignMessage = null;
     this.campaignMessageResumeOnClose = false;
@@ -5427,7 +5437,37 @@ loadError = '';
       starSystems: this.starSystems,
       fleets: this.fleets,
       exploredGridCells: this.exploredGridCells,
+      anomalies: this.anomalyService.anomalies,
     };
+  }
+
+  /*
+   * Wormhole mouths for the galaxy view: only explored ones (a gate is
+   * found by scouting), all of them with fog of war off.
+   */
+  get wormholeViews(): { key: string; x: number; y: number; name: string; active: boolean }[] {
+    const views: { key: string; x: number; y: number; name: string; active: boolean }[] = [];
+    for (const wormhole of this.wormholes) {
+      wormhole.mouths.forEach((mouth, i) => {
+        if (this.sensorRangeEnabled && !this.exploredGridCells.has(`${Math.floor(mouth.x)}-${Math.floor(mouth.y)}`)) return;
+        views.push({ key: `${wormhole.id}-${i}`, x: mouth.x, y: mouth.y, name: wormhole.name, active: wormhole.state === 'active' });
+      });
+    }
+    return views;
+  }
+
+  /* reveal_area: marks the cells within the radius as explored (a probe's charts, an envoy's map). */
+  private revealArea(area: { x: number; y: number; radius: number }): void {
+    const r = Math.max(0, Math.floor(area.radius));
+    for (let dx = -r; dx <= r; dx++) {
+      for (let dy = -r; dy <= r; dy++) {
+        if (dx * dx + dy * dy > r * r) continue;
+        const col = Math.floor(area.x) + dx;
+        const row = Math.floor(area.y) + dy;
+        if (col < 1 || row < 1 || col > this.mapWidth || row > this.mapHeight) continue;
+        this.exploredGridCells.add(`${col}-${row}`);
+      }
+    }
   }
 
   private tickCampaign(seconds: number): void {
@@ -5562,6 +5602,7 @@ loadError = '';
    * objective. A decided mission then goes through the normal outcome check.
    */
   private applyCampaignResult(result: CampaignTickResult): void {
+    for (const area of result.reveals) this.revealArea(area);
     if (result.notices.length > 0) this.showMapNotice(result.notices.join(' '));
     if (result.changed) this.saveGame();
     if (result.outcome) this.checkGameOutcome();

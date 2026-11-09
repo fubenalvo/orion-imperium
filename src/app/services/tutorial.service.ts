@@ -46,6 +46,12 @@ export class TutorialService {
   readonly anchorVersion = this._anchorVersion.asReadonly();
 
   private done = new Set<string>();
+  /*
+   * Steps a campaign mission switches off (e.g. Diplomacy in a mission
+   * without empires). They count as done for selection and `after`, but are
+   * not saved as done, so a later normal game is unaffected.
+   */
+  private excluded = new Set<string>();
   /* Steps whose latched `trigger` has held (see TutorialStep.trigger). */
   private unlocked = new Set<string>();
   private ctx: TutorialContext = emptyTutorialContext();
@@ -71,6 +77,12 @@ export class TutorialService {
       this.ctx = emptyTutorialContext();
     }
     this._inGame.set(true);
+    this.recompute();
+  }
+
+  /* Called by StarMap on every load: the running mission's excluded steps (empty otherwise). */
+  setExcludedSteps(stepIds: readonly string[]): void {
+    this.excluded = new Set(stepIds);
     this.recompute();
   }
 
@@ -167,7 +179,8 @@ export class TutorialService {
       for (const id of triggeredSteps(this.ctx, this.unlocked)) this.unlocked.add(id);
       for (const id of rearmedSteps(this.ctx, this.done)) this.done.delete(id);
     }
-    const next = this._enabled() && this._inGame() ? tutorialCandidates(this.ctx, this.done, this.unlocked) : [];
+    const doneForSelection = this.excluded.size === 0 ? this.done : new Set([...this.done, ...this.excluded]);
+    const next = this._enabled() && this._inGame() ? tutorialCandidates(this.ctx, doneForSelection, this.unlocked) : [];
     const current = this._candidates();
     if (next.length !== current.length || next.some((s, i) => s !== current[i])) {
       this._candidates.set(next);

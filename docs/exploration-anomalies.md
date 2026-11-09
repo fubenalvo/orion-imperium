@@ -55,6 +55,10 @@ Content lives in `ANOMALY_DEFINITIONS`; each choice is a list of effects:
 
 Adding an event type: add it to `AnomalyType`, `ANOMALY_DEFINITIONS`, `ANOMALY_TYPES` and the weights. A new effect kind also needs handling in `AnomalyService.resolve` and `describeChoice`.
 
+### Campaign story anomalies
+
+Story-campaign missions author their own anomalies ([Campaign Design](./campaign-design.md#implementation-status)): the mission builder writes them into `StarMapData.anomalies` with a `key` the mission's conditions refer to (`anomaly_resolved`), so `normalizeSave` never generates random ones for a mission. Their types (`probe_wreck` so far) are in `AnomalyType` and `ANOMALY_DEFINITIONS` but **not** in `ANOMALY_TYPES` or the weights (weights are partial; a missing weight is 0), so random games never get them. Their choices may carry the effect `campaign` (`{ effects, summary }`): `resolve` returns those campaign effects in `AnomalyResolution.campaignEffects` instead of applying them, `describeChoice` shows the `summary`, and StarMap hands them to `CampaignService.applyExternalEffects`. The anomaly module therefore does not depend on the campaign session.
+
 ### Distress signal sender
 
 The sender is an AI empire picked at generation (`Anomaly.factionId`). The opinion change applies only if that empire still exists and holds a planet or a living fleet (`anomalySender`); otherwise the dialog says "No diplomatic effect" and assisting only costs credits. There is never a global relations change. Without any AI empire, no distress signals are generated.
