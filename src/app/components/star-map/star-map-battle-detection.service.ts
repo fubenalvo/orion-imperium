@@ -70,7 +70,7 @@ export class StarMapBattleDetectionService {
   ): boolean {
     if (this.spaceBaseService.bases.length === 0) return false;
     for (const fleet of fleets) {
-      if (fleet.destroyed || fleet.system || !this.hasLivingShips(fleet)) continue;
+      if (fleet.destroyed || fleet.transit || fleet.system || !this.hasLivingShips(fleet)) continue;
       const base = this.spaceBaseService.getBaseAtCell(Math.floor(fleet.x), Math.floor(fleet.y));
       if (!base) continue;
       const attacker = factions.find((f) => f.id === fleet.factionId);
@@ -123,7 +123,7 @@ export class StarMapBattleDetectionService {
       const col = Math.floor(system.x);
       const row = Math.floor(system.y);
       for (const fleet of fleets) {
-        if (fleet.destroyed || fleet.targetX !== null || fleet.targetY !== null) continue;
+        if (fleet.destroyed || fleet.transit || fleet.targetX !== null || fleet.targetY !== null) continue;
         if (Math.floor(fleet.x) !== col || Math.floor(fleet.y) !== row || !this.hasLivingWarship(fleet)) continue;
         const attacker = factions.find((f) => f.id === fleet.factionId);
         if (!attacker) continue;
@@ -252,7 +252,8 @@ export class StarMapBattleDetectionService {
     triggeredBattles: Set<string>,
     onAutoResolved?: (battle: Battle, outcome: BattleOutcome) => void,
   ): boolean {
-    const activeFleets = fleets.filter((f) => !f.destroyed && this.hasLivingShips(f));
+    // Fleets inside a wormhole are out of reach (wormholes.ts).
+    const activeFleets = fleets.filter((f) => !f.destroyed && !f.transit && this.hasLivingShips(f));
 
     for (let i = 0; i < activeFleets.length; i++) {
       for (let j = i + 1; j < activeFleets.length; j++) {

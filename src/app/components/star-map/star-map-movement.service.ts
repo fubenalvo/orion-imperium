@@ -3,6 +3,7 @@ import { Fleet, StarSystem, PlanetTile, ContextMenuItem } from './star-map.model
 import { StarMapTerrainService } from './star-map-terrain.service';
 import { NavPoint, RouteFailure, RoutePlan } from './fleet-navigation';
 import { effectiveFleetSpeed } from './ship-stats';
+import { planWormholeRoute, routeTravelSeconds } from './wormholes';
 import {
   SYSTEM_CELL_SIZE_VW,
   SYSTEM_PLANET_FOOTPRINT,
@@ -94,9 +95,21 @@ export class StarMapMovementService {
     return speed / 10 / StarMapMovementService.GALAXY_MOVEMENT_CELL_SIZE_VW;
   }
 
-  /* Plans a galaxy route against the current terrain (no fleet state is touched). */
+  /*
+   * Plans a galaxy route against the current terrain (no fleet state is
+   * touched): around black holes and belts, and through an active wormhole
+   * when that is shorter (the entry waypoint then carries `jump`).
+   */
   planGalaxyRoute(from: NavPoint, to: NavPoint): RoutePlan {
-    return this.terrain.navGraph.plan(from, to);
+    const graph = this.terrain.navGraph;
+    const wormholes = this.terrain.wormholes;
+    if (wormholes.length === 0) return graph.plan(from, to);
+    return planWormholeRoute((a, b) => graph.plan(a, b), from, to, wormholes);
+  }
+
+  /* Game seconds along a route polyline that may contain wormhole jumps (nebula slowdown included). */
+  private routeSeconds(points: readonly NavPoint[], cellsPerSecond: number): number {
+    return routeTravelSeconds(points, (leg) => this.terrain.nebulaField.pathTravelSeconds(leg, cellsPerSecond));
   }
 
   /*
@@ -134,6 +147,16 @@ export class StarMapMovementService {
    * route, including nebula slowdown. Null when it has no target or no route.
    */
   estimateRemainingTravelSeconds(fleet: Fleet): number | null {
+    if (fleet.transit) {
+      // Inside a wormhole: the rest of the transit, then the way on from the exit.
+      if (fleet.targetX === null || fleet.targetY === null) return fleet.transit.remaining;
+      const onward = this.estimateTravelSeconds(
+        { x: fleet.transit.exitX, y: fleet.transit.exitY },
+        { x: fleet.targetX, y: fleet.targetY },
+        StarMapMovementService.galaxyCellsPerSecond(fleet),
+      );
+      return fleet.transit.remaining + onward;
+    }
     const route = this.getActiveRoute(fleet);
     if (!route) {
       return null;
@@ -143,7 +166,7 @@ export class StarMapMovementService {
       ...route.waypoints,
       { x: fleet.targetX as number, y: fleet.targetY as number },
     ];
-    return this.terrain.nebulaField.pathTravelSeconds(points, StarMapMovementService.galaxyCellsPerSecond(fleet));
+    return this.routeSeconds(points, StarMapMovementService.galaxyCellsPerSecond(fleet));
   }
 
   /*
@@ -156,7 +179,7 @@ export class StarMapMovementService {
     if (!plan.ok) {
       return Infinity;
     }
-    return this.terrain.nebulaField.pathTravelSeconds([from, ...plan.waypoints, to], cellsPerSecond);
+    return this.routeSeconds([from, ...plan.waypoints, to], cellsPerSecond);
   }
 
   /*
@@ -238,6 +261,21 @@ export class StarMapMovementService {
   }
 
   /*
+   * On a jump waypoint (the entry mouth of a wormhole) the fleet enters
+   * transit; the waypoint stays in the route until it comes out.
+   */
+  private enterWormhole(fleet: Fleet, waypoint: NavPoint): boolean {
+    if (!waypoint.jump) return false;
+    fleet.transit = {
+      wormholeId: waypoint.jump.wormholeId,
+      remaining: waypoint.jump.transitSeconds,
+      exitX: waypoint.jump.exitX,
+      exitY: waypoint.jump.exitY,
+    };
+    return true;
+  }
+
+  /*
    * getTileCenter: Converts vw world coordinates to the 1-indexed grid cell
    * that contains them. The returned grid cell IS the center of that cell
    * in grid cell space (since cell N covers vw range [(N-1)*cellSize, N*cellSize)
@@ -271,6 +309,24 @@ export class StarMapMovementService {
         continue;
       }
 
+      // Inside a wormhole: count the transit down, then come out at the exit
+      // mouth. The route (a runtime cache) continues after the jump waypoint;
+      // after a load it is re-planned from the exit, never from the entry.
+      if (fleet.transit) {
+        didMoveFleets = true;
+        fleet.transit.remaining -= deltaTime;
+        if (fleet.transit.remaining > 0) continue;
+        fleet.x = fleet.transit.exitX;
+        fleet.y = fleet.transit.exitY;
+        delete fleet.transit;
+        const cached = this.routes.get(fleet);
+        if (cached?.waypoints[0]?.jump) cached.waypoints.shift();
+        const exitCell = this.calculateGridCell(fleet.x, fleet.y);
+        fleet.gridCol = exitCell.col;
+        fleet.gridRow = exitCell.row;
+        continue;
+      }
+
       // Map movement (fleet.x/y are 1-indexed grid cell coordinates)
       if (fleet.targetX !== null && fleet.targetY !== null) {
         const route = this.ensureRoute(fleet);
@@ -298,6 +354,7 @@ export class StarMapMovementService {
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (waypoint && distance <= 0.01) {
+          if (this.enterWormhole(fleet, waypoint)) continue;
           route.waypoints.shift();
         } else if (distance <= 0.01) {
           fleet.x = fleet.targetX;
@@ -326,7 +383,7 @@ export class StarMapMovementService {
             // validated route.
             fleet.x = waypoint.x;
             fleet.y = waypoint.y;
-            route.waypoints.shift();
+            if (!this.enterWormhole(fleet, waypoint)) route.waypoints.shift();
           }
         }
 

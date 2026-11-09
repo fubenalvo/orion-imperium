@@ -333,7 +333,7 @@ export class StarMapSensorService {
 
     // 2. Player fleet sensor ranges (lower priority than owned systems)
     for (const fleet of fleets) {
-      if (fleet.destroyed || fleet.factionId !== 'player') {
+      if (fleet.destroyed || fleet.transit || fleet.factionId !== 'player') {
         continue;
       }
       const range = this.getFleetSensorRange(fleet, playerFaction);
@@ -371,7 +371,7 @@ export class StarMapSensorService {
     }
 
     for (const fleet of fleets) {
-      if (fleet.destroyed || fleet.factionId !== 'player') {
+      if (fleet.destroyed || fleet.transit || fleet.factionId !== 'player') {
         continue;
       }
       const range = this.getFleetSensorRange(fleet, playerFaction);

@@ -140,6 +140,10 @@ Long, narrow, permanent walls of rock — the strategic equivalent of cliffs: th
 
 One SVG layer in grid units inside the transformed world (scales with zoom) at z 4: under the fog like all terrain (unexplored belts are strongly dimmed), below asteroids, trails (14) and fleets (15), so routes and fleets stay readable; `pointer-events: none`. Per belt: a wide blurred dust haze and a narrower brighter dust core along the axis (shows the direction), and the rocks merged into at most three paths (dark/mid/light). Belts are static — no rock spins. The rocks are lit by one SVG lighting filter (`#belt-rock-light`: blurred alpha as a height map, `feDiffuseLighting` from the upper left, multiplied into the rock colors), which gives every rock its own rounded shading without per-rock elements; a noise-texture overlay adds surface grain. The dust and lighting filters use `userSpaceOnUse` regions spanning the whole map: a bbox-relative region would clip the blur of a nearly straight belt into a hard-edged band. Render data is built once per load (`buildBeltView` in `StarMap.rebuildTerrainViews`). The minimap draws each belt axis as a thick rock-colored line.
 
+## Wormholes (campaign maps)
+
+Story-campaign maps may link two cells with an active wormhole. Every route (fleets of every faction, traders) goes through the same router, which takes a wormhole when that is shorter; a fleet in transit is hidden and out of reach for 20 s, then comes out on the far mouth. Generated galaxies have none, so nothing here changes for them. Rules and code: [Campaign Design](./campaign-design.md#wormholes) and `wormholes.ts`.
+
 ## Balance values
 
 | Value | Where | Default |

@@ -247,6 +247,7 @@ import { evaluateCondition } from '../../campaign/campaign-objectives';
 import { CampaignWorld } from '../../campaign/campaign-objectives';
 import { CampaignSessionState } from '../../campaign/campaign.models';
 import { Wormhole } from './star-map.models';
+import { isWellFormedTransit } from './wormholes';
 import { buildTutorialContext } from '../tutorial/tutorial-context';
 
 /*
@@ -673,7 +674,8 @@ loadError = '';
     // Fleets that are not destroyed AND visible to the player (fog-of-war).
     // Player fleets are always visible; enemy fleets must be in sensor range.
     // In system view, all fleets in the current system are visible.
-    return this.fleets.filter((f) => !f.destroyed && this.isFleetVisible(f));
+    // Fleets inside a wormhole are not on the map (wormholes.ts).
+    return this.fleets.filter((f) => !f.destroyed && !f.transit && this.isFleetVisible(f));
   }
 
   get minimapFleets(): { id: number; x: number; y: number; color: string }[] {
@@ -1029,7 +1031,7 @@ loadError = '';
    * known; other traders only inside the player's sensor coverage.
    */
   isTraderVisible(trader: Trader): boolean {
-    if (trader.status !== 'travelling') return false;
+    if (trader.status !== 'travelling' || trader.transit) return false;
     if (!this.sensorRangeEnabled) return true;
     if (this.findPlanetWithSystem(trader.homePlanetId)?.planet.factionId === 'player') return true;
     const key = `${Math.floor(trader.x)}-${Math.floor(trader.y)}`;
@@ -5098,6 +5100,7 @@ loadError = '';
       specialObjects: this.specialObjects,
       nebulae: this.nebulae,
       asteroidBelts: this.asteroidBelts,
+      wormholes: data.wormholes ?? [],
       width: this.mapWidth,
       height: this.mapHeight,
     });
@@ -5178,6 +5181,11 @@ loadError = '';
       if (system.explored === undefined) {
         system.explored = true;
       }
+    }
+
+    // A malformed saved wormhole transit is dropped (the fleet stays at the entry mouth).
+    for (const fleet of this.fleets) {
+      if (fleet.transit !== undefined && !isWellFormedTransit(fleet.transit)) delete fleet.transit;
     }
 
     // Ensure every fleet has a sensorRange floor (defaults to 3).
@@ -5613,6 +5621,13 @@ loadError = '';
    */
   private applyCampaignResult(result: CampaignTickResult): void {
     for (const area of result.reveals) this.revealArea(area);
+    if (result.wormholeStates.length > 0) {
+      for (const change of result.wormholeStates) {
+        const wormhole = this.wormholes.find((w) => w.id === change.wormholeId);
+        if (wormhole) wormhole.state = change.state;
+      }
+      this.terrainService.setWormholes(this.wormholes);
+    }
     if (result.notices.length > 0) this.showMapNotice(result.notices.join(' '));
     if (result.changed) this.saveGame();
     if (result.outcome) this.checkGameOutcome();

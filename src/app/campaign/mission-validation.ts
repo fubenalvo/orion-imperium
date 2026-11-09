@@ -188,7 +188,7 @@ export function validateMission(mission: MissionDefinition): string[] {
   if (mission.endings.length === 0) err('a mission needs at least one ending');
 
   const heldIds = new Set<string>();
-  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds, anomalyKeys };
+  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds, anomalyKeys, wormholeIds };
   for (const objective of mission.objectives) {
     for (const id of objective.after ?? []) if (!objectiveIds.has(id)) err(`objective "${objective.id}" waits for unknown "${id}"`);
     checkCondition(objective.condition, refs, err);
@@ -252,6 +252,7 @@ interface Refs {
   fleetTags: Set<string>;
   heldIds: Set<string>;
   anomalyKeys: Set<string>;
+  wormholeIds: Set<string>;
 }
 
 function checkCondition(condition: Condition, refs: Refs, err: (message: string) => void): void {
@@ -340,6 +341,9 @@ function checkEffects(effects: readonly Effect[] | undefined, refs: Refs, err: (
       case 'reveal_technology':
         for (const id of effect.technologyIds) if (!TECHNOLOGIES.has(id)) err(`effect reveals unknown technology "${id}"`);
         if (effect.factionId !== undefined && !refs.factionIds.has(effect.factionId)) err(`effect references unknown faction "${effect.factionId}"`);
+        break;
+      case 'wormhole_state':
+        if (!refs.wormholeIds.has(effect.wormholeId)) err(`effect references unknown wormhole "${effect.wormholeId}"`);
         break;
       case 'end_mission':
         if (!refs.endingIds.has(effect.endingId)) err(`effect references unknown ending "${effect.endingId}"`);

@@ -87,6 +87,8 @@ Traders are unarmed. A raid is not a battle: there is no battle screen and the t
 
 **Who may raid whom** (`raidBlocker`): never one's own or a permanent ally's trader (same non-neutral team), and neutral factions never raid. Civilian traders and every other empire's traders may be raided, **at peace too** — with consequences (below), never a war by itself.
 
+**Wormholes.** On campaign maps traders route through active wormholes like fleets; a trader inside one (`Trader.transit`, saved) is not drawn and cannot be raided ([Campaign Design](./campaign-design.md#wormholes)).
+
 **Explicit order only.** A fleet damages a trader only while it carries a raid order on it (`Fleet.raidTraderId`). Fleets that just pass a trader never raid it, so nobody angers a peace partner by accident.
 
 **Damage:** while a fleet with a raid order is within `raidRadius` (1 cell) of the **travelling** trader, the hull (300) loses the summed base attack of the fleet's living warships per second (`raidDamagePerSecond`; recon, colonizer and outpost ships do not count, technology bonuses do not apply). Two frigates need about 6 s, the starting scout fleet about 20 s. Several fleets add up. Docked traders cannot be damaged, and a trader that escapes is repaired in its next port.

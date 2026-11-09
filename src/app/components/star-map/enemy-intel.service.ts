@@ -190,7 +190,7 @@ export class EnemyIntelService {
       }
     }
     for (const fleet of fleets) {
-      if (fleet.factionId === faction.id && !fleet.destroyed && fleet.ships.some((s) => !s.destroyed)) {
+      if (fleet.factionId === faction.id && !fleet.destroyed && !fleet.transit && fleet.ships.some((s) => !s.destroyed)) {
         sources.push({ x: fleet.x, y: fleet.y, r: this.sensorService.getFleetSensorRange(fleet, faction) });
       }
     }
@@ -217,7 +217,7 @@ export class EnemyIntelService {
     // Hostile fleets: visible now, or remembered at the last-seen position.
     state.visible.clear();
     for (const fleet of fleets) {
-      if (sameTeam.has(fleet.factionId) || fleet.destroyed || !fleet.ships.some((s) => !s.destroyed)) {
+      if (sameTeam.has(fleet.factionId) || fleet.destroyed || fleet.transit || !fleet.ships.some((s) => !s.destroyed)) {
         continue;
       }
       if (sensed(fleet.x, fleet.y)) {

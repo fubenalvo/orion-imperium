@@ -843,6 +843,8 @@ export type TraderStatus = 'docked' | 'travelling';
  * `x`/`y` are galaxy cells like `Fleet.x/y`.
  */
 export interface Trader {
+  /* Inside a wormhole (wormholes.ts), like Fleet.transit; not drawn, not raidable. */
+  transit?: import('./wormholes').WormholeTransit;
   id: number;
   homePlanetId: number;
   slot: number;
@@ -1204,6 +1206,12 @@ export interface FleetTrail {
  * systemX/Y and systemTargetX/Y are system view positions in vw units (separate grid).
  */
 export interface Fleet {
+  /*
+   * Inside a wormhole (wormholes.ts): hidden, cannot fight or be fought,
+   * senses nothing; comes out at (exitX, exitY) when `remaining` reaches 0.
+   * Optional and saved; missing = not in transit.
+   */
+  transit?: import('./wormholes').WormholeTransit;
   id: number;
   name: string;
   factionId: string;

@@ -272,6 +272,18 @@ export class TradeNetworkService {
   }
 
   private advance(trader: Trader, deltaTime: number, rng: StatefulRng, ctx: TradeNetworkContext, result: TradeNetworkTickResult): void {
+    // Inside a wormhole (wormholes.ts): wait, then come out at the exit; the
+    // route continues after the jump waypoint (re-planned from the exit after a load).
+    if (trader.transit) {
+      trader.transit.remaining -= deltaTime;
+      if (trader.transit.remaining > 0) return;
+      trader.x = trader.transit.exitX;
+      trader.y = trader.transit.exitY;
+      delete trader.transit;
+      const cached = this.routes.get(trader.id);
+      if (cached?.[0]?.jump) cached.shift();
+      return;
+    }
     let route = this.routes.get(trader.id);
     if (!route) {
       // After a load: re-plan from the current position to the saved destination.
@@ -299,6 +311,10 @@ export class TradeNetworkService {
         trader.x = next.x;
         trader.y = next.y;
         budget -= distance;
+        if (next.jump) {
+          trader.transit = { wormholeId: next.jump.wormholeId, remaining: next.jump.transitSeconds, exitX: next.jump.exitX, exitY: next.jump.exitY };
+          return;
+        }
         route.shift();
       } else {
         trader.x += (dx / distance) * budget;
@@ -357,7 +373,7 @@ export class TradeNetworkService {
     for (const fleet of ctx.fleets ?? []) {
       if (fleet.raidTraderId == null || fleet.destroyed) continue;
       const trader = this.getTrader(fleet.raidTraderId);
-      if (!trader || trader.status !== 'travelling') continue;
+      if (!trader || trader.status !== 'travelling' || trader.transit || fleet.transit) continue;
       if (Math.hypot(fleet.x - trader.x, fleet.y - trader.y) > TRADE_NETWORK_CONFIG.raidRadius) continue;
       const raider = ctx.factions.find((f) => f.id === fleet.factionId);
       const owner = this.traderOwner(trader, ctx.starSystems, ctx.factions);

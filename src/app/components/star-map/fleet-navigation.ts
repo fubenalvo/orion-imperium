@@ -43,6 +43,8 @@ import { SpecialObject } from './star-map.models';
 export interface NavPoint {
   x: number;
   y: number;
+  /* Set on the entry mouth of a route through a wormhole (wormholes.ts). */
+  jump?: import('./wormholes').WormholeJump;
 }
 
 export type NavObstacleKind = 'blackhole' | 'belt';

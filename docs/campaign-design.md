@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a, 1b, 2 and 3 implemented** (the campaign engine, its UI, Missions 1 and 2, see
+Status: **Phases 1a, 1b, 2, 3 and 3b implemented** (the campaign engine, its UI, Missions 1 and 2, wormhole transit, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -113,7 +113,18 @@ Implemented subset and deviations from the design below:
 - **Carry-over:** the ending records `m2_tessaly_met` and `league_standing` (new `recordValues`). Mission 1 technologies inside the M2 horizon carry over; the campaign screen now counts carried technologies without the four basics.
 - Tests: `missions/m2-beyond-the-gate.spec.ts` (design counts, hidden Tessaly as a trading civilization, rich deposits, routes around the belt, carried technologies, the beacon charting Tessaly, trade income from deliveries, a full scripted playthrough with the recorded standing).
 
-**Next:** Phase 3b (wormhole transit for fleets and traders), then Phase 4a (first contact in every game mode).
+**Phase 3b — wormhole transit (done, 2026-11-09).** Rules in `components/star-map/wormholes.ts`, as designed in [§11](#wormholes):
+
+- `StarMapMovementService.planGalaxyRoute` — the one router for fleet orders (player and AI) and traders — compares the direct route with one through each active two-mouth wormhole in both directions (`planWormholeRoute`; a transit costs `transitCostCells` = 4 cells) and keeps the cheapest. The entry-mouth waypoint carries `jump`. Without wormholes it is the plain NavGraph route, so generated galaxies route exactly as before.
+- A fleet on a jump waypoint gets `Fleet.transit = { wormholeId, remaining, exitX, exitY }` (saved; `WORMHOLE_CONFIG.transitSeconds` = 20). In transit it waits at the entry mouth, is left out of `visibleFleets` (map, minimap and roster), battle detection (fleet, base and mining-station contacts), the player's sensor sources and AI intel (as a source and as a sighting); then it appears on the exit mouth and flies on. A fleet guarding the exit meets it there (a blockade).
+- After a load the route cache is empty: the movement step finishes a saved transit first and only then re-plans from the exit, so a jump is never taken twice. Malformed saved transits are dropped on load.
+- Traders do the same (`Trader.transit`, validated by the trade-network sanitizer); a trader in transit is not drawn and cannot be raided.
+- ETAs (`estimateTravelSeconds`, `estimateRemainingTravelSeconds`) add the transit time and leave out the jump segment (`routeTravelSeconds`).
+- Campaign effect `wormhole_state` wakes or closes a wormhole (`StarMapTerrainService.setWormholes`); routes planned afterwards follow it.
+- Not done: no "via … wormhole" line in the fleet panel yet; AI strategic distance estimates stay straight-line (accepted, §11).
+- Tests: `wormholes.spec.ts` (route choice both ways, no dormant or single-mouth routing, travel time, a fleet's transit and arrival within 5% of the ETA, a reload mid-transit, a wormhole woken later) and `campaign/wormhole-transit.spec.ts` (real `StarMap`: hidden in transit, save/reload mid-transit, a blockade at the exit, traders routed through the wormhole).
+
+**Next:** Phase 4a (first contact in every game mode), then Phase 4b (Mission 3).
 
 ---
 

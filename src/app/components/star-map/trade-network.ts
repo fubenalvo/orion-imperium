@@ -1,3 +1,4 @@
+import { isWellFormedTransit } from './wormholes';
 import { StatefulRng } from './drifting-asteroids';
 import { Faction, PlanetTile, StarSystem, TradeNetworkState, Trader, TraderLossRecord, TraderRespawn } from './star-map.models';
 import { adjustOpinion, adjustReputation, areFactionsAllied, getRelationKind, isNeutralFaction } from './diplomacy';
@@ -98,6 +99,7 @@ export function isWellFormedTrader(value: unknown): value is Trader {
   if (t['destinationPlanetId'] !== null && !isId(t['destinationPlanetId'])) return false;
   if (t['lastPortPlanetId'] !== undefined && t['lastPortPlanetId'] !== null && !isId(t['lastPortPlanetId'])) return false;
   if (t['status'] === 'travelling' && t['destinationPlanetId'] === null) return false;
+  if (t['transit'] !== undefined && !isWellFormedTransit(t['transit'])) return false;
   const cargo = t['cargo'] as Record<string, unknown> | null;
   if (cargo !== null && (typeof cargo !== 'object' || !isFiniteNumber(cargo['credits']) || typeof cargo['goods'] !== 'string')) {
     return false;

@@ -1,3 +1,4 @@
+import type { Wormhole } from './star-map.models';
 import { Injectable } from '@angular/core';
 import { AsteroidBelt, Nebula, SpecialObject } from './star-map.models';
 import { buildNavObstacles, NavBounds, NavGraph, NavObstacle } from './fleet-navigation';
@@ -26,6 +27,7 @@ import { NebulaField } from './nebula';
  */
 @Injectable({ providedIn: 'root' })
 export class StarMapTerrainService {
+  private wormholeList: Wormhole[] = [];
   private obstacleList: NavObstacle[] = [];
   private graph = new NavGraph([]);
   private field = new NebulaField([], 0, 0);
@@ -35,9 +37,11 @@ export class StarMapTerrainService {
     specialObjects?: readonly SpecialObject[];
     nebulae?: readonly Nebula[];
     asteroidBelts?: readonly AsteroidBelt[];
+    wormholes?: readonly Wormhole[];
     width: number;
     height: number;
   }): void {
+    this.wormholeList = [...(input.wormholes ?? [])];
     this.obstacleList = [
       ...buildNavObstacles(input.specialObjects),
       ...beltObstacles(input.asteroidBelts),
@@ -48,10 +52,21 @@ export class StarMapTerrainService {
   }
 
   reset(): void {
+    this.wormholeList = [];
     this.obstacleList = [];
     this.field = new NebulaField([], 0, 0);
     this.mapBounds = undefined;
     this.graph = new NavGraph([]);
+  }
+
+  /* Campaign wormholes (wormholes.ts); routing uses the active two-mouth ones. */
+  get wormholes(): readonly Wormhole[] {
+    return this.wormholeList;
+  }
+
+  /* A mission effect woke or closed a wormhole; routes planned afterwards follow it. */
+  setWormholes(wormholes: readonly Wormhole[]): void {
+    this.wormholeList = [...wormholes];
   }
 
   get obstacles(): readonly NavObstacle[] {

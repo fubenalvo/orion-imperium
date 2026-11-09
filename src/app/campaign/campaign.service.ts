@@ -45,6 +45,8 @@ export interface CampaignTickResult {
   notices: string[];
   /* Areas to mark as explored (reveal_area effects). */
   reveals: { x: number; y: number; radius: number }[];
+  /* Wormholes to wake or close (wormhole_state effects). */
+  wormholeStates: { wormholeId: string; state: 'dormant' | 'active' }[];
   /* Set on the tick the mission was decided. */
   outcome: CampaignOutcome | null;
 }
@@ -139,7 +141,7 @@ export class CampaignService {
   }
 
   tick(dt: number, world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: this.dirty, notices: [], reveals: [], outcome: null };
+    const result: CampaignTickResult = { changed: this.dirty, notices: [], reveals: [], wormholeStates: [], outcome: null };
     this.dirty = false;
     const session = this.session;
     const mission = this.definition;
@@ -177,6 +179,7 @@ export class CampaignService {
     }
     result.notices = effects.notices;
     result.reveals = effects.reveals;
+    result.wormholeStates = effects.wormholeStates;
     return result;
   }
 
@@ -186,7 +189,7 @@ export class CampaignService {
    * Events they request fire as usual; the outcome is checked on the next tick.
    */
   applyExternalEffects(effectsToApply: readonly Effect[], world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], outcome: null };
+    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], wormholeStates: [], outcome: null };
     const session = this.session;
     const mission = this.definition;
     if (!session || !mission || session.outcome || effectsToApply.length === 0) return result;
@@ -196,6 +199,7 @@ export class CampaignService {
     result.changed = true;
     result.notices = effects.notices;
     result.reveals = effects.reveals;
+    result.wormholeStates = effects.wormholeStates;
     this.dirty = true;
     return result;
   }
@@ -212,7 +216,7 @@ export class CampaignService {
    * event from the queue; a stale or unavailable choice changes nothing.
    */
   chooseEventOption(eventId: string, choiceId: string | null, world: CampaignWorld): CampaignTickResult {
-    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], outcome: null };
+    const result: CampaignTickResult = { changed: false, notices: [], reveals: [], wormholeStates: [], outcome: null };
     const session = this.session;
     const mission = this.definition;
     if (!session || !mission || session.pendingEvents[0] !== eventId) return result;
@@ -234,6 +238,7 @@ export class CampaignService {
     result.changed = true;
     result.notices = effects.notices;
     result.reveals = effects.reveals;
+    result.wormholeStates = effects.wormholeStates;
     if (session.outcome && !decidedBefore) {
       result.outcome = session.outcome;
       this.recordVictory(world);

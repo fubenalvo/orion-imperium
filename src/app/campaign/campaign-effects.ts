@@ -24,10 +24,12 @@ export interface EffectResult {
   horizonChanged: boolean;
   /* Areas StarMap marks as explored (it owns the explored cells). */
   reveals: { x: number; y: number; radius: number }[];
+  /* Wormhole state changes StarMap applies (it owns the wormholes). */
+  wormholeStates: { wormholeId: string; state: 'dormant' | 'active' }[];
 }
 
 export function emptyEffectResult(): EffectResult {
-  return { notices: [], events: [], horizonChanged: false, reveals: [] };
+  return { notices: [], events: [], horizonChanged: false, reveals: [], wormholeStates: [] };
 }
 
 export function applyEffects(effects: readonly Effect[] | undefined, session: CampaignSessionState, factions: readonly Faction[]): EffectResult {
@@ -41,6 +43,7 @@ export function mergeEffectResults(into: EffectResult, from: EffectResult): Effe
   into.events.push(...from.events);
   into.horizonChanged ||= from.horizonChanged;
   into.reveals.push(...from.reveals);
+  into.wormholeStates.push(...from.wormholeStates);
   return into;
 }
 
@@ -95,6 +98,9 @@ function applyEffect(effect: Effect, session: CampaignSessionState, factions: re
       }
       return;
     }
+    case 'wormhole_state':
+      result.wormholeStates.push({ wormholeId: effect.wormholeId, state: effect.state });
+      return;
     case 'reveal_area':
       result.reveals.push({ x: effect.x, y: effect.y, radius: effect.radius });
       return;

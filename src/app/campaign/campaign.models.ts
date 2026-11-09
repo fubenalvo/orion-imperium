@@ -89,6 +89,8 @@ export type Effect =
   | { kind: 'resources'; factionId: string; credits?: number; rawmaterials?: number; research?: number }
   | { kind: 'grant_technology'; factionId: string; technologyId: string }
   | { kind: 'reveal_technology'; technologyIds: string[]; factionId?: string }
+  /* Wakes or closes a wormhole (routes planned afterwards follow it; a transit under way still ends). */
+  | { kind: 'wormhole_state'; wormholeId: string; state: 'dormant' | 'active' }
   /* Marks the galaxy cells within `radius` of (x, y) as explored by the player. */
   | { kind: 'reveal_area'; x: number; y: number; radius: number }
   | { kind: 'end_mission'; endingId: string }
