@@ -12,15 +12,15 @@
 .new-game-setup {
   display: flex;
   flex-direction: column;
-  gap: 2vh;
-  max-height: 82vh;
+  gap: 2dvh;
+  max-height: 82dvh;
   overflow-y: auto;
   padding-right: 0.5em;
   text-align: left;
 
   @include landscape-view {
-    gap: 1vh;
-    max-height: 80vh;
+    gap: 1dvh;
+    max-height: 80dvh;
     font-size: 0.75em;
   }
 
@@ -34,7 +34,7 @@
 .setup-section {
   display: flex;
   flex-direction: column;
-  gap: 1vh;
+  gap: 1dvh;
 
   &__label {
     @include ui.section-label;
@@ -55,7 +55,7 @@
 .setup-field {
   display: flex;
   flex-direction: column;
-  gap: 0.5vh;
+  gap: 0.5dvh;
 }
 
 .galaxy-sizes {
@@ -110,7 +110,7 @@
 .player-list {
   display: flex;
   flex-direction: column;
-  gap: 0.8vh;
+  gap: 0.8dvh;
 }
 
 .player-row {

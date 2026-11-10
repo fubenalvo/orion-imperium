@@ -36,6 +36,12 @@
   inset: 0;
   display: block;
   overflow: hidden;
+  /* clip, not just hidden: an overflow: hidden box is still a scroll
+     container, and the decorative scene is far larger than the screen, so a
+     focus or scroll-into-view (e.g. a phone browser revealing a tapped
+     control) could scroll the whole menu off-center and leave it there.
+     `hidden` above is the fallback for browsers without `clip`. */
+  overflow: clip;
 
   --px: 0;
   --py: 0;
@@ -73,6 +79,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
+  overflow: clip; /* see :host */
   isolation: isolate;
   background:
     radial-gradient(ellipse 70% 60% at 85% 0%, #0d2233 0%, transparent 70%),
