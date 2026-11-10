@@ -154,10 +154,10 @@
 .planet-info,
 .asteroid-info {
   @include compact-view {
-    --ui-fs-xs: 0.62rem;
-    --ui-fs-sm: 0.68rem;
-    --ui-fs-md: 0.76rem;
-    --ui-fs-lg: 0.9rem;
+    --ui-fs-xs: 0.56rem;
+    --ui-fs-sm: 0.62rem;
+    --ui-fs-md: 0.68rem;
+    --ui-fs-lg: 0.8rem;
 
     .panel-style__title {
       gap: 0.5em;

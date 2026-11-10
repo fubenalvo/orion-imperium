@@ -76,3 +76,17 @@
 .fleet-customize .fleet-organize__label {
   white-space: nowrap;
 }
+
+/* Phones: the wide console tracking pushed the button hints and the order
+   hint past the narrow card (cut to "Near a Spacepo…"); tighten it. */
+@include compact-view {
+  .fleet-organize {
+    gap: 0.5em;
+    letter-spacing: 0.08em;
+  }
+
+  .fleet-organize__hint,
+  .fleet-info__order-hint {
+    letter-spacing: 0;
+  }
+}

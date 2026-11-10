@@ -181,8 +181,9 @@ In short:
   upgraded slot; the comparison (only changed values, better green / worse
   red, damage per second, damage type and profile, map-speed bonus and the
   fleet's map speed, with "(slowest engine)" when another ship holds the
-  fleet back). On screens under 1100 px the columns stack and the body
-  scrolls.
+  fleet back). On screens under 1100 px the sheet fills the screen;
+  landscape (phones are landscape-only) keeps the three columns, each
+  scrolling on its own, and portrait stacks them with the body scrolling.
 - **Tests:** `ship-customization.component.spec.ts` (view model and the
   screen flow), `star-map-production-panel.component.spec.ts` (EQUIPMENT
   tab), two button tests in `star-map-fleet-info.component.spec.ts`.

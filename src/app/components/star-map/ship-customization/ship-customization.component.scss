@@ -6,8 +6,11 @@
    Full-screen console sheet over the dimmed map: roster on the
    left (sunken), the hull blueprint with its three hardpoints in
    the middle (raised, blueprint grid), inventory and comparison
-   on the right (sunken). Columns stack on narrow screens; only
-   the body scrolls. See docs/ship-equipment.md (D) and
+   on the right (sunken). Below 1100px wide the sheet fills the
+   screen: landscape keeps the three columns (each scrolls on its
+   own; phones are landscape-only, see OrientationGateComponent),
+   portrait stacks them and the body scrolls. Phone-sized screens
+   take a denser type scale. See docs/ship-equipment.md (D) and
    docs/ui-styling.md. Keep mixin includes few (20 kB budget).
    ========================================================= */
 
@@ -569,26 +572,17 @@
 /* ---------- Narrow screens ---------- */
 
 @media (max-width: 1100px) {
+  .sc-overlay {
+    padding: 0;
+  }
+
   .sc {
     height: 100dvh;
     max-height: none;
   }
 
-  /* Stacked columns: rows take their content height and the body scrolls
-     (min-height: 0 would let the rows shrink and overlap). */
-  .sc__body {
-    grid-template-columns: 1fr;
-    grid-auto-rows: max-content;
-    overflow-y: auto;
-  }
-
-  .sc__roster,
-  .sc__side,
-  .sc__center {
-    min-height: auto;
-    overflow: visible;
-  }
-
+  /* Hardpoints: defense above the hull, engine and weapon under it, so the
+     hull keeps the full stage width. */
   .bp__stage {
     padding: 4.4em 1em 5.6em;
   }
@@ -602,5 +596,164 @@
     &::after {
       display: none;
     }
+  }
+}
+
+/* Landscape (phones, small windows): three columns on narrower minimums. */
+@media (max-width: 1100px) and (orientation: landscape) {
+  .sc__body {
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.45fr) minmax(0, 1fr);
+  }
+}
+
+/* Portrait: stacked columns; rows take their content height and the body
+   scrolls (min-height: 0 would let the rows shrink and overlap). */
+@media (max-width: 1100px) and (orientation: portrait) {
+  .sc__body {
+    grid-template-columns: 1fr;
+    grid-auto-rows: max-content;
+    overflow-y: auto;
+  }
+
+  .sc__roster,
+  .sc__side,
+  .sc__center {
+    min-height: auto;
+    overflow: visible;
+  }
+}
+
+/* Phone-sized screens (same breakpoint as the compact-view mixin): one more
+   step down the type scale and tight paddings, so a landscape phone shows
+   the roster, the blueprint and the inventory side by side. */
+@media (max-width: 900px), (max-height: 600px) {
+  .sc {
+    --ui-fs-xs: 0.56rem;
+    --ui-fs-sm: 0.62rem;
+    --ui-fs-md: 0.68rem;
+    --ui-fs-lg: 0.8rem;
+    --ui-fs-xl: 0.95rem;
+  }
+
+  .sc__header {
+    align-items: center;
+    gap: 0.8em;
+    padding: 6px 12px;
+  }
+
+  .sc__eyebrow {
+    letter-spacing: 0.16em;
+  }
+
+  .sc__title {
+    letter-spacing: 0.14em;
+  }
+
+  .sc__error {
+    margin: 6px 12px 0;
+  }
+
+  .sc__body {
+    gap: 8px;
+    padding: 8px 12px 10px;
+  }
+
+  .sc__roster,
+  .sc__side {
+    padding: 0.5em;
+  }
+
+  .sc__center {
+    gap: 0.5em;
+  }
+
+  .sc-group__label,
+  .sc-side__label {
+    margin: 0 0.1em 0.4em;
+  }
+
+  .sc-ship {
+    gap: 0.4em;
+    margin-bottom: 0.2em;
+    padding: 0.3em 0.4em;
+  }
+
+  .sc-ship__icon-box {
+    flex-basis: 2.2em;
+  }
+
+  .sc-ship__text {
+    gap: 0.2em;
+  }
+
+  .bp__stage {
+    min-height: 0;
+    padding: 4em 0.6em 4.6em;
+  }
+
+  .bp__ship {
+    max-height: 7em;
+  }
+
+  .bp-slot {
+    width: 7.4em;
+    padding: 0.35em 0.5em;
+  }
+
+  .bp-slot--engine {
+    left: 0.5em;
+  }
+
+  .bp-slot--weapon {
+    right: 0.5em;
+  }
+
+  .bp-slot--engine,
+  .bp-slot--weapon {
+    bottom: 0.5em;
+  }
+
+  .bp-slot--defense {
+    top: 0.5em;
+  }
+
+  .bp-slot__label {
+    letter-spacing: 0.14em;
+  }
+
+  .bp__caption {
+    gap: 0.4em 0.8em;
+    padding: 0.4em 0.6em;
+  }
+
+  /* These two inherit the sheet's base size, which is too large here. */
+  .bp__name,
+  .sc-compare__title {
+    font-size: var(--ui-fs-md);
+    letter-spacing: 0.12em;
+  }
+
+  .sc-stats {
+    grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+    gap: 0.2em 0.8em;
+    padding: 0.45em 0.6em;
+  }
+
+  .sc-module {
+    gap: 0.15em 0.5em;
+    padding: 0.4em 0.5em;
+  }
+
+  .sc-compare {
+    margin-top: 0.6em;
+    padding: 0.5em;
+  }
+
+  .sc-compare__text,
+  .sc-compare__cost,
+  .sc-compare__blocker,
+  .sc__hint {
+    margin: 0.35em 0;
+    line-height: 1.35;
   }
 }

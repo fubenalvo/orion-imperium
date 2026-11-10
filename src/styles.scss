@@ -142,14 +142,16 @@
 
 /* Small or short viewports (phones, landscape phones, small windows): one
    step down the type scale. Every design-system text size reads these
-   tokens, so panels shrink as a whole instead of per component. */
+   tokens, so panels shrink as a whole instead of per component. Values
+   lowered again on 2026-11-10: on landscape phones (~844×390) panel rows
+   wrapped and labels were cut off at the previous step. */
 @media (max-width: 900px), (max-height: 600px) {
   :root {
-    --ui-fs-xs: 0.62rem;
-    --ui-fs-sm: 0.68rem;
-    --ui-fs-md: 0.76rem;
-    --ui-fs-lg: 0.92rem;
-    --ui-fs-xl: 1.15rem;
+    --ui-fs-xs: 0.58rem;
+    --ui-fs-sm: 0.64rem;
+    --ui-fs-md: 0.72rem;
+    --ui-fs-lg: 0.86rem;
+    --ui-fs-xl: 1.05rem;
     --ui-edge: 12px;
   }
 }
