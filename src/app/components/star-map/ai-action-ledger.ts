@@ -56,6 +56,7 @@ export const AI_ACTION_KINDS = {
   equipment_installed: 'military',
   pipeline_fleet_action: 'military',
   dyson_fleet_order: 'military',
+  campaign_site_order: 'military',
   legacy_pursuit: 'military',
   tech_purchased: 'research',
   colonizer_queued: 'expansion',

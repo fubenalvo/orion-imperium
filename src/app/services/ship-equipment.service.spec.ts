@@ -18,6 +18,7 @@ import { ResearchService } from './research.service';
 import { SAVE_VERSION, validateSaveData } from './save-validation';
 import { ShipEquipmentService } from './ship-equipment.service';
 import { SpaceportService } from './spaceport.service';
+import researchTreeData from '../components/star-map/research-tree.json';
 
 /*
  * Phase 5 of docs/ship-equipment.md: modules are built in Spaceship
@@ -79,9 +80,14 @@ describe('equipment unlocks (research)', () => {
   });
 
   it('unlocks every upgrade module by exactly one technology, and no standard module', () => {
+    // The whole tree: campaign-only technologies (the ancient Remnant Drive) count too.
+    const tree = (researchTreeData as { technologies: { id: string; campaignOnly?: boolean; unlocksEquipment?: string[] }[] }).technologies;
     for (const module of getUpgradeModules()) {
-      const techs = research.getAllTechnologies().filter((t) => (t.unlocksEquipment ?? []).includes(module.id));
+      const techs = tree.filter((t) => (t.unlocksEquipment ?? []).includes(module.id));
       expect(techs.length, module.id).toBe(1);
+      // Outside a campaign a campaign-only module has no unlock at all.
+      const skirmish = research.getAllTechnologies().filter((t) => (t.unlocksEquipment ?? []).includes(module.id));
+      expect(skirmish.length, module.id).toBe(techs[0].campaignOnly ? 0 : 1);
     }
     expect(research.getValidationErrors()).toEqual([]);
   });

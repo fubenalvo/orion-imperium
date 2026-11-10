@@ -59,6 +59,17 @@
       "price": { "credits": 500, "rawmaterials": 300 }
     },
     {
+      "id": "remnant_drive",
+      "name": "Remnant Drive",
+      "slot": "engine",
+      "description": "Ancient fold drive: far faster between stars and a little faster in battle.",
+      "modifiers": [
+        { "stat": "strategicSpeed", "add": 1.6 },
+        { "stat": "battleSpeed", "add": 0.3 }
+      ],
+      "price": { "credits": 800, "rawmaterials": 400 }
+    },
+    {
       "id": "missile_launcher",
       "name": "Missile Launcher",
       "slot": "weapon",

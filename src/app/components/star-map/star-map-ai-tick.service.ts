@@ -16,6 +16,7 @@ import { EnemyIntelService } from './enemy-intel.service';
 import { EnemyMiningService } from './enemy-mining.service';
 import { EnemyEquipmentService } from './enemy-equipment.service';
 import { EnemyDysonService } from './enemy-dyson.service';
+import { EnemyCampaignService } from './enemy-campaign.service';
 import { isCivilianMissionFleet } from './space-base';
 import { Battle } from '../battle-screen/battle/battle.types';
 import { Faction, FactionEquipmentInventory, FactionProduction, FactionShipStock, Fleet, StarSystem, getAiFactionIds } from './star-map.models';
@@ -86,6 +87,7 @@ export class StarMapAiTickService {
     private enemyMiningService: EnemyMiningService,
     private enemyEquipmentService: EnemyEquipmentService,
     private enemyDysonService: EnemyDysonService,
+    private enemyCampaignService: EnemyCampaignService,
     private openingGrace: OpeningGraceService,
     private actionLedger: AiActionLedger,
     private adaptiveDifficulty: AiAdaptiveDifficultyService,
@@ -335,6 +337,8 @@ export class StarMapAiTickService {
       }
       // Dyson Swarm: build anchors, hunt a rival's anchors, guard own ones.
       economyChanged = this.enemyDysonService.tick(gameDeltaTime, faction, data, pipelineFleetIds) || economyChanged;
+      // Campaign sites (docs/campaign-design.md): a no-op outside a mission with AI directives.
+      economyChanged = this.enemyCampaignService.tick(gameDeltaTime, faction, data, pipelineFleetIds, data.gameSeconds ?? 0) || economyChanged;
     }
 
     // Deadlock detection last, with the state every layer produced this frame.
@@ -386,6 +390,7 @@ export class StarMapAiTickService {
     this.enemyMiningService.reset();
     this.enemyEquipmentService.reset();
     this.enemyDysonService.reset();
+    this.enemyCampaignService.reset();
     this.colonizationAccumulators.clear();
     this.actionLedger.reset();
     this.adaptiveDifficulty.reset();
@@ -433,8 +438,9 @@ export class StarMapAiTickService {
    *  - every AI fleet carrying a living colonizer, so a colonization
    *    run is never diverted into a chase between action ticks;
    *  - every AI fleet carrying a living outpost ship (EnemyMiningService)
-   *    or Swarm Constructor, and every fleet on a Dyson order
-   *    (EnemyDysonService).
+   *    or Swarm Constructor, every fleet on a Dyson order
+   *    (EnemyDysonService) and every fleet on a campaign site order
+   *    (EnemyCampaignService).
    */
   private getReservedFleetIds(fleets: Fleet[], factions: Faction[]): Set<number> {
     const reserved = new Set<number>();
@@ -455,6 +461,7 @@ export class StarMapAiTickService {
       }
     }
     for (const fleetId of this.enemyDysonService.getOrderedFleetIds()) reserved.add(fleetId);
+    for (const fleetId of this.enemyCampaignService.getOrderedFleetIds()) reserved.add(fleetId);
     return reserved;
   }
 }

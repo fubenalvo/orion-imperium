@@ -70,6 +70,7 @@ Measurement only: `ai-action-ledger.ts` counts the meaningful actions each AI fa
 | | `fleet_to_reserve` | `reserveWeakestIdleFleet` accepted |
 | | `pipeline_fleet_action` | executor `reinforce_fleet`, `create_fleet`, `attack`, `defend`, and `move_to_target` for attack/defend goals (once per fleet + target, not per re-aim) |
 | | `dyson_fleet_order` | `EnemyDysonService` hunt or guard order created |
+| | `campaign_site_order` | `EnemyCampaignService` claim or guard order created |
 | | `legacy_pursuit` | `EnemyAiService` acquires a new pursuit target (dormant layer) |
 | research | `tech_purchased` | `EnemyResearchService`, accepted purchase |
 | expansion | `colonizer_queued`, `colonizer_assembled`, `colonizer_dispatched`, `colonized` | executor `produce_colonizer`, `assemble_fleet`, `move_to_target` (colonize goal), `colonize` |
@@ -182,6 +183,7 @@ Exactly one subsystem writes each AI fleet's `targetX/targetY`:
 | carries a living colonizer, or is the fleet of a current `move_to_target` / `defend` action (`StarMapAiTickService.getReservedFleetIds`) | `EnemyActionExecutor` (strategic pipeline) |
 | carries a living outpost ship (also reserved by `getReservedFleetIds`; skipped by fleet roles, warship deployment, fleet selection for goals and the stuck-fleet recovery) | `EnemyMiningService` (asteroid mining) |
 | carries a living Swarm Constructor, or holds a Dyson hunt / guard order (`EnemyDysonService.getOrderedFleetIds`; reserved and skipped the same way, `isCivilianMissionFleet`) | `EnemyDysonService` ([Dyson Swarm](./dyson-swarm.md#ai)) |
+| holds a campaign site order (`EnemyCampaignService.getOrderedFleetIds`, reserved the same way; campaign missions with `aiDirectives` only) | `EnemyCampaignService` ([Campaign Design](./campaign-design.md#implementation-status)) |
 | every other AI fleet | `EnemyFleetService` (roles below) |
 | anything neither manages | `EnemyAiService` legacy pursuit (15-cell acquire range, only clears targets it set) |
 

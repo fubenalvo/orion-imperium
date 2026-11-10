@@ -135,6 +135,18 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
       const relation = holder?.relations?.[condition.against];
       return relation?.state === 'war' && (relation.warExhaustion ?? 0) >= condition.value;
     }
+    case 'site_claimed': {
+      const claimant = session.sites?.[condition.siteId]?.claimedBy;
+      return !!claimant && (condition.factionId === undefined || claimant === condition.factionId);
+    }
+    case 'sites_claimed': {
+      const isAi = (id: string) => world.factions.find((f) => f.id === id)?.ai === true;
+      const claimed = condition.siteIds.filter((id) => {
+        const claimant = session.sites?.[id]?.claimedBy;
+        return !!claimant && (condition.anyAi ? isAi(claimant) : claimant === (condition.factionId ?? 'player'));
+      }).length;
+      return claimed >= condition.count;
+    }
     case 'base_destroyed':
       return !(world.spaceBases ?? []).some((b) => b.name === condition.name);
     case 'anomaly_resolved': {
@@ -174,6 +186,7 @@ export function objectiveProgress(def: ObjectiveDef, world: CampaignWorld, sessi
   if (progress.metric === 'population') current = Math.floor(playerPopulation(world));
   else if (progress.metric === 'planets_owned') current = ownedPlanetCount(world, 'player');
   else if (progress.metric === 'systems_charted') current = chartedSystemCount(world);
+  else if ('site' in progress.metric) current = Math.floor(session.sites?.[progress.metric.site]?.progress['player'] ?? 0);
   else current = session.values[progress.metric.value] ?? 0;
   return { current: Math.min(current, progress.target), target: progress.target };
 }
@@ -225,6 +238,11 @@ function completeBuildingCount(world: CampaignWorld, buildingId: string, planetN
     }
   }
   return count;
+}
+
+/* Living warships of a fleet (not scouts, colonizers, outpost ships or Swarm Constructors). */
+export function livingWarships(fleet: Fleet): number {
+  return fleet.ships.filter((s) => s.destroyed !== true && isCombatShipType(SHIP_TYPES.get(s.type))).length;
 }
 
 function fleetMatches(fleet: Fleet, condition: Extract<Condition, { kind: 'fleet_at' | 'fleet_with' }>): boolean {

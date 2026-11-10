@@ -843,6 +843,7 @@ and the defense keeps the hull's profile. Not buildable, no price.
 | Ion Engine | +0.5 | +0.5 | −20 °/s (wide turns) | 150 / 100 | Ion Drives |
 | Fusion Engine | 0 | +0.3 | +60 °/s (agile) | 300 / 200 | Fusion Drives |
 | Warp Drive | +1 | −0.3 | 0 | 500 / 300 | Warp Field Theory |
+| Remnant Drive | +1.6 | +0.3 | 0 | 800 / 400 | Remnant Drive (ancient, campaign only: granted by a Mission 6 archive) |
 
 Effect examples: Ion on a scout (speed 5) +10%, on a dreadnought (speed 1)
 +50%; Fusion turn rate on a fighter (240 °/s) +25%, on a dreadnought

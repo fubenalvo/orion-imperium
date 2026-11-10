@@ -456,6 +456,54 @@
       "unlocksShips": [],
       "unlocksBuildings": [],
       "unlocksEquipment": ["advanced_shield_generator"]
+    },
+    {
+      "id": "remnant_sensor_lattice",
+      "name": "Remnant Sensor Lattice",
+      "description": "Ancient. A lattice of Remnant sensor nodes woven into every array: sensor range +2. Recovered from a Remnant archive; it cannot be researched.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "sensorRange", "value": 2 }],
+      "campaignOnly": true,
+      "ancient": true
+    },
+    {
+      "id": "remnant_drive",
+      "name": "Remnant Drive",
+      "description": "Ancient. The Remnant's fold drive, rebuilt for our hulls. Unlocks the Remnant Drive module. Recovered from a Remnant archive; it cannot be researched.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "unlocksEquipment": ["remnant_drive"],
+      "campaignOnly": true,
+      "ancient": true
+    },
+    {
+      "id": "remnant_shield_matrix",
+      "name": "Remnant Shield Matrix",
+      "description": "Ancient. Remnant field geometry for capital-class shields: +20% shield on medium and heavy hulls. Recovered from a Remnant archive; it cannot be researched.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "shipShield", "value": 0.2, "shipTypes": ["frigate", "destroyer", "cruiser", "carrier", "battleship", "battlecruiser", "dreadnought"] }],
+      "campaignOnly": true,
+      "ancient": true
+    },
+    {
+      "id": "remnant_aegis_grid",
+      "name": "Aegis Grid",
+      "description": "Ancient. Remnant point-defense emitters for stations: +1 turret on every space base and mining station. Recovered from a Remnant archive; it cannot be researched.",
+      "researchCost": 0,
+      "prerequisites": [],
+      "unlocksShips": [],
+      "unlocksBuildings": [],
+      "bonuses": [{ "type": "stationTurrets", "value": 1 }],
+      "campaignOnly": true,
+      "ancient": true
     }
   ]
 }

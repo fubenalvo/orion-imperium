@@ -43,7 +43,8 @@ export type FlagValue = string | number | boolean;
  * - war_declared / peace_signed: the other side of the player's treaty;
  * - demand_paid / demand_refused: the empire that demanded from the player;
  * - planet_lost: the player's planet now owned by that faction (any reason);
- * - trader_lost: a player trader destroyed in a raid, by the raider's faction.
+ * - trader_lost: a player trader destroyed in a raid, by the raider's faction;
+ * - site_claimed: a campaign site claimed, by the claimant (any faction).
  */
 export type CampaignEventKind =
   | 'battle_won'
@@ -57,7 +58,8 @@ export type CampaignEventKind =
   | 'demand_paid'
   | 'demand_refused'
   | 'planet_lost'
-  | 'trader_lost';
+  | 'trader_lost'
+  | 'site_claimed';
 
 /*
  * Conditions are evaluated once per economy tick (1 s of game time) and on
@@ -100,6 +102,10 @@ export type Condition =
   | { kind: 'systems_controlled'; systemIds: string[]; count: number; factionId?: string }
   /* `holder`'s war exhaustion in its war with `against` (0 at peace). */
   | { kind: 'war_exhaustion_at_least'; holder: string; against: string; value: number }
+  /* A campaign site was claimed (by this faction, or by anyone). */
+  | { kind: 'site_claimed'; siteId: string; factionId?: string }
+  /* At least `count` of these sites are claimed by the faction (default the player). */
+  | { kind: 'sites_claimed'; siteIds: string[]; count: number; factionId?: string; anyAi?: boolean }
   /* A campaign anomaly (by its mission key) was resolved, optionally with this choice. */
   | { kind: 'anomaly_resolved'; key: string; choiceId?: string }
   | { kind: 'opinion_at_least'; holder: string; of: string; value: number }
@@ -158,7 +164,8 @@ export type Effect =
 export interface ProgressDef {
   label: string;
   /* What the tracker shows as "current / target"; computed from the world. */
-  metric: 'population' | 'planets_owned' | 'systems_charted' | { value: string };
+  /* `{ site }`: the player's hold progress at a campaign site, in seconds. */
+  metric: 'population' | 'planets_owned' | 'systems_charted' | { value: string } | { site: string };
   target: number;
 }
 
@@ -382,8 +389,51 @@ export interface MissionDefinition {
    * `cap` is the highest value a source can raise the key to.
    */
   valueSources?: ValueSource[];
+  /* Claimable places (Mission 6's Remnant archives and the Lacuna core). */
+  sites?: CampaignSiteDef[];
+  /* AI behavior toward the sites (EnemyCampaignService). */
+  aiDirectives?: CampaignAiDirective[];
   /* Tutorial steps that make no sense here (tutorial-steps.ts ids), e.g. 'diplomacy' without empires. */
   tutorialExcludedSteps?: string[];
+}
+
+/*
+ * A campaign site (docs/campaign-design.md §13, Mission 6): a place an
+ * empire claims by holding it. A faction with a fleet of at least
+ * `minWarships` living warships within `radius` cells gains hold seconds
+ * while no hostile fleet or hostile space base (a Remnant guardian) is
+ * within the radius; absent factions lose progress twice as fast. At
+ * `holdSeconds` the faction claims it: `grantTechnology` goes to the
+ * claimant, then `onClaim` effects (by claimant id, '*' for anyone).
+ * Sites are claimed once; `activeWhen` keeps a site closed until true.
+ */
+export interface CampaignSiteDef {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  radius: number;
+  holdSeconds: number;
+  minWarships: number;
+  activeWhen?: Condition;
+  grantTechnology?: string;
+  onClaim?: Record<string, Effect[]>;
+}
+
+/*
+ * What an AI empire does about a campaign site (EnemyCampaignService):
+ * 'claim' sends its strongest free fleet with `minWarships` warships once
+ * the game clock passes `after` and a battle forecast against the site's
+ * guardians leaves at least `minSurvival` of it alive; 'guard' parks a
+ * fleet on a site it holds.
+ */
+export interface CampaignAiDirective {
+  factionId: string;
+  siteId: string;
+  mode: 'claim' | 'guard';
+  after?: number;
+  minWarships?: number;
+  minSurvival?: number;
 }
 
 export type ValueSource =
@@ -400,6 +450,13 @@ export interface ContactOverride {
 }
 
 /* ---------- Runtime state (saved) ---------- */
+
+export interface CampaignSiteState {
+  progress: Record<string, number>;
+  claimedBy?: string;
+  /* `activeWhen` held at the last tick (sites without it are always active). */
+  active?: boolean;
+}
 
 export interface TributePactState {
   receiver: string;
@@ -452,6 +509,8 @@ export interface CampaignSessionState {
   playerPlanets?: string[];
   /* Planets no AI may assault (`protect_planet`), with the empires exempted. */
   protectedPlanets?: { planetName: string; except?: string[] }[];
+  /* Campaign site state by site id: hold seconds per faction, and the claimant once claimed. */
+  sites?: Record<string, CampaignSiteState>;
   outcome?: CampaignOutcome;
 }
 

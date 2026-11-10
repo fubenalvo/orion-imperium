@@ -31,6 +31,7 @@ const MAX_PLANETS_PER_SYSTEM = 6;
 interface TechnologyData {
   id: string;
   prerequisites: string[];
+  ancient?: boolean;
 }
 
 const TECHNOLOGIES = new Map(
@@ -160,6 +161,9 @@ export function validateMission(mission: MissionDefinition): string[] {
     }
   };
   checkHorizon(horizon, 'research horizon');
+  for (const id of [...horizon, ...Object.values(mission.horizonExtras ?? {}).flat()]) {
+    if (TECHNOLOGIES.get(id)?.ancient) err(`ancient technology "${id}" can only be granted, never be in a research horizon`);
+  }
   for (const id of mission.baselineTechnologies) if (!horizon.has(id)) err(`baseline technology "${id}" is outside the horizon`);
   for (const [factionId, extras] of Object.entries(mission.horizonExtras ?? {})) {
     if (!factionIds.has(factionId)) err(`horizon extras for unknown faction "${factionId}"`);
@@ -202,8 +206,21 @@ export function validateMission(mission: MissionDefinition): string[] {
     }
   }
 
+  const siteIds = new Set<string>();
+  for (const site of mission.sites ?? []) {
+    if (siteIds.has(site.id)) err(`duplicate site id "${site.id}"`);
+    siteIds.add(site.id);
+    if (site.radius < 0 || site.holdSeconds <= 0 || site.minWarships < 1) err(`site "${site.id}" needs radius ≥ 0, holdSeconds > 0 and minWarships ≥ 1`);
+    if (site.grantTechnology !== undefined && !TECHNOLOGIES.has(site.grantTechnology)) err(`site "${site.id}" grants unknown technology "${site.grantTechnology}"`);
+    for (const key of Object.keys(site.onClaim ?? {})) if (key !== '*' && !factionIds.has(key)) err(`site "${site.id}" has claim effects for unknown faction "${key}"`);
+  }
+  for (const directive of mission.aiDirectives ?? []) {
+    if (map.factions.find((f) => f.id === directive.factionId)?.kind !== 'ai') err(`AI directive for "${directive.factionId}", which is not an AI empire`);
+    if (!siteIds.has(directive.siteId)) err(`AI directive for unknown site "${directive.siteId}"`);
+  }
+
   const heldIds = new Set<string>();
-  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds, anomalyKeys, wormholeIds, baseNames };
+  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds, anomalyKeys, wormholeIds, baseNames, siteIds };
   for (const objective of mission.objectives) {
     for (const id of objective.after ?? []) if (!objectiveIds.has(id)) err(`objective "${objective.id}" waits for unknown "${id}"`);
     checkCondition(objective.condition, refs, err);
@@ -220,6 +237,10 @@ export function validateMission(mission: MissionDefinition): string[] {
     }
   }
   for (const ending of mission.endings) checkCondition(ending.condition, refs, err);
+  for (const site of mission.sites ?? []) {
+    if (site.activeWhen) checkCondition(site.activeWhen, refs, err);
+    for (const effects of Object.values(site.onClaim ?? {})) checkEffects(effects, refs, err);
+  }
   for (const restraint of mission.aiRestraint ?? []) {
     if (map.factions.find((f) => f.id === restraint.factionId)?.kind !== 'ai') err(`AI restraint for "${restraint.factionId}", which is not an AI empire`);
     if (restraint.target !== undefined && !factionIds.has(restraint.target)) err(`AI restraint against unknown faction "${restraint.target}"`);
@@ -282,6 +303,7 @@ interface Refs {
   anomalyKeys: Set<string>;
   wormholeIds: Set<string>;
   baseNames: Set<string>;
+  siteIds: Set<string>;
 }
 
 function checkCondition(condition: Condition, refs: Refs, err: (message: string) => void): void {
@@ -359,6 +381,14 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
       return;
     case 'base_destroyed':
       if (!refs.baseNames.has(condition.name)) err(`condition references unknown space base "${condition.name}"`);
+      return;
+    case 'site_claimed':
+      if (!refs.siteIds.has(condition.siteId)) err(`condition references unknown site "${condition.siteId}"`);
+      if (condition.factionId !== undefined) faction(condition.factionId);
+      return;
+    case 'sites_claimed':
+      for (const id of condition.siteIds) if (!refs.siteIds.has(id)) err(`condition references unknown site "${id}"`);
+      if (condition.factionId !== undefined) faction(condition.factionId);
       return;
     case 'held_for':
       // Timers are keyed by id: two conditions sharing one would share a timer.

@@ -86,6 +86,12 @@ export interface Technology {
    * Missing = false.
    */
   campaignOnly?: boolean;
+  /*
+   * Ancient (Remnant) technology: campaign-only and owned only through a
+   * grant (a claimed campaign site); never in a mission's research horizon,
+   * so nobody can research it (validated). Missing = false.
+   */
+  ancient?: boolean;
 }
 
 /*
@@ -913,7 +919,7 @@ export interface TradeNetworkState {
  * story anomalies (docs/campaign-design.md): authored by missions only,
  * never generated (they are not in ANOMALY_TYPES).
  */
-export type AnomalyType = 'ancient_wreck' | 'distress_signal' | 'pirate_trap' | 'derelict_outpost' | 'probe_wreck' | 'echo_beacon' | 'relay_signal';
+export type AnomalyType = 'ancient_wreck' | 'distress_signal' | 'pirate_trap' | 'derelict_outpost' | 'probe_wreck' | 'echo_beacon' | 'relay_signal' | 'lacuna_station';
 
 /*
  * Where an anomaly waits. `x`/`y` is always the galaxy cell that is checked

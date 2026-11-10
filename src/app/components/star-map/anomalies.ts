@@ -126,6 +126,55 @@ export const ANOMALY_CONFIG = {
 
 export const ANOMALY_DEFINITIONS: Record<AnomalyType, AnomalyDefinition> = {
   /*
+   * Campaign, Mission 6: the abandoned Lacuna research station. Both
+   * choices chart the three Remnant archives (the mission's site cells) and
+   * set the flag the mission reads; studying the logs is also worth research.
+   */
+  lacuna_station: {
+    name: 'Lacuna Station',
+    category: 'Story',
+    description:
+      'A research station, older than every empire on the Frontier, hangs dark over Lacuna. Its last log ' +
+      'points to three Remnant archives, and to a sealed core beneath the station itself.',
+    choices: [
+      {
+        id: 'download',
+        label: 'Download the archive coordinates',
+        effects: [
+          {
+            kind: 'campaign',
+            summary: 'Charts the three Remnant archives',
+            effects: [
+              { kind: 'flag', flag: 'm6_station', value: true },
+              { kind: 'reveal_area', x: 124, y: 36, radius: 4 },
+              { kind: 'reveal_area', x: 200, y: 128, radius: 4 },
+              { kind: 'reveal_area', x: 80, y: 94, radius: 4 },
+            ],
+          },
+        ],
+        outcome: 'Three positions light up on the star chart. Every empire on the Frontier will want them.',
+      },
+      {
+        id: 'study',
+        label: 'Study the station logs first',
+        effects: [
+          { kind: 'resource', resource: 'research', amount: 300 },
+          {
+            kind: 'campaign',
+            summary: 'Charts the three Remnant archives',
+            effects: [
+              { kind: 'flag', flag: 'm6_station', value: true },
+              { kind: 'reveal_area', x: 124, y: 36, radius: 4 },
+              { kind: 'reveal_area', x: 200, y: 128, radius: 4 },
+              { kind: 'reveal_area', x: 80, y: 94, radius: 4 },
+            ],
+          },
+        ],
+        outcome: 'The logs describe a network that was switched off on purpose. The coordinates are at the end.',
+      },
+    ],
+  },
+  /*
    * Campaign, Mission 1 (docs/campaign-design.md): the lost survey probe.
    * Both choices chart the lens at Kepler Deep (reveal_area) and set the
    * flag the mission's objective chain reads.

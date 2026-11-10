@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a, 1b, 2, 3, 3b, 4a, 4b, 5 and 6 implemented** (the campaign engine, its UI, Missions 1–5, wormhole transit, first contact in every game mode, the `mercantile` personality, see
+Status: **Phases 1a, 1b, 2, 3, 3b, 4a, 4b, 5, 6 and 7 implemented** (the campaign engine, its UI, Missions 1–6, wormhole transit, first contact in every game mode, the `mercantile` personality, campaign sites and `EnemyCampaignService`, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -213,7 +213,54 @@ Implemented subset and deviations from the design below:
   - Varkon declared war on the passive player.
 - Tests: `missions/m5-border-conflict.spec.ts` (map counts, the personality kept out of generated games, routes into the Reach, the war at minute 10 or 15 and the restraint before it, the cold League after market dominance, the mediator, opportunist and ally endings, both defeats).
 
-**Next:** Phase 7 (Mission 6: The Silent Remnant — campaign sites, `EnemyCampaignService`, ancient technologies).
+**Phase 7 — Mission 6 "The Silent Remnant" (done, 2026-11-10).** `campaign/missions/m6-silent-remnant.ts`, requires Mission 5.
+
+- **Campaign sites** (`campaign-sites.ts`, pure; `MissionDefinition.sites`, `CampaignSessionState.sites`):
+  - a faction is present with a fleet of `minWarships` living warships (not in a wormhole) within `radius` cells;
+  - a hostile fleet or a hostile space base within the radius contests it: Remnant warden platforms are outlaw bases, hostile to everyone, so a site cannot be claimed while its warden stands;
+  - uncontested presence adds hold seconds, absence removes twice as many;
+  - at `holdSeconds` the site is claimed for good. The claimant gets `grantTechnology`, then `onClaim[claimant]` (or `'*'`), and the session flag `site:<id>`;
+  - `activeWhen` keeps a site sealed until true.
+
+  Conditions `site_claimed` and `sites_claimed` (`anyAi` counts AI claimants). Tracker progress `{ site }` (the player's hold seconds). Galaxy markers: an amber diamond with a progress ring, the claimant's color once claimed, grey while sealed (`StarMap.campaignSiteViews`, explored cells only).
+- **`EnemyCampaignService`** (`components/star-map/`): it reads the mission's `aiDirectives` (`claim` / `guard`, `after`, `minWarships`, `minSurvival`).
+  - A claim sends the strongest free combat fleet whose battle forecast against the site's hostile bases (`EnemyInvasionService.forecastFleetBattle`) leaves `minSurvival` alive.
+  - A guard parks the second-strongest free fleet on a site the faction holds.
+  - Its fleets are reserved like Dyson orders (`StarMapAiTickService.getReservedFleetIds`). Orders end when the site is claimed or lost, or the fleet has no warship left.
+  - In-memory state, reset on load. Ledger action `campaign_site_order`.
+- **Ancient technologies** (`research-tree.json`, `campaignOnly` + new `ancient`; [Research](./research.md)), granted only, never in a horizon (validated):
+  - Remnant Sensor Lattice (sensor range +2);
+  - Remnant Drive (the new Remnant Drive engine module: map speed +1.6, battle +0.3);
+  - Remnant Shield Matrix (+20% shield on frigates and heavier hulls);
+  - Aegis Grid (+1 station turret).
+- **Map** (270×162; 13 systems, 28 planets, 7 inhabited):
+  - the player's Carrow (west), Concord Spire (north), Varkos Deep and the colony Dravik (Varkon, south-east), Meridian Gate (east);
+  - Sela and Oruun (civilizations), Lacuna (centre) with the **Lacuna Station** story anomaly (new type `lacuna_station`: charts the archives);
+  - the archives with their wardens: I north (124, 36), II south-east inside a nebula (200, 128), III west behind a belt (80, 94);
+  - the dormant single-mouth Lacuna Gate.
+
+  The spec checks the fair race on navigation routes: each empire's nearest archive within ±15% of the mean (player 49, Concordium 43, Varkon 41 cells), and the player's second-nearest no farther than Varkon's (106 vs 113).
+- **AI directives:**
+  - Varkon: archive II from minute 5 (bold, `minSurvival` 0.25), then guards it; archive I from minute 25, III from minute 30;
+  - the Concordium: archive I from minute 20, cautious (`minSurvival` 0.6);
+  - the League: none. It offers to buy the player's surveys instead (2,500 credits, story choice).
+- **Objectives:**
+  - investigate Lacuna Station;
+  - claim 2 archives;
+  - open the Lacuna core (90 s, open once the player holds 2 archives; it grants Aegis Grid, reveals Stellar Engineering in the player's horizon and wakes the Lacuna Gate).
+
+  Optional: all three archives; record the dormant gate (60 s, +600 research); stay at peace with the Concordium.
+- **Ending:** *The Silent Remnant*, after the Observers' message and the sharing choice (`m6_shared_with`: concordium / league / observers / none), recording `site:archive_1..3`. Defeat: two archives in AI hands, or the core opened by someone else.
+- **Deviations from §6:**
+  - Aegis Grid is a station-turret bonus, not a new planetary building (a building needs sprites and surface rules);
+  - the wardens are bases only, without sentinel fleets;
+  - "AI factions start M7 with the ancient technologies they claimed" is recorded through `site:<id>`; granting them is for the Mission 7 builder.
+- **Measured** (`m6-silent-remnant.long.spec.ts`, Normal, no player action):
+  - Varkon claims archive II at minute 10 and the Concordium archive I at minute 25, so the passive run ends in the defeat at minute 25: a player has about 25 minutes for two archives;
+  - no fleet on a campaign order was steered elsewhere (checked every frame).
+- Tests: `campaign-sites.spec.ts` (presence, contest by a warden or a hostile fleet, decay, claim once), `missions/m6-silent-remnant.spec.ts` (map counts, ancient technologies invisible in a skirmish, the fair race, the station charting the archives, a warden blocking the claim, the claim's technology, the core and the sharing choice, the defeat, Varkon's directive).
+
+**Next:** Phase 8 (Mission 7: The New Frontier — the finale on the Lacuna Heart Dyson ring).
 
 ---
 

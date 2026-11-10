@@ -334,6 +334,25 @@
       </div>
     }
 
+    <!-- CAMPAIGN SITES: a diamond with a progress ring; claimed sites take the claimant's color, closed ones are grey. -->
+    @for (site of campaignSites; track site.id) {
+      <div
+        class="campaign-site"
+        [class.campaign-site--closed]="!site.active"
+        [class.campaign-site--claimed]="!!site.claimedBy"
+        [style.gridColumn]="site.x"
+        [style.gridRow]="site.y"
+        [style.--site-color]="site.color"
+        [style.--site-progress]="site.progress"
+        [attr.title]="site.name + (site.claimedBy ? ' — claimed by ' + site.claimedBy : site.active ? ' — hold it to claim' : ' — sealed')"
+        aria-hidden="true"
+      >
+        <span class="campaign-site__ring"></span>
+        <span class="campaign-site__core"></span>
+        <span class="campaign-site__label">{{ site.name }}</span>
+      </div>
+    }
+
     <!-- WORMHOLE MOUTHS (campaign): a turning ring on the mouth's cell; dormant ones are grey. -->
     @for (mouth of wormholes; track mouth.key) {
       <div

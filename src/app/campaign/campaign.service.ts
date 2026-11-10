@@ -12,12 +12,17 @@ import {
   ObjectiveDef,
   ObjectiveState,
   StoryEventDef,
+  CampaignAiDirective,
+  CampaignSiteDef,
+  CampaignSiteState,
   TributePactState,
   ValueSource,
 } from './campaign.models';
 import { CampaignWorld, evaluateCondition, objectiveProgress } from './campaign-objectives';
 import { CampaignDiplomacyAction, EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } from './campaign-effects';
 import { getRelation, inContact } from '../components/star-map/diplomacy';
+import { advanceSite, emptySiteState } from './campaign-sites';
+import { livingWarships } from './campaign-objectives';
 
 /*
  * =========================================================
@@ -184,6 +189,19 @@ export class CampaignService {
     return (this.definition?.aiRestraint ?? []).some((r) => r.factionId === aiId && (r.target ?? 'player') === otherId && !flagSet(r.untilFlag));
   }
 
+  /* The mission's campaign sites with their live state (EnemyCampaignService, the map markers). */
+  siteEntries(): { def: CampaignSiteDef; state: CampaignSiteState }[] {
+    const session = this.session;
+    if (!session || !this.definition?.sites) return [];
+    return this.definition.sites.map((def) => ({ def, state: (session.sites ??= {})[def.id] ??= emptySiteState() }));
+  }
+
+  /* AI directives for one faction (MissionDefinition.aiDirectives). */
+  aiDirectivesFor(factionId: string): CampaignAiDirective[] {
+    if (!this.session || this.session.outcome) return [];
+    return (this.definition?.aiDirectives ?? []).filter((d) => d.factionId === factionId);
+  }
+
   /* Is this planet protected from assaults by the AI `attackerId` (`protect_planet`)? */
   protects(attackerId: string, planetName: string): boolean {
     const entry = this.session?.protectedPlanets?.find((p) => p.planetName === planetName);
@@ -211,6 +229,49 @@ export class CampaignService {
 
   recordExchange(credits: number): void {
     for (const source of this.valueSources('exchange')) this.addCapped(source.key, (Math.max(0, credits) / 1000) * source.perThousand, source.cap);
+  }
+
+  /*
+   * Campaign sites (campaign-sites.ts): activity from `activeWhen`, hold
+   * progress, and a claim's rewards — the granted technology, then the
+   * claimant's `onClaim` effects (or '*'), applied once.
+   */
+  private updateSites(session: CampaignSessionState, world: CampaignWorld, dt: number, effects: EffectResult): boolean {
+    const defs = this.definition?.sites ?? [];
+    if (defs.length === 0) return false;
+    let changed = false;
+    const sites = (session.sites ??= {});
+    for (const def of defs) {
+      const state = (sites[def.id] ??= emptySiteState());
+      const active = !def.activeWhen || evaluateCondition(def.activeWhen, { world, session, dt: 0 });
+      if (state.active !== active) {
+        state.active = active;
+        changed = true;
+      }
+      if (!active || state.claimedBy) continue;
+      const before = JSON.stringify(state.progress);
+      const claimant = advanceSite(def, state, {
+        factions: world.factions,
+        fleets: world.fleets,
+        spaceBases: world.spaceBases ?? [],
+        warships: livingWarships,
+      }, dt);
+      if (JSON.stringify(state.progress) !== before) changed = true;
+      if (!claimant) continue;
+      changed = true;
+      const name = world.factions.find((f) => f.id === claimant)?.name ?? claimant;
+      effects.notices.push(claimant === 'player' ? `You claimed ${def.name}.` : `${name} claimed ${def.name}.`);
+      // Endings can record who holds which site (`recordFlags: ['site:<id>']`).
+      session.flags[`site:${def.id}`] = claimant;
+      session.counters['site_claimed'] = (session.counters['site_claimed'] ?? 0) + 1;
+      session.counters[`site_claimed:${claimant}`] = (session.counters[`site_claimed:${claimant}`] ?? 0) + 1;
+      const rewards = [
+        ...(def.grantTechnology ? [{ kind: 'grant_technology' as const, factionId: claimant, technologyId: def.grantTechnology }] : []),
+        ...(def.onClaim?.[claimant] ?? def.onClaim?.['*'] ?? []),
+      ];
+      mergeEffectResults(effects, applyEffects(rewards, session, world.factions));
+    }
+    return changed;
   }
 
   private valueSources<K extends ValueSource['kind']>(kind: K): Extract<ValueSource, { kind: K }>[] {
@@ -349,6 +410,8 @@ export class CampaignService {
       session.playerPlanets = current;
       changed = true;
     }
+
+    if (this.updateSites(session, world, dt, effects)) changed = true;
 
     for (const faction of world.factions) {
       const relation = player && faction !== player ? getRelation(faction, player) : undefined;
@@ -545,6 +608,26 @@ export class CampaignService {
   }
 }
 
+/* Keeps the state of sites the definition knows; drops malformed progress. */
+function sanitizeSites(raw: unknown, mission: MissionDefinition): Record<string, CampaignSiteState> {
+  const result: Record<string, CampaignSiteState> = {};
+  const saved = raw as Record<string, CampaignSiteState>;
+  for (const def of mission.sites ?? []) {
+    const state = saved[def.id];
+    if (!state || typeof state !== 'object') continue;
+    const progress: Record<string, number> = {};
+    for (const [id, seconds] of Object.entries(state.progress ?? {})) {
+      if (typeof seconds === 'number' && Number.isFinite(seconds) && seconds > 0) progress[id] = seconds;
+    }
+    result[def.id] = {
+      progress,
+      ...(typeof state.claimedBy === 'string' ? { claimedBy: state.claimedBy } : {}),
+      ...(typeof state.active === 'boolean' ? { active: state.active } : {}),
+    };
+  }
+  return result;
+}
+
 function isPactShape(value: unknown): value is TributePactState {
   const p = value as TributePactState;
   return !!p && typeof p.receiver === 'string' && [p.amount, p.intervalSeconds, p.untilNext].every((n) => typeof n === 'number' && Number.isFinite(n));
@@ -598,6 +681,7 @@ function sanitizeSession(saved: CampaignSessionState, mission: MissionDefinition
     ...(Array.isArray(saved.protectedPlanets)
       ? { protectedPlanets: saved.protectedPlanets.filter((p) => !!p && typeof p.planetName === 'string').map((p) => ({ planetName: p.planetName, ...(Array.isArray(p.except) ? { except: strings(p.except) } : {}) })) }
       : {}),
+    ...(saved.sites && typeof saved.sites === 'object' ? { sites: sanitizeSites(saved.sites, mission) } : {}),
     ...(saved.outcome && (saved.outcome.kind === 'victory' || saved.outcome.kind === 'defeat') ? { outcome: saved.outcome } : {}),
   };
 }

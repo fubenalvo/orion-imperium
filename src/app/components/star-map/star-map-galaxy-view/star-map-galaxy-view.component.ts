@@ -138,6 +138,18 @@ export interface AnomalyMapView {
  * event dispatch, so `currentTarget`, `stopPropagation`, and
  * `preventDefault` behave exactly like inline bindings.
  */
+/* A campaign site on the galaxy map (Mission 6's archives): claimant color, or the player's hold progress (0–1). */
+export interface CampaignSiteView {
+  id: string;
+  x: number;
+  y: number;
+  name: string;
+  active: boolean;
+  claimedBy: string | null;
+  color: string | null;
+  progress: number;
+}
+
 @Component({
   selector: 'app-star-map-galaxy-view',
   standalone: true,
@@ -161,6 +173,8 @@ export class StarMapGalaxyViewComponent implements AfterViewChecked {
   @Input() systems: StarSystem[] = [];
   @Input() fleets: Fleet[] = [];
   @Input() specialObjects: SpecialObject[] = [];
+  /* Campaign sites (explored ones only, StarMap.campaignSiteViews). */
+  @Input() campaignSites: CampaignSiteView[] = [];
   /* Campaign wormhole mouths (explored ones only, StarMap.wormholeViews). */
   @Input() wormholes: { key: string; x: number; y: number; name: string; active: boolean }[] = [];
   @Input() nebulae: NebulaView[] = [];

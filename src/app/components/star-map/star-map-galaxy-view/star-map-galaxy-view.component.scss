@@ -65,6 +65,52 @@
   }
 }
 
+/* Campaign site (docs/campaign-design.md, Mission 6): an amber diamond with a
+   conic progress ring (the player's hold progress); a claimed site takes the
+   claimant's color; a sealed one is grey. Above the fog like wormholes. */
+.campaign-site {
+  --site-color: #ffb347;
+  --site-progress: 0;
+  position: relative;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+
+  &__ring {
+    position: absolute;
+    width: 240%;
+    height: 240%;
+    border-radius: 50%;
+    background: conic-gradient(var(--site-color) calc(var(--site-progress) * 360deg), rgba(255, 179, 71, 0.18) 0);
+    mask: radial-gradient(circle, transparent 58%, #000 60%);
+  }
+
+  &__core {
+    width: 70%;
+    height: 70%;
+    background: var(--site-color);
+    transform: rotate(45deg);
+    box-shadow: 0 0 10px var(--site-color);
+  }
+
+  /* Above the marker: base and fleet labels sit below their cells. */
+  &__label {
+    position: absolute;
+    bottom: 150%;
+    white-space: nowrap;
+    color: var(--ui-ink-dim, #9fb3c8);
+    font-size: 0.55vw;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  &--closed {
+    --site-color: #8a8f99;
+  }
+}
+
 @keyframes wormhole-turn {
   to {
     transform: rotate(360deg);

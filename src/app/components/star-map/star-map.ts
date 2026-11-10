@@ -244,6 +244,7 @@ import { ensureColonyCore, isCoreOwner } from './colony-core';
 import { TutorialService } from '../../services/tutorial.service';
 import { CampaignService, CampaignTickResult, ObjectiveView } from '../../campaign/campaign.service';
 import { CampaignDiplomacyAction } from '../../campaign/campaign-effects';
+import { CampaignSiteView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { CampaignMissionService } from '../../campaign/campaign-mission.service';
 import { MISSION_DEFINITIONS } from '../../campaign/missions';
 import { CampaignProgressService } from '../../campaign/campaign-progress.service';
@@ -5534,6 +5535,30 @@ loadError = '';
       wormhole.mouths.forEach((mouth, i) => {
         if (this.sensorRangeEnabled && !this.exploredGridCells.has(`${Math.floor(mouth.x)}-${Math.floor(mouth.y)}`)) return;
         views.push({ key: `${wormhole.id}-${i}`, x: mouth.x, y: mouth.y, name: wormhole.name, active: wormhole.state === 'active' });
+      });
+    }
+    return views;
+  }
+
+  /*
+   * Campaign sites for the galaxy view (docs/campaign-design.md, Mission 6):
+   * explored ones only (all with fog of war off). The ring shows the
+   * claimant's color, or the player's hold progress while unclaimed.
+   */
+  get campaignSiteViews(): CampaignSiteView[] {
+    const views: CampaignSiteView[] = [];
+    for (const { def, state } of this.campaign.siteEntries()) {
+      if (this.sensorRangeEnabled && !this.exploredGridCells.has(`${def.x}-${def.y}`)) continue;
+      const progress = state.claimedBy ? 1 : Math.min(1, (state.progress['player'] ?? 0) / def.holdSeconds);
+      views.push({
+        id: def.id,
+        x: def.x,
+        y: def.y,
+        name: def.name,
+        active: state.active !== false,
+        claimedBy: state.claimedBy ? this.getFactionName(state.claimedBy) : null,
+        color: state.claimedBy ? this.getFactionColor(state.claimedBy) : null,
+        progress,
       });
     }
     return views;
