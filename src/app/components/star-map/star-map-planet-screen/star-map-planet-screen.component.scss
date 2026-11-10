@@ -160,7 +160,11 @@
   mix-blend-mode: screen;
 }
 
-.planet-surface__ore-glow {
+/* The pulse runs on the whole ore SVG, never on its circles: an animated
+   element inside the settlement SVG repainted that SVG (with its blur
+   filters, on the tilted ground plane) every frame, which made full-screen
+   dialogs over the planet view flicker on phones. */
+.planet-surface__ore-layer {
   mix-blend-mode: screen;
   animation: ps-ore-pulse 3.2s ease-in-out infinite;
 }
@@ -585,6 +589,7 @@
   position: absolute;
   inset: 0;
   z-index: 10;
+  overflow: hidden;
   pointer-events: none;
   background: radial-gradient(
     ellipse at 50% 50%,
@@ -593,26 +598,34 @@
     color-mix(in srgb, var(--surface-haze) 55%, #02060c 45%) 100%
   );
 
+  /* Drifting cloud shadow. Scrolled by a compositor transform on a layer
+     oversized by one 70vw tile (left and down), never by background-position:
+     that repainted the whole screen every frame. The travel (-70vw, 70vw) is
+     one whole tile per axis, so the loop is seamless. */
   &::before {
     content: '';
     position: absolute;
-    inset: 0;
+    top: -70vw;
+    right: -70vw;
+    bottom: 0;
+    left: 0;
     background-image: url('planet-clouds.png');
     background-size: 70vw 70vw;
     background-repeat: repeat;
     opacity: 0.16;
     mix-blend-mode: multiply;
-    animation: cloud-scroll 60s linear infinite;
+    will-change: transform;
+    animation: cloud-scroll 85s linear infinite;
   }
 }
 
 @keyframes cloud-scroll {
   from {
-    background-position: 0 0;
+    transform: translate3d(0, 0, 0);
   }
 
   to {
-    background-position: -70vw 35vw;
+    transform: translate3d(-70vw, 70vw, 0);
   }
 }
 

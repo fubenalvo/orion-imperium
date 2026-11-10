@@ -232,6 +232,7 @@ export class StarMapGalaxyViewComponent implements AfterViewChecked {
 
   /* Present only while fog is on (the canvas sits inside @if). */
   @ViewChild('fogCanvas') fogCanvas?: ElementRef<HTMLCanvasElement>;
+  @ViewChild('fogImage') fogImage?: ElementRef<HTMLImageElement>;
   private readonly fogPainter = new FogLayerPainter();
 
   constructor(public movementService: StarMapMovementService) {}
@@ -243,8 +244,13 @@ export class StarMapGalaxyViewComponent implements AfterViewChecked {
    */
   ngAfterViewChecked(): void {
     const canvas = this.fogCanvas?.nativeElement;
-    if (!canvas) return;
-    this.fogPainter.paint(canvas, this.gridColumns, this.gridRows, this.exploredCells, this.sensorRangeCells);
+    const image = this.fogImage?.nativeElement;
+    if (!canvas || !image) return;
+    // A re-created image (fog toggle) has no picture yet: force a redraw.
+    const fresh = !image.getAttribute('src');
+    if (this.fogPainter.paint(canvas, this.gridColumns, this.gridRows, this.exploredCells, this.sensorRangeCells, fresh)) {
+      image.src = canvas.toDataURL();
+    }
   }
 
   /*
@@ -290,7 +296,8 @@ export class StarMapGalaxyViewComponent implements AfterViewChecked {
       return null;
     }
     const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    return `rotate(${angleDeg}deg)`;
+    // The start point is in the transform, not in left / top (see .fleet-trail).
+    return `translate3d(${trail.x1}vw, ${trail.y1}vw, 0) rotate(${angleDeg}deg)`;
   }
 
   /** Returns the line length in vw, or 0 when the trail is degenerate. */

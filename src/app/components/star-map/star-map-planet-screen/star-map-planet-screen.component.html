@@ -50,6 +50,30 @@
             [style.left.vw]="-worldVw / 2"
             [style.top.vw]="-worldVw / 2"
           >
+            <!-- Ore deposit glows: their own SVG under the settlement, pulsing as one
+                 layer (see .planet-surface__ore-layer). -->
+            <svg
+              class="planet-surface__settlement planet-surface__ore-layer"
+              [attr.viewBox]="'0 0 ' + worldSize + ' ' + worldSize"
+              preserveAspectRatio="none"
+              aria-hidden="true"
+            >
+              <defs>
+                <radialGradient id="ps-ore">
+                  <stop offset="0" stop-color="#ffcf6b" stop-opacity="0.75" />
+                  <stop offset="1" stop-color="#ff8a1f" stop-opacity="0" />
+                </radialGradient>
+              </defs>
+              @for (deposit of planet?.resourceTiles ?? []; track $index) {
+                <circle
+                  [attr.cx]="margin + deposit.x + 0.5"
+                  [attr.cy]="margin + deposit.y + 0.5"
+                  r="1.1"
+                  fill="url(#ps-ore)"
+                />
+              }
+            </svg>
+
             <svg
               class="planet-surface__settlement"
               [attr.viewBox]="'0 0 ' + worldSize + ' ' + worldSize"
@@ -67,10 +91,6 @@
                   <stop offset="0" stop-color="#fff4c8" stop-opacity="0.95" />
                   <stop offset="0.35" stop-color="#ffd27a" stop-opacity="0.45" />
                   <stop offset="1" stop-color="#ffb347" stop-opacity="0" />
-                </radialGradient>
-                <radialGradient id="ps-ore">
-                  <stop offset="0" stop-color="#ffcf6b" stop-opacity="0.75" />
-                  <stop offset="1" stop-color="#ff8a1f" stop-opacity="0" />
                 </radialGradient>
                 <linearGradient id="ps-plot" x1="0" y1="0" x2="1" y2="1">
                   <stop offset="0" stop-color="#8d949c" />
@@ -91,16 +111,6 @@
                 }
                 <path [attr.d]="settlement.streets" />
               </g>
-
-              @for (deposit of planet?.resourceTiles ?? []; track $index) {
-                <circle
-                  class="planet-surface__ore-glow"
-                  [attr.cx]="margin + deposit.x + 0.5"
-                  [attr.cy]="margin + deposit.y + 0.5"
-                  r="1.1"
-                  fill="url(#ps-ore)"
-                />
-              }
 
               <!-- Paved plots under the buildings -->
               @for (plot of settlement.plots; track $index) {

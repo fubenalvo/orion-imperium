@@ -181,30 +181,43 @@
     }
 
     <!--
-      FOG OF WAR: one canvas pixel per grid cell over the whole map, drawn in
-      ngAfterViewChecked (fog-layer.ts). Never viewport-culled: the camera
-      transition would otherwise show unfogged strips while panning/zooming.
+      FOG OF WAR: one pixel per grid cell over the whole map, drawn in
+      ngAfterViewChecked (fog-layer.ts) on a hidden canvas and shown as an
+      image. Never viewport-culled: the camera transition would otherwise show
+      unfogged strips while panning/zooming. An image, not the canvas itself:
+      a visible canvas is always its own GPU layer, which forced every
+      world-sized layer above it onto a layer of its own (phones flickered
+      while dragging the map).
     -->
     @if (sensorRangeEnabled) {
-      <canvas
-        #fogCanvas
+      <canvas #fogCanvas class="fog-source" hidden aria-hidden="true"></canvas>
+      <img
+        #fogImage
         class="fog-layer"
+        alt=""
         [style.width]="gridColumns * cellSizeVw + 'vw'"
         [style.height]="gridRows * cellSizeVh + 'vw'"
         aria-hidden="true"
-      ></canvas>
+      />
     }
 
-    <!-- SENSOR RANGE HIGHLIGHT CELLS -->
+    <!-- SENSOR RANGE HIGHLIGHT CELLS: one pulsing layer (.sensor-field, _star-map-sensor.scss) -->
     @if (sensorRangeEnabled) {
-      @for (cell of sensorRangeCells; track cell.col + '-' + cell.row) {
-        <div
-          class="sensor-range-cell"
-          [style.--sensor-color]="cell.color"
-          [style.gridColumn]="cell.col"
-          [style.gridRow]="cell.row"
-        ></div>
-      }
+      <div
+        class="sensor-field"
+        aria-hidden="true"
+        [style.gridTemplateColumns]="'repeat(' + gridColumns + ', ' + cellSizeVw + 'vw)'"
+        [style.gridTemplateRows]="'repeat(' + gridRows + ', ' + cellSizeVh + 'vw)'"
+      >
+        @for (cell of sensorRangeCells; track cell.col + '-' + cell.row) {
+          <div
+            class="sensor-range-cell"
+            [style.--sensor-color]="cell.color"
+            [style.gridColumn]="cell.col"
+            [style.gridRow]="cell.row"
+          ></div>
+        }
+      </div>
 
       <!-- SENSOR OUTER-RING PREVIEW CELLS (R+1..R+2, not explored) -->
       @for (cell of sensorPreviewCells; track cell.col + '-' + cell.row) {
@@ -286,8 +299,7 @@
         [class.fleet-cell--preview]="isEnemyInPreview(fleet)"
         [class.fleet-cell--nebula]="isFleetInNebula(fleet)"
         [class.fleet-cell--targeted]="attackTargetIds.has(fleet.id)"
-        [style.left]="(fleet.x - 0.5) * cellSizeVw + 'vw'"
-        [style.top]="(fleet.y - 0.5) * cellSizeVh + 'vw'"
+        [style.transform]="'translate3d(' + (fleet.x - 0.5) * cellSizeVw + 'vw, ' + (fleet.y - 0.5) * cellSizeVh + 'vw, 0) translate(-50%, -50%)'"
         [attr.data-grid-position]="fleet.gridCol + '-' + fleet.gridRow"
       >
         <button
@@ -512,8 +524,7 @@
         class="asteroid-cell asteroid-cell--{{ asteroid.type }}"
         [class.asteroid-cell--selected]="asteroid.selected"
         [class.asteroid-cell--targeted]="asteroid.targeted"
-        [style.left]="asteroid.left + 'vw'"
-        [style.top]="asteroid.top + 'vw'"
+        [style.transform]="'translate3d(' + asteroid.left + 'vw, ' + asteroid.top + 'vw, 0)'"
       >
         <div
           class="asteroid-trail"
@@ -540,8 +551,7 @@
       <div
         class="trader-cell"
         [class.trader-cell--selected]="trader.selected"
-        [style.left]="trader.left + 'vw'"
-        [style.top]="trader.top + 'vw'"
+        [style.transform]="'translate3d(' + trader.left + 'vw, ' + trader.top + 'vw, 0)'"
         [style.--trader-color]="trader.color"
       >
         <button
@@ -581,8 +591,6 @@
         <div
           class="fleet-trail"
           [class.fleet-trail--player]="trail.factionId === 'player'"
-          [style.left]="trail.x1 + 'vw'"
-          [style.top]="trail.y1 + 'vw'"
           [style.width]="getTrailLength(trail) + 'vw'"
           [style.transform]="getTrailTransform(trail)"
           [style.--trail-color]="trail.color"

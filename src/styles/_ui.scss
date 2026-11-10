@@ -288,8 +288,13 @@ $glint: linear-gradient(105deg, transparent 20%, rgba(var(--ui-accent-rgb), 0.2)
     inset 0 1px 0 rgba(255, 255, 255, 0.14),
     inset 0 0 0 1px rgba(0, 0, 0, 0.3);
   color: var(--ui-ink-bright);
-  /* The one call to action breathes, so the eye finds it (styles/_motion.scss). */
-  animation: ui-breathe 2.8s ease-in-out infinite;
+  /* The one call to action breathes, so the eye finds it (styles/_motion.scss).
+     Mouse devices only: the box-shadow animation repaints its layer every
+     frame (often the whole screen), which on phones cost GPU time the star
+     map needed while being dragged. */
+  @media (hover: hover) and (pointer: fine) {
+    animation: ui-breathe 2.8s ease-in-out infinite;
+  }
 
   &:hover:not(:disabled) {
     animation: none;

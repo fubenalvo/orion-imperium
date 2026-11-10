@@ -81,7 +81,9 @@ function pixelIndex(col: number, row: number, columns: number, rows: number): nu
  * base (explored/unexplored) is rebuilt only when it grows. The sensed cells
  * are compared by content, because StarMap builds a new sensor map every
  * frame even when nothing moved. A new canvas element (the fog toggle
- * re-creates it) or new grid size forces a full redraw.
+ * re-creates it), a new grid size or `force` forces a full redraw.
+ * Returns true when the canvas was redrawn; the galaxy view then copies it
+ * into the visible fog image.
  */
 export class FogLayerPainter {
   private canvas: HTMLCanvasElement | null = null;
@@ -98,12 +100,13 @@ export class FogLayerPainter {
     rows: number,
     explored: ReadonlySet<string>,
     sensed: readonly FogCell[],
-  ): void {
-    if (columns <= 0 || rows <= 0 || canvas === this.unsupportedCanvas) return;
+    force = false,
+  ): boolean {
+    if (columns <= 0 || rows <= 0 || canvas === this.unsupportedCanvas) return false;
 
     const newTarget = canvas !== this.canvas || columns !== this.columns || rows !== this.rows;
     const exploredGrew = explored.size !== this.exploredSize;
-    if (!newTarget && !exploredGrew && sameCells(sensed, this.lastSensed)) return;
+    if (!force && !newTarget && !exploredGrew && sameCells(sensed, this.lastSensed)) return false;
 
     let ctx: CanvasRenderingContext2D | null = null;
     try {
@@ -115,7 +118,7 @@ export class FogLayerPainter {
     // do not ask again for this element on every change detection.
     if (!ctx) {
       this.unsupportedCanvas = canvas;
-      return;
+      return false;
     }
 
     if (newTarget) {
@@ -134,6 +137,7 @@ export class FogLayerPainter {
     clearSensedCells(pixels, columns, rows, sensed);
     ctx.putImageData(new ImageData(pixels, columns, rows), 0, 0);
     this.lastSensed = sensed.map((c) => ({ col: c.col, row: c.row }));
+    return true;
   }
 }
 

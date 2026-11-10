@@ -131,7 +131,7 @@ describe('Small galaxy regression', () => {
     startGame(smallConfig(189352119));
     const { map, el } = openGalaxyView();
 
-    expect(el.querySelectorAll('app-star-map-galaxy-view canvas.fog-layer')).toHaveLength(1);
+    expect(el.querySelectorAll('app-star-map-galaxy-view img.fog-layer')).toHaveLength(1);
     expect(map.exploredGridCells.size).toBeLessThan((map.mapWidth * map.mapHeight) / 4);
     expect(map.visibleFleets.every((f) => f.factionId === 'player')).toBe(true);
     // The human's home system starts fully explored; every other system's planets stay hidden.

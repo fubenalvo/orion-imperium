@@ -179,7 +179,7 @@ Conditions that must remain true across the codebase. When changing any code tha
 - In system view, all fleets in the current system are visible (player is physically present).
 - Fog cells (unexplored viewport cells) are culled to the camera viewport + 1-cell buffer for performance on the 100×60 grid.
 - The minimap renders only explored star systems and visible fleets, and darkens unexplored cells when fog of war is on.
-- Terrain layers (nebulae, belts, black hole, no-fly ring) are rendered below the fog cells (z 4 < 5).
+- Terrain layers (nebulae, belts, territory at z 2; black hole and no-fly ring at z 4) are rendered below the fog (z 5). Static world-sized layers stay below every animated or moving map object (star systems at z 3 and up), see [Rendering Performance](./rendering-performance.md).
 - A fleet's effective sensor range is `max(fleet.sensorRange, maxShipRange)` where `maxShipRange` is the highest `ShipType.range` among the fleet's non-destroyed ships (0 if no non-destroyed ships). Computed by `StarMapSensorService.getFleetSensorRange()`.
 - Old saves without `exploredGridCells` or `StarSystem.explored` default to all systems explored (no fog-of-war regression). `Fleet.sensorRange` (minimum floor) defaults to 3.
 - `visibleFleets` filters out both destroyed fleets and fleets hidden by fog-of-war. The fleet list of the top-left roster (star-map-fleet-buttons) and the minimap use this filtered list.

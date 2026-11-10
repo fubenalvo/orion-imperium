@@ -79,12 +79,22 @@
 
 /* Out-of-focus dust in front of the map (0.6x parallax). Very faint and
    click-through; it adds depth without hiding anything. */
+/* Oversized by one dust tile (640 × 520, space-dust) so the wrapped
+   transform in StarMap.dustTransform always covers the viewport. */
 .star-map-foreground {
   position: absolute;
 
-  inset: 0;
+  top: 0;
+
+  left: 0;
+
+  width: calc(100% + 640px);
+
+  height: calc(100% + 520px);
 
   @include space-dust(0.32);
+
+  will-change: transform;
 
   pointer-events: none;
 

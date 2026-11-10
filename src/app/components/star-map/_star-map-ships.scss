@@ -233,24 +233,43 @@
    * The dash pattern is animated to give a sense of motion direction —
    * dashes appear to travel along the line toward the target.
    */
+  /*
+   * Performance (phones): the start point is part of the transform
+   * (getTrailTransform), and the dashes move by a transform on ::after that
+   * is one dash period (12px) longer than the trail, clipped back to the
+   * trail by clip-path (which leaves room vertically for the beam and the
+   * glow). Animating background-position or left / top repainted every
+   * moving fleet's trail on every frame.
+   */
   .fleet-trail {
     position: absolute;
     top: 0;
     left: 0;
     height: 2px;
     pointer-events: none;
-    background: repeating-linear-gradient(
-      to right,
-      var(--trail-color, var(--color-blue)) 0,
-      var(--trail-color, var(--color-blue)) 6px,
-      transparent 6px,
-      transparent 12px
-    );
     transform-origin: 0 0;
     z-index: 14;
     opacity: 0.85;
     filter: drop-shadow(0 0 3px var(--trail-color, var(--color-blue)));
-    animation: trail-dash-move 0.5s linear infinite;
+    clip-path: inset(-8px 0);
+    will-change: transform;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -12px;
+      right: 0;
+      background: repeating-linear-gradient(
+        to right,
+        var(--trail-color, var(--color-blue)) 0,
+        var(--trail-color, var(--color-blue)) 6px,
+        transparent 6px,
+        transparent 12px
+      );
+      animation: trail-dash-move 0.5s linear infinite;
+    }
 
     /* Soft beam under the dashes: strongest at the fleet, fading toward the
        destination, so the path reads as a projected course. */
@@ -277,10 +296,10 @@
 
   @keyframes trail-dash-move {
     0% {
-      background-position: 0 0;
+      transform: translate3d(0, 0, 0);
     }
     100% {
-      background-position: 12px 0;
+      transform: translate3d(12px, 0, 0);
     }
   }
 

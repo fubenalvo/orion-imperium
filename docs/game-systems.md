@@ -56,7 +56,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 - Enemy fleet sensor ranges are **never** shown on the galaxy map — only player sensors are visible.
 - AI factions obey the same fog of war with the same sensor rules (per-faction knowledge in `EnemyIntelService`, see [AI Pipeline](./ai-pipeline.md#fog-of-war-enemyintelservice)); with fog disabled they see what the player sees.
 - **Nebulae** shorten sensor radii: a source inside a nebula, or a target cell inside one, is sensed at 60% of the radius (applied once). Player layer and AI intel share this rule; see [Star Map Terrain](./star-map-terrain.md#sensor-penalty).
-- A pulsing animation (`sensor-pulse`, 2.5s) highlights active sensor area.
+- A pulsing animation (`sensor-pulse`, 2.5s) highlights active sensor area; it runs on the one `.sensor-field` layer that holds the cells, never per cell (see [Rendering Performance](./rendering-performance.md)).
 - **Fog strength:** unexplored cells are covered at 82% near-black, explored cells outside current sensor range at 50% (`fog-layer.ts`). All terrain (nebulae, asteroid belts, the black hole and its no-fly ring) is drawn *under* the fog layer, so anything not yet explored is strongly dimmed; fleets, trails, markers and visible drifting asteroids stay above it.
 - **Minimap fog:** the minimap darkens every unexplored cell (97% opacity, so unexplored content shows at ~3% brightness) over terrain and stars, under fleets and the viewport frame. It is one SVG path of per-row runs, rebuilt only when the explored set grows; hidden when fog of war is off.
 
@@ -72,7 +72,7 @@ Sensor range determines which grid cells a fleet (or player-owned star system) c
 - **Grey fog** — cells previously explored but currently outside sensor range (50% alpha), still visible but dimmed. Preview-ring cells count as outside range.
 - **Visible** — cells currently in sensor range, shown with faction-colored highlight.
 
-**Fog rendering:** the fog is one `<canvas class="fog-layer">` in the galaxy view with one pixel per grid cell, stretched over the whole grid; the browser's smooth upscaling gives the soft edge of explored space (`star-map-galaxy-view/fog-layer.ts`). It is redrawn in `ngAfterViewChecked` only when the explored set grows or the sensed cells change. It is deliberately **not** viewport-culled: `.map-world` animates pan and zoom with a 100 ms transform transition, and culled fog cells (the earlier implementation) were computed for the new camera at once, so the old view briefly showed unfogged areas during every pan and zoom (the reported fog flicker).
+**Fog rendering:** the fog is drawn on a hidden canvas with one pixel per grid cell and shown as one `<img class="fog-layer">` stretched over the whole grid (a visible canvas is always its own GPU layer, see [Rendering Performance](./rendering-performance.md)); the browser's smooth upscaling gives the soft edge of explored space (`star-map-galaxy-view/fog-layer.ts`). It is redrawn in `ngAfterViewChecked` only when the explored set grows or the sensed cells change. It is deliberately **not** viewport-culled: `.map-world` animates pan and zoom with a 100 ms transform transition, and culled fog cells (the earlier implementation) were computed for the new camera at once, so the old view briefly showed unfogged areas during every pan and zoom (the reported fog flicker).
 
 **Fleet visibility:**
 
