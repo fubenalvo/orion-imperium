@@ -94,10 +94,23 @@ export class EnemyInvasionService {
     return this.pendingPlayerBattles.some((b) => b.planetId === planetId);
   }
 
+  /*
+   * Campaign protection (`protect_planet`, docs/campaign-design.md Mission 4):
+   * true when the attacker may not assault this planet. Set by StarMap on
+   * every load (null outside a campaign). The one check behind both
+   * planning (EnemyFleetService.planAssault) and launch.
+   */
+  private protectionGuard: ((attackerId: string, planet: PlanetTile) => boolean) | null = null;
+
+  setProtectionGuard(guard: ((attackerId: string, planet: PlanetTile) => boolean) | null): void {
+    this.protectionGuard = guard;
+  }
+
   /* Hostile = may be captured by `attacker` (at war, or a neutral rebel planet; diplomacy.ts). */
   isHostilePlanet(planet: PlanetTile, attacker: Faction, factions: Faction[]): boolean {
     // During the opening grace the player's planets are no assault target (opening-grace.ts).
     if (this.openingGrace.spares(attacker, planet.factionId)) return false;
+    if (this.protectionGuard?.(attacker.id, planet)) return false;
     return canAttackPlanetOf(attacker, factions.find((f) => f.id === planet.factionId));
   }
 

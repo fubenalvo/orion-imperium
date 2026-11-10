@@ -326,6 +326,8 @@ export interface TradeDelivery {
   /* Faction paid the port fee (the destination's owner), null if neutral. */
   destinationOwnerId: string | null;
   portFee: number;
+  /* The planet delivered to (campaign value sources read it). */
+  destinationPlanetId?: number;
 }
 
 /*
@@ -355,6 +357,7 @@ export function payDelivery(
     homeOwnerId: paysHome ? homeOwner.id : null,
     destinationOwnerId: paysPort ? destinationOwner.id : null,
     portFee: paysPort ? portFee : 0,
+    destinationPlanetId: trader.destinationPlanetId,
   };
 }
 

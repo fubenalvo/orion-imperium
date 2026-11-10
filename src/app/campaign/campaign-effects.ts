@@ -136,6 +136,13 @@ function applyEffect(effect: Effect, session: CampaignSessionState, factions: re
       session.tributePacts = [...others, { receiver: effect.receiver, amount: Math.max(0, Math.floor(effect.amount)), intervalSeconds: interval, untilNext: interval }];
       return;
     }
+    case 'protect_planet': {
+      const others = (session.protectedPlanets ?? []).filter((p) => p.planetName !== effect.planetName);
+      session.protectedPlanets = effect.protect
+        ? [...others, { planetName: effect.planetName, ...(effect.except?.length ? { except: [...effect.except] } : {}) }]
+        : others;
+      return;
+    }
     case 'end_tribute_pact':
       if (session.tributePacts) session.tributePacts = session.tributePacts.filter((p) => p.receiver !== effect.receiver);
       return;

@@ -236,6 +236,7 @@ import { StarMapAnomalyEventComponent } from './star-map-anomaly-event/star-map-
 import { CampaignMessageVm, StarMapCampaignMessageComponent } from './star-map-campaign-message/star-map-campaign-message.component';
 import { StarMapCampaignObjectivesComponent } from './star-map-campaign-objectives/star-map-campaign-objectives.component';
 import { ContactAnswer, StarMapFirstContactComponent } from './star-map-first-contact/star-map-first-contact.component';
+import { EnemyInvasionService } from './enemy-invasion.service';
 import { ContactDialogueVm, ContactResolution, ContactWorld, FirstContactService } from './first-contact.service';
 import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
@@ -323,6 +324,7 @@ export class StarMap implements AfterViewInit, OnDestroy {
   private campaignMessageResumeOnClose = false;
   /* First contact (docs/first-contact.md): the open dialogue and its result. */
   private readonly firstContact = inject(FirstContactService);
+  private readonly invasionService = inject(EnemyInvasionService);
   contactDialogue: ContactDialogueVm | null = null;
   contactResult: ContactResolution | null = null;
   private contactResumeOnClose = false;
@@ -1249,6 +1251,7 @@ loadError = '';
         this.showMapNotice(`${raider?.name ?? 'Your fleet'} raided a trader: +${raid.loot} credits.${cost}`);
       } else if (raid.ownerId === 'player') {
         playerInvolved = true;
+        this.campaign.notify('trader_lost', 1, raid.raiderFactionId);
         this.showMapNotice(`${this.getFactionName(raid.raiderFactionId)} raided one of your traders (${raid.cargoCredits} credits lost).`);
       }
     }
@@ -2066,6 +2069,7 @@ loadError = '';
     const result = executeTrade(player, this.starSystems, event.direction, event.raw);
     if (!result.ok) return;
     const { quote } = result;
+    this.campaign.recordExchange(quote.credits);
     this.showMapNotice(quote.direction === 'buyRaw'
       ? `Exchange: bought ${quote.raw} raw materials for ${quote.credits} credits.`
       : `Exchange: sold ${quote.raw} raw materials for ${quote.credits} credits.`);
@@ -4138,6 +4142,11 @@ loadError = '';
       const income = tradeResult.deliveries.reduce((sum, d) =>
         sum + (d.homeOwnerId === 'player' ? d.credits : 0) + (d.destinationOwnerId === 'player' ? d.portFee : 0), 0);
       if (income > 0) this.campaign.addValue('trade_income', income);
+      for (const delivery of tradeResult.deliveries) {
+        if (delivery.homeOwnerId !== 'player' || delivery.destinationPlanetId === undefined) continue;
+        const planet = this.starSystems.flatMap((sys) => sys.planetsTiles).find((p) => p.id === delivery.destinationPlanetId);
+        this.campaign.recordDelivery(planet?.name);
+      }
     }
     const constructionChanged = this.updateStationConstruction(gameDeltaTime);
     const repairChanged = this.updateFleetRepair(gameDeltaTime);
@@ -5173,6 +5182,8 @@ loadError = '';
     this.tutorial.setExcludedSteps(this.campaign.mission?.tutorialExcludedSteps ?? []);
     // Tribute pacts and scripted pressure keep a campaign AI from its own war and demands.
     this.enemyDiplomacyService.setRestraintGuard(this.campaign.active ? (ai, other) => this.campaign.restrains(ai.id, other.id) : null);
+    // Protected mission planets (protect_planet) are no AI assault target.
+    this.invasionService.setProtectionGuard(this.campaign.active ? (attackerId, planet) => this.campaign.protects(attackerId, planet.name) : null);
     this.wormholes = data.wormholes ?? [];
     // Meetings are re-detected from the world after every load (docs/first-contact.md).
     this.firstContact.reset();
@@ -5482,7 +5493,11 @@ loadError = '';
     const isPlayers = (fleetId: number) => this.fleets.some((f) => f.id === fleetId && f.factionId === 'player');
     // The opponent's faction (a space base or a planet's defenders have no fleet; then only the total counts).
     const factionOf = (fleetId: number) => this.fleets.find((f) => f.id === fleetId)?.factionId;
-    if (isPlayers(winner.fleetId)) this.campaign.notify('battle_won', 1, factionOf(loser.fleetId));
+    if (isPlayers(winner.fleetId)) {
+      this.campaign.notify('battle_won', 1, factionOf(loser.fleetId));
+      const at = this.fleets.find((f) => f.id === winner.fleetId);
+      if (at) this.campaign.recordBattleWon(factionOf(loser.fleetId), at.x, at.y, this.campaignWorld());
+    }
     else if (isPlayers(loser.fleetId)) this.campaign.notify('battle_lost', 1, factionOf(winner.fleetId));
   }
 
@@ -5504,6 +5519,7 @@ loadError = '';
       fleets: this.fleets,
       exploredGridCells: this.exploredGridCells,
       anomalies: this.anomalyService.anomalies,
+      spaceBases: this.spaceBaseService.bases,
     };
   }
 

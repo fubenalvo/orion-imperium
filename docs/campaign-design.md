@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a, 1b, 2, 3, 3b, 4a and 4b implemented** (the campaign engine, its UI, Missions 1–3, wormhole transit, first contact in every game mode, see
+Status: **Phases 1a, 1b, 2, 3, 3b, 4a, 4b and 5 implemented** (the campaign engine, its UI, Missions 1–4, wormhole transit, first contact in every game mode, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -72,7 +72,7 @@ Wired into the game: `StarMap` restores and serializes the session, feeds counte
 Implemented subset and deviations from the design below:
 
 - Conditions: `all`, `any`, `not`, `flag`, `value_at_least`, `objective_done`, `game_time_at_least`, `event_count` (new: reads the counters above), `system_charted`, `systems_charted`, `planets_owned`, `planet_owned_by`, `population_at_least`, `building_complete`, `technology`, `fleet_tag_destroyed`, `fleet_at`, `opinion_at_least`, `relation`, `held_for`. Composite conditions evaluate every child, so nested timers advance consistently. Later phases add `contact`, `war_exhaustion_at_least`, `system_controlled`, `site_claimed`, `anomaly_resolved`.
-- Effects: `notice`, `event`, `flag`, `value`, `reveal_objective`, `resources`, `grant_technology`, `reveal_technology`, `end_mission`, `fail_mission`. Later phases added `reveal_area`, `wormhole_state` (Phases 2–3b) and `contact`, `start_war`, `start_peace`, `opinion`, `force_demand`, `tribute_pact`, `end_tribute_pact` (Phase 4b); still to come: `spawn_fleet`, `protect_planet`, `site_state`.
+- Effects: `notice`, `event`, `flag`, `value`, `reveal_objective`, `resources`, `grant_technology`, `reveal_technology`, `end_mission`, `fail_mission`. Later phases added `reveal_area`, `wormhole_state` (Phases 2–3b), `contact`, `start_war`, `start_peace`, `opinion`, `force_demand`, `tribute_pact`, `end_tribute_pact` (Phase 4b) and `protect_planet` (Phase 5); still to come: `spawn_fleet`, `site_state`.
 - The session also stores `carry` (what the start took from earlier missions, used by restart) and `rules` (copied from the definition, so `GameOutcomeService` needs no registry).
 - Story events: non-modal events become map notices; modal events wait in `pendingEvents` and are answered through `CampaignService.chooseEventOption` (dialog: Phase 1b below).
 - Not yet done from §14: rejecting a skirmish save that lists a campaign-only technology (no such technology exists before Mission 6).
@@ -139,7 +139,42 @@ Implemented subset and deviations from the design below:
 - **Measured** (`m3-first-contact.long.spec.ts`, Normal, a passive player who answers politely and refuses every demand): envoys at minutes 6 and 9, tribute at 10, ultimatum at 18 (refused: Varkon declared war), the Concordium at peace (opinion ~28), no Concordium–Varkon war.
 - Tests: `missions/m3-first-contact.spec.ts` (map, un-met relations, routes; the envoy and its re-queue after a reload; the scripted cold peace; tribute timing with and without the offered-tribute flag; the ultimatum; each ending; the broken pact; planet loss and defeat; the gate), `campaign-diplomacy.spec.ts` (counters, planet loss, event effects, `held_for` in triggers, diplomacy actions, the pact, restraint), `diplomatic-demand.spec.ts` (#16, cooldown-free scripted demands).
 
-**Next:** Phase 5 (Mission 4: The Meridian Exchange).
+**Phase 5 — Mission 4 "The Meridian Exchange" (done, 2026-11-10).** `campaign/missions/m4-meridian-exchange.ts`, requires Mission 3.
+
+- **Map** (200×120; 9 systems, 18 planets): Corvane (player, south-west), Tamsin, Concord Reach (Concordium, north-west), Cinderfall and Halcyon Drift (rich in-system belts 16,000 / 13,000 / 10,000), the **Meridian Hub** (100, 60) and **Cantor's Rest** (150, 20) (Meridian League civilization capitals), Orrel, Varkon Bastion (178, 76). Two belts at x ≈ 100 leave the Hub gap and the map edges open. The **Exchange Gate** is active from the start, mouths at the Hub (104, 56) and (140, 30). The **Tangle Free Port** is an authored outlaw space base (`MissionMapSpec.spaceBases`, faction `free_port`, Turret Research I) with three corvettes, in the Tangle nebula at (120, 100). Three anomalies: a Concordium distress call, an ancient wreck, a derelict outpost ship.
+- **Factions:** the empires have met (Mission 3). Opening opinions depend on the carried `m3_alignment` (three opening events with `opinion` effects; standalone: `none`). Varkon and the Concordium never attack each other (`aiRestraint`). Varkon starts with **two planets**: Varkon Bastion and **Cantor Minor**, inside the Cantor's Rest system.
+- **League standing** (`league_standing`, a campaign value) comes from **value sources** (`MissionDefinition.valueSources`, applied by `CampaignService.recordDelivery` / `recordBattleWon` / `recordExchange` from StarMap):
+  - +1.5 per player-trader delivery to a League port, up to 40 (`TradeDelivery.destinationPlanetId` is new);
+  - +5 per battle won within 8 cells of a League world;
+  - +2 per 1,000 credits of resource-exchange volume, up to 20;
+  - the Charter vote: exclusive +25 / Concordium −15, open +12 / Concordium +10, Varkon deal −15 / Varkon +20;
+  - +10 for destroying the free port;
+  - −40 when the player takes a League world.
+- **Protection** (`MissionPlanetSpec.protected`, effect `protect_planet`, `CampaignSessionState.protectedPlanets`): no AI plans or launches an assault on a protected planet (`EnemyInvasionService.setProtectionGuard`, inside `isHostilePlanet`, the one check behind `planAssault` and `launch`). The Hub is protected until minute 35, then from everyone but Varkon — unless the player backed the Varkon deal at the Charter vote. Cantor's Rest is protected for the whole mission. The player is never restricted.
+- **Objectives:**
+  - Trading Posts on 2 planets;
+  - 8,000 trade income;
+  - League standing 60;
+  - 2 mining stations (`mining_station.count`);
+  - then *Keep the Meridian Hub free* (it ends the mission).
+
+  Optional: destroy the free port (`base_destroyed`); lose no trader until minute 30 (new counter `trader_lost`).
+- **Endings:** **The Free Exchange** (records `m4_path: exchange`, `m4_charter`, `league_standing`) and **Market Dominance** (Trading Posts on 4 planets, one of them a captured League world; `m4_path: dominance`, `m4_league_conquered`). Defeat: Varkon takes the Hub.
+- **Deviations from §6/§7:**
+  - Varkon holds Cantor Minor instead of a planet of its own region, and the gate's eastern mouth is ~14 cells from Cantor's Rest. The AI raid role only targets traders its sensors see within 45 cells of its territory and 30 of a free fleet. In the first layout (Cantor's Rest ~60 cells from Varkon, the mouth next to the port) Varkon never raided.
+  - Raiders beaten near the League count as any battle won within 8 cells of a League world.
+  - The pirate free port is destroyed, not captured: bases cannot change hands.
+  - Market dominance needs one captured League world, so four Trading Posts on the player's own colonies are not enough.
+  - The Concordium keeps its Mission 3 name "The Concordium".
+- **Measured** (`m4-meridian-exchange.long.spec.ts`, 40 minutes, Normal, a passive player):
+  - Varkon raid orders from minute 1, kills of League traders at minutes 12, 12 and 15;
+  - no assault on a League world;
+  - the Hub and Cantor's Rest still independent at minute 40.
+
+  Open points for balance: Varkon made no move on the Hub after minute 35 in this run (the defense objective may need a scripted Varkon fleet, `spawn_fleet`); the Concordium raided League traders from minute 26 (the ordinary AI raid role, which treats civilian traders as fair game for every personality).
+- Tests: `missions/m4-meridian-exchange.spec.ts` (map counts, routes, the alignment carry, Hub protection before and after minute 35 and after the Varkon deal, each standing source and its cap, both victories, the defeat, the free port and a lost trader).
+
+**Next:** Phase 6 (Mission 5: The Border Conflict, the `mercantile` personality).
 
 ---
 

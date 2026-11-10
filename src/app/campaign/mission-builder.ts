@@ -175,6 +175,9 @@ export function buildMission(mission: MissionDefinition, options: MissionBuildOp
     asteroidEvents: initialAsteroidEvents(seed),
     anomalies: { version: ANOMALY_CONFIG.generatorVersion, nextSeq: 1, anomalies: buildAnomalies(mission, starSystems) },
     ...(spec.wormholes && spec.wormholes.length > 0 ? { wormholes: structuredClone(spec.wormholes) } : {}),
+    ...(spec.spaceBases && spec.spaceBases.length > 0
+      ? { spaceBases: spec.spaceBases.map((b, i) => ({ id: i + 1, name: b.name, factionId: b.factionId, x: b.x, y: b.y })) }
+      : {}),
     ...(mission.rules.tutorial ? { tutorial: { enabled: true, done: [] } } : {}),
     map: { width: spec.width, height: spec.height, cellSizeVw: 2, cellSizeVh: 2 },
     starSystems,
@@ -264,6 +267,10 @@ function buildPlanet(spec: MissionPlanetSpec, id: number, index: number): Planet
   return planet;
 }
 
+function protectedPlanets(mission: MissionDefinition): { planetName: string }[] {
+  return mission.map.systems.flatMap((s) => s.planets.filter((p) => p.protected).map((p) => ({ planetName: p.name })));
+}
+
 function initialSession(mission: MissionDefinition, options: MissionBuildOptions, fleetTags: Record<string, number[]>): CampaignSessionState {
   const objectives: Record<string, ObjectiveState> = {};
   for (const def of mission.objectives) objectives[def.id] = { status: 'locked' };
@@ -275,6 +282,7 @@ function initialSession(mission: MissionDefinition, options: MissionBuildOptions
     carry: structuredClone(options.carry),
     rules: { ...mission.rules },
     flags: { ...(mission.carryIn ?? {}), ...options.carry.flags },
+    ...(protectedPlanets(mission).length > 0 ? { protectedPlanets: protectedPlanets(mission) } : {}),
     values: {},
     counters: {},
     objectives,

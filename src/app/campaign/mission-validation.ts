@@ -188,8 +188,22 @@ export function validateMission(mission: MissionDefinition): string[] {
   }
   if (mission.endings.length === 0) err('a mission needs at least one ending');
 
+  const baseNames = new Set<string>();
+  for (const base of map.spaceBases ?? []) {
+    if (baseNames.has(base.name)) err(`duplicate space base name "${base.name}"`);
+    baseNames.add(base.name);
+    if (!factionIds.has(base.factionId)) err(`space base "${base.name}" has unknown owner "${base.factionId}"`);
+  }
+  for (const source of mission.valueSources ?? []) {
+    if (source.kind === 'delivery') for (const name of source.toPlanets) if (!planetNames.has(name)) err(`value source delivers to unknown planet "${name}"`);
+    if (source.kind === 'battle_won') {
+      for (const id of source.nearSystems) if (!systemIds.has(id)) err(`value source near unknown system "${id}"`);
+      if (source.against !== undefined && !factionIds.has(source.against)) err(`value source against unknown faction "${source.against}"`);
+    }
+  }
+
   const heldIds = new Set<string>();
-  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds, anomalyKeys, wormholeIds };
+  const refs = { factionIds, systemIds, planetNames, objectiveIds, eventIds, endingIds, fleetTags, heldIds, anomalyKeys, wormholeIds, baseNames };
   for (const objective of mission.objectives) {
     for (const id of objective.after ?? []) if (!objectiveIds.has(id)) err(`objective "${objective.id}" waits for unknown "${id}"`);
     checkCondition(objective.condition, refs, err);
@@ -267,6 +281,7 @@ interface Refs {
   heldIds: Set<string>;
   anomalyKeys: Set<string>;
   wormholeIds: Set<string>;
+  baseNames: Set<string>;
 }
 
 function checkCondition(condition: Condition, refs: Refs, err: (message: string) => void): void {
@@ -334,6 +349,9 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
     case 'anomaly_resolved':
       if (!refs.anomalyKeys.has(condition.key)) err(`condition references unknown anomaly "${condition.key}"`);
       return;
+    case 'base_destroyed':
+      if (!refs.baseNames.has(condition.name)) err(`condition references unknown space base "${condition.name}"`);
+      return;
     case 'held_for':
       // Timers are keyed by id: two conditions sharing one would share a timer.
       if (refs.heldIds.has(condition.id)) err(`held_for id "${condition.id}" is used twice`);
@@ -384,6 +402,10 @@ function checkEffects(effects: readonly Effect[] | undefined, refs: Refs, err: (
         break;
       case 'force_demand':
         for (const id of [effect.demander, effect.target]) if (!refs.factionIds.has(id)) err(`effect references unknown faction "${id}"`);
+        break;
+      case 'protect_planet':
+        if (!refs.planetNames.has(effect.planetName)) err(`effect protects unknown planet "${effect.planetName}"`);
+        for (const id of effect.except ?? []) if (!refs.factionIds.has(id)) err(`effect references unknown faction "${id}"`);
         break;
       case 'tribute_pact':
       case 'end_tribute_pact':

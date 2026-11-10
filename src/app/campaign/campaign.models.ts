@@ -42,7 +42,8 @@ export type FlagValue = string | number | boolean;
  * - battle_won / battle_lost: the opponent's faction;
  * - war_declared / peace_signed: the other side of the player's treaty;
  * - demand_paid / demand_refused: the empire that demanded from the player;
- * - planet_lost: the player's planet now owned by that faction (any reason).
+ * - planet_lost: the player's planet now owned by that faction (any reason);
+ * - trader_lost: a player trader destroyed in a raid, by the raider's faction.
  */
 export type CampaignEventKind =
   | 'battle_won'
@@ -55,7 +56,8 @@ export type CampaignEventKind =
   | 'peace_signed'
   | 'demand_paid'
   | 'demand_refused'
-  | 'planet_lost';
+  | 'planet_lost'
+  | 'trader_lost';
 
 /*
  * Conditions are evaluated once per economy tick (1 s of game time) and on
@@ -86,8 +88,10 @@ export type Condition =
   | { kind: 'fleet_at'; x: number; y: number; radius?: number; ships?: Record<string, number>; minCombatShips?: number; factionId?: string }
   /* A player fleet anywhere with at least these ships / warships. */
   | { kind: 'fleet_with'; ships?: Record<string, number>; minCombatShips?: number; factionId?: string }
-  /* The player owns a mining station (complete or under construction), optionally in a given system. */
-  | { kind: 'mining_station'; systemId?: string }
+  /* The player owns `count` (default 1) mining stations (complete or under construction), optionally in one system. */
+  | { kind: 'mining_station'; systemId?: string; count?: number }
+  /* No space base with this name exists any more (bases are removed when destroyed). */
+  | { kind: 'base_destroyed'; name: string }
   /* A campaign anomaly (by its mission key) was resolved, optionally with this choice. */
   | { kind: 'anomaly_resolved'; key: string; choiceId?: string }
   | { kind: 'opinion_at_least'; holder: string; of: string; value: number }
@@ -134,6 +138,12 @@ export type Effect =
    */
   | { kind: 'tribute_pact'; receiver: string; amount: number; intervalSeconds: number }
   | { kind: 'end_tribute_pact'; receiver: string }
+  /*
+   * AI assault protection of a planet (docs/campaign-design.md, Mission 4):
+   * while protected, no AI empire plans or launches an assault on it, except
+   * the empires in `except`. `protect: false` lifts it for everyone.
+   */
+  | { kind: 'protect_planet'; planetName: string; protect: boolean; except?: string[] }
   | { kind: 'end_mission'; endingId: string }
   | { kind: 'fail_mission'; reason: string };
 
@@ -252,6 +262,8 @@ export interface MissionPlanetSpec {
   satisfaction?: number;
   /* A raw-material deposit next to free ground from the start (like homeworlds). */
   deposit?: boolean;
+  /* No AI empire may assault it from the start (until a `protect_planet` effect lifts it). */
+  protected?: boolean;
   explored?: boolean;
 }
 
@@ -305,6 +317,8 @@ export interface MissionMapSpec {
   asteroidBelts?: AsteroidBelt[];
   wormholes?: Wormhole[];
   anomalies?: MissionAnomalySpec[];
+  /* Authored space bases (an outlaw free port); names are unique, conditions refer to them by name. */
+  spaceBases?: { name: string; factionId: string; x: number; y: number }[];
   /* Every pair of non-neutral, non-outlaw factions, symmetric (validated). */
   relations: MissionRelationSpec[];
   defaultView: { systemId: string; planetName: string };
@@ -354,9 +368,23 @@ export interface MissionDefinition {
    * the Concordium for the whole mission (their war belongs to Mission 5).
    */
   aiRestraint?: { factionId: string; target?: string; untilFlag?: string }[];
+  /*
+   * Where a mission value comes from besides effects (Mission 4's League
+   * standing). CampaignService applies them when StarMap reports the event;
+   * `cap` is the highest value a source can raise the key to.
+   */
+  valueSources?: ValueSource[];
   /* Tutorial steps that make no sense here (tutorial-steps.ts ids), e.g. 'diplomacy' without empires. */
   tutorialExcludedSteps?: string[];
 }
+
+export type ValueSource =
+  /* A player trader delivers to one of these planets: `amount` per delivery. */
+  | { kind: 'delivery'; toPlanets: string[]; key: string; amount: number; cap?: number }
+  /* The player wins a battle within `radius` cells of one of these systems (optionally against one empire). */
+  | { kind: 'battle_won'; nearSystems: string[]; radius: number; against?: string; key: string; amount: number; cap?: number }
+  /* The player trades at the resource exchange: `perThousand` per 1,000 credits of trade volume. */
+  | { kind: 'exchange'; key: string; perThousand: number; cap?: number };
 
 export interface ContactOverride {
   outcome?: 'peace' | 'cold_peace' | 'war';
@@ -414,6 +442,8 @@ export interface CampaignSessionState {
   tributePacts?: TributePactState[];
   /* Names of the player's planets at the last tick; a name that left the list counts as `planet_lost`. */
   playerPlanets?: string[];
+  /* Planets no AI may assault (`protect_planet`), with the empires exempted. */
+  protectedPlanets?: { planetName: string; except?: string[] }[];
   outcome?: CampaignOutcome;
 }
 

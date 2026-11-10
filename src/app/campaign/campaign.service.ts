@@ -13,6 +13,7 @@ import {
   ObjectiveState,
   StoryEventDef,
   TributePactState,
+  ValueSource,
 } from './campaign.models';
 import { CampaignWorld, evaluateCondition, objectiveProgress } from './campaign-objectives';
 import { CampaignDiplomacyAction, EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } from './campaign-effects';
@@ -181,6 +182,50 @@ export class CampaignService {
     const flags = this.session.flags;
     const flagSet = (flag: string | undefined) => flag !== undefined && flags[flag] !== undefined && flags[flag] !== false;
     return (this.definition?.aiRestraint ?? []).some((r) => r.factionId === aiId && (r.target ?? 'player') === otherId && !flagSet(r.untilFlag));
+  }
+
+  /* Is this planet protected from assaults by the AI `attackerId` (`protect_planet`)? */
+  protects(attackerId: string, planetName: string): boolean {
+    const entry = this.session?.protectedPlanets?.find((p) => p.planetName === planetName);
+    return !!entry && !(entry.except ?? []).includes(attackerId);
+  }
+
+  /*
+   * Value sources (MissionDefinition.valueSources), reported by StarMap:
+   * a player trader's delivery, a battle the player won (where, against
+   * whom) and resource-exchange volume. Each adds to its key up to its cap.
+   */
+  recordDelivery(destinationPlanetName: string | undefined): void {
+    for (const source of this.valueSources('delivery')) {
+      if (destinationPlanetName && source.toPlanets.includes(destinationPlanetName)) this.addCapped(source.key, source.amount, source.cap);
+    }
+  }
+
+  recordBattleWon(opponentId: string | undefined, x: number, y: number, world: CampaignWorld): void {
+    for (const source of this.valueSources('battle_won')) {
+      if (source.against !== undefined && source.against !== opponentId) continue;
+      const near = world.starSystems.some((s) => source.nearSystems.includes(s.id) && Math.hypot(s.x - x, s.y - y) <= source.radius);
+      if (near) this.addCapped(source.key, source.amount, source.cap);
+    }
+  }
+
+  recordExchange(credits: number): void {
+    for (const source of this.valueSources('exchange')) this.addCapped(source.key, (Math.max(0, credits) / 1000) * source.perThousand, source.cap);
+  }
+
+  private valueSources<K extends ValueSource['kind']>(kind: K): Extract<ValueSource, { kind: K }>[] {
+    if (!this.session || this.session.outcome) return [];
+    return (this.definition?.valueSources ?? []).filter((s): s is Extract<ValueSource, { kind: K }> => s.kind === kind);
+  }
+
+  private addCapped(key: string, delta: number, cap: number | undefined): void {
+    const values = this.session!.values;
+    const current = values[key] ?? 0;
+    const next = cap === undefined ? current + delta : Math.max(current, Math.min(cap, current + delta));
+    if (next === current) return;
+    // Whole tenths, so the tracker and saves show tidy numbers.
+    values[key] = Math.round(next * 10) / 10;
+    this.dirty = true;
   }
 
   /* The contact override of a scripted meeting (MissionDefinition.contactOverrides). */
@@ -550,6 +595,9 @@ function sanitizeSession(saved: CampaignSessionState, mission: MissionDefinition
     ...(Array.isArray(saved.forcedContacts) ? { forcedContacts: strings(saved.forcedContacts) } : {}),
     ...(Array.isArray(saved.tributePacts) ? { tributePacts: saved.tributePacts.filter(isPactShape) } : {}),
     ...(Array.isArray(saved.playerPlanets) ? { playerPlanets: strings(saved.playerPlanets) } : {}),
+    ...(Array.isArray(saved.protectedPlanets)
+      ? { protectedPlanets: saved.protectedPlanets.filter((p) => !!p && typeof p.planetName === 'string').map((p) => ({ planetName: p.planetName, ...(Array.isArray(p.except) ? { except: strings(p.except) } : {}) })) }
+      : {}),
     ...(saved.outcome && (saved.outcome.kind === 'victory' || saved.outcome.kind === 'defeat') ? { outcome: saved.outcome } : {}),
   };
 }

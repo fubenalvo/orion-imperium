@@ -83,6 +83,8 @@ Planned by `EnemyFleetService` (role `assault`, see [AI Pipeline](./ai-pipeline.
 
 Assault state is in-memory; a genuine load resets it and assaults are re-planned from the saved situation. A return from the battle screen keeps it: the assault whose player battle was just fought reads the planet's owner (captured, or repelled and remembered as failed for 300 s), and an assault whose battle was queued but not yet fought is launched again. A capture is persisted with the planet, so a reload can neither undo nor repeat it.
 
+In a campaign mission, `EnemyInvasionService.isHostilePlanet` also refuses planets the mission protects (`protect_planet`, [Campaign Design](./campaign-design.md#implementation-status)): no AI plans or launches an assault on them, the player is never restricted.
+
 ## Opening grace (`opening-grace.ts`)
 
 A hidden difficulty aid. Empires meet early and warlike ones usually meet the player at war ([First Contact](./first-contact.md)); older saves start with everyone at war. In either case, for the first `openingGraceSeconds` of the attacking AI's difficulty (**Easy 600 s, Normal 360 s, Hard 240 s** of game time, on the saved game clock `StarMapData.gameSeconds`; `OPENING_GRACE_SECONDS` is Normal's value, used for an AI without a difficulty) no AI attacks the human player. The war stands on paper; the player is not told about the grace (no notice, no UI).

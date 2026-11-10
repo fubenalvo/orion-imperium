@@ -1,4 +1,4 @@
-import { Anomaly, Faction, Fleet, StarSystem } from '../components/star-map/star-map.models';
+import { Anomaly, Faction, Fleet, SpaceBase, StarSystem } from '../components/star-map/star-map.models';
 import { isCombatShipType } from '../components/star-map/ai-queries';
 import shipData from '../components/star-map/ship-data.json';
 import { getRelationKind, inContact } from '../components/star-map/diplomacy';
@@ -29,6 +29,8 @@ export interface CampaignWorld {
   exploredGridCells: ReadonlySet<string>;
   /* The session's anomalies (AnomalyService), for `anomaly_resolved`. */
   anomalies?: readonly Anomaly[];
+  /* Living space bases (SpaceBaseService), for `base_destroyed`. */
+  spaceBases?: readonly SpaceBase[];
 }
 
 export interface EvaluationContext {
@@ -113,10 +115,16 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
       return world.fleets.some((fleet) => fleetMatches(fleet, condition));
     case 'fleet_with':
       return world.fleets.some((fleet) => fleetMatches(fleet, condition));
-    case 'mining_station':
-      return world.starSystems.some((system) =>
-        (condition.systemId === undefined || system.id === condition.systemId)
-        && (system.asteroidBelt?.asteroids ?? []).some((a) => a.miningStation?.factionId === 'player'));
+    case 'mining_station': {
+      let stations = 0;
+      for (const system of world.starSystems) {
+        if (condition.systemId !== undefined && system.id !== condition.systemId) continue;
+        stations += (system.asteroidBelt?.asteroids ?? []).filter((a) => a.miningStation?.factionId === 'player').length;
+      }
+      return stations >= (condition.count ?? 1);
+    }
+    case 'base_destroyed':
+      return !(world.spaceBases ?? []).some((b) => b.name === condition.name);
     case 'anomaly_resolved': {
       const anomaly = world.anomalies?.find((a) => a.key === condition.key);
       return anomaly?.status === 'resolved' && (condition.choiceId === undefined || anomaly.choiceId === condition.choiceId);
