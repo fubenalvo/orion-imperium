@@ -496,15 +496,28 @@ loadError = '';
    * (same idea as SpaceNebulaFieldComponent). It used to be a moving div twice
    * the size of the whole map: on phones its off-screen tiles were not yet
    * rasterized when panning exposed them, so the map flashed black.
-   * Tile size must match `background-size` of .star-map-background.
+   *
+   * The tile is at most one screen wide (keeping the texture's aspect ratio),
+   * so the layer is at most about 2 x 2 screens. A fixed 1254 px tile made it
+   * ~2.5 x 2.8 screens on a landscape phone, one of the largest GPU textures.
+   * The tile size is passed to the SCSS as --star-tile-w / --star-tile-h
+   * (layer size and background-size), so both always agree with the wrap here.
    */
   private static readonly STAR_TEXTURE_W_PX = 1254;
   private static readonly STAR_TEXTURE_H_PX = 706;
 
+  get starTileW(): number {
+    return Math.round(Math.min(StarMap.STAR_TEXTURE_W_PX, window.innerWidth));
+  }
+
+  get starTileH(): number {
+    return Math.round((this.starTileW * StarMap.STAR_TEXTURE_H_PX) / StarMap.STAR_TEXTURE_W_PX);
+  }
+
   get starTextureTransform(): string {
     const vwPx = window.innerWidth / 100;
-    const x = wrapPositive(this.cameraX * 0.3 * vwPx, StarMap.STAR_TEXTURE_W_PX);
-    const y = wrapPositive(this.cameraY * 0.3 * vwPx, StarMap.STAR_TEXTURE_H_PX);
+    const x = wrapPositive(this.cameraX * 0.3 * vwPx, this.starTileW);
+    const y = wrapPositive(this.cameraY * 0.3 * vwPx, this.starTileH);
     return `translate3d(${-x}px, ${-y}px, 0)`;
   }
 

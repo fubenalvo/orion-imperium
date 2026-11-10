@@ -471,12 +471,21 @@ in the system / planet views, where it would draw over opaque scenery.
 
 ### Wrapping nebula field
 
-`SpaceNebulaFieldComponent` (`src/app/components/space-nebula-field/`) draws
-a 180 x 130 vw tile of three nebula formations 2 x 2 times in a
-viewport-pinned layer and translates it by the camera pan modulo one tile.
-Panning only changes a compositor transform, and nebulae are always on
-screen however large the galaxy is. Every formation must stay inside its
-tile (see the SCSS) or it is cut where the tiles wrap.
+`SpaceNebulaFieldComponent` (`src/app/components/space-nebula-field/`)
+repeats three nebula formations on a 180 x 130 vw lattice that scrolls with
+the camera pan (0.12x). Each copy of a formation near the screen (within
+25 vw) is its own small layer keyed by its lattice index and moved by a
+compositor transform, so panning only changes transforms, and nebulae are
+always on screen however large the galaxy is. The formations' positions and
+sizes live in `FORMATIONS` in the component; each must stay inside its tile
+or neighbouring copies overlap. The filter and mask sit on the inner element
+so they are rasterized into the copy once. (It used to be one 360 x 260 vw
+layer of 2 x 2 tiles, the largest GPU texture on phones.)
+
+The star-texture layer (`.star-map-background`) is the screen plus one
+texture tile; the tile is at most one screen wide (`StarMap.starTileW` /
+`starTileH`, passed to the SCSS as `--star-tile-w` / `--star-tile-h`), so on
+phones the layer stays about 2 x 2 screens.
 
 ### Stylesheet budgets
 

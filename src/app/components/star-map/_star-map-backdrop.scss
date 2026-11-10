@@ -36,18 +36,19 @@
    than the screen; StarMap.starTextureTransform shifts it by the parallax
    offset modulo one tile, so the texture wraps and the layer stays small
    enough to be fully rasterized (no black tiles while panning on phones).
-   The extra width / height must equal background-size below and
-   StarMap.STAR_TEXTURE_*_PX. */
+   The tile size comes from StarMap.starTileW / starTileH (at most one screen
+   wide) through --star-tile-w / --star-tile-h; the fallbacks are the
+   texture's full size. */
 .star-map-background {
   position: absolute;
   left: 0;
   top: 0;
-  width: calc(100% + 1254px);
-  height: calc(100% + 706px);
+  width: calc(100% + var(--star-tile-w, 1254px));
+  height: calc(100% + var(--star-tile-h, 706px));
 
   background-image: url('stars.png');
 
-  background-size: 1254px 706px;
+  background-size: var(--star-tile-w, 1254px) var(--star-tile-h, 706px);
 
   opacity: 0.9;
 

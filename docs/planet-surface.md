@@ -248,7 +248,12 @@ Layers, back to front:
    under each building's base slab — a larger offset shadow made buildings
    look like they were floating —
    street lights, buildable-zone outline in build mode, hover highlight) and
-   the interactive CSS grid of cells (contiguous, no gaps).
+   the interactive CSS grid of cells (contiguous, no gaps). The plane covers
+   only `groundFrame`: the grid plus 1.5 cells, grown to include the access
+   road (the margin around it is terrain canvas only). Its inline
+   `transform-origin` is the world center and the SVG `viewBox` is the
+   frame, so world points map exactly as on a world-sized plane; a
+   world-sized plane was a ~4x larger tilted GPU layer.
 3. **Sprites** — buildings (`public/buildings-svg/`, see [Building sprites](#building-sprites)),
    deposits and the build ghost, positioned with the same projection. A
    sprite's bottom center is its footprint's front corner (inset 0.15 cells,
