@@ -209,7 +209,7 @@ Deposit cards show the remaining amount and the asteroid's extraction rate. Stat
 
 ## Rendering
 
-- **Territory layer** (`.territory-layer`, galaxy view): one SVG in grid units under the fog (z 2, like nebulae), so unexplored space stays dark and every star, planet, fleet and marker stays on top. Per empire: a faint, softly blurred fill (7%, own 10%) and a thin border on the cell edges facing other owners — solid for the player, dashed for foreign empires; neutral space is untinted. Paths come from `buildTerritoryShapes` (row runs for the fill, merged edge runs for the border).
+- **Territory layer** (`.territory-layer`, galaxy view): one SVG in grid units under the fog (z 4, like nebulae), so unexplored space stays dark and every star, planet, fleet and marker stays on top. Per empire: a faint, softly blurred fill (7%, own 10%) and a thin border on the cell edges facing other owners — solid for the player, dashed for foreign empires; neutral space is untinted. Paths come from `buildTerritoryShapes` (row runs for the fill, merged edge runs for the border).
 - **Base claim** circles: faint dashed rings in the owner's color.
 - **Base markers** (`.space-base`): a slowly turning dashed ring around a lit core in the owner's color, with the name below, between the fog and the fleets. Own bases are always shown; foreign bases once their cell was explored (static structures stay known); all of them with fog of war disabled. The click shows a notice and bubbles to the map, so move and attack orders onto a base cell work as usual.
 

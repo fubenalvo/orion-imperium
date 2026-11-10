@@ -20,27 +20,7 @@
 
 /* =========================================================
    SENSOR RANGE HIGHLIGHT CELLS
-   The cells sit in one absolutely positioned layer with the same grid
-   template as the world (galaxy: bound in the template; system view: below),
-   and that layer pulses as a whole. Do not move the animation back onto the
-   cells: a few hundred individually animated cells each became their own GPU
-   layer, and on phones the star map flickered while being dragged.
-   Absolute positioning keeps the layer out of the parent grid's
-   auto-placement.
    ========================================================= */
-
-.sensor-field {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: grid;
-}
-
-/* Must match .system-grid (36 × 14 cells of 2.5vw, system-grid.ts). */
-.system-sensor-field {
-  grid-template-columns: repeat(36, 2.5vw);
-  grid-template-rows: repeat(14, 2.5vw);
-}
 
 .sensor-range-cell {
   position: relative;
@@ -50,6 +30,9 @@
      blurred spread that merges neighbouring cells into one glow. */
   background: color-mix(in srgb, var(--sensor-color, var(--ui-accent)) 22%, transparent);
   box-shadow: 0 0 calc(var(--cell-size-vw, 5vw) * 0.3) color-mix(in srgb, var(--sensor-color, var(--ui-accent)) 18%, transparent);
+  z-index: 6;
+  pointer-events: none;
+  animation: sensor-pulse 2.5s ease-in-out infinite;
 }
 
 /* Sensor range cells in system view use the fixed system cell (system-grid.ts) */

@@ -138,19 +138,9 @@
   pointer-events: none;
 }
 
-/* GPU layers (measured 2026-11-10 on a phone-sized 3x viewport): the static,
-   world-sized layers (nebula, territory, belts) sit at z 2, under the star
-   systems (z 3) and every animated or moving map object, so overlap does not
-   promote each of them to its own world-sized GPU layer (six such layers made
-   map drags flicker on phones). The nebula keeps one layer of its own on
-   purpose (will-change): its masked, filtered SVG is costly to rasterize, and
-   inside the world layer every newly exposed tile during a drag paid for it
-   (raster time doubled). No mix-blend-mode: .map-world is an isolated group
-   (transform), so `screen` only blended with the transparent world and looked
-   the same as normal blending. */
 .nebula-layer {
-  z-index: 2;
-  will-change: transform;
+  z-index: 4;
+  mix-blend-mode: screen;
   /* Vivid colors: the grayscale texture times the tint reads washed out
      after the screen blend, so the whole static layer is saturated. */
   filter: saturate(1.8);
@@ -289,11 +279,8 @@
   position: absolute;
   width: 0;
   height: 0;
-  top: 0;
-  left: 0;
   z-index: 13;
-  /* Moved by an inline translate3d (template), like .fleet-cell. */
-  will-change: transform;
+  will-change: left, top;
 }
 
 .asteroid-cell--crystal {
@@ -397,13 +384,10 @@
 
 .trader-cell {
   position: absolute;
-  top: 0;
-  left: 0;
   width: 0;
   height: 0;
   z-index: 13;
-  /* Moved by an inline translate3d (template), like .fleet-cell. */
-  will-change: transform;
+  will-change: left, top;
 }
 
 /* Centered without `transform`, see `.asteroid`. */
@@ -474,9 +458,8 @@
   left: 0;
   overflow: visible;
   pointer-events: none;
-  /* Under the fog layer (z 5), so unexplored belts are dimmed too; z 2 like
-     the other static world layers (see .nebula-layer). */
-  z-index: 2;
+  /* Under the fog layer (z 5), so unexplored belts are dimmed too. */
+  z-index: 4;
   opacity: 0.9;
 }
 
@@ -527,7 +510,7 @@
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 2;
+  z-index: 4;
   overflow: visible;
   pointer-events: none;
 }
@@ -740,11 +723,4 @@
     animation: none;
     opacity: 0;
   }
-}
-
-/* Star systems above the static world layers (z 2) and under the fog (z 5):
-   their animated corona and spikes must not sit below a world-sized layer
-   (see .nebula-layer). */
-.system-cell {
-  z-index: 3;
 }

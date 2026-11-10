@@ -501,32 +501,6 @@ loadError = '';
   private static readonly STAR_TEXTURE_W_PX = 1254;
   private static readonly STAR_TEXTURE_H_PX = 706;
 
-  /*
-   * Foreground dust parallax (0.6x). Moved by a wrapped compositor transform
-   * like the star texture, never by background-position: that repainted a
-   * full-screen layer on every pointer move of a map drag. The tile size
-   * must match space-dust() in styles/_space.scss.
-   */
-  private static readonly DUST_TILE_W_PX = 640;
-  private static readonly DUST_TILE_H_PX = 520;
-
-  /*
-   * A full-screen dialog covers the scene. The scenery and the current view
-   * stop their CSS animations meanwhile (star-map.scss .star-map--covered):
-   * nobody sees them, and on phones the GPU work behind a large dialog
-   * (e.g. the research board over the planet view) made the dialog flicker.
-   */
-  get sceneCovered(): boolean {
-    return this.showResearchTree || this.showDiplomacy || !!this.customizationFleet || !!this.fleetManagerFleets;
-  }
-
-  get dustTransform(): string {
-    const vwPx = window.innerWidth / 100;
-    const x = wrapPositive(this.cameraX * 0.6 * vwPx, StarMap.DUST_TILE_W_PX);
-    const y = wrapPositive(this.cameraY * 0.6 * vwPx, StarMap.DUST_TILE_H_PX);
-    return `translate3d(${-x}px, ${-y}px, 0)`;
-  }
-
   get starTextureTransform(): string {
     const vwPx = window.innerWidth / 100;
     const x = wrapPositive(this.cameraX * 0.3 * vwPx, StarMap.STAR_TEXTURE_W_PX);
@@ -4097,16 +4071,7 @@ loadError = '';
     return false;
   }
 
-  /*
-   * Latest drag pointer position, applied once per animation frame. Touch
-   * screens deliver pointer moves faster than the display refreshes, and every
-   * camera change runs change detection for the whole star map; applying each
-   * event separately made finger drags stutter and flicker on phones.
-   */
-  private pendingDragPoint: { x: number; y: number } | null = null;
-  private dragFrame: number | null = null;
-
-  /** Pointer move during drag — schedules the camera update for the next frame. */
+  /** Pointer move during drag — updates camera position with clamping. */
   onPointerMove(event: PointerEvent): void {
     if (!this.isDragging) {
       return;
@@ -4119,34 +4084,11 @@ loadError = '';
       this.dragMoved = true;
     }
 
-    this.pendingDragPoint = { x: event.clientX, y: event.clientY };
-    if (this.dragFrame === null) {
-      this.dragFrame = requestAnimationFrame(() => {
-        this.dragFrame = null;
-        this.applyPendingDrag();
-      });
-    }
-  }
-
-  /* Moves the camera to the last drag position (clamped) and re-renders. */
-  private applyPendingDrag(): void {
-    const point = this.pendingDragPoint;
-    if (!point) return;
-    this.pendingDragPoint = null;
     const viewportUnitInPixels = window.innerWidth / 100;
-    this.cameraX = this.dragCameraStartX - (point.x - this.dragStartX) / viewportUnitInPixels / this.zoom;
-    this.cameraY = this.dragCameraStartY - (point.y - this.dragStartY) / viewportUnitInPixels / this.zoom;
+    this.cameraX = this.dragCameraStartX - deltaX / viewportUnitInPixels / this.zoom;
+    this.cameraY = this.dragCameraStartY - deltaY / viewportUnitInPixels / this.zoom;
     this.clampCamera();
     this.cdr.detectChanges();
-  }
-
-  /* Applies a still pending drag frame now (the finger lifted before it ran). */
-  private flushPendingDrag(): void {
-    if (this.dragFrame !== null) {
-      cancelAnimationFrame(this.dragFrame);
-      this.dragFrame = null;
-    }
-    this.applyPendingDrag();
   }
 
   /** Pointer up — ends drag, dispatches click if no movement occurred. */
@@ -4159,7 +4101,6 @@ loadError = '';
     vp.releasePointerCapture(event.pointerId);
     vp.classList.remove('dragging');
 
-    this.flushPendingDrag();
     this.isDragging = false;
 
     if (!this.dragMoved) {
@@ -6069,7 +6010,6 @@ loadError = '';
 
   /** Saves the game, removes event listeners, and stops the game loop when the component is destroyed. */
   ngOnDestroy(): void {
-    if (this.dragFrame !== null) cancelAnimationFrame(this.dragFrame);
     this.saveGame();
     // No hints between screens; the battle screen or the next load sets the scene again.
     this.tutorial.setScene('none');

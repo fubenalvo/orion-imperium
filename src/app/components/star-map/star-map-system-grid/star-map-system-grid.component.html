@@ -110,16 +110,14 @@
 
     <!-- SYSTEM SENSOR RANGE HIGHLIGHTS -->
     @if (sensorRangeEnabled) {
-      <div class="sensor-field system-sensor-field" aria-hidden="true">
-        @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {
-          <div
-            class="sensor-range-cell system-sensor-cell"
-            [style.--sensor-color]="getFactionColor('player')"
-            [style.gridColumn]="cell.col"
-            [style.gridRow]="cell.row"
-          ></div>
-        }
-      </div>
+      @for (cell of systemSensorCells.cells; track cell.col + '-' + cell.row) {
+        <div
+          class="sensor-range-cell system-sensor-cell"
+          [style.--sensor-color]="getFactionColor('player')"
+          [style.gridColumn]="cell.col"
+          [style.gridRow]="cell.row"
+        ></div>
+      }
 
       <!-- SYSTEM SENSOR OUTER-RING PREVIEW CELLS -->
       @for (cell of systemSensorCells.preview; track cell.col + '-' + cell.row) {
@@ -156,7 +154,8 @@
       @if (fleet.system?.id === selectedSystem.id) {
         <div
           class="fleet-cell"
-          [style.transform]="'translate3d(' + fleet.system?.x + 'vw, ' + fleet.system?.y + 'vw, 0) translate(-50%, -50%)'"
+          [style.left]="fleet.system?.x + 'vw'"
+          [style.top]="fleet.system?.y + 'vw'"
         >
           <button
             class="fleet"
@@ -210,6 +209,8 @@
         <div
           class="fleet-trail"
           [class.fleet-trail--player]="trail.factionId === 'player'"
+          [style.left]="trail.x1 + 'vw'"
+          [style.top]="trail.y1 + 'vw'"
           [style.width]="getTrailLength(trail) + 'vw'"
           [style.transform]="getTrailTransform(trail)"
           [style.--trail-color]="trail.color"

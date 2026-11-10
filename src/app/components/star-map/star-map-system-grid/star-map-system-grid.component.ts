@@ -182,8 +182,7 @@ export class StarMapSystemGridViewComponent {
       return null;
     }
     const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI;
-    // The start point is in the transform, not in left / top (see .fleet-trail).
-    return `translate3d(${trail.x1}vw, ${trail.y1}vw, 0) rotate(${angleDeg}deg)`;
+    return `rotate(${angleDeg}deg)`;
   }
 
   /** Returns the line length in vw, or 0 when the trail is degenerate. */

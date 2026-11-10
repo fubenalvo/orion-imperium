@@ -1,4 +1,4 @@
-<div class="star-map" [class.star-map--covered]="sceneCovered" [style.--cell-size-vw]="cellSizeVw + 'vw'">
+<div class="star-map" [style.--cell-size-vw]="cellSizeVw + 'vw'">
   @if (gameOutcome !== 'inProgress') {
     <div class="game-end-overlay" role="dialog" aria-modal="true">
       <div class="game-end-modal">
@@ -103,7 +103,7 @@
     <div
       class="star-map-foreground"
       aria-hidden="true"
-      [style.transform]="dustTransform"
+      [style.backgroundPosition]="-cameraX * 0.6 + 'vw ' + -cameraY * 0.6 + 'vw'"
     ></div>
   }
 

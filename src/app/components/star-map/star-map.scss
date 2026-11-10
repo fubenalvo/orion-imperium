@@ -237,23 +237,3 @@
     color: var(--ui-ink-dim);
   }
 }
-
-/* Full-screen dialog open (StarMap.sceneCovered): freeze the animations of
-   the backdrop and the current view behind it. Dialogs are siblings of these
-   containers, so their own animations keep running. */
-.star-map--covered {
-  .star-map-deep,
-  .star-map-nebulae,
-  .star-map-background,
-  .star-map-foreground,
-  app-star-map-galaxy-view,
-  .system-view,
-  .planet-view {
-    &,
-    ::ng-deep *,
-    ::ng-deep *::before,
-    ::ng-deep *::after {
-      animation-play-state: paused !important;
-    }
-  }
-}
