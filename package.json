@@ -13,6 +13,7 @@
     "sprites:blueprints": "node scripts/ship-blueprints/generate.mjs"
   },
   "private": true,
+  "license": "UNLICENSED",
   "packageManager": "npm@12.0.2",
   "dependencies": {
     "@angular/common": "^22.1.0",

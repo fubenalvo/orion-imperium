@@ -61,4 +61,6 @@ See `docs/` for design documentation:
 
 ## License
 
-Private / unlicensed.
+Copyright © 2026 Varady Zsolt. All rights reserved.
+
+The source is publicly visible for viewing only. Copying, redistribution, modification, hosting and commercial use are not permitted without written permission. See [LICENSE](./LICENSE).
