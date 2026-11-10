@@ -492,7 +492,8 @@ export class CampaignService {
     }
 
     if (this.updateSites(session, world, dt, effects)) changed = true;
-    for (const [factionId, perSecond] of Object.entries(this.definition?.aiStipends ?? {})) {
+    const stipends = { ...(this.definition?.aiStipends ?? {}), ...(this.definition?.aiStipendsByDifficulty?.[session.difficulty] ?? {}) };
+    for (const [factionId, perSecond] of Object.entries(stipends)) {
       const faction = world.factions.find((f) => f.id === factionId);
       if (faction && dt > 0) faction.currencies['credits'] = (faction.currencies['credits'] ?? 0) + perSecond * dt;
     }

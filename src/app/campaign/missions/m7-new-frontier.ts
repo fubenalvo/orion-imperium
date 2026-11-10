@@ -144,6 +144,7 @@ export const M7_NEW_FRONTIER: MissionDefinition = {
   ],
   // Measured (campaign-design.md): without it the Observers ran a deficit and parked their fleets.
   aiStipends: { observers: 60, varkon: 30, concordium: 20, meridian: 20 },
+  aiStipendsByDifficulty: { easy: { observers: 110 } },
   aiDirectives: SEALS.map((siteId) => ({ factionId: 'observers', siteId, mode: 'claim' as const, minWarships: 2, minSurvival: 0.3 })),
   dyson: {
     dampener: true,

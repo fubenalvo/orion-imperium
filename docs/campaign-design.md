@@ -315,10 +315,10 @@ Implemented subset and deviations from the design below:
 
 - Audio: story messages, contact dialogues and anomalies already play the notification stinger; a mission victory plays the fanfare.
 - Mission 7 on every difficulty (`m7-new-frontier.long.spec.ts` with the difficulty swapped, 60 minutes, no player action):
-  - **Easy**: first anchors at minute 4 (Varkon, Observers). The Observers never hunt: Easy lowers every AI income and their stipend does not make up for it, so their fleets stay in the reserve. Varkon's openers stand (5 by minute 60), the Observers' Dampeners block any warm-up, and instability reaches 12 by minute 60.
+  - **Easy**: first anchors at minute 4 (Varkon, Observers). With the shared stipend the Observers never hunted (Easy lowers every AI income, so their fleets stayed in the reserve; Varkon kept 5 openers, instability 12 by minute 60). Since `aiStipendsByDifficulty` gives them 110 credits/s on Easy (60 otherwise), they hunt from minute 35 and destroy 5 Varkon anchors; the ring at minute 60 is 4 Dampeners and no opener, instability 0.
   - **Normal**: see Phase 8 (hunts from minute 21, instability below 1).
   - **Hard**: the Observers hunt from minute 4 and destroy 7 Varkon anchors in 60 minutes; Varkon destroys 2 Dampeners; the League raises an anchor at minute 59; instability stays at 0.
-- Still open: balance passes of Missions 1–6 on Easy and Hard, the Observers' Easy economy (scale the stipend by difficulty, or accept a quieter Easy finale), a text pass, and moving the settled rules into system docs (objectives and sites into a `campaign.md`, contact into `diplomacy.md`).
+- Still open: see [Campaign — Remaining Work](./campaign-remaining-work.md).
 
 ---
 

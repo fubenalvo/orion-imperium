@@ -422,6 +422,13 @@ export interface MissionDefinition {
    * paid in the campaign tick, so it pauses with the game.
    */
   aiStipends?: Record<string, number>;
+  /*
+   * Per-difficulty replacements of single stipends (an empire listed here
+   * gets this amount instead on that difficulty). Mission 7: on Easy every
+   * AI income is lower, and the Observers — whose hunts keep Varkon's ring
+   * in check — would otherwise park their fleets.
+   */
+  aiStipendsByDifficulty?: Partial<Record<AiDifficulty, Record<string, number>>>;
   /* Tutorial steps that make no sense here (tutorial-steps.ts ids), e.g. 'diplomacy' without empires. */
   tutorialExcludedSteps?: string[];
 }

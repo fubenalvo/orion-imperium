@@ -31,11 +31,7 @@ need tuning loops; every step below says which part is expensive.
 
 ## Steps
 
-### 1. Push `main` — XS
-
-`main` is one commit ahead of `origin/main`. `git push origin main` (the owner decides when).
-
-### 2. Measure Missions 3–6 on Easy and Hard — M
+### 1. Measure Missions 3–6 on Easy and Hard — M
 
 Missions 3–6 have a long spec each (`m3-first-contact.long.spec.ts` … `m6-silent-remnant.long.spec.ts`),
 measured on Normal only. Run each on Easy and Hard (step 3 of *How to resume*) and record:
@@ -46,40 +42,30 @@ measured on Normal only. Run each on Easy and Hard (step 3 of *How to resume*) a
 - M6: who claims which archive and when (the passive run ends at minute 25 on Normal).
 
 Cost: running is cheap (8 runs, 1–2 minutes each); the M part is reading and recording. Tuning
-is step 4.
+is step 2.
 
-### 3. The Observers' economy on Easy — S
+### 2. Tune what the measurements show — M to L
 
-On Easy the Observers never hunt in Mission 7: every AI income is lower on Easy, their stipend
-(`aiStipends`) is not, so their fleets go to the reserve. Options:
-- scale the stipends by difficulty: a new optional `MissionDefinition.aiStipendsByDifficulty`, or
-  multiply by the AI difficulty's income factor in `CampaignService.updateBookkeeping`;
-- or accept a quieter Easy finale and document it.
-
-Recommended: multiply by the difficulty income factor (one line plus a test). Re-run the Easy
-measurement once.
-
-### 4. Tune what the measurements show — M to L
-
-Only where step 2 shows a real problem. Known candidates:
+Only where step 1 shows a real problem. Known candidates:
 - **M6, the player's time window**: the passive run is lost at minute 25 (two AI archives). Check in
   a scripted run that a player who heads for archives III and I at once can make it on Normal; if
   not, move the Concordium's `after` later or raise the wardens' strength.
 - **M4, the Hub defense is trivial**: Varkon never moved on the Meridian Hub after minute 35.
   `spawn_fleet` exists now: give the `varkon_moves` event a Varkon strike fleet near the Hub (S).
-- **M7 numbers**: stipends, `anchorUpkeepFactor` 0.05, `constructorCostFactor` 0.04 and the pulse
-  constructors were set from Normal runs only.
+- **M7 numbers**: stipends (Easy has its own Observer stipend, `aiStipendsByDifficulty`),
+  `anchorUpkeepFactor` 0.05, `constructorCostFactor` 0.04 and the pulse constructors were set from
+  Normal runs, checked on Easy and Hard without player action only.
 
 Cost depends on how many missions need it: about S per mission, more if a fix needs new engine work.
 
-### 5. Concordium raiding League traders (Mission 4) — S
+### 3. Concordium raiding League traders (Mission 4) — S
 
 The technologist AI raids civilian traders from minute 26 in Mission 4 (the ordinary raid role).
 Story-wise odd. Options: an `aiRestraint`-like mission rule "no raids on civilian traders" for a
 faction, read in `EnemyFleetService.planRaid` (the `raids` personality flag exists already), or
 leave it. Recommended: a mission-level `noRaids: ['concordium']` list.
 
-### 6. Text pass — M
+### 4. Text pass — M
 
 Read the briefing, objective, event, choice and ending texts of all seven missions
 (`src/app/campaign/missions/m1…m7`, about 3,000 lines) against the tone rules in
@@ -89,12 +75,12 @@ Small known items:
 - the Concordium greets as "We are The Concordium" (the faction name includes "The");
 - Mission 7's summit choices are fixed; the design wanted them to depend on the ring.
 
-### 7. Player playtest feedback — owner
+### 5. Player playtest feedback — owner
 
-Nothing replaces playing the missions. The owner's notes from a play-through should decide step 4's
+Nothing replaces playing the missions. The owner's notes from a play-through should decide step 2's
 priorities. Cost for the agent: S per round of fixes, depending on the notes.
 
-### 8. Move the settled rules into system docs — M
+### 6. Move the settled rules into system docs — M
 
 `campaign-design.md` is design and implementation log in one (2,500+ lines). Per Phase 9 of the
 design:
@@ -107,13 +93,13 @@ design:
 
 Expensive part: writing `campaign.md` (reading the engine files once, about 2,500 lines).
 
-### 9. Optional: Playwright smoke suite — M
+### 7. Optional: Playwright smoke suite — M
 
 A browser smoke test per mission: start from the campaign screen, the first message, the tracker,
 no console errors (see [§17](./campaign-design.md#17-testing-strategy)). Needs the dev server in
 the test setup; the Playwright MCP checks done so far were manual.
 
-### 10. Later expansions — L each
+### 8. Later expansions — L each
 
 Not part of Phase 9; listed so they are not lost:
 - Mission 7 endings **Military Supremacy** and **Independent Frontier** (§6: data work plus balancing
@@ -127,14 +113,15 @@ Not part of Phase 9; listed so they are not lost:
 
 | Order | Step | Cost |
 |---|---|---|
-| 1 | Push `main` | XS |
-| 2 | Observers' Easy economy | S |
-| 3 | Measure M3–M6 on Easy and Hard | M |
-| 4 | Tune what step 3 shows (M4 Hub strike fleet, M6 window first) | M–L |
-| 5 | Concordium raids in M4 | S |
-| 6 | Text pass | M |
-| 7 | Rules into `campaign.md` | M |
-| 8 | Playwright smoke suite (optional) | M |
+| 1 | Measure M3–M6 on Easy and Hard | M |
+| 2 | Tune what step 1 shows (M4 Hub strike fleet, M6 window first) | M–L |
+| 3 | Concordium raids in M4 | S |
+| 4 | Text pass | M |
+| 5 | Rules into `campaign.md` | M |
+| 6 | Playwright smoke suite (optional) | M |
 
-Steps 1–5 together are roughly one mission phase (about 1 unit). Steps 6–8 are another unit.
-If the budget is tight, do 1–3 first: they turn guesses into numbers, and every later step uses them.
+Steps 1–3 together are roughly one mission phase (about 1 unit). Steps 4–6 are another unit.
+If the budget is tight, do step 1 first: it turns guesses into numbers, and every later step uses them.
+
+Done: pushing `main` (2026-11-10); the Observers' Easy economy in Mission 7
+(`aiStipendsByDifficulty`, measured in campaign-design.md, Phase 9).

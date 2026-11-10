@@ -277,6 +277,9 @@ export function validateMission(mission: MissionDefinition): string[] {
   } else if (mission.dyson) {
     err('Dyson rules need map.blackHole');
   }
+  for (const id of Object.values(mission.aiStipendsByDifficulty ?? {}).flatMap((s) => Object.keys(s ?? {}))) {
+    if (map.factions.find((f) => f.id === id)?.kind !== 'ai') err(`stipend for "${id}", which is not an AI empire`);
+  }
   for (const id of Object.keys(mission.aiStipends ?? {})) if (map.factions.find((f) => f.id === id)?.kind !== 'ai') err(`stipend for "${id}", which is not an AI empire`);
   for (const plan of mission.dyson?.plans ?? []) if (map.factions.find((f) => f.id === plan.factionId)?.kind !== 'ai') err(`Dyson plan for "${plan.factionId}", which is not an AI empire`);
   for (const member of mission.dyson?.coalition?.members ?? []) if (!factionIds.has(member)) err(`coalition member "${member}" is unknown`);
