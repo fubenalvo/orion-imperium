@@ -24,14 +24,18 @@
    scanlines and a thin cyan outline. `$strength` scales the opacity for
    panels that float over busy scenery (1) versus a dimmed backdrop. The
    historical name "glass" is kept so every panel picks up the console look
-   without per-component edits. */
+   without per-component edits.
+   No backdrop-filter: the surface is ~95% opaque, so a blur behind it was
+   invisible, yet every blurred panel is its own GPU surface that is re-blurred
+   whenever the animated scenery under it changes. With a dozen panels plus a
+   modal open, phones ran out of GPU memory and whole screens flickered.
+   (It also made every panel the containing block of fixed descendants.) */
 @mixin glass($strength: 1) {
   background:
     repeating-linear-gradient(180deg, rgba(var(--ui-accent-rgb), 0.028) 0 1px, transparent 1px 3px),
     linear-gradient(180deg, rgba(0, 27, 38, 0.95 * $strength), rgba(0, 17, 26, 0.97 * $strength));
   border: 1px solid var(--ui-line);
   box-shadow: var(--ui-shadow-panel);
-  backdrop-filter: blur(6px);
 }
 
 /*
@@ -449,12 +453,14 @@ $glint: linear-gradient(105deg, transparent 20%, rgba(var(--ui-accent-rgb), 0.2)
   white-space: nowrap;
 }
 
-/* Modal backdrop: dims and blurs the scene behind a dialog. */
+/* Modal backdrop: dims the scene behind a dialog. Deliberately no
+   backdrop-filter blur: a full-screen blur over the animated star map is
+   re-rendered every frame and was a main cause of flickering on mobile GPUs
+   (see `glass`). */
 @mixin backdrop {
   background:
     radial-gradient(ellipse 80% 70% at 50% 45%, rgba(4, 16, 22, 0.55), rgba(1, 4, 7, 0.9)),
     rgba(1, 4, 7, 0.5);
-  backdrop-filter: blur(6px);
 }
 
 /* Modal title: wide-tracked accent text between two fading rules

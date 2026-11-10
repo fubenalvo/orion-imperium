@@ -203,7 +203,7 @@ import { RosterPlanet, StarMapFleetButtonsComponent } from './star-map-fleet-but
 import { StarMapContextMenuComponent } from './star-map-context-menu/star-map-context-menu.component';
 import { StarMapHeaderComponent } from './star-map-header/star-map-header.component';
 import { StarMapGalaxyViewComponent } from './star-map-galaxy-view/star-map-galaxy-view.component';
-import { SpaceNebulaFieldComponent } from '../space-nebula-field/space-nebula-field.component';
+import { SpaceNebulaFieldComponent, wrap as wrapPositive } from '../space-nebula-field/space-nebula-field.component';
 import { StarMapSystemGridViewComponent } from './star-map-system-grid/star-map-system-grid.component';
 import { ShipStockEntryDisplay } from './star-map-ship-stock/star-map-ship-stock.component';
 import {
@@ -489,29 +489,23 @@ loadError = '';
   private dragViewport: HTMLElement | null = null;
   private readonly dragThreshold = 5;
 
-  // Parallax background: the background div must always be 200% of the actual
-  // map grid (not 200% of the viewport) so the parallax shift never causes it to
-  // "run out" when the camera is panned to the map edges.  All values are in vw
-  // to stay consistent with the camera / parallax transform units.
-  /** Background width in vw — 200% of the map grid width. */
-  get bgWidthVw(): number {
-    return this.movementService.gridColumns * this.cellSizeVw * 2;
-  }
+  /*
+   * Star-texture parallax layer (0.3x camera). The layer is pinned to the
+   * viewport, one texture tile larger than the screen, and translated by the
+   * parallax offset modulo one tile, so the repeating texture wraps seamlessly
+   * (same idea as SpaceNebulaFieldComponent). It used to be a moving div twice
+   * the size of the whole map: on phones its off-screen tiles were not yet
+   * rasterized when panning exposed them, so the map flashed black.
+   * Tile size must match `background-size` of .star-map-background.
+   */
+  private static readonly STAR_TEXTURE_W_PX = 1254;
+  private static readonly STAR_TEXTURE_H_PX = 706;
 
-  /** Background height in vw — 200% of the map grid height. */
-  get bgHeightVw(): number {
-    return this.movementService.gridRows * this.cellSizeVh * 2;
-  }
-
-  /** Left offset in vw that centers the (2× map) background on the viewport. */
-  get bgLeftVw(): number {
-    return 50 - this.movementService.gridColumns * this.cellSizeVw;
-  }
-
-  /** Top offset in vw that centers the (2× map) background on the viewport. */
-  get bgTopVw(): number {
-    const viewportHeightVw = (window.innerHeight / window.innerWidth) * 100;
-    return viewportHeightVw / 2 - this.movementService.gridRows * this.cellSizeVh;
+  get starTextureTransform(): string {
+    const vwPx = window.innerWidth / 100;
+    const x = wrapPositive(this.cameraX * 0.3 * vwPx, StarMap.STAR_TEXTURE_W_PX);
+    const y = wrapPositive(this.cameraY * 0.3 * vwPx, StarMap.STAR_TEXTURE_H_PX);
+    return `translate3d(${-x}px, ${-y}px, 0)`;
   }
 
   // Movement targets
@@ -3535,6 +3529,12 @@ loadError = '';
       this.onMapSystemCellClick(fleetSystem);
       return;
     }
+    // System view: a fleet on a planet's footprint takes part in that planet's rotation.
+    const fleetPlanet = this.planetUnderFleet(fleet);
+    if (fleetPlanet) {
+      this.onSystemPlanetClick(fleetPlanet);
+      return;
+    }
 
     if (this.currentView === 'map') {
       const cell = this.movementService.calculateGridCell(fleet.x, fleet.y);
@@ -3630,38 +3630,56 @@ loadError = '';
     }
   }
 
-  /** Handles a click on a planet tile, showing a context menu if fleets are present. */
+  /** Handles a click on a planet tile (system view: rotate through what stands there, double click opens). */
   onPlanetClick(planet: PlanetTile, event: MouseEvent): void {
-    if (this.currentView === 'system' && this.isDoubleClick(`planet:${planet.id}`)) {
-      event.stopPropagation();
-      this.closeContextMenu();
-      this.selectPlanetTile(planet);
-      this.openPlanetView();
+    event.stopPropagation();
+    if (this.currentView === 'system' && this.selectedSystem) {
+      this.onSystemPlanetClick(planet);
       return;
     }
     if (this.contextMenu) {
       this.closeContextMenu();
-      event.stopPropagation();
       return;
     }
-
-    event.stopPropagation();
-
-    if (this.currentView === 'system' && this.selectedSystem) {
-      const items = this.movementService.getObjectsAtPlanet(this.fleets, this.selectedSystem, planet);
-
-      if (items.length > 1) {
-        this.showContextMenu(event.clientX, event.clientY, items);
-        return;
-      }
-
-      if (items.length === 1) {
-        this.onContextMenuSelect(items[0]);
-        return;
-      }
-    }
-
     this.selectPlanetTile(planet);
+  }
+
+  /*
+   * A system-view click on a planet or on a fleet standing on its footprint;
+   * the system-view twin of onMapSystemCellClick. A double click (touch:
+   * double tap) opens the planet. A single click rotates the selection
+   * through the visible fleets on the planet (own fleets first, in roster
+   * order), then the planet itself, then the first fleet again; with no
+   * fleet there it simply selects the planet. Taps reach this through the
+   * normal click event, so touch and mouse share the rule.
+   */
+  private onSystemPlanetClick(planet: PlanetTile): void {
+    this.closeContextMenu();
+    if (this.isDoubleClick(`planet:${planet.id}`)) {
+      this.selectPlanetTile(planet);
+      this.openPlanetView();
+      return;
+    }
+    const fleets = this.visibleFleets.filter((f) => this.planetUnderFleet(f)?.id === planet.id);
+    fleets.sort((a, b) => Number(b.factionId === 'player') - Number(a.factionId === 'player'));
+    const selectedFleetIndex = this.selectedFleet ? fleets.findIndex((f) => f.id === this.selectedFleet!.id) : -1;
+    // Rotation slots: each fleet, then the planet (slot fleets.length).
+    const current =
+      selectedFleetIndex >= 0 ? selectedFleetIndex : this.selectedPlanetTile?.id === planet.id ? fleets.length : -1;
+    const next = (current + 1) % (fleets.length + 1);
+    if (next < fleets.length) {
+      this.selectFleet(fleets[next]);
+    } else {
+      this.selectPlanetTile(planet);
+    }
+  }
+
+  /* System view only: the planet whose footprint the fleet stands on, if any. */
+  private planetUnderFleet(fleet: Fleet): PlanetTile | undefined {
+    const system = this.currentView === 'system' ? this.selectedSystem : null;
+    if (!system || fleet.system?.id !== system.id) return undefined;
+    const { x, y } = fleet.system;
+    return system.planetsTiles.find((p) => this.movementService.isSystemPointOnPlanet(p, x, y));
   }
 
   /** Resolves a click by showing a context menu or selecting the single hit object. */

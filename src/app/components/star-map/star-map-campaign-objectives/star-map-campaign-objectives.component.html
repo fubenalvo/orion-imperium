@@ -1,42 +1,46 @@
 <aside class="tracker" [class.tracker--collapsed]="collapsed" aria-label="Mission objectives">
   <button type="button" class="tracker__head" [attr.aria-expanded]="!collapsed" (click)="toggle()">
-    <span class="tracker__eyebrow">OBJECTIVES{{ collapsed && openCount > 0 ? ' · ' + openCount : '' }}</span>
+    <span class="tracker__eyebrow"
+      >OBJECTIVES{{ collapsed && openCount > 0 ? ' · ' + openCount : '' }}</span
+    >
     <span class="tracker__mission">{{ missionTitle }}</span>
     <span class="tracker__chevron" aria-hidden="true">{{ collapsed ? '▸' : '▾' }}</span>
   </button>
 
   @if (!collapsed) {
-    <ul class="tracker__list">
-      @for (objective of main; track objective.id) {
-        <li class="objective" [class]="'objective objective--' + objective.status">
-          <span class="objective__marker" aria-hidden="true">{{ marker(objective) }}</span>
-          <span class="objective__text">
-            <span class="objective__title">{{ objective.title }}</span>
-            @if (objective.progress; as p) {
-              <span class="objective__progress">{{ p.current }} / {{ p.target }}</span>
-            }
-            @if (objective.description && objective.status === 'active') {
-              <span class="objective__description">{{ objective.description }}</span>
-            }
-          </span>
-        </li>
-      }
-    </ul>
-    @if (optional.length > 0) {
-      <div class="tracker__section">OPTIONAL</div>
+    <div class="tracker__body">
       <ul class="tracker__list">
-        @for (objective of optional; track objective.id) {
-          <li [class]="'objective objective--optional objective--' + objective.status">
+        @for (objective of main; track objective.id) {
+          <li class="objective" [class]="'objective objective--' + objective.status">
             <span class="objective__marker" aria-hidden="true">{{ marker(objective) }}</span>
             <span class="objective__text">
               <span class="objective__title">{{ objective.title }}</span>
               @if (objective.progress; as p) {
                 <span class="objective__progress">{{ p.current }} / {{ p.target }}</span>
               }
+              @if (objective.description && objective.status === 'active') {
+                <span class="objective__description">{{ objective.description }}</span>
+              }
             </span>
           </li>
         }
       </ul>
-    }
+      @if (optional.length > 0) {
+        <div class="tracker__section">OPTIONAL</div>
+        <ul class="tracker__list">
+          @for (objective of optional; track objective.id) {
+            <li [class]="'objective objective--optional objective--' + objective.status">
+              <span class="objective__marker" aria-hidden="true">{{ marker(objective) }}</span>
+              <span class="objective__text">
+                <span class="objective__title">{{ objective.title }}</span>
+                @if (objective.progress; as p) {
+                  <span class="objective__progress">{{ p.current }} / {{ p.target }}</span>
+                }
+              </span>
+            </li>
+          }
+        </ul>
+      }
+    </div>
   }
 </aside>

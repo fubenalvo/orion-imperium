@@ -96,11 +96,7 @@
   <div
     class="star-map-background"
     aria-hidden="true"
-    [style.width.vw]="bgWidthVw"
-    [style.height.vw]="bgHeightVw"
-    [style.left.vw]="bgLeftVw"
-    [style.top.vw]="bgTopVw"
-    [style.transform]="'translate(' + -cameraX * 0.3 + 'vw, ' + -cameraY * 0.3 + 'vw)'"
+    [style.transform]="starTextureTransform"
   ></div>
 
   @if (currentView === 'map') {

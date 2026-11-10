@@ -1,7 +1,10 @@
 @use 'ui';
+@use 'mixins';
 
 /* Campaign objective tracker: a compact console panel the StarMap places on
-   the map (see .campaign-tracker in star-map.scss). */
+   the map (see .campaign-tracker in star-map.scss). The host sets
+   --tracker-max-h for its position so the panel never grows over the game
+   header; a long list scrolls inside .tracker__body instead. */
 
 :host {
   display: block;
@@ -11,9 +14,46 @@
   display: flex;
   flex-direction: column;
   width: min(19em, 42vw);
+  max-height: var(--tracker-max-h, none);
   border-radius: var(--ui-radius);
   font-size: var(--ui-fs-sm);
   @include ui.glass;
+
+  /* Phones and short windows: one more step down the type scale, the
+     eyebrow and mission title on one line, tighter rows. Active objective
+     descriptions are hidden here (titles and progress stay). */
+  @include mixins.compact-view {
+    --ui-fs-xs: 0.56rem;
+    --ui-fs-sm: 0.62rem;
+
+    width: min(15em, 46vw);
+
+    .tracker__head {
+      grid-template-columns: auto 1fr auto;
+      grid-template-areas: 'eyebrow mission chevron';
+      gap: 0.6em;
+      padding: 0.4em 0.6em;
+    }
+
+    .tracker__list {
+      gap: 0.25em;
+      padding: 0.1em 0.6em 0.45em;
+    }
+
+    .tracker__section {
+      padding: 0 0.6em 0.15em;
+    }
+
+    .objective__description {
+      display: none;
+    }
+  }
+}
+
+.tracker__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .tracker__head {

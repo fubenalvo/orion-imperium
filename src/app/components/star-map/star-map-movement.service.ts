@@ -552,21 +552,6 @@ export class StarMapMovementService {
     return items;
   }
 
-  /* The planet plus every fleet standing on any cell of its footprint. */
-  getObjectsAtPlanet(fleets: Fleet[], system: StarSystem, planet: PlanetTile): ContextMenuItem[] {
-    const items: ContextMenuItem[] = [];
-    for (const fleet of fleets) {
-      if (fleet.destroyed || fleet.system?.id !== system.id) {
-        continue;
-      }
-      if (this.isSystemPointOnPlanet(planet, fleet.system.x, fleet.system.y)) {
-        items.push({ type: 'fleet', label: `Fleet: ${fleet.name}`, data: fleet });
-      }
-    }
-    items.push({ type: 'planet', label: `Planet: ${planet.name}`, data: planet });
-    return items;
-  }
-
   /*
    * getGalaxyTrailVw: Converts a fleet's current position and target
    * (1-indexed grid cells) into vw coordinates suitable for rendering

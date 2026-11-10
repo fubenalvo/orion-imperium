@@ -32,13 +32,18 @@
   @include starfield-twinkle(7s);
 }
 
-/* Camera-parallax layer (0.3x). Width, height, left and top are set from
-   StarMap.bg*Vw: 200% of the map grid, centered on the viewport, so the
-   parallax shift never runs out of background. It only carries the star
-   texture: it can be many screens wide, so anything placed on it would
-   rarely be on screen (nebulae live in the wrapping nebula field instead). */
+/* Camera-parallax layer (0.3x). Viewport-pinned and one texture tile larger
+   than the screen; StarMap.starTextureTransform shifts it by the parallax
+   offset modulo one tile, so the texture wraps and the layer stays small
+   enough to be fully rasterized (no black tiles while panning on phones).
+   The extra width / height must equal background-size below and
+   StarMap.STAR_TEXTURE_*_PX. */
 .star-map-background {
   position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(100% + 1254px);
+  height: calc(100% + 706px);
 
   background-image: url('stars.png');
 

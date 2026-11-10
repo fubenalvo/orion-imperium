@@ -977,6 +977,40 @@ describe('StarMap', () => {
       expect(component.currentView).toBe('map');
     });
 
+    it('rotates a single click on a planet through the fleets on it, then the planet itself', () => {
+      const system = component.starSystems[0];
+      const planet = system.planetsTiles[0];
+      const center = component.movementService.getPlanetCellCenter(planet);
+      const [first, second] = component.fleets.filter((f) => f.factionId === 'player');
+      for (const fleet of [first, second]) {
+        fleet.destroyed = false;
+        fleet.x = system.x;
+        fleet.y = system.y;
+        fleet.system = { id: system.id, x: center.x, y: center.y, targetX: null, targetY: null };
+      }
+      component.currentView = 'system';
+      component.selectedSystem = system;
+      component.selectedFleet = null;
+      component.selectedPlanetTile = null;
+      const onPlanet = component.visibleFleets.filter(
+        (f) => f.system?.id === system.id && component.movementService.isSystemPointOnPlanet(planet, f.system.x, f.system.y),
+      );
+      expect(onPlanet.length).toBeGreaterThanOrEqual(2);
+      const picks: (number | string)[] = [];
+      const pick = () => component.selectedFleet?.id ?? component.selectedPlanetTile!.id;
+      for (let i = 0; i <= onPlanet.length; i++) {
+        component['lastObjectClick'] = null; // a later click, not a double click
+        // Alternate planet and fleet clicks: both take part in the same rotation.
+        if (i % 2 === 0) component.onPlanetClick(planet, click());
+        else component.onFleetClick(first, click());
+        picks.push(pick());
+      }
+      expect(picks.slice(0, onPlanet.length).sort()).toEqual(onPlanet.map((f) => f.id).sort());
+      expect(picks[onPlanet.length]).toBe(planet.id);
+      expect(component.contextMenu).toBeNull();
+      expect(component.currentView).toBe('system');
+    });
+
     it('opens a planet on a double click in the system view', () => {
       const system = component.starSystems[0];
       const planet = system.planetsTiles[0];

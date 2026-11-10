@@ -15,6 +15,8 @@ describe('StarMapCampaignObjectivesComponent', () => {
     const fixture = TestBed.createComponent(StarMapCampaignObjectivesComponent);
     fixture.componentRef.setInput('missionTitle', 'Proving Ground');
     fixture.componentRef.setInput('objectives', objectives);
+    // The initial state depends on the viewport size (collapsed on small screens).
+    fixture.componentInstance.collapsed = false;
     fixture.detectChanges();
     const element = fixture.nativeElement as HTMLElement;
     expect(fixture.componentInstance.main.map((o) => o.id)).toEqual(['a', 'b', 'c']);

@@ -25,7 +25,6 @@
   background:
     radial-gradient(ellipse 70% 60% at 50% 45%, rgba(4, 16, 22, 0.7), rgba(0, 0, 0, 0.96)),
     rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(6px);
 }
 
 .game-end-modal {
@@ -211,13 +210,18 @@
   top: calc(var(--game-header-h) + var(--ui-edge));
   right: var(--ui-edge);
   z-index: 35;
+  /* Read by the tracker panel: tall lists scroll instead of covering other HUD. */
+  --tracker-max-h: calc(100dvh - var(--game-header-h) - 2 * var(--ui-edge));
 
-  /* Planet view: the surface panel holds the right edge; sit above the camera controls. */
+  /* Planet view: the surface panel holds the right edge; sit above the camera
+     controls. Anchored at the bottom, the panel grows upward, so the cap keeps
+     its top below the game header. */
   &--planet {
     top: auto;
     right: auto;
     bottom: 9rem;
     left: var(--ui-edge);
+    --tracker-max-h: calc(100dvh - var(--game-header-h) - 9rem - 2 * var(--ui-edge));
   }
 }
 

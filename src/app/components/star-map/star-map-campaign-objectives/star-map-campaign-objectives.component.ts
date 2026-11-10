@@ -17,7 +17,11 @@ export class StarMapCampaignObjectivesComponent {
   @Input({ required: true }) missionTitle = '';
   @Input({ required: true }) objectives: ObjectiveView[] = [];
 
-  collapsed = false;
+  /* Phones and short windows start collapsed (same breakpoint as the
+     compact-view mixin): the open list would cover much of the map there. */
+  collapsed =
+    typeof matchMedia === 'function' &&
+    matchMedia('(max-width: 900px), (max-height: 600px)').matches;
 
   get main(): ObjectiveView[] {
     return this.objectives.filter((o) => !o.optional);

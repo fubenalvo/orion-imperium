@@ -79,12 +79,13 @@ Prefer `--ui-*` in new code.
   scanlines, 1px `--ui-line` outline, deep shadow, inside the metallic
   [console frame](#console-frame). (The mixin names `glass` and `brackets`
   are historical; keeping them gave every panel the console look at once.)
+  Panels have no `backdrop-filter` (see the GPU rule under Rules below).
 - **Panel header** — `.panel-style__title`: cyan uppercase heading on the
   left, optional amber status / counter pushed to the right
   (`margin-left: auto`), a thin cyan rule underneath. A `button.close-btn`
   inside it renders as a drawn cross at the right edge (its "X" text is
   hidden), so close buttons look identical everywhere.
-- **Modal** — `ui.backdrop` (dimmed, blurred scene) + a console sheet with
+- **Modal** — `ui.backdrop` (dimmed scene, no blur) + a console sheet with
   the heavy frame (`ui.brackets` size >= 22px) and `ui.modal-title` (title
   between two fading rules).
 
@@ -125,6 +126,19 @@ Rules:
 - `ui.brackets` and `.panel-style` own `::before` / `::after`. Do not put
   them on elements that use those pseudo-elements for something else (for
   example `.planet-surface__atmosphere`).
+- No `backdrop-filter` blur on in-game panels or modal backdrops. Every
+  blurred element is a separate GPU surface that is re-rendered whenever the
+  animated scenery under it changes; with several HUD panels and a modal
+  open, phones (and weak PC GPUs) ran out of GPU memory and whole screens
+  flickered (header, buttons, the research tree). The panels are near-opaque,
+  so the blur was not visible anyway. The main menu sheet still blurs (a
+  single element over a static scene).
+- Do not put map-sized or many-screen-sized layers on the compositor
+  (`will-change: transform` on a div as large as the galaxy). Panning exposes
+  tiles that are not rasterized yet and they flash black on phones. Pin
+  decorative layers to the viewport and wrap a repeating pattern by the pan
+  offset modulo one tile instead (`SpaceNebulaFieldComponent`,
+  `StarMap.starTextureTransform`).
 - `backdrop-filter`, `filter` and `transform` (also a lingering animation
   end state) make an element the containing block of `position: fixed`
   descendants. Entrance animations end on `transform: none`, and the
@@ -428,7 +442,7 @@ Rules:
 | Screen | Composition |
 |---|---|
 | Main menu | See [Main Menu](#main-menu). |
-| Star map (galaxy) | Static deep stars + twinkle (`.star-map-deep`), wrapping nebula field (`SpaceNebulaFieldComponent`, 0.12x camera), the star-texture parallax layer (`.star-map-background`, 0.3x camera), faint dust in front (`.star-map-foreground`, 0.6x). Stars are light sources (corona, diffraction spikes, hot core; a rotating dashed ring when selected). Sensor range is a soft borderless field; the fog layer has soft edges (a one-pixel-per-cell canvas, smoothly upscaled); the navigation grid is a hairline. Movement paths have a soft beam under the dashes. Gameplay terrain follows the same look: textured, color-tinted nebula gas, a lensed black hole (Einstein ring, tilted accretion disk, bloom; its dashed no-fly outline appears only while a fleet is selected), and relief-lit static asteroid belts (details in [Star Map Terrain](./star-map-terrain.md)). Empire territory is a quiet layer under the fog: faint blurred faction tint, thin cell-edge borders (solid for the player, dashed for foreign empires), faint dashed base claim rings and small turning-ring station markers (details in [Territory](./territory.md#rendering)). Styles: `_star-map-backdrop.scss`, `_star-map-star-system.scss`. |
+| Star map (galaxy) | Static deep stars + twinkle (`.star-map-deep`), wrapping nebula field (`SpaceNebulaFieldComponent`, 0.12x camera), the star-texture parallax layer (`.star-map-background`, 0.3x camera; viewport-pinned, wrapped modulo one texture tile by `StarMap.starTextureTransform`), faint dust in front (`.star-map-foreground`, 0.6x). Stars are light sources (corona, diffraction spikes, hot core; a rotating dashed ring when selected). Sensor range is a soft borderless field; the fog layer has soft edges (a one-pixel-per-cell canvas, smoothly upscaled); the navigation grid is a hairline. Movement paths have a soft beam under the dashes. Gameplay terrain follows the same look: textured, color-tinted nebula gas, a lensed black hole (Einstein ring, tilted accretion disk, bloom; its dashed no-fly outline appears only while a fleet is selected), and relief-lit static asteroid belts (details in [Star Map Terrain](./star-map-terrain.md)). Empire territory is a quiet layer under the fog: faint blurred faction tint, thin cell-edge borders (solid for the player, dashed for foreign empires), faint dashed base claim rings and small turning-ring station markers (details in [Territory](./territory.md#rendering)). Styles: `_star-map-backdrop.scss`, `_star-map-star-system.scss`. |
 | System view | The system's star at the right edge is the single light source: light wash, slowly turning soft corona rays, glow, granulated disc. Planets use `planet-sphere` lit from the right with per-type palettes; faint orbit rings (`orbitDiameterVw`) connect each planet to the star; hover shows a halo ring. A nebula sits opposite the star. Styles: `star-map-system-grid.component.scss` (scene) and `_star-map-system-view.scss` (wrapper). |
 | Battle | Deep stars with a distant star in the band above the field, two nebula formations framing the left and lower right (the middle stays calm behind the units), twinkling dust, a forward-motion star stream (two faint star planes drifting left at different speeds, the near one with slightly stretched stars; the main menu dust technique of sliding exactly one tile per loop; off under reduced motion) and a vignette. The field is a fading hairline grid with corner brackets. Ships carry a faction-colored glow and engine light; explosions add a shockwave ring. The planet in planet battles uses `planet-sphere` with a deep palette derived from `--planet-color`. |
 
@@ -437,7 +451,7 @@ Rules:
 The campaign screens reuse existing treatments, no new look ([Campaign Design](./campaign-design.md#implementation-status)):
 
 - **Campaign screen** (`main-menu/campaign-screen/`): hosted in the main menu's glass sheet like the New Game setup, with the same selectable-card style (the galaxy-size cards) for missions and difficulty, and a briefing panel.
-- **Objective tracker** (`star-map-campaign-objectives/`): a compact `ui.glass` panel at the right edge under the header (`.campaign-tracker` in `star-map.scss`), galaxy and system views only (the planet view's side panel sits there). Collapsible; ◆ open, ✓ done (success color), ✕ failed (struck through).
+- **Objective tracker** (`star-map-campaign-objectives/`): a compact `ui.glass` panel at the right edge under the header in the galaxy and system views, bottom-left above the camera controls in the planet view (the surface panel holds the right edge) (`.campaign-tracker` in `star-map.scss`). The host sets `--tracker-max-h` per position so the panel never grows over the game header; a long list scrolls inside `.tracker__body`. Compact view (`compact-view` breakpoint): one more step down the type scale, a one-line head, tighter rows, active objective descriptions hidden, and the tracker starts collapsed. Collapsible; ◆ open, ✓ done (success color), ✕ failed (struck through).
 - **Story message** (`star-map-campaign-message/`): the exploration-event dialog frame (`ui.glass` + `ui.brackets`), accented with the speaker's faction color through `--speaker-color`.
 - **Mission end**: the game-end dialog with MISSION COMPLETE / MISSION FAILED; `.game-end-title--long` shrinks the letter-spaced title so it stays inside the frame.
 

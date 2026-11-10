@@ -1,3 +1,0 @@
-[  485585ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4317/ships/fighter.svg#ship:0
-[  485585ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4317/ships/scout.svg#ship:0
-[  485591ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:4317/music/urgent.mp3:0

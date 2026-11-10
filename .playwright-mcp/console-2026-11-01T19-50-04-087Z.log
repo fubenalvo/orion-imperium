@@ -1,5 +1,0 @@
-[     290ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4200/:0
-[     468ms] [LOG] Angular is running in development mode. @ http://localhost:4200/@fs/G:/GIT/orion-imperium/.angular/cache/22.1.5/orion-imperium/vite/deps/core-DMlD5wbY.js?v=25452c4f:12236
-[     518ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:4200/:0
-[     561ms] [INFO] Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner. @ http://localhost:4200/:0
-[     714ms] [WARNING] NG0913: An image with src http://localhost:4200/logo.png has intrinsic file dimensions much larger than its rendered size. This can negatively impact application loading performance. For more information about addressing or disabling this warning, see https://v22.angular.dev/errors/NG0913. Find more at https://v22.angular.dev/errors/NG0913 @ http://localhost:4200/@vite/client:524
