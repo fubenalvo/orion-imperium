@@ -5520,6 +5520,7 @@ loadError = '';
       exploredGridCells: this.exploredGridCells,
       anomalies: this.anomalyService.anomalies,
       spaceBases: this.spaceBaseService.bases,
+      systemController: (system) => this.territoryService.get(this.starSystems, this.factions).systemTerritoryOwner(system),
     };
   }
 

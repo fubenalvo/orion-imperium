@@ -716,6 +716,8 @@ export class EnemyFleetService {
     clock: number,
   ): boolean {
     if (free.length === 0 || ownedSystems.length === 0 || this.tradeNetwork.traders.length === 0) return false;
+    // A personality without piracy (the mercantile League) never takes the role.
+    if (!getAiPersonalityProfile(faction).raids) return false;
     if (managed.some((f) => this.assignments.get(f.id)?.role === 'raid')) return false;
     const homeGuard = home
       ? free

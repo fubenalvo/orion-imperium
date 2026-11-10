@@ -168,6 +168,7 @@ const DEMAND_LINES: Readonly<Record<DemandKind, Readonly<Record<Voice, string>>>
     expansionist: 'Your borders press on ours. {amount} credits will keep our fleets at home.',
     balanced: 'We expect {amount} credits as compensation for maintaining peace between our empires.',
     technologist: 'Our analysts advise caution on your part. Transfer {amount} credits, or we will be forced to act.',
+    mercantile: 'The League does not issue threats. Pay {amount} credits, and this conversation never happened.',
     human: 'Pay {amount} credits, or we declare war.',
   },
   tribute: {
@@ -175,6 +176,7 @@ const DEMAND_LINES: Readonly<Record<DemandKind, Readonly<Record<Voice, string>>>
     expansionist: 'The strong set the terms. We expect a tribute of {amount} credits.',
     balanced: 'Recognize the balance of power between us: {amount} credits in tribute.',
     technologist: 'A contribution of {amount} credits would acknowledge our position.',
+    mercantile: 'Market access has a price: {amount} credits.',
     human: 'We expect a tribute of {amount} credits.',
   },
   request: {
@@ -182,6 +184,7 @@ const DEMAND_LINES: Readonly<Record<DemandKind, Readonly<Record<Voice, string>>>
     expansionist: 'Our new colonies need funding. We request {amount} credits.',
     balanced: 'Our economy is struggling. We request financial assistance: {amount} credits.',
     technologist: 'We would appreciate a contribution of {amount} credits to strengthen our relationship.',
+    mercantile: 'A short-term loan of {amount} credits would be remembered when the next contracts are signed.',
     human: 'We request financial assistance: {amount} credits.',
   },
 };

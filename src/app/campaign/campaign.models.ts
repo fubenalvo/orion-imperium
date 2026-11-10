@@ -92,6 +92,14 @@ export type Condition =
   | { kind: 'mining_station'; systemId?: string; count?: number }
   /* No space base with this name exists any more (bases are removed when destroyed). */
   | { kind: 'base_destroyed'; name: string }
+  /*
+   * At least `count` of these systems are controlled by the faction: its
+   * territory claims the system (planet majority, or a space base's claim
+   * over an unsettled system; TerritoryMap.systemTerritoryOwner).
+   */
+  | { kind: 'systems_controlled'; systemIds: string[]; count: number; factionId?: string }
+  /* `holder`'s war exhaustion in its war with `against` (0 at peace). */
+  | { kind: 'war_exhaustion_at_least'; holder: string; against: string; value: number }
   /* A campaign anomaly (by its mission key) was resolved, optionally with this choice. */
   | { kind: 'anomaly_resolved'; key: string; choiceId?: string }
   | { kind: 'opinion_at_least'; holder: string; of: string; value: number }

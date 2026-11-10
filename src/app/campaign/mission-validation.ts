@@ -349,6 +349,14 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
     case 'anomaly_resolved':
       if (!refs.anomalyKeys.has(condition.key)) err(`condition references unknown anomaly "${condition.key}"`);
       return;
+    case 'systems_controlled':
+      for (const id of condition.systemIds) if (!refs.systemIds.has(id)) err(`condition references unknown system "${id}"`);
+      if (condition.factionId !== undefined) faction(condition.factionId);
+      return;
+    case 'war_exhaustion_at_least':
+      faction(condition.holder);
+      faction(condition.against);
+      return;
     case 'base_destroyed':
       if (!refs.baseNames.has(condition.name)) err(`condition references unknown space base "${condition.name}"`);
       return;

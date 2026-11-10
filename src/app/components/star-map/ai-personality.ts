@@ -49,7 +49,14 @@ export type { AiPersonality } from './star-map.models';
  * - `civilizationAssaultAfter`: game seconds before the faction may attack
  *   an independent civilization world (docs/trade-network.md#ai). Keeps
  *   civilizations alive through the opening; a militarist strikes first, a
- *   technologist much later.
+ *   technologist much later; Infinity = never (the mercantile League).
+ * - `raids`: whether the faction's fleets take the trader raid role at all.
+ *
+ * Campaign-only personalities (CAMPAIGN_AI_PERSONALITIES, today
+ * 'mercantile' for the Meridian League, docs/campaign-design.md §9) are
+ * valid everywhere a personality is read (saves, missions, UI) but never
+ * in AI_PERSONALITIES, so generated games keep cycling the four standard
+ * ones.
  *
  * Invariant: 'balanced' is neutral (all weights 1, the Phase 4 behavior).
  * Factions without `aiPersonality` (older saves, the legacy map) are
@@ -71,6 +78,7 @@ export interface AiPersonalityProfile {
   fundsResearchFirst: boolean;
   commerce: { bankShare: number; tradingPosts: number; richBankShare: number; richTradingPosts: number };
   civilizationAssaultAfter: number;
+  raids: boolean;
   /*
    * Dyson Swarm behavior (docs/dyson-swarm.md, "AI"; EnemyDysonService):
    *  - build: 'always' pursues the swarm once researched, 'rich' builds
@@ -109,6 +117,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: false,
     commerce: { bankShare: 0.5, tradingPosts: 1, richBankShare: 1, richTradingPosts: 1 },
     civilizationAssaultAfter: 720,
+    raids: true,
     dyson: { build: 'rich', huntAnchors: 5, researchValue: 2 },
     equipment: { minSurplusCredits: 2500 },
   },
@@ -128,6 +137,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: false,
     commerce: { bankShare: 0.34, tradingPosts: 2, richBankShare: 0.5, richTradingPosts: 2 },
     civilizationAssaultAfter: 600,
+    raids: true,
     dyson: { build: 'never', huntAnchors: 6, researchValue: 0 },
     equipment: { minSurplusCredits: 3000 },
   },
@@ -147,6 +157,7 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: false,
     commerce: { bankShare: 0, tradingPosts: 0, richBankShare: 0.5, richTradingPosts: 1 },
     civilizationAssaultAfter: 480,
+    raids: true,
     dyson: { build: 'never', huntAnchors: 3, researchValue: 0 },
     equipment: { minSurplusCredits: 2500 },
   },
@@ -168,13 +179,40 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     fundsResearchFirst: true,
     commerce: { bankShare: 1, tradingPosts: 2, richBankShare: 1, richTradingPosts: 2 },
     civilizationAssaultAfter: 1200,
+    raids: true,
     dyson: { build: 'always', huntAnchors: 6, researchValue: 8 },
     // Credits are its research bottleneck: modules would slow the tree (measured, docs/ai-pipeline.md).
     equipment: { minSurplusCredits: 3000 },
   },
+  mercantile: {
+    id: 'mercantile',
+    label: 'Mercantile',
+    // A trading power (campaign only): a small navy for defense, little
+    // expansion, commerce on every planet, no piracy, no conquest of civilizations.
+    weights: { economy: 1.4, defense: 1.1, expansion: 0.5, offense: 0.4, research: 1 },
+    militaryTarget: 0.5,
+    assaultMinSurvival: 0.7,
+    homeGuard: 0.5,
+    parallelColonizationMaxThreat: 0.8,
+    researchBuildingsPerPlanet: 1,
+    colonizationReach: 0.8,
+    parallelMilitaryProduction: false,
+    factoriesPerPlanet: 1,
+    concurrentColonizations: 1,
+    fundsResearchFirst: false,
+    commerce: { bankShare: 1, tradingPosts: 3, richBankShare: 1, richTradingPosts: 3 },
+    civilizationAssaultAfter: Number.POSITIVE_INFINITY,
+    raids: false,
+    dyson: { build: 'never', huntAnchors: 6, researchValue: 0 },
+    equipment: { minSurplusCredits: 3000 },
+  },
 };
 
+/* The personalities generated games cycle through (galaxy-generator.service.ts). */
 export const AI_PERSONALITIES: readonly AiPersonality[] = ['balanced', 'expansionist', 'militarist', 'technologist'];
+
+/* Personalities only campaign missions use. */
+export const CAMPAIGN_AI_PERSONALITIES: readonly AiPersonality[] = ['mercantile'];
 
 /*
  * Warlike temperaments (docs/diplomacy.md, docs/first-contact.md): their
@@ -188,7 +226,8 @@ export function isWarlikeFaction(faction: Faction | undefined): boolean {
 }
 
 export function isAiPersonality(value: unknown): value is AiPersonality {
-  return typeof value === 'string' && (AI_PERSONALITIES as readonly string[]).includes(value);
+  return typeof value === 'string'
+    && ((AI_PERSONALITIES as readonly string[]).includes(value) || (CAMPAIGN_AI_PERSONALITIES as readonly string[]).includes(value));
 }
 
 export function getAiPersonalityProfile(faction: Faction | undefined): AiPersonalityProfile {

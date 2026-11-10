@@ -31,6 +31,8 @@ export interface CampaignWorld {
   anomalies?: readonly Anomaly[];
   /* Living space bases (SpaceBaseService), for `base_destroyed`. */
   spaceBases?: readonly SpaceBase[];
+  /* The faction whose territory claims a system, or null (TerritoryService), for `systems_controlled`. */
+  systemController?: (system: StarSystem) => string | null;
 }
 
 export interface EvaluationContext {
@@ -122,6 +124,16 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
         stations += (system.asteroidBelt?.asteroids ?? []).filter((a) => a.miningStation?.factionId === 'player').length;
       }
       return stations >= (condition.count ?? 1);
+    }
+    case 'systems_controlled': {
+      const factionId = condition.factionId ?? 'player';
+      const controlled = world.starSystems.filter((s) => condition.systemIds.includes(s.id) && world.systemController?.(s) === factionId).length;
+      return controlled >= condition.count;
+    }
+    case 'war_exhaustion_at_least': {
+      const holder = world.factions.find((f) => f.id === condition.holder);
+      const relation = holder?.relations?.[condition.against];
+      return relation?.state === 'war' && (relation.warExhaustion ?? 0) >= condition.value;
     }
     case 'base_destroyed':
       return !(world.spaceBases ?? []).some((b) => b.name === condition.name);

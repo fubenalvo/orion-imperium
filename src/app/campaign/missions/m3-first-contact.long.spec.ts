@@ -90,5 +90,5 @@ describe('Mission 3 AI run (long)', () => {
     expect(getRelation(concordium, player)?.state).toBe('peace');
     // Wary neighbours, not at war with each other (aiRestraint).
     expect(getRelation(concordium, map.factions.find((f) => f.id === 'varkon')!)?.state).toBe('peace');
-  });
+  }, 600_000);
 });

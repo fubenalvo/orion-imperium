@@ -567,7 +567,7 @@ export function validateSaveData(
       }
       const personality = (faction as { aiPersonality?: unknown } | null)?.aiPersonality;
       if (personality !== undefined && !isAiPersonality(personality)) {
-        errors.push(error('ai_personality_invalid', `factions[${i}].aiPersonality`, 'aiPersonality must be balanced, expansionist, militarist, or technologist'));
+        errors.push(error('ai_personality_invalid', `factions[${i}].aiPersonality`, 'aiPersonality must be balanced, expansionist, militarist, technologist or mercantile'));
       }
     }
   }

@@ -131,6 +131,7 @@ The AI uses the same rules and code paths as the player; these are its decisions
 | Personality | Banks | Trading Posts | Civilization assaults from |
 | --- | --- | --- | --- |
 | Technologist | on every established planet | 2 | 20 min |
+| Mercantile (campaign only, the Meridian League) | on every established planet | 3 | never (and never raids) |
 | Balanced | on half of them | 1 | 12 min |
 | Expansionist | on a third of them | 2 | 10 min |
 | Militarist | none — with a large surplus (15 000+ credits) on half of them | none — with a surplus 1 | 8 min |

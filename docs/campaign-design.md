@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a, 1b, 2, 3, 3b, 4a, 4b and 5 implemented** (the campaign engine, its UI, Missions 1–4, wormhole transit, first contact in every game mode, see
+Status: **Phases 1a, 1b, 2, 3, 3b, 4a, 4b, 5 and 6 implemented** (the campaign engine, its UI, Missions 1–5, wormhole transit, first contact in every game mode, the `mercantile` personality, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -174,7 +174,46 @@ Implemented subset and deviations from the design below:
   Open points for balance: Varkon made no move on the Hub after minute 35 in this run (the defense objective may need a scripted Varkon fleet, `spawn_fleet`); the Concordium raided League traders from minute 26 (the ordinary AI raid role, which treats civilian traders as fair game for every personality).
 - Tests: `missions/m4-meridian-exchange.spec.ts` (map counts, routes, the alignment carry, Hub protection before and after minute 35 and after the Varkon deal, each standing source and its cap, both victories, the defeat, the free port and a lost trader).
 
-**Next:** Phase 6 (Mission 5: The Border Conflict, the `mercantile` personality).
+**Phase 6 — Mission 5 "The Border Conflict" (done, 2026-11-10).** `campaign/missions/m5-border-conflict.ts`, requires Mission 4.
+
+- **`mercantile` personality** (campaign only; [AI Pipeline](./ai-pipeline.md) table): `AI_PERSONALITY_PROFILES` and the diplomacy profile as proposed in §9 (peace bias +0.35, war only below opinion −30, never threats or tribute), demand texts, `raids: false` (new profile field, checked in `EnemyFleetService.planRaid`), `civilizationAssaultAfter: Infinity`. It lives in `CAMPAIGN_AI_PERSONALITIES`, so `isAiPersonality` (saves, missions, UI labels) accepts it while `AI_PERSONALITIES` — what generated games cycle — is unchanged (tested).
+- **Map** (240×144; 11 systems, 22 planets, 6 inhabited):
+  - the player's Westmarch (west), Concord Ascent (north), Varkos Prime (south) and Meridian Prime (east, the League as an AI empire);
+  - the Kessan Reach (Kessan Alpha and Beta with rich in-system belts, Kessan Heart);
+  - two civilizations (Dorrin south-west, Ilwen north-east), Thale and Brask;
+  - three belts: a single direct western gap into the Reach, the Ashen Veil nebula as the slow northern detour, and a belt north of the Reach;
+  - the Kessan Gate (Reach (120, 78) ↔ the player's western flank (46, 92)), active;
+  - Garrow's Gate, an authored Varkon space base with a picket.
+- **Story:** the opening opinions follow `m3_alignment` and `m4_path`. Varkon claims the Reach at minute 5. At minute 10 the Concordium declares war on Varkon (`start_war`), at minute 15 when the player paid Varkon in Mission 3. Until then `aiRestraint` keeps both from starting it themselves.
+- **Roles:** when the war begins, the player picks one (flag `m5_role`):
+  - ally: war with Varkon;
+  - mediator;
+  - partner: a tribute pact, 300 credits every 2 minutes;
+  - opportunist.
+
+  Mediation is offered once, while the player is at peace with both and both sides have war exhaustion ≥ 30 against each other. It ends their war with a white peace (`start_peace`).
+- **New conditions:** `systems_controlled` (territory owner of each system, `TerritoryMap.systemTerritoryOwner`: a planet majority, or a space-base claim on an unsettled system; `CampaignWorld.systemController`) and `war_exhaustion_at_least` (between two empires).
+- **Objectives:**
+  - presence in 2 of the 3 Reach systems;
+  - lose at most one planet (a second loss fails the mission);
+  - end the border war.
+
+  Optional: destroy Garrow's Gate; stay at peace with the League until minute 60; Turret Research II.
+- **Endings** (each needs the Reach presence):
+  - **The Kessan Accord**: mediated; `m5_reach_controller: shared`;
+  - **The Human Reach**: peace with Varkon while the player holds 2 Reach systems for 5 minutes after the war began;
+  - **The Concordium Line**: the same with the Concordium holding them;
+  - **The Broken Dominion**: peace with Varkon after its war exhaustion reached 60.
+
+  All record `m5_role`. Defeat: Varkon holds all three Reach systems for 10 minutes, or a second lost planet.
+- **Deviations:** the role is an explicit story choice when the war starts, not inferred from behavior. The design's `set_relation` is the existing `start_war` effect. The mediation is offered once; declining it ends the chance. "Varkon at peace with the player while the player or the Concordium controls ≥ 2 Reach systems" must hold for 5 minutes after the war began, so the opening peace cannot end the mission.
+- **Measured** (`m5-border-conflict.long.spec.ts`, 40 minutes, Normal, an opportunist player who stays passive):
+  - the border war was on in 17 of the 31 sampled minutes from minute 10 (it may pause and resume);
+  - the League never raided or assaulted a civilization, built 3 Trading Posts, never ran out of credits (lowest 70), and expanded to 6 planets, one of them in the Reach (Heart Deep);
+  - Varkon declared war on the passive player.
+- Tests: `missions/m5-border-conflict.spec.ts` (map counts, the personality kept out of generated games, routes into the Reach, the war at minute 10 or 15 and the restraint before it, the cold League after market dominance, the mediator, opportunist and ally endings, both defeats).
+
+**Next:** Phase 7 (Mission 6: The Silent Remnant — campaign sites, `EnemyCampaignService`, ancient technologies).
 
 ---
 

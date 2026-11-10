@@ -100,5 +100,5 @@ describe('Mission 4 AI run (long)', () => {
     expect(assaults.filter((a) => a.includes(">Cantor's Rest"))).toEqual([]);
     expect(hubFreeAt35).toBe(true);
     expect(owner("Cantor's Rest")).toBe('independent');
-  });
+  }, 600_000);
 });

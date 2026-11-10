@@ -175,6 +175,13 @@ const DIPLOMACY_PROFILES: Readonly<Record<AiPersonality, DiplomacyProfile>> = {
     minWars: 0, restlessWarRatio: 0, restlessOpinionMax: 0,
     demandCooldown: 720, demandShare: 0.35, threatRatio: 0.3, tributeRatio: 0.45, followThrough: -0.9, refusalTolerance: 0.7, yieldBias: 0.1, generosity: 0.15,
   },
+  // Campaign only (the Meridian League): wants peace, goes to war only against
+  // an empire it strongly dislikes, never threatens or takes tribute, asks rarely.
+  mercantile: {
+    peaceBias: 0.35, warRatio: 0.45, maxWars: 1, warOpinionMax: -30, treachery: false,
+    minWars: 0, restlessWarRatio: 0, restlessOpinionMax: 0,
+    demandCooldown: 900, demandShare: 0.3, threatRatio: 0, tributeRatio: 0, followThrough: -1, refusalTolerance: 0.6, yieldBias: 0.15, generosity: 0.2,
+  },
 };
 
 /* Personalities that try to stay at war (shown to the player on the Diplomacy screen). */
