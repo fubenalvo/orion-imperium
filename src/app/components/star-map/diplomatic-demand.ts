@@ -169,6 +169,7 @@ const DEMAND_LINES: Readonly<Record<DemandKind, Readonly<Record<Voice, string>>>
     balanced: 'We expect {amount} credits as compensation for maintaining peace between our empires.',
     technologist: 'Our analysts advise caution on your part. Transfer {amount} credits, or we will be forced to act.',
     mercantile: 'The League does not issue threats. Pay {amount} credits, and this conversation never happened.',
+    guardian: 'You are opening doors you cannot close. {amount} credits will buy you our patience.',
     human: 'Pay {amount} credits, or we declare war.',
   },
   tribute: {
@@ -177,6 +178,7 @@ const DEMAND_LINES: Readonly<Record<DemandKind, Readonly<Record<Voice, string>>>
     balanced: 'Recognize the balance of power between us: {amount} credits in tribute.',
     technologist: 'A contribution of {amount} credits would acknowledge our position.',
     mercantile: 'Market access has a price: {amount} credits.',
+    guardian: 'Those who wake the old network owe something to those who kept it asleep: {amount} credits.',
     human: 'We expect a tribute of {amount} credits.',
   },
   request: {
@@ -185,6 +187,7 @@ const DEMAND_LINES: Readonly<Record<DemandKind, Readonly<Record<Voice, string>>>
     balanced: 'Our economy is struggling. We request financial assistance: {amount} credits.',
     technologist: 'We would appreciate a contribution of {amount} credits to strengthen our relationship.',
     mercantile: 'A short-term loan of {amount} credits would be remembered when the next contracts are signed.',
+    guardian: 'Our watch is long and costly. {amount} credits would help us keep it.',
     human: 'We request financial assistance: {amount} credits.',
   },
 };

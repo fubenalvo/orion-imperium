@@ -20,12 +20,15 @@ import { isCivilianMissionFleet } from './space-base';
 import { isStationComplete } from './station-construction';
 import {
   DYSON_ANCHOR_SHIP_TYPE,
-  DYSON_ANCHOR_UPKEEP_POINTS,
   DysonBonusId,
+  dysonAnchorUpkeepPoints,
   dysonAnchorCount,
   hasLivingSwarmConstructor,
   isDysonAnchor,
+  isOpenerAnchor,
 } from './dyson-anchor';
+import { isCoalitionHolder } from './dyson-victory';
+import { getEffectiveOpinion } from './diplomacy';
 import { AiActionLedger, rejectionReason } from './ai-action-ledger';
 
 /*
@@ -72,6 +75,32 @@ import { AiActionLedger, rejectionReason } from './ai-action-ledger';
  */
 type DysonFleetOrder = { kind: 'hunt'; targetFactionId: string } | { kind: 'guard' };
 
+/*
+ * A faction's Dyson plan: its personality's `dyson` profile, or a campaign
+ * mission's override (docs/campaign-design.md, Mission 7; set through
+ * setCampaignPlans, null outside a campaign). The extra fields exist only
+ * in overrides:
+ *  - maxAnchors: anchors (sites included) it builds at most;
+ *  - bonus: the bonus it picks (the Observers' Dampeners);
+ *  - openersOnly: it counts and hunts only opener anchors (not Dampeners);
+ *  - warmupHuntBelowOpinion: it joins the hunt on a warm-up holder only
+ *    while its opinion of the holder is below this (good relations buy room);
+ *  - saveForConstructor: its economy keeps the next constructor's price in
+ *    the spending reserve while it may build one (constructorReserve), so
+ *    a young empire saves for the swarm instead of spending as it earns.
+ * Fellow members of the running coalition are never each other's targets.
+ */
+export interface DysonPlan {
+  build: 'always' | 'rich' | 'never';
+  huntAnchors: number;
+  researchValue: number;
+  maxAnchors?: number;
+  bonus?: DysonBonusId;
+  openersOnly?: boolean;
+  warmupHuntBelowOpinion?: number;
+  saveForConstructor?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class EnemyDysonService {
   static readonly DECISION_INTERVAL = 3;
@@ -91,6 +120,7 @@ export class EnemyDysonService {
   static readonly MAX_CONSTRUCTORS: Record<'always' | 'rich', number> = { always: 2, rich: 1 };
 
   private readonly accumulators = new Map<string, number>();
+  private campaignPlans: ((faction: Faction) => Partial<DysonPlan> | null) | null = null;
   /* Fleet id → its Dyson combat order. */
   private readonly orders = new Map<number, DysonFleetOrder>();
 
@@ -111,6 +141,44 @@ export class EnemyDysonService {
   reset(): void {
     this.accumulators.clear();
     this.orders.clear();
+  }
+
+  /* Campaign Dyson plans (kept across reset(); StarMap sets them on every load). */
+  setCampaignPlans(plans: ((faction: Faction) => Partial<DysonPlan> | null) | null): void {
+    this.campaignPlans = plans;
+  }
+
+  planOf(faction: Faction): DysonPlan {
+    return { ...getAiPersonalityProfile(faction).dyson, ...(this.campaignPlans?.(faction) ?? {}) };
+  }
+
+  /*
+   * The price EnemyEconomyService keeps in the spending reserve for the
+   * next Swarm Constructor (campaign plans with saveForConstructor), or
+   * null when the faction would not queue one now anyway.
+   */
+  constructorReserve(
+    faction: Faction,
+    data: { fleets: Fleet[]; shipStock: FactionShipStock[]; production: FactionProduction[] },
+  ): { credits: number; rawmaterials: number } | null {
+    const plan = this.planOf(faction);
+    if (!plan.saveForConstructor || plan.build === 'never' || !this.ring.ring) return null;
+    if (!this.researchService.isShipUnlocked(faction, DYSON_ANCHOR_SHIP_TYPE) || this.freeSlots().length === 0) return null;
+    const underway = this.constructorsInProgress(faction, data);
+    if (underway >= EnemyDysonService.MAX_CONSTRUCTORS[plan.build]) return null;
+    if (plan.maxAnchors !== undefined && dysonAnchorCount(this.bases.bases, faction.id) + underway >= plan.maxAnchors) return null;
+    const type = this.shipService.getShipType(DYSON_ANCHOR_SHIP_TYPE);
+    return type ? this.productionService.shipCostFor(type, faction.id) : null;
+  }
+
+  /* Fellow members of the running coalition (Mission 7's Union): never each other's Dyson targets. */
+  private sameCoalition(a: Faction, b: Faction): boolean {
+    const members = this.victory.activeCoalition?.members ?? [];
+    return members.includes(a.id) && members.includes(b.id);
+  }
+
+  private anchorsOf(factionId: string, plan: DysonPlan): SpaceBase[] {
+    return this.bases.bases.filter((b) => (plan.openersOnly ? isOpenerAnchor(b) : isDysonAnchor(b)) && b.factionId === factionId);
   }
 
   /* Fleets this service drives: Swarm Constructor fleets are found by their cargo, combat fleets by order. */
@@ -151,7 +219,8 @@ export class EnemyDysonService {
     faction: Faction,
     data: { factions: Faction[]; starSystems: StarSystem[]; fleets: Fleet[]; shipStock: FactionShipStock[]; production: FactionProduction[] },
   ): boolean {
-    const plan = getAiPersonalityProfile(faction).dyson.build;
+    const dysonPlan = this.planOf(faction);
+    const plan = dysonPlan.build;
     if (plan === 'never' || !this.researchService.isShipUnlocked(faction, DYSON_ANCHOR_SHIP_TYPE)) return false;
 
     let changed = false;
@@ -160,6 +229,12 @@ export class EnemyDysonService {
       changed = this.driveConstructor(faction, fleet, data, fleets) || changed;
     }
     if (this.freeSlots().length === 0) return changed;
+    // A campaign cap counts anchors and every constructor already under way.
+    if (dysonPlan.maxAnchors !== undefined
+      && dysonAnchorCount(this.bases.bases, faction.id) + this.constructorsInProgress(faction, data) >= dysonPlan.maxAnchors
+      && !(data.shipStock.find((s) => s.factionId === faction.id)?.ships ?? []).some((s) => s.type === DYSON_ANCHOR_SHIP_TYPE)) {
+      return changed;
+    }
     if (this.assembleConstructor(faction, data)) return true;
     if (this.constructorsInProgress(faction, data) >= EnemyDysonService.MAX_CONSTRUCTORS[plan]) return changed;
     return this.queueConstructor(faction, data, plan) || changed;
@@ -201,7 +276,7 @@ export class EnemyDysonService {
     const projected = this.enemyEconomy.getProjectedNet(faction, data.starSystems, context);
     // Counts every constructor already under way, so parallel builds never overcommit.
     const pending = 1 + this.constructorsInProgress(faction, data);
-    const anchorUpkeep = pending * DYSON_ANCHOR_UPKEEP_POINTS * UPKEEP_CREDITS_PER_POINT * projected.upkeepScale;
+    const anchorUpkeep = pending * dysonAnchorUpkeepPoints() * UPKEEP_CREDITS_PER_POINT * projected.upkeepScale;
     if (projected.net - anchorUpkeep < EnemyDysonService.UPKEEP_MARGIN) return false;
     if (this.spaceportService.listSpaceports(faction.id, data.starSystems).length === 0) return false;
 
@@ -284,7 +359,9 @@ export class EnemyDysonService {
 
   /* Research for the scientific empire, otherwise cheaper ships. */
   private chooseBonus(faction: Faction): DysonBonusId {
-    return getAiPersonalityProfile(faction).dyson.build === 'always' ? 'swarm_observatory' : 'orbital_foundries';
+    const plan = this.planOf(faction);
+    if (plan.bonus) return plan.bonus;
+    return plan.build === 'always' ? 'swarm_observatory' : 'orbital_foundries';
   }
 
   // ---------------------------------------------------------------
@@ -305,11 +382,23 @@ export class EnemyDysonService {
   /* The empire this faction should stop now, or undefined. A running warm-up beats everything. */
   private huntTarget(faction: Faction, data: { factions: Faction[] }): { target: Faction; warmup: boolean } | undefined {
     const warmup = this.victory.warmup;
+    const profile = this.planOf(faction);
     if (warmup && warmup.remaining > 0 && warmup.factionId !== faction.id) {
-      const target = data.factions.find((f) => f.id === warmup.factionId);
-      if (target && isTreatyPair(faction, target)) return { target, warmup: true };
+      if (isCoalitionHolder(warmup.factionId)) {
+        // A coalition warm-up (campaign): outsiders go for the member with the most anchors.
+        const members = this.victory.activeCoalition?.members ?? [];
+        if (!members.includes(faction.id)) {
+          const target = data.factions
+            .filter((f) => members.includes(f.id) && isTreatyPair(faction, f))
+            .sort((a, b) => dysonAnchorCount(this.bases.bases, b.id) - dysonAnchorCount(this.bases.bases, a.id) || a.id.localeCompare(b.id))[0];
+          if (target) return { target, warmup: true };
+        }
+      } else {
+        const target = data.factions.find((f) => f.id === warmup.factionId);
+        const spared = target && profile.warmupHuntBelowOpinion !== undefined && getEffectiveOpinion(faction, target) >= profile.warmupHuntBelowOpinion;
+        if (target && isTreatyPair(faction, target) && !spared && !this.sameCoalition(faction, target)) return { target, warmup: true };
+      }
     }
-    const profile = getAiPersonalityProfile(faction).dyson;
     // A builder facing a full ring it does not own contests it from the first rival anchor.
     const contesting = profile.build !== 'never'
       && this.researchService.isShipUnlocked(faction, DYSON_ANCHOR_SHIP_TYPE)
@@ -318,8 +407,8 @@ export class EnemyDysonService {
     const threshold = contesting ? 1 : profile.huntAnchors;
     let best: { target: Faction; count: number } | undefined;
     for (const other of data.factions) {
-      if (other.id === faction.id || !isTreatyPair(faction, other)) continue;
-      const count = dysonAnchorCount(this.bases.bases, other.id);
+      if (other.id === faction.id || !isTreatyPair(faction, other) || this.sameCoalition(faction, other)) continue;
+      const count = this.anchorsOf(other.id, profile).length;
       if (count >= threshold && (!best || count > best.count)) best = { target: other, count };
     }
     return best ? { target: best.target, warmup: false } : undefined;
@@ -345,7 +434,7 @@ export class EnemyDysonService {
       return result.ok;
     }
 
-    const anchors = this.bases.bases.filter((b) => isDysonAnchor(b) && b.factionId === target.id);
+    const anchors = this.anchorsOf(target.id, this.planOf(faction));
     if (anchors.length === 0) return false;
     const candidates = this.freeCombatFleets(faction, data.fleets, reserved)
       .filter((f) => warmup || this.livingWarships(f) >= EnemyDysonService.MIN_HUNT_WARSHIPS)
@@ -383,7 +472,7 @@ export class EnemyDysonService {
   // ---------------------------------------------------------------
 
   private guard(faction: Faction, data: { fleets: Fleet[] }, reserved: ReadonlySet<number>): boolean {
-    if (getAiPersonalityProfile(faction).dyson.build === 'never') return false;
+    if (this.planOf(faction).build === 'never') return false;
     const own = this.bases.bases.filter((b) => isDysonAnchor(b) && b.factionId === faction.id && isStationComplete(b));
     if (own.length < EnemyDysonService.GUARD_MIN_ANCHORS) return false;
     let guardId = [...this.orders].find(([id, o]) => o.kind === 'guard' && data.fleets.some((f) => f.id === id && f.factionId === faction.id))?.[0];
@@ -423,7 +512,7 @@ export class EnemyDysonService {
       if (order.kind === 'hunt') {
         const target = data.factions.find((f) => f.id === order.targetFactionId);
         done = done || !hunt || hunt.target.id !== order.targetFactionId || !target || getRelationKind(faction, target) !== 'war'
-          || !this.bases.bases.some((b) => isDysonAnchor(b) && b.factionId === order.targetFactionId);
+          || this.anchorsOf(order.targetFactionId, this.planOf(faction)).length === 0;
       } else {
         done = done || ownAnchors < EnemyDysonService.GUARD_MIN_ANCHORS;
       }

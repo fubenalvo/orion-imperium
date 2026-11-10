@@ -1,4 +1,6 @@
 import { Anomaly, Faction, Fleet, SpaceBase, StarSystem } from '../components/star-map/star-map.models';
+import { isDysonAnchor, isOpenerAnchor } from '../components/star-map/dyson-anchor';
+import { isStationComplete } from '../components/star-map/station-construction';
 import { isCombatShipType } from '../components/star-map/ai-queries';
 import shipData from '../components/star-map/ship-data.json';
 import { getRelationKind, inContact } from '../components/star-map/diplomacy';
@@ -33,6 +35,8 @@ export interface CampaignWorld {
   spaceBases?: readonly SpaceBase[];
   /* The faction whose territory claims a system, or null (TerritoryService), for `systems_controlled`. */
   systemController?: (system: StarSystem) => string | null;
+  /* The Dyson warm-up (DysonVictoryService), for `dyson_warmup`. */
+  dysonWarmup?: { factionId: string; remaining: number } | null;
 }
 
 export interface EvaluationContext {
@@ -143,9 +147,26 @@ export function evaluateCondition(condition: Condition, ctx: EvaluationContext):
       const isAi = (id: string) => world.factions.find((f) => f.id === id)?.ai === true;
       const claimed = condition.siteIds.filter((id) => {
         const claimant = session.sites?.[id]?.claimedBy;
-        return !!claimant && (condition.anyAi ? isAi(claimant) : claimant === (condition.factionId ?? 'player'));
+        if (!claimant) return false;
+        if (condition.anyAi) return isAi(claimant);
+        if (condition.factionIds) return condition.factionIds.includes(claimant);
+        return claimant === (condition.factionId ?? 'player');
       }).length;
       return claimed >= condition.count;
+    }
+    case 'dyson_warmup': {
+      const warmup = world.dysonWarmup;
+      if (!warmup || (condition.state === 'completed') !== (warmup.remaining <= 0)) return false;
+      if (condition.holder !== undefined) return warmup.factionId === condition.holder;
+      return !(condition.notHolders ?? []).includes(warmup.factionId);
+    }
+    case 'anchors': {
+      const kind = condition.anchorKind ?? 'any';
+      const count = (world.spaceBases ?? []).filter((b) =>
+        isDysonAnchor(b) && isStationComplete(b)
+        && (condition.factionIds === undefined || condition.factionIds.includes(b.factionId))
+        && (kind === 'any' || (kind === 'opener') === isOpenerAnchor(b))).length;
+      return count >= (condition.atLeast ?? 0) && (condition.atMost === undefined || count <= condition.atMost);
     }
     case 'base_destroyed':
       return !(world.spaceBases ?? []).some((b) => b.name === condition.name);

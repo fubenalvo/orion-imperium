@@ -33,7 +33,8 @@ import { DYSON_WARMUP_SECONDS, DysonWarmupEvent, formatWarmup } from './dyson-vi
 import { DysonNewsEvent, diffDysonAnchors, snapshotDysonAnchors } from './dyson-news';
 import { AnchorPanelViewModel, StarMapAnchorInfoComponent } from './star-map-anchor-info/star-map-anchor-info.component';
 import {
-  DYSON_BONUSES,
+  dysonBonusOptions,
+  setDysonAnchorUpkeepFactor,
   DysonBonusId,
   describeAnchorDeploymentFailure,
   dysonBonusDef,
@@ -212,7 +213,7 @@ import {
 import { SpaceportPanelViewModel } from './star-map-spaceport-panel/star-map-spaceport-panel.component';
 import { StarMapBlackholeComponent } from './blackhole/blackhole.component';
 import { StarMapResearchTreeComponent } from './star-map-research-tree/star-map-research-tree.component';
-import { buildingCost, payCost } from '../../services/resource-cost';
+import { buildingCost, payCost, setCampaignShipPriceFactors } from '../../services/resource-cost';
 import { SpaceBaseService } from './space-base.service';
 import { TerritoryService } from './territory.service';
 import { BorderService } from './border.service';
@@ -237,13 +238,15 @@ import { CampaignMessageVm, StarMapCampaignMessageComponent } from './star-map-c
 import { StarMapCampaignObjectivesComponent } from './star-map-campaign-objectives/star-map-campaign-objectives.component';
 import { ContactAnswer, StarMapFirstContactComponent } from './star-map-first-contact/star-map-first-contact.component';
 import { EnemyInvasionService } from './enemy-invasion.service';
+import { EnemyDysonService } from './enemy-dyson.service';
+import { EnemyEconomyService } from './enemy-economy.service';
 import { ContactDialogueVm, ContactResolution, ContactWorld, FirstContactService } from './first-contact.service';
 import { AnomalyMapView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { AnomalyCellView } from './star-map-system-grid/star-map-system-grid.component';
 import { ensureColonyCore, isCoreOwner } from './colony-core';
 import { TutorialService } from '../../services/tutorial.service';
 import { CampaignService, CampaignTickResult, ObjectiveView } from '../../campaign/campaign.service';
-import { CampaignDiplomacyAction } from '../../campaign/campaign-effects';
+import { CampaignDiplomacyAction, CampaignSpawn } from '../../campaign/campaign-effects';
 import { CampaignSiteView } from './star-map-galaxy-view/star-map-galaxy-view.component';
 import { CampaignMissionService } from '../../campaign/campaign-mission.service';
 import { MISSION_DEFINITIONS } from '../../campaign/missions';
@@ -326,6 +329,8 @@ export class StarMap implements AfterViewInit, OnDestroy {
   /* First contact (docs/first-contact.md): the open dialogue and its result. */
   private readonly firstContact = inject(FirstContactService);
   private readonly invasionService = inject(EnemyInvasionService);
+  private readonly enemyDysonService = inject(EnemyDysonService);
+  private readonly enemyEconomyService = inject(EnemyEconomyService);
   contactDialogue: ContactDialogueVm | null = null;
   contactResult: ContactResolution | null = null;
   private contactResumeOnClose = false;
@@ -906,7 +911,7 @@ loadError = '';
         ? 'None while building'
         : describeStationDefense(base, this.getStationTurrets(base.factionId)),
       bonus: dysonBonusDef(base.dysonBonus),
-      bonusOptions: DYSON_BONUSES,
+      bonusOptions: dysonBonusOptions(this.campaign.dampenerEnabled),
     };
   }
 
@@ -4466,8 +4471,9 @@ loadError = '';
   }
 
   private describeDysonWarmup(event: DysonWarmupEvent): string {
+    const coalition = this.campaign.coalitionName(event.factionId);
     const own = event.factionId === 'player';
-    const who = own ? 'You' : this.getFactionName(event.factionId);
+    const who = coalition ?? (own ? 'You' : this.getFactionName(event.factionId));
     switch (event.kind) {
       case 'started':
         return own
@@ -4484,10 +4490,12 @@ loadError = '';
   get dysonCountdown(): { ownerName: string; color: string; own: boolean; time: string } | null {
     const warmup = this.dysonVictoryService.warmup;
     if (!warmup || warmup.remaining <= 0) return null;
+    // A campaign coalition (Mission 7's Galactic Union) counts as the player's own countdown.
+    const coalition = this.campaign.coalitionName(warmup.factionId);
     return {
-      ownerName: warmup.factionId === 'player' ? 'You' : this.getFactionName(warmup.factionId),
-      color: this.getFactionColor(warmup.factionId),
-      own: warmup.factionId === 'player',
+      ownerName: coalition ?? (warmup.factionId === 'player' ? 'You' : this.getFactionName(warmup.factionId)),
+      color: coalition ? '#ffcc00' : this.getFactionColor(warmup.factionId),
+      own: warmup.factionId === 'player' || !!coalition,
       time: formatWarmup(warmup.remaining),
     };
   }
@@ -4496,7 +4504,7 @@ loadError = '';
   get dysonWinnerName(): string | null {
     const warmup = this.dysonVictoryService.warmup;
     if (!warmup || warmup.remaining > 0) return null;
-    return warmup.factionId === 'player' ? 'You' : this.getFactionName(warmup.factionId);
+    return this.campaign.coalitionName(warmup.factionId) ?? (warmup.factionId === 'player' ? 'You' : this.getFactionName(warmup.factionId));
   }
 
   /*
@@ -5185,6 +5193,12 @@ loadError = '';
     this.enemyDiplomacyService.setRestraintGuard(this.campaign.active ? (ai, other) => this.campaign.restrains(ai.id, other.id) : null);
     // Protected mission planets (protect_planet) are no AI assault target.
     this.invasionService.setProtectionGuard(this.campaign.active ? (attackerId, planet) => this.campaign.protects(attackerId, planet.name) : null);
+    // Campaign Dyson rules (Mission 7): per-faction AI plans, the coalition that may hold the ring, anchor upkeep.
+    setDysonAnchorUpkeepFactor(this.campaign.anchorUpkeepFactor);
+    setCampaignShipPriceFactors(this.campaign.shipPriceFactors);
+    this.enemyDysonService.setCampaignPlans(this.campaign.active ? (faction) => this.campaign.dysonPlanFor(faction.id) : null);
+    this.enemyEconomyService.setExtraReserve(this.campaign.active ? (faction, context) => this.enemyDysonService.constructorReserve(faction, context) : null);
+    this.dysonVictoryService.setCoalition(this.campaign.coalition());
     this.wormholes = data.wormholes ?? [];
     // Meetings are re-detected from the world after every load (docs/first-contact.md).
     this.firstContact.reset();
@@ -5522,6 +5536,7 @@ loadError = '';
       anomalies: this.anomalyService.anomalies,
       spaceBases: this.spaceBaseService.bases,
       systemController: (system) => this.territoryService.get(this.starSystems, this.factions).systemTerritoryOwner(system),
+      dysonWarmup: this.dysonVictoryService.warmup,
     };
   }
 
@@ -5585,6 +5600,8 @@ loadError = '';
   private tickCampaign(seconds: number): void {
     if (!this.campaign.active) return;
     this.applyCampaignResult(this.campaign.tick(seconds, this.campaignWorld()));
+    // A story choice may have formed or dissolved the coalition (Mission 7's Union Charter).
+    this.dysonVictoryService.setCoalition(this.campaign.coalition());
     this.campaignObjectives = this.campaign.objectiveViews(this.campaignWorld());
   }
 
@@ -5774,6 +5791,7 @@ loadError = '';
   private applyCampaignResult(result: CampaignTickResult): void {
     for (const area of result.reveals) this.revealArea(area);
     for (const action of result.diplomacy) this.applyCampaignDiplomacy(action);
+    for (const spawn of result.spawns) this.spawnCampaignFleet(spawn);
     if (result.wormholeStates.length > 0) {
       for (const change of result.wormholeStates) {
         const wormhole = this.wormholes.find((w) => w.id === change.wormholeId);
@@ -5812,6 +5830,27 @@ loadError = '';
       this.enemyDiplomacyService.makeDemand(a, b, action.demandKind, cap, this.demandContext(), { ignoreCooldowns: true });
     }
     this.handleDiplomacyEvents();
+  }
+
+  /* spawn_fleet: a new fleet on the galaxy map (Remnant sentinels), registered under its tag. */
+  private spawnCampaignFleet(spawn: CampaignSpawn): void {
+    if (!this.factions.some((f) => f.id === spawn.factionId)) return;
+    let nextShipId = this.shipStockService.nextShipId(this.fleets, { shipStock: this.shipStock });
+    const fleet: Fleet = {
+      id: this.fleetAssemblyService.nextFleetId(this.fleets),
+      name: spawn.name,
+      factionId: spawn.factionId,
+      x: spawn.x,
+      y: spawn.y,
+      targetX: null,
+      targetY: null,
+      speed: 4,
+      system: null,
+      ships: spawn.ships.map((type) => ({ id: nextShipId++, name: this.shipService.getShipType(type)?.name ?? type, type, currentHp: this.shipService.getShipType(type)?.hitPoints, destroyed: false })),
+      destroyed: false,
+    };
+    this.fleets.push(fleet);
+    if (spawn.tag) this.campaign.registerFleetTag(spawn.tag, fleet.id);
   }
 
   private checkGameOutcome(): void {

@@ -206,13 +206,36 @@ export const AI_PERSONALITY_PROFILES: Readonly<Record<AiPersonality, AiPersonali
     dyson: { build: 'never', huntAnchors: 6, researchValue: 0 },
     equipment: { minSurplusCredits: 3000 },
   },
+  guardian: {
+    id: 'guardian',
+    label: 'Guardian',
+    // A keeper of ancient structures (campaign only, the Observers): a strong
+    // defense, little expansion, research first; it hunts anchors that open
+    // the network (its Dyson plan comes from the mission).
+    weights: { economy: 1, defense: 1.6, expansion: 0.3, offense: 0.6, research: 1.6 },
+    militaryTarget: 1,
+    assaultMinSurvival: 0.6,
+    homeGuard: 0.4,
+    parallelColonizationMaxThreat: 0.6,
+    researchBuildingsPerPlanet: 2,
+    colonizationReach: 0.6,
+    parallelMilitaryProduction: false,
+    factoriesPerPlanet: 1,
+    concurrentColonizations: 1,
+    fundsResearchFirst: false,
+    commerce: { bankShare: 0.5, tradingPosts: 0, richBankShare: 1, richTradingPosts: 1 },
+    civilizationAssaultAfter: Number.POSITIVE_INFINITY,
+    raids: false,
+    dyson: { build: 'always', huntAnchors: 1, researchValue: 6 },
+    equipment: { minSurplusCredits: 2500 },
+  },
 };
 
 /* The personalities generated games cycle through (galaxy-generator.service.ts). */
 export const AI_PERSONALITIES: readonly AiPersonality[] = ['balanced', 'expansionist', 'militarist', 'technologist'];
 
 /* Personalities only campaign missions use. */
-export const CAMPAIGN_AI_PERSONALITIES: readonly AiPersonality[] = ['mercantile'];
+export const CAMPAIGN_AI_PERSONALITIES: readonly AiPersonality[] = ['mercantile', 'guardian'];
 
 /*
  * Warlike temperaments (docs/diplomacy.md, docs/first-contact.md): their

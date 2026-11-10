@@ -32,8 +32,24 @@ export function buildingCost(def: { price?: number; rawMaterialCost?: number }):
   return { credits: def.price ?? 0, rawmaterials: def.rawMaterialCost ?? 0 };
 }
 
-export function shipCost(type: { cost?: number; rawMaterialCost?: number }, quantity = 1): ResourceCost {
-  return { credits: (type.cost ?? 0) * quantity, rawmaterials: (type.rawMaterialCost ?? 0) * quantity };
+/*
+ * Campaign price factors by ship type id (MissionDysonRules.constructorCostFactor:
+ * Mission 7's Swarm Constructor). Session state like the research horizon:
+ * StarMap sets it on every load ({} outside a campaign), and every price —
+ * shown, charged or judged by the AI — goes through shipCost.
+ */
+let campaignShipPriceFactors: Readonly<Record<string, number>> = {};
+
+export function setCampaignShipPriceFactors(factors: Readonly<Record<string, number>>): void {
+  campaignShipPriceFactors = { ...factors };
+}
+
+export function shipCost(type: { id?: string; cost?: number; rawMaterialCost?: number }, quantity = 1): ResourceCost {
+  const factor = (type.id !== undefined ? campaignShipPriceFactors[type.id] : undefined) ?? 1;
+  return {
+    credits: Math.round((type.cost ?? 0) * factor) * quantity,
+    rawmaterials: Math.round((type.rawMaterialCost ?? 0) * factor) * quantity,
+  };
 }
 
 export function addCosts(a: ResourceCost, b: ResourceCost): ResourceCost {

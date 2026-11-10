@@ -182,6 +182,13 @@ const DIPLOMACY_PROFILES: Readonly<Record<AiPersonality, DiplomacyProfile>> = {
     minWars: 0, restlessWarRatio: 0, restlessOpinionMax: 0,
     demandCooldown: 900, demandShare: 0.3, threatRatio: 0, tributeRatio: 0, followThrough: -1, refusalTolerance: 0.6, yieldBias: 0.15, generosity: 0.2,
   },
+  // Campaign only (the Observers): patient, goes to war only against an empire
+  // it strongly distrusts (mission effects move that opinion), rarely demands.
+  guardian: {
+    peaceBias: 0.2, warRatio: 0.6, maxWars: 2, warOpinionMax: -40, treachery: false,
+    minWars: 0, restlessWarRatio: 0, restlessOpinionMax: 0,
+    demandCooldown: 900, demandShare: 0.3, threatRatio: 0.4, tributeRatio: 0, followThrough: 0.2, refusalTolerance: 1, yieldBias: 0, generosity: 0,
+  },
 };
 
 /* Personalities that try to stay at war (shown to the player on the Diplomacy screen). */

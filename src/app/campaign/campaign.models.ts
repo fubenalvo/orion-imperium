@@ -9,6 +9,7 @@ import {
   Wormhole,
 } from '../components/star-map/star-map.models';
 import type { DemandKind } from '../components/star-map/diplomatic-demand';
+import type { DysonPlan } from '../components/star-map/enemy-dyson.service';
 
 /*
  * =========================================================
@@ -104,8 +105,18 @@ export type Condition =
   | { kind: 'war_exhaustion_at_least'; holder: string; against: string; value: number }
   /* A campaign site was claimed (by this faction, or by anyone). */
   | { kind: 'site_claimed'; siteId: string; factionId?: string }
-  /* At least `count` of these sites are claimed by the faction (default the player). */
-  | { kind: 'sites_claimed'; siteIds: string[]; count: number; factionId?: string; anyAi?: boolean }
+  /* At least `count` of these sites are claimed by the faction (default the player), any of `factionIds`, or any AI. */
+  | { kind: 'sites_claimed'; siteIds: string[]; count: number; factionId?: string; factionIds?: string[]; anyAi?: boolean }
+  /*
+   * The Dyson warm-up (dyson-victory.ts): running or completed, by `holder`
+   * (a faction id or `coalition:<id>`), or by anyone not in `notHolders`.
+   */
+  | { kind: 'dyson_warmup'; state: 'running' | 'completed'; holder?: string; notHolders?: string[] }
+  /*
+   * Completed Dyson anchors on the ring, of these factions (default: any):
+   * openers, Dampeners or both; at least / at most this many.
+   */
+  | { kind: 'anchors'; factionIds?: string[]; anchorKind?: 'opener' | 'dampener' | 'any'; atLeast?: number; atMost?: number }
   /* A campaign anomaly (by its mission key) was resolved, optionally with this choice. */
   | { kind: 'anomaly_resolved'; key: string; choiceId?: string }
   | { kind: 'opinion_at_least'; holder: string; of: string; value: number }
@@ -158,6 +169,8 @@ export type Effect =
    * the empires in `except`. `protect: false` lifts it for everyone.
    */
   | { kind: 'protect_planet'; planetName: string; protect: boolean; except?: string[] }
+  /* A new fleet appears (Remnant sentinels at a gate); `tag` names it for conditions. */
+  | { kind: 'spawn_fleet'; factionId: string; name: string; x: number; y: number; ships: string[]; tag?: string }
   | { kind: 'end_mission'; endingId: string }
   | { kind: 'fail_mission'; reason: string };
 
@@ -261,8 +274,13 @@ export interface MissionFactionSpec {
   technologies?: string[];
 }
 
-/* Starting buildings: the generator's templates, or an independent civilization's capital. */
-export type MissionPlanetLayout = 'homeworld' | 'colony' | 'civilization_capital' | 'none';
+/*
+ * Starting buildings: the generator's templates, an independent
+ * civilization's capital, or a developed capital (`stronghold`: the
+ * homeworld plus a Spaceport and a Spaceship Factory, for a finale fought
+ * by established empires).
+ */
+export type MissionPlanetLayout = 'homeworld' | 'colony' | 'civilization_capital' | 'stronghold' | 'none';
 
 export interface MissionPlanetSpec {
   name: string;
@@ -332,6 +350,8 @@ export interface MissionMapSpec {
   asteroidBelts?: AsteroidBelt[];
   wormholes?: Wormhole[];
   anomalies?: MissionAnomalySpec[];
+  /* The generator's centred black hole (the Lacuna Heart): it brings the Dyson ring. */
+  blackHole?: boolean;
   /* Authored space bases (an outlaw free port); names are unique, conditions refer to them by name. */
   spaceBases?: { name: string; factionId: string; x: number; y: number }[];
   /* Every pair of non-neutral, non-outlaw factions, symmetric (validated). */
@@ -393,6 +413,15 @@ export interface MissionDefinition {
   sites?: CampaignSiteDef[];
   /* AI behavior toward the sites (EnemyCampaignService). */
   aiDirectives?: CampaignAiDirective[];
+  /* Campaign Dyson rules (Mission 7; needs `map.blackHole`). */
+  dyson?: MissionDysonRules;
+  /*
+   * Credits per second of game time paid to these AI empires on top of
+   * their economy (a war chest, the Observers' old network). For finales
+   * whose young empires could not otherwise afford what the story needs;
+   * paid in the campaign tick, so it pauses with the game.
+   */
+  aiStipends?: Record<string, number>;
   /* Tutorial steps that make no sense here (tutorial-steps.ts ids), e.g. 'diplomacy' without empires. */
   tutorialExcludedSteps?: string[];
 }
@@ -427,6 +456,39 @@ export interface CampaignSiteDef {
  * guardians leaves at least `minSurvival` of it alive; 'guard' parks a
  * fleet on a site it holds.
  */
+/*
+ * Campaign Dyson rules (docs/campaign-design.md, Mission 7). Every part is
+ * optional and applies only to the mission:
+ * - dampener: the Dampener anchor bonus is offered (dyson-anchor.ts);
+ * - plans: per-faction overrides of the AI Dyson plan (EnemyDysonService);
+ *   the first entry of a faction whose `whenFlag` is set (or that has none)
+ *   applies;
+ * - coalition: while `whenFlag` is set, these members may fill the ring
+ *   together for a coalition warm-up (dyson-victory.ts);
+ * - instability: a campaign value moved every second by the anchors on
+ *   the ring (per minute: + openerPerMinute per completed opener anchor,
+ *   × playerOpenerFactor for the player's own, + warmupPerMinute during a
+ *   single-faction warm-up, − dampenerPerMinute per Dampener, −
+ *   coalitionWarmupPerMinute during the coalition's warm-up), 0–100.
+ */
+export interface MissionDysonRules {
+  dampener?: boolean;
+  /* Scale on the anchor upkeep (dyson-anchor.ts); missing = 1. */
+  anchorUpkeepFactor?: number;
+  /* Scale on the Swarm Constructor's price (resource-cost.ts shipCost); missing = 1. */
+  constructorCostFactor?: number;
+  plans?: { factionId: string; whenFlag?: string; plan: Partial<DysonPlan> }[];
+  coalition?: { id: string; name: string; members: string[]; maxPerMember: number; whenFlag: string };
+  instability?: {
+    key: string;
+    openerPerMinute: number;
+    playerOpenerFactor: number;
+    warmupPerMinute: number;
+    dampenerPerMinute: number;
+    coalitionWarmupPerMinute: number;
+  };
+}
+
 export interface CampaignAiDirective {
   factionId: string;
   siteId: string;

@@ -353,6 +353,15 @@ Threat response, the same for every personality, scaled by its aggression:
 
 **Conclusion:** the Dyson Swarm is a late-game path. AIs reach it after ~50–80 minutes, and between rival builders and hunters a full ring rarely survives long. A player focused on it can get there sooner. Credit stockpiles still grow into the millions late in long games: the swarm absorbs a share of it, not all of it ([Economy](./economy.md)).
 
+## Campaign rules (Mission 7)
+
+The story campaign's finale ([Campaign Design](./campaign-design.md#implementation-status)) uses the ring as it is and adds rules that exist only while a mission enables them (`MissionDefinition.dyson`). Skirmish games are unchanged:
+
+- **Dampener** (`DysonBonusId` `'dampener'`, `DAMPENER_BONUS`): offered by the bonus picker only where the mission enables it (`dysonBonusOptions`). No economic effect; never counts toward a ring holder (`isOpenerAnchor`: every other anchor is an *opener*, including one without a bonus yet); no casus belli (`dysonOpenerCount`, `DiplomacyService.isDysonCasusBelli`).
+- **Coalition warm-up** (`DysonCoalition`, `dysonCoalitionHolder`, `DysonVictoryService.setCoalition`): when no single faction holds the ring, the members of the active coalition may hold it together — every slot a completed opener of a member, each member at least one anchor and at most `maxPerMember`, every member owning a planet. The warm-up's holder id is then `coalition:<id>`; the countdown banner and notices show the coalition's name. The mission decides what a completed coalition warm-up means (rule 1a of `GameOutcomeService`).
+- **AI plans** (`EnemyDysonService.planOf`): a mission may override a faction's `dyson` profile and add `maxAnchors`, `bonus` (the Observers build Dampeners), `openersOnly` (count and hunt only openers), `warmupHuntBelowOpinion` (join the hunt on a warm-up holder only while the opinion of it is below this) and `saveForConstructor` (EnemyEconomyService keeps the next constructor's price in its spending reserve, `setExtraReserve` / `constructorReserve`). Fellow coalition members never hunt each other; during a coalition warm-up outsiders hunt the member with the most anchors.
+- **Prices**: `anchorUpkeepFactor` scales the anchor upkeep (`setDysonAnchorUpkeepFactor`, `dysonAnchorUpkeepPoints`) and `constructorCostFactor` the Swarm Constructor's price (`setCampaignShipPriceFactors` in `resource-cost.ts`, read by every `shipCost` call). Both are session state set by StarMap on every load (1 outside a campaign).
+
 ## Implementation phases
 
 Each phase updates this document and the documents it touches.

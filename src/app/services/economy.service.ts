@@ -11,7 +11,7 @@ import { getWarExhaustionPenalty } from '../components/star-map/diplomacy';
 import { extractMiningStations, miningRatePerSecond } from '../components/star-map/mining-station';
 import { SpaceBaseService } from '../components/star-map/space-base.service';
 import { isStationComplete } from '../components/star-map/station-construction';
-import { DYSON_ANCHOR_UPKEEP_POINTS, DysonBonusEffects, NO_DYSON_BONUS, dysonBonusEffects, isDysonAnchor } from '../components/star-map/dyson-anchor';
+import { dysonAnchorUpkeepPoints, DysonBonusEffects, NO_DYSON_BONUS, dysonBonusEffects, isDysonAnchor } from '../components/star-map/dyson-anchor';
 import { planetTypeTraits } from '../components/star-map/planet-types';
 
 import {
@@ -725,7 +725,7 @@ export class EconomyService {
     return {
       spaceBase: SPACE_BASE_UPKEEP_POINTS * factor,
       miningStation: MINING_STATION_UPKEEP_POINTS * factor,
-      dysonAnchor: DYSON_ANCHOR_UPKEEP_POINTS * factor,
+      dysonAnchor: dysonAnchorUpkeepPoints() * factor,
     };
   }
 

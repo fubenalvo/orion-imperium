@@ -46,7 +46,7 @@ import {
   validateTreaty,
 } from '../components/star-map/peace-treaty';
 import { SpaceBaseService } from '../components/star-map/space-base.service';
-import { DYSON_CASUS_BELLI_ANCHORS, dysonAnchorCount } from '../components/star-map/dyson-anchor';
+import { DYSON_CASUS_BELLI_ANCHORS, dysonOpenerCount } from '../components/star-map/dyson-anchor';
 
 /*
  * =========================================================
@@ -170,7 +170,8 @@ export class DiplomacyService {
    * (dyson-anchor.ts)? Checked at the moment of the declaration or breach.
    */
   isDysonCasusBelli(target: Faction): boolean {
-    return !!this.spaceBases && dysonAnchorCount(this.spaceBases.bases, target.id) >= DYSON_CASUS_BELLI_ANCHORS;
+    // Dampener anchors (campaign only) quiet the network: they are no casus belli.
+    return !!this.spaceBases && dysonOpenerCount(this.spaceBases.bases, target.id) >= DYSON_CASUS_BELLI_ANCHORS;
   }
 
   /* Waives the surprise-attack penalty for the war just started against a casus belli target. */

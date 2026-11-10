@@ -1,5 +1,5 @@
 import { SpaceBase, StarSystem } from './star-map.models';
-import { isDysonAnchor } from './dyson-anchor';
+import { isDysonAnchor, isOpenerAnchor } from './dyson-anchor';
 import { isStationComplete } from './station-construction';
 
 /*
@@ -12,7 +12,11 @@ import { isStationComplete } from './station-construction';
  * - The ring holder is the one faction with a COMPLETED anchor on every
  *   slot of the ring that also owns at least one planet. Construction
  *   sites do not count, and anchors of allies or peace partners are never
- *   combined.
+ *   combined. A Dampener anchor (campaign only) never counts.
+ * - Campaign coalition (docs/campaign-design.md, Mission 7): when a mission
+ *   sets one, its members' completed opener anchors may fill the ring
+ *   together (each member at least one, none more than `maxPerMember`);
+ *   the holder id is then `coalition:<id>`.
  * - While there is a holder, its warm-up counts down DYSON_WARMUP_SECONDS
  *   of scaled game time. When it reaches zero the holder wins: victory for
  *   the human player, defeat for the player when an AI faction holds it.
@@ -46,7 +50,7 @@ export function dysonRingHolder(
   if (slotCount <= 0) return null;
   const owners = new Map<number, string>();
   for (const base of bases) {
-    if (!isDysonAnchor(base) || !isStationComplete(base) || typeof base.dysonSlot !== 'number') continue;
+    if (!isOpenerAnchor(base) || !isStationComplete(base) || typeof base.dysonSlot !== 'number') continue;
     owners.set(base.dysonSlot, base.factionId);
   }
   if (owners.size < slotCount) return null;
@@ -56,6 +60,50 @@ export function dysonRingHolder(
   }
   const ownsPlanet = starSystems.some((s) => (s.planetsTiles ?? []).some((p) => p.factionId === holder));
   return ownsPlanet ? holder : null;
+}
+
+export interface DysonCoalition {
+  id: string;
+  name: string;
+  members: readonly string[];
+  maxPerMember: number;
+}
+
+export const COALITION_HOLDER_PREFIX = 'coalition:';
+
+export function coalitionHolderId(coalition: Pick<DysonCoalition, 'id'>): string {
+  return `${COALITION_HOLDER_PREFIX}${coalition.id}`;
+}
+
+export function isCoalitionHolder(holder: string | null | undefined): boolean {
+  return !!holder && holder.startsWith(COALITION_HOLDER_PREFIX);
+}
+
+/* `coalition:<id>` when the coalition's members fill every slot together (see above), else null. */
+export function dysonCoalitionHolder(
+  bases: readonly SpaceBase[],
+  slotCount: number,
+  starSystems: readonly StarSystem[],
+  coalition: DysonCoalition | null,
+): string | null {
+  if (!coalition || slotCount <= 0) return null;
+  const owners = new Map<number, string>();
+  for (const base of bases) {
+    if (!isOpenerAnchor(base) || !isStationComplete(base) || typeof base.dysonSlot !== 'number') continue;
+    owners.set(base.dysonSlot, base.factionId);
+  }
+  if (owners.size < slotCount) return null;
+  const counts = new Map<string, number>();
+  for (const owner of owners.values()) {
+    if (!coalition.members.includes(owner)) return null;
+    counts.set(owner, (counts.get(owner) ?? 0) + 1);
+  }
+  for (const member of coalition.members) {
+    const count = counts.get(member) ?? 0;
+    if (count < 1 || count > coalition.maxPerMember) return null;
+    if (!starSystems.some((s) => (s.planetsTiles ?? []).some((p) => p.factionId === member))) return null;
+  }
+  return coalitionHolderId(coalition);
 }
 
 /*

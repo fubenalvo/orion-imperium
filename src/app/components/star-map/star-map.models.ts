@@ -133,8 +133,8 @@ export interface TechnologyBonus {
 export type AiDifficulty = 'easy' | 'normal' | 'hard';
 
 /* AI strategic preferences; profiles live in `ai-personality.ts`. */
-/* 'mercantile' is a campaign-only personality (the Meridian League): never in generated games (AI_PERSONALITIES). */
-export type AiPersonality = 'balanced' | 'expansionist' | 'militarist' | 'technologist' | 'mercantile';
+/* 'mercantile' (the Meridian League) and 'guardian' (the Observers) are campaign only: never in generated games (AI_PERSONALITIES). */
+export type AiPersonality = 'balanced' | 'expansionist' | 'militarist' | 'technologist' | 'mercantile' | 'guardian';
 
 export interface Faction {
   /*

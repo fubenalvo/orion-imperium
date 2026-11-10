@@ -482,6 +482,18 @@ export class EnemyEconomyService {
    * getSpendingReserve: Credits optional spending must leave untouched,
    * covering the faction's currently committed needs.
    */
+  /*
+   * Campaign hook (docs/campaign-design.md, Mission 7): an extra amount kept
+   * in the reserve — the next Swarm Constructor of a faction whose mission
+   * Dyson plan saves for it (EnemyDysonService.constructorReserve). Set by
+   * StarMap on every load; null outside a campaign.
+   */
+  private extraReserve: ((faction: Faction, context: EconomyContext) => ResourceCost | null) | null = null;
+
+  setExtraReserve(extra: ((faction: Faction, context: EconomyContext) => ResourceCost | null) | null): void {
+    this.extraReserve = extra;
+  }
+
   getSpendingReserve(
     faction: Faction,
     starSystems: StarSystem[],
@@ -489,7 +501,7 @@ export class EnemyEconomyService {
     includeMilitary: boolean,
     includeMine = true,
   ): ResourceCost {
-    let reserve: ResourceCost = { credits: 0, rawmaterials: 0 };
+    let reserve: ResourceCost = this.extraReserve?.(faction, context) ?? { credits: 0, rawmaterials: 0 };
     const planets = this.getOwnedPlanetsSorted(faction.id, starSystems);
 
     // A live deposit without a mine is the best raw-material investment the

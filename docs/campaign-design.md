@@ -1,6 +1,6 @@
 # Story Campaign — "Orion Imperium: The Silent Frontier" (Design)
 
-Status: **Phases 1a, 1b, 2, 3, 3b, 4a, 4b, 5, 6 and 7 implemented** (the campaign engine, its UI, Missions 1–6, wormhole transit, first contact in every game mode, the `mercantile` personality, campaign sites and `EnemyCampaignService`, see
+Status: **Phases 1a–8 implemented** (the campaign engine, its UI, all seven missions, wormhole transit, first contact in every game mode, the `mercantile` and `guardian` personalities, campaign sites and `EnemyCampaignService`, the campaign Dyson rules of the finale, see
 [Implementation status](#implementation-status)); everything else is design (2026-11-09; owner decisions of 2026-11-09 applied:
 the name, three finale endings first, research carry-over with a per-mission research horizon,
 fleet transit through wormholes, the Dyson Swarm in the finale, defeat options, first contact
@@ -260,7 +260,58 @@ Implemented subset and deviations from the design below:
   - no fleet on a campaign order was steered elsewhere (checked every frame).
 - Tests: `campaign-sites.spec.ts` (presence, contest by a warden or a hostile fleet, decay, claim once), `missions/m6-silent-remnant.spec.ts` (map counts, ancient technologies invisible in a skirmish, the fair race, the station charting the archives, a warden blocking the claim, the claim's technology, the core and the sharing choice, the defeat, Varkon's directive).
 
-**Next:** Phase 8 (Mission 7: The New Frontier — the finale on the Lacuna Heart Dyson ring).
+**Phase 8 — Mission 7 "The New Frontier" (done, 2026-11-10).** `campaign/missions/m7-new-frontier.ts`, requires Mission 6.
+
+- **Map** (300×180; 14 systems, 35 planets, 9 inhabited): `map.blackHole` adds the generator's centred black hole, the Lacuna Heart, and with it the Dyson ring (8 slots). Validation keeps systems, wormhole mouths and belts out of the ring zone.
+  - Four belt arms form a cross that splits the map into quadrants meeting around the Heart.
+  - The player is south-west (New Haven and the colony Ardent), the Concordium north-west, the Observers north of the Heart (Vigil), the League north-east, Varkon south-east (Varkos Throne and Kesh); two civilizations.
+  - The Alpha wormhole links the player's quadrant with a mouth north of the Heart, Omega links Varkon's quadrant with a mouth west of it.
+  - The capitals use the new `stronghold` layout: the homeworld plus a Spaceport and a Spaceship Factory.
+- **Campaign Dyson rules** ([Dyson Swarm](./dyson-swarm.md#campaign-rules-mission-7)):
+  - the Dampener bonus;
+  - the Union coalition warm-up (`coalition:union`);
+  - per-faction plans: Varkon builds openers and hunts from 3 anchors; the Observers build up to 4 Dampeners and hunt every opener; the Concordium and the League build only as Charter members (at most 3 each) and spare the player's warm-up while their opinion of the player is ≥ 20;
+  - anchor upkeep ×0.05 and the constructor price ×0.04;
+  - instability (`instability`: +1.5/min per opener, the player's at half; +2/min during a single warm-up; −2/min per Dampener; −2/min during the coalition warm-up; 0–100).
+- **New:**
+  - the `guardian` personality (the Observers; campaign only, both profile tables, demand texts);
+  - conditions `dyson_warmup` (running or completed, by a holder or anyone not in `notHolders`) and `anchors` (completed openers or Dampeners of some factions, at least or at most); `sites_claimed.factionIds`;
+  - the effect `spawn_fleet` (StarMap creates the fleet and registers its tag);
+  - `MissionDefinition.aiStipends` (credits per second for AI empires);
+  - carried ancient technologies are kept whatever the horizon.
+- **Story:**
+  - five network pulses (minutes 12, 24, 36, 48, 60). Pulse 1 forces the meeting with the Observers. Pulses 2–4 bring Remnant sentinels to a gate mouth. Pulses 1–4 also give Varkon a Swarm Constructor, and pulses 1 and 3 the Observers one. Pulse 5 is the summit (Charter, Accord pledge, a Dominion declaration, or silence);
+  - the Union Charter is offered as soon as the Concordium and the League are at peace with the player with opinion ≥ 50;
+  - when the player's own warm-up starts, Remnant sentinels rise at two ring slots and an Observer fleet leaves Vigil;
+  - the carried flags of Missions 3–6 move the opening opinions, and an AI that took a Mission 6 archive keeps its ancient technology.
+- **Endings** (record `m7_ending`; each debrief closes the campaign):
+  - **Human Dominion**: the player's warm-up completes;
+  - **The Galactic Union**: the coalition's warm-up completes;
+  - **The Observers' Accord**: all four gate mouths sealed, i.e. campaign sites held 120 s by the player or the Observers. They open only while Observer opinion is ≥ 40, the core was shared with them (or two archives were held), 4 Dampeners stand and no opener does.
+
+  Defeat: instability 100, or anyone else's warm-up completes.
+- **Problems found and fixed while measuring** (`m7-new-frontier.long.spec.ts`):
+  - in the first runs nobody built an anchor in 60 minutes: the skirmish constructor price (100,000 credits) and anchor upkeep (300 points) are far beyond young empires;
+  - the AI empires spent as they earned (Varkon net ~2 credits/s);
+  - the Observers ran a deficit and parked their fleets in the reserve, so they never hunted.
+
+  The fixes: the price factors, the `stronghold` layout, smaller starting fleets, starting populations at capacity, `saveForConstructor`, the pulse constructors and the stipends (Observers 60/s, Varkon 30/s, Concordium and League 20/s).
+- **Measured** (60 minutes, Normal, no player action):
+  - Varkon and the Observers deploy their first anchors at minute 4;
+  - the ring holds 2–5 anchors from minute 20 on (it changes hands as the two hunt each other);
+  - the Observers hunt openers from minute 21 and destroy three Varkon anchors (minutes 26, 27, 41); Varkon destroys three Dampeners (minutes 42–44);
+  - instability stays below 1 without the player (the Observers keep the ring quiet), so the clock is driven by what the player and Varkon build.
+- **Deviations from §6:**
+  - no separate campaign-completion screen: the mission end dialog shows the closing debrief, and the campaign screen lists every mission completed;
+  - the summit's choices are fixed (offered while their conditions hold), not generated from the ring;
+  - the Observers' 'heavily defended small planet' is a big stronghold (the homeworld layout does not fit a small planet);
+  - Military Supremacy and Independent Frontier remain later expansions.
+- Tests:
+  - `dyson-campaign.spec.ts`: the Dampener never counts, coalition holder rules;
+  - `missions/m7-new-frontier.spec.ts`: map counts and the ring, the carried archives and shared core, the Dyson plans, instability up and down, the instability defeat, each ending, seals closed while an opener stands, Varkon's warm-up defeat, the first pulses;
+  - `missions/m7-new-frontier.long.spec.ts`.
+
+**Next:** Phase 9 (balance on every difficulty, text and audio pass, moving settled rules into system docs).
 
 ---
 

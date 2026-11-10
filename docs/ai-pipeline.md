@@ -152,21 +152,21 @@ reach = `AI_COLONIZATION_REACH` (60) × personality reach (expansionist 1.35) ×
 
 Data in `ai-personality.ts` and `ai-difficulty.ts`. Personalities never change rules or grant resources:
 
-| | balanced | expansionist | militarist | technologist | mercantile (campaign only) |
-|---|---|---|---|---|---|
-| score weights (eco/def/exp/off/res) | 1/1/1/1/1 | 1/0.8/1.6/0.7/0.9 | 1/1.2/0.8/1.6/0.9 | 1.1/1/0.75/0.8/1.6 | 1.4/1.1/0.5/0.4/1 |
-| military target / ship cap | ×1 | ×0.8 | ×1.5 | ×0.6 | ×0.5 |
-| assault min survival / home guard | 50% / 30% | 60% / 30% | 35% / 25% | 60% / 35% | 70% / 50% |
-| colonization reach / concurrent runs | ×1 / 1 | ×1.35 / 2 | ×1 / 1 | ×1 / 1 | ×0.8 / 1 |
-| factories per planet / parallel military production | 1 / no | 1 / no | 2 / yes | 1 / no | 1 / no |
-| research buildings per planet | 1 | 1 | 1 | 2 (and research first) | 1 |
-| funds research first (`fundsResearchFirst`) | no | no | no | yes | no |
-| Dyson Swarm (`dyson`: build / hunt at anchors / Stellar Engineering value) | rich / 5 / 2 | never / 6 / 0 | never / 3 / 0 | always / 6 / 8 | never / 6 / 0 |
-| diplomatic temperament ([Diplomacy](./diplomacy.md#ai-judgment-enemydiplomacyservice)) | peaceful | warlike | warlike | peaceful | peaceful |
-| ship equipment: surplus credits before ordering a module (`equipment.minSurplusCredits`) | 2500 | 3000 | 2500 | 3000 | 3000 |
-| trader raids (`raids`) | yes | yes | yes | yes | never |
+| | balanced | expansionist | militarist | technologist | mercantile (campaign only) | guardian (campaign only) |
+|---|---|---|---|---|---|---|
+| score weights (eco/def/exp/off/res) | 1/1/1/1/1 | 1/0.8/1.6/0.7/0.9 | 1/1.2/0.8/1.6/0.9 | 1.1/1/0.75/0.8/1.6 | 1.4/1.1/0.5/0.4/1 | 1/1.6/0.3/0.6/1.6 |
+| military target / ship cap | ×1 | ×0.8 | ×1.5 | ×0.6 | ×0.5 | ×1 |
+| assault min survival / home guard | 50% / 30% | 60% / 30% | 35% / 25% | 60% / 35% | 70% / 50% | 60% / 40% |
+| colonization reach / concurrent runs | ×1 / 1 | ×1.35 / 2 | ×1 / 1 | ×1 / 1 | ×0.8 / 1 | ×0.6 / 1 |
+| factories per planet / parallel military production | 1 / no | 1 / no | 2 / yes | 1 / no | 1 / no | 1 / no |
+| research buildings per planet | 1 | 1 | 1 | 2 (and research first) | 1 | 2 |
+| funds research first (`fundsResearchFirst`) | no | no | no | yes | no | no |
+| Dyson Swarm (`dyson`: build / hunt at anchors / Stellar Engineering value) | rich / 5 / 2 | never / 6 / 0 | never / 3 / 0 | always / 6 / 8 | never / 6 / 0 | always / 1 / 6 (Mission 7's plan: Dampeners only) |
+| diplomatic temperament ([Diplomacy](./diplomacy.md#ai-judgment-enemydiplomacyservice)) | peaceful | warlike | warlike | peaceful | peaceful | peaceful |
+| ship equipment: surplus credits before ordering a module (`equipment.minSurplusCredits`) | 2500 | 3000 | 2500 | 3000 | 3000 | 2500 |
+| trader raids (`raids`) | yes | yes | yes | yes | never | never |
 
-**Campaign-only personalities** (`CAMPAIGN_AI_PERSONALITIES`, today `mercantile` for the Meridian League of Missions 5–7): accepted everywhere a personality is read (`isAiPersonality`: saves, missions, the Diplomacy screen, the debug panel), but never in `AI_PERSONALITIES`, which generated games cycle — skirmish games are unchanged. The mercantile League never raids traders (`raids: false`, checked in `EnemyFleetService.planRaid`) and never assaults a civilization (`civilizationAssaultAfter: Infinity`). Measured in `m5-border-conflict.long.spec.ts` (40 minutes): no raid, no civilization assault, 3 Trading Posts, never out of credits (lowest 70), six planets.
+**Campaign-only personalities** (`CAMPAIGN_AI_PERSONALITIES`: `mercantile` for the Meridian League of Missions 5–7, `guardian` for the Observers of Mission 7): accepted everywhere a personality is read (`isAiPersonality`: saves, missions, the Diplomacy screen, the debug panel), but never in `AI_PERSONALITIES`, which generated games cycle — skirmish games are unchanged. The mercantile League never raids traders (`raids: false`, checked in `EnemyFleetService.planRaid`) and never assaults a civilization (`civilizationAssaultAfter: Infinity`). Measured in `m5-border-conflict.long.spec.ts` (40 minutes): no raid, no civilization assault, 3 Trading Posts, never out of credits (lowest 70), six planets.
 
 Credits are every faction's research bottleneck (research costs 4 credits per point), so more labs alone do not make a faction research more. The technologist therefore pays for research with a smaller navy (military target ×0.6), slower expansion (weight 0.75) and `fundsResearchFirst`: its research credit reserve is kept even from colonizer purchases (`EnemyActionExecutor.executeProduceColonizer`), and it reserves its research target's credits before the points are banked. The simulation (15 minutes, two AIs per personality) requires technologists to acquire at least 10% more research volume than militarists; they may buy slightly fewer — but more expensive — technologies. The price: a technologist's first colonizer waits until its research target is funded, so it expands later than the other personalities.
 

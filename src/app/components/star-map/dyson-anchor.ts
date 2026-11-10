@@ -45,7 +45,30 @@ export const DYSON_TECHNOLOGY_ID = 'stellar_engineering';
  */
 export const DYSON_ANCHOR_UPKEEP_POINTS = 300;
 
-export type DysonBonusId = 'stellar_power' | 'orbital_foundries' | 'swarm_observatory';
+/*
+ * Campaign scale on the anchor upkeep (MissionDysonRules.anchorUpkeepFactor):
+ * a finale fought by young empires cannot carry late-game upkeep. Session
+ * state like the research horizon: StarMap sets it on every load (1 outside
+ * a campaign), so a skirmish always uses the full DYSON_ANCHOR_UPKEEP_POINTS.
+ */
+let anchorUpkeepFactor = 1;
+
+export function setDysonAnchorUpkeepFactor(factor: number): void {
+  anchorUpkeepFactor = Number.isFinite(factor) && factor > 0 ? factor : 1;
+}
+
+/* Upkeep points of a completed anchor in this session. */
+export function dysonAnchorUpkeepPoints(): number {
+  return DYSON_ANCHOR_UPKEEP_POINTS * anchorUpkeepFactor;
+}
+
+/*
+ * 'dampener' is campaign only (docs/campaign-design.md, Mission 7): no
+ * economic effect, never counts toward a warm-up, lowers the mission's
+ * instability. It is offered only where the mission enables it
+ * (dysonBonusOptions); every other anchor is an "opener".
+ */
+export type DysonBonusId = 'stellar_power' | 'orbital_foundries' | 'swarm_observatory' | 'dampener';
 
 export interface DysonBonusDef {
   id: DysonBonusId;
@@ -64,6 +87,27 @@ export const DYSON_BONUSES: readonly DysonBonusDef[] = [
   { id: 'orbital_foundries', name: 'Orbital Foundries', description: '−1% raw-material cost of ship production' },
   { id: 'swarm_observatory', name: 'Swarm Observatory', description: '+1 research point every 10 s' },
 ];
+
+export const DAMPENER_BONUS: DysonBonusDef = {
+  id: 'dampener',
+  name: 'Dampener',
+  description: 'No bonus. Quiets the network: lowers instability, never counts toward a warm-up',
+};
+
+/* The bonuses the picker offers: the standard set, plus the Dampener where a mission enables it. */
+export function dysonBonusOptions(dampener: boolean): readonly DysonBonusDef[] {
+  return dampener ? [...DYSON_BONUSES, DAMPENER_BONUS] : DYSON_BONUSES;
+}
+
+/* An anchor that opens the network (any bonus but the Dampener, or none picked yet). */
+export function isOpenerAnchor(base: Pick<SpaceBase, 'kind' | 'dysonBonus'>): boolean {
+  return isDysonAnchor(base) && base.dysonBonus !== 'dampener';
+}
+
+/* Opener anchors of a faction, construction sites included. */
+export function dysonOpenerCount(bases: readonly SpaceBase[], factionId: string): number {
+  return bases.filter((b) => isOpenerAnchor(b) && b.factionId === factionId).length;
+}
 
 /*
  * Effect per anchor. Value check against the anchor's upkeep (300 points ≈
@@ -137,7 +181,7 @@ export function discountedShipRawCost(rawMaterialCost: number, multiplier: numbe
 }
 
 export function isDysonBonusId(value: unknown): value is DysonBonusId {
-  return DYSON_BONUSES.some((b) => b.id === value);
+  return DYSON_BONUSES.some((b) => b.id === value) || value === DAMPENER_BONUS.id;
 }
 
 export function isDysonAnchor(base: Pick<SpaceBase, 'kind'>): boolean {
@@ -231,5 +275,5 @@ export function dysonWedgeOwners(bases: readonly SpaceBase[], slotCount: number)
 }
 
 export function dysonBonusDef(id: DysonBonusId | undefined): DysonBonusDef | null {
-  return DYSON_BONUSES.find((b) => b.id === id) ?? null;
+  return dysonBonusOptions(true).find((b) => b.id === id) ?? null;
 }

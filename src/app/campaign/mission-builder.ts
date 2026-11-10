@@ -1,3 +1,4 @@
+import researchTreeData from '../components/star-map/research-tree.json';
 import {
   AiDifficulty,
   Faction,
@@ -15,6 +16,7 @@ import {
   NEUTRAL_FACTIONS,
   PLANET_SYSTEM_LAYOUT,
   STARTING_TECHNOLOGIES,
+  blackHoleObject,
   initialAsteroidEvents,
 } from '../services/galaxy-generator.service';
 import { centerLayout, generatePlanetSurface } from '../components/star-map/planet-surface/planet-surface-generator';
@@ -57,8 +59,14 @@ import {
  * from the random generators):
  * - `anomalies` is written as an empty, valid state, so
  *   SaveGameService.normalizeSave never generates random anomalies;
- * - no black hole: the Dyson Swarm stays off (dyson-ring.ts).
+ * - no black hole unless the map asks for one (`blackHole`: the generator's
+ *   centred black hole, which brings the Dyson ring, dyson-ring.ts); without
+ *   it the Dyson Swarm stays off.
  */
+
+const ANCIENT_TECHNOLOGIES: ReadonlySet<string> = new Set(
+  (researchTreeData as { technologies: { id: string; ancient?: boolean }[] }).technologies.filter((t) => t.ancient).map((t) => t.id),
+);
 
 export interface MissionBuildOptions {
   difficulty: AiDifficulty;
@@ -169,7 +177,7 @@ export function buildMission(mission: MissionDefinition, options: MissionBuildOp
     galaxy: { size: nearestGalaxySize(spec.width), seed, requestedSeed: seed, generatorVersion: GALAXY_GENERATOR_VERSION },
     defaultView: { type: 'planet', systemId: spec.defaultView.systemId, planetId: view?.planet.id ?? 1 },
     factions,
-    specialObjects: [],
+    specialObjects: spec.blackHole ? [blackHoleObject(spec.width, spec.height)] : [],
     nebulae: structuredClone(spec.nebulae ?? []),
     asteroidBelts: structuredClone(spec.asteroidBelts ?? []),
     asteroidEvents: initialAsteroidEvents(seed),
@@ -191,14 +199,18 @@ export function buildMission(mission: MissionDefinition, options: MissionBuildOp
   };
 }
 
-/* Player start: the four basics, the baseline, and what was carried that exists in this mission. */
+/*
+ * Player start: the four basics, the baseline, and what was carried that
+ * exists in this mission. Ancient technologies are never in a horizon (they
+ * are only granted), so a carried ancient one is always kept.
+ */
 export function playerStartingTechnologies(mission: MissionDefinition, carried: readonly string[]): string[] {
   const horizon = new Set(mission.researchHorizon);
   const result = [...STARTING_TECHNOLOGIES];
   const add = (id: string) => { if (!result.includes(id)) result.push(id); };
   for (const id of mission.map.factions.find((f) => f.kind === 'player')?.technologies ?? []) add(id);
   for (const id of mission.baselineTechnologies) add(id);
-  for (const id of carried) if (horizon.has(id)) add(id);
+  for (const id of carried) if (horizon.has(id) || ANCIENT_TECHNOLOGIES.has(id)) add(id);
   return result;
 }
 
@@ -242,6 +254,13 @@ function buildFaction(spec: MissionFactionSpec, mission: MissionDefinition, opti
   return faction;
 }
 
+/* The homeworld block (9×9) with a Spaceport and a Spaceship Factory beside it: 15×9, fits medium planets and up. */
+const STRONGHOLD_BUILDINGS = [
+  ...HOMEWORLD_BUILDINGS,
+  { name: 'Spaceport', size: 4, x: 11, y: 0 },
+  { name: 'Spaceship Factory', size: 3, x: 11, y: 5 },
+];
+
 function buildPlanet(spec: MissionPlanetSpec, id: number, index: number): PlanetTile {
   const layout = PLANET_SYSTEM_LAYOUT[index - 1] ?? PLANET_SYSTEM_LAYOUT[PLANET_SYSTEM_LAYOUT.length - 1];
   const planet: PlanetTile = {
@@ -262,6 +281,7 @@ function buildPlanet(spec: MissionPlanetSpec, id: number, index: number): Planet
   const template = spec.layout === 'homeworld' ? HOMEWORLD_BUILDINGS
     : spec.layout === 'colony' ? COLONY_BUILDINGS
     : spec.layout === 'civilization_capital' ? CAPITAL_BUILDINGS
+    : spec.layout === 'stronghold' ? STRONGHOLD_BUILDINGS
     : [];
   planet.buildings = centerLayout(template, getPlanetGridSize(planet));
   return planet;

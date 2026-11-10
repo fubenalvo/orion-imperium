@@ -19,7 +19,11 @@ import {
   ValueSource,
 } from './campaign.models';
 import { CampaignWorld, evaluateCondition, objectiveProgress } from './campaign-objectives';
-import { CampaignDiplomacyAction, EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } from './campaign-effects';
+import { CampaignDiplomacyAction, CampaignSpawn, EffectResult, applyEffects, emptyEffectResult, mergeEffectResults } from './campaign-effects';
+import { isDysonAnchor, isOpenerAnchor } from '../components/star-map/dyson-anchor';
+import { isStationComplete } from '../components/star-map/station-construction';
+import { DysonCoalition, coalitionHolderId, isCoalitionHolder } from '../components/star-map/dyson-victory';
+import type { DysonPlan } from '../components/star-map/enemy-dyson.service';
 import { getRelation, inContact } from '../components/star-map/diplomacy';
 import { advanceSite, emptySiteState } from './campaign-sites';
 import { livingWarships } from './campaign-objectives';
@@ -59,6 +63,8 @@ export interface CampaignTickResult {
   wormholeStates: { wormholeId: string; state: 'dormant' | 'active' }[];
   /* Wars, peace treaties and demands to apply through DiplomacyService. */
   diplomacy: CampaignDiplomacyAction[];
+  /* Fleets to create (spawn_fleet effects). */
+  spawns: CampaignSpawn[];
   /* Set on the tick the mission was decided. */
   outcome: CampaignOutcome | null;
 }
@@ -76,7 +82,7 @@ export interface ObjectiveView {
 const MAX_UNLOCK_PASSES = 8;
 
 function emptyTickResult(changed = false): CampaignTickResult {
-  return { changed, notices: [], reveals: [], wormholeStates: [], diplomacy: [], outcome: null };
+  return { changed, notices: [], reveals: [], wormholeStates: [], diplomacy: [], spawns: [], outcome: null };
 }
 
 function copyEffects(result: CampaignTickResult, effects: EffectResult): void {
@@ -84,6 +90,7 @@ function copyEffects(result: CampaignTickResult, effects: EffectResult): void {
   result.reveals = effects.reveals;
   result.wormholeStates = effects.wormholeStates;
   result.diplomacy = effects.diplomacy;
+  result.spawns = effects.spawns;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -189,6 +196,56 @@ export class CampaignService {
     return (this.definition?.aiRestraint ?? []).some((r) => r.factionId === aiId && (r.target ?? 'player') === otherId && !flagSet(r.untilFlag));
   }
 
+  /* ---------- Campaign Dyson rules (MissionDefinition.dyson, Mission 7) ---------- */
+
+  /* Campaign ship price factors by type id (shipCost). */
+  get shipPriceFactors(): Record<string, number> {
+    const factor = this.session ? this.definition?.dyson?.constructorCostFactor : undefined;
+    return factor !== undefined ? { swarm_constructor: factor } : {};
+  }
+
+  get anchorUpkeepFactor(): number {
+    return this.session ? this.definition?.dyson?.anchorUpkeepFactor ?? 1 : 1;
+  }
+
+  get dampenerEnabled(): boolean {
+    return !!this.session && this.definition?.dyson?.dampener === true;
+  }
+
+  /* The AI Dyson plan override of a faction: the first entry whose flag is set (or without one). */
+  dysonPlanFor(factionId: string): Partial<DysonPlan> | null {
+    const session = this.session;
+    if (!session) return null;
+    const entry = (this.definition?.dyson?.plans ?? []).find((p) => p.factionId === factionId && (!p.whenFlag || this.flagSet(p.whenFlag)));
+    return entry ? entry.plan : null;
+  }
+
+  /* The coalition that may hold the ring together, while its flag is set. */
+  coalition(): DysonCoalition | null {
+    const def = this.definition?.dyson?.coalition;
+    if (!this.session || !def || !this.flagSet(def.whenFlag)) return null;
+    return { id: def.id, name: def.name, members: def.members, maxPerMember: def.maxPerMember };
+  }
+
+  /* The display name of a warm-up holder that is a coalition, else null. */
+  coalitionName(holder: string): string | null {
+    const def = this.definition?.dyson?.coalition;
+    return def && isCoalitionHolder(holder) && holder === coalitionHolderId(def) ? def.name : null;
+  }
+
+  /* Records a spawned fleet under its tag (StarMap created it). */
+  registerFleetTag(tag: string, fleetId: number): void {
+    if (!this.session) return;
+    const ids = (this.session.fleetTags[tag] ??= []);
+    if (!ids.includes(fleetId)) ids.push(fleetId);
+    this.dirty = true;
+  }
+
+  private flagSet(flag: string): boolean {
+    const value = this.session?.flags[flag];
+    return value !== undefined && value !== false;
+  }
+
   /* The mission's campaign sites with their live state (EnemyCampaignService, the map markers). */
   siteEntries(): { def: CampaignSiteDef; state: CampaignSiteState }[] {
     const session = this.session;
@@ -272,6 +329,29 @@ export class CampaignService {
       mergeEffectResults(effects, applyEffects(rewards, session, world.factions));
     }
     return changed;
+  }
+
+  /*
+   * Instability (MissionDysonRules.instability): moved every tick by the
+   * completed anchors on the ring and a running warm-up, clamped to 0–100.
+   * Missions read it with value conditions (100 = the network cascades).
+   */
+  private updateInstability(session: CampaignSessionState, world: CampaignWorld, dt: number): void {
+    const rules = this.definition?.dyson?.instability;
+    if (!rules || dt <= 0) return;
+    const anchors = (world.spaceBases ?? []).filter((b) => isDysonAnchor(b) && isStationComplete(b));
+    let perMinute = 0;
+    for (const anchor of anchors) {
+      if (!isOpenerAnchor(anchor)) perMinute -= rules.dampenerPerMinute;
+      else perMinute += rules.openerPerMinute * (anchor.factionId === 'player' ? rules.playerOpenerFactor : 1);
+    }
+    const warmup = world.dysonWarmup;
+    if (warmup && warmup.remaining > 0) {
+      perMinute += isCoalitionHolder(warmup.factionId) ? -rules.coalitionWarmupPerMinute : rules.warmupPerMinute;
+    }
+    const before = session.values[rules.key] ?? 0;
+    const after = Math.max(0, Math.min(100, before + (perMinute * dt) / 60));
+    if (after !== before) session.values[rules.key] = Math.round(after * 1000) / 1000;
   }
 
   private valueSources<K extends ValueSource['kind']>(kind: K): Extract<ValueSource, { kind: K }>[] {
@@ -412,6 +492,13 @@ export class CampaignService {
     }
 
     if (this.updateSites(session, world, dt, effects)) changed = true;
+    for (const [factionId, perSecond] of Object.entries(this.definition?.aiStipends ?? {})) {
+      const faction = world.factions.find((f) => f.id === factionId);
+      if (faction && dt > 0) faction.currencies['credits'] = (faction.currencies['credits'] ?? 0) + perSecond * dt;
+    }
+    // Not a "change": it drifts every second and is saved with the next save
+    // (100 decides the mission, which saves at once).
+    this.updateInstability(session, world, dt);
 
     for (const faction of world.factions) {
       const relation = player && faction !== player ? getRelation(faction, player) : undefined;

@@ -2,7 +2,9 @@ import researchTreeData from '../components/star-map/research-tree.json';
 import shipData from '../components/star-map/ship-data.json';
 import { isAiPersonality } from '../components/star-map/ai-personality';
 import { beltObstacles } from '../components/star-map/asteroid-belts';
-import { NavGraph } from '../components/star-map/fleet-navigation';
+import { NavGraph, buildNavObstacles } from '../components/star-map/fleet-navigation';
+import { blackHoleObject } from '../services/galaxy-generator.service';
+import { buildDysonRing, isInDysonRingZone } from '../components/star-map/dyson-ring';
 import { STARTING_TECHNOLOGIES } from '../services/galaxy-generator.service';
 import { buildingNameForId } from './campaign-objectives';
 import { ANOMALY_DEFINITIONS } from '../components/star-map/anomalies';
@@ -255,8 +257,32 @@ export function validateMission(mission: MissionDefinition): string[] {
   }
   for (const defeat of mission.defeat ?? []) checkCondition(defeat.condition, refs, err);
 
+  // --- The Lacuna Heart: nothing of the map inside the ring zone ---
+  const specialObjects = map.blackHole ? [blackHoleObject(map.width, map.height)] : [];
+  const ring = buildDysonRing(specialObjects);
+  if (ring) {
+    for (const system of map.systems) if (isInDysonRingZone(ring, system.x, system.y)) err(`system "${system.id}" lies in the Dyson ring zone`);
+    for (const wormhole of map.wormholes ?? []) {
+      for (const mouth of wormhole.mouths) if (isInDysonRingZone(ring, mouth.x, mouth.y)) err(`a mouth of "${wormhole.id}" lies in the Dyson ring zone`);
+    }
+    for (const belt of map.asteroidBelts ?? []) {
+      const [a, b] = [belt.points[0], belt.points[belt.points.length - 1]];
+      for (let t = 0; t <= 1; t += 0.05) {
+        if (isInDysonRingZone(ring, a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)) {
+          err(`belt ${belt.id} crosses the Dyson ring zone`);
+          break;
+        }
+      }
+    }
+  } else if (mission.dyson) {
+    err('Dyson rules need map.blackHole');
+  }
+  for (const id of Object.keys(mission.aiStipends ?? {})) if (map.factions.find((f) => f.id === id)?.kind !== 'ai') err(`stipend for "${id}", which is not an AI empire`);
+  for (const plan of mission.dyson?.plans ?? []) if (map.factions.find((f) => f.id === plan.factionId)?.kind !== 'ai') err(`Dyson plan for "${plan.factionId}", which is not an AI empire`);
+  for (const member of mission.dyson?.coalition?.members ?? []) if (!factionIds.has(member)) err(`coalition member "${member}" is unknown`);
+
   // --- Connectivity: every start reaches every system around the belts ---
-  const graph = new NavGraph(beltObstacles(map.asteroidBelts ?? []), { width: map.width, height: map.height });
+  const graph = new NavGraph([...beltObstacles(map.asteroidBelts ?? []), ...buildNavObstacles(specialObjects)], { width: map.width, height: map.height });
   const starts = map.systems.filter((s) => s.planets.some((p) => p.owner !== undefined && factionIds.has(p.owner)));
   for (const start of starts) {
     for (const target of map.systems) {
@@ -389,6 +415,10 @@ function checkCondition(condition: Condition, refs: Refs, err: (message: string)
     case 'sites_claimed':
       for (const id of condition.siteIds) if (!refs.siteIds.has(id)) err(`condition references unknown site "${id}"`);
       if (condition.factionId !== undefined) faction(condition.factionId);
+      for (const id of condition.factionIds ?? []) faction(id);
+      return;
+    case 'anchors':
+      for (const id of condition.factionIds ?? []) faction(id);
       return;
     case 'held_for':
       // Timers are keyed by id: two conditions sharing one would share a timer.
@@ -440,6 +470,10 @@ function checkEffects(effects: readonly Effect[] | undefined, refs: Refs, err: (
         break;
       case 'force_demand':
         for (const id of [effect.demander, effect.target]) if (!refs.factionIds.has(id)) err(`effect references unknown faction "${id}"`);
+        break;
+      case 'spawn_fleet':
+        if (!refs.factionIds.has(effect.factionId)) err(`effect spawns a fleet for unknown faction "${effect.factionId}"`);
+        for (const type of effect.ships) if (!SHIP_TYPES.has(type)) err(`effect spawns unknown ship type "${type}"`);
         break;
       case 'protect_planet':
         if (!refs.planetNames.has(effect.planetName)) err(`effect protects unknown planet "${effect.planetName}"`);

@@ -139,6 +139,7 @@ Deterministic and explainable.
 | militarist | −0.45 | 0.85 | 2 | 30 | yes | 1 | 1 | 100 |
 | technologist | +0.15 | 0.5 | 1 | 0 | no | 0 | — | — |
 | mercantile (campaign only) | +0.35 | 0.45 | 1 | −30 | no | 0 | — | — |
+| guardian (campaign only) | +0.2 | 0.6 | 2 | −40 | no | 0 | — | — |
 
 **Campaign restraint (2026-11-09).** `EnemyDiplomacyService.setRestraintGuard` (set by StarMap from `CampaignService.restrains`, null outside a campaign) makes an AI skip one target in its own war review and demand planning: while the player pays it a tribute pact, or while a mission's `aiRestraint` holds it (Mission 3: Varkon spares the player until its scripted ultimatum and never attacks the Concordium). Scripted demands go through `makeDemand(…, { ignoreCooldowns: true })` (`DemandOptions`): every rule but the demander's cooldowns applies, and the demand starts the cooldowns as usual. See [Campaign Design](./campaign-design.md#implementation-status).
 
@@ -181,6 +182,7 @@ Every demand the target still remembers from the same demander (`demandsReceived
 | militarist | 300 s | 0.8 | 0.8 | 0.9 | +0.35 | 1.4 | −0.2 | −0.1 |
 | technologist | 720 s | 0.35 | 0.3 | 0.45 | −0.9 | 0.7 | +0.1 | +0.15 |
 | mercantile (campaign only) | 900 s | 0.3 | 0 (never) | 0 (never) | −1 | 0.6 | +0.15 | +0.2 |
+| guardian (campaign only) | 900 s | 0.3 | 0.4 | 0 (never) | +0.2 | 1 | 0 | 0 |
 
 ## Border violations
 

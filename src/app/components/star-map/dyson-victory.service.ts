@@ -6,7 +6,9 @@ import { DysonRingService } from './dyson-ring.service';
 import {
   DysonWarmupEvent,
   DysonWarmupState,
+  DysonCoalition,
   advanceDysonWarmup,
+  dysonCoalitionHolder,
   dysonRingHolder,
   sanitizeDysonWarmup,
 } from './dyson-victory';
@@ -32,6 +34,8 @@ import {
 @Injectable({ providedIn: 'root' })
 export class DysonVictoryService {
   private current: DysonWarmupState | null = null;
+  /* Campaign only: the coalition whose members may fill the ring together (set by StarMap). */
+  private coalition: DysonCoalition | null = null;
   anchorsSeen: DysonAnchorSnapshot[] = [];
 
   constructor(
@@ -41,6 +45,14 @@ export class DysonVictoryService {
 
   get warmup(): DysonWarmupState | null {
     return this.current;
+  }
+
+  setCoalition(coalition: DysonCoalition | null): void {
+    this.coalition = coalition;
+  }
+
+  get activeCoalition(): DysonCoalition | null {
+    return this.coalition;
   }
 
   restore(saved: unknown): void {
@@ -53,7 +65,8 @@ export class DysonVictoryService {
 
   tick(deltaSeconds: number, starSystems: readonly StarSystem[]): DysonWarmupEvent[] {
     const slotCount = this.ring.ring?.slots.length ?? 0;
-    const holder = dysonRingHolder(this.bases.bases, slotCount, starSystems);
+    const holder = dysonRingHolder(this.bases.bases, slotCount, starSystems)
+      ?? dysonCoalitionHolder(this.bases.bases, slotCount, starSystems, this.coalition);
     const result = advanceDysonWarmup(this.current, holder, deltaSeconds);
     this.current = result.state;
     return result.events;

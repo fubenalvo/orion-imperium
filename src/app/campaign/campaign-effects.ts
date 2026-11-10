@@ -31,12 +31,16 @@ export interface EffectResult {
   wormholeStates: { wormholeId: string; state: 'dormant' | 'active' }[];
   /* War, peace and demand effects, in order (StarMap applies them through DiplomacyService). */
   diplomacy: CampaignDiplomacyAction[];
+  /* Fleets to create (StarMap owns fleet ids). */
+  spawns: CampaignSpawn[];
 }
+
+export type CampaignSpawn = Extract<Effect, { kind: 'spawn_fleet' }>;
 
 export type CampaignDiplomacyAction = Extract<Effect, { kind: 'start_war' | 'start_peace' | 'force_demand' }>;
 
 export function emptyEffectResult(): EffectResult {
-  return { notices: [], events: [], horizonChanged: false, reveals: [], wormholeStates: [], diplomacy: [] };
+  return { notices: [], events: [], horizonChanged: false, reveals: [], wormholeStates: [], diplomacy: [], spawns: [] };
 }
 
 export function applyEffects(effects: readonly Effect[] | undefined, session: CampaignSessionState, factions: readonly Faction[]): EffectResult {
@@ -52,6 +56,7 @@ export function mergeEffectResults(into: EffectResult, from: EffectResult): Effe
   into.reveals.push(...from.reveals);
   into.wormholeStates.push(...from.wormholeStates);
   into.diplomacy.push(...from.diplomacy);
+  into.spawns.push(...from.spawns);
   return into;
 }
 
@@ -121,6 +126,9 @@ function applyEffect(effect: Effect, session: CampaignSessionState, factions: re
     case 'start_peace':
     case 'force_demand':
       result.diplomacy.push(effect);
+      return;
+    case 'spawn_fleet':
+      result.spawns.push(effect);
       return;
     case 'opinion': {
       const holder = factions.find((f) => f.id === effect.holder);
