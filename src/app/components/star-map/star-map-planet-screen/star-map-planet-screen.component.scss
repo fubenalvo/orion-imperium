@@ -1454,17 +1454,6 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
   width: 100%;
 }
 
-.planet-sidebar__build-preview {
-  padding: 0.7em;
-  border: 1px solid var(--ui-line);
-  background: var(--ui-surface-raised);
-  color: var(--ui-ink);
-  font-size: var(--ui-fs-md);
-  letter-spacing: 0.12em;
-  text-align: center;
-  text-transform: uppercase;
-}
-
 /* Own Trading Post's traders under the DETAILS summary. */
 .planet-sidebar__trade-post {
   margin-top: 0.6em;

@@ -177,16 +177,45 @@ describe('StarMapPlanetScreenComponent', () => {
   describe('build-list info box', () => {
     const residential = () => buildingTypes.find((b: { id: string }) => b.id === 'small_residential');
 
-    it('opens one box at a time and does not enter build mode', () => {
+    it('opens one box at a time and starts placement at once when buildable', () => {
+      component.getBuildBlocker = () => null;
       component.toggleBuildingInfo(residential());
       expect(component.expandedBuildingId).toBe('small_residential');
-      expect(component.isBuildMode).toBe(false);
+      expect(component.isBuildMode).toBe(true);
+      expect(component.selectedBuildingType?.id).toBe('small_residential');
 
       component.toggleBuildingInfo(buildingTypes[0]);
       expect(component.expandedBuildingId).toBe(buildingTypes[0].id);
+      expect(component.selectedBuildingType?.id).toBe(buildingTypes[0].id);
 
       component.toggleBuildingInfo(buildingTypes[0]);
       expect(component.expandedBuildingId).toBeNull();
+      expect(component.isBuildMode).toBe(false);
+    });
+
+    it('a blocked row only opens its box and ends any running placement', () => {
+      component.getBuildBlocker = () => null;
+      component.toggleBuildingInfo(buildingTypes[0]);
+      expect(component.isBuildMode).toBe(true);
+
+      component.getBuildBlocker = () => 'Not researched yet.';
+      component.toggleBuildingInfo(residential());
+      expect(component.expandedBuildingId).toBe('small_residential');
+      expect(component.isBuildMode).toBe(false);
+      expect(component.selectedBuildingType).toBeNull();
+    });
+
+    it('the list stays visible while placing and the box holds the controls', () => {
+      component.getBuildBlocker = () => null;
+      component.setTab('build');
+      component.toggleBuildingInfo(residential());
+      component.ngDoCheck();
+      fixture.componentRef.injector.get(ChangeDetectorRef).detectChanges();
+      const el: HTMLElement = fixture.nativeElement;
+      expect(el.querySelector('.planet-sidebar__build-list')).not.toBeNull();
+      const box = el.querySelector('#building-info-small_residential')!;
+      expect(box.querySelector('.planet-sidebar__build-active')).not.toBeNull();
+      expect(box.textContent).toContain('CANCEL');
     });
 
     it('explains why BUILD is disabled', () => {

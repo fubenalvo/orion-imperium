@@ -503,7 +503,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       // reappear unexpectedly when the category is opened again.
       const expanded = this.buildableTypes.find((b) => b.id === this.expandedBuildingId);
       if (expanded && buildCategoryOf(expanded) === id) {
-        this.expandedBuildingId = null;
+        this.closeBuildingInfo();
       }
     }
     saveCollapsedBuildCategories(this.collapsedBuildCategories);
@@ -560,9 +560,13 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
 
   /*
    * Build-list info box (building-info.ts). Clicking a row opens its box right
-   * under it (one at a time); placement starts only from the box's BUILD
-   * button, so the list stays one compact row per building and nobody enters
-   * build mode without seeing what the building does.
+   * under it (one at a time) and, when the building can be built here, starts
+   * placement at once: the box then holds the placement controls (hint,
+   * confirm BUILD, CANCEL). Blocked rows only open the box, with the reason.
+   * Invariant: while placing, expandedBuildingId === selectedBuildingType.id,
+   * so closing the box always ends placement. Ending placement alone (e.g. a
+   * row that was blocked when opened) leaves the box open with its BUILD
+   * button, which starts placement again.
    */
   private readonly buildingInfoCache = new Map<string, BuildingInfo>();
   expandedBuildingId: string | null = null;
@@ -581,13 +585,31 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
   }
 
   toggleBuildingInfo(building: BuildingType): void {
-    this.expandedBuildingId = this.expandedBuildingId === building.id ? null : building.id;
-    if (this.expandedBuildingId) {
-      // A box opened near the bottom of the list would hide its BUILD button
-      // below the fold; scroll it in once Angular has rendered it.
-      const id = `building-info-${building.id}`;
-      setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    if (this.expandedBuildingId === building.id) {
+      this.closeBuildingInfo();
+      return;
     }
+    if (this.getBuildBlocker(building)) {
+      this.exitBuildMode();
+      this.expandedBuildingId = building.id;
+    } else {
+      this.selectBuildingType(building.id);
+    }
+    // A box opened near the bottom of the list would hide its controls
+    // below the fold; scroll it in once Angular has rendered it.
+    const id = `building-info-${building.id}`;
+    setTimeout(() => document.getElementById(id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+  }
+
+  /* Closes the open info box and ends any placement started from it. */
+  closeBuildingInfo(): void {
+    this.expandedBuildingId = null;
+    this.exitBuildMode();
+  }
+
+  /* True when the box of this building currently holds the placement controls. */
+  isPlacing(building: BuildingType): boolean {
+    return this.isBuildMode && this.selectedBuildingType?.id === building.id;
   }
 
   /* Why the BUILD button is disabled right now, or null when it can start. */
@@ -716,7 +738,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       this.tutorial.notify(`pick:${buildingId}` as TutorialEvent);
     }
     this.selectedBuildingType = building;
-    this.expandedBuildingId = null;
+    this.expandedBuildingId = building?.id ?? null;
     this.isBuildMode = true;
     this.selectedCell = null;
     this.previewCells = new Set();
@@ -825,7 +847,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       x: col,
       y: row,
     });
-    this.exitBuildMode();
+    this.closeBuildingInfo();
   }
 
   /* Same rule StarMap.onBuildingConfirmed enforces: credits AND raw materials. */
@@ -877,7 +899,7 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       this.centerScroll();
       // A placement preview belongs to the planet it was started on.
       if (planetChange.previousValue) {
-        this.exitBuildMode();
+        this.closeBuildingInfo();
       }
       this.hoveredCell = null;
       this.terrain = null;

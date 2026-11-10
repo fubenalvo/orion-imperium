@@ -438,7 +438,6 @@
       <div class="planet-sidebar__content">
         @switch (activeTab) {
           @case ('build') {
-            @if (!isBuildMode) {
               @let sites = constructionSiteViews;
               @if (sites.length > 0) {
                 <section class="construction-list" aria-label="Under construction" appTutorialAnchor="planet.construction">
@@ -505,9 +504,9 @@
                     class="planet-sidebar__build-row"
                     [class.planet-sidebar__build-row--expanded]="expanded"
                   >
-                  <!-- The row only opens / closes its info box, so locked and
-                       unaffordable buildings can be inspected too; placement
-                       starts from the box's BUILD button. -->
+                  <!-- The row opens / closes its info box and starts placement
+                       at once when the building can be built here; locked and
+                       unaffordable buildings only open the box with the reason. -->
                   <button
                     class="planet-sidebar__build-item"
                     [appTutorialAnchor]="'build.row.' + building.id"
@@ -576,17 +575,44 @@
                           }
                         </div>
                       }
-                      <button
-                        class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
-                        type="button"
-                        [appTutorialAnchor]="blocker ? null : 'build.start.' + building.id"
-                        [disabled]="!!blocker"
-                        (click)="selectBuildingType(building.id)"
-                      >
-                        BUILD
-                      </button>
-                      @if (blocker) {
-                        <div class="building-info__blocker">{{ blocker }}</div>
+                      @if (isPlacing(building)) {
+                        <div class="planet-sidebar__build-active">
+                          @if (selectedCell) {
+                            @if (isPreviewValid) {
+                              <button
+                                class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
+                                type="button"
+                                [appTutorialAnchor]="'build.confirm.' + building.id"
+                                (click)="confirmBuild()"
+                              >
+                                BUILD
+                              </button>
+                            } @else {
+                              <div class="planet-sidebar__build-error">{{ buildError }}</div>
+                            }
+                          } @else {
+                            <div class="planet-sidebar__build-hint">
+                              Click a cell on the surface to place the
+                              {{ building.size }}x{{ building.size }} building.
+                            </div>
+                          }
+                          <button class="planet-sidebar__btn" type="button" (click)="closeBuildingInfo()">
+                            CANCEL
+                          </button>
+                        </div>
+                      } @else {
+                        <button
+                          class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
+                          type="button"
+                          [appTutorialAnchor]="blocker ? null : 'build.start.' + building.id"
+                          [disabled]="!!blocker"
+                          (click)="selectBuildingType(building.id)"
+                        >
+                          BUILD
+                        </button>
+                        @if (blocker) {
+                          <div class="building-info__blocker">{{ blocker }}</div>
+                        }
                       }
                     </div>
                   }
@@ -596,54 +622,6 @@
                   }
                 }
               </div>
-            } @else {
-              <div class="planet-sidebar__build-active">
-                <div class="ui-label">Placing</div>
-                <div class="planet-sidebar__build-preview">
-                  {{ selectedBuildingType?.name }}
-                  ({{ selectedBuildingType?.size }}x{{ selectedBuildingType?.size }})
-                </div>
-                @if (
-                  selectedBuildingType && getEnergyAfterBuilding(selectedBuildingType);
-                  as energyAfter
-                ) {
-                  <div
-                    class="planet-sidebar__build-hint"
-                    [class.planet-sidebar__build-hint--danger]="
-                      causesEnergyShortage(selectedBuildingType)
-                    "
-                    [appTutorialAnchor]="causesEnergyShortage(selectedBuildingType) ? 'build.energy-short' : null"
-                  >
-                    Energy after building: {{ energyAfter.production | number: '1.0-0' }} /
-                    {{ energyAfter.consumption | number: '1.0-0' }}
-                    @if (energyAfter.shortPct > 0) {
-                      ({{ energyAfter.shortPct }}% short)
-                    }
-                  </div>
-                }
-                @if (selectedCell) {
-                  @if (isPreviewValid) {
-                    <button
-                      class="planet-sidebar__btn planet-sidebar__btn--build btn-primary"
-                      type="button"
-                      [appTutorialAnchor]="'build.confirm.' + selectedBuildingType?.id"
-                      (click)="confirmBuild()"
-                    >
-                      BUILD
-                    </button>
-                  } @else {
-                    <div class="planet-sidebar__build-error">{{ buildError }}</div>
-                  }
-                } @else {
-                  <div class="planet-sidebar__build-hint">
-                    Click a cell on the surface to place the building.
-                  </div>
-                }
-                <button class="planet-sidebar__btn" type="button" (click)="exitBuildMode()">
-                  CANCEL
-                </button>
-              </div>
-            }
           }
 
           @case ('production') {
@@ -736,6 +714,7 @@
       <div
         class="building-info__energy"
         [class.building-info__energy--danger]="causesEnergyShortage(b)"
+        [appTutorialAnchor]="isPlacing(b) && causesEnergyShortage(b) ? 'build.energy-short' : null"
       >
         Planet energy after building: {{ energyAfter.production | number: '1.0-0' }} /
         {{ energyAfter.consumption | number: '1.0-0' }}
