@@ -22,8 +22,8 @@ Facts the step order is built on (see the linked docs for details):
   Spaceship Factory, no Spaceport — so the PRODUCTION and ASSEMBLY tabs are hidden.
 - Starting stock: 1000 credits, 2500 raw materials, 1000 research. Raw materials cover the first
   Mining Complex (375) and Spaceship Factory (750); credits do not (Mining Complex 1500), so the
-  BUILD button of the first mine is disabled for the first few seconds of income. The `build-mine`
-  hint then points at the row, which shows the price and the reason.
+  first mine cannot be picked for the first few seconds of income (its row only opens the info
+  box with the reason). The `build-mine` hint then points at the row, which shows the price.
 - One small fleet (2 scouts + 1 fighter) sits next to the homeworld. All star systems are visible;
   grid cells, enemy fleets and foreign planet details are fogged.
 - Time runs in real time. AIs do not attack the player for the first 4 minutes (opening grace), so
@@ -106,7 +106,7 @@ overlay shows the first candidate whose anchor is registered and on screen.
 | `resources` | header resource bar | game unpaused, or closed |
 | `time` | play / speed buttons | game unpaused (not on the battle screen), or closed |
 | `build-tab` | BUILD tab | BUILD tab opened, or a Mining Complex exists |
-| `build-mine` | Mining Complex BUILD button (row expanded and affordable), else its row | picked for placement, or exists |
+| `build-mine` | Mining Complex BUILD button (row expanded while it was still unaffordable, now affordable), else its row; clicking an affordable row picks it at once | picked for placement, or exists |
 | `place-mine` | placement BUILD button, else the marked cell where the mine fits | a Mining Complex exists |
 | `construction` | the "Under construction" list (while sites exist) | a Mining Complex or Spaceship Factory is complete |
 | `build-factory` | Spaceship Factory BUILD button / row (once a Mining Complex exists) | picked, or exists |

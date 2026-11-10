@@ -178,16 +178,23 @@ default; the collapsed ones are remembered per browser in localStorage
 closes an info box open inside it.
 
 The list stays one compact row per building (name, price, energy,
-comfort). Clicking a row does not start placement: it opens an info box
-directly under the row (one at a time; clicking the row again closes it).
-The box's BUILD button starts placement. Content comes from
-`building-info.ts` (`describeBuilding`):
+comfort). Clicking a row opens an info box directly under the row (one at
+a time; clicking the row again closes it) and, when the building can be
+built here, starts placement at once: there is no extra click. While
+placing, the list stays visible and the open box holds the placement
+controls (the "click a cell" hint, then the confirm BUILD button or the
+placement error, and CANCEL). Clicking another row switches placement to
+that building; closing the box, CANCEL, confirming, switching tab or
+planet ends placement. Content comes from `building-info.ts`
+(`describeBuilding`):
 
 - **Every row opens:** locked, unaffordable and site-blocked buildings can be
-  inspected too. Their BUILD button is disabled and the reason is shown
-  under it (`getBuildBlocker`: not researched, already built / limit
-  reached, no or depleted deposit, not enough credits or raw materials).
-  A box opened near the bottom of the list is scrolled into view.
+  inspected too. They do not start placement; the box shows a disabled
+  BUILD button with the reason under it (`getBuildBlocker`: not
+  researched, already built / limit reached, no or depleted deposit, not
+  enough credits or raw materials). If the block goes away while the box
+  is open (income arrives), that BUILD button becomes active and starts
+  placement. A box opened near the bottom of the list is scrolled into view.
 - **Build time:** the box shows "Build time here" at this planet's construction speed ([Construction](./planet-construction.md#rules)).
 - **Content:** category (from `role`), a hand-written one-line summary per
   building id, effect lines derived from `planet-data.json` (housing,
