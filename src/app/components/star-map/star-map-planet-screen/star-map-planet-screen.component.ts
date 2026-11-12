@@ -648,65 +648,9 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
     return this.gridSize + this.margin * 2;
   }
 
-  /*
-   * Ground plane frame: the part of the world (cells) the tilted ground plane
-   * covers. It is not the whole world: the margin around the grid is drawn
-   * by the baked terrain canvas, so the plane only needs the grid, the
-   * settlement's soft edges and the access road (see refreshScene). A
-   * world-sized plane was a ~4x larger tilted GPU layer, re-rasterized with
-   * its SVG blur filters on every zoom and repaint.
-   *
-   * Invariant: the plane still rotates around the world center (its
-   * transform-origin is the world center in the frame's own coordinates) and
-   * the SVG viewBox is the frame, so every world point lands on exactly the
-   * same screen position as with a world-sized plane; project() and the
-   * terrain renderer rely on that mapping.
-   */
-  groundFrame = { x: 0, y: 0, w: 0, h: 0 };
-
-  get groundStyle(): { left: number; top: number; width: number; height: number; origin: string } {
-    const c = this.worldSize / 2;
-    const f = this.groundFrame;
-    return {
-      left: (f.x - c) * this.cellVw,
-      top: (f.y - c) * this.cellVw,
-      width: f.w * this.cellVw,
-      height: f.h * this.cellVw,
-      origin: `${(c - f.x) * this.cellVw}vw ${(c - f.y) * this.cellVw}vw`,
-    };
-  }
-
-  get groundViewBox(): string {
-    const f = this.groundFrame;
-    return `${f.x} ${f.y} ${f.w} ${f.h}`;
-  }
-
-  /*
-   * Grid plus GROUND_PAD cells on every side (developed-ground blur, ore
-   * glows, curbs), grown to include the access road, clamped to the world.
-   */
-  private computeGroundFrame(): { x: number; y: number; w: number; h: number } {
-    const GROUND_PAD = 1.5;
-    const m = this.margin;
-    let x0 = m - GROUND_PAD;
-    let y0 = m - GROUND_PAD;
-    let x1 = m + this.gridSize + GROUND_PAD;
-    let y1 = m + this.gridSize + GROUND_PAD;
-    for (const road of this.settlement.accessRoads) {
-      const nums = (road.d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number);
-      for (let k = 0; k + 1 < nums.length; k += 2) {
-        x0 = Math.min(x0, nums[k] - 1);
-        x1 = Math.max(x1, nums[k] + 1);
-        y0 = Math.min(y0, nums[k + 1] - 1);
-        y1 = Math.max(y1, nums[k + 1] + 1);
-      }
-    }
-    const s = this.worldSize;
-    x0 = Math.max(0, x0);
-    y0 = Math.max(0, y0);
-    x1 = Math.min(s, x1);
-    y1 = Math.min(s, y1);
-    return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+  /* World side in vw at zoom 1 (layout size of the ground plane). */
+  get worldVw(): number {
+    return this.worldSize * this.cellVw;
   }
 
   get hazeColor(): string {
@@ -1311,7 +1255,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       this.sprites = [];
       this.settlement = EMPTY_SETTLEMENT;
       this.zoneOutline = '';
-      this.groundFrame = this.computeGroundFrame();
       return;
     }
     const mask = getBlockedMask(planet);
@@ -1324,7 +1267,6 @@ export class StarMapPlanetScreenComponent implements AfterViewInit, OnChanges, O
       terrain ? (u, v) => terrain.isOpenLand(u, v) : undefined,
     );
     this.zoneOutline = this.computeZoneOutline(mask);
-    this.groundFrame = this.computeGroundFrame();
     this.updateSprites();
   }
 

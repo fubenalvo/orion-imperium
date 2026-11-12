@@ -85,12 +85,10 @@
  * maps world (u, v) to screen ((u - v)/√2, (u + v)/(2√2)) — the renderer and
  * the sprite projection in the component use exactly this mapping, so the
  * three layers stay aligned. Changing the angles here breaks that contract.
- * The plane covers only groundFrame (grid + access road), and its inline
- * transform-origin is the world center, so the mapping matches a
- * world-sized plane rotated around its center.
  */
 .planet-surface__ground {
   position: absolute;
+  transform-origin: center center;
   transform: rotateX(60deg) rotateZ(45deg);
 }
 

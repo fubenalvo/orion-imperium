@@ -43,18 +43,16 @@
             [style.height.vw]="terrainBox?.height ?? 0"
           ></div>
 
-          @let ground = groundStyle;
           <div
             class="planet-surface__ground"
-            [style.width.vw]="ground.width"
-            [style.height.vw]="ground.height"
-            [style.left.vw]="ground.left"
-            [style.top.vw]="ground.top"
-            [style.transform-origin]="ground.origin"
+            [style.width.vw]="worldVw"
+            [style.height.vw]="worldVw"
+            [style.left.vw]="-worldVw / 2"
+            [style.top.vw]="-worldVw / 2"
           >
             <svg
               class="planet-surface__settlement"
-              [attr.viewBox]="groundViewBox"
+              [attr.viewBox]="'0 0 ' + worldSize + ' ' + worldSize"
               preserveAspectRatio="none"
               aria-hidden="true"
             >
@@ -171,8 +169,8 @@
 
             <div
               class="planet-surface__grid"
-              [style.left.vw]="(margin - groundFrame.x) * cellVw"
-              [style.top.vw]="(margin - groundFrame.y) * cellVw"
+              [style.left.vw]="margin * cellVw"
+              [style.top.vw]="margin * cellVw"
               [style.grid-template-columns]="gridTemplateColumns"
               [style.grid-template-rows]="gridTemplateColumns"
             >
