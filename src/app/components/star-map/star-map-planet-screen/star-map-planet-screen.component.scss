@@ -1,6 +1,5 @@
 @use 'ui';
 @use 'sass:list';
-@use 'sass:math';
 
 .planet-screen {
   position: absolute;
@@ -578,32 +577,6 @@
 }
 
 /*
- * Screen-space scrolling texture loop, shared by the atmosphere cloud shadows
- * and the weather layers. A tile of $w x $h is moved by ($nx, $ny) whole
- * tiles per loop (signed, positive = right / down), so the loop is seamless.
- * The layer extends past the viewport only on the sides the texture scrolls
- * in from, by exactly the travel, which is the minimum that keeps the
- * viewport covered.
- *
- * Keep tiles small: every layer is its own GPU texture at the device pixel
- * ratio. The former layers, padded by up to 2 viewports on every side, ran
- * phones out of tile memory and made the planet view flicker.
- *
- * The loop speed is the travel divided by the animation duration, so a new
- * tile size or tile count needs a matching duration to keep the speed.
- * Pair with `animation: wx-scroll ...` (reads --dx / --dy).
- */
-@mixin wx-tile($w, $h, $nx, $ny: 0) {
-  background-size: $w $h;
-  top: -1 * $h * math.max($ny, 0);
-  bottom: -1 * $h * math.max(-1 * $ny, 0);
-  left: -1 * $w * math.max($nx, 0);
-  right: -1 * $w * math.max(-1 * $nx, 0);
-  --dx: #{$w * $nx};
-  --dy: #{$h * $ny};
-}
-
-/*
  * Atmosphere over the scene (screen space, never intercepts input):
  * drifting cloud shadows plus a vignette that melts the view edges into the
  * planet's haze.
@@ -612,7 +585,6 @@
   position: absolute;
   inset: 0;
   z-index: 10;
-  overflow: hidden;
   pointer-events: none;
   background: radial-gradient(
     ellipse at 50% 50%,
@@ -621,18 +593,26 @@
     color-mix(in srgb, var(--surface-haze) 55%, #02060c 45%) 100%
   );
 
-  /* Scrolled by a compositor transform, never by background-position,
-     which repainted the whole view every frame. */
   &::before {
     content: '';
     position: absolute;
+    inset: 0;
     background-image: url('planet-clouds.png');
+    background-size: 70vw 70vw;
     background-repeat: repeat;
-    @include wx-tile(40vw, 40vw, -2, 1);
     opacity: 0.16;
     mix-blend-mode: multiply;
-    will-change: transform;
-    animation: wx-scroll 68s linear infinite;
+    animation: cloud-scroll 60s linear infinite;
+  }
+}
+
+@keyframes cloud-scroll {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: -70vw 35vw;
   }
 }
 
@@ -641,9 +621,12 @@
  * type through [data-weather] (earthlike clouds, marslike dust storm,
  * venuslike ash and embers, ice snowfall, desert sand and glare, gasgiant
  * cloud bands and lightning). Pure CSS so it costs no change detection.
- * Scrolling layers are small tiled loops (wx-tile); transform-only animation
- * keeps them on the compositor. Particles are soft radial-gradient dots
- * placed inside one tile.
+ *
+ * Seamless loops: a scrolling layer is oversized by --pad on every side and
+ * translated by (--dx, --dy), which must be whole multiples of its tile
+ * (background-size), and --pad must be >= |dx| and |dy| so the viewport stays
+ * covered. Transform-only animation keeps the layers on the compositor.
+ * Particles are soft radial-gradient dots placed inside one tile.
  */
 $wx-pts-a: 7% 12%, 23% 64%, 38% 28%, 52% 86%, 64% 45%, 79% 9%, 91% 71%, 15% 92%;
 $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
@@ -665,13 +648,14 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 }
 
 .wx {
+  --pad: 0px;
   --dx: 0px;
   --dy: 0px;
   --dur: 60s;
   --lo: 0.4;
   --hi: 1;
   position: absolute;
-  inset: 0;
+  inset: calc(-1 * var(--pad));
   opacity: 0;
   background-repeat: repeat;
   will-change: transform;
@@ -679,9 +663,9 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 }
 
 /* Cloud texture layer; tinted per planet with filters. */
-@mixin wx-clouds($w, $h, $nx, $ny: 0) {
+@mixin wx-clouds($w, $h: $w) {
   background-image: url('planet-clouds.png');
-  @include wx-tile($w, $h, $nx, $ny);
+  background-size: $w $h;
 }
 
 @mixin wx-static {
@@ -693,24 +677,32 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 /* Earthlike: two white cloud decks plus shadows that track the lower deck. */
 [data-weather='earthlike'] {
   .wx--a {
-    @include wx-clouds(40vw, 40vw, -1, 1);
-    --dur: 67s;
+    @include wx-clouds(90vw);
+    --pad: 90vw;
+    --dx: -90vw;
+    --dy: 90vw;
+    --dur: 150s;
     opacity: 0.55;
     filter: brightness(1.8);
   }
 
   .wx--b {
-    @include wx-clouds(60vw, 60vw, -1);
-    --dur: 92s;
+    @include wx-clouds(150vw);
+    --pad: 150vw;
+    --dx: -150vw;
+    --dur: 230s;
     opacity: 0.32;
     filter: brightness(1.7) blur(2px);
   }
 
   /* Same tile and timing as .wx--a, offset down-right: the cloud shadows. */
   .wx--c {
-    @include wx-clouds(40vw, 40vw, -1, 1);
-    --dur: 67s;
-    background-position: 2vw 2.5vw;
+    @include wx-clouds(90vw);
+    --pad: 90vw;
+    --dx: -90vw;
+    --dy: 90vw;
+    --dur: 150s;
+    background-position: 5vw 6vw;
     opacity: 0.32;
     filter: brightness(0) blur(5px);
   }
@@ -719,8 +711,10 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 /* Marslike: a gusting rust dust storm with fast horizontal grit. */
 [data-weather='marslike'] {
   .wx--a {
-    @include wx-clouds(35vw, 35vw, -1);
-    --dur: 8s;
+    @include wx-clouds(70vw);
+    --pad: 140vw;
+    --dx: -140vw;
+    --dur: 32s;
     --lo: 0.25;
     --hi: 0.72;
     filter: sepia(1) saturate(2.6) hue-rotate(-18deg) brightness(0.95);
@@ -731,7 +725,10 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 
   .wx--b {
     background-image: wx-dots(ellipse 14px 1.8px, (rgba(236, 160, 100, 0.9), transparent), $wx-pts-a);
-    @include wx-tile(220px, 220px, -2, 1);
+    background-size: 220px 220px;
+    --pad: 440px;
+    --dx: -440px;
+    --dy: 220px;
     --dur: 3.5s;
     --lo: 0.55;
     --hi: 1;
@@ -747,8 +744,10 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
       rgba(215, 115, 55, 0.48) 50%,
       rgba(190, 90, 40, 0)
     );
-    @include wx-tile(100vw, 100%, -1);
-    --dur: 9s;
+    background-size: 200vw 100%;
+    --pad: 200vw;
+    --dx: -200vw;
+    --dur: 18s;
     opacity: 0.9;
   }
 }
@@ -757,14 +756,20 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 [data-weather='venuslike'] {
   .wx--a {
     background-image: wx-dots(circle 2.4px, (rgba(70, 64, 62, 1), transparent), $wx-pts-a);
-    @include wx-tile(180px, 180px, -1, 2);
+    background-size: 180px 180px;
+    --pad: 360px;
+    --dx: -180px;
+    --dy: 360px;
     --dur: 20s;
     opacity: 1;
   }
 
   .wx--b {
     background-image: wx-dots(circle 3px, (#fff6d0, #ff8a2a 40%, transparent), $wx-pts-b);
-    @include wx-tile(240px, 240px, 1, -2);
+    background-size: 240px 240px;
+    --pad: 480px;
+    --dx: 240px;
+    --dy: -480px;
     --dur: 13s;
     --lo: 0.45;
     --hi: 1;
@@ -790,14 +795,20 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 [data-weather='ice'] {
   .wx--a {
     background-image: wx-dots(circle 1.9px, (#fff, transparent), $wx-pts-a);
-    @include wx-tile(160px, 160px, 1, 3);
+    background-size: 160px 160px;
+    --pad: 480px;
+    --dx: 160px;
+    --dy: 480px;
     --dur: 24s;
     opacity: 0.95;
   }
 
   .wx--b {
     background-image: wx-dots(circle 4px, (#fff, rgba(255, 255, 255, 0.6) 40%, transparent), $wx-pts-b);
-    @include wx-tile(300px, 300px, -1, 3);
+    background-size: 300px 300px;
+    --pad: 900px;
+    --dx: -300px;
+    --dy: 900px;
     --dur: 15s;
     opacity: 1;
   }
@@ -815,7 +826,10 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 [data-weather='desert'] {
   .wx--a {
     background-image: wx-dots(ellipse 10px 1.5px, (rgba(245, 210, 150, 1), transparent), $wx-pts-b);
-    @include wx-tile(260px, 260px, -2, 1);
+    background-size: 260px 260px;
+    --pad: 520px;
+    --dx: -520px;
+    --dy: 260px;
     --dur: 6s;
     --lo: 0.35;
     --hi: 0.85;
@@ -834,8 +848,10 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
   }
 
   .wx--c {
-    @include wx-clouds(50vw, 50vw, -1);
-    --dur: 37s;
+    @include wx-clouds(120vw);
+    --pad: 120vw;
+    --dx: -120vw;
+    --dur: 90s;
     opacity: 0.28;
     filter: sepia(1) saturate(1.8) brightness(1.1);
   }
@@ -844,15 +860,19 @@ $wx-pts-b: 4% 41%, 18% 7%, 33% 79%, 47% 52%, 58% 17%, 72% 93%, 86% 36%, 95% 62%;
 /* Gas giant: counter-flowing cloud bands and occasional lightning. */
 [data-weather='gasgiant'] {
   .wx--a {
-    @include wx-clouds(50vw, 25vw, -1);
-    --dur: 22s;
+    @include wx-clouds(80vw, 40vw);
+    --pad: 160vw;
+    --dx: -160vw;
+    --dur: 70s;
     opacity: 0.55;
     filter: sepia(0.7) saturate(1.6) hue-rotate(-20deg);
   }
 
   .wx--b {
-    @include wx-clouds(60vw, 27vw, 1);
-    --dur: 33s;
+    @include wx-clouds(110vw, 50vw);
+    --pad: 110vw;
+    --dx: 110vw;
+    --dur: 55s;
     opacity: 0.38;
     filter: sepia(0.4) brightness(0.8) blur(1px);
   }
