@@ -146,18 +146,22 @@
   filter: saturate(1.8);
 }
 
-.nebula__halo {
-  opacity: 0.05;
+/* Gradient blob overlay at low opacity, combined with the detailed gas texture. */
+.nebula {
+  opacity: 0.3;
 }
 
-/* The flat glow is now only the base light; the gas texture carries the
-   detail, so the body is much fainter than before. */
-.nebula__body {
+.nebula__halo {
   opacity: 0.16;
 }
 
+/* Dense base glow of the gradient blob, faded by the parent opacity. */
+.nebula__body {
+  opacity: 0.4;
+}
+
 .nebula__core {
-  opacity: 0.14;
+  opacity: 0.32;
 }
 
 /* Gas structure: an isolated group (it is masked) screened over the glow,
